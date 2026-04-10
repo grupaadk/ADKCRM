@@ -1,0 +1,2721 @@
+"use client";
+
+import { useState, useCallback, useMemo } from "react";
+import { useQuery, useMutation, useAction } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import Link from "next/link";
+import type { Id } from "@/convex/_generated/dataModel";
+
+type Tab = "google-drive" | "jotform" | "trello" | "szablony" | "sms";
+
+const EMPTY_TEMPLATE = {
+  type: "custom",
+  key: "",
+  name: "",
+  googleDriveFileId: "",
+  fileNamePattern: "",
+};
+
+const TEMPLATE_TYPES = [
+  ["pomiar", "pomiar", "Pomiar", "Pomiar_{{firstName}}_{{lastName}}_{{city}}"],
+  ["umowa", "umowa", "Umowa", "Umowa_{{firstName}}_{{lastName}}_{{city}}"],
+  [
+    "gwarancja_alco",
+    "gwarancja_alco",
+    "Gwarancja ALCO",
+    "ALCO_karta_gwarancyjna_{{firstName}}_{{lastName}}_{{city}}",
+  ],
+  [
+    "rekojmia_adk",
+    "rekojmia_adk",
+    "Rekojmia ADK",
+    "ADK_rekojmia_{{firstName}}_{{lastName}}_{{city}}",
+  ],
+  [
+    "odbior_inwestor",
+    "odbior_inwestor",
+    "Odbior inwestor",
+    "Odbior_{{firstName}}_{{lastName}}_{{city}}",
+  ],
+  [
+    "protokol_montaz",
+    "protokol_montaz",
+    "Protokol montazu",
+    "OdMontazysty_{{firstName}}_{{lastName}}_{{city}}",
+  ],
+  [
+    "faktura",
+    "faktura",
+    "Faktura",
+    "Faktura_{{firstName}}_{{lastName}}_{{city}}",
+  ],
+  [
+    "reklamacja",
+    "reklamacja",
+    "Reklamacja",
+    "Reklamacja_{{firstName}}_{{lastName}}_{{city}}",
+  ],
+  ["custom", "", "Inny / wlasny", ""],
+] as const;
+
+const siteUrl =
+  process.env.NEXT_PUBLIC_CONVEX_URL?.replace(".cloud", ".site") ?? "";
+
+// --- Status indicator component ---
+
+function StatusDot({ status }: { status: string | undefined }) {
+  switch (status) {
+    case "connected":
+      return (
+        <span
+          className="inline-block w-3 h-3 rounded-full bg-green-500"
+          title="Polaczono"
+        />
+      );
+    case "token_expiring":
+      return (
+        <span
+          className="inline-block w-3 h-3 rounded-full bg-yellow-500"
+          title="Token wygasa"
+        />
+      );
+    case "expired":
+    case "refresh_failed":
+      return (
+        <span
+          className="inline-block w-3 h-3 rounded-full bg-red-500"
+          title="Token wygasl"
+        />
+      );
+    case "disconnected":
+      return (
+        <span
+          className="inline-block w-3 h-3 rounded-full bg-slate-400"
+          title="Rozlaczono"
+        />
+      );
+    case "error":
+      return (
+        <span className="text-red-500 font-bold text-sm" title="Blad">
+          ✕
+        </span>
+      );
+    default:
+      return (
+        <span
+          className="inline-block w-3 h-3 rounded-full bg-slate-300"
+          title="Nieznany"
+        />
+      );
+  }
+}
+
+// --- Relative time helper ---
+
+function formatRelativeTime(timestamp: number): string {
+  const now = Date.now();
+  const diff = timestamp - now;
+  const absDiff = Math.abs(diff);
+
+  const minutes = Math.floor(absDiff / 60000);
+  const hours = Math.floor(absDiff / 3600000);
+
+  if (diff > 0) {
+    // Future
+    if (hours > 0) return `za ${hours} godz. ${minutes % 60} min`;
+    return `za ${minutes} min`;
+  }
+  // Past
+  if (hours > 0) return `${hours} godz. ${minutes % 60} min temu`;
+  if (minutes > 0) return `${minutes} min temu`;
+  return "przed chwila";
+}
+
+function formatDateTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleString("pl-PL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function getDriveStatusMeta(status: string | undefined) {
+  switch (status) {
+    case "connected":
+      return {
+        label: "Polaczono",
+        tone: "bg-green-50 text-green-700 border-green-200",
+        hint: "Google Drive jest gotowy do tworzenia folderow i dokumentow.",
+      };
+    case "token_expiring":
+      return {
+        label: "Token wygasa",
+        tone: "bg-amber-50 text-amber-700 border-amber-200",
+        hint: "Token wciaz dziala, ale powinien zostac odswiezony.",
+      };
+    case "refreshing":
+      return {
+        label: "Odswiezanie tokenu",
+        tone: "bg-blue-50 text-blue-700 border-blue-200",
+        hint: "Trwa automatyczne odnawianie dostepu do Google Drive.",
+      };
+    case "expired":
+      return {
+        label: "Token wygasl",
+        tone: "bg-amber-50 text-amber-700 border-amber-200",
+        hint: "Dostep wygasl. Odswiez token lub polacz konto ponownie.",
+      };
+    case "refresh_failed":
+      return {
+        label: "Wymaga ponownego polaczenia",
+        tone: "bg-red-50 text-red-700 border-red-200",
+        hint: "Refresh token nie zadzialal. Najpewniej trzeba polaczyc konto od nowa.",
+      };
+    case "error":
+      return {
+        label: "Blad polaczenia",
+        tone: "bg-red-50 text-red-700 border-red-200",
+        hint: "Google Drive zwrocil blad. Sprawdz polaczenie i uprawnienia.",
+      };
+    default:
+      return {
+        label: "Nieznany stan",
+        tone: "bg-slate-50 text-slate-700 border-slate-200",
+        hint: "Stan polaczenia nie zostal jeszcze okreslony.",
+      };
+  }
+}
+
+// --- Google Drive Tab ---
+
+function GoogleDriveTab() {
+  const connection = useQuery(api.googleDrive.getConnectionStatus);
+  const disconnect = useMutation(api.googleDrive.disconnect);
+  const healthCheck = useAction(api.googleDrive.healthCheck);
+  const refreshAccessToken = useAction(api.googleDrive.refreshAccessToken);
+  const listDrives = useAction(api.googleDrive.listSharedDrives);
+  const listFolders = useAction(api.googleDrive.listFolders);
+  const saveSharedDriveConfig = useMutation(
+    api.googleDrive.saveSharedDriveConfig,
+  );
+
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthResult, setHealthResult] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [drives, setDrives] = useState<Array<{
+    id: string;
+    name: string;
+  }> | null>(null);
+  const [drivesLoading, setDrivesLoading] = useState(false);
+  const [templateFolders, setTemplateFolders] = useState<Array<{
+    id: string;
+    name: string;
+  }> | null>(null);
+  const [foldersLoading, setFoldersLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [notice, setNotice] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [sharedDriveIdInput, setSharedDriveIdInput] = useState<string>();
+  const [templateFolderIdInput, setTemplateFolderIdInput] = useState<string>();
+
+  const effectiveSharedDriveId =
+    sharedDriveIdInput ?? connection?.sharedDriveId ?? "";
+  const effectiveTemplateFolderId =
+    templateFolderIdInput ?? connection?.templatesFolderId ?? "";
+
+  const driveStatus = getDriveStatusMeta(connection?.connectionStatus);
+
+  const selectedDriveName = useMemo(
+    () => drives?.find((drive) => drive.id === effectiveSharedDriveId)?.name,
+    [drives, effectiveSharedDriveId],
+  );
+
+  const selectedTemplateFolderName = useMemo(
+    () =>
+      templateFolders?.find((folder) => folder.id === effectiveTemplateFolderId)
+        ?.name,
+    [templateFolders, effectiveTemplateFolderId],
+  );
+
+  const handleHealthCheck = useCallback(async () => {
+    setHealthLoading(true);
+    setHealthResult(null);
+    setNotice(null);
+    try {
+      const result = await healthCheck();
+      setHealthResult(
+        result.status === "connected"
+          ? "Polaczenie dziala poprawnie"
+          : (result.error ?? `Status polaczenia: ${result.status}`),
+      );
+    } catch (error: unknown) {
+      setHealthResult(`Blad: ${getErrorMessage(error, "Nieznany blad")}`);
+    } finally {
+      setHealthLoading(false);
+    }
+  }, [healthCheck]);
+
+  const handleDisconnect = useCallback(async () => {
+    if (!confirm("Czy na pewno chcesz rozlaczyc Google Drive?")) return;
+    setDisconnecting(true);
+    setNotice(null);
+    try {
+      await disconnect();
+      setNotice({ type: "success", text: "Google Drive zostal rozlaczony." });
+    } catch (error: unknown) {
+      setNotice({
+        type: "error",
+        text: `Blad rozlaczania: ${getErrorMessage(error, "Nieznany blad")}`,
+      });
+    } finally {
+      setDisconnecting(false);
+    }
+  }, [disconnect]);
+
+  const handleLoadDrives = useCallback(async () => {
+    setDrivesLoading(true);
+    setNotice(null);
+    try {
+      const result = await listDrives();
+      setDrives(Array.isArray(result) ? result : []);
+    } catch (error: unknown) {
+      setNotice({
+        type: "error",
+        text: `Blad ladowania dyskow: ${getErrorMessage(error, "Nieznany blad")}`,
+      });
+    } finally {
+      setDrivesLoading(false);
+    }
+  }, [listDrives]);
+
+  const handleConnect = () => {
+    const authUrl = `${siteUrl}/api/google-drive/auth`;
+    window.open(authUrl, "_blank");
+  };
+
+  const handleLoadTemplateFolders = useCallback(async () => {
+    if (!connection?.sharedDriveId) return;
+
+    setFoldersLoading(true);
+    setNotice(null);
+    try {
+      const result = await listFolders({ driveId: connection.sharedDriveId });
+      setTemplateFolders(Array.isArray(result) ? result : []);
+    } catch (error: unknown) {
+      setNotice({
+        type: "error",
+        text: `Blad folderow: ${getErrorMessage(error, "Nieznany blad")}`,
+      });
+    } finally {
+      setFoldersLoading(false);
+    }
+  }, [connection?.sharedDriveId, listFolders]);
+
+  const handleRefreshToken = useCallback(async () => {
+    setRefreshing(true);
+    setNotice(null);
+    try {
+      await refreshAccessToken();
+      setNotice({
+        type: "success",
+        text: "Token Google Drive zostal odswiezony.",
+      });
+    } catch (error: unknown) {
+      setNotice({
+        type: "error",
+        text: `Blad odswiezania: ${getErrorMessage(error, "Nieznany blad")}`,
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshAccessToken]);
+
+  const handleSaveSharedDrive = useCallback(async () => {
+    if (!effectiveSharedDriveId.trim()) return;
+    setNotice(null);
+    try {
+      await saveSharedDriveConfig({
+        sharedDriveId: effectiveSharedDriveId.trim(),
+      });
+      setSharedDriveIdInput(undefined);
+      setNotice({ type: "success", text: "Dysk wspoldzielony zapisany." });
+    } catch (error: unknown) {
+      setNotice({
+        type: "error",
+        text: `Blad zapisu dysku: ${getErrorMessage(error, "Nieznany blad")}`,
+      });
+    }
+  }, [effectiveSharedDriveId, saveSharedDriveConfig]);
+
+  const handleSaveTemplatesFolder = useCallback(async () => {
+    if (!effectiveTemplateFolderId.trim()) return;
+    setNotice(null);
+    try {
+      await saveSharedDriveConfig({
+        templatesFolderId: effectiveTemplateFolderId.trim(),
+      });
+      setTemplateFolderIdInput(undefined);
+      setNotice({ type: "success", text: "Folder szablonow zapisany." });
+    } catch (error: unknown) {
+      setNotice({
+        type: "error",
+        text: `Blad zapisu folderu: ${getErrorMessage(error, "Nieznany blad")}`,
+      });
+    }
+  }, [effectiveTemplateFolderId, saveSharedDriveConfig]);
+
+  // Loading state
+  if (connection === undefined) {
+    return (
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-4 bg-slate-200 rounded w-1/3" />
+          <div className="h-4 bg-slate-200 rounded w-1/2" />
+          <div className="h-10 bg-slate-200 rounded w-48" />
+        </div>
+      </div>
+    );
+  }
+
+  // Not connected state
+  if (!connection || connection.connectionStatus === "disconnected") {
+    return (
+      <div className="bg-white rounded-lg border border-slate-200 p-8">
+        <div className="text-center max-w-md mx-auto">
+          <div className="mb-4">
+            <svg
+              className="mx-auto h-16 w-16 text-slate-300"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+              />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">
+            Google Drive nie jest polaczony
+          </h3>
+          <p className="text-sm text-slate-500 mb-6">
+            Polacz konto Google Drive, aby generowac dokumenty i przechowywac
+            pliki klientow automatycznie.
+          </p>
+          <button
+            onClick={handleConnect}
+            className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12.545 10.239v3.821h5.445c-.712 2.315-2.647 3.972-5.445 3.972a6.033 6.033 0 110-12.064c1.498 0 2.866.549 3.921 1.453l2.814-2.814A9.969 9.969 0 0012.545 2C7.021 2 2.543 6.477 2.543 12s4.478 10 10.002 10c8.396 0 10.249-7.85 9.426-11.748l-9.426-.013z" />
+            </svg>
+            Polacz z Google Drive
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Connected state
+  return (
+    <div className="space-y-4">
+      {notice && (
+        <div
+          className={`rounded-lg border p-4 text-sm ${
+            notice.type === "success"
+              ? "border-green-200 bg-green-50 text-green-700"
+              : "border-red-200 bg-red-50 text-red-700"
+          }`}
+        >
+          {notice.text}
+        </div>
+      )}
+
+      {/* Connection status card */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-6">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <StatusDot status={connection.connectionStatus} />
+              <h3 className="text-base font-semibold text-slate-900">
+                {driveStatus.label}
+              </h3>
+            </div>
+            <div
+              className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${driveStatus.tone}`}
+            >
+              {driveStatus.hint}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleHealthCheck}
+              disabled={healthLoading}
+              className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {healthLoading ? "Sprawdzanie..." : "Testuj polaczenie"}
+            </button>
+            <button
+              onClick={handleRefreshToken}
+              disabled={refreshing}
+              className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {refreshing ? "Odswiezanie..." : "Odnów token"}
+            </button>
+            <button
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              className="inline-flex items-center gap-2 rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              {disconnecting ? "Rozlaczanie..." : "Rozlacz"}
+            </button>
+          </div>
+        </div>
+
+        <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+          <div>
+            <dt className="text-slate-500">Email</dt>
+            <dd className="text-slate-900 font-medium mt-0.5">
+              {connection.connectedEmail}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Polaczony przez</dt>
+            <dd className="text-slate-900 font-medium mt-0.5 font-mono text-xs">
+              {connection.connectedBy}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Waznosc tokenu</dt>
+            <dd className="text-slate-900 font-medium mt-0.5">
+              {connection.expiresAt
+                ? formatRelativeTime(connection.expiresAt)
+                : "Brak danych"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Ostatni health check</dt>
+            <dd className="text-slate-900 font-medium mt-0.5">
+              {connection.lastCheckedAt
+                ? formatDateTime(connection.lastCheckedAt)
+                : "Nigdy"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Dysk wspoldzielony</dt>
+            <dd className="text-slate-900 font-medium mt-0.5 break-all">
+              {selectedDriveName ?? connection.sharedDriveId ?? "Nie wybrano"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Folder szablonow</dt>
+            <dd className="text-slate-900 font-medium mt-0.5 break-all">
+              {selectedTemplateFolderName ??
+                connection.templatesFolderId ??
+                "Nie skonfigurowano"}
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      {/* Folder browser */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-900">
+              Konfiguracja folderow
+            </h4>
+            <p className="mt-1 text-xs text-slate-500">
+              Wybierz dysk wspoldzielony dla klientow i folder, z ktorego
+              aplikacja ma pobierac szablony.
+            </p>
+          </div>
+        </div>
+
+        {/* Folder klientów */}
+        <div className="mb-6 rounded-lg border border-slate-200 p-4">
+          <label className="block text-sm text-slate-500 mb-1">
+            Dysk wspoldzielony klientow
+          </label>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-mono text-slate-600">
+              {effectiveSharedDriveId || "Brak ID dysku"}
+            </span>
+            {selectedDriveName && (
+              <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                {selectedDriveName}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={handleLoadDrives}
+              disabled={drivesLoading}
+              className="text-xs text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+            >
+              {drivesLoading ? "Ladowanie dyskow..." : "Pobierz dyski"}
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={effectiveSharedDriveId}
+              onChange={(e) => setSharedDriveIdInput(e.target.value)}
+              placeholder="ID dysku lub folderu glównego klientow"
+              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={handleSaveSharedDrive}
+              disabled={!effectiveSharedDriveId.trim()}
+              className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              Zapisz
+            </button>
+          </div>
+          {drives && drives.length > 0 && (
+            <select
+              className="mt-2 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              value={effectiveSharedDriveId}
+              onChange={(e) => {
+                setSharedDriveIdInput(e.target.value);
+              }}
+            >
+              <option value="">Wybierz dysk...</option>
+              {drives.map((d: { id: string; name: string }) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {drives && drives.length === 0 && (
+            <p className="mt-2 text-xs text-slate-400">
+              Nie znaleziono dyskow wspoldzielonych. Mozesz zapisac ID recznie.
+            </p>
+          )}
+        </div>
+
+        {/* Folder szablonów */}
+        <div className="rounded-lg border border-slate-200 p-4">
+          <label className="block text-sm text-slate-500 mb-1">
+            Folder szablonow dokumentow
+          </label>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-mono text-slate-600">
+              {effectiveTemplateFolderId || "Brak ID folderu"}
+            </span>
+            {selectedTemplateFolderName && (
+              <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                {selectedTemplateFolderName}
+              </span>
+            )}
+          </div>
+          <div className="mt-2 flex gap-2">
+            <input
+              type="text"
+              placeholder="ID folderu szablonow"
+              value={effectiveTemplateFolderId}
+              onChange={(e) => setTemplateFolderIdInput(e.target.value)}
+              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={handleSaveTemplatesFolder}
+              disabled={!effectiveTemplateFolderId.trim()}
+              className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              Zapisz
+            </button>
+            {connection.sharedDriveId && (
+              <button
+                type="button"
+                onClick={handleLoadTemplateFolders}
+                disabled={foldersLoading}
+                className="px-3 py-2 text-sm border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 disabled:opacity-50"
+              >
+                {foldersLoading ? "Ladowanie..." : "Przegladaj foldery"}
+              </button>
+            )}
+          </div>
+          {templateFolders && templateFolders.length > 0 && (
+            <select
+              className="mt-2 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              value={effectiveTemplateFolderId}
+              onChange={(e) => {
+                setTemplateFolderIdInput(e.target.value);
+              }}
+            >
+              <option value="">Wybierz folder szablonow...</option>
+              {templateFolders.map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  {folder.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <p className="text-xs text-slate-400 mt-1">
+            Po zapisaniu tego folderu aplikacja pobiera z niego pliki szablonow
+            dokumentow.
+          </p>
+        </div>
+      </div>
+
+      {/* Health check */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-900">
+              Diagnostyka
+            </h4>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Sprawdz czy polaczenie z Google Drive dziala poprawnie.
+            </p>
+          </div>
+          <button
+            onClick={handleHealthCheck}
+            disabled={healthLoading}
+            className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50"
+          >
+            {healthLoading ? (
+              <>
+                <svg
+                  className="animate-spin h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
+                </svg>
+                Sprawdzanie...
+              </>
+            ) : (
+              "Testuj polaczenie"
+            )}
+          </button>
+        </div>
+        {healthResult && (
+          <div
+            className={`mt-4 p-3 rounded-md text-sm ${
+              healthResult.startsWith("Blad")
+                ? "bg-red-50 text-red-700 border border-red-200"
+                : "bg-green-50 text-green-700 border border-green-200"
+            }`}
+          >
+            {healthResult}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Jotform Tab ---
+
+function JotformTab() {
+  const webhookUrl = `${siteUrl}/api/webhooks/jotform`;
+  const jotformConfig = useQuery(api.jotformAdmin.getConfig);
+  const saveConfig = useMutation(api.jotformAdmin.saveConfig);
+  const registerWebhook = useAction(api.jotformAdmin.registerWebhook);
+  const unregisterWebhook = useAction(api.jotformAdmin.unregisterWebhook);
+  const checkStatus = useAction(api.jotformAdmin.checkWebhookStatus);
+  const testConn = useAction(api.jotformAdmin.testConnection);
+  const encryptApiKey = useAction(api.jotformAdmin.encryptApiKey);
+
+  const [apiKey, setApiKey] = useState("");
+  const [formId, setFormId] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [connUser, setConnUser] = useState<string | null>(null);
+  const hasSavedApiKey = jotformConfig?.hasApiKey ?? false;
+  const effectiveApiKey = apiKey || (hasSavedApiKey ? "********" : "");
+  const effectiveFormId = formId || jotformConfig?.formId || "";
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(webhookUrl);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = webhookUrl;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [webhookUrl]);
+
+  const handleTestConnection = async () => {
+    if (!apiKey.trim()) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const result = await testConn({ apiKey: apiKey.trim() });
+      if (result.success) {
+        setConnUser(result.username ?? null);
+        setMessage({
+          type: "success",
+          text: `Połączono jako: ${result.username ?? "OK"}`,
+        });
+      } else {
+        setMessage({ type: "error", text: result.error ?? "Błąd połączenia" });
+      }
+    } catch (error: unknown) {
+      setMessage({
+        type: "error",
+        text: getErrorMessage(error, "Błąd połączenia"),
+      });
+    }
+    setLoading(false);
+  };
+
+  const handleSave = async () => {
+    const nextFormId = effectiveFormId.trim();
+    if (!nextFormId || (!apiKey.trim() && !hasSavedApiKey)) return;
+    setLoading(true);
+    try {
+      const encryptedApiKey = apiKey.trim()
+        ? await encryptApiKey({ apiKey: apiKey.trim() })
+        : undefined;
+      await saveConfig({ encryptedApiKey, formId: nextFormId });
+      setMessage({ type: "success", text: "Konfiguracja zapisana" });
+      if (apiKey.trim()) {
+        setApiKey("");
+      }
+      if (formId) {
+        setFormId(nextFormId);
+      }
+    } catch (error: unknown) {
+      setMessage({
+        type: "error",
+        text: getErrorMessage(error, "Błąd zapisu"),
+      });
+    }
+    setLoading(false);
+  };
+
+  const handleRegister = async () => {
+    const nextFormId = effectiveFormId.trim();
+    if (!nextFormId || (!apiKey.trim() && !hasSavedApiKey)) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const encryptedApiKey = apiKey.trim()
+        ? await encryptApiKey({ apiKey: apiKey.trim() })
+        : undefined;
+      await saveConfig({ encryptedApiKey, formId: nextFormId });
+      // Zarejestruj webhook (klucz API czytany z bazy)
+      const result = await registerWebhook({
+        formId: nextFormId,
+        webhookUrl,
+      });
+      if (result.success) {
+        setMessage({
+          type: "success",
+          text: "Webhook zarejestrowany w Jotform!",
+        });
+        if (apiKey.trim()) {
+          setApiKey("");
+        }
+        if (formId) {
+          setFormId(nextFormId);
+        }
+      } else {
+        setMessage({
+          type: "error",
+          text: result.error ?? "Nie udało się zarejestrować",
+        });
+      }
+    } catch (error: unknown) {
+      setMessage({
+        type: "error",
+        text: getErrorMessage(error, "Błąd rejestracji webhooka"),
+      });
+    }
+    setLoading(false);
+  };
+
+  const handleUnregister = async () => {
+    const nextFormId = effectiveFormId.trim();
+    if (!nextFormId) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const result = await unregisterWebhook({
+        formId: nextFormId,
+        webhookUrl,
+      });
+      if (result.success) {
+        setMessage({ type: "success", text: "Webhook wyrejestrowany" });
+      } else {
+        setMessage({ type: "error", text: result.error ?? "Błąd" });
+      }
+    } catch (error: unknown) {
+      setMessage({ type: "error", text: getErrorMessage(error, "Błąd") });
+    }
+    setLoading(false);
+  };
+
+  const handleCheckStatus = async () => {
+    const nextFormId = effectiveFormId.trim();
+    if (!nextFormId) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const result = await checkStatus({
+        formId: nextFormId,
+        webhookUrl,
+      });
+      if (result.error) {
+        setMessage({ type: "error", text: result.error });
+      } else {
+        setMessage({
+          type: result.registered ? "success" : "error",
+          text: result.registered
+            ? "Webhook jest aktywny w Jotform"
+            : "Webhook nie jest zarejestrowany w Jotform",
+        });
+      }
+    } catch (error: unknown) {
+      setMessage({ type: "error", text: getErrorMessage(error, "Błąd") });
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Webhook URL */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h3 className="text-base font-semibold text-slate-900 mb-1">
+          Webhook URL
+        </h3>
+        <p className="text-sm text-slate-500 mb-4">
+          Ten URL odbiera dane z formularza Jotform.
+        </p>
+        <div className="flex items-stretch gap-2">
+          <input
+            type="text"
+            readOnly
+            value={webhookUrl}
+            className="flex-1 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-mono text-slate-700 select-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1.5 bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-800 transition-colors shrink-0"
+          >
+            {copied ? "Skopiowano" : "Kopiuj"}
+          </button>
+        </div>
+      </div>
+
+      {/* Automatyczna rejestracja */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h3 className="text-base font-semibold text-slate-900 mb-1">
+          Automatyczna rejestracja webhooka
+        </h3>
+        <p className="text-sm text-slate-500 mb-4">
+          Podaj klucz API Jotform i ID formularza, aby automatycznie
+          zarejestrować webhook.
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Jotform API Key
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={effectiveApiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="Wklej API key z Jotform → Settings → API"
+                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={handleTestConnection}
+                disabled={loading || !apiKey.trim()}
+                className="px-3 py-2 text-sm border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 transition-colors"
+              >
+                Testuj
+              </button>
+            </div>
+            {connUser && (
+              <p className="mt-1 text-xs text-green-600">
+                Połączono jako: {connUser}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              ID formularza
+            </label>
+            <input
+              type="text"
+              value={effectiveFormId}
+              onChange={(e) => setFormId(e.target.value)}
+              placeholder="np. 260517926002047"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              ID formularza &quot;Formularz bezpłatnej wyceny&quot; z PRD:
+              260517926002047
+            </p>
+          </div>
+
+          {/* Status */}
+          {jotformConfig && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 p-3 rounded-md bg-slate-50 border border-slate-200">
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${jotformConfig.hasApiKey ? "bg-green-500" : "bg-gray-400"}`}
+                />
+                <span className="text-sm text-slate-700">
+                  {jotformConfig.hasApiKey
+                    ? "Klucz API zapisany"
+                    : "Klucz API nie skonfigurowany"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 p-3 rounded-md bg-slate-50 border border-slate-200">
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${jotformConfig.webhookRegistered ? "bg-green-500" : "bg-gray-400"}`}
+                />
+                <span className="text-sm text-slate-700">
+                  {jotformConfig.webhookRegistered
+                    ? "Webhook zarejestrowany"
+                    : "Webhook nie zarejestrowany"}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Message */}
+          {message && (
+            <div
+              className={`p-3 rounded-md text-sm ${
+                message.type === "success"
+                  ? "bg-green-50 text-green-800 border border-green-200"
+                  : "bg-red-50 text-red-800 border border-red-200"
+              }`}
+            >
+              {message.text}
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleSave}
+              disabled={loading || !apiKey.trim() || !formId.trim()}
+              className="px-4 py-2 text-sm border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              Zapisz konfigurację
+            </button>
+            <button
+              onClick={handleRegister}
+              disabled={loading || !apiKey.trim() || !formId.trim()}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium"
+            >
+              {loading ? "Rejestruję..." : "Zarejestruj webhook"}
+            </button>
+            <button
+              onClick={handleCheckStatus}
+              disabled={loading || !formId.trim()}
+              className="px-4 py-2 text-sm border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              Sprawdź status
+            </button>
+            {jotformConfig?.webhookRegistered && (
+              <button
+                onClick={handleUnregister}
+                disabled={loading}
+                className="px-4 py-2 text-sm text-red-600 border border-red-300 rounded-md hover:bg-red-50 disabled:opacity-50 transition-colors"
+              >
+                Wyrejestruj
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+        <p className="text-xs text-amber-800">
+          <strong>Uwaga:</strong> API key Jotform znajdziesz w: Jotform →
+          Settings → API. Uprawnienia: wymagany dostęp do formularzy (Full
+          Access lub Form Access).
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// --- Trello Tab ---
+
+function TrelloTab() {
+  const config = useQuery(api.trello.getConfig);
+  const saveConfig = useMutation(api.trello.saveConfig);
+  const toggleSync = useMutation(api.trello.toggleSync);
+  const testConnection = useAction(api.trello.testConnection);
+  const encryptCreds = useAction(api.trello.encryptCredentials);
+  const listLists = useAction(api.trello.listLists);
+  const registerWebhook = useAction(api.trello.registerWebhook);
+  const unregisterWebhook = useAction(api.trello.unregisterWebhook);
+  const webhookUrl = `${siteUrl}/api/webhooks/trello`;
+
+  const [apiKey, setApiKey] = useState("");
+  const [apiToken, setApiToken] = useState("");
+  const [boardId, setBoardId] = useState("");
+  const [listId, setListId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [boards, setBoards] = useState<Array<{
+    id: string;
+    name: string;
+  }> | null>(null);
+  const [lists, setLists] = useState<Array<{
+    id: string;
+    name: string;
+  }> | null>(null);
+  const [statusLists, setStatusLists] = useState<
+    Partial<
+      Record<
+        | "lead"
+        | "inquiry"
+        | "measurement"
+        | "offer"
+        | "contract"
+        | "production"
+        | "installation"
+        | "completed"
+        | "warranty",
+        string
+      >
+    >
+  >({});
+  const [webhookBusy, setWebhookBusy] = useState(false);
+  const [webhookMessage, setWebhookMessage] = useState<string | null>(null);
+  const hasSavedApiKey = config?.hasApiKey ?? false;
+  const hasSavedApiToken = config?.hasApiToken ?? false;
+  const effectiveApiKey = apiKey || (hasSavedApiKey ? "********" : "");
+  const effectiveApiToken = apiToken || (hasSavedApiToken ? "********" : "");
+  const effectiveBoardId = boardId || config?.boardId || "";
+  const effectiveListId = listId || config?.listId || "";
+  const getMappedList = useCallback(
+    (
+      status:
+        | "lead"
+        | "inquiry"
+        | "measurement"
+        | "offer"
+        | "contract"
+        | "production"
+        | "installation"
+        | "completed"
+        | "warranty",
+    ) => statusLists[status] ?? config?.statusListMap?.[status] ?? "",
+    [statusLists, config?.statusListMap],
+  );
+
+  const syncEnabled = config?.syncEnabled ?? false;
+
+  const handleToggle = useCallback(async () => {
+    if (!config) {
+      // First time enabling — need to save config first
+      return;
+    }
+    try {
+      await toggleSync({ syncEnabled: !syncEnabled });
+    } catch (error: unknown) {
+      alert(`Blad: ${getErrorMessage(error, "Nieznany blad")}`);
+    }
+  }, [toggleSync, syncEnabled, config]);
+
+  const handleTestConnection = useCallback(async () => {
+    if (!apiKey || !apiToken) {
+      setTestResult("Podaj API Key i API Token.");
+      return;
+    }
+    setTesting(true);
+    setTestResult(null);
+    setBoards(null);
+    try {
+      const result = await testConnection({ apiKey, apiToken });
+      if (Array.isArray(result) && result.length > 0) {
+        setBoards(result);
+        setTestResult(`Polaczenie OK — znaleziono ${result.length} tablic.`);
+      } else {
+        setTestResult("Polaczenie OK, ale nie znaleziono zadnych tablic.");
+      }
+    } catch (error: unknown) {
+      setTestResult(`Blad: ${getErrorMessage(error, "Nieznany blad")}`);
+    } finally {
+      setTesting(false);
+    }
+  }, [testConnection, apiKey, apiToken]);
+
+  const handleSave = useCallback(async () => {
+    if ((!apiKey && !hasSavedApiKey) || (!apiToken && !hasSavedApiToken)) {
+      alert("Podaj API Key i API Token.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const encryptedCredentials =
+        apiKey && apiToken ? await encryptCreds({ apiKey, apiToken }) : null;
+      await saveConfig({
+        encryptedApiKey: encryptedCredentials?.encryptedApiKey,
+        encryptedApiToken: encryptedCredentials?.encryptedApiToken,
+        boardId: effectiveBoardId || undefined,
+        listId: effectiveListId || undefined,
+        statusListMap: {
+          lead: getMappedList("lead") || undefined,
+          inquiry: getMappedList("inquiry") || undefined,
+          measurement: getMappedList("measurement") || undefined,
+          offer: getMappedList("offer") || undefined,
+          contract: getMappedList("contract") || undefined,
+          production: getMappedList("production") || undefined,
+          installation: getMappedList("installation") || undefined,
+          completed: getMappedList("completed") || undefined,
+          warranty: getMappedList("warranty") || undefined,
+        },
+        syncEnabled: true,
+        connectedBy: "admin",
+      });
+      if (apiKey) {
+        setApiKey("");
+      }
+      if (apiToken) {
+        setApiToken("");
+      }
+      if (boardId) {
+        setBoardId(effectiveBoardId);
+      }
+      if (listId) {
+        setListId(effectiveListId);
+      }
+    } catch (error: unknown) {
+      alert(`Blad zapisu: ${getErrorMessage(error, "Nieznany blad")}`);
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    saveConfig,
+    encryptCreds,
+    apiKey,
+    apiToken,
+    boardId,
+    listId,
+    effectiveBoardId,
+    effectiveListId,
+    getMappedList,
+    hasSavedApiKey,
+    hasSavedApiToken,
+  ]);
+
+  const handleLoadLists = useCallback(async () => {
+    if (!effectiveBoardId) {
+      setWebhookMessage("Najpierw wybierz board Trello.");
+      return;
+    }
+
+    try {
+      const result = await listLists({ boardId: effectiveBoardId });
+      setLists(result);
+    } catch (error: unknown) {
+      setWebhookMessage(getErrorMessage(error, "Nie udalo sie pobrac list"));
+    }
+  }, [effectiveBoardId, listLists]);
+
+  const handleRegisterWebhook = useCallback(async () => {
+    if (!effectiveBoardId) {
+      setWebhookMessage("Najpierw zapisz board Trello.");
+      return;
+    }
+
+    setWebhookBusy(true);
+    setWebhookMessage(null);
+    try {
+      const result = await registerWebhook({
+        boardId: effectiveBoardId,
+        webhookUrl,
+      });
+      setWebhookMessage(
+        result.success
+          ? "Webhook Trello zarejestrowany."
+          : (result.error ?? "Nie udalo sie zarejestrowac webhooka."),
+      );
+    } catch (error: unknown) {
+      setWebhookMessage(getErrorMessage(error, "Nieznany blad"));
+    } finally {
+      setWebhookBusy(false);
+    }
+  }, [effectiveBoardId, registerWebhook, webhookUrl]);
+
+  const handleUnregisterWebhook = useCallback(async () => {
+    setWebhookBusy(true);
+    setWebhookMessage(null);
+    try {
+      const result = await unregisterWebhook({});
+      setWebhookMessage(
+        result.success
+          ? "Webhook Trello wyrejestrowany."
+          : (result.error ?? "Nie udalo sie wyrejestrowac webhooka."),
+      );
+    } catch (error: unknown) {
+      setWebhookMessage(getErrorMessage(error, "Nieznany blad"));
+    } finally {
+      setWebhookBusy(false);
+    }
+  }, [unregisterWebhook]);
+
+  // Loading state
+  if (config === undefined) {
+    return (
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-4 bg-slate-200 rounded w-1/3" />
+          <div className="h-4 bg-slate-200 rounded w-1/2" />
+          <div className="h-10 bg-slate-200 rounded w-48" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Sync toggle card */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">
+              Synchronizacja z Trello
+            </h3>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Automatyczne tworzenie kart w Trello dla nowych leadow z Jotform.
+            </p>
+          </div>
+          <button
+            onClick={handleToggle}
+            disabled={!config}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+              syncEnabled ? "bg-blue-600" : "bg-slate-200"
+            } ${!config ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+            role="switch"
+            aria-checked={syncEnabled}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                syncEnabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+        {!config && (
+          <p className="text-xs text-slate-400 mt-2">
+            Zapisz konfiguracje ponizej, aby moc wlaczyc synchronizacje.
+          </p>
+        )}
+        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+          <p className="text-xs text-amber-800">
+            <strong>Uwaga:</strong> Docelowo do wylaczenia — funkcja przejsciowa
+            (zastepuje integracje Make.com).
+          </p>
+        </div>
+      </div>
+
+      {/* Configuration card */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h4 className="text-sm font-semibold text-slate-900 mb-4">
+          Konfiguracja Trello API
+        </h4>
+        <div className="space-y-4">
+          <div>
+            <label
+              htmlFor="trello-api-key"
+              className="block text-sm font-medium text-slate-700 mb-1"
+            >
+              API Key
+            </label>
+            <input
+              id="trello-api-key"
+              type="text"
+              value={effectiveApiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Trello API Key"
+              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="trello-api-token"
+              className="block text-sm font-medium text-slate-700 mb-1"
+            >
+              API Token
+            </label>
+            <input
+              id="trello-api-token"
+              type="password"
+              value={effectiveApiToken}
+              onChange={(e) => setApiToken(e.target.value)}
+              placeholder="Trello API Token"
+              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Test connection button */}
+          <div>
+            <button
+              onClick={handleTestConnection}
+              disabled={testing || !apiKey || !apiToken}
+              className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50"
+            >
+              {testing ? (
+                <>
+                  <svg
+                    className="animate-spin h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                  Testowanie...
+                </>
+              ) : (
+                "Testuj polaczenie"
+              )}
+            </button>
+          </div>
+
+          {testResult && (
+            <div
+              className={`p-3 rounded-md text-sm ${
+                testResult.startsWith("Blad") || testResult.startsWith("Podaj")
+                  ? "bg-red-50 text-red-700 border border-red-200"
+                  : "bg-green-50 text-green-700 border border-green-200"
+              }`}
+            >
+              {testResult}
+            </div>
+          )}
+
+          {/* Board selection */}
+          <div>
+            <label
+              htmlFor="trello-board-id"
+              className="block text-sm font-medium text-slate-700 mb-1"
+            >
+              Board ID
+            </label>
+            {boards && boards.length > 0 ? (
+              <select
+                id="trello-board-id"
+                value={effectiveBoardId}
+                onChange={(e) => setBoardId(e.target.value)}
+                className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">Wybierz tablice...</option>
+                {boards.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id="trello-board-id"
+                type="text"
+                value={effectiveBoardId}
+                onChange={(e) => setBoardId(e.target.value)}
+                placeholder="ID tablicy Trello"
+                className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+            )}
+            <p className="text-xs text-slate-400 mt-1">
+              Uzyj &quot;Testuj polaczenie&quot; aby zaladowac liste tablic.
+            </p>
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="block text-sm font-medium text-slate-700">
+                Listy Trello dla statusow CRM
+              </label>
+              <button
+                onClick={handleLoadLists}
+                type="button"
+                className="text-xs font-medium text-blue-600 hover:text-blue-700"
+              >
+                Pobierz listy
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {[
+                ["lead", "Lead"],
+                ["inquiry", "Oferta wyslana"],
+                ["measurement", "Do pomiarow"],
+                ["offer", "Oferta po pomiarze"],
+                ["contract", "Umowa"],
+                ["production", "Produkcja"],
+                ["installation", "Montaz"],
+                ["completed", "Zakonczone"],
+                ["warranty", "Gwarancja"],
+              ].map(([statusKey, label]) => (
+                <div key={statusKey}>
+                  <label className="mb-1 block text-xs font-medium text-slate-500">
+                    {label}
+                  </label>
+                  {lists && lists.length > 0 ? (
+                    <select
+                      value={getMappedList(
+                        statusKey as keyof typeof statusLists,
+                      )}
+                      onChange={(e) =>
+                        setStatusLists((current) => ({
+                          ...current,
+                          [statusKey]: e.target.value,
+                        }))
+                      }
+                      className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">Brak mapowania</option>
+                      {lists.map((list) => (
+                        <option key={list.id} value={list.id}>
+                          {list.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={getMappedList(
+                        statusKey as keyof typeof statusLists,
+                      )}
+                      onChange={(e) =>
+                        setStatusLists((current) => ({
+                          ...current,
+                          [statusKey]: e.target.value,
+                        }))
+                      }
+                      placeholder="ID listy Trello"
+                      className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* List ID */}
+          <div>
+            <label
+              htmlFor="trello-list-id"
+              className="block text-sm font-medium text-slate-700 mb-1"
+            >
+              List ID (OFERTY - zapytania)
+            </label>
+            <input
+              id="trello-list-id"
+              type="text"
+              value={effectiveListId}
+              onChange={(e) => setListId(e.target.value)}
+              placeholder="ID listy Trello"
+              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-slate-900">
+                  Webhook Trello
+                </p>
+                <p className="mt-1 text-xs text-slate-500 break-all">
+                  {webhookUrl}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRegisterWebhook}
+                  type="button"
+                  disabled={webhookBusy}
+                  className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Rejestruj
+                </button>
+                <button
+                  onClick={handleUnregisterWebhook}
+                  type="button"
+                  disabled={webhookBusy}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-white disabled:opacity-50"
+                >
+                  Wyrejestruj
+                </button>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Status webhooka:{" "}
+              {config?.webhookId ? "zarejestrowany" : "niezarejestrowany"}
+            </p>
+            {webhookMessage && (
+              <p className="mt-2 text-xs text-slate-600">{webhookMessage}</p>
+            )}
+          </div>
+
+          {/* Save button */}
+          <div className="pt-2">
+            <button
+              onClick={handleSave}
+              disabled={
+                saving ||
+                ((!apiKey || !apiToken) &&
+                  (!hasSavedApiKey || !hasSavedApiToken))
+              }
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {saving ? "Zapisywanie..." : "Zapisz"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Status indicator */}
+      {config && (
+        <div className="bg-white rounded-lg border border-slate-200 p-6">
+          <h4 className="text-sm font-semibold text-slate-900 mb-3">
+            Status konfiguracji
+          </h4>
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            <div>
+              <dt className="text-slate-500">Synchronizacja</dt>
+              <dd className="flex items-center gap-2 mt-0.5">
+                <span
+                  className={`inline-block w-3 h-3 rounded-full ${config.syncEnabled ? "bg-green-500" : "bg-slate-300"}`}
+                />
+                <span className="text-slate-900 font-medium">
+                  {config.syncEnabled ? "Wlaczona" : "Wylaczona"}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Board ID</dt>
+              <dd className="text-slate-900 font-medium mt-0.5 font-mono text-xs">
+                {config.boardId || (
+                  <span className="text-slate-400">Nie ustawiono</span>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">List ID</dt>
+              <dd className="text-slate-900 font-medium mt-0.5 font-mono text-xs">
+                {config.listId || (
+                  <span className="text-slate-400">Nie ustawiono</span>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Konfiguracja przez</dt>
+              <dd className="text-slate-900 font-medium mt-0.5">
+                {config.connectedBy}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- SMS Tab ---
+
+function SmsTab() {
+  const config = useQuery(api.sms.getConfig);
+  const saveConfig = useMutation(api.sms.saveConfig);
+
+  const [phone, setPhone] = useState("");
+  const [sender, setSender] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  const effectivePhone = phone || config?.internalPhone || "";
+  const effectiveSender = sender || config?.senderName || "ADK Okna";
+
+  const handleSave = async () => {
+    const phoneVal = effectivePhone.trim();
+    const senderVal = effectiveSender.trim();
+    if (!phoneVal || !senderVal) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      await saveConfig({ internalPhone: phoneVal, senderName: senderVal });
+      setMessage({ type: "success", text: "Konfiguracja SMS zapisana." });
+      setPhone("");
+      setSender("");
+    } catch (error: unknown) {
+      setMessage({
+        type: "error",
+        text: getErrorMessage(error, "Błąd zapisu"),
+      });
+    }
+    setSaving(false);
+  };
+
+  if (config === undefined) {
+    return <div className="h-40 animate-pulse rounded-2xl border border-slate-200 bg-white" />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h3 className="text-base font-semibold text-slate-900 mb-1">
+          Konfiguracja SMS API
+        </h3>
+        <p className="text-sm text-slate-500 mb-6">
+          Ustawienia wysyłki wiadomości SMS przez SMSAPI.pl. Token API
+          konfigurowany jest jako zmienna środowiskowa{" "}
+          <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">
+            SMSAPI_TOKEN
+          </code>{" "}
+          w Convex Dashboard.
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Numer telefonu odbiorcy (wewnętrzny)
+            </label>
+            <input
+              type="tel"
+              value={effectivePhone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="np. 48515453090"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Na ten numer wysyłany jest SMS z danymi kontaktowymi klienta
+              (przycisk &quot;Wyślij adres&quot; w karcie klienta). Podaj numer
+              z prefiksem kraju bez znaku &quot;+&quot;, np.{" "}
+              <code className="font-mono">48515453090</code>.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Nazwa nadawcy
+            </label>
+            <input
+              type="text"
+              value={effectiveSender}
+              onChange={(e) => setSender(e.target.value)}
+              placeholder="ADK Okna"
+              maxLength={11}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Nazwa wyświetlana jako nadawca SMS. Maksymalnie 11 znaków
+              (ograniczenie operatora). Wymaga aktywacji w panelu SMSAPI.pl.
+            </p>
+          </div>
+
+          {message && (
+            <div
+              className={`p-3 rounded-md text-sm ${
+                message.type === "success"
+                  ? "bg-green-50 text-green-800 border border-green-200"
+                  : "bg-red-50 text-red-800 border border-red-200"
+              }`}
+            >
+              {message.text}
+            </div>
+          )}
+
+          <div className="pt-1">
+            <button
+              onClick={handleSave}
+              disabled={saving || !effectivePhone.trim() || !effectiveSender.trim()}
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {saving ? "Zapisywanie..." : "Zapisz konfigurację"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {config && (
+        <div className="bg-white rounded-lg border border-slate-200 p-6">
+          <h4 className="text-sm font-semibold text-slate-900 mb-3">
+            Aktualna konfiguracja
+          </h4>
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            <div>
+              <dt className="text-slate-500">Numer odbiorcy</dt>
+              <dd className="text-slate-900 font-medium mt-0.5 font-mono text-xs">
+                {config.internalPhone}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Nazwa nadawcy</dt>
+              <dd className="text-slate-900 font-medium mt-0.5">
+                {config.senderName}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      )}
+
+      <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+        <p className="text-xs text-amber-800">
+          <strong>Uwaga:</strong> Token SMSAPI ustaw jako zmienną środowiskową{" "}
+          <code className="font-mono">SMSAPI_TOKEN</code> w Convex Dashboard →
+          Settings → Environment Variables. Aby używać nazwy nadawcy innej niż
+          numer telefonu, aktywuj ją wcześniej w panelu SMSAPI.pl (Ustawienia →
+          Pola nadawcy).
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// --- Ogolne Tab ---
+
+function OgolneTab() {
+  return (
+    <div className="bg-white rounded-lg border border-slate-200 p-6">
+      <p className="text-sm text-slate-500">
+        Ustawienia ogolne pojawia sie tutaj.
+      </p>
+    </div>
+  );
+}
+
+// --- Szablony Tab ---
+
+function SzablonyTab() {
+  const templates = useQuery(api.documentTemplates.list);
+  const driveConnection = useQuery(api.googleDrive.getConnectionStatus);
+  const upsert = useMutation(api.documentTemplates.upsert);
+  const deleteTemplate = useMutation(api.documentTemplates.deleteTemplate);
+  const listTemplateFiles = useAction(api.googleDrive.listTemplateFiles);
+
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState(EMPTY_TEMPLATE);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [availableFiles, setAvailableFiles] = useState<Array<{
+    id: string;
+    name: string;
+  }> | null>(null);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [fileSearch, setFileSearch] = useState("");
+
+  const filteredFiles = useMemo(() => {
+    if (!availableFiles) return null;
+    const query = fileSearch.trim().toLowerCase();
+    if (!query) return availableFiles;
+    return availableFiles.filter((file) =>
+      file.name.toLowerCase().includes(query),
+    );
+  }, [availableFiles, fileSearch]);
+
+  const handleLoadTemplateFiles = async () => {
+    setFilesLoading(true);
+    setNotice(null);
+    try {
+      const files = await listTemplateFiles();
+      setAvailableFiles(files);
+    } catch (error) {
+      setNotice({
+        type: "error",
+        text: `Blad plikow: ${getErrorMessage(error, "Nieznany blad")}`,
+      });
+    } finally {
+      setFilesLoading(false);
+    }
+  };
+
+  const openCreateModal = () => {
+    setShowModal(true);
+    setNotice(null);
+    setFileSearch("");
+    if (driveConnection?.templatesFolderId && availableFiles === null) {
+      void handleLoadTemplateFiles();
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!form.key.trim() || !form.name.trim()) return;
+    setSaving(true);
+    setNotice(null);
+    try {
+      await upsert({
+        key: form.key.trim(),
+        name: form.name.trim(),
+        googleDriveFileId: form.googleDriveFileId.trim() || undefined,
+        fileNamePattern:
+          form.fileNamePattern.trim() ||
+          `${form.key}_{{firstName}}_{{lastName}}_{{city}}`,
+        fieldMappings: [],
+      });
+      setForm(EMPTY_TEMPLATE);
+      setShowModal(false);
+      setNotice({ type: "success", text: "Szablon zostal utworzony." });
+    } catch (error) {
+      setNotice({
+        type: "error",
+        text: `Blad zapisu: ${getErrorMessage(error, "Nieznany blad")}`,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTypeChange = (type: string) => {
+    const selectedType = TEMPLATE_TYPES.find((item) => item[0] === type);
+    if (!selectedType) return;
+    setForm((current) => ({
+      ...current,
+      type,
+      key: selectedType[1] || current.key,
+      name: selectedType[2] || current.name,
+      fileNamePattern: selectedType[3] || current.fileNamePattern,
+    }));
+  };
+
+  const handleDelete = async (id: Id<"documentTemplates">, name: string) => {
+    if (!confirm(`Czy na pewno chcesz usunac szablon "${name}"?`)) return;
+    setDeleting(id);
+    setNotice(null);
+    try {
+      await deleteTemplate({ id });
+      setNotice({ type: "success", text: `Usunieto szablon „${name}".` });
+    } catch (error) {
+      setNotice({
+        type: "error",
+        text: `Blad usuwania: ${getErrorMessage(error, "Nieznany blad")}`,
+      });
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  if (templates === undefined) {
+    return <div className="h-96 animate-pulse rounded-2xl border border-slate-200 bg-white" />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
+            Document Templates
+          </p>
+          <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
+            Szablony dokumentow
+          </h2>
+        </div>
+        <button
+          onClick={openCreateModal}
+          className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
+        >
+          Dodaj szablon
+        </button>
+      </div>
+
+      {notice && (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            notice.type === "success"
+              ? "border-green-200 bg-green-50 text-green-700"
+              : "border-red-200 bg-red-50 text-red-700"
+          }`}
+        >
+          {notice.text}
+        </div>
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-4">
+          {templates.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
+              <p className="text-base font-medium text-slate-700">
+                Brak szablonow dokumentow.
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                Zacznij od dodania pierwszego szablonu i podpiecia pliku z
+                Google Drive.
+              </p>
+              <button
+                onClick={openCreateModal}
+                className="mt-5 inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Dodaj pierwszy szablon
+              </button>
+            </div>
+          ) : (
+            templates.map((template) => (
+              <div
+                key={template._id}
+                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-700">
+                        {template.key}
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          template.isActive
+                            ? "bg-green-50 text-green-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {template.isActive ? "Aktywny" : "Nieaktywny"}
+                      </span>
+                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                        v{template.version}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold tracking-tight text-slate-900">
+                        {template.name}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {template.fileNamePattern}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/admin/szablony/${template.key}`}
+                      className="inline-flex items-center rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Edytuj mapper
+                    </Link>
+                    <button
+                      onClick={() => handleDelete(template._id, template.name)}
+                      disabled={deleting === template._id}
+                      className="inline-flex items-center rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {deleting === template._id ? "Usuwanie..." : "Usun"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                      Google Drive
+                    </p>
+                    <p className="mt-2 break-all font-mono text-xs text-slate-700">
+                      {template.googleDriveFileId ?? "Brak wybranego pliku"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                      Mapowania
+                    </p>
+                    <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">
+                      {template.fieldMappings.length}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                      Status integracji
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-slate-700">
+                      {template.googleDriveFileId
+                        ? "Gotowy do kopiowania"
+                        : "Wymaga wyboru pliku z Drive"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <aside className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6">
+            <h3 className="text-base font-semibold text-slate-900">
+              Stan integracji szablonow
+            </h3>
+            <div className="mt-4 space-y-3 text-sm">
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-slate-500">Google Drive</p>
+                <p className="mt-1 font-medium text-slate-900">
+                  {driveConnection?.connectionStatus === "connected"
+                    ? "Polaczony"
+                    : "Niegotowy"}
+                </p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-slate-500">Folder szablonow</p>
+                <p className="mt-1 break-all font-mono text-xs text-slate-700">
+                  {driveConnection?.templatesFolderId ?? "Brak konfiguracji"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6">
+            <h3 className="text-base font-semibold text-slate-900">
+              Dobre praktyki
+            </h3>
+            <ul className="mt-4 space-y-3 text-sm text-slate-600">
+              <li>
+                Uzywaj stabilnych placeholderow, np.{" "}
+                <code>{"{{firstName}}"}</code>, <code>{"{{city}}"}</code>.
+              </li>
+              <li>
+                Trzymaj jeden typ dokumentu w jednym szablonie Google Docs.
+              </li>
+              <li>
+                Najpierw wybierz plik z Drive, potem ustaw mapper i preview
+                nazwy.
+              </li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
+            onClick={() => setShowModal(false)}
+          />
+          <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                  Nowy szablon
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Utworz wpis szablonu, podepnij plik Google Drive i przygotuj
+                  nazwe wynikowego dokumentu.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  setForm(EMPTY_TEMPLATE);
+                }}
+                className="rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+              >
+                Zamknij
+              </button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Typ dokumentu
+                </label>
+                <select
+                  value={form.type}
+                  onChange={(e) => handleTypeChange(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                >
+                  {TEMPLATE_TYPES.map((type) => (
+                    <option key={type[0]} value={type[0]}>
+                      {type[2]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Klucz
+                </label>
+                <input
+                  type="text"
+                  value={form.key}
+                  onChange={(e) => setForm({ ...form, key: e.target.value })}
+                  placeholder="np. pomiar"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  disabled={form.type !== "custom"}
+                />
+                {form.type !== "custom" && (
+                  <p className="mt-1 text-xs text-slate-400">
+                    Klucz wynika z wybranego typu dokumentu.
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Nazwa
+                </label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="np. Pomiar 2026/03"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Plik z Google Drive
+                </label>
+                <input
+                  type="text"
+                  value={form.googleDriveFileId}
+                  onChange={(e) =>
+                    setForm({ ...form, googleDriveFileId: e.target.value })
+                  }
+                  placeholder="ID pliku na Google Drive"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono"
+                />
+                {driveConnection?.templatesFolderId && (
+                  <div className="mt-2 space-y-2">
+                    <input
+                      type="text"
+                      value={fileSearch}
+                      onChange={(e) => setFileSearch(e.target.value)}
+                      placeholder="Szukaj pliku po nazwie..."
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleLoadTemplateFiles()}
+                      disabled={filesLoading}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                    >
+                      {filesLoading
+                        ? "Ladowanie plikow..."
+                        : "Pobierz pliki z folderu szablonow"}
+                    </button>
+                    {filteredFiles && filteredFiles.length > 0 && (
+                      <select
+                        value={form.googleDriveFileId}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            googleDriveFileId: e.target.value,
+                          })
+                        }
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        <option value="">Wybierz plik z Google Drive...</option>
+                        {filteredFiles.map((file) => (
+                          <option key={file.id} value={file.id}>
+                            {file.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {filteredFiles && filteredFiles.length === 0 && (
+                      <p className="text-xs text-slate-500">
+                        Brak plikow pasujacych do wyszukiwania.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Wzorzec nazwy pliku
+                </label>
+                <input
+                  type="text"
+                  value={form.fileNamePattern}
+                  onChange={(e) =>
+                    setForm({ ...form, fileNamePattern: e.target.value })
+                  }
+                  placeholder="Pomiar_{{firstName}}_{{lastName}}_{{city}}"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono"
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  Jesli zostawisz puste, system wygeneruje domyslny wzorzec z
+                  klucza szablonu.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  setForm(EMPTY_TEMPLATE);
+                }}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={saving || !form.key.trim() || !form.name.trim()}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                {saving ? "Zapisywanie..." : "Utworz szablon"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- CennikTab ---
+
+const VAT_RATES = [23, 8, 0];
+const UNITS = ["szt.", "m²", "mb", "usł.", "kpl.", "godz."];
+
+function fmt(n: number) {
+  return n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+type PricingEntry = {
+  _id: Id<"servicePricing">;
+  name: string;
+  description?: string;
+  unit: string;
+  unitPrice: number;
+  vatRate: number;
+  isActive: boolean;
+};
+
+type PricingForm = {
+  name: string;
+  description: string;
+  unit: string;
+  unitPrice: string;
+  vatRate: number;
+};
+
+const EMPTY_PRICING_FORM: PricingForm = {
+  name: "",
+  description: "",
+  unit: "szt.",
+  unitPrice: "",
+  vatRate: 23,
+};
+
+function PricingRow({
+  entry,
+  onSave,
+  onToggle,
+  onDelete,
+}: {
+  entry: PricingEntry;
+  onSave: (id: Id<"servicePricing">, data: Partial<PricingForm>) => Promise<void>;
+  onToggle: (id: Id<"servicePricing">) => Promise<void>;
+  onDelete: (id: Id<"servicePricing">) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<PricingForm>({
+    name: entry.name,
+    description: entry.description ?? "",
+    unit: entry.unit,
+    unitPrice: String(entry.unitPrice),
+    vatRate: entry.vatRate,
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    try {
+      await onSave(entry._id, {
+        ...draft,
+        description: draft.description || undefined,
+      } as Partial<PricingForm>);
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Błąd zapisu");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function del() {
+    if (!confirm(`Usunąć "${entry.name}" z cennika?`)) return;
+    setBusy(true);
+    try {
+      await onDelete(entry._id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Błąd usuwania");
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <tr className="bg-blue-50">
+        <td className="px-4 py-3" colSpan={6}>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="col-span-2">
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa</label>
+                <input
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                  value={draft.name}
+                  onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Opis</label>
+                <input
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                  value={draft.description}
+                  onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                  placeholder="opcjonalny opis"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cena netto</label>
+                <input
+                  type="number" min="0" step="0.01"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                  value={draft.unitPrice}
+                  onChange={(e) => setDraft((d) => ({ ...d, unitPrice: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Jednostka</label>
+                <select
+                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                  value={draft.unit}
+                  onChange={(e) => setDraft((d) => ({ ...d, unit: e.target.value }))}
+                >
+                  {UNITS.map((u) => <option key={u}>{u}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">VAT %</label>
+                <select
+                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                  value={draft.vatRate}
+                  onChange={(e) => setDraft((d) => ({ ...d, vatRate: parseInt(e.target.value) }))}
+                >
+                  {VAT_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                </select>
+              </div>
+            </div>
+            {error && <p className="text-xs text-red-600">{error}</p>}
+            <div className="flex gap-2">
+              <button onClick={save} disabled={busy || !draft.name}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
+                Zapisz
+              </button>
+              <button onClick={() => setEditing(false)}
+                className="rounded-lg border border-slate-300 px-4 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                Anuluj
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className={`group border-b border-slate-100 hover:bg-slate-50 ${!entry.isActive ? "opacity-50" : ""}`}>
+      <td className="px-4 py-3 text-sm font-medium text-slate-800">
+        {entry.name}
+        {entry.description && <span className="ml-1.5 text-xs text-slate-400">{entry.description}</span>}
+      </td>
+      <td className="px-4 py-3 text-sm text-slate-600">{fmt(entry.unitPrice)} zł</td>
+      <td className="px-4 py-3 text-sm text-slate-600">{entry.unit}</td>
+      <td className="px-4 py-3 text-sm text-slate-600">{entry.vatRate}%</td>
+      <td className="px-4 py-3">
+        <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${entry.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
+          {entry.isActive ? "Aktywna" : "Nieaktywna"}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <div className="invisible flex justify-end gap-1 group-hover:visible">
+          <button onClick={() => setEditing(true)}
+            className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200">Edytuj</button>
+          <button onClick={() => onToggle(entry._id)} disabled={busy}
+            className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200">
+            {entry.isActive ? "Dezaktywuj" : "Aktywuj"}
+          </button>
+          <button onClick={del} disabled={busy}
+            className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">Usuń</button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function CennikTab() {
+  const entries = useQuery(api.servicePricing.list, { includeInactive: true });
+  const createEntry = useMutation(api.servicePricing.create);
+  const updateEntry = useMutation(api.servicePricing.update);
+  const toggleActive = useMutation(api.servicePricing.toggleActive);
+  const removeEntry = useMutation(api.servicePricing.remove);
+
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<PricingForm>(EMPTY_PRICING_FORM);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await createEntry({
+        name: form.name,
+        description: form.description || undefined,
+        unit: form.unit,
+        unitPrice: parseFloat(form.unitPrice) || 0,
+        vatRate: form.vatRate,
+      });
+      setForm(EMPTY_PRICING_FORM);
+      setShowForm(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Błąd zapisu");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSave(id: Id<"servicePricing">, data: Partial<PricingForm>) {
+    await updateEntry({
+      id,
+      name: data.name,
+      description: data.description,
+      unit: data.unit,
+      unitPrice: data.unitPrice ? parseFloat(data.unitPrice) : undefined,
+      vatRate: data.vatRate,
+    });
+  }
+
+  async function handleToggle(id: Id<"servicePricing">) {
+    await toggleActive({ id });
+  }
+
+  async function handleDelete(id: Id<"servicePricing">) {
+    await removeEntry({ id });
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Cennik usług</h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Definiuj usługi z cenami bazowymi. Przy tworzeniu wyceny można wybrać pozycję z cennika lub wpisać własną.
+          </p>
+        </div>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700"
+          >
+            + Dodaj usługę
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+          <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">Nowa usługa</h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="col-span-2">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>
+              <input
+                required
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="np. Okna PVC"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Opis</label>
+              <input
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="opcjonalny opis"
+              />
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-3">
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cena netto *</label>
+              <input
+                required type="number" min="0" step="0.01"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                value={form.unitPrice}
+                onChange={(e) => setForm((f) => ({ ...f, unitPrice: e.target.value }))}
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Jednostka</label>
+              <select
+                className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
+                value={form.unit}
+                onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+              >
+                {UNITS.map((u) => <option key={u}>{u}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">VAT %</label>
+              <select
+                className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
+                value={form.vatRate}
+                onChange={(e) => setForm((f) => ({ ...f, vatRate: parseInt(e.target.value) }))}
+              >
+                {VAT_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+              </select>
+            </div>
+          </div>
+          {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+          <div className="mt-4 flex gap-2">
+            <button type="submit" disabled={busy}
+              className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
+              Dodaj
+            </button>
+            <button type="button" onClick={() => { setShowForm(false); setForm(EMPTY_PRICING_FORM); setError(null); }}
+              className="rounded-lg border border-slate-300 px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+              Anuluj
+            </button>
+          </div>
+        </form>
+      )}
+
+      {entries === undefined ? (
+        <p className="text-sm text-slate-400">Ładowanie...</p>
+      ) : entries.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 py-12 text-center">
+          <p className="text-sm text-slate-400">Brak pozycji w cenniku — dodaj pierwszą usługę</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-slate-100">
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Usługa</th>
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Cena netto</th>
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Jedn.</th>
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">VAT</th>
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
+                <th className="w-32" />
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => (
+                <PricingRow
+                  key={entry._id}
+                  entry={entry}
+                  onSave={handleSave}
+                  onToggle={handleToggle}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Tabs config ---
+
+const TABS: Array<{ key: Tab; label: string }> = [
+  { key: "google-drive", label: "Google Drive" },
+  { key: "jotform", label: "Jotform" },
+  { key: "trello", label: "Trello" },
+  { key: "sms", label: "SMS" },
+  { key: "szablony", label: "Szablony" },
+];
+
+// --- Main Page ---
+
+export default function UstawieniaPage() {
+  const [activeTab, setActiveTab] = useState<Tab>("google-drive");
+
+  return (
+    <div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-slate-900">Ustawienia</h1>
+        <p className="text-slate-500 mt-1">Konfiguracja systemu.</p>
+      </div>
+
+      {/* Tab navigation */}
+      <div className="border-b border-slate-200 mb-6">
+        <nav className="flex gap-6" aria-label="Zakladki ustawien">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.key
+                  ? "border-slate-900 text-slate-900"
+                  : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Tab content */}
+      {activeTab === "google-drive" && <GoogleDriveTab />}
+      {activeTab === "jotform" && <JotformTab />}
+      {activeTab === "trello" && <TrelloTab />}
+      {activeTab === "sms" && <SmsTab />}
+      {activeTab === "szablony" && <SzablonyTab />}
+    </div>
+  );
+}

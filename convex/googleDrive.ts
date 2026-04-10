@@ -1,0 +1,1102 @@
+import { v } from "convex/values";
+import type { ActionCtx } from "./_generated/server";
+import { query, mutation, action, internalMutation, internalAction } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import { encrypt, decrypt } from "./lib/crypto";
+
+const DRIVE_API_BASE = "https://www.googleapis.com/drive/v3";
+const DOCS_API_BASE = "https://docs.googleapis.com/v1";
+
+type DriveItem = {
+  id: string;
+  name: string;
+  mimeType?: string;
+};
+
+type DriveResponse = {
+  drives?: DriveItem[];
+  files?: DriveItem[];
+  id?: string;
+};
+
+type GoogleDocsTextNode = {
+  textRun?: { content?: string };
+};
+
+type GoogleDocsStructuralElement = {
+  paragraph?: { elements?: GoogleDocsTextNode[] };
+  table?: {
+    tableRows?: Array<{
+      tableCells?: Array<{
+        content?: GoogleDocsStructuralElement[];
+      }>;
+    }>;
+  };
+  tableOfContents?: {
+    content?: GoogleDocsStructuralElement[];
+  };
+};
+
+type GoogleDocsDocument = {
+  body?: {
+    content?: GoogleDocsStructuralElement[];
+  };
+};
+
+type DecryptedConnection = {
+  _id: string;
+  _creationTime: number;
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: number;
+  sharedDriveId?: string;
+  templatesFolderId?: string;
+  connectionStatus:
+    | "connected"
+    | "token_expiring"
+    | "refreshing"
+    | "expired"
+    | "refresh_failed"
+    | "disconnected"
+    | "error";
+  lastCheckedAt?: number;
+  connectedBy: string;
+  connectedEmail: string;
+};
+
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch the full connection record (with encrypted tokens) and decrypt them.
+ * For use in actions only — never expose decrypted tokens to the frontend.
+ */
+async function getDecryptedConnection(
+  ctx: ActionCtx,
+): Promise<DecryptedConnection | null> {
+  const connection = await ctx.runQuery(api.googleDrive.getConnectionInternal);
+  if (!connection) return null;
+  return {
+    ...connection,
+    accessToken: await decrypt(connection.accessToken),
+    refreshToken: connection.refreshToken
+      ? await decrypt(connection.refreshToken)
+      : undefined,
+  };
+}
+
+async function refreshConnectionAccessToken(
+  ctx: ActionCtx,
+  connection: DecryptedConnection,
+): Promise<DecryptedConnection> {
+  await ctx.runMutation(api.googleDrive.updateStatus, {
+    connectionStatus: "refreshing",
+  });
+
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    await ctx.runMutation(api.googleDrive.updateStatus, {
+      connectionStatus: "refresh_failed",
+    });
+    throw new Error(
+      "Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET env vars",
+    );
+  }
+
+  if (!connection.refreshToken) {
+    await ctx.runMutation(api.googleDrive.updateStatus, {
+      connectionStatus: "refresh_failed",
+    });
+    throw new Error("Missing Google Drive refresh token");
+  }
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: connection.refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    await ctx.runMutation(api.googleDrive.updateStatus, {
+      connectionStatus: "refresh_failed",
+    });
+    throw new Error(`Token refresh failed: ${errorBody}`);
+  }
+
+  const tokens = await response.json();
+  const expiresAt = Date.now() + tokens.expires_in * 1000;
+  const encryptedToken = await encrypt(tokens.access_token);
+
+  await ctx.runMutation(api.googleDrive.updateTokens, {
+    accessToken: encryptedToken,
+    expiresAt,
+  });
+
+  return {
+    ...connection,
+    accessToken: tokens.access_token,
+    expiresAt,
+    connectionStatus: "connected",
+  };
+}
+
+async function getAuthorizedConnection(
+  ctx: ActionCtx,
+  options?: { forceRefresh?: boolean },
+): Promise<DecryptedConnection> {
+  const connection = await getDecryptedConnection(ctx);
+  if (!connection) {
+    throw new Error("Google Drive not connected");
+  }
+
+  const shouldRefresh =
+    options?.forceRefresh || connection.expiresAt <= Date.now() + 5 * 60 * 1000;
+
+  if (!shouldRefresh) {
+    return connection as DecryptedConnection;
+  }
+
+  return await refreshConnectionAccessToken(
+    ctx,
+    connection as DecryptedConnection,
+  );
+}
+
+async function getDriveHeaders(accessToken: string) {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+  };
+}
+
+async function driveApiFetch(
+  path: string,
+  accessToken: string,
+  options?: RequestInit,
+): Promise<DriveResponse> {
+  const response = await fetch(`${DRIVE_API_BASE}${path}`, {
+    ...options,
+    headers: {
+      ...(await getDriveHeaders(accessToken)),
+      ...options?.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Google Drive API error ${response.status}: ${errorBody}`);
+  }
+
+  return response.json();
+}
+
+async function driveApiFetchWithRetry(
+  ctx: ActionCtx,
+  path: string,
+  options?: RequestInit,
+): Promise<DriveResponse> {
+  let connection = await getAuthorizedConnection(ctx);
+
+  try {
+    return await driveApiFetch(path, connection.accessToken, options);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes("Google Drive API error 401")
+    ) {
+      connection = await getAuthorizedConnection(ctx, { forceRefresh: true });
+      return await driveApiFetch(path, connection.accessToken, options);
+    }
+    throw error;
+  }
+}
+
+async function docsApiFetchWithRetry(
+  ctx: ActionCtx,
+  path: string,
+  options?: RequestInit,
+): Promise<GoogleDocsDocument> {
+  let connection = await getAuthorizedConnection(ctx);
+
+  const execute = async (accessToken: string) => {
+    const response = await fetch(`${DOCS_API_BASE}${path}`, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Google Docs API error ${response.status}: ${errorBody}`);
+    }
+
+    return (await response.json()) as GoogleDocsDocument;
+  };
+
+  try {
+    return await execute(connection.accessToken);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes("Google Docs API error 401")
+    ) {
+      connection = await getAuthorizedConnection(ctx, { forceRefresh: true });
+      return await execute(connection.accessToken);
+    }
+    throw error;
+  }
+}
+
+function extractTextFromDoc(
+  elements: GoogleDocsStructuralElement[] = [],
+): string {
+  let result = "";
+
+  for (const element of elements) {
+    if (element.paragraph?.elements) {
+      for (const paragraphElement of element.paragraph.elements) {
+        result += paragraphElement.textRun?.content ?? "";
+      }
+    }
+
+    if (element.table?.tableRows) {
+      for (const row of element.table.tableRows) {
+        for (const cell of row.tableCells ?? []) {
+          result += extractTextFromDoc(cell.content);
+        }
+      }
+    }
+
+    if (element.tableOfContents?.content) {
+      result += extractTextFromDoc(element.tableOfContents.content);
+    }
+  }
+
+  return result;
+}
+
+async function createDriveFolder(
+  ctx: ActionCtx,
+  name: string,
+  parentId: string,
+) {
+  const data = await driveApiFetchWithRetry(
+    ctx,
+    "/files?supportsAllDrives=true",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [parentId],
+      }),
+    },
+  );
+
+  if (!data.id) {
+    throw new Error(`Google Drive folder creation returned no id for ${name}`);
+  }
+
+  return {
+    id: data.id,
+    url: `https://drive.google.com/drive/folders/${data.id}`,
+  };
+}
+
+async function uploadFileToDrive(
+  ctx: ActionCtx,
+  fileUrl: string,
+  parentId: string,
+) {
+  const connection = await getAuthorizedConnection(ctx);
+
+  const sourceResponse = await fetch(fileUrl);
+  if (!sourceResponse.ok) {
+    throw new Error(`File download failed: ${sourceResponse.status}`);
+  }
+
+  const fileBlob = await sourceResponse.blob();
+  const contentType =
+    sourceResponse.headers.get("content-type") ||
+    fileBlob.type ||
+    "application/octet-stream";
+
+  let fileName: string;
+  try {
+    const pathname = new URL(fileUrl).pathname;
+    fileName =
+      pathname.split("/").filter(Boolean).at(-1) ||
+      `attachment-${Date.now()}`;
+  } catch {
+    fileName = `attachment-${Date.now()}`;
+  }
+
+  const metadata = JSON.stringify({ name: fileName, parents: [parentId] });
+  const boundary = `drive_upload_${Date.now()}`;
+  const fileBuffer = await fileBlob.arrayBuffer();
+
+  const encoder = new TextEncoder();
+  const preamble = encoder.encode(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`,
+  );
+  const epilogue = encoder.encode(`\r\n--${boundary}--`);
+
+  const body = new Uint8Array(
+    preamble.byteLength + fileBuffer.byteLength + epilogue.byteLength,
+  );
+  body.set(preamble, 0);
+  body.set(new Uint8Array(fileBuffer), preamble.byteLength);
+  body.set(epilogue, preamble.byteLength + fileBuffer.byteLength);
+
+  const response = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${connection.accessToken}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    },
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(
+      `Google Drive file upload failed ${response.status}: ${errorBody}`,
+    );
+  }
+}
+
+// ─── Mail Merge Helper ───────────────────────────────────────────────────────
+
+/**
+ * Resolve a field mapping value from client data.
+ * Handles regular fields, array fields (joined with ", "), and special fields.
+ */
+function resolveFieldValue(
+  client: Record<string, unknown>,
+  field: string,
+): string {
+  // Special fields
+  if (field === "__today") {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, "0");
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const yyyy = now.getFullYear();
+    return `${dd}.${mm}.${yyyy}`;
+  }
+  if (field === "__year") {
+    return String(new Date().getFullYear());
+  }
+  if (field === "__empty") {
+    return "";
+  }
+
+  const value = client[field];
+  if (value === undefined || value === null) {
+    return "";
+  }
+  if (Array.isArray(value)) {
+    return value.join(", ");
+  }
+  return String(value);
+}
+
+/**
+ * Perform find & replace on a Google Docs document using batchUpdate.
+ * Returns true on success, false on failure (logs error).
+ */
+async function performMailMerge(
+  documentId: string,
+  accessToken: string,
+  client: Record<string, unknown>,
+  fieldMappings: Array<{ placeholder: string; field: string }>,
+): Promise<boolean> {
+  if (fieldMappings.length === 0) {
+    return true;
+  }
+
+  const requests = fieldMappings.map((mapping) => ({
+    replaceAllText: {
+      containsText: {
+        text: mapping.placeholder,
+        matchCase: true,
+      },
+      replaceText: resolveFieldValue(client, mapping.field),
+    },
+  }));
+
+  try {
+    const response = await fetch(
+      `${DOCS_API_BASE}/documents/${documentId}:batchUpdate`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ requests }),
+      },
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(
+        `Mail merge failed for document ${documentId}: ${response.status} ${errorBody}`,
+      );
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error(`Mail merge error for document ${documentId}:`, error);
+    return false;
+  }
+}
+
+// ─── Queries ──────────────────────────────────────────────────────────────────
+
+// Public query — NEVER exposes tokens to frontend
+export const getConnectionStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const connection = await ctx.db.query("driveConnection").first();
+    if (!connection) return null;
+    return {
+      _id: connection._id,
+      connectionStatus: connection.connectionStatus,
+      connectedBy: connection.connectedBy,
+      connectedEmail: connection.connectedEmail,
+      expiresAt: connection.expiresAt,
+      sharedDriveId: connection.sharedDriveId,
+      templatesFolderId: connection.templatesFolderId,
+      lastCheckedAt: connection.lastCheckedAt,
+    };
+  },
+});
+
+// Internal query — returns full record with encrypted tokens (for actions only)
+export const getConnectionInternal = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("driveConnection").first();
+  },
+});
+
+// ─── Mutations ────────────────────────────────────────────────────────────────
+
+export const saveConnection = mutation({
+  args: {
+    accessToken: v.string(),
+    refreshToken: v.string(),
+    expiresAt: v.number(),
+    connectedBy: v.string(),
+    connectedEmail: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Remove any existing connection (singleton pattern)
+    const existing = await ctx.db.query("driveConnection").first();
+    if (existing) {
+      await ctx.db.delete(existing._id);
+    }
+
+    const id = await ctx.db.insert("driveConnection", {
+      accessToken: args.accessToken,
+      refreshToken: args.refreshToken,
+      expiresAt: args.expiresAt,
+      connectedBy: args.connectedBy,
+      connectedEmail: args.connectedEmail,
+      connectionStatus: "connected",
+    });
+    return id;
+  },
+});
+
+export const updateTokens = mutation({
+  args: {
+    accessToken: v.string(),
+    expiresAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.query("driveConnection").first();
+    if (!connection) {
+      throw new Error("No drive connection found");
+    }
+    await ctx.db.patch(connection._id, {
+      accessToken: args.accessToken,
+      expiresAt: args.expiresAt,
+      connectionStatus: "connected",
+    });
+  },
+});
+
+export const updateStatus = mutation({
+  args: {
+    connectionStatus: v.union(
+      v.literal("connected"),
+      v.literal("token_expiring"),
+      v.literal("refreshing"),
+      v.literal("expired"),
+      v.literal("refresh_failed"),
+      v.literal("disconnected"),
+      v.literal("error"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.query("driveConnection").first();
+    if (!connection) {
+      throw new Error("No drive connection found");
+    }
+    await ctx.db.patch(connection._id, {
+      connectionStatus: args.connectionStatus,
+    });
+  },
+});
+
+export const saveSharedDriveConfig = mutation({
+  args: {
+    sharedDriveId: v.optional(v.string()),
+    templatesFolderId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.query("driveConnection").first();
+    if (!connection) {
+      throw new Error("No drive connection found");
+    }
+    const patch: Record<string, string> = {};
+    if (args.sharedDriveId !== undefined)
+      patch.sharedDriveId = args.sharedDriveId;
+    if (args.templatesFolderId !== undefined)
+      patch.templatesFolderId = args.templatesFolderId;
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(connection._id, patch);
+    }
+  },
+});
+
+export const disconnect = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const connection = await ctx.db.query("driveConnection").first();
+    if (connection) {
+      await ctx.db.delete(connection._id);
+    }
+  },
+});
+
+// ─── Actions ──────────────────────────────────────────────────────────────────
+
+export const listSharedDrives = action({
+  args: {},
+  handler: async (ctx): Promise<{ id: string; name: string }[]> => {
+    const data = await driveApiFetchWithRetry(ctx, "/drives?pageSize=100");
+
+    return (data.drives ?? []).map((d) => ({
+      id: d.id,
+      name: d.name,
+    }));
+  },
+});
+
+export const listFolders = action({
+  args: {
+    driveId: v.optional(v.string()),
+    parentFolderId: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ id: string; name: string }[]> => {
+    const parent = args.parentFolderId ?? args.driveId ?? "root";
+    const q = `'${parent}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    const params = new URLSearchParams({
+      q,
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+      fields: "files(id,name,mimeType)",
+      pageSize: "100",
+    });
+
+    // If browsing a shared drive, scope to that drive
+    if (args.driveId) {
+      params.set("corpora", "drive");
+      params.set("driveId", args.driveId);
+    } else {
+      params.set("corpora", "user");
+    }
+
+    const data = await driveApiFetchWithRetry(
+      ctx,
+      `/files?${params.toString()}`,
+    );
+
+    return (data.files ?? []).map((f) => ({
+      id: f.id,
+      name: f.name,
+    }));
+  },
+});
+
+export const createOrderFolder = action({
+  args: {
+    orderId: v.id("orders"),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ folderId: string; folderUrl: string | undefined }> => {
+    // Read order data
+    const order = await ctx.runQuery(api.orders.getById, {
+      orderId: args.orderId,
+    });
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    // Idempotency: skip if folder already exists
+    if (order.folderId) {
+      return { folderId: order.folderId, folderUrl: order.folderUrl };
+    }
+
+    // Read client data
+    const client = await ctx.runQuery(api.clients.getById, {
+      clientId: order.clientId,
+    });
+    if (!client) {
+      throw new Error("Client not found");
+    }
+
+    const connection = await getAuthorizedConnection(ctx);
+    if (!connection.sharedDriveId) {
+      throw new Error("Shared drive not configured");
+    }
+
+    // Krok 1: Znajdź lub utwórz folder klienta (Imię_Nazwisko) w shared drive
+    let clientFolderId = client.clientFolderId;
+    if (!clientFolderId) {
+      const clientFolderName = `${client.firstName}_${client.lastName}`;
+      const { id, url: clientFolderUrl } = await createDriveFolder(
+        ctx,
+        clientFolderName,
+        connection.sharedDriveId,
+      );
+      clientFolderId = id;
+
+      await ctx.runMutation(api.clients.updateClientFolder, {
+        clientId: order.clientId,
+        clientFolderId: id,
+        clientFolderUrl,
+      });
+    }
+
+    // Krok 2: Utwórz podfolder zlecenia wewnątrz folderu klienta
+    // Konwencja: DD.MM.YYYY_Usługa_Miejscowość
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, "0");
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const yyyy = now.getFullYear();
+    const service = (order.services ?? []).join("-") || "Zlecenie";
+    const city = client.city ?? "";
+    const orderFolderName = `${dd}.${mm}.${yyyy}_${service}_${city}`;
+
+    const { id: folderId, url: folderUrl } = await createDriveFolder(
+      ctx,
+      orderFolderName,
+      clientFolderId,
+    );
+
+    // Krok 3: Wgraj załączniki z formularza bezpośrednio do folderu zlecenia
+    const attachmentUrls = (order.projectFiles ?? "")
+      .split(/[\n,]+/)
+      .map((u: string) => u.trim())
+      .filter(Boolean);
+
+    for (const url of attachmentUrls) {
+      try {
+        await uploadFileToDrive(ctx, url, folderId);
+      } catch (error) {
+        console.error(`Failed to upload attachment to Drive: ${url}`, error);
+      }
+    }
+
+    // Zapisz ID folderu zlecenia w rekordzie zlecenia
+    await ctx.runMutation(api.orders.updateDriveFolder, {
+      orderId: args.orderId,
+      folderId,
+      folderUrl,
+    });
+
+    // Zaloguj event
+    await ctx.runMutation(internal.orders.addEvent, {
+      orderId: args.orderId,
+      type: "folder_created",
+      details: { folderId, folderUrl, folderName: orderFolderName, clientFolderId },
+      performedBy: connection.connectedBy,
+    });
+
+    return { folderId, folderUrl };
+  },
+});
+
+export const deleteFile = action({
+  args: {
+    fileId: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    let connection = await getAuthorizedConnection(ctx);
+
+    const doDelete = async (accessToken: string) => {
+      const response = await fetch(
+        `${DRIVE_API_BASE}/files/${args.fileId}?supportsAllDrives=true`,
+        {
+          method: "DELETE",
+          headers: await getDriveHeaders(accessToken),
+        },
+      );
+      if (!response.ok && response.status !== 404) {
+        const errorBody = await response.text();
+        throw new Error(`Google Drive API error ${response.status}: ${errorBody}`);
+      }
+    };
+
+    try {
+      await doDelete(connection.accessToken);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("401")) {
+        connection = await getAuthorizedConnection(ctx, { forceRefresh: true });
+        await doDelete(connection.accessToken);
+      } else {
+        throw error;
+      }
+    }
+  },
+});
+
+export const copyTemplate = action({
+  args: {
+    orderId: v.id("orders"),
+    templateKey: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ url: string; fileId?: string }> => {
+    const order = await ctx.runQuery(api.orders.getById, {
+      orderId: args.orderId,
+    });
+    if (!order) {
+      throw new Error("Order not found");
+    }
+    if (!order.folderId) {
+      throw new Error("Order folder not created yet");
+    }
+
+    // Check idempotency: skip if document URL already exists for this template
+    const docEntry =
+      order.documents[args.templateKey as keyof typeof order.documents];
+    if (docEntry?.url) {
+      return { url: docEntry.url };
+    }
+
+    // Read client data for name/city and mail merge
+    const client = await ctx.runQuery(api.clients.getById, {
+      clientId: order.clientId,
+    });
+    if (!client) {
+      throw new Error("Client not found");
+    }
+
+    const connection = await getAuthorizedConnection(ctx);
+
+    // Get template
+    const template = await ctx.runQuery(api.documentTemplates.getByKey, {
+      key: args.templateKey,
+    });
+    if (!template) {
+      throw new Error(`Template not found: ${args.templateKey}`);
+    }
+    if (!template.googleDriveFileId) {
+      throw new Error(`Template has no Google Drive file: ${args.templateKey}`);
+    }
+
+    // Build file name from pattern
+    let fileName = template.fileNamePattern;
+    fileName = fileName.replace("{{firstName}}", client.firstName);
+    fileName = fileName.replace("{{lastName}}", client.lastName);
+    fileName = fileName.replace("{{city}}", client.city ?? "");
+    fileName = fileName.replace(
+      "{{date}}",
+      new Date().toISOString().slice(0, 10),
+    );
+
+    // Copy file via Drive API
+    const copyData = await driveApiFetchWithRetry(
+      ctx,
+      `/files/${template.googleDriveFileId}/copy?supportsAllDrives=true`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: fileName,
+          parents: [order.folderId],
+        }),
+      },
+    );
+
+    if (!copyData.id) {
+      throw new Error("Google Drive copy returned no file id");
+    }
+
+    const fileUrl = `https://docs.google.com/document/d/${copyData.id}/edit`;
+
+    // Perform mail merge — replace placeholders in the copied document
+    if (template.fieldMappings && template.fieldMappings.length > 0) {
+      const mergeSuccess = await performMailMerge(
+        copyData.id,
+        connection.accessToken,
+        { ...client, ...order },
+        template.fieldMappings,
+      );
+      if (!mergeSuccess) {
+        console.error(
+          `Mail merge failed for template ${args.templateKey}, document ${copyData.id}. File was copied but placeholders were not replaced.`,
+        );
+      }
+    }
+
+    // Save URL to order's documents
+    await ctx.runMutation(api.orders.updateDocumentUrl, {
+      orderId: args.orderId,
+      documentType: args.templateKey,
+      url: fileUrl,
+    });
+
+    return { url: fileUrl, fileId: copyData.id };
+  },
+});
+
+export const initializeMeasurement = internalAction({
+  args: {
+    orderId: v.id("orders"),
+  },
+  handler: async (ctx, args) => {
+    // Krok 1: Utwórz folder zlecenia (idempotentne — pomija jeśli już istnieje)
+    await ctx.runAction(api.googleDrive.createOrderFolder, {
+      orderId: args.orderId,
+    });
+
+    // Krok 2: Sprawdź czy szablon pomiar jest skonfigurowany
+    const template = await ctx.runQuery(api.documentTemplates.getByKey, {
+      key: "pomiar",
+    });
+    if (!template?.googleDriveFileId) {
+      console.warn(
+        "Szablon 'pomiar' nie jest skonfigurowany — pomijanie generowania pliku pomiaru",
+      );
+      return;
+    }
+
+    // Krok 3: Skopiuj szablon do folderu zlecenia (idempotentne — pomija jeśli URL już istnieje)
+    await ctx.runAction(api.googleDrive.copyTemplate, {
+      orderId: args.orderId,
+      templateKey: "pomiar",
+    });
+  },
+});
+
+export const listTemplateFiles = action({
+  args: {},
+  handler: async (ctx): Promise<Array<{ id: string; name: string }>> => {
+    const connection = await getAuthorizedConnection(ctx);
+    if (!connection.templatesFolderId) {
+      throw new Error("Templates folder not configured");
+    }
+
+    const params = new URLSearchParams({
+      q: `'${connection.templatesFolderId}' in parents and trashed=false`,
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+      fields: "files(id,name,mimeType)",
+      orderBy: "name",
+      pageSize: "100",
+    });
+
+    const data = await driveApiFetchWithRetry(
+      ctx,
+      `/files?${params.toString()}`,
+    );
+
+    return (data.files ?? [])
+      .filter((file) => file.mimeType !== "application/vnd.google-apps.folder")
+      .map((file) => ({ id: file.id, name: file.name }));
+  },
+});
+
+export const detectTemplatePlaceholders = action({
+  args: {
+    documentFileId: v.string(),
+  },
+  handler: async (ctx, args): Promise<string[]> => {
+    let text = "";
+
+    // Try Google Docs API first (native Google Docs)
+    try {
+      const document = await docsApiFetchWithRetry(
+        ctx,
+        `/documents/${args.documentFileId}`,
+      );
+      text = extractTextFromDoc(document.body?.content);
+    } catch {
+      // Fallback: export via Drive API (works for .doc, .docx, native Docs)
+      const connection = await getAuthorizedConnection(ctx);
+      const exportUrl = `${DRIVE_API_BASE}/files/${args.documentFileId}/export?mimeType=text/plain&supportsAllDrives=true`;
+      const response = await fetch(exportUrl, {
+        headers: { Authorization: `Bearer ${connection.accessToken}` },
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(
+          `Google Drive export failed ${response.status}: ${errorBody}`,
+        );
+      }
+
+      text = await response.text();
+    }
+
+    const matches = text.match(/\{\{[^{}]+\}\}/g) ?? [];
+
+    return Array.from(new Set(matches.map((match) => match.trim()))).sort(
+      (a, b) => a.localeCompare(b),
+    );
+  },
+});
+
+export const refreshAccessToken = action({
+  args: {},
+  handler: async (ctx): Promise<{ success: boolean; expiresAt: number }> => {
+    const connection = await getAuthorizedConnection(ctx, {
+      forceRefresh: true,
+    });
+    return { success: true, expiresAt: connection.expiresAt };
+  },
+});
+
+export const applyMailMerge = action({
+  args: {
+    clientId: v.id("clients"),
+    templateKey: v.string(),
+    documentFileId: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; error?: string }> => {
+    const client = await ctx.runQuery(api.clients.getById, {
+      clientId: args.clientId,
+    });
+    if (!client) {
+      throw new Error("Client not found");
+    }
+
+    const connection = await getAuthorizedConnection(ctx);
+
+    const template = await ctx.runQuery(api.documentTemplates.getByKey, {
+      key: args.templateKey,
+    });
+    if (!template) {
+      throw new Error(`Template not found: ${args.templateKey}`);
+    }
+
+    if (!template.fieldMappings || template.fieldMappings.length === 0) {
+      return { success: true };
+    }
+
+    const success = await performMailMerge(
+      args.documentFileId,
+      connection.accessToken,
+      client,
+      template.fieldMappings,
+    );
+
+    if (!success) {
+      return {
+        success: false,
+        error: `Mail merge failed for document ${args.documentFileId}`,
+      };
+    }
+
+    return { success: true };
+  },
+});
+
+// Internal mutation wrapper for cron — schedules the healthCheck action
+export const scheduledHealthCheck = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    await ctx.scheduler.runAfter(0, api.googleDrive.healthCheck);
+  },
+});
+
+export const healthCheck = action({
+  args: {},
+  handler: async (
+    ctx,
+  ): Promise<{ status: string; lastCheckedAt?: number; error?: string }> => {
+    let connection = await getDecryptedConnection(ctx);
+    if (!connection) {
+      return { status: "disconnected" as const };
+    }
+
+    try {
+      connection = await getAuthorizedConnection(ctx);
+
+      // Test the connection by listing a single file
+      const params = new URLSearchParams({
+        pageSize: "1",
+        supportsAllDrives: "true",
+        includeItemsFromAllDrives: "true",
+      });
+
+      const response = await fetch(
+        `${DRIVE_API_BASE}/files?${params.toString()}`,
+        {
+          headers: { Authorization: `Bearer ${connection.accessToken}` },
+        },
+      );
+
+      const now = Date.now();
+
+      if (response.ok) {
+        // Update lastCheckedAt and ensure status is connected
+        await ctx.runMutation(api.googleDrive.updateStatus, {
+          connectionStatus: "connected",
+        });
+        return { status: "connected" as const, lastCheckedAt: now };
+      }
+
+      // Token might be expired
+      if (response.status === 401) {
+        await ctx.runMutation(api.googleDrive.updateStatus, {
+          connectionStatus: "expired",
+        });
+        return { status: "expired" as const, lastCheckedAt: now };
+      }
+
+      await ctx.runMutation(api.googleDrive.updateStatus, {
+        connectionStatus: "error",
+      });
+      return { status: "error" as const, lastCheckedAt: now };
+    } catch (error) {
+      await ctx.runMutation(api.googleDrive.updateStatus, {
+        connectionStatus: "error",
+      });
+      return {
+        status: "error" as const,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+});
