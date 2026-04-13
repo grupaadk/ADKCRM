@@ -1305,11 +1305,13 @@ export default function MailPage() {
         ? selectedMessage.snippet
         : (selectedMessage.body || selectedMessage.snippet),
       messageId: selectedMessage.id,
-      attachments: allAttachments.map((a) => ({
-        attachmentId: a.attachmentId,
-        filename: a.filename,
-        mimeType: a.mimeType,
-      })),
+      attachments: allAttachments
+        .filter((a): a is typeof a & { attachmentId: string } => a.attachmentId != null)
+        .map((a) => ({
+          attachmentId: a.attachmentId,
+          filename: a.filename,
+          mimeType: a.mimeType,
+        })),
     });
     markAddedToTrello(selectedMessage.id);
   };
@@ -1328,11 +1330,13 @@ export default function MailPage() {
       subject: threadSubject,
       body: msg.isHtml ? msg.snippet : (msg.body || msg.snippet),
       messageId: msg.id,
-      attachments: allAttachments.map((a) => ({
-        attachmentId: a.attachmentId,
-        filename: a.filename,
-        mimeType: a.mimeType,
-      })),
+      attachments: allAttachments
+        .filter((a): a is typeof a & { attachmentId: string } => a.attachmentId != null)
+        .map((a) => ({
+          attachmentId: a.attachmentId,
+          filename: a.filename,
+          mimeType: a.mimeType,
+        })),
     });
     markAddedToTrello(msg.id);
   };
