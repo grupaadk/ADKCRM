@@ -410,7 +410,14 @@ export default function ClientMailTab({ clientEmail }: { clientEmail: string }) 
     try {
       const detail = await getMessageAction({ messageId });
       const meta = messages.find((m) => m.id === messageId)!;
-      setSelectedMessage({ ...meta, ...detail });
+      const normalizedDetail = {
+        ...detail,
+        attachments: (detail.attachments ?? []).map((att) => ({
+          ...att,
+          attachmentId: att.attachmentId ?? "",
+        })),
+      };
+      setSelectedMessage({ ...meta, ...normalizedDetail });
     } catch (err) {
       console.error("Failed to fetch message:", err);
     } finally {
