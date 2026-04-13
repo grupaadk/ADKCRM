@@ -572,7 +572,7 @@ function ThreadMessageItem({
         </div>
         <span className="text-xs text-gray-400 shrink-0">{msg.date}</span>
         {!expanded && msg.attachments?.length > 0 && (
-          <Paperclip className="size-3.5 text-gray-400 shrink-0" title="Zawiera załączniki" />
+          <Paperclip className="size-3.5 text-gray-400 shrink-0" aria-label="Zawiera załączniki" />
         )}
         <ChevronLeft className={cx("size-4 text-gray-400 shrink-0 transition-transform", expanded ? "-rotate-90" : "rotate-90")} />
       </button>
