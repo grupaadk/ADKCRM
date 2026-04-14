@@ -258,8 +258,20 @@ export const deleteClient = action({
             fileId: order.folderId,
           });
         } catch (error) {
-          console.error("Nie udało się usunąć folderu Drive:", error);
+          console.error("Nie udało się usunąć folderu Drive zlecenia:", error);
         }
+      }
+    }
+
+    // Delete client-level folder on shared drive
+    const clientFolderId = client.clientFolderId ?? client.folderId;
+    if (clientFolderId) {
+      try {
+        await ctx.runAction(api.googleDrive.deleteFile, {
+          fileId: clientFolderId,
+        });
+      } catch (error) {
+        console.error("Nie udało się usunąć folderu Drive klienta:", error);
       }
     }
 

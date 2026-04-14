@@ -86,6 +86,22 @@ const documentSet = v.object({
   reklamacja: documentEntry,
 });
 
+const fakturowniaInvoiceEntry = v.object({
+  kind: v.union(v.literal("advance"), v.literal("final")),
+  remoteId: v.string(),
+  number: v.optional(v.string()),
+  grossAmount: v.optional(v.number()),
+  createdAt: v.number(),
+});
+
+const fakturowniaOrderLink = v.object({
+  estimateId: v.string(),
+  estimateNumber: v.optional(v.string()),
+  oid: v.optional(v.string()),
+  estimateSyncedAt: v.number(),
+  invoices: v.array(fakturowniaInvoiceEntry),
+});
+
 export default defineSchema({
   // 3.1 Klient — tylko dane kontaktowe
   clients: defineTable({
@@ -170,6 +186,9 @@ export default defineSchema({
     source: v.union(v.literal("jotform"), v.literal("manual")),
     jotformSubmissionId: v.optional(v.string()),
     createdBy: v.string(),
+
+    // Fakturownia (zamówienie = estimate + faktury zaliczkowa / końcowa)
+    fakturownia: v.optional(fakturowniaOrderLink),
   })
     .index("by_client", ["clientId"])
     .index("by_status", ["status"])
@@ -250,6 +269,16 @@ export default defineSchema({
     apiKey: v.string(),
     formId: v.string(),
     webhookRegistered: v.boolean(),
+  }),
+
+  // 3.6c Konfiguracja Fakturownia (singleton)
+  fakturowniaConfig: defineTable({
+    apiToken: v.string(),
+    subdomain: v.string(),
+    /** Procent pełnej kwoty brutto na fakturze zaliczkowej (reszta na fakturze końcowej). */
+    advancePercent: v.number(),
+    departmentId: v.optional(v.string()),
+    connectedBy: v.string(),
   }),
 
   // 3.6b Notatki do klienta / zlecenia

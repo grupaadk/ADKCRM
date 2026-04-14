@@ -4,6 +4,11 @@ import { query, mutation, action } from "./_generated/server";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { decrypt } from "./lib/crypto";
+import { CLIENT_STATUSES } from "./schema";
+import {
+  JOTFORM_SOURCE_LIST_ID,
+  MEASUREMENT_LIST_ID,
+} from "./trelloWebhookLists";
 
 const clientStatusMapValidator = v.object({
   lead: v.optional(v.string()),
@@ -232,6 +237,128 @@ export const listLists = action({
     }
 
     return await response.json();
+  },
+});
+
+type ResolveStatusListMapWithNamesResult = {
+  boardId: string | null;
+  defaultListId: string | null;
+  rows: Array<{
+    status: (typeof CLIENT_STATUSES)[number];
+    listId: string | null;
+    listName: string | null;
+    source: "statusListMap" | "listId_fallback" | "unconfigured";
+  }>;
+  webhookHardcoded: Array<{
+    role: string;
+    listId: string;
+    listName: string | null;
+  }>;
+};
+
+/** Zwraca mapowanie status CRM → ID listy → nazwa listy w Trello (API). */
+export const resolveStatusListMapWithNames = action({
+  args: {},
+  handler: async (ctx): Promise<ResolveStatusListMapWithNamesResult> => {
+    const creds = await getDecryptedCredentials(ctx);
+    if (!creds) {
+      throw new Error("Brak konfiguracji Trello");
+    }
+    const { apiKey, apiToken } = creds;
+
+    const config = await ctx.runQuery(api.trello.getConfig, {});
+    if (!config) {
+      throw new Error("Brak zapisanej konfiguracji Trello");
+    }
+
+    const idToName = new Map<string, string>();
+
+    if (config.boardId) {
+      const boardResponse = await fetch(
+        `${TRELLO_API_BASE}/boards/${config.boardId}/lists?key=${apiKey}&token=${apiToken}&fields=id,name`,
+      );
+      if (boardResponse.ok) {
+        const lists: Array<{ id: string; name: string }> =
+          await boardResponse.json();
+        for (const list of lists) {
+          idToName.set(list.id, list.name);
+        }
+      }
+    }
+
+    async function listNameForId(listId: string): Promise<string | null> {
+      const cached = idToName.get(listId);
+      if (cached !== undefined) {
+        return cached;
+      }
+      const response = await fetch(
+        `${TRELLO_API_BASE}/lists/${listId}?key=${apiKey}&token=${apiToken}&fields=name`,
+      );
+      if (!response.ok) {
+        return null;
+      }
+      const data: { name?: string } = await response.json();
+      const name = data.name ?? null;
+      if (name) {
+        idToName.set(listId, name);
+      }
+      return name;
+    }
+
+    const rows: Array<{
+      status: (typeof CLIENT_STATUSES)[number];
+      listId: string | null;
+      listName: string | null;
+      source: "statusListMap" | "listId_fallback" | "unconfigured";
+    }> = [];
+
+    for (const status of CLIENT_STATUSES) {
+      const mapped = config.statusListMap?.[status];
+      const effectiveId = mapped ?? config.listId ?? null;
+      if (!effectiveId) {
+        rows.push({
+          status,
+          listId: null,
+          listName: null,
+          source: "unconfigured",
+        });
+        continue;
+      }
+      const source: "statusListMap" | "listId_fallback" = mapped
+        ? "statusListMap"
+        : "listId_fallback";
+      const listName =
+        idToName.get(effectiveId) ?? (await listNameForId(effectiveId));
+      rows.push({ status, listId: effectiveId, listName, source });
+    }
+
+    const webhookHardcoded: Array<{
+      role: string;
+      listId: string;
+      listName: string | null;
+    }> = [
+      {
+        role: "jotform_source",
+        listId: JOTFORM_SOURCE_LIST_ID,
+        listName:
+          idToName.get(JOTFORM_SOURCE_LIST_ID) ??
+          (await listNameForId(JOTFORM_SOURCE_LIST_ID)),
+      },
+      {
+        role: "measurement_create_client_order",
+        listId: MEASUREMENT_LIST_ID,
+        listName:
+          idToName.get(MEASUREMENT_LIST_ID) ??
+          (await listNameForId(MEASUREMENT_LIST_ID)),
+      },
+    ];
+
+    return {
+      boardId: config.boardId ?? null,
+      defaultListId: config.listId ?? null,
+      rows,
+      webhookHardcoded,
+    };
   },
 });
 

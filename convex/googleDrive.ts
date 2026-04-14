@@ -71,6 +71,46 @@ type DecryptedConnection = {
  * Fetch the full connection record (with encrypted tokens) and decrypt them.
  * For use in actions only — never expose decrypted tokens to the frontend.
  */
+/** Jotform upload URLs require API key; plain fetch returns the login HTML page. */
+async function getJotformApiKeyForActions(
+  ctx: ActionCtx,
+): Promise<string | null> {
+  const envKey = process.env.JOTFORM_API_KEY?.trim();
+  if (envKey) {
+    return envKey;
+  }
+  const config = await ctx.runQuery(api.jotformAdmin.getConfigInternal, {});
+  if (!config?.apiKey) {
+    return null;
+  }
+  return await decrypt(config.apiKey);
+}
+
+function appendJotformApiKeyQuery(fileUrl: string, apiKey: string): string {
+  const u = new URL(fileUrl);
+  u.searchParams.set("apiKey", apiKey);
+  return u.toString();
+}
+
+function assertDownloadIsBinaryFile(
+  fileBuffer: ArrayBuffer,
+  contentType: string,
+): void {
+  const ct = contentType.toLowerCase();
+  if (ct.includes("text/html") || ct.includes("application/xhtml")) {
+    throw new Error(
+      "Download returned HTML instead of a file (likely Jotform login page). Ensure Jotform API key is configured, or adjust Jotform security settings for uploaded files.",
+    );
+  }
+  const head = fileBuffer.byteLength > 900 ? fileBuffer.slice(0, 900) : fileBuffer;
+  const peek = new TextDecoder("utf-8", { fatal: false }).decode(head).trimStart().toLowerCase();
+  if (peek.startsWith("<!doctype html") || peek.startsWith("<html")) {
+    throw new Error(
+      "Download returned HTML instead of a file (likely Jotform login page). Ensure Jotform API key is configured, or adjust Jotform security settings for uploaded files.",
+    );
+  }
+}
+
 async function getDecryptedConnection(
   ctx: ActionCtx,
 ): Promise<DecryptedConnection | null> {
@@ -318,18 +358,28 @@ async function uploadFileToDrive(
   ctx: ActionCtx,
   fileUrl: string,
   parentId: string,
+  options?: { jotformApiKey?: string | null },
 ) {
   const connection = await getAuthorizedConnection(ctx);
 
-  const sourceResponse = await fetch(fileUrl);
+  const jotformApiKey = options?.jotformApiKey ?? null;
+  const downloadUrl =
+    jotformApiKey !== null && jotformApiKey !== ""
+      ? appendJotformApiKeyQuery(fileUrl, jotformApiKey)
+      : fileUrl;
+
+  const sourceResponse = await fetch(downloadUrl, {
+    headers:
+      jotformApiKey !== null && jotformApiKey !== ""
+        ? { APIKEY: jotformApiKey }
+        : {},
+  });
   if (!sourceResponse.ok) {
     throw new Error(`File download failed: ${sourceResponse.status}`);
   }
 
-  const fileBlob = await sourceResponse.blob();
   const contentType =
     sourceResponse.headers.get("content-type") ||
-    fileBlob.type ||
     "application/octet-stream";
 
   let fileName: string;
@@ -344,7 +394,8 @@ async function uploadFileToDrive(
 
   const metadata = JSON.stringify({ name: fileName, parents: [parentId] });
   const boundary = `drive_upload_${Date.now()}`;
-  const fileBuffer = await fileBlob.arrayBuffer();
+  const fileBuffer = await sourceResponse.arrayBuffer();
+  assertDownloadIsBinaryFile(fileBuffer, contentType);
 
   const encoder = new TextEncoder();
   const preamble = encoder.encode(
@@ -720,9 +771,20 @@ export const createOrderFolder = action({
       .map((u: string) => u.trim())
       .filter(Boolean);
 
+    const fromJotform =
+      order.source === "jotform" || !!order.jotformSubmissionId;
+    const jotformApiKey = fromJotform
+      ? await getJotformApiKeyForActions(ctx)
+      : null;
+    if (fromJotform && attachmentUrls.length > 0 && !jotformApiKey) {
+      console.warn(
+        "[googleDrive] Jotform order has attachments but no API key; downloads may return login HTML. Configure Jotform API key in Settings.",
+      );
+    }
+
     for (const url of attachmentUrls) {
       try {
-        await uploadFileToDrive(ctx, url, folderId);
+        await uploadFileToDrive(ctx, url, folderId, { jotformApiKey });
       } catch (error) {
         console.error(`Failed to upload attachment to Drive: ${url}`, error);
       }

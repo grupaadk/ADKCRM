@@ -1306,9 +1306,15 @@ export default function MailPage() {
         : (selectedMessage.body || selectedMessage.snippet),
       messageId: selectedMessage.id,
       attachments: allAttachments
+<<<<<<< HEAD
         .filter((a): a is typeof a & { attachmentId: string } => a.attachmentId != null)
         .map((a) => ({
           attachmentId: a.attachmentId,
+=======
+        .filter((a) => Boolean(a.attachmentId))
+        .map((a) => ({
+          attachmentId: a.attachmentId as string,
+>>>>>>> 3c25f15 (Add Fakturownia integration, Trello/Jotform improvements, middleware refactor)
           filename: a.filename,
           mimeType: a.mimeType,
         })),
@@ -1331,9 +1337,15 @@ export default function MailPage() {
       body: msg.isHtml ? msg.snippet : (msg.body || msg.snippet),
       messageId: msg.id,
       attachments: allAttachments
+<<<<<<< HEAD
         .filter((a): a is typeof a & { attachmentId: string } => a.attachmentId != null)
         .map((a) => ({
           attachmentId: a.attachmentId,
+=======
+        .filter((a) => Boolean(a.attachmentId))
+        .map((a) => ({
+          attachmentId: a.attachmentId as string,
+>>>>>>> 3c25f15 (Add Fakturownia integration, Trello/Jotform improvements, middleware refactor)
           filename: a.filename,
           mimeType: a.mimeType,
         })),

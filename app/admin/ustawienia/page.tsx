@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import type { Id } from "@/convex/_generated/dataModel";
 
-type Tab = "google-drive" | "jotform" | "trello" | "szablony" | "sms";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "trello" | "szablony" | "sms";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -1075,6 +1075,193 @@ function JotformTab() {
   );
 }
 
+// --- Fakturownia Tab ---
+
+function FakturowniaTab() {
+  const config = useQuery(api.fakturownia.getConfig);
+  const saveConfig = useMutation(api.fakturownia.saveConfig);
+  const encryptToken = useAction(api.fakturownia.encryptApiToken);
+  const testConnection = useAction(api.fakturownia.testConnection);
+
+  const [subdomain, setSubdomain] = useState("");
+  const [apiToken, setApiToken] = useState("");
+  const [advancePercent, setAdvancePercent] = useState("30");
+  const [departmentId, setDepartmentId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const hasSavedToken = config?.hasApiToken ?? false;
+  const effectiveSubdomain = subdomain || config?.subdomain || "";
+  const effectiveDept = departmentId || config?.departmentId || "";
+
+  useEffect(() => {
+    if (config?.advancePercent != null) {
+      setAdvancePercent(String(config.advancePercent));
+    }
+  }, [config?.advancePercent]);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    setError(null);
+    setSaving(true);
+    try {
+      const sub = (subdomain || config?.subdomain || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\.fakturownia\.pl$/i, "");
+      if (!sub) {
+        throw new Error("Podaj subdomenę (np. moja-firma)");
+      }
+      const adv = parseInt(advancePercent, 10);
+      if (Number.isNaN(adv) || adv < 1 || adv > 99) {
+        throw new Error("Zaliczka musi być 1–99%");
+      }
+      let encrypted: string | undefined;
+      const trimmedToken = apiToken.trim();
+      if (trimmedToken) {
+        encrypted = await encryptToken({ apiToken: trimmedToken });
+      }
+      await saveConfig({
+        subdomain: sub,
+        advancePercent: adv,
+        departmentId: (departmentId || config?.departmentId || "").trim() || undefined,
+        encryptedApiToken: encrypted,
+      });
+      setApiToken("");
+      setMessage("Zapisano ustawienia Fakturowni.");
+    } catch (err) {
+      setError(getErrorMessage(err, "Błąd zapisu"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleTest() {
+    setMessage(null);
+    setError(null);
+    setTesting(true);
+    try {
+      const res = await testConnection({
+        apiToken: apiToken.trim() || undefined,
+      });
+      if (res.ok) setMessage("Połączenie z API Fakturowni działa.");
+      else setError(res.error ?? "Błąd testu");
+    } catch (err) {
+      setError(getErrorMessage(err, "Błąd testu"));
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6 max-w-xl">
+      <p className="text-sm text-slate-600">
+        Integracja wysyła wycenę jako{" "}
+        <strong>zamówienie</strong> (typ dokumentu „estimate” w API Fakturowni).
+        Następnie z tego zamówienia można w aplikacji wystawić fakturę zaliczkową
+        (domyślnie {config?.advancePercent ?? 30}% brutto) oraz fakturę końcową.
+      </p>
+
+      <form onSubmit={handleSave} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Subdomena Fakturowni
+          </label>
+          <input
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            placeholder="np. moja-firma (bez .fakturownia.pl)"
+            value={effectiveSubdomain}
+            onChange={(e) => setSubdomain(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Token API
+          </label>
+          <input
+            type="password"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            placeholder={hasSavedToken ? "•••• zapisany — wpisz nowy, aby zmienić" : "Z ustawień konta → Integracja"}
+            value={apiToken}
+            onChange={(e) => setApiToken(e.target.value)}
+            autoComplete="off"
+          />
+          {config?.usingEnvToken && (
+            <p className="mt-1 text-xs text-amber-700">
+              Używany jest token ze zmiennej środowiskowej FAKTUROWNIA_API_TOKEN.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Faktura zaliczkowa — % pełnej kwoty brutto
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={99}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            value={advancePercent}
+            onChange={(e) => setAdvancePercent(e.target.value)}
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Reszta kwoty trafi na fakturę końcową (np. 30% + 70%).
+          </p>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+            ID działu (opcjonalnie)
+          </label>
+          <input
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            placeholder="department_id z Fakturowni"
+            value={effectiveDept}
+            onChange={(e) => setDepartmentId(e.target.value)}
+          />
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {message && <p className="text-sm text-emerald-700">{message}</p>}
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {saving ? "Zapisywanie…" : "Zapisz"}
+          </button>
+          <button
+            type="button"
+            onClick={handleTest}
+            disabled={testing}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {testing ? "Test…" : "Test połączenia"}
+          </button>
+        </div>
+      </form>
+
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+        <p className="mb-2">
+          Token: Ustawienia konta Fakturownia → Ustawienia → Integracja → kod autoryzacji API.
+        </p>
+        <p>
+          Opcjonalnie na serwerze Convex:{" "}
+          <code className="rounded bg-white px-1">FAKTUROWNIA_API_TOKEN</code>,{" "}
+          <code className="rounded bg-white px-1">FAKTUROWNIA_SUBDOMAIN</code>.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // --- Trello Tab ---
 
 function TrelloTab() {
@@ -1084,6 +1271,9 @@ function TrelloTab() {
   const testConnection = useAction(api.trello.testConnection);
   const encryptCreds = useAction(api.trello.encryptCredentials);
   const listLists = useAction(api.trello.listLists);
+  const resolveStatusListMapWithNames = useAction(
+    api.trello.resolveStatusListMapWithNames,
+  );
   const registerWebhook = useAction(api.trello.registerWebhook);
   const unregisterWebhook = useAction(api.trello.unregisterWebhook);
   const webhookUrl = `${siteUrl}/api/webhooks/trello`;
@@ -1121,6 +1311,23 @@ function TrelloTab() {
   >({});
   const [webhookBusy, setWebhookBusy] = useState(false);
   const [webhookMessage, setWebhookMessage] = useState<string | null>(null);
+  const [resolvedMapBusy, setResolvedMapBusy] = useState(false);
+  const [resolvedMapError, setResolvedMapError] = useState<string | null>(null);
+  const [resolvedMap, setResolvedMap] = useState<{
+    boardId: string | null;
+    defaultListId: string | null;
+    rows: Array<{
+      status: string;
+      listId: string | null;
+      listName: string | null;
+      source: string;
+    }>;
+    webhookHardcoded: Array<{
+      role: string;
+      listId: string;
+      listName: string | null;
+    }>;
+  } | null>(null);
   const hasSavedApiKey = config?.hasApiKey ?? false;
   const hasSavedApiToken = config?.hasApiToken ?? false;
   const effectiveApiKey = apiKey || (hasSavedApiKey ? "********" : "");
@@ -1252,6 +1459,22 @@ function TrelloTab() {
       setWebhookMessage(getErrorMessage(error, "Nie udalo sie pobrac list"));
     }
   }, [effectiveBoardId, listLists]);
+
+  const handleResolveMapWithNames = useCallback(async () => {
+    setResolvedMapBusy(true);
+    setResolvedMapError(null);
+    try {
+      const result = await resolveStatusListMapWithNames({});
+      setResolvedMap(result);
+    } catch (error: unknown) {
+      setResolvedMap(null);
+      setResolvedMapError(
+        getErrorMessage(error, "Nie udalo sie pobrac nazw list z Trello"),
+      );
+    } finally {
+      setResolvedMapBusy(false);
+    }
+  }, [resolveStatusListMapWithNames]);
 
   const handleRegisterWebhook = useCallback(async () => {
     if (!effectiveBoardId) {
@@ -1479,14 +1702,116 @@ function TrelloTab() {
               <label className="block text-sm font-medium text-slate-700">
                 Listy Trello dla statusow CRM
               </label>
-              <button
-                onClick={handleLoadLists}
-                type="button"
-                className="text-xs font-medium text-blue-600 hover:text-blue-700"
-              >
-                Pobierz listy
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleLoadLists}
+                  type="button"
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                >
+                  Pobierz listy
+                </button>
+                <button
+                  onClick={handleResolveMapWithNames}
+                  type="button"
+                  disabled={resolvedMapBusy}
+                  className="text-xs font-medium text-violet-600 hover:text-violet-700 disabled:opacity-50"
+                >
+                  {resolvedMapBusy
+                    ? "Ladowanie…"
+                    : "Pokaz nazwy list (Trello API)"}
+                </button>
+              </div>
             </div>
+            {resolvedMapError && (
+              <p className="mb-2 text-xs text-red-600">{resolvedMapError}</p>
+            )}
+            {resolvedMap && (
+              <div className="mb-4 overflow-x-auto rounded-md border border-slate-200 bg-white text-xs">
+                <p className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-slate-600">
+                  Board: {resolvedMap.boardId ?? "—"} · domyslna lista (
+                  <code className="text-[11px]">listId</code>):{" "}
+                  {resolvedMap.defaultListId ?? "—"}
+                </p>
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-500">
+                      <th className="px-3 py-2 font-medium">Status CRM</th>
+                      <th className="px-3 py-2 font-medium">ID listy</th>
+                      <th className="px-3 py-2 font-medium">Nazwa w Trello</th>
+                      <th className="px-3 py-2 font-medium">Zrodlo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resolvedMap.rows.map((row) => (
+                      <tr
+                        key={row.status}
+                        className="border-b border-slate-50 last:border-0"
+                      >
+                        <td className="px-3 py-2 font-medium text-slate-800">
+                          {row.status}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-[11px] text-slate-600">
+                          {row.listId ?? "—"}
+                        </td>
+                        <td className="px-3 py-2 text-slate-800">
+                          {row.listName ?? (
+                            <span className="text-amber-600">
+                              (brak / brak dostepu)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-slate-500">
+                          {row.source === "statusListMap"
+                            ? "statusListMap"
+                            : row.source === "listId_fallback"
+                              ? "fallback listId"
+                              : "nie skonfigurowano"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="border-t border-slate-100 bg-slate-50 px-3 py-2 text-slate-600">
+                  Listy na sztywno w webhooku (poza{" "}
+                  <code className="text-[11px]">statusListMap</code>):
+                </p>
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-500">
+                      <th className="px-3 py-2 font-medium">Rola</th>
+                      <th className="px-3 py-2 font-medium">ID listy</th>
+                      <th className="px-3 py-2 font-medium">Nazwa w Trello</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resolvedMap.webhookHardcoded.map((w) => (
+                      <tr
+                        key={w.role}
+                        className="border-b border-slate-50 last:border-0"
+                      >
+                        <td className="px-3 py-2 text-slate-800">
+                          {w.role === "jotform_source"
+                            ? "Zrodlo JotForm (karta przed CRM)"
+                            : w.role === "measurement_create_client_order"
+                              ? "Utworzenie klienta + zamowienia"
+                              : w.role}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-[11px] text-slate-600">
+                          {w.listId}
+                        </td>
+                        <td className="px-3 py-2 text-slate-800">
+                          {w.listName ?? (
+                            <span className="text-amber-600">
+                              (brak / brak dostepu)
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {[
                 ["lead", "Lead"],
@@ -2674,6 +2999,7 @@ function CennikTab() {
 const TABS: Array<{ key: Tab; label: string }> = [
   { key: "google-drive", label: "Google Drive" },
   { key: "jotform", label: "Jotform" },
+  { key: "fakturownia", label: "Fakturownia" },
   { key: "trello", label: "Trello" },
   { key: "sms", label: "SMS" },
   { key: "szablony", label: "Szablony" },
@@ -2713,6 +3039,7 @@ export default function UstawieniaPage() {
       {/* Tab content */}
       {activeTab === "google-drive" && <GoogleDriveTab />}
       {activeTab === "jotform" && <JotformTab />}
+      {activeTab === "fakturownia" && <FakturowniaTab />}
       {activeTab === "trello" && <TrelloTab />}
       {activeTab === "sms" && <SmsTab />}
       {activeTab === "szablony" && <SzablonyTab />}

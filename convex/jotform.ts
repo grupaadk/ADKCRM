@@ -12,6 +12,13 @@ function getStringValue(value: JotformValue): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/** Jotform czasem wysyła wartości liczbowe w polach tekstowych. */
+function asTrimmedString(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return undefined;
+}
+
 function parseUrlList(value: JotformValue): string[] {
   if (!value) return [];
   if (Array.isArray(value)) {
@@ -26,8 +33,84 @@ function parseUrlList(value: JotformValue): string[] {
   return [];
 }
 
+function firstNonEmpty(...values: (string | undefined)[]): string | undefined {
+  for (const v of values) {
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+/** Normalizacja kodu PL (np. "30042" → "30-042"). */
+function normalizePostalCode(input: string): string {
+  const t = input.trim();
+  const digits = t.replace(/\D/g, "");
+  if (digits.length === 5) {
+    return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  }
+  return t;
+}
+
+/**
+ * Jotform address: `zip` (US) lub `postal` / `postal_code` (EU); webhook bywa płaski `q39_adres[postal]`.
+ */
+function readPostalCodeFromAddress(
+  addressObj: Record<string, unknown> | undefined,
+  rawData: JotformPayload,
+): string | undefined {
+  let fromObj: string | undefined;
+  if (addressObj) {
+    fromObj = firstNonEmpty(
+      asTrimmedString(addressObj.zip),
+      asTrimmedString(addressObj.postal),
+      asTrimmedString(addressObj.postal_code),
+      asTrimmedString(addressObj.postcode),
+    );
+    if (!fromObj) {
+      for (const [k, v] of Object.entries(addressObj)) {
+        const s = asTrimmedString(v);
+        if (!s) continue;
+        if (/(zip|postal|postcode)/i.test(k)) {
+          fromObj = s;
+          break;
+        }
+      }
+    }
+  }
+
+  const fromFlat = firstNonEmpty(
+    getStringValue(rawData["q39_adres[zip]"]),
+    getStringValue(rawData["q39_adres[postal]"]),
+    getStringValue(rawData["q39_adres[postal_code]"]),
+    getStringValue(rawData["q39_adres[postcode]"]),
+  );
+
+  const raw = firstNonEmpty(fromObj, fromFlat);
+  return raw ? normalizePostalCode(raw) : undefined;
+}
+
+/**
+ * Jeśli w pierwszej linii adresu jest numer domu (np. "ul. Lipowa 12"), rozdziel na ulicę i nr budynku.
+ * Druga linia adresu (addr_line2) w Jotform = osobne pole „numer domu” → u nas numer mieszkania.
+ */
+export function splitStreetAndBuilding(addrLine1: string): {
+  street: string;
+  buildingNumber?: string;
+} {
+  const trimmed = addrLine1.trim();
+  if (!trimmed) {
+    return { street: "" };
+  }
+  const m = trimmed.match(
+    /^(.+?)\s+(\d{1,4}[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]?(?:\/\d{1,4}[a-zA-Z]?)?)$/u,
+  );
+  if (m && m[1].trim().length > 0) {
+    return { street: m[1].trim(), buildingNumber: m[2] };
+  }
+  return { street: trimmed };
+}
+
 // Mapowanie pól Jotform → klient (sekcja 6.1 PRD)
-function mapJotformPayload(rawData: JotformPayload) {
+export function mapJotformPayload(rawData: JotformPayload) {
   // Jotform wysyła dane w formacie q8_imieI, q20_podajSwoj itd.
   const getName = (data: JotformPayload) => {
     const fullName = data.q8_imieI;
@@ -79,7 +162,22 @@ function mapJotformPayload(rawData: JotformPayload) {
   // Pole adresowe q39_adres (control_address) — subpola: addr_line1, addr_line2, city, state, zip, country
   // Jotform może wysyłać jako obiekt lub jako płaskie klucze q39_adres[addr_line1]
   const addressField = rawData.q39_adres;
-  const addressObj = isStringRecord(addressField) ? addressField : undefined;
+  const addressObj = isStringRecord(addressField)
+    ? (addressField as Record<string, unknown>)
+    : undefined;
+
+  const addrLine1 =
+    asTrimmedString(addressObj?.addr_line1) ??
+    getStringValue(rawData["q39_adres[addr_line1]"]) ??
+    "";
+  const { street, buildingNumber: buildingFromLine1 } =
+    splitStreetAndBuilding(addrLine1);
+
+  const apartmentNumber =
+    asTrimmedString(addressObj?.addr_line2) ??
+    getStringValue(rawData["q39_adres[addr_line2]"]);
+
+  const postalCode = readPostalCodeFromAddress(addressObj, rawData);
 
   return {
     firstName,
@@ -95,21 +193,16 @@ function mapJotformPayload(rawData: JotformPayload) {
       getStringValue(rawData["q21_podajSwoj21[full]"]) ??
       getStringValue(rawData.phone) ??
       getStringValue(rawData.q5_q5_phone3),
-    street:
-      addressObj?.addr_line1 ??
-      getStringValue(rawData["q39_adres[addr_line1]"]),
-    apartmentNumber:
-      addressObj?.addr_line2 ??
-      getStringValue(rawData["q39_adres[addr_line2]"]),
+    street: street || undefined,
+    buildingNumber: buildingFromLine1,
+    apartmentNumber: apartmentNumber || undefined,
     city:
-      addressObj?.city ??
+      asTrimmedString(addressObj?.city) ??
       getStringValue(rawData["q39_adres[city]"]) ??
       getStringValue(rawData.q37_miejscowosc) ?? // fallback legacy
       getStringValue(rawData.city) ??
       getStringValue(rawData.q6_q6_textbox4),
-    postalCode:
-      addressObj?.zip ??
-      getStringValue(rawData["q39_adres[zip]"]),
+    postalCode,
     services:
       parseArray(rawData.q33_jakaUsluge33).length > 0
         ? parseArray(rawData.q33_jakaUsluge33)
@@ -226,6 +319,8 @@ export const webhook = httpAction(async (ctx, request) => {
     lastName: mapped.lastName,
     email: mapped.email,
     street: mapped.street,
+    buildingNumber: mapped.buildingNumber,
+    apartmentNumber: mapped.apartmentNumber,
     city: mapped.city,
     postalCode: mapped.postalCode,
     submissionId: mapped.submissionId,

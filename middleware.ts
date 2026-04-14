@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 const isProtectedRoute = createRouteMatcher(["/admin(.*)"]);
 
 const allowedEmails = (process.env.ALLOWED_ADMIN_EMAILS ?? "")
-  .split(",")
+  .split(/[,\s;]+/)
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
 
@@ -19,11 +19,13 @@ export default clerkMiddleware(async (auth, req) => {
 
   const client = await clerkClient();
   const user = await client.users.getUser(userId);
-  const primaryEmail = user.emailAddresses
-    .find((e) => e.id === user.primaryEmailAddressId)
-    ?.emailAddress?.toLowerCase();
+  const userEmails = user.emailAddresses
+    .map((email) => email.emailAddress?.toLowerCase())
+    .filter(Boolean);
 
-  if (!primaryEmail || !allowedEmails.includes(primaryEmail)) {
+  const hasAllowedEmail = userEmails.some((email) => allowedEmails.includes(email));
+
+  if (!hasAllowedEmail) {
     return NextResponse.redirect(new URL("/brak-dostepu", req.url));
   }
 });

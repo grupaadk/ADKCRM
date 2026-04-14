@@ -186,6 +186,17 @@ export default function OrderDetailPage({
   });
   const orderNumber = order.name ?? `Zlecenie z ${createdDate}`;
   const servicesSummary = order.services?.slice(0, 3).join(", ") ?? "";
+  const fkInvoices = order.fakturownia?.invoices ?? [];
+  const fkSummary =
+    fkInvoices.length > 0
+      ? fkInvoices
+          .map((i) =>
+            i.kind === "advance"
+              ? `zaliczka${i.number ? ` ${i.number}` : ""}`
+              : `końcowa${i.number ? ` ${i.number}` : ""}`,
+          )
+          .join(", ")
+      : null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -210,6 +221,11 @@ export default function OrderDetailPage({
               {client.city ? ` • ${client.city}` : ""}
               {servicesSummary ? ` • ${servicesSummary}` : ""}
             </p>
+            {fkSummary && (
+              <p className="mt-2 text-xs font-medium text-emerald-700">
+                Fakturownia: wystawiono {fkSummary}
+              </p>
+            )}
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -403,7 +419,7 @@ export default function OrderDetailPage({
       {/* Tab: Wycena */}
       {activeTab === "wycena" && (
         <SectionCard title="Pozycje zamówienia">
-          <OrderLineItems orderId={orderIdTyped} />
+          <OrderLineItems orderId={orderIdTyped} fakturownia={order.fakturownia} />
         </SectionCard>
       )}
 

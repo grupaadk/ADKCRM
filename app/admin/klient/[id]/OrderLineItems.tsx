@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 
 const VAT_RATES = [23, 8, 0];
 const UNITS = ["szt.", "m²", "mb", "usł.", "kpl.", "godz."];
@@ -253,17 +253,29 @@ const EMPTY_FORM: AddFormState = {
   discountPercent: "0",
 };
 
-export default function OrderLineItems({ orderId }: { orderId: Id<"orders"> }) {
+export default function OrderLineItems({
+  orderId,
+  fakturownia,
+}: {
+  orderId: Id<"orders">;
+  fakturownia?: Doc<"orders">["fakturownia"];
+}) {
   const data = useQuery(api.orderLineItems.listByOrder, { orderId });
   const catalog = useQuery(api.servicePricing.list, {});
+  const fkConfig = useQuery(api.fakturownia.getConfig);
   const addItem = useMutation(api.orderLineItems.add);
   const updateItem = useMutation(api.orderLineItems.update);
   const removeItem = useMutation(api.orderLineItems.remove);
+  const pushEstimate = useAction(api.fakturownia.pushOrderEstimate);
+  const pushAdvance = useAction(api.fakturownia.pushAdvanceInvoice);
+  const pushFinal = useAction(api.fakturownia.pushFinalInvoice);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<AddFormState>(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fkBusy, setFkBusy] = useState<string | null>(null);
+  const [fkMessage, setFkMessage] = useState<string | null>(null);
 
   function onCatalogSelect(e: React.ChangeEvent<HTMLSelectElement>) {
     const id = e.target.value as Id<"servicePricing"> | "";
@@ -328,6 +340,40 @@ export default function OrderLineItems({ orderId }: { orderId: Id<"orders"> }) {
 
   const { items, totals } = data;
 
+  const advancePct = fkConfig?.advancePercent ?? 30;
+  const finalPct = 100 - advancePct;
+  const plannedAdvanceGross =
+    items.length > 0
+      ? Math.round(totals.totalGross * (advancePct / 100) * 100) / 100
+      : 0;
+  const plannedFinalGross =
+    items.length > 0
+      ? Math.round((totals.totalGross - plannedAdvanceGross) * 100) / 100
+      : 0;
+
+  const hasAdvance = fakturownia?.invoices.some((i) => i.kind === "advance") ?? false;
+  const hasFinal = fakturownia?.invoices.some((i) => i.kind === "final") ?? false;
+  const fkBaseUrl =
+    fkConfig?.subdomain?.trim() &&
+    `https://${fkConfig.subdomain.trim().replace(/\.fakturownia\.pl$/i, "")}.fakturownia.pl`;
+
+  async function runFk(
+    label: string,
+    fn: () => Promise<unknown>,
+  ) {
+    setFkMessage(null);
+    setError(null);
+    setFkBusy(label);
+    try {
+      await fn();
+      setFkMessage("Gotowe.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Błąd Fakturowni");
+    } finally {
+      setFkBusy(null);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Table */}
@@ -380,7 +426,146 @@ export default function OrderLineItems({ orderId }: { orderId: Id<"orders"> }) {
                 <span>Razem brutto</span>
                 <span>{fmt(totals.totalGross)} zł</span>
               </div>
+              <div className="mt-4 border-t border-dashed border-slate-200 pt-3 text-xs text-slate-600">
+                <div className="mb-1 font-semibold uppercase tracking-wider text-slate-500">
+                  Podział faktur (brutto)
+                </div>
+                <div className="flex justify-between">
+                  <span>
+                    Zaliczka ({advancePct}%)
+                  </span>
+                  <span className="font-medium text-slate-800">
+                    {fmt(plannedAdvanceGross)} zł
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>
+                    Faktura końcowa ({finalPct}%)
+                  </span>
+                  <span className="font-medium text-slate-800">
+                    {fmt(plannedFinalGross)} zł
+                  </span>
+                </div>
+                <p className="mt-2 text-[11px] text-slate-400">
+                  Procent zaliczki ustawiasz w Ustawienia → Fakturownia. Kwoty są wyliczone od sumy brutto wyceny.
+                </p>
+              </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fakturownia */}
+      {items.length > 0 && fkConfig === null && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Skonfiguruj integrację Fakturowni (token API i subdomena) w{" "}
+          <span className="font-semibold">Ustawienia → Fakturownia</span>, aby wysłać wycenę jako zamówienie.
+        </div>
+      )}
+      {items.length > 0 && fkConfig && !fkConfig.hasApiToken && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Uzupełnij token API Fakturowni w ustawieniach lub ustaw zmienną{" "}
+          <code className="rounded bg-white px-1">FAKTUROWNIA_API_TOKEN</code> w Convex.
+        </div>
+      )}
+      {items.length > 0 && fkConfig?.hasApiToken && fkConfig.subdomain?.trim() && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+            Fakturownia
+          </h3>
+          {fkMessage && (
+            <p className="mb-3 text-sm text-emerald-700">{fkMessage}</p>
+          )}
+          {fakturownia?.estimateId ? (
+            <div className="mb-4 space-y-2 text-sm text-slate-700">
+              <p>
+                <span className="font-semibold text-slate-900">Zamówienie w Fakturowni:</span>{" "}
+                {fakturownia.estimateNumber ?? `ID ${fakturownia.estimateId}`}
+                {fkBaseUrl && (
+                  <>
+                    {" "}
+                    <a
+                      href={`${fkBaseUrl}/invoices/${fakturownia.estimateId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Otwórz
+                    </a>
+                  </>
+                )}
+              </p>
+              {fakturownia.oid && (
+                <p className="text-xs text-slate-500">OID: {fakturownia.oid}</p>
+              )}
+              {fakturownia.invoices.length > 0 && (
+                <ul className="mt-2 space-y-2 border-t border-slate-100 pt-2">
+                  {fakturownia.invoices.map((inv) => (
+                    <li
+                      key={`${inv.kind}-${inv.remoteId}-${inv.createdAt}`}
+                      className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
+                    >
+                      <span>
+                        {inv.kind === "advance" ? "Faktura zaliczkowa" : "Faktura końcowa"}
+                        {inv.number ? ` (${inv.number})` : ""}
+                        {inv.grossAmount != null ? ` — ${fmt(inv.grossAmount)} zł brutto` : ""}
+                      </span>
+                      {fkBaseUrl && (
+                        <a
+                          href={`${fkBaseUrl}/invoices/${inv.remoteId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-medium text-blue-600 hover:underline"
+                        >
+                          Podgląd
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <p className="mb-4 text-sm text-slate-600">
+              Wyślij pozycje wyceny jako zamówienie w Fakturowni. Potem wystaw zaliczkę i fakturę końcową z poziomu tej strony.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!!fkBusy || !!fakturownia?.estimateId}
+              onClick={() =>
+                runFk("estimate", () => pushEstimate({ orderId }))
+              }
+              className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {fkBusy === "estimate" ? "Wysyłanie…" : "Wyślij zamówienie (wycenę)"}
+            </button>
+            <button
+              type="button"
+              disabled={
+                !!fkBusy ||
+                !fakturownia?.estimateId ||
+                hasAdvance
+              }
+              onClick={() => runFk("advance", () => pushAdvance({ orderId }))}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {fkBusy === "advance" ? "Wystawianie…" : `Faktura zaliczkowa (${advancePct}%)`}
+            </button>
+            <button
+              type="button"
+              disabled={
+                !!fkBusy ||
+                !fakturownia?.estimateId ||
+                !hasAdvance ||
+                hasFinal
+              }
+              onClick={() => runFk("final", () => pushFinal({ orderId }))}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {fkBusy === "final" ? "Wystawianie…" : `Faktura końcowa (${finalPct}%)`}
+            </button>
           </div>
         </div>
       )}

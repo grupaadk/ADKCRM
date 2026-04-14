@@ -1,11 +1,7 @@
 import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-
-// Lista źródłowa JotForm (zgłoszenia z formularza lądują tutaj)
-const JOTFORM_SOURCE_LIST_ID = "63ce283991c2d000e9f8024e";
-// Lista docelowa "Do pomiarów" (przeniesienie tutaj tworzy klienta + zamówienie)
-const MEASUREMENT_LIST_ID = "69bd28b835d8121cb0643471";
+import { JOTFORM_SOURCE_LIST_ID, MEASUREMENT_LIST_ID } from "./trelloWebhookLists";
 
 const TRELLO_STATUS_ENTRIES = [
   "lead",

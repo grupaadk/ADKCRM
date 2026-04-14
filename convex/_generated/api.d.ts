@@ -15,6 +15,7 @@ import type * as documentTemplates from "../documentTemplates.js";
 import type * as emailClassification from "../emailClassification.js";
 import type * as emailLeads from "../emailLeads.js";
 import type * as events from "../events.js";
+import type * as fakturownia from "../fakturownia.js";
 import type * as gmail from "../gmail.js";
 import type * as gmailAuth from "../gmailAuth.js";
 import type * as googleDrive from "../googleDrive.js";
@@ -34,6 +35,7 @@ import type * as servicePricing from "../servicePricing.js";
 import type * as sms from "../sms.js";
 import type * as trello from "../trello.js";
 import type * as trelloWebhook from "../trelloWebhook.js";
+import type * as trelloWebhookLists from "../trelloWebhookLists.js";
 import type * as viewConfig from "../viewConfig.js";
 
 import type {
@@ -50,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   emailClassification: typeof emailClassification;
   emailLeads: typeof emailLeads;
   events: typeof events;
+  fakturownia: typeof fakturownia;
   gmail: typeof gmail;
   gmailAuth: typeof gmailAuth;
   googleDrive: typeof googleDrive;
@@ -69,6 +72,7 @@ declare const fullApi: ApiFromModules<{
   sms: typeof sms;
   trello: typeof trello;
   trelloWebhook: typeof trelloWebhook;
+  trelloWebhookLists: typeof trelloWebhookLists;
   viewConfig: typeof viewConfig;
 }>;
 
