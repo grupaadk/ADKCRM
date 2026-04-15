@@ -1550,9 +1550,6 @@ export default function MailPage() {
               >
                 <label.icon className="size-4 shrink-0" />
                 <span className="flex-1 text-left">{label.labelPl}</span>
-                {unread ? (
-                  <span className="text-xs font-semibold text-gray-700">{unread}</span>
-                ) : null}
               </button>
             );
           })}

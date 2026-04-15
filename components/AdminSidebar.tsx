@@ -18,7 +18,6 @@ import {
 import { Divider } from "@/components/ui/Divider"
 import { cx, focusRing } from "@/components/ui/utils"
 import {
-  LayoutDashboard,
   ClipboardList,
   Users,
   UserPlus,
@@ -35,7 +34,6 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/zamowienia", label: "Zamówienia", icon: ClipboardList },
   {
     href: "/admin",

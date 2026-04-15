@@ -7,7 +7,6 @@ import { api } from "@/convex/_generated/api"
 import { UserButton } from "@clerk/nextjs"
 import { cx, focusRing } from "@/components/ui/utils"
 import {
-  LayoutDashboard,
   ClipboardList,
   Users,
   Settings,
@@ -24,7 +23,6 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: "/admin/mail", label: "Mail", icon: Mail },
-  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/zamowienia", label: "Zamówienia", icon: ClipboardList },
   {
     href: "/admin",
