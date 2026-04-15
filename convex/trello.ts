@@ -757,12 +757,17 @@ export const registerWebhook = action({
       callbackURL: args.webhookUrl,
       description: "ADK CRM board sync",
     });
-    const response = await fetch(
-      `${TRELLO_API_BASE}/webhooks?${params.toString()}`,
-      {
-        method: "POST",
-      },
-    );
+
+    let response: Response;
+    try {
+      response = await fetch(
+        `${TRELLO_API_BASE}/webhooks?${params.toString()}`,
+        { method: "POST" },
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, error: `Błąd połączenia z Trello: ${msg}` };
+    }
 
     if (!response.ok) {
       return { success: false, error: await response.text() };
