@@ -1118,7 +1118,6 @@ function FakturowniaTab() {
       }
       await saveConfig({
         subdomain: sub,
-        advancePercent: config?.advancePercent ?? 30,
         encryptedApiToken: encrypted,
       });
       setApiToken("");

@@ -282,8 +282,6 @@ export default function OrderLineItems({
   const updateItem = useMutation(api.orderLineItems.update);
   const removeItem = useMutation(api.orderLineItems.remove);
   const pushEstimate = useAction(api.fakturownia.pushOrderEstimate);
-  const pushAdvance = useAction(api.fakturownia.pushAdvanceInvoice);
-  const pushFinal = useAction(api.fakturownia.pushFinalInvoice);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<AddFormState>(EMPTY_FORM);
@@ -341,19 +339,6 @@ export default function OrderLineItems({
 
   const { items, totals } = data;
 
-  const advancePct = fkConfig?.advancePercent ?? 30;
-  const finalPct = 100 - advancePct;
-  const plannedAdvanceGross =
-    items.length > 0
-      ? Math.round(totals.totalGross * (advancePct / 100) * 100) / 100
-      : 0;
-  const plannedFinalGross =
-    items.length > 0
-      ? Math.round((totals.totalGross - plannedAdvanceGross) * 100) / 100
-      : 0;
-
-  const hasAdvance = fakturownia?.invoices.some((i) => i.kind === "advance") ?? false;
-  const hasFinal = fakturownia?.invoices.some((i) => i.kind === "final") ?? false;
   const fkBaseUrl =
     fkConfig?.subdomain?.trim() &&
     `https://${fkConfig.subdomain.trim().replace(/\.fakturownia\.pl$/i, "")}.fakturownia.pl`;
@@ -426,30 +411,6 @@ export default function OrderLineItems({
               <div className="mt-2 flex justify-between border-t border-slate-200 pt-2 font-bold text-slate-900">
                 <span>Razem brutto</span>
                 <span>{fmt(totals.totalGross)} zł</span>
-              </div>
-              <div className="mt-4 border-t border-dashed border-slate-200 pt-3 text-xs text-slate-600">
-                <div className="mb-1 font-semibold uppercase tracking-wider text-slate-500">
-                  Podział faktur (brutto)
-                </div>
-                <div className="flex justify-between">
-                  <span>
-                    Zaliczka ({advancePct}%)
-                  </span>
-                  <span className="font-medium text-slate-800">
-                    {fmt(plannedAdvanceGross)} zł
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>
-                    Faktura końcowa ({finalPct}%)
-                  </span>
-                  <span className="font-medium text-slate-800">
-                    {fmt(plannedFinalGross)} zł
-                  </span>
-                </div>
-                <p className="mt-2 text-[11px] text-slate-400">
-                  Procent zaliczki ustawiasz w Ustawienia → Fakturownia. Kwoty są wyliczone od sumy brutto wyceny.
-                </p>
               </div>
             </div>
           </div>
@@ -528,7 +489,7 @@ export default function OrderLineItems({
             </div>
           ) : (
             <p className="mb-4 text-sm text-slate-600">
-              Wyślij pozycje wyceny jako zamówienie w Fakturowni. Potem wystaw zaliczkę i fakturę końcową z poziomu tej strony.
+              Wyślij pozycje wyceny jako zamówienie do Fakturowni. Dane klienta zostaną pobrane z CRM.
             </p>
           )}
           <div className="flex flex-wrap gap-2">
@@ -540,32 +501,7 @@ export default function OrderLineItems({
               }
               className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
             >
-              {fkBusy === "estimate" ? "Wysyłanie…" : "Wyślij zamówienie (wycenę)"}
-            </button>
-            <button
-              type="button"
-              disabled={
-                !!fkBusy ||
-                !fakturownia?.estimateId ||
-                hasAdvance
-              }
-              onClick={() => runFk("advance", () => pushAdvance({ orderId }))}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            >
-              {fkBusy === "advance" ? "Wystawianie…" : `Faktura zaliczkowa (${advancePct}%)`}
-            </button>
-            <button
-              type="button"
-              disabled={
-                !!fkBusy ||
-                !fakturownia?.estimateId ||
-                !hasAdvance ||
-                hasFinal
-              }
-              onClick={() => runFk("final", () => pushFinal({ orderId }))}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            >
-              {fkBusy === "final" ? "Wystawianie…" : `Faktura końcowa (${finalPct}%)`}
+              {fkBusy === "estimate" ? "Wysyłanie…" : "Wyślij zamówienie do Fakturowni"}
             </button>
           </div>
         </div>

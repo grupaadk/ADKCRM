@@ -275,8 +275,8 @@ export default defineSchema({
   fakturowniaConfig: defineTable({
     apiToken: v.string(),
     subdomain: v.string(),
-    /** Procent pełnej kwoty brutto na fakturze zaliczkowej (reszta na fakturze końcowej). */
-    advancePercent: v.number(),
+    /** @deprecated — usunięto podział na zaliczkę/fakturę końcową */
+    advancePercent: v.optional(v.number()),
     departmentId: v.optional(v.string()),
     connectedBy: v.string(),
   }),

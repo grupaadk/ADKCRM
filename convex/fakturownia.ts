@@ -11,8 +11,6 @@ import {
 import { api, internal } from "./_generated/api";
 import { encrypt, decrypt } from "./lib/crypto";
 
-const DEFAULT_ADVANCE_PERCENT = 30;
-
 function getEnvApiToken(): string | null {
   const t = process.env.FAKTUROWNIA_API_TOKEN?.trim();
   return t || null;
@@ -47,7 +45,6 @@ export const getConfig = query({
     if (!row && !envToken) return null;
     return {
       subdomain: row?.subdomain ?? envSub ?? "",
-      advancePercent: row?.advancePercent ?? DEFAULT_ADVANCE_PERCENT,
       departmentId: row?.departmentId,
       hasApiToken: !!row?.apiToken || !!envToken,
       usingEnvToken: !!envToken,
@@ -65,7 +62,6 @@ export const getConfigInternal = internalQuery({
 export const saveConfig = mutation({
   args: {
     subdomain: v.string(),
-    advancePercent: v.number(),
     departmentId: v.optional(v.string()),
     encryptedApiToken: v.optional(v.string()),
   },
@@ -75,10 +71,6 @@ export const saveConfig = mutation({
     const envToken = getEnvApiToken();
     const existing = await ctx.db.query("fakturowniaConfig").first();
 
-    if (args.advancePercent < 1 || args.advancePercent > 99) {
-      throw new Error("Zaliczka musi być między 1% a 99%");
-    }
-
     const sub = args.subdomain.trim().toLowerCase().replace(/\.fakturownia\.pl$/i, "");
     if (!sub && !getEnvSubdomain()) {
       throw new Error("Podaj subdomenę Fakturowni (np. moja-firma)");
@@ -87,7 +79,6 @@ export const saveConfig = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         subdomain: sub || existing.subdomain,
-        advancePercent: args.advancePercent,
         departmentId: args.departmentId,
         ...(args.encryptedApiToken !== undefined
           ? { apiToken: args.encryptedApiToken }
@@ -100,7 +91,6 @@ export const saveConfig = mutation({
       await ctx.db.insert("fakturowniaConfig", {
         apiToken: args.encryptedApiToken ?? "",
         subdomain: sub || (getEnvSubdomain() ?? ""),
-        advancePercent: args.advancePercent,
         departmentId: args.departmentId,
         connectedBy: userId,
       });
@@ -128,13 +118,6 @@ async function resolveSubdomain(ctx: Pick<ActionCtx, "runQuery">): Promise<strin
   if (env) return env;
   const row = await ctx.runQuery(internal.fakturownia.getConfigInternal, {});
   return row?.subdomain?.trim() ? row.subdomain.trim().toLowerCase() : null;
-}
-
-async function resolveAdvancePercent(ctx: Pick<ActionCtx, "runQuery">): Promise<number> {
-  const row = await ctx.runQuery(internal.fakturownia.getConfigInternal, {});
-  const p = row?.advancePercent;
-  if (typeof p === "number" && p >= 1 && p <= 99) return p;
-  return DEFAULT_ADVANCE_PERCENT;
 }
 
 function buyerStreet(client: Doc<"clients">): string {
@@ -202,10 +185,17 @@ async function postInvoice(
     throw new Error(`Fakturownia: niepoprawna odpowiedź (${res.status}): ${text.slice(0, 500)}`);
   }
   if (!res.ok) {
-    const msg =
-      typeof data === "object" && data !== null && "message" in data
-        ? String((data as { message: unknown }).message)
-        : text.slice(0, 500);
+    let msg: string;
+    if (typeof data === "object" && data !== null) {
+      if ("message" in data) {
+        const m = (data as { message: unknown }).message;
+        msg = typeof m === "string" ? m : JSON.stringify(m);
+      } else {
+        msg = JSON.stringify(data).slice(0, 500);
+      }
+    } else {
+      msg = text.slice(0, 500);
+    }
     throw new Error(`Fakturownia API (${res.status}): ${msg}`);
   }
   return data as Record<string, unknown>;
@@ -276,6 +266,47 @@ export const appendFakturowniaInvoice = internalMutation({
   },
 });
 
+// ─── CRM → Fakturownia validation ──────────────────────────────────────────
+
+function validateNip(nip: string): boolean {
+  const digits = nip.replace(/[\s-]/g, "");
+  if (!/^\d{10}$/.test(digits)) return false;
+  const weights = [6, 5, 7, 2, 3, 4, 5, 6, 7];
+  const sum = weights.reduce((acc, w, i) => acc + w * parseInt(digits[i], 10), 0);
+  return sum % 11 === parseInt(digits[9], 10);
+}
+
+function validateClientForFakturownia(client: Doc<"clients">): void {
+  const buyerName = `${client.firstName} ${client.lastName}`.trim();
+  if (!buyerName) {
+    throw new Error("Klient musi mieć imię lub nazwisko — uzupełnij dane w CRM.");
+  }
+
+  if (client.email) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(client.email)) {
+      throw new Error(
+        `Adres e-mail klienta jest nieprawidłowy: "${client.email}". Popraw w karcie klienta.`,
+      );
+    }
+  }
+
+  if (client.postalCode) {
+    if (!/^\d{2}-\d{3}$/.test(client.postalCode)) {
+      throw new Error(
+        `Kod pocztowy ma nieprawidłowy format: "${client.postalCode}" (oczekiwany: XX-XXX). Popraw w karcie klienta.`,
+      );
+    }
+  }
+
+  if (client.nip) {
+    if (!validateNip(client.nip)) {
+      throw new Error(
+        `NIP "${client.nip}" jest nieprawidłowy (błędna suma kontrolna lub format). Popraw w karcie klienta.`,
+      );
+    }
+  }
+}
+
 // ─── Actions: Fakturownia API ──────────────────────────────────────────────
 
 export const pushOrderEstimate = action({
@@ -303,6 +334,7 @@ export const pushOrderEstimate = action({
 
     const client = await ctx.runQuery(api.clients.getById, { clientId: order.clientId });
     if (!client) throw new Error("Klient nie znaleziony");
+    validateClientForFakturownia(client);
 
     const { items } = await ctx.runQuery(api.orderLineItems.listByOrder, {
       orderId: args.orderId,
@@ -335,6 +367,8 @@ export const pushOrderEstimate = action({
       payment_to_kind: 14,
       client_id: -1,
       buyer_name: buyerName,
+      buyer_first_name: client.firstName,
+      buyer_last_name: client.lastName,
       buyer_email: client.email ?? "",
       buyer_phone: client.phone ?? "",
       buyer_street: street,
@@ -379,116 +413,55 @@ export const pushOrderEstimate = action({
   },
 });
 
-export const pushAdvanceInvoice = action({
-  args: { orderId: v.id("orders") },
-  handler: async (ctx, args): Promise<{ invoiceId: string; number?: string }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+// ─── Test action: creates a minimal test estimate in Fakturownia ────────────
 
+export const testCreateEstimate = action({
+  args: {},
+  handler: async (ctx): Promise<{ ok: boolean; estimateId?: string; estimateNumber?: string; url?: string; error?: string }> => {
     const token = await getDecryptedToken(ctx);
     const sub = await resolveSubdomain(ctx);
-    if (!token) throw new Error("Fakturownia: skonfiguruj token API");
-    if (!sub) throw new Error("Fakturownia: skonfiguruj subdomenę");
+    if (!token) return { ok: false, error: "Brak tokena API — skonfiguruj w Ustawieniach" };
+    if (!sub) return { ok: false, error: "Brak subdomeny — skonfiguruj w Ustawieniach" };
 
-    const advancePercent = await resolveAdvancePercent(ctx);
+    const today = new Date().toISOString().slice(0, 10);
+    const oid = `adkokna-test-${Date.now()}`;
 
-    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
-    if (!order?.fakturownia?.estimateId) {
-      throw new Error("Najpierw wyślij zamówienie (wycenę) do Fakturowni");
+    try {
+      const data = await postInvoice(apiBase(sub), token, {
+        kind: "estimate",
+        issue_date: today,
+        sell_date: today,
+        payment_to_kind: 14,
+        client_id: -1,
+        buyer_name: "Test Klient ADK",
+        buyer_first_name: "Test",
+        buyer_last_name: "Klient ADK",
+        buyer_email: "test@adkokna.pl",
+        buyer_phone: "123456789",
+        buyer_street: "ul. Testowa 1",
+        buyer_post_code: "00-001",
+        buyer_city: "Warszawa",
+        buyer_country: "PL",
+        buyer_company: "0",
+        oid,
+        description: "TESTOWE zamówienie — automatyczny test integracji ADK Okna (można usunąć)",
+        positions: [
+          { name: "Okno PVC 120x150 — białe", quantity: 1, tax: 8, total_price_gross: 1080.00 },
+          { name: "Montaż okna", quantity: 1, tax: 23, total_price_gross: 246.00 },
+        ],
+        lang: "pl",
+        currency: "PLN",
+      });
+
+      const created = extractCreatedInvoice(data);
+      return {
+        ok: true,
+        estimateId: created.id,
+        estimateNumber: created.number,
+        url: `${apiBase(sub)}/invoices/${created.id}`,
+      };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Błąd nieznany" };
     }
-    const hasAdvance = order.fakturownia.invoices.some((i) => i.kind === "advance");
-    if (hasAdvance) {
-      throw new Error("Zaliczka dla tego zlecenia została już utworzona w Fakturowni");
-    }
-
-    const orderLabel = order.name ?? args.orderId;
-    const data = await postInvoice(apiBase(sub), token, {
-      copy_invoice_from: order.fakturownia.estimateId,
-      kind: "advance",
-      advance_creation_mode: "percent",
-      advance_value: String(advancePercent),
-      position_name: `Zaliczka ${advancePercent}% brutto — ${orderLabel}`,
-    });
-
-    const created = extractCreatedInvoice(data);
-
-    await ctx.runMutation(internal.fakturownia.appendFakturowniaInvoice, {
-      orderId: args.orderId,
-      entry: {
-        kind: "advance",
-        remoteId: created.id,
-        number: created.number,
-        grossAmount: created.grossAmount,
-        createdAt: Date.now(),
-      },
-    });
-
-    await ctx.runMutation(internal.orders.addEvent, {
-      orderId: args.orderId,
-      type: "fakturownia_advance_invoice",
-      details: { invoiceId: created.id, number: created.number },
-      performedBy: userId,
-    });
-
-    return { invoiceId: created.id, number: created.number };
-  },
-});
-
-export const pushFinalInvoice = action({
-  args: { orderId: v.id("orders") },
-  handler: async (ctx, args): Promise<{ invoiceId: string; number?: string }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
-
-    const token = await getDecryptedToken(ctx);
-    const sub = await resolveSubdomain(ctx);
-    if (!token) throw new Error("Fakturownia: skonfiguruj token API");
-    if (!sub) throw new Error("Fakturownia: skonfiguruj subdomenę");
-
-    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
-    if (!order?.fakturownia?.estimateId) {
-      throw new Error("Najpierw wyślij zamówienie do Fakturowni");
-    }
-    const advances = order.fakturownia.invoices.filter((i) => i.kind === "advance");
-    if (advances.length === 0) {
-      throw new Error("Wystaw najpierw fakturę zaliczkową");
-    }
-    const hasFinal = order.fakturownia.invoices.some((i) => i.kind === "final");
-    if (hasFinal) {
-      throw new Error("Faktura końcowa dla tego zlecenia została już utworzona");
-    }
-
-    const invoiceIds = advances.map((a) => parseInt(a.remoteId, 10)).filter((n) => !Number.isNaN(n));
-    if (invoiceIds.length === 0) {
-      throw new Error("Nieprawidłowe ID faktur zaliczkowych");
-    }
-
-    const data = await postInvoice(apiBase(sub), token, {
-      copy_invoice_from: order.fakturownia.estimateId,
-      kind: "final",
-      invoice_ids: invoiceIds,
-    });
-
-    const created = extractCreatedInvoice(data);
-
-    await ctx.runMutation(internal.fakturownia.appendFakturowniaInvoice, {
-      orderId: args.orderId,
-      entry: {
-        kind: "final",
-        remoteId: created.id,
-        number: created.number,
-        grossAmount: created.grossAmount,
-        createdAt: Date.now(),
-      },
-    });
-
-    await ctx.runMutation(internal.orders.addEvent, {
-      orderId: args.orderId,
-      type: "fakturownia_final_invoice",
-      details: { invoiceId: created.id, number: created.number },
-      performedBy: userId,
-    });
-
-    return { invoiceId: created.id, number: created.number };
   },
 });
