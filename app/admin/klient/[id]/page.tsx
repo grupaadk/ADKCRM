@@ -8,13 +8,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import InlineEdit from "./InlineEdit";
 import CityDistance from "./CityDistance";
-import EventTimeline from "./EventTimeline";
 import Notes from "./Notes";
 import ClientMailTab from "./ClientMailTab";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { useStatusLabels } from "@/components/StatusLabelsContext";
 
-type Tab = "zlecenia" | "notatki" | "historia" | "mail";
+type Tab = "zlecenia" | "notatki" | "mail";
 
 function fmt(n: number) {
   return n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -52,7 +51,6 @@ export default function ClientDetailPage({
   const [sendingAddress, setSendingAddress] = useState(false);
   const client = useQuery(api.clients.getById, { clientId });
   const orders = useQuery(api.orders.listByClient, { clientId });
-  const events = useQuery(api.events.listByClient, { clientId });
   const updateClient = useMutation(api.clients.update);
   const deleteClient = useAction(api.clients.deleteClient);
   const sendAddressSms = useAction(api.sms.sendAddressSms);
@@ -117,7 +115,6 @@ export default function ClientDetailPage({
   const tabs: Array<{ key: Tab; label: string; count?: number }> = [
     { key: "zlecenia", label: "Zlecenia", count: orders?.length },
     { key: "notatki", label: "Notatki" },
-    { key: "historia", label: "Historia" },
     { key: "mail", label: "Mail" },
   ];
 
@@ -347,18 +344,6 @@ export default function ClientDetailPage({
 
       {/* Tab: Notatki */}
       {activeTab === "notatki" && <Notes clientId={clientId} />}
-
-      {/* Tab: Historia */}
-      {activeTab === "historia" && (
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-6 py-4">
-            <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Historia zmian klienta</h2>
-          </div>
-          <div className="p-6">
-            <EventTimeline events={events} />
-          </div>
-        </div>
-      )}
 
       {/* Tab: Mail */}
       {activeTab === "mail" && (
