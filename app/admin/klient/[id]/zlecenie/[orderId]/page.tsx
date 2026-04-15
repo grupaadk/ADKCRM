@@ -130,6 +130,18 @@ export default function OrderDetailPage({
   const allowedTransitions = STATUS_TRANSITIONS[order.status] ?? [];
   const statusLabel = statusLabels[order.status] ?? order.status;
   const currentStatusIndex = STATUS_ORDER.indexOf(order.status as (typeof STATUS_ORDER)[number]);
+
+  // Statusy, które zostały osiągnięte przez ruch karty w Trello
+  const trelloVisitedStatuses = new Set(
+    (events ?? [])
+      .filter(
+        (e) =>
+          e.type === "status_changed" &&
+          (e.details?.triggeredBy === "trello" ||
+            e.details?.triggeredBy === "trello_card_move"),
+      )
+      .map((e) => e.details?.to as string),
+  );
   const showOrderDetails = ORDER_VISIBLE_STATUSES.has(order.status);
   const projectFileLinks = getProjectFileLinks(order.projectFiles);
 
@@ -235,17 +247,19 @@ export default function OrderDetailPage({
               const isPast = index < currentStatusIndex;
               const isCurrent = index === currentStatusIndex;
               const isLast = index === STATUS_ORDER.length - 1;
+              const wasOnTrello = trelloVisitedStatuses.has(status);
+              const isOrange = isPast && !wasOnTrello;
               return (
                 <div key={status} className="flex items-center">
                   <div className="flex flex-col items-center">
-                    <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-colors ${isCurrent ? "bg-blue-600 text-white shadow-md shadow-blue-200" : isPast ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}>
+                    <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-colors ${isCurrent ? "bg-blue-600 text-white shadow-md shadow-blue-200" : isOrange ? "bg-orange-400 text-white" : isPast ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}>
                       {isPast ? (
                         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : <span>{index + 1}</span>}
                     </div>
-                    <span className={`mt-1.5 whitespace-nowrap text-[10px] font-semibold ${isCurrent ? "text-blue-600" : isPast ? "text-emerald-600" : "text-slate-400"}`}>
+                    <span className={`mt-1.5 whitespace-nowrap text-[10px] font-semibold ${isCurrent ? "text-blue-600" : isOrange ? "text-orange-500" : isPast ? "text-emerald-600" : "text-slate-400"}`}>
                       {statusLabels[status] ?? status}
                     </span>
                   </div>

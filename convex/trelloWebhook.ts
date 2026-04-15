@@ -149,6 +149,7 @@ export const webhook = httpAction(async (ctx, request) => {
     await ctx.runMutation(api.orders.changeStatus, {
       orderId: order._id,
       newStatus: nextStatus,
+      triggeredBy: "trello",
     });
   } catch (error) {
     console.error("Trello webhook status sync failed:", error);

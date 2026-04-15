@@ -249,6 +249,7 @@ export const changeStatus = mutation({
   args: {
     orderId: v.id("orders"),
     newStatus: orderStatusValidator,
+    triggeredBy: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -300,7 +301,7 @@ export const changeStatus = mutation({
       clientId: order.clientId,
       orderId: args.orderId,
       type: "status_changed",
-      details: { from: order.status, to: args.newStatus },
+      details: { from: order.status, to: args.newStatus, ...(args.triggeredBy ? { triggeredBy: args.triggeredBy } : {}) },
       performedBy: userId,
     });
 
