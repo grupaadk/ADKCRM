@@ -3,6 +3,7 @@
 import React from "react"
 import { tv, type VariantProps } from "tailwind-variants"
 import { cx } from "./utils"
+import { useStatusLabels, DEFAULT_STATUS_LABELS } from "@/components/StatusLabelsContext"
 
 const badgeVariants = tv({
   base: cx(
@@ -59,7 +60,9 @@ const STATUS_BADGE_MAP: Record<string, { label: string; variant: BadgeProps["var
 }
 
 export function StatusBadge({ status }: { status: string }) {
+  const labels = useStatusLabels()
   const config = STATUS_BADGE_MAP[status] ?? { label: status, variant: "neutral" as const }
+  const label = labels[status] ?? config.label
   return (
     <Badge variant={config.variant}>
       <span
@@ -78,11 +81,11 @@ export function StatusBadge({ status }: { status: string }) {
         )}
         aria-hidden="true"
       />
-      {config.label}
+      {label}
     </Badge>
   )
 }
 
 export function getStatusLabel(status: string): string {
-  return STATUS_BADGE_MAP[status]?.label ?? status
+  return DEFAULT_STATUS_LABELS[status] ?? STATUS_BADGE_MAP[status]?.label ?? status
 }

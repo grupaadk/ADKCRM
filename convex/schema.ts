@@ -389,6 +389,23 @@ export default defineSchema({
     senderName: v.string(),
   }),
 
+  // 3.15 Konfiguracja CRM (singleton) — m.in. niestandardowe nazwy statusów
+  crmConfig: defineTable({
+    statusLabels: v.optional(
+      v.object({
+        lead: v.optional(v.string()),
+        inquiry: v.optional(v.string()),
+        measurement: v.optional(v.string()),
+        offer: v.optional(v.string()),
+        contract: v.optional(v.string()),
+        production: v.optional(v.string()),
+        installation: v.optional(v.string()),
+        completed: v.optional(v.string()),
+        warranty: v.optional(v.string()),
+      }),
+    ),
+  }),
+
   // 3.7 Konfiguracja Trello (singleton)
   trelloConfig: defineTable({
     apiKey: v.string(),

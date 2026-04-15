@@ -12,24 +12,13 @@ import EventTimeline from "./EventTimeline";
 import Notes from "./Notes";
 import ClientMailTab from "./ClientMailTab";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
+import { useStatusLabels } from "@/components/StatusLabelsContext";
 
 type Tab = "zlecenia" | "notatki" | "historia" | "mail";
 
 function fmt(n: number) {
   return n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-
-const STATUS_LABELS: Record<string, string> = {
-  lead: "Lead",
-  inquiry: "Oferta wstepna",
-  measurement: "Pomiar",
-  offer: "Oferta",
-  contract: "Umowa",
-  production: "Produkcja",
-  installation: "Montaz",
-  completed: "Zakonczone",
-  warranty: "Gwarancja",
-};
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   lead: "bg-slate-100 text-slate-700 border-slate-200",
@@ -56,6 +45,7 @@ export default function ClientDetailPage({
   const clientId = id as Id<"clients">;
   const router = useRouter();
 
+  const statusLabels = useStatusLabels();
   const [activeTab, setActiveTab] = useState<Tab>("zlecenia");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -293,7 +283,7 @@ export default function ClientDetailPage({
           ) : (
             <div className="divide-y divide-slate-100">
               {orders.map((order) => {
-                const statusLabel = STATUS_LABELS[order.status] ?? order.status;
+                const statusLabel = statusLabels[order.status] ?? order.status;
                 const badgeStyle = STATUS_BADGE_STYLES[order.status] ?? "bg-slate-100 text-slate-700 border-slate-200";
                 const servicesSummary = order.services?.slice(0, 3).join(", ") ?? "Brak uslug";
                 const createdDate = new Date(order._creationTime).toLocaleDateString("pl-PL", {

@@ -1,30 +1,20 @@
 "use client";
 
 import { Doc } from "@/convex/_generated/dataModel";
-
-const STATUS_LABELS: Record<string, string> = {
-  lead: "Lead",
-  inquiry: "Oferta wyslana",
-  measurement: "Do pomiarow",
-  offer: "Oferta po pomiarze",
-  contract: "Umowa",
-  production: "Produkcja",
-  installation: "Montaz",
-  completed: "Zakonczone",
-  warranty: "Gwarancja",
-};
+import { useStatusLabels } from "@/components/StatusLabelsContext";
 
 function formatEventType(
   type: string,
   details: Record<string, unknown> | undefined,
+  statusLabels: Record<string, string>,
 ): string {
   switch (type) {
     case "created":
       return "Utworzono klienta";
     case "status_changed": {
       const from =
-        STATUS_LABELS[(details?.from as string) ?? ""] ?? details?.from;
-      const to = STATUS_LABELS[(details?.to as string) ?? ""] ?? details?.to;
+        statusLabels[(details?.from as string) ?? ""] ?? details?.from;
+      const to = statusLabels[(details?.to as string) ?? ""] ?? details?.to;
       return `Zmiana statusu: ${from} \u2192 ${to}`;
     }
     case "document_generated":
@@ -58,6 +48,8 @@ interface EventTimelineProps {
 }
 
 export default function EventTimeline({ events }: EventTimelineProps) {
+  const statusLabels = useStatusLabels();
+
   if (!events || events.length === 0) {
     return <p className="text-sm text-slate-400 italic">Brak zdarzen.</p>;
   }
@@ -76,6 +68,7 @@ export default function EventTimeline({ events }: EventTimelineProps) {
               {formatEventType(
                 event.type,
                 event.details as Record<string, unknown> | undefined,
+                statusLabels,
               )}
             </div>
             <div className="mt-1 flex items-center gap-2">

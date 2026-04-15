@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/Table"
 import { StatusBadge } from "@/components/ui/Badge"
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
+import { useStatusLabels } from "@/components/StatusLabelsContext"
 
 type SortField = "client" | "status" | "services" | "createdAt"
 type SortDirection = "asc" | "desc"
@@ -29,17 +30,9 @@ type Order = {
   client: { firstName: string; lastName: string } | null
 }
 
-const STATUS_OPTIONS = [
-  { value: "", label: "Wszystkie statusy" },
-  { value: "lead", label: "Lead" },
-  { value: "inquiry", label: "Oferta wysłana" },
-  { value: "measurement", label: "Do pomiarów" },
-  { value: "offer", label: "Oferta po pomiarze" },
-  { value: "contract", label: "Umowa" },
-  { value: "production", label: "Produkcja" },
-  { value: "installation", label: "Montaż" },
-  { value: "completed", label: "Zakończone" },
-  { value: "warranty", label: "Gwarancja" },
+const STATUS_KEYS = [
+  "lead", "inquiry", "measurement", "offer", "contract",
+  "production", "installation", "completed", "warranty",
 ]
 
 function SkeletonRow() {
@@ -74,6 +67,7 @@ function SortIcon({
 export default function OrderList() {
   const orders = useQuery(api.orders.list, {})
   const isLoading = orders === undefined
+  const statusLabels = useStatusLabels()
 
   const [sortField, setSortField] = useState<SortField>("createdAt")
   const [sortDir, setSortDir] = useState<SortDirection>("desc")
@@ -131,9 +125,10 @@ export default function OrderList() {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
         >
-          {STATUS_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
+          <option value="">Wszystkie statusy</option>
+          {STATUS_KEYS.map((key) => (
+            <option key={key} value={key}>
+              {statusLabels[key] ?? key}
             </option>
           ))}
         </select>

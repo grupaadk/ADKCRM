@@ -2,11 +2,12 @@
 
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
+import { DEFAULT_STATUS_LABELS, useStatusLabels } from "@/components/StatusLabelsContext";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import type { Id } from "@/convex/_generated/dataModel";
 
-type Tab = "google-drive" | "jotform" | "fakturownia" | "trello" | "szablony" | "sms";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "trello" | "szablony" | "sms" | "crm";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -1265,6 +1266,7 @@ function FakturowniaTab() {
 // --- Trello Tab ---
 
 function TrelloTab() {
+  const statusLabels = useStatusLabels();
   const config = useQuery(api.trello.getConfig);
   const saveConfig = useMutation(api.trello.saveConfig);
   const toggleSync = useMutation(api.trello.toggleSync);
@@ -1748,7 +1750,7 @@ function TrelloTab() {
                         className="border-b border-slate-50 last:border-0"
                       >
                         <td className="px-3 py-2 font-medium text-slate-800">
-                          {row.status}
+                          {statusLabels[row.status] ?? row.status}
                         </td>
                         <td className="px-3 py-2 font-mono text-[11px] text-slate-600">
                           {row.listId ?? "—"}
@@ -1813,20 +1815,10 @@ function TrelloTab() {
               </div>
             )}
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {[
-                ["lead", "Lead"],
-                ["inquiry", "Oferta wyslana"],
-                ["measurement", "Do pomiarow"],
-                ["offer", "Oferta po pomiarze"],
-                ["contract", "Umowa"],
-                ["production", "Produkcja"],
-                ["installation", "Montaz"],
-                ["completed", "Zakonczone"],
-                ["warranty", "Gwarancja"],
-              ].map(([statusKey, label]) => (
+              {(["lead", "inquiry", "measurement", "offer", "contract", "production", "installation", "completed", "warranty"] as const).map((statusKey) => (
                 <div key={statusKey}>
                   <label className="mb-1 block text-xs font-medium text-slate-500">
-                    {label}
+                    {statusLabels[statusKey] ?? statusKey}
                   </label>
                   {lists && lists.length > 0 ? (
                     <select
@@ -2994,6 +2986,96 @@ function CennikTab() {
   );
 }
 
+// --- CRM Tab ---
+
+const CRM_STATUS_KEYS = [
+  "lead", "inquiry", "measurement", "offer", "contract",
+  "production", "installation", "completed", "warranty",
+] as const;
+
+function CrmTab() {
+  const config = useQuery(api.crmConfig.getConfig);
+  const saveStatusLabels = useMutation(api.crmConfig.saveStatusLabels);
+
+  const [labels, setLabels] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (config !== undefined) {
+      const merged: Record<string, string> = {};
+      for (const key of CRM_STATUS_KEYS) {
+        merged[key] = config?.statusLabels?.[key] ?? DEFAULT_STATUS_LABELS[key] ?? key;
+      }
+      setLabels(merged);
+    }
+  }, [config]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const payload: Record<string, string | undefined> = {};
+      for (const key of CRM_STATUS_KEYS) {
+        const val = labels[key]?.trim();
+        payload[key] = val && val !== DEFAULT_STATUS_LABELS[key] ? val : undefined;
+      }
+      await saveStatusLabels({
+        statusLabels: payload as Parameters<typeof saveStatusLabels>[0]["statusLabels"],
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (config === undefined) {
+    return <div className="text-sm text-slate-400">Ladowanie...</div>;
+  }
+
+  return (
+    <div className="max-w-lg space-y-6">
+      <div>
+        <h2 className="text-base font-semibold text-slate-900">Nazwy statusów</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Zmień wyświetlane nazwy statusów w całym CRM. Zostaw puste, aby użyć domyślnej nazwy.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3">
+        {CRM_STATUS_KEYS.map((key) => (
+          <div key={key} className="flex items-center gap-3">
+            <span className="w-28 shrink-0 text-xs text-slate-400">
+              {DEFAULT_STATUS_LABELS[key]}
+            </span>
+            <input
+              value={labels[key] ?? ""}
+              onChange={(e) =>
+                setLabels((prev) => ({ ...prev, [key]: e.target.value }))
+              }
+              placeholder={DEFAULT_STATUS_LABELS[key]}
+              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+        >
+          {saving ? "Zapisywanie..." : "Zapisz"}
+        </button>
+        {saved && (
+          <span className="text-sm text-emerald-600">Zapisano.</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // --- Tabs config ---
 
 const TABS: Array<{ key: Tab; label: string }> = [
@@ -3003,6 +3085,7 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "trello", label: "Trello" },
   { key: "sms", label: "SMS" },
   { key: "szablony", label: "Szablony" },
+  { key: "crm", label: "CRM" },
 ];
 
 // --- Main Page ---
@@ -3043,6 +3126,7 @@ export default function UstawieniaPage() {
       {activeTab === "trello" && <TrelloTab />}
       {activeTab === "sms" && <SmsTab />}
       {activeTab === "szablony" && <SzablonyTab />}
+      {activeTab === "crm" && <CrmTab />}
     </div>
   );
 }

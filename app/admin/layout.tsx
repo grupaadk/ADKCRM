@@ -4,6 +4,7 @@ import { ReactNode } from "react"
 import { Authenticated, Unauthenticated, AuthLoading } from "convex/react"
 import { SignInButton } from "@clerk/nextjs"
 import { AdminHeader } from "@/components/AdminHeader"
+import { StatusLabelsProvider } from "@/components/StatusLabelsContext"
 
 function LoginRedirect() {
   return (
@@ -37,7 +38,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <Authenticated>
         <div className="flex flex-col min-h-svh">
           <AdminHeader />
-          <main className="flex-1 p-6 bg-gray-50">{children}</main>
+          <StatusLabelsProvider>
+            <main className="flex-1 p-6 bg-gray-50">{children}</main>
+          </StatusLabelsProvider>
         </div>
       </Authenticated>
       <Unauthenticated>

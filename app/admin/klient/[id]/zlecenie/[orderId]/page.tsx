@@ -12,23 +12,12 @@ import DocumentCheckboxes from "../../DocumentCheckboxes";
 import WarrantyCardUpload from "../../WarrantyCardUpload";
 import OrderLineItems from "../../OrderLineItems";
 import Notes from "../../Notes";
+import { useStatusLabels } from "@/components/StatusLabelsContext";
 
 const STATUS_ORDER = [
   "lead", "inquiry", "measurement", "offer", "contract",
   "production", "installation", "completed", "warranty",
 ] as const;
-
-const STATUS_LABELS: Record<string, string> = {
-  lead: "Lead",
-  inquiry: "Oferta wstepna",
-  measurement: "Pomiar",
-  offer: "Oferta",
-  contract: "Umowa",
-  production: "Produkcja",
-  installation: "Montaz",
-  completed: "Zakonczone",
-  warranty: "Gwarancja",
-};
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
   lead: ["inquiry", "measurement"],
@@ -107,6 +96,7 @@ export default function OrderDetailPage({
   const orderIdTyped = orderId as Id<"orders">;
   const router = useRouter();
 
+  const statusLabels = useStatusLabels();
   const [activeTab, setActiveTab] = useState<Tab>("zlecenie");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -138,7 +128,7 @@ export default function OrderDetailPage({
   }
 
   const allowedTransitions = STATUS_TRANSITIONS[order.status] ?? [];
-  const statusLabel = STATUS_LABELS[order.status] ?? order.status;
+  const statusLabel = statusLabels[order.status] ?? order.status;
   const currentStatusIndex = STATUS_ORDER.indexOf(order.status as (typeof STATUS_ORDER)[number]);
   const showOrderDetails = ORDER_VISIBLE_STATUSES.has(order.status);
   const projectFileLinks = getProjectFileLinks(order.projectFiles);
@@ -256,7 +246,7 @@ export default function OrderDetailPage({
                       ) : <span>{index + 1}</span>}
                     </div>
                     <span className={`mt-1.5 whitespace-nowrap text-[10px] font-semibold ${isCurrent ? "text-blue-600" : isPast ? "text-emerald-600" : "text-slate-400"}`}>
-                      {STATUS_LABELS[status]}
+                      {statusLabels[status] ?? status}
                     </span>
                   </div>
                   {!isLast && (

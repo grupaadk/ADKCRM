@@ -9,6 +9,7 @@
  */
 
 import type * as clients from "../clients.js";
+import type * as crmConfig from "../crmConfig.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
 import type * as documentTemplates from "../documentTemplates.js";
@@ -46,6 +47,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   clients: typeof clients;
+  crmConfig: typeof crmConfig;
   crons: typeof crons;
   dashboard: typeof dashboard;
   documentTemplates: typeof documentTemplates;
