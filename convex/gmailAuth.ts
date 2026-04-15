@@ -20,8 +20,9 @@ export const initiateOAuth = httpAction(async (_ctx, request) => {
   const url = new URL(request.url);
   const siteUrl = `${url.protocol}//${url.host}`;
   const userId = url.searchParams.get("userId") ?? "unknown";
+  const accountKey = url.searchParams.get("accountKey") === "secondary" ? "secondary" : "main";
   const redirectUri = `${siteUrl}/api/gmail/callback`;
-  const state = JSON.stringify({ userId });
+  const state = JSON.stringify({ userId, accountKey });
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -30,8 +31,6 @@ export const initiateOAuth = httpAction(async (_ctx, request) => {
     scope: "https://mail.google.com/ email profile",
     access_type: "offline",
     prompt: "consent",
-    login_hint: "kontakt@adkokna.pl",
-    hd: "adkokna.pl",
     state,
   });
 
@@ -80,10 +79,12 @@ export const oauthCallback = httpAction(async (ctx, request) => {
   const redirectUri = `${siteUrl}/api/gmail/callback`;
 
   let userId = "unknown";
+  let accountKey: "main" | "secondary" = "main";
   if (stateParam) {
     try {
       const state = JSON.parse(stateParam);
       userId = state.userId ?? "unknown";
+      accountKey = state.accountKey === "secondary" ? "secondary" : "main";
     } catch {
       // ignore
     }
@@ -132,6 +133,7 @@ export const oauthCallback = httpAction(async (ctx, request) => {
   const encryptedRefresh = await encrypt(tokens.refresh_token);
 
   await ctx.runMutation(api.gmail.saveConnection, {
+    accountKey,
     accessToken: encryptedAccess,
     refreshToken: encryptedRefresh,
     expiresAt,

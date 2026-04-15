@@ -57,6 +57,7 @@ type GmailLabel = {
 type DecryptedConnection = {
   _id: string;
   _creationTime: number;
+  accountKey?: "main" | "secondary";
   accessToken: string;
   refreshToken: string;
   expiresAt: number;
@@ -284,13 +285,13 @@ async function refreshAccessToken(
   ctx: ActionCtx,
   connection: DecryptedConnection,
 ): Promise<DecryptedConnection> {
-  await ctx.runMutation(internal.gmail.updateStatus, { connectionStatus: "refreshing" });
+  await ctx.runMutation(internal.gmail.updateStatus, { id: connection._id, connectionStatus: "refreshing" });
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    await ctx.runMutation(internal.gmail.updateStatus, { connectionStatus: "refresh_failed" });
+    await ctx.runMutation(internal.gmail.updateStatus, { id: connection._id, connectionStatus: "refresh_failed" });
     throw new Error("Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET env vars");
   }
 
@@ -306,7 +307,7 @@ async function refreshAccessToken(
   });
 
   if (!response.ok) {
-    await ctx.runMutation(internal.gmail.updateStatus, { connectionStatus: "refresh_failed" });
+    await ctx.runMutation(internal.gmail.updateStatus, { id: connection._id, connectionStatus: "refresh_failed" });
     throw new Error(`Gmail token refresh failed: ${await response.text()}`);
   }
 
@@ -314,7 +315,7 @@ async function refreshAccessToken(
   const expiresAt = Date.now() + tokens.expires_in * 1000;
   const encryptedToken = await encrypt(tokens.access_token);
 
-  await ctx.runMutation(internal.gmail.updateTokens, { accessToken: encryptedToken, expiresAt });
+  await ctx.runMutation(internal.gmail.updateTokens, { id: connection._id, accessToken: encryptedToken, expiresAt });
 
   return { ...connection, accessToken: tokens.access_token, expiresAt, connectionStatus: "connected" };
 }
@@ -377,7 +378,10 @@ async function gmailApiFetchWithRetry<T>(
 export const getConnectionStatus = query({
   args: {},
   handler: async (ctx) => {
-    const connection = await ctx.db.query("gmailConnection").first();
+    const settings = await ctx.db.query("gmailSettings").first();
+    const activeKey = settings?.activeAccountKey ?? "main";
+    const all = await ctx.db.query("gmailConnection").collect();
+    const connection = all.find((c) => (c.accountKey ?? "main") === activeKey);
     if (!connection) return null;
     return {
       connectionStatus: connection.connectionStatus,
@@ -388,10 +392,31 @@ export const getConnectionStatus = query({
   },
 });
 
+export const getAllConnectionsStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const settings = await ctx.db.query("gmailSettings").first();
+    const activeAccountKey = settings?.activeAccountKey ?? "main";
+    const all = await ctx.db.query("gmailConnection").collect();
+    return {
+      activeAccountKey,
+      connections: all.map((c) => ({
+        accountKey: (c.accountKey ?? "main") as "main" | "secondary",
+        connectedEmail: c.connectedEmail,
+        connectionStatus: c.connectionStatus,
+        expiresAt: c.expiresAt,
+      })),
+    };
+  },
+});
+
 export const getConnectionInternal = query({
   args: {},
   handler: async (ctx) => {
-    return ctx.db.query("gmailConnection").first();
+    const settings = await ctx.db.query("gmailSettings").first();
+    const activeKey = settings?.activeAccountKey ?? "main";
+    const all = await ctx.db.query("gmailConnection").collect();
+    return all.find((c) => (c.accountKey ?? "main") === activeKey) ?? null;
   },
 });
 
@@ -399,6 +424,7 @@ export const getConnectionInternal = query({
 
 export const saveConnection = mutation({
   args: {
+    accountKey: v.optional(v.union(v.literal("main"), v.literal("secondary"))),
     accessToken: v.string(),
     refreshToken: v.string(),
     expiresAt: v.number(),
@@ -406,9 +432,12 @@ export const saveConnection = mutation({
     connectedEmail: v.string(),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db.query("gmailConnection").first();
+    const accountKey = args.accountKey ?? "main";
+    const all = await ctx.db.query("gmailConnection").collect();
+    const existing = all.find((c) => (c.accountKey ?? "main") === accountKey);
     if (existing) {
       await ctx.db.patch(existing._id, {
+        accountKey,
         accessToken: args.accessToken,
         refreshToken: args.refreshToken,
         expiresAt: args.expiresAt,
@@ -418,6 +447,7 @@ export const saveConnection = mutation({
       });
     } else {
       await ctx.db.insert("gmailConnection", {
+        accountKey,
         accessToken: args.accessToken,
         refreshToken: args.refreshToken,
         expiresAt: args.expiresAt,
@@ -426,35 +456,51 @@ export const saveConnection = mutation({
         connectionStatus: "connected",
       });
     }
+    // Jeśli to pierwsze konto — ustaw jako aktywne
+    const settingsExist = await ctx.db.query("gmailSettings").first();
+    if (!settingsExist) {
+      await ctx.db.insert("gmailSettings", { activeAccountKey: accountKey });
+    }
   },
 });
 
 export const disconnect = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const connection = await ctx.db.query("gmailConnection").first();
+  args: { accountKey: v.union(v.literal("main"), v.literal("secondary")) },
+  handler: async (ctx, args) => {
+    const all = await ctx.db.query("gmailConnection").collect();
+    const connection = all.find((c) => (c.accountKey ?? "main") === args.accountKey);
     if (connection) {
       await ctx.db.delete(connection._id);
     }
   },
 });
 
-export const updateTokens = internalMutation({
-  args: { accessToken: v.string(), expiresAt: v.number() },
+export const setActiveAccount = mutation({
+  args: { accountKey: v.union(v.literal("main"), v.literal("secondary")) },
   handler: async (ctx, args) => {
-    const connection = await ctx.db.query("gmailConnection").first();
-    if (connection) {
-      await ctx.db.patch(connection._id, {
-        accessToken: args.accessToken,
-        expiresAt: args.expiresAt,
-        connectionStatus: "connected",
-      });
+    const settings = await ctx.db.query("gmailSettings").first();
+    if (settings) {
+      await ctx.db.patch(settings._id, { activeAccountKey: args.accountKey });
+    } else {
+      await ctx.db.insert("gmailSettings", { activeAccountKey: args.accountKey });
     }
+  },
+});
+
+export const updateTokens = internalMutation({
+  args: { id: v.string(), accessToken: v.string(), expiresAt: v.number() },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id as never, {
+      accessToken: args.accessToken,
+      expiresAt: args.expiresAt,
+      connectionStatus: "connected",
+    });
   },
 });
 
 export const updateStatus = internalMutation({
   args: {
+    id: v.string(),
     connectionStatus: v.union(
       v.literal("connected"),
       v.literal("token_expiring"),
@@ -466,10 +512,7 @@ export const updateStatus = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
-    const connection = await ctx.db.query("gmailConnection").first();
-    if (connection) {
-      await ctx.db.patch(connection._id, { connectionStatus: args.connectionStatus });
-    }
+    await ctx.db.patch(args.id as never, { connectionStatus: args.connectionStatus });
   },
 });
 

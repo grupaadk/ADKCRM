@@ -978,7 +978,12 @@ function EmailView({
 
 export default function MailPage() {
   const { user } = useUser();
-  const connectionStatus = useQuery(api.gmail.getConnectionStatus);
+  const allConnections = useQuery(api.gmail.getAllConnectionsStatus);
+
+  // Aktywne konto i jego status
+  const activeAccountKey = allConnections?.activeAccountKey ?? "main";
+  const activeConnection = allConnections?.connections.find((c) => c.accountKey === activeAccountKey);
+  const activeConnectionStatus = activeConnection?.connectionStatus;
 
   const [selectedLabel, setSelectedLabel] = useState("INBOX");
   const [messages, setMessages] = useState<EmailMetadata[]>([]);
@@ -1032,6 +1037,7 @@ export default function MailPage() {
   const getLabelInfoAction = useAction(api.gmail.getLabelInfo);
   const createTrelloCardFromEmailAction = useAction(api.trello.createCardFromEmail);
   const disconnectMutation = useMutation(api.gmail.disconnect);
+  const setActiveAccountMutation = useMutation(api.gmail.setActiveAccount);
 
   // Klasyfikacja AI
   const classifyThreadAction = useAction(api.emailClassification.classifyThread);
@@ -1132,9 +1138,15 @@ export default function MailPage() {
   useEffect(() => { fetchMessagesRef.current = fetchMessages; }, [fetchMessages]);
   useEffect(() => { fetchInboxUnreadRef.current = fetchInboxUnread; }, [fetchInboxUnread]);
 
-  // Initial load when connection is first established (page load / OAuth callback)
+  // Initial load when connection is first established (page load / OAuth callback / account switch)
   useEffect(() => {
-    if (connectionStatus?.connectionStatus !== "connected") return;
+    if (activeConnectionStatus !== "connected") return;
+    setMessages([]);
+    setThreads([]);
+    setSelectedMessageId(null);
+    setSelectedThreadId(null);
+    setSelectedMessage(null);
+    setSelectedThread(null);
     const labelToFetch = VIRTUAL_LABELS.has(selectedLabel) ? "INBOX" : selectedLabel;
     if (THREAD_LABELS.has(selectedLabel)) {
       fetchThreadsRef.current(labelToFetch);
@@ -1142,13 +1154,13 @@ export default function MailPage() {
       fetchMessagesRef.current(labelToFetch);
     }
     fetchInboxUnreadRef.current();
-  // Only re-run when connection status changes (not on every render)
+  // Re-run when status changes or active account changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectionStatus?.connectionStatus]);
+  }, [activeConnectionStatus, activeAccountKey]);
 
   // Reload when selected label changes
   useEffect(() => {
-    if (connectionStatus?.connectionStatus !== "connected") return;
+    if (activeConnectionStatus !== "connected") return;
     setMessages([]);
     setThreads([]);
     setSelectedMessageId(null);
@@ -1462,7 +1474,7 @@ export default function MailPage() {
 
   // ─── Connect Screen ──────────────────────────────────────────────────────────
 
-  if (connectionStatus === undefined) {
+  if (allConnections === undefined) {
     return (
       <div className="-m-6 flex items-center justify-center bg-gray-50" style={{ height: "calc(100vh - 56px)" }}>
         <Loader2 className="size-6 animate-spin text-gray-400" />
@@ -1470,31 +1482,37 @@ export default function MailPage() {
     );
   }
 
-  if (!connectionStatus || connectionStatus.connectionStatus === "disconnected") {
+  if (allConnections.connections.length === 0) {
     return (
       <div className="-m-6 flex items-center justify-center bg-gray-50" style={{ height: "calc(100vh - 56px)" }}>
         <div className="text-center max-w-sm">
           <div className="flex size-16 items-center justify-center rounded-full bg-blue-50 mx-auto mb-4">
             <Mail className="size-8 text-blue-500" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Podłącz skrzynkę Gmail</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Połącz skrzynkę Gmail</h2>
           <p className="text-sm text-gray-500 mb-6">
-            Połącz konto Google Workspace, aby odbierać i wysyłać maile z adresu{" "}
-            <span className="font-medium text-gray-700">kontakt@adkokna.pl</span> bezpośrednio w CRM.
+            Połącz co najmniej jedno konto Google, aby korzystać z Maila w CRM.
           </p>
-          <a
-            href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}`}
-            className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-          >
-            <Mail className="size-4" />
-            Połącz z Google
-          </a>
+          <div className="flex flex-col gap-3">
+            <a
+              href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}&accountKey=main`}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            >
+              <Mail className="size-4" />
+              Połącz Konto główne
+            </a>
+            <a
+              href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}&accountKey=secondary`}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Mail className="size-4" />
+              Połącz Konto dodatkowe
+            </a>
+          </div>
         </div>
       </div>
     );
   }
-
-  const isError = ["expired", "refresh_failed", "error"].includes(connectionStatus.connectionStatus);
 
   // ─── Main Mail UI ────────────────────────────────────────────────────────────
 
@@ -1540,30 +1558,78 @@ export default function MailPage() {
           })}
         </nav>
 
-        {/* Connection status */}
-        <div className="px-3 py-2 border-t border-gray-100">
-          <div className="flex items-center gap-2">
-            {isError ? (
-              <WifiOff className="size-3.5 text-red-400" />
-            ) : (
-              <Wifi className="size-3.5 text-green-500" />
-            )}
-            <span className="text-xs text-gray-500 truncate">{connectionStatus.connectedEmail}</span>
-          </div>
-          {isError && (
-            <a
-              href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}`}
-              className="mt-1 block text-xs text-red-500 hover:underline"
-            >
-              Odśwież połączenie
-            </a>
-          )}
-          <button
-            onClick={() => disconnectMutation({})}
-            className="mt-1 text-xs text-gray-400 hover:text-gray-600 hover:underline"
-          >
-            Rozłącz
-          </button>
+        {/* Account switcher */}
+        <div className="px-2 py-2 border-t border-gray-100">
+          <p className="px-1 mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Konta</p>
+          {(["main", "secondary"] as const).map((key) => {
+            const conn = allConnections.connections.find((c) => c.accountKey === key);
+            const isActive = activeAccountKey === key;
+            const connOk = conn && !["expired", "refresh_failed", "error", "disconnected"].includes(conn.connectionStatus);
+            const connErr = conn && ["expired", "refresh_failed", "error"].includes(conn.connectionStatus);
+            return (
+              <div
+                key={key}
+                className={cx(
+                  "rounded-lg px-2 py-1.5 mb-1 transition-colors",
+                  isActive ? "bg-blue-50" : conn ? "hover:bg-gray-50 cursor-pointer" : "",
+                )}
+                onClick={() => {
+                  if (connOk && !isActive) void setActiveAccountMutation({ accountKey: key });
+                }}
+              >
+                <div className="flex items-center gap-1.5">
+                  {connErr ? (
+                    <WifiOff className="size-3 text-red-400 shrink-0" />
+                  ) : connOk ? (
+                    <Wifi className="size-3 text-green-500 shrink-0" />
+                  ) : (
+                    <Wifi className="size-3 text-gray-300 shrink-0" />
+                  )}
+                  <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">
+                    {key === "main" ? "Konto główne" : "Konto dodatkowe"}
+                  </span>
+                  {isActive && (
+                    <span className="ml-auto text-[10px] font-semibold text-blue-500">●</span>
+                  )}
+                </div>
+                <p className="mt-0.5 pl-[18px] text-xs text-gray-600 truncate">
+                  {conn ? conn.connectedEmail : "Niepołączone"}
+                </p>
+                <div className="pl-[18px] mt-0.5 flex items-center gap-2">
+                  {!conn ? (
+                    <a
+                      href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}&accountKey=${key}`}
+                      className="text-[10px] text-blue-500 hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Połącz
+                    </a>
+                  ) : (
+                    <>
+                      {connErr && (
+                        <a
+                          href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}&accountKey=${key}`}
+                          className="text-[10px] text-red-500 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Odśwież
+                        </a>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void disconnectMutation({ accountKey: key });
+                        }}
+                        className="text-[10px] text-gray-400 hover:text-gray-600 hover:underline"
+                      >
+                        Rozłącz
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </aside>
 
@@ -1696,7 +1762,7 @@ export default function MailPage() {
               threadId={selectedThreadId ?? ""}
               subject={threads.find((t) => t.id === selectedThreadId)?.subject ?? ""}
               messages={selectedThread.messages}
-              connectedEmail={connectionStatus.connectedEmail}
+              connectedEmail={activeConnection?.connectedEmail ?? ""}
               classificationStatus={
                 selectedThreadId ? classifications?.[selectedThreadId] : undefined
               }

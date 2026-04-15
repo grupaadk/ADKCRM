@@ -328,8 +328,9 @@ export default defineSchema({
     processed: v.boolean(),
   }).index("by_trello_card", ["trelloCardId"]),
 
-  // 3.9 Konfiguracja Gmail (singleton)
+  // 3.9 Konfiguracja Gmail (multi-account: main / secondary)
   gmailConnection: defineTable({
+    accountKey: v.optional(v.union(v.literal("main"), v.literal("secondary"))),
     accessToken: v.string(),
     refreshToken: v.string(),
     expiresAt: v.number(),
@@ -344,6 +345,11 @@ export default defineSchema({
       v.literal("disconnected"),
       v.literal("error"),
     ),
+  }),
+
+  // 3.9b Aktywne konto Gmail
+  gmailSettings: defineTable({
+    activeAccountKey: v.union(v.literal("main"), v.literal("secondary")),
   }),
 
   // 3.11 Klasyfikacja wiadomości Gmail (LEAD / OTHER)
