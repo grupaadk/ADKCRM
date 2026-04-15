@@ -120,7 +120,7 @@ function LineItemRow({
                   onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
                 >
                   <option value="">— wybierz —</option>
-                  {PRODUCT_TYPES.map((t) => <option key={t}>{t}</option>)}
+                  {(VAT_NAMES[draft.vatRate ?? item.vatRate] ?? [...PRODUCT_TYPES_23, ...PRODUCT_TYPES_8]).map((t) => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
