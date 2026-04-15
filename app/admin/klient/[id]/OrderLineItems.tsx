@@ -5,9 +5,10 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 
-const VAT_RATES = [23, 8, 0];
+const VAT_RATES = [0, 8, 23];
 const UNITS = ["szt.", "m²", "mb", "usł.", "kpl.", "godz."];
-const PRODUCT_TYPES = [
+
+const PRODUCT_TYPES_23 = [
   "Stolarka okienna",
   "Stolarka drzwiowa",
   "Brama garażowa",
@@ -16,6 +17,21 @@ const PRODUCT_TYPES = [
   "Ogrodzenie",
   "System przeciwsłoneczny",
 ];
+
+const PRODUCT_TYPES_8 = [
+  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (brama garażowa z montażem) PKWiU 43.32.10.0.",
+  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (drzwi zewnętrzne z montażem) PKWiU 43.32.10.0.",
+  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (przygotowanie mebli do montażu) PKWiU 43.32.10.0.",
+  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (zabudowa tarasu z montażem) PKWiU 43.32.10.0.",
+  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (zadaszenie z montażem) PKWiU 43.32.10.0.",
+  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (stolarka budowlana z montażem) PKWiU 43.32.10.0.",
+  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (stolarka okienna z montażem) PKWiU 43.32.10.0.",
+];
+
+const VAT_NAMES: Record<number, string[]> = {
+  23: PRODUCT_TYPES_23,
+  8: PRODUCT_TYPES_8,
+};
 
 function fmt(n: number) {
   return n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -249,7 +265,7 @@ const EMPTY_FORM: AddFormState = {
   quantity: "1",
   unit: "szt.",
   unitPrice: "",
-  vatRate: 23,
+  vatRate: 0,
   discountPercent: "0",
 };
 
@@ -261,7 +277,6 @@ export default function OrderLineItems({
   fakturownia?: Doc<"orders">["fakturownia"];
 }) {
   const data = useQuery(api.orderLineItems.listByOrder, { orderId });
-  const catalog = useQuery(api.servicePricing.list, {});
   const fkConfig = useQuery(api.fakturownia.getConfig);
   const addItem = useMutation(api.orderLineItems.add);
   const updateItem = useMutation(api.orderLineItems.update);
@@ -277,23 +292,9 @@ export default function OrderLineItems({
   const [fkBusy, setFkBusy] = useState<string | null>(null);
   const [fkMessage, setFkMessage] = useState<string | null>(null);
 
-  function onCatalogSelect(e: React.ChangeEvent<HTMLSelectElement>) {
-    const id = e.target.value as Id<"servicePricing"> | "";
-    if (!id) {
-      setForm((f) => ({ ...f, serviceId: "", name: "", unitPrice: "", unit: "szt.", vatRate: 23 }));
-      return;
-    }
-    const entry = catalog?.find((c) => c._id === id);
-    if (entry) {
-      setForm((f) => ({
-        ...f,
-        serviceId: id,
-        name: entry.name,
-        unit: entry.unit,
-        unitPrice: String(entry.unitPrice),
-        vatRate: entry.vatRate,
-      }));
-    }
+  function onVatChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const rate = parseInt(e.target.value);
+    setForm((f) => ({ ...f, vatRate: rate, name: "" }));
   }
 
   async function submit(e: React.FormEvent) {
@@ -575,104 +576,111 @@ export default function OrderLineItems({
         <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">Nowa pozycja</h3>
 
-          {/* Catalog select */}
-          <div className="mb-4">
+          {/* VAT selector — always active, unlocks the rest of the form */}
+          <div className="mb-5">
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              VAT % <span className="ml-1 rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-bold text-blue-700 uppercase tracking-wider">Wybierz najpierw</span>
+            </label>
             <select
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              value={form.serviceId}
-              onChange={onCatalogSelect}
+              className="w-full rounded-lg border-2 border-blue-400 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-900 ring-2 ring-blue-200 focus:outline-none focus:ring-blue-400"
+              value={form.vatRate}
+              onChange={onVatChange}
             >
-              <option value="">— Pozycja własna —</option>
-              {(catalog ?? []).map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name} ({fmt(c.unitPrice)} zł / {c.unit}, VAT {c.vatRate}%)
-                </option>
-              ))}
+              {VAT_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="col-span-2">
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>
-              <select
-                required
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              >
-                <option value="">— wybierz —</option>
-                {PRODUCT_TYPES.map((t) => <option key={t}>{t}</option>)}
-              </select>
+          {/* Locked overlay hint */}
+          {form.vatRate === 0 && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
+              <svg className="h-4 w-4 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Wybierz stawkę VAT (23% lub 8%), aby odblokować pozostałe pola formularza
             </div>
-            <div className="col-span-2">
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Opis</label>
-              <input
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                placeholder="opcjonalny opis"
-              />
-            </div>
-          </div>
+          )}
 
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Ilość *</label>
-              <input
-                required
-                type="number"
-                min="0"
-                step="0.01"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                value={form.quantity}
-                onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
-              />
+          {/* Rest of form — locked when vatRate === 0 */}
+          <div className={form.vatRate === 0 ? "pointer-events-none select-none opacity-40" : ""}>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="col-span-2">
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>
+                <select
+                  required={form.vatRate !== 0}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  disabled={form.vatRate === 0}
+                >
+                  <option value="">— wybierz —</option>
+                  {(VAT_NAMES[form.vatRate] ?? []).map((t) => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Opis</label>
+                <input
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="opcjonalny opis"
+                  disabled={form.vatRate === 0}
+                />
+              </div>
             </div>
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Jedn.</label>
-              <select
-                className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
-                value={form.unit}
-                onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
-              >
-                {UNITS.map((u) => <option key={u}>{u}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cena netto *</label>
-              <input
-                required
-                type="number"
-                min="0"
-                step="0.01"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                value={form.unitPrice}
-                onChange={(e) => setForm((f) => ({ ...f, unitPrice: e.target.value }))}
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">VAT %</label>
-              <select
-                className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
-                value={form.vatRate}
-                onChange={(e) => setForm((f) => ({ ...f, vatRate: parseInt(e.target.value) }))}
-              >
-                {VAT_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Rabat %</label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="0.5"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                value={form.discountPercent}
-                onChange={(e) => setForm((f) => ({ ...f, discountPercent: e.target.value }))}
-                placeholder="0"
-              />
+
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Ilość *</label>
+                <input
+                  required={form.vatRate !== 0}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+                  value={form.quantity}
+                  onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
+                  disabled={form.vatRate === 0}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Jedn.</label>
+                <select
+                  className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm disabled:bg-slate-100"
+                  value={form.unit}
+                  onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+                  disabled={form.vatRate === 0}
+                >
+                  {UNITS.map((u) => <option key={u}>{u}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cena netto *</label>
+                <input
+                  required={form.vatRate !== 0}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+                  value={form.unitPrice}
+                  onChange={(e) => setForm((f) => ({ ...f, unitPrice: e.target.value }))}
+                  placeholder="0.00"
+                  disabled={form.vatRate === 0}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Rabat %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+                  value={form.discountPercent}
+                  onChange={(e) => setForm((f) => ({ ...f, discountPercent: e.target.value }))}
+                  placeholder="0"
+                  disabled={form.vatRate === 0}
+                />
+              </div>
             </div>
           </div>
 
@@ -681,7 +689,7 @@ export default function OrderLineItems({
           <div className="mt-4 flex gap-2">
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || form.vatRate === 0 || !form.name}
               className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
             >
               Dodaj pozycję
