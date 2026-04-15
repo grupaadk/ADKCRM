@@ -105,6 +105,7 @@ type ThreadMessageDetail = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SYSTEM_LABELS: Label[] = [
+  { id: "__ALL__", name: "__ALL__", icon: Mail, labelPl: "Wszystkie" },
   { id: "INBOX", name: "INBOX", icon: Inbox, labelPl: "Odebrane" },
   { id: "__OTHER__", name: "__OTHER__", icon: Filter, labelPl: "Inne" },
   { id: "STARRED", name: "STARRED", icon: Star, labelPl: "Oznaczone gwiazdką" },
@@ -156,13 +157,13 @@ function isEmailRelevant(email: EmailMetadata): boolean {
 }
 
 /** Labels where the relevance filter is active */
-const FILTERED_LABELS = new Set(["INBOX", "STARRED", "__OTHER__"]);
+const FILTERED_LABELS = new Set(["INBOX", "STARRED", "__OTHER__", "__ALL__"]);
 
 /** Labels that use thread view (grouped by threadId) */
-const THREAD_LABELS = new Set(["INBOX", "STARRED", "__OTHER__"]);
+const THREAD_LABELS = new Set(["INBOX", "STARRED", "__OTHER__", "__ALL__"]);
 
 /** Virtual labels that don't have their own Gmail fetch — reuse INBOX threads */
-const VIRTUAL_LABELS = new Set(["__OTHER__"]);
+const VIRTUAL_LABELS = new Set(["__OTHER__", "__ALL__"]);
 
 function isThreadRelevant(thread: ThreadMetadata): boolean {
   const latestFrom = thread.latestFrom.toLowerCase();
@@ -1123,25 +1124,47 @@ export default function MailPage() {
     }
   }, [getLabelInfoAction]);
 
-  // Load messages/threads when label changes
+  // Refs to always hold the latest versions of fetch callbacks (avoid stale closures)
+  const fetchThreadsRef = useRef(fetchThreads);
+  const fetchMessagesRef = useRef(fetchMessages);
+  const fetchInboxUnreadRef = useRef(fetchInboxUnread);
+  useEffect(() => { fetchThreadsRef.current = fetchThreads; }, [fetchThreads]);
+  useEffect(() => { fetchMessagesRef.current = fetchMessages; }, [fetchMessages]);
+  useEffect(() => { fetchInboxUnreadRef.current = fetchInboxUnread; }, [fetchInboxUnread]);
+
+  // Initial load when connection is first established (page load / OAuth callback)
   useEffect(() => {
-    if (connectionStatus?.connectionStatus === "connected") {
-      setMessages([]);
-      setThreads([]);
-      setSelectedMessageId(null);
-      setSelectedThreadId(null);
-      setSelectedMessage(null);
-      setSelectedThread(null);
-      // Wirtualne labele (np. "Inne") używają danych z INBOX
-      const labelToFetch = VIRTUAL_LABELS.has(selectedLabel) ? "INBOX" : selectedLabel;
-      if (THREAD_LABELS.has(selectedLabel)) {
-        fetchThreads(labelToFetch);
-      } else {
-        fetchMessages(labelToFetch);
-      }
-      fetchInboxUnread();
+    if (connectionStatus?.connectionStatus !== "connected") return;
+    const labelToFetch = VIRTUAL_LABELS.has(selectedLabel) ? "INBOX" : selectedLabel;
+    if (THREAD_LABELS.has(selectedLabel)) {
+      fetchThreadsRef.current(labelToFetch);
+    } else {
+      fetchMessagesRef.current(labelToFetch);
     }
-  }, [selectedLabel, connectionStatus?.connectionStatus, fetchMessages, fetchThreads, fetchInboxUnread]);
+    fetchInboxUnreadRef.current();
+  // Only re-run when connection status changes (not on every render)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionStatus?.connectionStatus]);
+
+  // Reload when selected label changes
+  useEffect(() => {
+    if (connectionStatus?.connectionStatus !== "connected") return;
+    setMessages([]);
+    setThreads([]);
+    setSelectedMessageId(null);
+    setSelectedThreadId(null);
+    setSelectedMessage(null);
+    setSelectedThread(null);
+    const labelToFetch = VIRTUAL_LABELS.has(selectedLabel) ? "INBOX" : selectedLabel;
+    if (THREAD_LABELS.has(selectedLabel)) {
+      fetchThreadsRef.current(labelToFetch);
+    } else {
+      fetchMessagesRef.current(labelToFetch);
+    }
+    fetchInboxUnreadRef.current();
+  // Only re-run when label changes, not on every callback re-creation
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLabel]);
 
   // Auto-klasyfikacja nowo załadowanych wątków INBOX
   useEffect(() => {
@@ -1166,6 +1189,17 @@ export default function MailPage() {
     try {
       const detail = await getThreadAction({ threadId });
       setSelectedThread(detail as { messages: ThreadMessageDetail[] });
+
+      // Mark all unread messages in the thread as read
+      const unreadMessages = (detail as { messages: ThreadMessageDetail[] }).messages.filter((m) => !m.isRead);
+      if (unreadMessages.length > 0) {
+        await Promise.all(
+          unreadMessages.map((m) => modifyMessageAction({ messageId: m.id, removeLabelIds: ["UNREAD"] }))
+        );
+        setThreads((prev) =>
+          prev.map((t) => (t.id === threadId ? { ...t, hasUnread: false } : t))
+        );
+      }
     } catch (err) {
       console.error("Failed to fetch thread:", err);
     } finally {
@@ -1379,13 +1413,14 @@ export default function MailPage() {
   );
 
   const relevantThreads =
-    selectedLabel === "INBOX" || selectedLabel === "__OTHER__"
+    selectedLabel === "INBOX" || selectedLabel === "__OTHER__" || selectedLabel === "__ALL__"
       ? blacklistFilteredThreads
       : FILTERED_LABELS.has(selectedLabel)
         ? threads.filter(isThreadRelevant)
         : threads;
 
   // Filtracja AI: INBOX pokazuje tylko potwierdzone LEAD, "Inne" pokazuje tylko OTHER.
+  // "Wszystkie" pokazuje wszystkie wiadomości (LEAD + OTHER) bez filtrowania klasyfikacją.
   // Niesklasyfikowane wątki (czekające na AI) są ukryte w INBOX — pojawiają się dopiero
   // po potwierdzeniu przez model jako LEAD.
   const classificationFilteredThreads = useMemo(() => {
@@ -1395,6 +1430,7 @@ export default function MailPage() {
     if (selectedLabel === "__OTHER__") {
       return relevantThreads.filter((t) => classifications?.[t.id] === "OTHER");
     }
+    // __ALL__: show everything that passed the blacklist filter
     return relevantThreads;
   }, [relevantThreads, selectedLabel, classifications]);
 
@@ -1551,7 +1587,7 @@ export default function MailPage() {
             )}
           </div>
           <button
-            onClick={() => isThreadView ? fetchThreads(selectedLabel) : fetchMessages(selectedLabel)}
+            onClick={() => { const lbl = VIRTUAL_LABELS.has(selectedLabel) ? "INBOX" : selectedLabel; isThreadView ? fetchThreads(lbl) : fetchMessages(lbl); }}
             disabled={loadingList}
             className="p-1.5 rounded-full hover:bg-gray-100 transition-colors text-gray-500"
             title="Odśwież"
@@ -1611,7 +1647,7 @@ export default function MailPage() {
               })}
               {threadsNextPageToken && !searchQuery && (
                 <button
-                  onClick={() => fetchThreads(selectedLabel, threadsNextPageToken)}
+                  onClick={() => fetchThreads(VIRTUAL_LABELS.has(selectedLabel) ? "INBOX" : selectedLabel, threadsNextPageToken)}
                   disabled={loadingList}
                   className="w-full py-3 text-sm text-blue-600 hover:bg-gray-50 transition-colors border-t border-gray-100"
                 >
@@ -1636,7 +1672,7 @@ export default function MailPage() {
               })}
               {nextPageToken && !searchQuery && (
                 <button
-                  onClick={() => fetchMessages(selectedLabel, nextPageToken)}
+                  onClick={() => fetchMessages(VIRTUAL_LABELS.has(selectedLabel) ? "INBOX" : selectedLabel, nextPageToken)}
                   disabled={loadingList}
                   className="w-full py-3 text-sm text-blue-600 hover:bg-gray-50 transition-colors border-t border-gray-100"
                 >
