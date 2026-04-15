@@ -1086,22 +1086,20 @@ function FakturowniaTab() {
 
   const [subdomain, setSubdomain] = useState("");
   const [apiToken, setApiToken] = useState("");
-  const [advancePercent, setAdvancePercent] = useState("30");
-  const [departmentId, setDepartmentId] = useState("");
+  const [initialized, setInitialized] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const hasSavedToken = config?.hasApiToken ?? false;
-  const effectiveSubdomain = subdomain || config?.subdomain || "";
-  const effectiveDept = departmentId || config?.departmentId || "";
 
   useEffect(() => {
-    if (config?.advancePercent != null) {
-      setAdvancePercent(String(config.advancePercent));
+    if (config && !initialized) {
+      setSubdomain(config.subdomain ?? "");
+      setInitialized(true);
     }
-  }, [config?.advancePercent]);
+  }, [config, initialized]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -1109,16 +1107,9 @@ function FakturowniaTab() {
     setError(null);
     setSaving(true);
     try {
-      const sub = (subdomain || config?.subdomain || "")
-        .trim()
-        .toLowerCase()
-        .replace(/\.fakturownia\.pl$/i, "");
+      const sub = subdomain.trim().toLowerCase().replace(/\.fakturownia\.pl$/i, "");
       if (!sub) {
         throw new Error("Podaj subdomenę (np. moja-firma)");
-      }
-      const adv = parseInt(advancePercent, 10);
-      if (Number.isNaN(adv) || adv < 1 || adv > 99) {
-        throw new Error("Zaliczka musi być 1–99%");
       }
       let encrypted: string | undefined;
       const trimmedToken = apiToken.trim();
@@ -1127,8 +1118,7 @@ function FakturowniaTab() {
       }
       await saveConfig({
         subdomain: sub,
-        advancePercent: adv,
-        departmentId: (departmentId || config?.departmentId || "").trim() || undefined,
+        advancePercent: config?.advancePercent ?? 30,
         encryptedApiToken: encrypted,
       });
       setApiToken("");
@@ -1161,9 +1151,7 @@ function FakturowniaTab() {
     <div className="space-y-6 max-w-xl">
       <p className="text-sm text-slate-600">
         Integracja wysyła wycenę jako{" "}
-        <strong>zamówienie</strong> (typ dokumentu „estimate” w API Fakturowni).
-        Następnie z tego zamówienia można w aplikacji wystawić fakturę zaliczkową
-        (domyślnie {config?.advancePercent ?? 30}% brutto) oraz fakturę końcową.
+        <strong>zamówienie</strong> (typ dokumentu „estimate" w API Fakturowni).
       </p>
 
       <form onSubmit={handleSave} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -1174,7 +1162,7 @@ function FakturowniaTab() {
           <input
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             placeholder="np. moja-firma (bez .fakturownia.pl)"
-            value={effectiveSubdomain}
+            value={subdomain}
             onChange={(e) => setSubdomain(e.target.value)}
           />
         </div>
@@ -1196,35 +1184,6 @@ function FakturowniaTab() {
               Używany jest token ze zmiennej środowiskowej FAKTUROWNIA_API_TOKEN.
             </p>
           )}
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Faktura zaliczkowa — % pełnej kwoty brutto
-          </label>
-          <input
-            type="number"
-            min={1}
-            max={99}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            value={advancePercent}
-            onChange={(e) => setAdvancePercent(e.target.value)}
-          />
-          <p className="mt-1 text-xs text-slate-500">
-            Reszta kwoty trafi na fakturę końcową (np. 30% + 70%).
-          </p>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-            ID działu (opcjonalnie)
-          </label>
-          <input
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            placeholder="department_id z Fakturowni"
-            value={effectiveDept}
-            onChange={(e) => setDepartmentId(e.target.value)}
-          />
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
