@@ -406,19 +406,47 @@ function getFileNameFromUrl(url: string, fallback: string) {
   }
 }
 
+/**
+ * Jotform file URLs require authentication. If JOTFORM_API_KEY is set,
+ * append it as a query param so the download works server-side without cookies.
+ */
+function buildJotformDownloadUrl(url: string): string {
+  const apiKey = process.env.JOTFORM_API_KEY?.trim();
+  if (!apiKey) return url;
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.includes("jotform.com")) {
+      parsed.searchParams.set("apiKey", apiKey);
+      return parsed.toString();
+    }
+  } catch {
+    // invalid URL — return as-is
+  }
+  return url;
+}
+
 async function attachBinaryFileToCard(
   cardId: string,
   attachmentUrl: string,
   creds: { apiKey: string; apiToken: string },
 ) {
-  const sourceResponse = await fetch(attachmentUrl);
+  const sourceResponse = await fetch(buildJotformDownloadUrl(attachmentUrl));
   if (!sourceResponse.ok) {
     throw new Error(`Source file download failed: ${sourceResponse.status}`);
   }
 
+  // Jotform redirects unauthenticated requests to its login page with HTTP 200.
+  // If we get HTML back, we received a login page, not the actual file — bail out
+  // so the caller can fall back to attaching the URL instead.
+  const contentType = sourceResponse.headers.get("content-type") ?? "";
+  if (contentType.includes("text/html")) {
+    throw new Error(
+      `File download returned HTML instead of the actual file (Jotform login redirect). Content-Type: ${contentType}`,
+    );
+  }
+
   const fileBlob = await sourceResponse.blob();
-  const contentType =
-    sourceResponse.headers.get("content-type") || fileBlob.type;
+  const effectiveContentType = contentType || fileBlob.type;
   const fileName = getFileNameFromUrl(
     attachmentUrl,
     `attachment-${Date.now()}`,
@@ -428,7 +456,7 @@ async function attachBinaryFileToCard(
   formData.append(
     "file",
     new Blob([await fileBlob.arrayBuffer()], {
-      type: contentType || "application/octet-stream",
+      type: effectiveContentType || "application/octet-stream",
     }),
     fileName,
   );
