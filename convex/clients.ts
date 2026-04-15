@@ -103,6 +103,9 @@ export const update = mutation({
     }
     if (Object.keys(filtered).length === 0) return;
 
+    // Pobierz stare dane przed zapisem (potrzebne do rename w Drive)
+    const oldClient = await ctx.db.get(clientId);
+
     await ctx.db.patch(clientId, filtered);
 
     await ctx.db.insert("clientEvents", {
@@ -111,6 +114,25 @@ export const update = mutation({
       details: { fields: Object.keys(filtered) },
       performedBy: userId,
     });
+
+    // Jeśli zmieniono imię lub nazwisko i klient ma folder w Drive — zaplanuj rename
+    if (oldClient?.clientFolderId) {
+      const newFirstName = args.firstName ?? oldClient.firstName;
+      const newLastName = args.lastName ?? oldClient.lastName;
+      const nameChanged =
+        newFirstName !== oldClient.firstName || newLastName !== oldClient.lastName;
+
+      if (nameChanged) {
+        await ctx.scheduler.runAfter(0, internal.googleDrive.renameClientAssets, {
+          clientId,
+          oldFirstName: oldClient.firstName,
+          oldLastName: oldClient.lastName,
+          newFirstName,
+          newLastName,
+          clientFolderId: oldClient.clientFolderId,
+        });
+      }
+    }
   },
 });
 

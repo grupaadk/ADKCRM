@@ -17,6 +17,7 @@ type DriveResponse = {
   drives?: DriveItem[];
   files?: DriveItem[];
   id?: string;
+  name?: string;
 };
 
 type GoogleDocsTextNode = {
@@ -324,6 +325,21 @@ function extractTextFromDoc(
   }
 
   return result;
+}
+
+async function renameDriveItem(
+  ctx: ActionCtx,
+  fileId: string,
+  newName: string,
+): Promise<void> {
+  await driveApiFetchWithRetry(
+    ctx,
+    `/files/${fileId}?supportsAllDrives=true`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ name: newName }),
+    },
+  );
 }
 
 async function createDriveFolder(
@@ -1091,6 +1107,66 @@ export const applyMailMerge = action({
     }
 
     return { success: true };
+  },
+});
+
+// Przemianowuje folder klienta i pliki dokumentów w zleceniach po zmianie imienia/nazwiska
+export const renameClientAssets = internalAction({
+  args: {
+    clientId: v.id("clients"),
+    oldFirstName: v.string(),
+    oldLastName: v.string(),
+    newFirstName: v.string(),
+    newLastName: v.string(),
+    clientFolderId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { oldFirstName, oldLastName, newFirstName, newLastName, clientFolderId, clientId } = args;
+
+    // 1. Przemianuj folder klienta (Imię_Nazwisko)
+    const newFolderName = `${newFirstName}_${newLastName}`;
+    try {
+      await renameDriveItem(ctx, clientFolderId, newFolderName);
+    } catch (error) {
+      console.error(`[renameClientAssets] Failed to rename client folder ${clientFolderId}:`, error);
+    }
+
+    // 2. Przemianuj pliki dokumentów we wszystkich zleceniach klienta
+    const orders = await ctx.runQuery(api.orders.listByClient, { clientId });
+
+    for (const order of orders) {
+      if (!order.documents) continue;
+
+      const docEntries = Object.entries(order.documents) as Array<[string, { enabled: boolean; url?: string }]>;
+      for (const [, docEntry] of docEntries) {
+        if (!docEntry?.url) continue;
+
+        // Wyciągnij ID pliku z URL Google Docs/Drive
+        const match = docEntry.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+        if (!match) continue;
+        const fileId = match[1];
+
+        try {
+          // Pobierz aktualną nazwę pliku z Drive
+          const fileData = await driveApiFetchWithRetry(
+            ctx,
+            `/files/${fileId}?supportsAllDrives=true&fields=id,name`,
+          );
+          if (!fileData.name) continue;
+
+          // Zastąp stare imię i nazwisko nowymi
+          const newName = fileData.name
+            .replaceAll(oldFirstName, newFirstName)
+            .replaceAll(oldLastName, newLastName);
+
+          if (newName !== fileData.name) {
+            await renameDriveItem(ctx, fileId, newName);
+          }
+        } catch (error) {
+          console.error(`[renameClientAssets] Failed to rename document ${fileId}:`, error);
+        }
+      }
+    }
   },
 });
 
