@@ -361,13 +361,13 @@ export default function ClientDetailPage({
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="mb-2 text-lg font-bold text-slate-900">Usunac klienta?</h2>
+            <h2 className="mb-2 text-lg font-bold text-slate-900">Usunąć klienta?</h2>
             <p className="mb-1 text-sm text-slate-600">
-              Czy na pewno chcesz usunac{" "}
+              Czy na pewno chcesz usunąć{" "}
               <span className="font-semibold">{client.firstName} {client.lastName}</span>?
             </p>
             <p className="mb-6 text-sm text-slate-500">
-              Zostana usuniete wszystkie zlecenia, dokumenty i foldery na Google Drive.
+              Zostaną usunięte wszystkie zlecenia, dokumenty i foldery na Google Drive.
             </p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowDeleteConfirm(false)} disabled={deleteLoading}
@@ -376,7 +376,7 @@ export default function ClientDetailPage({
               </button>
               <button onClick={handleDelete} disabled={deleteLoading}
                 className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
-                {deleteLoading ? "Usuwanie..." : "Tak, usun klienta"}
+                {deleteLoading ? "Usuwanie..." : "Tak, usuń klienta"}
               </button>
             </div>
           </div>

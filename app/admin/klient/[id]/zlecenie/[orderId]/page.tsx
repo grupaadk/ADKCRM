@@ -465,9 +465,9 @@ export default function OrderDetailPage({
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="mb-2 text-lg font-bold text-slate-900">Usunac zlecenie?</h2>
+            <h2 className="mb-2 text-lg font-bold text-slate-900">Usunąć zlecenie?</h2>
             <p className="mb-6 text-sm text-slate-500">
-              Zostan usuniete wszystkie dane zlecenia, dokumenty i folder Google Drive.
+              Zostaną usunięte wszystkie dane zlecenia, dokumenty i folder Google Drive.
             </p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowDeleteConfirm(false)} disabled={deleteLoading}
@@ -476,7 +476,7 @@ export default function OrderDetailPage({
               </button>
               <button onClick={handleDelete} disabled={deleteLoading}
                 className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
-                {deleteLoading ? "Usuwanie..." : "Tak, usun"}
+                {deleteLoading ? "Usuwanie..." : "Tak, usuń"}
               </button>
             </div>
           </div>

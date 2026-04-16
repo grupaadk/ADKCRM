@@ -2201,7 +2201,7 @@ function SzablonyTab() {
   };
 
   const handleDelete = async (id: Id<"documentTemplates">, name: string) => {
-    if (!confirm(`Czy na pewno chcesz usunac szablon "${name}"?`)) return;
+    if (!confirm(`Czy na pewno chcesz usunąć szablon "${name}"?`)) return;
     setDeleting(id);
     setNotice(null);
     try {

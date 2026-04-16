@@ -202,7 +202,7 @@ export const unregisterWebhook = action({
     const delResp = await fetch(delUrl, { method: "DELETE" });
 
     if (!delResp.ok) {
-      return { success: false, error: "Nie udalo sie usunac webhooka" };
+      return { success: false, error: "Nie udało się usunąć webhooka" };
     }
 
     await ctx.runMutation(api.jotformAdmin.markRegistered, {
