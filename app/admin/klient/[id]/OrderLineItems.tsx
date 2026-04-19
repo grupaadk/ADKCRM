@@ -33,6 +33,68 @@ const VAT_NAMES: Record<number, string[]> = {
   8: PRODUCT_TYPES_8,
 };
 
+type NameChip = { label: string; value: string };
+
+const NAME_CHIPS: Record<number, NameChip[]> = {
+  23: PRODUCT_TYPES_23.map((t) => ({ label: t, value: t })),
+  8: PRODUCT_TYPES_8.map((t) => {
+    const match = t.match(/\(([^)]+)\)/);
+    return { label: match ? match[1] : t, value: t };
+  }),
+};
+
+function NameSelector({
+  value,
+  onChange,
+  vatRate,
+  disabled,
+  id,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  vatRate: number;
+  disabled?: boolean;
+  id?: string;
+}) {
+  const chips = NAME_CHIPS[vatRate] ?? [];
+
+  return (
+    <div className="space-y-2">
+      <input
+        id={id}
+        type="text"
+        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        placeholder={chips.length > 0 ? "Wybierz poniżej lub wpisz..." : "Wpisz nazwę..."}
+      />
+      {chips.length > 0 && !disabled && (
+        <div className="flex flex-wrap gap-1.5">
+          {chips.map((chip) => {
+            const selected = value === chip.value;
+            return (
+              <button
+                key={chip.value}
+                type="button"
+                onClick={() => onChange(selected ? "" : chip.value)}
+                title={chip.value}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                  selected
+                    ? "border-slate-800 bg-slate-900 text-white"
+                    : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-400 hover:bg-slate-100"
+                }`}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function fmt(n: number) {
   return n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -112,18 +174,13 @@ function LineItemRow({
         <td className="px-3 py-2" colSpan={7}>
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="col-span-2">
+              <div className="col-span-2 sm:col-span-4">
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa</label>
-                <input
-                  list={`edit-name-${item._id}`}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                <NameSelector
                   value={draft.name ?? ""}
-                  onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-                  placeholder="Wybierz z listy lub wpisz..."
+                  onChange={(v) => setDraft((d) => ({ ...d, name: v }))}
+                  vatRate={draft.vatRate ?? item.vatRate}
                 />
-                <datalist id={`edit-name-${item._id}`}>
-                  {(VAT_NAMES[draft.vatRate ?? item.vatRate] ?? [...PRODUCT_TYPES_23, ...PRODUCT_TYPES_8]).map((t) => <option key={t} value={t} />)}
-                </datalist>
               </div>
               <div className="col-span-2">
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Opis (opcjonalnie)</label>
@@ -541,20 +598,14 @@ export default function OrderLineItems({
           {/* Rest of form — locked when vatRate === 0 */}
           <div className={form.vatRate === 0 ? "pointer-events-none select-none opacity-40" : ""}>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="col-span-2">
+              <div className="col-span-2 sm:col-span-4">
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>
-                <input
-                  list="new-item-names"
-                  required={form.vatRate !== 0}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+                <NameSelector
                   value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, name: v }))}
+                  vatRate={form.vatRate}
                   disabled={form.vatRate === 0}
-                  placeholder="Wybierz z listy lub wpisz..."
                 />
-                <datalist id="new-item-names">
-                  {(VAT_NAMES[form.vatRate] ?? []).map((t) => <option key={t} value={t} />)}
-                </datalist>
               </div>
               <div className="col-span-2">
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Opis</label>
