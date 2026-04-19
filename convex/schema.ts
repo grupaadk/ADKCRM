@@ -22,7 +22,7 @@ export const STATUS_TRANSITIONS: Record<string, string[]> = {
   offer: ["contract", "lead"],
   contract: ["production"],
   production: ["installation"],
-  installation: ["completed"],
+  installation: ["completed", "warranty"],
   completed: ["warranty"],
   warranty: [],
 };
