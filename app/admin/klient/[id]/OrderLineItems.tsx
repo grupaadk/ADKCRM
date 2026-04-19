@@ -114,14 +114,16 @@ function LineItemRow({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="col-span-2">
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa</label>
-                <select
+                <input
+                  list={`edit-name-${item._id}`}
                   className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
                   value={draft.name ?? ""}
                   onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-                >
-                  <option value="">— wybierz —</option>
-                  {(VAT_NAMES[draft.vatRate ?? item.vatRate] ?? [...PRODUCT_TYPES_23, ...PRODUCT_TYPES_8]).map((t) => <option key={t}>{t}</option>)}
-                </select>
+                  placeholder="Wybierz z listy lub wpisz..."
+                />
+                <datalist id={`edit-name-${item._id}`}>
+                  {(VAT_NAMES[draft.vatRate ?? item.vatRate] ?? [...PRODUCT_TYPES_23, ...PRODUCT_TYPES_8]).map((t) => <option key={t} value={t} />)}
+                </datalist>
               </div>
               <div className="col-span-2">
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Opis (opcjonalnie)</label>
@@ -541,16 +543,18 @@ export default function OrderLineItems({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="col-span-2">
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>
-                <select
+                <input
+                  list="new-item-names"
                   required={form.vatRate !== 0}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   disabled={form.vatRate === 0}
-                >
-                  <option value="">— wybierz —</option>
-                  {(VAT_NAMES[form.vatRate] ?? []).map((t) => <option key={t}>{t}</option>)}
-                </select>
+                  placeholder="Wybierz z listy lub wpisz..."
+                />
+                <datalist id="new-item-names">
+                  {(VAT_NAMES[form.vatRate] ?? []).map((t) => <option key={t} value={t} />)}
+                </datalist>
               </div>
               <div className="col-span-2">
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Opis</label>

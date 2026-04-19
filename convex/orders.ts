@@ -416,6 +416,22 @@ export const updateDocumentUrl = mutation({
   },
 });
 
+export const updateDriveProjectFiles = mutation({
+  args: {
+    orderId: v.id("orders"),
+    driveProjectFiles: v.array(v.object({
+      fileId: v.string(),
+      name: v.string(),
+      url: v.string(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.orderId, {
+      driveProjectFiles: args.driveProjectFiles,
+    });
+  },
+});
+
 export const updateDriveFolder = mutation({
   args: {
     orderId: v.id("orders"),

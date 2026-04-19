@@ -375,7 +375,7 @@ async function uploadFileToDrive(
   fileUrl: string,
   parentId: string,
   options?: { jotformApiKey?: string | null },
-) {
+): Promise<{ fileId: string; name: string; url: string } | null> {
   const connection = await getAuthorizedConnection(ctx);
 
   const jotformApiKey = options?.jotformApiKey ?? null;
@@ -444,6 +444,14 @@ async function uploadFileToDrive(
       `Google Drive file upload failed ${response.status}: ${errorBody}`,
     );
   }
+
+  const uploadedFile = await response.json() as { id?: string; name?: string };
+  if (!uploadedFile.id) return null;
+  return {
+    fileId: uploadedFile.id,
+    name: uploadedFile.name ?? fileName,
+    url: `https://drive.google.com/file/d/${uploadedFile.id}/view`,
+  };
 }
 
 // ─── Mail Merge Helper ───────────────────────────────────────────────────────
@@ -798,9 +806,11 @@ export const createOrderFolder = action({
       );
     }
 
+    const driveProjectFiles: Array<{ fileId: string; name: string; url: string }> = [];
     for (const url of attachmentUrls) {
       try {
-        await uploadFileToDrive(ctx, url, folderId, { jotformApiKey });
+        const result = await uploadFileToDrive(ctx, url, folderId, { jotformApiKey });
+        if (result) driveProjectFiles.push(result);
       } catch (error) {
         console.error(`Failed to upload attachment to Drive: ${url}`, error);
       }
@@ -812,6 +822,13 @@ export const createOrderFolder = action({
       folderId,
       folderUrl,
     });
+
+    if (driveProjectFiles.length > 0) {
+      await ctx.runMutation(api.orders.updateDriveProjectFiles, {
+        orderId: args.orderId,
+        driveProjectFiles,
+      });
+    }
 
     // Zaloguj event
     await ctx.runMutation(internal.orders.addEvent, {

@@ -177,6 +177,11 @@ export default defineSchema({
     // Google Drive
     folderId: v.optional(v.string()),
     folderUrl: v.optional(v.string()),
+    driveProjectFiles: v.optional(v.array(v.object({
+      fileId: v.string(),
+      name: v.string(),
+      url: v.string(),
+    }))),
 
     // Trello
     trelloCardId: v.optional(v.string()),
