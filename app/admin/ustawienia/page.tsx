@@ -3085,6 +3085,18 @@ export default function UstawieniaPage() {
       {activeTab === "sms" && <SmsTab />}
       {activeTab === "szablony" && <SzablonyTab />}
       {activeTab === "crm" && <CrmTab />}
+
+      {/* ── TEST SENTRY — odkomentuj żeby sprawdzić czy błędy docierają do Sentry ──
+      <div className="mt-8 p-4 border border-dashed border-red-300 rounded-lg">
+        <p className="text-xs text-red-400 mb-2 font-mono">// Sentry test — usuń po weryfikacji</p>
+        <button
+          onClick={() => { throw new Error("Sentry test error — ADK CRM frontend"); }}
+          className="rounded bg-red-500 px-3 py-1.5 text-sm text-white hover:bg-red-600"
+        >
+          Rzuć testowy błąd (frontend)
+        </button>
+      </div>
+      ── */}
     </div>
   );
 }
