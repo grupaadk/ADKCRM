@@ -1615,7 +1615,9 @@ export default function MailPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          void disconnectMutation({ accountKey: key });
+                          void disconnectMutation({ accountKey: key }).then(() => {
+                            window.location.reload();
+                          });
                         }}
                         className="text-[10px] text-gray-400 hover:text-gray-600 hover:underline"
                       >
