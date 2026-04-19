@@ -193,10 +193,40 @@ export default function OrderDetailPage({
     (e) => e.type === "status_changed" && e.details?.to === "completed"
   );
   const completedDate = completedEvent
-    ? new Date(completedEvent._creationTime).toLocaleDateString("pl-PL", {
-        day: "2-digit", month: "2-digit", year: "numeric"
+    ? new Date(completedEvent._creationTime).toLocaleString("pl-PL", {
+        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
       })
     : null;
+
+  const measurementStatusIndex = STATUS_ORDER.indexOf("measurement");
+  const hasReachedMeasurement = currentStatusIndex >= measurementStatusIndex;
+  const measurementEvent = (events ?? []).find(
+    (e) => e.type === "status_changed" && e.details?.to === "measurement"
+  );
+  const measurementDate = measurementEvent
+    ? new Date(measurementEvent._creationTime).toLocaleString("pl-PL", {
+        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
+      })
+    : null;
+
+  const warrantyStatusIndex = STATUS_ORDER.indexOf("warranty");
+  const hasReachedWarranty = currentStatusIndex >= warrantyStatusIndex;
+  const warrantyEvent = (events ?? []).find(
+    (e) => e.type === "status_changed" && e.details?.to === "warranty"
+  );
+  const warrantyDate = warrantyEvent
+    ? new Date(warrantyEvent._creationTime).toLocaleString("pl-PL", {
+        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
+      })
+    : null;
+  const projectStartTs = measurementEvent?._creationTime ?? null;
+  const projectEndTs = completedEvent?._creationTime ?? warrantyEvent?._creationTime ?? null;
+  const projectEndDate = completedDate ?? warrantyDate;
+  const projectIsOngoing = hasReachedMeasurement && !hasReachedCompleted && !hasReachedWarranty;
+  const projectDurationDays = projectStartTs
+    ? Math.round(((projectEndTs ?? Date.now()) - projectStartTs) / (1000 * 60 * 60 * 24))
+    : null;
+
   const servicesSummary = order.services?.slice(0, 3).join(", ") ?? "";
   const fkInvoices = order.fakturownia?.invoices ?? [];
   const fkSummary =
@@ -252,10 +282,22 @@ export default function OrderDetailPage({
               <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" /></svg>
               Dodano: {createdDate}
             </span>
-            {hasReachedCompleted && (
+            {hasReachedMeasurement && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600 ring-1 ring-blue-200">
+                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" /></svg>
+                Start projektu: {measurementDate ?? "—"}
+              </span>
+            )}
+            {hasReachedCompleted && completedDate && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-600 ring-1 ring-emerald-200">
                 <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                {statusLabels["completed"] ?? "Zakończone"}: {completedDate ?? "—"}
+                Zakończenie realizacji: {completedDate}
+              </span>
+            )}
+            {hasReachedWarranty && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 ring-1 ring-green-300">
+                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>
+                {statusLabels["warranty"] ?? "Zakończone"}: {warrantyDate ?? "—"}
               </span>
             )}
             {fkSummary && (
@@ -266,6 +308,48 @@ export default function OrderDetailPage({
             )}
           </div>
         </div>
+
+        {/* Czas realizacji */}
+        {projectDurationDays !== null && (
+          <div className="border-t border-slate-100 bg-slate-50/40 px-6 py-3">
+            <div className="flex items-center gap-3">
+              <div className="text-center">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Start projektu</div>
+                <div className="mt-0.5 text-xs font-semibold text-slate-700">{measurementDate}</div>
+              </div>
+              <div className="flex flex-1 items-center gap-2">
+                <div className="h-px flex-1 bg-slate-200" />
+                <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold shadow-sm ${
+                  projectIsOngoing
+                    ? "bg-blue-600 text-white"
+                    : "bg-emerald-600 text-white"
+                }`}>
+                  {projectIsOngoing && (
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+                    </span>
+                  )}
+                  {projectDurationDays === 0
+                    ? "< 1 dzień"
+                    : projectDurationDays === 1
+                    ? "1 dzień"
+                    : `${projectDurationDays} dni`}
+                  {projectIsOngoing && " (w toku)"}
+                </div>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+              <div className="text-center">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  {projectIsOngoing ? "W toku" : "Zakończenie"}
+                </div>
+                <div className={`mt-0.5 text-xs font-semibold ${projectIsOngoing ? "text-blue-600" : "text-slate-700"}`}>
+                  {projectIsOngoing ? "—" : projectEndDate}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Status timeline */}
         <div className="overflow-x-auto border-t border-slate-100 bg-slate-50/60 px-6 py-4">

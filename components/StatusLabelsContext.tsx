@@ -5,15 +5,15 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
 export const DEFAULT_STATUS_LABELS: Record<string, string> = {
-  lead: "Lead",
+  lead: "Oferta",
   inquiry: "Oferta wysłana",
   measurement: "Do pomiarów",
   offer: "Oferta po pomiarze",
-  contract: "Umowa",
-  production: "Produkcja",
-  installation: "Montaż",
-  completed: "Zakończone",
-  warranty: "Gwarancja",
+  contract: "Akceptacja",
+  production: "Zamówienie",
+  installation: "Realizowane",
+  completed: "Reklamacja",
+  warranty: "Zakończone",
 };
 
 const StatusLabelsContext = createContext<Record<string, string>>(DEFAULT_STATUS_LABELS);
