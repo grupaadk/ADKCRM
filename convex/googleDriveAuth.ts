@@ -21,10 +21,11 @@ export const initiateOAuth = httpAction(async (_ctx, request) => {
   // Extract userId from query params
   const url = new URL(request.url);
   const userId = url.searchParams.get("userId") ?? "unknown";
+  const appUrl = url.searchParams.get("appUrl") ?? process.env.APP_URL ?? "";
 
   const redirectUri = `${siteUrl}/api/google-drive/callback`;
 
-  const state = JSON.stringify({ userId });
+  const state = JSON.stringify({ userId, appUrl });
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -52,8 +53,18 @@ export const oauthCallback = httpAction(async (ctx, request) => {
   const error = url.searchParams.get("error");
 
   const siteUrl = process.env.CONVEX_SITE_URL;
-  // App URL for redirecting back to the frontend (defaults to localhost for dev)
-  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+
+  let userId = "unknown";
+  let appUrl = process.env.APP_URL ?? "";
+  if (stateParam) {
+    try {
+      const state = JSON.parse(stateParam);
+      userId = state.userId ?? "unknown";
+      if (state.appUrl) appUrl = state.appUrl;
+    } catch {
+      // ignore parse errors
+    }
+  }
 
   if (error) {
     return new Response(null, {
@@ -82,17 +93,6 @@ export const oauthCallback = httpAction(async (ctx, request) => {
   }
 
   const redirectUri = `${siteUrl}/api/google-drive/callback`;
-
-  // Parse state to get userId
-  let userId = "unknown";
-  if (stateParam) {
-    try {
-      const state = JSON.parse(stateParam);
-      userId = state.userId ?? "unknown";
-    } catch {
-      // ignore parse errors
-    }
-  }
 
   // Exchange authorization code for tokens
   const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {

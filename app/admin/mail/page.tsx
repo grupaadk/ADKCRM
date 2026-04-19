@@ -1495,14 +1495,14 @@ export default function MailPage() {
           </p>
           <div className="flex flex-col gap-3">
             <a
-              href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}&accountKey=main`}
+              href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}&accountKey=main&appUrl=${encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "")}`}
               className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
             >
               <Mail className="size-4" />
               Połącz Konto główne
             </a>
             <a
-              href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}&accountKey=secondary`}
+              href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}&accountKey=secondary&appUrl=${encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "")}`}
               className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Mail className="size-4" />
@@ -1595,7 +1595,7 @@ export default function MailPage() {
                 <div className="pl-[18px] mt-0.5 flex items-center gap-2">
                   {!conn ? (
                     <a
-                      href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}&accountKey=${key}`}
+                      href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}&accountKey=${key}&appUrl=${encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "")}`}
                       className="text-[10px] text-blue-500 hover:underline"
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -1605,7 +1605,7 @@ export default function MailPage() {
                     <>
                       {connErr && (
                         <a
-                          href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}&accountKey=${key}`}
+                          href={`${siteUrl}/api/gmail/auth?userId=${user?.id ?? "unknown"}&accountKey=${key}&appUrl=${encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "")}`}
                           className="text-[10px] text-red-500 hover:underline"
                           onClick={(e) => e.stopPropagation()}
                         >

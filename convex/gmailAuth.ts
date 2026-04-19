@@ -21,8 +21,9 @@ export const initiateOAuth = httpAction(async (_ctx, request) => {
   const siteUrl = `${url.protocol}//${url.host}`;
   const userId = url.searchParams.get("userId") ?? "unknown";
   const accountKey = url.searchParams.get("accountKey") === "secondary" ? "secondary" : "main";
+  const appUrl = url.searchParams.get("appUrl") ?? process.env.APP_URL ?? "";
   const redirectUri = `${siteUrl}/api/gmail/callback`;
-  const state = JSON.stringify({ userId, accountKey });
+  const state = JSON.stringify({ userId, accountKey, appUrl });
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -48,7 +49,20 @@ export const oauthCallback = httpAction(async (ctx, request) => {
   const error = url.searchParams.get("error");
 
   const siteUrl = `${url.protocol}//${url.host}`;
-  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+
+  let userId = "unknown";
+  let accountKey: "main" | "secondary" = "main";
+  let appUrl = process.env.APP_URL ?? "";
+  if (stateParam) {
+    try {
+      const state = JSON.parse(stateParam);
+      userId = state.userId ?? "unknown";
+      accountKey = state.accountKey === "secondary" ? "secondary" : "main";
+      if (state.appUrl) appUrl = state.appUrl;
+    } catch {
+      // ignore
+    }
+  }
 
   if (error) {
     return new Response(null, {
@@ -77,18 +91,6 @@ export const oauthCallback = httpAction(async (ctx, request) => {
   }
 
   const redirectUri = `${siteUrl}/api/gmail/callback`;
-
-  let userId = "unknown";
-  let accountKey: "main" | "secondary" = "main";
-  if (stateParam) {
-    try {
-      const state = JSON.parse(stateParam);
-      userId = state.userId ?? "unknown";
-      accountKey = state.accountKey === "secondary" ? "secondary" : "main";
-    } catch {
-      // ignore
-    }
-  }
 
   const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",

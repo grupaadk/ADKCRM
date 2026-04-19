@@ -298,7 +298,8 @@ function GoogleDriveTab() {
   }, [listDrives]);
 
   const handleConnect = () => {
-    const authUrl = `${siteUrl}/api/google-drive/auth`;
+    const appUrl = encodeURIComponent(window.location.origin);
+    const authUrl = `${siteUrl}/api/google-drive/auth?appUrl=${appUrl}`;
     window.open(authUrl, "_blank");
   };
 
