@@ -376,3 +376,24 @@ export const webhook = httpAction(async (ctx, request) => {
     },
   );
 });
+
+// GET /api/jotform/file?url=<encoded-jotform-url>
+// Redirects to the actual file with Jotform API key appended so the browser
+// downloads the file directly instead of landing on the Jotform login page.
+export const fileRedirect = httpAction(async (_ctx, request) => {
+  const reqUrl = new URL(request.url);
+  const fileUrl = reqUrl.searchParams.get("url");
+
+  if (!fileUrl) {
+    return new Response("Missing url parameter", { status: 400 });
+  }
+
+  const apiKey = process.env.JOTFORM_API_KEY?.trim();
+  if (!apiKey) {
+    return Response.redirect(fileUrl, 302);
+  }
+
+  const target = new URL(fileUrl);
+  target.searchParams.set("apiKey", apiKey);
+  return Response.redirect(target.toString(), 302);
+});

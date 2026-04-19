@@ -1,5 +1,5 @@
 import { httpRouter } from "convex/server";
-import { webhook } from "./jotform";
+import { webhook, fileRedirect } from "./jotform";
 import { initiateOAuth, oauthCallback } from "./googleDriveAuth";
 import { initiateOAuth as gmailInitiateOAuth, oauthCallback as gmailOauthCallback } from "./gmailAuth";
 import { webhook as trelloWebhook } from "./trelloWebhook";
@@ -10,6 +10,12 @@ http.route({
   path: "/api/webhooks/jotform",
   method: "POST",
   handler: webhook,
+});
+
+http.route({
+  path: "/api/jotform/file",
+  method: "GET",
+  handler: fileRedirect,
 });
 
 http.route({
