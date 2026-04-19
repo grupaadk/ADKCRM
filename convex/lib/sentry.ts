@@ -1,3 +1,4 @@
+"use node";
 // Sentry wrapper dla Convex actions.
 // WAŻNE: używaj tylko w actions (nie w queries/mutations — te działają
 // w V8 isolate bez pełnego Node.js i nie mogą robić zewnętrznych fetchów).

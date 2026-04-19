@@ -26,6 +26,7 @@ import type * as jotform from "../jotform.js";
 import type * as jotformAdmin from "../jotformAdmin.js";
 import type * as jotformInternal from "../jotformInternal.js";
 import type * as lib_crypto from "../lib/crypto.js";
+import type * as lib_sentry from "../lib/sentry.js";
 import type * as migrations from "../migrations.js";
 import type * as notes from "../notes.js";
 import type * as orderLineItems from "../orderLineItems.js";
@@ -64,6 +65,7 @@ declare const fullApi: ApiFromModules<{
   jotformAdmin: typeof jotformAdmin;
   jotformInternal: typeof jotformInternal;
   "lib/crypto": typeof lib_crypto;
+  "lib/sentry": typeof lib_sentry;
   migrations: typeof migrations;
   notes: typeof notes;
   orderLineItems: typeof orderLineItems;
