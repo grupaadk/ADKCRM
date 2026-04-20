@@ -405,13 +405,14 @@ export default function OrderLineItems({
   async function runFk(
     label: string,
     fn: () => Promise<unknown>,
+    successMsg?: string,
   ) {
     setFkMessage(null);
     setError(null);
     setFkBusy(label);
     try {
       await fn();
-      setFkMessage("Gotowe.");
+      setFkMessage(successMsg ?? "Gotowe.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Błąd Fakturowni");
     } finally {
@@ -554,13 +555,23 @@ export default function OrderLineItems({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={!!fkBusy || !!fakturownia?.estimateId}
+              disabled={!!fkBusy}
               onClick={() =>
-                runFk("estimate", () => pushEstimate({ orderId }))
+                runFk(
+                  "estimate",
+                  () => pushEstimate({ orderId }),
+                  fakturownia?.estimateId
+                    ? "Zamówienie zaktualizowane w Fakturowni."
+                    : "Zamówienie wysłane do Fakturowni.",
+                )
               }
               className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
             >
-              {fkBusy === "estimate" ? "Wysyłanie…" : "Wyślij zamówienie do Fakturowni"}
+              {fkBusy === "estimate"
+                ? "Wysyłanie…"
+                : fakturownia?.estimateId
+                  ? "Wyślij ponownie do Fakturowni"
+                  : "Wyślij zamówienie do Fakturowni"}
             </button>
           </div>
         </div>

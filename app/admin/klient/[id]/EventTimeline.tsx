@@ -27,6 +27,18 @@ function formatEventType(
       return `Dodano karte gwarancyjna: ${details?.manufacturer ?? ""}`;
     case "folder_created":
       return "Utworzono folder Google Drive";
+    case "fakturownia_estimate_created": {
+      const num = details?.number as string | undefined;
+      const recreated = details?.recreated as boolean | undefined;
+      const label = num ? ` (${num})` : "";
+      return recreated
+        ? `Odtworzono zamówienie w Fakturowni${label}`
+        : `Wysłano zamówienie do Fakturowni${label}`;
+    }
+    case "fakturownia_estimate_updated": {
+      const num = details?.number as string | undefined;
+      return `Zaktualizowano zamówienie w Fakturowni${num ? ` (${num})` : ""}`;
+    }
     default:
       return type;
   }

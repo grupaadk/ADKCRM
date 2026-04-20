@@ -164,13 +164,14 @@ function extractCreatedInvoice(json: Record<string, unknown>): {
   return { id, number, grossAmount };
 }
 
-async function postInvoice(
-  baseUrl: string,
+async function callInvoiceApi(
+  method: "POST" | "PUT",
+  url: string,
   apiToken: string,
   invoice: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(`${baseUrl}/invoices.json`, {
-    method: "POST",
+  const res = await fetch(url, {
+    method,
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
@@ -199,6 +200,31 @@ async function postInvoice(
     throw new Error(`Fakturownia API (${res.status}): ${msg}`);
   }
   return data as Record<string, unknown>;
+}
+
+async function postInvoice(
+  baseUrl: string,
+  apiToken: string,
+  invoice: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  return callInvoiceApi("POST", `${baseUrl}/invoices.json`, apiToken, invoice);
+}
+
+async function putInvoice(
+  baseUrl: string,
+  apiToken: string,
+  invoiceId: string,
+  invoice: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  return callInvoiceApi("PUT", `${baseUrl}/invoices/${invoiceId}.json`, apiToken, invoice);
+}
+
+async function checkInvoiceExists(baseUrl: string, apiToken: string, invoiceId: string): Promise<boolean> {
+  const res = await fetch(
+    `${baseUrl}/invoices/${invoiceId}.json?api_token=${encodeURIComponent(apiToken)}`,
+    { headers: { Accept: "application/json" } },
+  );
+  return res.ok;
 }
 
 export const testConnection = action({
@@ -241,6 +267,26 @@ export const setFakturowniaEstimate = internalMutation({
         oid: args.oid,
         estimateSyncedAt: Date.now(),
         invoices: [],
+      },
+    });
+  },
+});
+
+export const updateFakturowniaEstimate = internalMutation({
+  args: {
+    orderId: v.id("orders"),
+    estimateId: v.string(),
+    estimateNumber: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie znalezione");
+    await ctx.db.patch(args.orderId, {
+      fakturownia: {
+        ...(order.fakturownia ?? { invoices: [] }),
+        estimateId: args.estimateId,
+        estimateNumber: args.estimateNumber,
+        estimateSyncedAt: Date.now(),
       },
     });
   },
@@ -314,7 +360,7 @@ export const pushOrderEstimate = action({
   handler: async (
     ctx,
     args,
-  ): Promise<{ estimateId: string; estimateNumber?: string }> => {
+  ): Promise<{ estimateId: string; estimateNumber?: string; updated: boolean }> => {
     const identity = await ctx.auth.getUserIdentity();
     const userId = identity?.subject ?? "anonymous";
 
@@ -328,9 +374,6 @@ export const pushOrderEstimate = action({
 
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) throw new Error("Zlecenie nie znalezione");
-    if (order.fakturownia?.estimateId) {
-      throw new Error("To zlecenie ma już zamówienie w Fakturowni. Usuń je ręcznie w Fakturowni, aby wysłać ponownie.");
-    }
 
     const client = await ctx.runQuery(api.clients.getById, { clientId: order.clientId });
     if (!client) throw new Error("Klient nie znaleziony");
@@ -388,6 +431,54 @@ export const pushOrderEstimate = action({
       invoice.department_id = departmentId;
     }
 
+    const existingEstimateId = order.fakturownia?.estimateId;
+
+    if (existingEstimateId) {
+      const stillExists = await checkInvoiceExists(apiBase(sub), token, existingEstimateId);
+
+      if (stillExists) {
+        // Update existing estimate in Fakturownia
+        const data = await putInvoice(apiBase(sub), token, existingEstimateId, invoice);
+        const result = extractCreatedInvoice(data);
+
+        await ctx.runMutation(internal.fakturownia.updateFakturowniaEstimate, {
+          orderId: args.orderId,
+          estimateId: result.id,
+          estimateNumber: result.number,
+        });
+
+        await ctx.runMutation(internal.orders.addEvent, {
+          orderId: args.orderId,
+          type: "fakturownia_estimate_updated",
+          details: { estimateId: result.id, number: result.number, oid },
+          performedBy: userId,
+        });
+
+        return { estimateId: result.id, estimateNumber: result.number, updated: true };
+      } else {
+        // Old estimate was deleted in Fakturownia — create a new one
+        const data = await postInvoice(apiBase(sub), token, invoice);
+        const created = extractCreatedInvoice(data);
+
+        await ctx.runMutation(internal.fakturownia.setFakturowniaEstimate, {
+          orderId: args.orderId,
+          estimateId: created.id,
+          estimateNumber: created.number,
+          oid,
+        });
+
+        await ctx.runMutation(internal.orders.addEvent, {
+          orderId: args.orderId,
+          type: "fakturownia_estimate_created",
+          details: { estimateId: created.id, number: created.number, oid, recreated: true },
+          performedBy: userId,
+        });
+
+        return { estimateId: created.id, estimateNumber: created.number, updated: false };
+      }
+    }
+
+    // First time — create new estimate
     const data = await postInvoice(apiBase(sub), token, invoice);
     const created = extractCreatedInvoice(data);
 
@@ -401,15 +492,11 @@ export const pushOrderEstimate = action({
     await ctx.runMutation(internal.orders.addEvent, {
       orderId: args.orderId,
       type: "fakturownia_estimate_created",
-      details: {
-        estimateId: created.id,
-        number: created.number,
-        oid,
-      },
+      details: { estimateId: created.id, number: created.number, oid },
       performedBy: userId,
     });
 
-    return { estimateId: created.id, estimateNumber: created.number };
+    return { estimateId: created.id, estimateNumber: created.number, updated: false };
   },
 });
 

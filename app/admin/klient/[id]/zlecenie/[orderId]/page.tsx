@@ -12,6 +12,7 @@ import DocumentCheckboxes from "../../DocumentCheckboxes";
 import WarrantyCardUpload from "../../WarrantyCardUpload";
 import OrderLineItems from "../../OrderLineItems";
 import Notes from "../../Notes";
+import EventTimeline from "../../EventTimeline";
 import { useStatusLabels } from "@/components/StatusLabelsContext";
 
 const STATUS_ORDER = [
@@ -44,7 +45,7 @@ const COLOR_FIELDS: Array<{ key: string; label: string }> = [
   { key: "constructionColor", label: "Konstrukcja" },
 ];
 
-type Tab = "zlecenie" | "wycena" | "dokumenty" | "notatki";
+type Tab = "zlecenie" | "wycena" | "dokumenty" | "notatki" | "historia";
 
 function getProjectFileLinks(projectFiles: string | undefined) {
   if (!projectFiles) return [];
@@ -183,6 +184,7 @@ export default function OrderDetailPage({
     { key: "wycena", label: "Wycena" },
     { key: "dokumenty", label: "Dokumenty" },
     { key: "notatki", label: "Notatki" },
+    { key: "historia", label: "Historia" },
   ];
 
   const createdDate = new Date(order._creationTime).toLocaleDateString("pl-PL", {
@@ -545,6 +547,13 @@ export default function OrderDetailPage({
       {/* Tab: Notatki */}
       {activeTab === "notatki" && (
         <Notes clientId={clientId} orderId={orderIdTyped} />
+      )}
+
+      {/* Tab: Historia */}
+      {activeTab === "historia" && (
+        <SectionCard title="Historia zdarzeń">
+          <EventTimeline events={events} />
+        </SectionCard>
       )}
 
       {/* Delete modal */}
