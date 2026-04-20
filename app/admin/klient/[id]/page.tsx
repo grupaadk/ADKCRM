@@ -12,24 +12,30 @@ import Notes from "./Notes";
 import ClientMailTab from "./ClientMailTab";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { useStatusLabels } from "@/components/StatusLabelsContext";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRoot,
+  TableRow,
+} from "@/components/ui/Table";
+import { StatusBadge } from "@/components/ui/Badge";
 
 type Tab = "zlecenia" | "notatki" | "mail";
 
-function fmt(n: number) {
-  return n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function SkeletonRow() {
+  return (
+    <TableRow className="animate-pulse">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <TableCell key={i}>
+          <div className="h-4 rounded bg-gray-200" />
+        </TableCell>
+      ))}
+    </TableRow>
+  );
 }
-
-const STATUS_BADGE_STYLES: Record<string, string> = {
-  lead: "bg-slate-100 text-slate-700 border-slate-200",
-  inquiry: "bg-blue-50 text-blue-700 border-blue-200",
-  measurement: "bg-amber-50 text-amber-700 border-amber-200",
-  offer: "bg-indigo-50 text-indigo-700 border-indigo-200",
-  contract: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  production: "bg-violet-50 text-violet-700 border-violet-200",
-  installation: "bg-orange-50 text-orange-700 border-orange-200",
-  completed: "bg-green-50 text-green-700 border-green-200",
-  warranty: "bg-rose-50 text-rose-700 border-rose-200",
-};
 
 function getInitials(firstName: string, lastName: string) {
   return `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase();
@@ -261,89 +267,80 @@ export default function ClientDetailPage({
 
       {/* Tab: Zlecenia */}
       {activeTab === "zlecenia" && (
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-            <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-              Lista zleceń
-            </h2>
-          </div>
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <TableRoot>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableHeaderCell>Zlecenie</TableHeaderCell>
+                  <TableHeaderCell>Status</TableHeaderCell>
+                  <TableHeaderCell>Usługi</TableHeaderCell>
+                  <TableHeaderCell>Data utworzenia</TableHeaderCell>
+                  <TableHeaderCell />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {orders === undefined &&
+                  Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}
 
-          {orders === undefined ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-sm text-slate-400">Ladowanie...</div>
-            </div>
-          ) : orders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-                <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
-                </svg>
-              </div>
-              <p className="text-sm font-medium text-slate-700">Brak zleceń</p>
-              <p className="mt-1 text-xs text-slate-400">Brak zleceń dla tego klienta.</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {orders.map((order) => {
-                const statusLabel = statusLabels[order.status] ?? order.status;
-                const badgeStyle = STATUS_BADGE_STYLES[order.status] ?? "bg-slate-100 text-slate-700 border-slate-200";
-                const servicesSummary = order.services?.slice(0, 3).join(", ") ?? "Brak uslug";
-                const createdDate = new Date(order._creationTime).toLocaleDateString("pl-PL", {
-                  day: "2-digit", month: "2-digit", year: "numeric"
-                });
-                const docCount = Object.values(order.documents).filter((d) => d.url).length;
-                const totalDocs = Object.keys(order.documents).length;
+                {orders !== undefined && orders.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-12 text-center text-gray-400">
+                      Brak zleceń dla tego klienta.
+                    </TableCell>
+                  </TableRow>
+                )}
 
-                return (
-                  <Link
-                    key={order._id}
-                    href={`/admin/klient/${id}/zlecenie/${order._id}`}
-                    className="flex flex-col gap-3 px-6 py-5 transition-colors hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-slate-900">
-                          {order.name ?? `Zlecenie z ${createdDate}`}
-                        </span>
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badgeStyle}`}>
-                          {statusLabel}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500">{servicesSummary}</p>
-                    </div>
-
-                    <div className="flex items-center gap-5">
-                      {order.totals ? (
-                        <div className="text-right">
-                          <div className="text-sm font-bold text-slate-900">
-                            {fmt(order.totals.totalGross)} zł
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            brutto · netto {fmt(order.totals.totalNet)} zł
-                          </div>
+                {orders?.map((order) => {
+                  const createdDate = new Date(order._creationTime).toLocaleDateString("pl-PL");
+                  const isCompleted = order.status === "completed";
+                  const hasFinalInvoice = (order.fakturownia?.invoices ?? []).some((inv) => inv.kind === "final");
+                  return (
+                    <TableRow key={order._id} className={`transition-colors ${isCompleted ? "border-l-4 border-l-green-400 bg-green-50/40 hover:bg-green-50/70" : "hover:bg-gray-50"}`}>
+                      <TableCell className="font-medium text-gray-900">
+                        {order.name ?? `Zlecenie z ${createdDate}`}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <StatusBadge status={order.status} />
+                          {isCompleted && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-700">
+                              <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                              </svg>
+                              Zakończone
+                            </span>
+                          )}
+                          {hasFinalInvoice && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                              <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                              </svg>
+                              Faktura wystawiona
+                            </span>
+                          )}
                         </div>
-                      ) : (
-                        <div className="text-xs italic text-slate-400">Brak wyceny</div>
-                      )}
-                      <div className="h-8 w-px bg-slate-100" />
-                      <div className="text-right">
-                        <div className="text-xs font-medium text-slate-700">{docCount}/{totalDocs} dok.</div>
-                        <div className="mt-1 h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full bg-emerald-500 transition-all"
-                            style={{ width: totalDocs > 0 ? `${(docCount / totalDocs) * 100}%` : "0%" }}
-                          />
-                        </div>
-                      </div>
-                      <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                      </svg>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+                      </TableCell>
+                      <TableCell>
+                        {order.services && order.services.length > 0
+                          ? order.services.join(", ")
+                          : <span className="text-gray-400">—</span>}
+                      </TableCell>
+                      <TableCell>{createdDate}</TableCell>
+                      <TableCell>
+                        <Link
+                          href={`/admin/klient/${id}/zlecenie/${order._id}`}
+                          className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
+                        >
+                          Szczegóły →
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableRoot>
         </div>
       )}
 

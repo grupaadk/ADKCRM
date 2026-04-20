@@ -41,11 +41,22 @@ export const list = query({
     const ordersWithClients = await Promise.all(
       orders.map(async (order) => {
         const client = await ctx.db.get(order.clientId);
+        const lineItems = await ctx.db
+          .query("orderLineItems")
+          .withIndex("by_order_sort", (q) => q.eq("orderId", order._id))
+          .collect();
+        let totalGross = 0;
+        for (const item of lineItems) {
+          const discount = item.discountPercent ?? 0;
+          const net = item.quantity * item.unitPrice * (1 - discount / 100);
+          totalGross += net * (1 + item.vatRate / 100);
+        }
         return {
           ...order,
           client: client
             ? { firstName: client.firstName, lastName: client.lastName }
             : null,
+          totalGross: lineItems.length > 0 ? Math.round(totalGross * 100) / 100 : null,
         };
       }),
     );

@@ -220,8 +220,8 @@ export default function OrderDetailPage({
       })
     : null;
   const projectStartTs = measurementEvent?._creationTime ?? null;
-  const projectEndTs = completedEvent?._creationTime ?? warrantyEvent?._creationTime ?? null;
-  const projectEndDate = completedDate ?? warrantyDate;
+  const projectEndTs = completedEvent?._creationTime ?? null;
+  const projectEndDate = completedDate ?? null;
   const projectIsOngoing = hasReachedMeasurement && !hasReachedCompleted && !hasReachedWarranty;
   const projectDurationDays = projectStartTs
     ? Math.round(((projectEndTs ?? Date.now()) - projectStartTs) / (1000 * 60 * 60 * 24))
