@@ -517,8 +517,17 @@ export default function OrderLineItems({
                   </>
                 )}
               </p>
-              {fakturownia.oid && (
-                <p className="text-xs text-slate-500">OID: {fakturownia.oid}</p>
+              {fakturownia.estimateSyncedAt && (
+                <p className="text-xs text-slate-500">
+                  Ostatnio wysłano:{" "}
+                  {new Date(fakturownia.estimateSyncedAt).toLocaleString("pl-PL", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
               )}
               {fakturownia.invoices.length > 0 && (
                 <ul className="mt-2 space-y-2 border-t border-slate-100 pt-2">
