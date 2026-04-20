@@ -424,6 +424,27 @@ export default defineSchema({
     ),
   }),
 
+  // 3.16 Cache faktur z Fakturowni
+  fakturowniaInvoicesCache: defineTable({
+    remoteId: v.string(),
+    number: v.optional(v.string()),
+    kind: v.string(),
+    status: v.optional(v.string()),
+    buyerName: v.optional(v.string()),
+    issueDate: v.optional(v.string()),
+    sellDate: v.optional(v.string()),
+    paymentTo: v.optional(v.string()),
+    grossAmount: v.optional(v.number()),
+    netAmount: v.optional(v.number()),
+    currency: v.optional(v.string()),
+    oid: v.optional(v.string()),
+    orderId: v.optional(v.id("orders")),
+    syncedAt: v.number(),
+  })
+    .index("by_remote_id", ["remoteId"])
+    .index("by_order", ["orderId"])
+    .index("by_synced", ["syncedAt"]),
+
   // 3.7 Konfiguracja Trello (singleton)
   trelloConfig: defineTable({
     apiKey: v.string(),

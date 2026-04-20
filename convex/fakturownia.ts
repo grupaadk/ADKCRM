@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import {
   action,
@@ -498,6 +498,177 @@ export const pushOrderEstimate = action({
     });
 
     return { estimateId: created.id, estimateNumber: created.number, updated: false };
+  },
+});
+
+// ─── Invoices cache ──────────────────────────────────────────────────────────
+
+const cachedInvoiceFields = v.object({
+  remoteId: v.string(),
+  number: v.optional(v.string()),
+  kind: v.string(),
+  status: v.optional(v.string()),
+  buyerName: v.optional(v.string()),
+  issueDate: v.optional(v.string()),
+  sellDate: v.optional(v.string()),
+  paymentTo: v.optional(v.string()),
+  grossAmount: v.optional(v.number()),
+  netAmount: v.optional(v.number()),
+  currency: v.optional(v.string()),
+  oid: v.optional(v.string()),
+});
+
+function parseInvoiceFromApi(raw: Record<string, unknown>): {
+  remoteId: string;
+  number?: string;
+  kind: string;
+  status?: string;
+  buyerName?: string;
+  issueDate?: string;
+  sellDate?: string;
+  paymentTo?: string;
+  grossAmount?: number;
+  netAmount?: number;
+  currency?: string;
+  oid?: string;
+} {
+  const id = typeof raw.id === "number" ? String(raw.id) : typeof raw.id === "string" ? raw.id : "";
+  const parseAmount = (v: unknown): number | undefined => {
+    if (typeof v === "number") return v;
+    if (typeof v === "string") {
+      const n = parseFloat(v.replace(",", "."));
+      return isNaN(n) ? undefined : n;
+    }
+    return undefined;
+  };
+  return {
+    remoteId: id,
+    number: typeof raw.number === "string" ? raw.number : undefined,
+    kind: typeof raw.kind === "string" ? raw.kind : "vat",
+    status: typeof raw.status === "string" ? raw.status : undefined,
+    buyerName: typeof raw.buyer_name === "string" ? raw.buyer_name : undefined,
+    issueDate: typeof raw.issue_date === "string" ? raw.issue_date : undefined,
+    sellDate: typeof raw.sell_date === "string" ? raw.sell_date : undefined,
+    paymentTo: typeof raw.payment_to === "string" ? raw.payment_to : undefined,
+    grossAmount: parseAmount(raw.price_gross),
+    netAmount: parseAmount(raw.price_net),
+    currency: typeof raw.currency === "string" ? raw.currency : undefined,
+    oid: typeof raw.oid === "string" ? raw.oid : undefined,
+  };
+}
+
+export const listCachedInvoices = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("fakturowniaInvoicesCache").order("desc").take(1000);
+  },
+});
+
+export const listCachedInvoicesByOrder = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("fakturowniaInvoicesCache")
+      .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
+      .collect();
+  },
+});
+
+export const upsertManyInvoices = internalMutation({
+  args: {
+    invoices: v.array(cachedInvoiceFields),
+    syncedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    for (const inv of args.invoices) {
+      const existing = await ctx.db
+        .query("fakturowniaInvoicesCache")
+        .withIndex("by_remote_id", (q) => q.eq("remoteId", inv.remoteId))
+        .first();
+
+      // Auto-detect order from OID (format: adkokna-{convexOrderId})
+      let autoOrderId: Id<"orders"> | undefined;
+      if (!existing?.orderId && inv.oid?.startsWith("adkokna-")) {
+        const maybeId = inv.oid.slice("adkokna-".length);
+        try {
+          const order = await ctx.db.get(maybeId as Id<"orders">);
+          if (order) autoOrderId = order._id;
+        } catch { /* invalid ID format */ }
+      }
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          ...inv,
+          syncedAt: args.syncedAt,
+          ...(autoOrderId && !existing.orderId ? { orderId: autoOrderId } : {}),
+        });
+      } else {
+        await ctx.db.insert("fakturowniaInvoicesCache", {
+          ...inv,
+          syncedAt: args.syncedAt,
+          ...(autoOrderId ? { orderId: autoOrderId } : {}),
+        });
+      }
+    }
+  },
+});
+
+export const assignInvoiceToOrder = mutation({
+  args: {
+    invoiceId: v.id("fakturowniaInvoicesCache"),
+    orderId: v.id("orders"),
+  },
+  handler: async (ctx, args) => {
+    const inv = await ctx.db.get(args.invoiceId);
+    if (!inv) throw new Error("Faktura nie znaleziona w cache");
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie znalezione");
+    await ctx.db.patch(args.invoiceId, { orderId: args.orderId });
+  },
+});
+
+export const unassignInvoiceFromOrder = mutation({
+  args: { invoiceId: v.id("fakturowniaInvoicesCache") },
+  handler: async (ctx, args) => {
+    const inv = await ctx.db.get(args.invoiceId);
+    if (!inv) throw new Error("Faktura nie znaleziona w cache");
+    await ctx.db.patch(args.invoiceId, { orderId: undefined });
+  },
+});
+
+export const syncInvoicesFromFakturownia = action({
+  args: {},
+  handler: async (ctx): Promise<{ count: number; pages: number }> => {
+    const token = await getDecryptedToken(ctx);
+    const sub = await resolveSubdomain(ctx);
+    if (!token) throw new Error("Fakturownia: skonfiguruj token API w Ustawieniach");
+    if (!sub) throw new Error("Fakturownia: skonfiguruj subdomenę");
+
+    const base = apiBase(sub);
+    const syncedAt = Date.now();
+    let page = 1;
+    let totalCount = 0;
+    const perPage = 100;
+
+    while (true) {
+      const url = `${base}/invoices.json?api_token=${encodeURIComponent(token)}&per_page=${perPage}&page=${page}`;
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Fakturownia API błąd (${res.status}): ${text.slice(0, 200)}`);
+      }
+      const data: unknown = await res.json();
+      if (!Array.isArray(data) || data.length === 0) break;
+
+      const invoices = (data as Record<string, unknown>[]).map(parseInvoiceFromApi).filter((i) => i.remoteId);
+      await ctx.runMutation(internal.fakturownia.upsertManyInvoices, { invoices, syncedAt });
+
+      totalCount += invoices.length;
+      if (data.length < perPage) break;
+      page++;
+    }
+
+    return { count: totalCount, pages: page };
   },
 });
 

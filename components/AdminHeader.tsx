@@ -13,6 +13,7 @@ import {
   Mail,
   LayoutDashboard,
   Upload,
+  Receipt,
 } from "lucide-react"
 
 type NavItem = {
@@ -34,6 +35,7 @@ const navItems: NavItem[] = [
     countKey: "clients",
     exactMatch: true,
   },
+  { href: "/admin/faktury", label: "Faktury", icon: Receipt },
   { href: "/admin/dokumenty", label: "Dodaj dokument", icon: Upload },
   { href: "/admin/ustawienia", label: "Ustawienia", icon: Settings },
 ]
