@@ -12,8 +12,8 @@ export const DEFAULT_STATUS_LABELS: Record<string, string> = {
   contract: "Akceptacja",
   production: "Zamówienie",
   installation: "Realizowane",
-  completed: "Reklamacja",
-  warranty: "Zakończone",
+  completed: "Zakończone",
+  warranty: "Reklamacja",
 };
 
 const StatusLabelsContext = createContext<Record<string, string>>(DEFAULT_STATUS_LABELS);

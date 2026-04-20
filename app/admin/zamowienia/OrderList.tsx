@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/Table"
 import { StatusBadge } from "@/components/ui/Badge"
 import { ChevronUp, ChevronDown, ChevronsUpDown, CalendarDays, Clock } from "lucide-react"
-import { useStatusLabels } from "@/components/StatusLabelsContext"
 
 function relativeTime(ms: number): string {
   const days = Math.floor((Date.now() - ms) / 86_400_000)
@@ -32,18 +31,6 @@ function relativeTime(ms: number): string {
 type SortField = "client" | "city" | "status" | "services" | "createdAt" | "totalGross"
 type SortDirection = "asc" | "desc"
 
-const STATUS_BUTTON_STYLES: Record<string, { dot: string; active: string; inactive: string }> = {
-  lead:         { dot: "bg-blue-500",    active: "bg-blue-100 text-blue-800 border-blue-300",    inactive: "bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-700" },
-  inquiry:      { dot: "bg-purple-500",  active: "bg-purple-100 text-purple-800 border-purple-300",  inactive: "bg-white text-gray-600 border-gray-200 hover:border-purple-300 hover:text-purple-700" },
-  measurement:  { dot: "bg-amber-500",   active: "bg-amber-100 text-amber-800 border-amber-300",   inactive: "bg-white text-gray-600 border-gray-200 hover:border-amber-300 hover:text-amber-700" },
-  offer:        { dot: "bg-orange-500",  active: "bg-orange-100 text-orange-800 border-orange-300",  inactive: "bg-white text-gray-600 border-gray-200 hover:border-orange-300 hover:text-orange-700" },
-  contract:     { dot: "bg-emerald-600", active: "bg-emerald-100 text-emerald-800 border-emerald-300", inactive: "bg-white text-gray-600 border-gray-200 hover:border-emerald-300 hover:text-emerald-700" },
-  production:   { dot: "bg-violet-500",  active: "bg-violet-100 text-violet-800 border-violet-300",  inactive: "bg-white text-gray-600 border-gray-200 hover:border-violet-300 hover:text-violet-700" },
-  installation: { dot: "bg-teal-500",    active: "bg-teal-100 text-teal-800 border-teal-300",    inactive: "bg-white text-gray-600 border-gray-200 hover:border-teal-300 hover:text-teal-700" },
-  completed:    { dot: "bg-emerald-600", active: "bg-emerald-100 text-emerald-800 border-emerald-300", inactive: "bg-white text-gray-600 border-gray-200 hover:border-emerald-300 hover:text-emerald-700" },
-  warranty:     { dot: "bg-cyan-500",    active: "bg-cyan-100 text-cyan-800 border-cyan-300",    inactive: "bg-white text-gray-600 border-gray-200 hover:border-cyan-300 hover:text-cyan-700" },
-}
-
 type Order = {
   _id: string
   _creationTime: number
@@ -57,11 +44,6 @@ type Order = {
   }
   totalGross?: number | null
 }
-
-const STATUS_KEYS = [
-  "lead", "inquiry", "measurement", "offer", "contract",
-  "production", "installation", "completed", "warranty",
-]
 
 function SkeletonRow() {
   return (
@@ -95,11 +77,10 @@ function SortIcon({
 export default function OrderList() {
   const orders = useQuery(api.orders.list, {})
   const isLoading = orders === undefined
-  const statusLabels = useStatusLabels()
 
   const [sortField, setSortField] = useState<SortField>("createdAt")
   const [sortDir, setSortDir] = useState<SortDirection>("desc")
-  const [statusFilter, setStatusFilter] = useState("")
+  const [viewFilter, setViewFilter] = useState<"all" | "active" | "completed">("active")
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -110,24 +91,25 @@ export default function OrderList() {
     }
   }
 
-  const statusCounts = useMemo(() => {
-    if (!orders) return {}
-    const counts: Record<string, number> = {}
-    for (const o of orders as Order[]) {
-      counts[o.status] = (counts[o.status] ?? 0) + 1
-    }
-    return counts
+  const counts = useMemo(() => {
+    if (!orders) return { all: 0, active: 0, completed: 0 }
+    const all = (orders as Order[]).length
+    const completed = (orders as Order[]).filter((o) => o.status === "completed").length
+    return { all, active: all - completed, completed }
   }, [orders])
 
   const displayOrders = useMemo(() => {
     if (!orders) return undefined
 
     let filtered = orders as Order[]
-    if (statusFilter) {
-      filtered = filtered.filter((o) => o.status === statusFilter)
+    if (viewFilter === "active") {
+      filtered = filtered.filter((o) => o.status !== "completed")
+    } else if (viewFilter === "completed") {
+      filtered = filtered.filter((o) => o.status === "completed")
     }
 
     return [...filtered].sort((a, b) => {
+
       let cmp = 0
       switch (sortField) {
         case "client": {
@@ -157,43 +139,29 @@ export default function OrderList() {
       }
       return sortDir === "asc" ? cmp : -cmp
     })
-  }, [orders, statusFilter, sortField, sortDir])
+  }, [orders, viewFilter, sortField, sortDir])
 
   return (
     <div className="space-y-4">
-      {/* Status filter buttons */}
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => setStatusFilter("")}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-            statusFilter === ""
-              ? "bg-gray-900 text-white border-gray-900"
-              : "bg-white text-gray-600 border-gray-200 hover:border-gray-400 hover:text-gray-900"
-          }`}
-        >
-          Wszystkie
-          {orders && (
-            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${statusFilter === "" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"}`}>
-              {(orders as Order[]).length}
-            </span>
-          )}
-        </button>
-
-        {STATUS_KEYS.map((key) => {
-          const styles = STATUS_BUTTON_STYLES[key]
-          const count = statusCounts[key] ?? 0
-          const isActive = statusFilter === key
+      {/* View filter tabs */}
+      <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-100 p-1 w-fit">
+        {(["all", "active", "completed"] as const).map((tab) => {
+          const labels = { all: "Wszystkie", active: "Aktywne", completed: "Zakończone" }
+          const isActive = viewFilter === tab
           return (
             <button
-              key={key}
-              onClick={() => setStatusFilter(isActive ? "" : key)}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${isActive ? styles.active : styles.inactive}`}
+              key={tab}
+              onClick={() => setViewFilter(tab)}
+              className={`inline-flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-all ${
+                isActive
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
             >
-              <span className={`size-1.5 shrink-0 rounded-full ${styles.dot}`} />
-              {statusLabels[key] ?? key}
+              {labels[tab]}
               {orders && (
-                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${isActive ? "bg-black/10" : "bg-gray-100 text-gray-500"}`}>
-                  {count}
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${isActive ? "bg-gray-100 text-gray-600" : "bg-gray-200 text-gray-400"}`}>
+                  {counts[tab]}
                 </span>
               )}
             </button>
