@@ -34,7 +34,7 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-  { href: "/admin/zamowienia", label: "Zamówienia", icon: ClipboardList },
+  { href: "/admin/zamowienia", label: "Zlecenia", icon: ClipboardList },
   {
     href: "/admin",
     label: "Klienci",

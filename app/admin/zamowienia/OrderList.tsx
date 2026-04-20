@@ -20,6 +20,18 @@ import { useStatusLabels } from "@/components/StatusLabelsContext"
 type SortField = "client" | "status" | "services" | "createdAt" | "totalGross"
 type SortDirection = "asc" | "desc"
 
+const STATUS_BUTTON_STYLES: Record<string, { dot: string; active: string; inactive: string }> = {
+  lead:         { dot: "bg-blue-500",    active: "bg-blue-100 text-blue-800 border-blue-300",    inactive: "bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-700" },
+  inquiry:      { dot: "bg-purple-500",  active: "bg-purple-100 text-purple-800 border-purple-300",  inactive: "bg-white text-gray-600 border-gray-200 hover:border-purple-300 hover:text-purple-700" },
+  measurement:  { dot: "bg-amber-500",   active: "bg-amber-100 text-amber-800 border-amber-300",   inactive: "bg-white text-gray-600 border-gray-200 hover:border-amber-300 hover:text-amber-700" },
+  offer:        { dot: "bg-orange-500",  active: "bg-orange-100 text-orange-800 border-orange-300",  inactive: "bg-white text-gray-600 border-gray-200 hover:border-orange-300 hover:text-orange-700" },
+  contract:     { dot: "bg-emerald-600", active: "bg-emerald-100 text-emerald-800 border-emerald-300", inactive: "bg-white text-gray-600 border-gray-200 hover:border-emerald-300 hover:text-emerald-700" },
+  production:   { dot: "bg-violet-500",  active: "bg-violet-100 text-violet-800 border-violet-300",  inactive: "bg-white text-gray-600 border-gray-200 hover:border-violet-300 hover:text-violet-700" },
+  installation: { dot: "bg-teal-500",    active: "bg-teal-100 text-teal-800 border-teal-300",    inactive: "bg-white text-gray-600 border-gray-200 hover:border-teal-300 hover:text-teal-700" },
+  completed:    { dot: "bg-emerald-600", active: "bg-emerald-100 text-emerald-800 border-emerald-300", inactive: "bg-white text-gray-600 border-gray-200 hover:border-emerald-300 hover:text-emerald-700" },
+  warranty:     { dot: "bg-cyan-500",    active: "bg-cyan-100 text-cyan-800 border-cyan-300",    inactive: "bg-white text-gray-600 border-gray-200 hover:border-cyan-300 hover:text-cyan-700" },
+}
+
 type Order = {
   _id: string
   _creationTime: number
@@ -86,6 +98,15 @@ export default function OrderList() {
     }
   }
 
+  const statusCounts = useMemo(() => {
+    if (!orders) return {}
+    const counts: Record<string, number> = {}
+    for (const o of orders as Order[]) {
+      counts[o.status] = (counts[o.status] ?? 0) + 1
+    }
+    return counts
+  }, [orders])
+
   const displayOrders = useMemo(() => {
     if (!orders) return undefined
 
@@ -125,20 +146,44 @@ export default function OrderList() {
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+      {/* Status filter buttons */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setStatusFilter("")}
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+            statusFilter === ""
+              ? "bg-gray-900 text-white border-gray-900"
+              : "bg-white text-gray-600 border-gray-200 hover:border-gray-400 hover:text-gray-900"
+          }`}
         >
-          <option value="">Wszystkie statusy</option>
-          {STATUS_KEYS.map((key) => (
-            <option key={key} value={key}>
+          Wszystkie
+          {orders && (
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${statusFilter === "" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"}`}>
+              {(orders as Order[]).length}
+            </span>
+          )}
+        </button>
+
+        {STATUS_KEYS.map((key) => {
+          const styles = STATUS_BUTTON_STYLES[key]
+          const count = statusCounts[key] ?? 0
+          const isActive = statusFilter === key
+          return (
+            <button
+              key={key}
+              onClick={() => setStatusFilter(isActive ? "" : key)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${isActive ? styles.active : styles.inactive}`}
+            >
+              <span className={`size-1.5 shrink-0 rounded-full ${styles.dot}`} />
               {statusLabels[key] ?? key}
-            </option>
-          ))}
-        </select>
+              {orders && (
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${isActive ? "bg-black/10" : "bg-gray-100 text-gray-500"}`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* Table */}
