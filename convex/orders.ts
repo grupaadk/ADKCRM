@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation, action, internalMutation } from "./_generated/server";
+import { query, mutation, action, internalMutation, MutationCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { STATUS_TRANSITIONS, CLIENT_STATUSES } from "./schema";
 
@@ -16,6 +16,29 @@ const orderStatusValidator = v.union(
   v.literal("completed"),
   v.literal("warranty"),
 );
+
+export async function nextOrderNumber(ctx: MutationCtx): Promise<string> {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+
+  const counter = await ctx.db
+    .query("orderCounters")
+    .withIndex("by_year_month", (q) => q.eq("year", year).eq("month", month))
+    .first();
+
+  let number: number;
+  if (counter) {
+    number = counter.lastNumber + 1;
+    await ctx.db.patch(counter._id, { lastNumber: number });
+  } else {
+    number = 1;
+    await ctx.db.insert("orderCounters", { year, month, lastNumber: 1 });
+  }
+
+  const mm = String(month).padStart(2, "0");
+  return `${number}/${mm}/${year}`;
+}
 
 export const DEFAULT_DOCUMENTS = {
   pomiar: { enabled: false },
@@ -155,10 +178,12 @@ export const create = mutation({
     const userId = identity?.subject ?? "anonymous";
 
     const { clientId, ...orderData } = args;
+    const name = args.name ?? await nextOrderNumber(ctx);
 
     const orderId = await ctx.db.insert("orders", {
       clientId,
       ...orderData,
+      name,
       status: "lead",
       documents: DEFAULT_DOCUMENTS,
       source: "manual",
@@ -193,10 +218,12 @@ export const createFromWebhook = internalMutation({
   },
   handler: async (ctx, args) => {
     const { clientId, submissionId, ...orderData } = args;
+    const name = await nextOrderNumber(ctx);
 
     const orderId = await ctx.db.insert("orders", {
       clientId,
       ...orderData,
+      name,
       status: "lead",
       documents: DEFAULT_DOCUMENTS,
       source: "jotform",

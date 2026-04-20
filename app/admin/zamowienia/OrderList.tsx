@@ -66,7 +66,7 @@ const STATUS_KEYS = [
 function SkeletonRow() {
   return (
     <TableRow className="animate-pulse">
-      {Array.from({ length: 7 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <TableCell key={i}>
           <div className="h-4 rounded bg-gray-200" />
         </TableCell>
@@ -207,6 +207,9 @@ export default function OrderList() {
           <Table>
             <TableHead>
               <TableRow>
+                <TableHeaderCell className="text-gray-500 font-medium">
+                  ID Zlecenia
+                </TableHeaderCell>
                 <TableHeaderCell
                   onClick={() => handleSort("client")}
                   className="cursor-pointer select-none hover:bg-gray-50"
@@ -259,7 +262,7 @@ export default function OrderList() {
               {!isLoading && displayOrders && displayOrders.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="py-12 text-center text-gray-400"
                   >
                     Brak zamówień.
@@ -272,6 +275,9 @@ export default function OrderList() {
                 const hasFinalInvoice = (order.fakturownia?.invoices ?? []).some((inv) => inv.kind === "final")
                 return (
                   <TableRow key={order._id} className={`transition-colors ${isCompleted ? "border-l-4 border-l-green-400 bg-green-50/40 hover:bg-green-50/70" : "hover:bg-gray-50"}`}>
+                    <TableCell className="whitespace-nowrap font-mono text-xs text-gray-500">
+                      {order.name ?? <span className="text-gray-300">—</span>}
+                    </TableCell>
                     <TableCell className="font-medium text-gray-900">
                       {order.client
                         ? `${order.client.lastName} ${order.client.firstName}`

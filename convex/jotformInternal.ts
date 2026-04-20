@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { DEFAULT_DOCUMENTS } from "./orders";
+import { DEFAULT_DOCUMENTS, nextOrderNumber } from "./orders";
 
 // Zapis oczekującego zgłoszenia z JotForm.
 // Klient i zamówienie tworzone są dopiero po przeniesieniu karty Trello na listę "Do pomiarów".
@@ -151,8 +151,10 @@ export const createFromPending = mutation({
     }
 
     // Utwórz zamówienie ze statusem "measurement" (karta trafia od razu na "Do pomiarów")
+    const orderName = await nextOrderNumber(ctx);
     const orderId = await ctx.db.insert("orders", {
       clientId,
+      name: orderName,
       services: pending.services,
       windowColor: pending.windowColor,
       doorColor: pending.doorColor,

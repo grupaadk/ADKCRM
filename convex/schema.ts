@@ -200,6 +200,13 @@ export default defineSchema({
     .index("by_trello_card", ["trelloCardId"])
     .index("by_jotform_submission", ["jotformSubmissionId"]),
 
+  // 3.1c Liczniki numeracji zleceń (per miesiąc)
+  orderCounters: defineTable({
+    year: v.number(),
+    month: v.number(),
+    lastNumber: v.number(),
+  }).index("by_year_month", ["year", "month"]),
+
   // 3.2 Szablon dokumentu
   documentTemplates: defineTable({
     key: v.string(),
