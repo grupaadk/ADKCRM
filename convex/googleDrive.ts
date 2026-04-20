@@ -842,6 +842,89 @@ export const createOrderFolder = action({
   },
 });
 
+export const uploadUserDocument = action({
+  args: {
+    orderId: v.id("orders"),
+    documentType: v.union(
+      v.literal("pomiar"),
+      v.literal("umowa"),
+      v.literal("gwarancja_alco"),
+      v.literal("rekojmia_adk"),
+      v.literal("odbior_inwestor"),
+      v.literal("protokol_montaz"),
+      v.literal("faktura"),
+      v.literal("reklamacja"),
+    ),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+  },
+  handler: async (ctx, args): Promise<string> => {
+    const identity = await ctx.auth.getUserIdentity();
+    const performedBy = identity?.subject ?? "anonymous";
+
+    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+    if (!order) throw new Error("Zlecenie nie znalezione");
+    if (!order.folderId) throw new Error("To zlecenie nie ma folderu w Google Drive. Zmień status zlecenia (np. na 'Pomiar'), aby automatycznie utworzyć folder.");
+
+    const fileUrl = await ctx.storage.getUrl(args.storageId);
+    if (!fileUrl) throw new Error("Nie znaleziono pliku w storage");
+
+    const fileResponse = await fetch(fileUrl);
+    if (!fileResponse.ok) throw new Error(`Nie udało się pobrać pliku: ${fileResponse.status}`);
+
+    const contentType = fileResponse.headers.get("content-type") || "application/octet-stream";
+    const fileBuffer = await fileResponse.arrayBuffer();
+
+    const connection = await getAuthorizedConnection(ctx);
+
+    const metadata = JSON.stringify({ name: args.fileName, parents: [order.folderId] });
+    const boundary = `drive_upload_${Date.now()}`;
+    const encoder = new TextEncoder();
+    const preamble = encoder.encode(
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`,
+    );
+    const epilogue = encoder.encode(`\r\n--${boundary}--`);
+
+    const body = new Uint8Array(preamble.byteLength + fileBuffer.byteLength + epilogue.byteLength);
+    body.set(preamble, 0);
+    body.set(new Uint8Array(fileBuffer), preamble.byteLength);
+    body.set(epilogue, preamble.byteLength + fileBuffer.byteLength);
+
+    const uploadResponse = await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${connection.accessToken}`,
+          "Content-Type": `multipart/related; boundary=${boundary}`,
+        },
+        body,
+      },
+    );
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      throw new Error(`Błąd uploadu do Drive (${uploadResponse.status}): ${errorText}`);
+    }
+
+    const uploaded = await uploadResponse.json() as { id?: string };
+    if (!uploaded.id) throw new Error("Google Drive nie zwróciło ID pliku");
+
+    const driveFileUrl = `https://drive.google.com/file/d/${uploaded.id}/view`;
+
+    await ctx.runMutation(internal.orders.attachUploadedDocument, {
+      orderId: args.orderId,
+      documentType: args.documentType,
+      driveFileUrl,
+      performedBy,
+    });
+
+    await ctx.storage.delete(args.storageId);
+
+    return driveFileUrl;
+  },
+});
+
 export const deleteFile = action({
   args: {
     fileId: v.string(),

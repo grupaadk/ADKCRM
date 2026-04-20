@@ -11,6 +11,8 @@ import {
   Users,
   Settings,
   Mail,
+  LayoutDashboard,
+  Upload,
 } from "lucide-react"
 
 type NavItem = {
@@ -22,6 +24,7 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
+  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/mail", label: "Mail", icon: Mail },
   { href: "/admin/zamowienia", label: "Zlecenia", icon: ClipboardList },
   {
@@ -31,6 +34,7 @@ const navItems: NavItem[] = [
     countKey: "clients",
     exactMatch: true,
   },
+  { href: "/admin/dokumenty", label: "Dodaj dokument", icon: Upload },
   { href: "/admin/ustawienia", label: "Ustawienia", icon: Settings },
 ]
 

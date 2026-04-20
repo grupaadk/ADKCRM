@@ -603,3 +603,44 @@ export const migrateClientsToOrders = internalMutation({
     return { created };
   },
 });
+
+const documentTypeValidator = v.union(
+  v.literal("pomiar"),
+  v.literal("umowa"),
+  v.literal("gwarancja_alco"),
+  v.literal("rekojmia_adk"),
+  v.literal("odbior_inwestor"),
+  v.literal("protokol_montaz"),
+  v.literal("faktura"),
+  v.literal("reklamacja"),
+);
+
+export const attachUploadedDocument = internalMutation({
+  args: {
+    orderId: v.id("orders"),
+    documentType: documentTypeValidator,
+    driveFileUrl: v.string(),
+    performedBy: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie znalezione");
+
+    const documents = { ...order.documents };
+    documents[args.documentType] = {
+      enabled: true,
+      url: args.driveFileUrl,
+      generatedAt: Date.now(),
+    };
+
+    await ctx.db.patch(args.orderId, { documents });
+
+    await ctx.db.insert("clientEvents", {
+      clientId: order.clientId,
+      orderId: args.orderId,
+      type: "document_uploaded",
+      details: { documentType: args.documentType, driveUrl: args.driveFileUrl },
+      performedBy: args.performedBy,
+    });
+  },
+});
