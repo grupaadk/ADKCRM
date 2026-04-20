@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CalendarDays, Clock } from "lucide-react";
 import InlineEdit from "./InlineEdit";
 import CityDistance from "./CityDistance";
 import Notes from "./Notes";
@@ -35,6 +36,18 @@ function SkeletonRow() {
       ))}
     </TableRow>
   );
+}
+
+function relativeTime(ms: number): string {
+  const days = Math.floor((Date.now() - ms) / 86_400_000)
+  if (days === 0) return "dziś"
+  if (days === 1) return "wczoraj"
+  if (days < 7) return `${days} dni temu`
+  const weeks = Math.floor(days / 7)
+  if (weeks < 5) return `${weeks} tyg. temu`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months} mies. temu`
+  return `${Math.floor(days / 365)} lat temu`
 }
 
 function getInitials(firstName: string, lastName: string) {
@@ -323,17 +336,37 @@ export default function ClientDetailPage({
                       </TableCell>
                       <TableCell>
                         {order.services && order.services.length > 0
-                          ? order.services.join(", ")
+                          ? <div className="flex flex-wrap gap-1">{order.services.map((s) => <span key={s} className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{s}</span>)}</div>
                           : <span className="text-gray-400">—</span>}
                       </TableCell>
-                      <TableCell>{createdDate}</TableCell>
                       <TableCell>
-                        <Link
-                          href={`/admin/klient/${id}/zlecenie/${order._id}`}
-                          className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
-                        >
-                          Szczegóły →
-                        </Link>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="inline-flex items-center gap-1 text-sm text-gray-900">
+                            <CalendarDays className="size-3.5 shrink-0 text-gray-400" />
+                            {createdDate}
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                            <Clock className="size-3 shrink-0" />
+                            {relativeTime(order._creationTime)}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/admin/klient/${id}/zlecenie/${order._id}?tab=wycena`}
+                            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                            style={{ backgroundColor: "#2B2A2A" }}
+                          >
+                            Wycena
+                          </Link>
+                          <Link
+                            href={`/admin/klient/${id}/zlecenie/${order._id}`}
+                            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:text-gray-600"
+                          >
+                            Szczegóły
+                          </Link>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

@@ -6,7 +6,7 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import InlineEdit from "../../InlineEdit";
 import DocumentCheckboxes from "../../DocumentCheckboxes";
 import WarrantyCardUpload from "../../WarrantyCardUpload";
@@ -97,7 +97,9 @@ export default function OrderDetailPage({
   const router = useRouter();
 
   const statusLabels = useStatusLabels();
-  const [activeTab, setActiveTab] = useState<Tab>("zlecenie");
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) ?? "zlecenie";
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 

@@ -435,6 +435,7 @@ export default defineSchema({
         installation: v.optional(v.string()),
         completed: v.optional(v.string()),
         warranty: v.optional(v.string()),
+        reklamacja: v.optional(v.string()),
       }),
     ),
     syncEnabled: v.boolean(),

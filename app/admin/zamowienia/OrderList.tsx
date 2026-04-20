@@ -14,10 +14,22 @@ import {
   TableRow,
 } from "@/components/ui/Table"
 import { StatusBadge } from "@/components/ui/Badge"
-import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
+import { ChevronUp, ChevronDown, ChevronsUpDown, CalendarDays, Clock } from "lucide-react"
 import { useStatusLabels } from "@/components/StatusLabelsContext"
 
-type SortField = "client" | "status" | "services" | "createdAt" | "totalGross"
+function relativeTime(ms: number): string {
+  const days = Math.floor((Date.now() - ms) / 86_400_000)
+  if (days === 0) return "dziś"
+  if (days === 1) return "wczoraj"
+  if (days < 7) return `${days} dni temu`
+  const weeks = Math.floor(days / 7)
+  if (weeks < 5) return `${weeks} tyg. temu`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months} mies. temu`
+  return `${Math.floor(days / 365)} lat temu`
+}
+
+type SortField = "client" | "city" | "status" | "services" | "createdAt" | "totalGross"
 type SortDirection = "asc" | "desc"
 
 const STATUS_BUTTON_STYLES: Record<string, { dot: string; active: string; inactive: string }> = {
@@ -39,7 +51,7 @@ type Order = {
   status: string
   services?: string[]
   name?: string
-  client: { firstName: string; lastName: string } | null
+  client: { firstName: string; lastName: string; city?: string } | null
   fakturownia?: {
     invoices?: Array<{ kind: "advance" | "final" }>
   }
@@ -54,7 +66,7 @@ const STATUS_KEYS = [
 function SkeletonRow() {
   return (
     <TableRow className="animate-pulse">
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 7 }).map((_, i) => (
         <TableCell key={i}>
           <div className="h-4 rounded bg-gray-200" />
         </TableCell>
@@ -136,6 +148,9 @@ export default function OrderList() {
         case "createdAt":
           cmp = a._creationTime - b._creationTime
           break
+        case "city":
+          cmp = (a.client?.city ?? "").localeCompare(b.client?.city ?? "", "pl")
+          break
         case "totalGross":
           cmp = (a.totalGross ?? 0) - (b.totalGross ?? 0)
           break
@@ -200,6 +215,13 @@ export default function OrderList() {
                   <SortIcon field="client" sortField={sortField} sortDir={sortDir} />
                 </TableHeaderCell>
                 <TableHeaderCell
+                  onClick={() => handleSort("city")}
+                  className="cursor-pointer select-none hover:bg-gray-50"
+                >
+                  Miasto
+                  <SortIcon field="city" sortField={sortField} sortDir={sortDir} />
+                </TableHeaderCell>
+                <TableHeaderCell
                   onClick={() => handleSort("status")}
                   className="cursor-pointer select-none hover:bg-gray-50"
                 >
@@ -237,7 +259,7 @@ export default function OrderList() {
               {!isLoading && displayOrders && displayOrders.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="py-12 text-center text-gray-400"
                   >
                     Brak zamówień.
@@ -253,6 +275,11 @@ export default function OrderList() {
                     <TableCell className="font-medium text-gray-900">
                       {order.client
                         ? `${order.client.lastName} ${order.client.firstName}`
+                        : <span className="text-gray-400">—</span>}
+                    </TableCell>
+                    <TableCell>
+                      {order.client?.city
+                        ? <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{order.client.city}</span>
                         : <span className="text-gray-400">—</span>}
                     </TableCell>
                     <TableCell>
@@ -278,11 +305,20 @@ export default function OrderList() {
                     </TableCell>
                     <TableCell>
                       {order.services && order.services.length > 0
-                        ? order.services.join(", ")
+                        ? <div className="flex flex-wrap gap-1">{order.services.map((s) => <span key={s} className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{s}</span>)}</div>
                         : <span className="text-gray-400">—</span>}
                     </TableCell>
                     <TableCell>
-                      {new Date(order._creationTime).toLocaleDateString("pl-PL")}
+                      <div className="flex flex-col gap-0.5">
+                        <span className="inline-flex items-center gap-1 text-sm text-gray-900">
+                          <CalendarDays className="size-3.5 text-gray-400 shrink-0" />
+                          {new Date(order._creationTime).toLocaleDateString("pl-PL")}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                          <Clock className="size-3 shrink-0" />
+                          {relativeTime(order._creationTime)}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-gray-900">
                       {order.totalGross != null
@@ -290,12 +326,21 @@ export default function OrderList() {
                         : <span className="text-gray-400">—</span>}
                     </TableCell>
                     <TableCell>
-                      <Link
-                        href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
-                        className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
-                      >
-                        Szczegóły →
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=wycena`}
+                          className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                          style={{ backgroundColor: "#2B2A2A" }}
+                        >
+                          Wycena
+                        </Link>
+                        <Link
+                          href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
+                          className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          Szczegóły
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
