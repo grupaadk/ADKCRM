@@ -366,7 +366,9 @@ export default function OrderDetailPage({
                 <div key={status} className={`flex items-center ${!isLast ? "flex-1 min-w-0" : ""}`}>
                   <div className="flex flex-col items-center">
                     <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                      isCurrent
+                      isCurrent && status === "completed"
+                        ? "bg-emerald-500 text-white ring-4 ring-emerald-100 shadow-md"
+                        : isCurrent
                         ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-md"
                         : isOrange
                         ? "bg-orange-400 text-white"
@@ -374,7 +376,7 @@ export default function OrderDetailPage({
                         ? "bg-emerald-500 text-white"
                         : "bg-white text-slate-400 ring-1 ring-slate-200"
                     }`}>
-                      {isPast ? (
+                      {isPast || (isCurrent && status === "completed") ? (
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
@@ -383,7 +385,7 @@ export default function OrderDetailPage({
                       )}
                     </div>
                     <span className={`mt-1.5 w-14 text-[10px] font-semibold leading-tight text-center ${
-                      isCurrent ? "text-blue-700" : isOrange ? "text-orange-500" : isPast ? "text-emerald-600" : "text-slate-400"
+                      isCurrent && status === "completed" ? "text-emerald-600" : isCurrent ? "text-blue-700" : isOrange ? "text-orange-500" : isPast ? "text-emerald-600" : "text-slate-400"
                     }`}>
                       {statusLabels[status] ?? status}
                     </span>
