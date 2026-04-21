@@ -15,7 +15,6 @@ const DOCUMENT_LABELS: Record<string, string> = {
   rekojmia_adk: "Rekojmia ADK",
   odbior_inwestor: "Odbior inwestorski",
   protokol_montaz: "Protokol montazu",
-  faktura: "Faktura",
   reklamacja: "Reklamacja",
 };
 
@@ -34,7 +33,7 @@ const DOCUMENT_GROUPS: Array<{ title: string; keys: string[] }> = [
   },
   {
     title: "Inne",
-    keys: ["faktura", "reklamacja"],
+    keys: ["reklamacja"],
   },
 ];
 
@@ -45,7 +44,6 @@ type DocumentType =
   | "rekojmia_adk"
   | "odbior_inwestor"
   | "protokol_montaz"
-  | "faktura"
   | "reklamacja";
 
 interface DocumentEntry {
