@@ -120,17 +120,6 @@ export default function TemplateEditorPage() {
     }
   }, [template, initialized]);
 
-  const resolvedMappings = useMemo(
-    () =>
-      mappings
-        .filter((mapping) => mapping.placeholder && mapping.field)
-        .map((mapping) => ({
-          ...mapping,
-          resolved: SAMPLE_DATA[mapping.field] ?? mapping.field,
-        })),
-    [mappings],
-  );
-
   const fileNamePreview = useMemo(
     () => resolvePlaceholders(fileNamePattern, mappings, SAMPLE_DATA),
     [fileNamePattern, mappings],
@@ -492,25 +481,6 @@ export default function TemplateEditorPage() {
                     {fileNamePreview}
                   </p>
                 </div>
-                <div className="mt-4">
-                  <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                    Szybkie pola do nazwy pliku
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {QUICK_PLACEHOLDERS.map((fieldOption) => (
-                      <button
-                        key={fieldOption.value}
-                        type="button"
-                        onClick={() =>
-                          insertPlaceholderIntoPattern(fieldOption.placeholder)
-                        }
-                        className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        + {fieldOption.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
           </section>
@@ -539,24 +509,6 @@ export default function TemplateEditorPage() {
                   ? "Szukam placeholderow..."
                   : "Wykryj placeholdery z dokumentu"}
               </button>
-            </div>
-
-            <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                Dodaj pole jednym kliknieciem
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {CLIENT_FIELDS.map((fieldOption) => (
-                  <button
-                    key={fieldOption.value}
-                    type="button"
-                    onClick={() => addPresetMapping(fieldOption.value)}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                  >
-                    {fieldOption.label}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {mappings.length === 0 ? (
@@ -623,41 +575,6 @@ export default function TemplateEditorPage() {
         </div>
 
         <aside className="space-y-6">
-          <section className="rounded-2xl border border-slate-200 bg-white p-6">
-            <h2 className="text-lg font-bold text-slate-900">Preview danych</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Podglad uzywa przykladowego klienta i pokazuje, co trafi do
-              dokumentu.
-            </p>
-
-            <div className="mt-4 rounded-xl bg-slate-50 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                Rozwiazane placeholdery
-              </p>
-              <div className="mt-3 space-y-2">
-                {resolvedMappings.length === 0 ? (
-                  <p className="text-sm text-slate-500">
-                    Brak aktywnych mapowan.
-                  </p>
-                ) : (
-                  resolvedMappings.map((mapping) => (
-                    <div
-                      key={`${mapping.placeholder}-${mapping.field}`}
-                      className="rounded-lg bg-white p-3"
-                    >
-                      <p className="font-mono text-xs text-slate-500">
-                        {mapping.placeholder}
-                      </p>
-                      <p className="mt-1 text-sm font-medium text-slate-900">
-                        {mapping.resolved}
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </section>
-
           <section className="rounded-2xl border border-slate-200 bg-white p-6">
             <h2 className="text-lg font-bold text-slate-900">Referencja pol</h2>
             <div className="mt-4 grid gap-2">
