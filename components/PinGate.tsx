@@ -64,7 +64,7 @@ export default function PinGate({ children }: PinGateProps) {
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-8 py-10 text-center">
+          <div className="px-8 py-10 text-center" style={{ background: "linear-gradient(135deg, #4ABBC3, #3aa8b0)" }}>
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/20 mb-4">
               <Lock className="w-8 h-8 text-white" />
             </div>
@@ -129,9 +129,6 @@ export default function PinGate({ children }: PinGateProps) {
           </div>
         </div>
 
-        <p className="mt-4 text-center text-xs text-gray-400">
-          Sesja jest zapamiętywana do czasu zamknięcia przeglądarki
-        </p>
       </div>
 
       <style>{`
