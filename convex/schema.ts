@@ -23,8 +23,8 @@ export const STATUS_TRANSITIONS: Record<string, string[]> = {
   contract: ["production"],
   production: ["installation"],
   installation: ["completed", "complaint"],
-  completed: ["complaint"],
-  complaint: [],
+  completed: [],
+  complaint: ["completed"],
 };
 
 // Typy dokumentów wg PRD sekcja 3.1 + 4.1

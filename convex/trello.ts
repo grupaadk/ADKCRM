@@ -156,6 +156,18 @@ export const toggleSync = mutation({
   },
 });
 
+export const patchStatusListMap = mutation({
+  args: { statusListMap: clientStatusMapValidator },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.query("trelloConfig").first();
+    if (!existing) {
+      throw new Error("Trello config not found. Save config first.");
+    }
+    const merged = { ...existing.statusListMap, ...args.statusListMap };
+    await ctx.db.patch(existing._id, { statusListMap: merged });
+  },
+});
+
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
 // Helper: decrypt Trello credentials from DB
