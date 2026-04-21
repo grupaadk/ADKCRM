@@ -1002,6 +1002,24 @@ export const copyTemplate = action({
         throw new Error("Client not found");
       }
 
+      const lineItemsResult = await ctx.runQuery(api.orderLineItems.listByOrder, {
+        orderId: args.orderId,
+      });
+      const { totalGross } = lineItemsResult.totals;
+      const formatPLN = (amount: number): string => {
+        const rounded = Math.round(amount * 100) / 100;
+        const str = rounded.toFixed(2);
+        const dotIdx = str.indexOf(".");
+        const intPart = str.slice(0, dotIdx);
+        const decPart = str.slice(dotIdx + 1);
+        return `${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ")},${decPart} zł`;
+      };
+      const computedFields = {
+        estimateTotal: formatPLN(totalGross),
+        estimate30pct: formatPLN(Math.round(totalGross * 0.3 * 100) / 100),
+        estimate70pct: formatPLN(Math.round(totalGross * 0.7 * 100) / 100),
+      };
+
       const connection = await getAuthorizedConnection(ctx);
 
       // Get template
@@ -1049,7 +1067,7 @@ export const copyTemplate = action({
         await performMailMerge(
           ctx,
           copyData.id,
-          { ...client, ...order },
+          { ...client, ...order, ...computedFields },
           template.fieldMappings,
         );
       }
