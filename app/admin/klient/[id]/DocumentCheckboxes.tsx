@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -92,6 +92,21 @@ export default function DocumentCheckboxes({
   const [generating, setGenerating] = useState<Record<string, boolean>>({});
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
 
+  // Clear generating state only when Convex confirms the document is done (url or error set)
+  useEffect(() => {
+    setGenerating((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const key of Object.keys(prev)) {
+        if (prev[key] && (documents[key]?.url || documents[key]?.error)) {
+          next[key] = false;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [documents]);
+
   async function handleGenerate(docType: string) {
     setGenerating((prev) => ({ ...prev, [docType]: true }));
     try {
@@ -100,7 +115,8 @@ export default function DocumentCheckboxes({
         documentType: docType as DocumentType,
         enabled: true,
       });
-    } finally {
+      // Do NOT reset here — useEffect clears it when Convex returns url/error
+    } catch {
       setGenerating((prev) => ({ ...prev, [docType]: false }));
     }
   }
