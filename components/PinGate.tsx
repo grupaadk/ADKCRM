@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Lock, Delete } from "lucide-react";
+import { Lock, Delete, ArrowLeft } from "lucide-react";
 
 const CORRECT_PIN = process.env.NEXT_PUBLIC_FAKTURY_PIN ?? "";
 
 interface PinGateProps {
   children: React.ReactNode;
+  onBack?: () => void;
 }
 
-export default function PinGate({ children }: PinGateProps) {
+export default function PinGate({ children, onBack }: PinGateProps) {
   const [unlocked, setUnlocked] = useState(false);
   const [digits, setDigits] = useState<string[]>([]);
   const [error, setError] = useState(false);
@@ -128,6 +129,15 @@ export default function PinGate({ children }: PinGateProps) {
           </div>
         </div>
 
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mt-4 w-full flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors py-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Wróć
+          </button>
+        )}
       </div>
 
       <style>{`

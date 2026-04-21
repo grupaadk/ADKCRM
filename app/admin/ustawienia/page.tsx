@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { DEFAULT_STATUS_LABELS, useStatusLabels } from "@/components/StatusLabelsContext";
 import { api } from "@/convex/_generated/api";
@@ -3052,9 +3053,10 @@ const TABS: Array<{ key: Tab; label: string }> = [
 
 export default function UstawieniaPage() {
   const [activeTab, setActiveTab] = useState<Tab>("google-drive");
+  const router = useRouter();
 
   return (
-    <PinGate>
+    <PinGate onBack={() => router.back()}>
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">Ustawienia</h1>
