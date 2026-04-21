@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/Table"
 import { StatusBadge } from "@/components/ui/Badge"
 import { ChevronUp, ChevronDown, ChevronsUpDown, CalendarDays, Clock } from "lucide-react"
+import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
 
 function relativeTime(ms: number): string {
   const days = Math.floor((Date.now() - ms) / 86_400_000)
@@ -42,6 +43,7 @@ type Order = {
   fakturownia?: {
     invoices?: Array<{ kind: "advance" | "final" }>
   }
+  documents?: Record<string, { url?: string; signatureStatus?: "signed" | "not_applicable" }>
   totalGross?: number | null
 }
 
@@ -202,6 +204,7 @@ export default function OrderList() {
                   Status
                   <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
                 </TableHeaderCell>
+                <TableHeaderCell>Dokumenty</TableHeaderCell>
                 <TableHeaderCell
                   onClick={() => handleSort("services")}
                   className="cursor-pointer select-none hover:bg-gray-50"
@@ -279,6 +282,9 @@ export default function OrderList() {
                           </span>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <DocumentProgressTiles documents={order.documents} />
                     </TableCell>
                     <TableCell>
                       {order.services && order.services.length > 0
