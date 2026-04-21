@@ -14,6 +14,7 @@ import EventTimeline from "../../EventTimeline";
 import { useStatusLabels } from "@/components/StatusLabelsContext";
 import ComplaintTab from "./ComplaintTab";
 import DocumentProgressTiles from "../../DocumentProgressTiles";
+import InvestmentLocation from "../../InvestmentLocation";
 
 type CachedInvoice = {
   _id: Id<"fakturowniaInvoicesCache">;
@@ -478,6 +479,16 @@ export default function OrderDetailPage({
 
           <div className="lg:col-span-3">
             <SectionCard title="Szczegoly zlecenia">
+              <div className="space-y-6">
+                <InvestmentLocation
+                  orderId={orderIdTyped}
+                  investmentStreet={order.investmentStreet}
+                  investmentBuildingNumber={order.investmentBuildingNumber}
+                  investmentApartmentNumber={order.investmentApartmentNumber}
+                  investmentPostalCode={order.investmentPostalCode}
+                  investmentCity={order.investmentCity}
+                />
+
               {showOrderDetails ? (
                 <div className="space-y-6">
                   {order.services && order.services.length > 0 && (
@@ -569,6 +580,7 @@ export default function OrderDetailPage({
                   </p>
                 </div>
               )}
+              </div>
             </SectionCard>
           </div>
         </div>

@@ -257,8 +257,8 @@ export default function ClientList({ viewConfig }: { viewConfig?: ViewConfig }) 
             className={cx(
               "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors",
               showColumnPanel
-                ? "border-blue-500 bg-blue-50 text-blue-700"
-                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
             )}
           >
             <Settings2 className="size-3.5 shrink-0" aria-hidden="true" />
@@ -334,7 +334,7 @@ export default function ClientList({ viewConfig }: { viewConfig?: ViewConfig }) 
                   <TableCell>
                     <Link
                       href={`/admin/klient/${client._id}`}
-                      className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+                      className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 transition-colors"
                     >
                       Szczegóły →
                     </Link>

@@ -168,6 +168,13 @@ export default defineSchema({
     projectFiles: v.optional(v.string()),
     comment: v.optional(v.string()),
 
+    // Lokalizacja inwestycji
+    investmentStreet: v.optional(v.string()),
+    investmentBuildingNumber: v.optional(v.string()),
+    investmentApartmentNumber: v.optional(v.string()),
+    investmentPostalCode: v.optional(v.string()),
+    investmentCity: v.optional(v.string()),
+
     // Status workflow
     status: clientStatus,
 
