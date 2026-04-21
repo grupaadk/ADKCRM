@@ -445,6 +445,44 @@ export default defineSchema({
     .index("by_order", ["orderId"])
     .index("by_synced", ["syncedAt"]),
 
+  // 3.17 Reklamacje
+  complaints: defineTable({
+    orderId: v.id("orders"),
+    clientId: v.id("clients"),
+    status: v.union(v.literal("w_toku"), v.literal("zakonczona")),
+    description: v.optional(v.string()),
+    notes: v.optional(v.array(
+      v.object({
+        id: v.string(),
+        text: v.string(),
+        createdAt: v.number(),
+        createdBy: v.string(),
+      }),
+    )),
+    todos: v.array(
+      v.object({
+        id: v.string(),
+        text: v.string(),
+        completed: v.boolean(),
+      }),
+    ),
+    entries: v.optional(v.array(
+      v.object({
+        id: v.string(),
+        text: v.string(),
+        createdAt: v.number(),
+        createdBy: v.string(),
+        type: v.union(v.literal("note"), v.literal("todo")),
+        completed: v.optional(v.boolean()),
+      }),
+    )),
+    startDate: v.number(),
+    endDate: v.optional(v.number()),
+    createdBy: v.string(),
+  })
+    .index("by_order", ["orderId"])
+    .index("by_client", ["clientId"]),
+
   // 3.7 Konfiguracja Trello (singleton)
   trelloConfig: defineTable({
     apiKey: v.string(),

@@ -80,7 +80,7 @@ export default function OrderList() {
 
   const [sortField, setSortField] = useState<SortField>("createdAt")
   const [sortDir, setSortDir] = useState<SortDirection>("desc")
-  const [viewFilter, setViewFilter] = useState<"all" | "active" | "completed">("active")
+  const [viewFilter, setViewFilter] = useState<"all" | "active" | "complaint" | "completed">("active")
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -92,10 +92,11 @@ export default function OrderList() {
   }
 
   const counts = useMemo(() => {
-    if (!orders) return { all: 0, active: 0, completed: 0 }
+    if (!orders) return { all: 0, active: 0, complaint: 0, completed: 0 }
     const all = (orders as Order[]).length
     const completed = (orders as Order[]).filter((o) => o.status === "completed").length
-    return { all, active: all - completed, completed }
+    const complaint = (orders as Order[]).filter((o) => o.status === "complaint").length
+    return { all, active: all - completed, complaint, completed }
   }, [orders])
 
   const displayOrders = useMemo(() => {
@@ -104,6 +105,8 @@ export default function OrderList() {
     let filtered = orders as Order[]
     if (viewFilter === "active") {
       filtered = filtered.filter((o) => o.status !== "completed")
+    } else if (viewFilter === "complaint") {
+      filtered = filtered.filter((o) => o.status === "complaint")
     } else if (viewFilter === "completed") {
       filtered = filtered.filter((o) => o.status === "completed")
     }
@@ -145,8 +148,8 @@ export default function OrderList() {
     <div className="space-y-4">
       {/* View filter tabs */}
       <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-100 p-1 w-fit">
-        {(["all", "active", "completed"] as const).map((tab) => {
-          const labels = { all: "Wszystkie", active: "Aktywne", completed: "Zakończone" }
+        {(["all", "active", "complaint", "completed"] as const).map((tab) => {
+          const labels = { all: "Wszystkie", active: "Aktywne", complaint: "Reklamacje", completed: "Zakończone" }
           const isActive = viewFilter === tab
           return (
             <button
@@ -301,13 +304,30 @@ export default function OrderList() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Link
-                          href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=wycena`}
-                          className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
-                          style={{ backgroundColor: "#2B2A2A" }}
-                        >
-                          Wycena
-                        </Link>
+                        {order.status === "complaint" ? (
+                          <>
+                            <Link
+                              href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=reklamacja`}
+                              className="inline-flex items-center gap-1 rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-700"
+                            >
+                              Reklamacja
+                            </Link>
+                            <Link
+                              href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=wycena`}
+                              className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                              Wycena
+                            </Link>
+                          </>
+                        ) : (
+                          <Link
+                            href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=wycena`}
+                            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                            style={{ backgroundColor: "#2B2A2A" }}
+                          >
+                            Wycena
+                          </Link>
+                        )}
                         <Link
                           href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
                           className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"

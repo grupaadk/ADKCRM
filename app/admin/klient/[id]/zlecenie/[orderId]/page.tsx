@@ -14,6 +14,7 @@ import OrderLineItems from "../../OrderLineItems";
 import Notes from "../../Notes";
 import EventTimeline from "../../EventTimeline";
 import { useStatusLabels } from "@/components/StatusLabelsContext";
+import ComplaintTab from "./ComplaintTab";
 
 type CachedInvoice = {
   _id: Id<"fakturowniaInvoicesCache">;
@@ -58,7 +59,7 @@ const COLOR_FIELDS: Array<{ key: string; label: string }> = [
   { key: "constructionColor", label: "Konstrukcja" },
 ];
 
-type Tab = "zlecenie" | "wycena" | "dokumenty" | "notatki" | "historia";
+type Tab = "zlecenie" | "wycena" | "dokumenty" | "notatki" | "historia" | "reklamacja";
 
 function getProjectFileLinks(projectFiles: string | undefined) {
   if (!projectFiles) return [];
@@ -205,6 +206,7 @@ export default function OrderDetailPage({
     { key: "dokumenty", label: "Dokumenty" },
     { key: "notatki", label: "Notatki" },
     { key: "historia", label: "Historia" },
+    ...(order.status === "complaint" ? [{ key: "reklamacja" as Tab, label: "Reklamacja" }] : []),
   ];
 
   const createdDate = new Date(order._creationTime).toLocaleDateString("pl-PL", {
@@ -391,19 +393,26 @@ export default function OrderDetailPage({
 
         {/* Tabs */}
         <div className="flex border-t border-slate-100">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 px-6 py-3 text-sm font-semibold transition-colors sm:flex-none ${
-                activeTab === tab.key
-                  ? "border-b-2 border-blue-600 text-blue-600"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            const isComplaintTab = tab.key === "reklamacja";
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex-1 px-6 py-3 text-sm font-semibold transition-colors sm:flex-none ${
+                  activeTab === tab.key
+                    ? isComplaintTab
+                      ? "border-b-2 border-orange-500 text-orange-600"
+                      : "border-b-2 border-blue-600 text-blue-600"
+                    : isComplaintTab
+                    ? "text-orange-500 hover:text-orange-600"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -694,6 +703,15 @@ export default function OrderDetailPage({
         <SectionCard title="Historia zdarzeń">
           <EventTimeline events={events} />
         </SectionCard>
+      )}
+
+      {/* Tab: Reklamacja */}
+      {activeTab === "reklamacja" && order.status === "complaint" && (
+        <ComplaintTab
+          orderId={orderIdTyped}
+          clientId={clientId}
+          complaintStartDate={warrantyEvent?._creationTime ?? null}
+        />
       )}
 
       {/* Invoice assignment modal */}
