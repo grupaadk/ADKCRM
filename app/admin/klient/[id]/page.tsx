@@ -353,13 +353,38 @@ export default function ClientDetailPage({
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Link
-                            href={`/admin/klient/${id}/zlecenie/${order._id}?tab=wycena`}
-                            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
-                            style={{ backgroundColor: "#2B2A2A" }}
-                          >
-                            Wycena
-                          </Link>
+                          {isCompleted ? (
+                            <Link
+                              href={`/admin/klient/${id}/zlecenie/${order._id}?tab=dokumenty`}
+                              className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                              style={{ backgroundColor: "#2B2A2A" }}
+                            >
+                              Dokumenty
+                            </Link>
+                          ) : order.status === "complaint" ? (
+                            <>
+                              <Link
+                                href={`/admin/klient/${id}/zlecenie/${order._id}?tab=reklamacja`}
+                                className="inline-flex items-center gap-1 rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-700"
+                              >
+                                Reklamacja
+                              </Link>
+                              <Link
+                                href={`/admin/klient/${id}/zlecenie/${order._id}?tab=wycena`}
+                                className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                              >
+                                Wycena
+                              </Link>
+                            </>
+                          ) : (
+                            <Link
+                              href={`/admin/klient/${id}/zlecenie/${order._id}?tab=wycena`}
+                              className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                              style={{ backgroundColor: "#2B2A2A" }}
+                            >
+                              Wycena
+                            </Link>
+                          )}
                           <Link
                             href={`/admin/klient/${id}/zlecenie/${order._id}`}
                             className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:text-gray-600"
