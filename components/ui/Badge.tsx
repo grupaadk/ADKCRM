@@ -56,7 +56,7 @@ const STATUS_BADGE_MAP: Record<string, { label: string; variant: BadgeProps["var
   production:   { label: "Produkcja",          variant: "violet" },
   installation: { label: "Montaż",             variant: "teal" },
   completed:    { label: "Zakończone",         variant: "success" },
-  warranty:     { label: "Gwarancja",          variant: "cyan" },
+  complaint:    { label: "Reklamacja",          variant: "cyan" },
 }
 
 export function StatusBadge({ status }: { status: string }) {
@@ -76,7 +76,7 @@ export function StatusBadge({ status }: { status: string }) {
           status === "production"   && "bg-violet-500",
           status === "installation" && "bg-teal-500",
           status === "completed"    && "bg-emerald-600",
-          status === "warranty"     && "bg-cyan-500",
+          status === "complaint"    && "bg-cyan-500",
           !STATUS_BADGE_MAP[status] && "bg-gray-500",
         )}
         aria-hidden="true"

@@ -19,7 +19,7 @@ const clientStatusMapValidator = v.object({
   production: v.optional(v.string()),
   installation: v.optional(v.string()),
   completed: v.optional(v.string()),
-  warranty: v.optional(v.string()),
+  complaint: v.optional(v.string()),
 });
 
 type ClientStatus = keyof {
@@ -31,7 +31,7 @@ type ClientStatus = keyof {
   production: true;
   installation: true;
   completed: true;
-  warranty: true;
+  complaint: true;
 };
 
 const TRELLO_API_BASE = "https://api.trello.com/1";

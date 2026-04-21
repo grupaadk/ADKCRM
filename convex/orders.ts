@@ -14,7 +14,7 @@ const orderStatusValidator = v.union(
   v.literal("production"),
   v.literal("installation"),
   v.literal("completed"),
-  v.literal("warranty"),
+  v.literal("complaint"),
 );
 
 export async function nextOrderNumber(ctx: MutationCtx): Promise<string> {

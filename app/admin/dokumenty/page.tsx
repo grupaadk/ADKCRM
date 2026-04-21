@@ -28,7 +28,7 @@ const STATUS_LABELS: Record<string, string> = {
   production: "Produkcja",
   installation: "Montaz",
   completed: "Zakonczone",
-  warranty: "Gwarancja",
+  complaint: "Reklamacja",
 };
 
 type DocumentType =

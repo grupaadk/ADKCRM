@@ -42,8 +42,8 @@ const STATUS_CONFIG: Record<
     text: "text-emerald-800",
     border: "border-emerald-300",
   },
-  warranty: {
-    label: "Gwarancja",
+  complaint: {
+    label: "Reklamacja",
     bg: "bg-cyan-100",
     text: "text-cyan-800",
     border: "border-cyan-300",

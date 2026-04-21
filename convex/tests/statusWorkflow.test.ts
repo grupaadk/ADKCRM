@@ -12,7 +12,7 @@ type ClientStatus =
   | "production"
   | "installation"
   | "completed"
-  | "warranty";
+  | "complaint";
 
 const STATUS_PATH: Record<ClientStatus, ClientStatus[]> = {
   lead: [],
@@ -23,7 +23,7 @@ const STATUS_PATH: Record<ClientStatus, ClientStatus[]> = {
   production: ["inquiry", "measurement", "offer", "contract", "production"],
   installation: ["inquiry", "measurement", "offer", "contract", "production", "installation"],
   completed: ["inquiry", "measurement", "offer", "contract", "production", "installation", "completed"],
-  warranty: ["inquiry", "measurement", "offer", "contract", "production", "installation", "completed", "warranty"],
+  complaint: ["inquiry", "measurement", "offer", "contract", "production", "installation", "completed", "complaint"],
 };
 
 async function createOrderAtStatus(
@@ -157,18 +157,18 @@ describe("US-2.1 -- Status transitions", () => {
   test("14. completed -> warranty is allowed", async () => {
     const t = convexTest(schema);
     const { orderId } = await createOrderAtStatus(t, "completed");
-    await t.mutation(api.orders.changeStatus, { orderId, newStatus: "warranty" });
+    await t.mutation(api.orders.changeStatus, { orderId, newStatus: "complaint" });
     const order = await t.query(api.orders.getById, { orderId });
-    expect(order?.status).toBe("warranty");
+    expect(order?.status).toBe("complaint");
   });
 
   test("15. warranty -> any is NOT allowed (terminal state)", async () => {
     const t = convexTest(schema);
-    const { orderId } = await createOrderAtStatus(t, "warranty");
+    const { orderId } = await createOrderAtStatus(t, "complaint");
 
     const allStatuses = [
       "lead", "inquiry", "measurement", "offer", "contract",
-      "production", "installation", "completed", "warranty",
+      "production", "installation", "completed", "complaint",
     ] as const;
 
     for (const status of allStatuses) {

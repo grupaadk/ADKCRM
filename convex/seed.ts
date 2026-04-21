@@ -180,7 +180,7 @@ export const seedDemoData = mutation({
         phone: "+48 608 901 234",
         city: "Lublin",
         address: "ul. Krakowskie Przedmiescie 30",
-        status: "warranty" as const,
+        status: "complaint" as const,
         services: ["Okna", "Drzwi"],
         windowColor: ["Bialy"],
         doorColor: ["Mahon"],

@@ -1265,7 +1265,7 @@ function TrelloTab() {
         | "production"
         | "installation"
         | "completed"
-        | "warranty",
+        | "complaint",
         string
       >
     >
@@ -1306,7 +1306,7 @@ function TrelloTab() {
         | "production"
         | "installation"
         | "completed"
-        | "warranty",
+        | "complaint",
     ) => statusLists[status] ?? config?.statusListMap?.[status] ?? "",
     [statusLists, config?.statusListMap],
   );
@@ -1371,7 +1371,7 @@ function TrelloTab() {
           production: getMappedList("production") || undefined,
           installation: getMappedList("installation") || undefined,
           completed: getMappedList("completed") || undefined,
-          warranty: getMappedList("warranty") || undefined,
+          complaint: getMappedList("complaint") || undefined,
         },
         syncEnabled: true,
         connectedBy: "admin",
@@ -1774,7 +1774,7 @@ function TrelloTab() {
               </div>
             )}
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {(["lead", "inquiry", "measurement", "offer", "contract", "production", "installation", "completed", "warranty"] as const).map((statusKey) => (
+              {(["lead", "inquiry", "measurement", "offer", "contract", "production", "installation", "completed", "complaint"] as const).map((statusKey) => (
                 <div key={statusKey}>
                   <label className="mb-1 block text-xs font-medium text-slate-500">
                     {statusLabels[statusKey] ?? statusKey}
@@ -2949,7 +2949,7 @@ function CennikTab() {
 
 const CRM_STATUS_KEYS = [
   "lead", "inquiry", "measurement", "offer", "contract",
-  "production", "installation", "completed", "warranty",
+  "production", "installation", "completed", "complaint",
 ] as const;
 
 function CrmTab() {

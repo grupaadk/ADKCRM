@@ -19,7 +19,7 @@ export const saveStatusLabels = mutation({
       production: v.optional(v.string()),
       installation: v.optional(v.string()),
       completed: v.optional(v.string()),
-      warranty: v.optional(v.string()),
+      complaint: v.optional(v.string()),
     }),
   },
   handler: async (ctx, args) => {

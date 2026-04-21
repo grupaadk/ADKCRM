@@ -13,7 +13,7 @@ export const DEFAULT_STATUS_LABELS: Record<string, string> = {
   production: "Zamówienie",
   installation: "Realizowane",
   completed: "Zakończone",
-  warranty: "Reklamacja",
+  complaint: "Reklamacja",
 };
 
 const StatusLabelsContext = createContext<Record<string, string>>(DEFAULT_STATUS_LABELS);

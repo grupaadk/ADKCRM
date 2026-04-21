@@ -11,7 +11,7 @@ export const CLIENT_STATUSES = [
   "production",
   "installation",
   "completed",
-  "warranty",
+  "complaint",
 ] as const;
 
 // Dozwolone przejścia statusów wg PRD US-2.1
@@ -22,9 +22,9 @@ export const STATUS_TRANSITIONS: Record<string, string[]> = {
   offer: ["contract", "lead"],
   contract: ["production"],
   production: ["installation"],
-  installation: ["completed", "warranty"],
-  completed: ["warranty"],
-  warranty: [],
+  installation: ["completed", "complaint"],
+  completed: ["complaint"],
+  complaint: [],
 };
 
 // Typy dokumentów wg PRD sekcja 3.1 + 4.1
@@ -59,7 +59,7 @@ const clientStatus = v.union(
   v.literal("production"),
   v.literal("installation"),
   v.literal("completed"),
-  v.literal("warranty"),
+  v.literal("complaint"),
 );
 
 const documentEntry = v.object({
@@ -419,7 +419,7 @@ export default defineSchema({
         production: v.optional(v.string()),
         installation: v.optional(v.string()),
         completed: v.optional(v.string()),
-        warranty: v.optional(v.string()),
+        complaint: v.optional(v.string()),
       }),
     ),
   }),
@@ -462,8 +462,7 @@ export default defineSchema({
         production: v.optional(v.string()),
         installation: v.optional(v.string()),
         completed: v.optional(v.string()),
-        warranty: v.optional(v.string()),
-        reklamacja: v.optional(v.string()),
+        complaint: v.optional(v.string()),
       }),
     ),
     syncEnabled: v.boolean(),

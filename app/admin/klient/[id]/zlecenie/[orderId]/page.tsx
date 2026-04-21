@@ -17,7 +17,7 @@ import { useStatusLabels } from "@/components/StatusLabelsContext";
 
 const STATUS_ORDER = [
   "lead", "inquiry", "measurement", "offer", "contract",
-  "production", "installation", "completed", "warranty",
+  "production", "installation", "completed", "complaint",
 ] as const;
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -28,13 +28,13 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   contract: ["production"],
   production: ["installation"],
   installation: ["completed"],
-  completed: ["warranty"],
+  completed: ["complaint"],
   warranty: [],
 };
 
 const ORDER_VISIBLE_STATUSES = new Set([
   "measurement", "offer", "contract", "production",
-  "installation", "completed", "warranty",
+  "installation", "completed", "complaint",
 ]);
 
 const COLOR_FIELDS: Array<{ key: string; label: string }> = [
@@ -154,7 +154,7 @@ export default function OrderDetailPage({
     try {
       await changeStatus({
         orderId: orderIdTyped,
-        newStatus: newStatus as "lead" | "inquiry" | "measurement" | "offer" | "contract" | "production" | "installation" | "completed" | "warranty",
+        newStatus: newStatus as "lead" | "inquiry" | "measurement" | "offer" | "contract" | "production" | "installation" | "completed" | "complaint",
       });
     } catch (error) {
       console.error("Status change failed:", error);
@@ -215,10 +215,10 @@ export default function OrderDetailPage({
       })
     : null;
 
-  const warrantyStatusIndex = STATUS_ORDER.indexOf("warranty");
+  const warrantyStatusIndex = STATUS_ORDER.indexOf("complaint");
   const hasReachedWarranty = currentStatusIndex >= warrantyStatusIndex;
   const warrantyEvent = (events ?? []).find(
-    (e) => e.type === "status_changed" && e.details?.to === "warranty"
+    (e) => e.type === "status_changed" && e.details?.to === "complaint"
   );
   const warrantyDate = warrantyEvent
     ? new Date(warrantyEvent._creationTime).toLocaleString("pl-PL", {

@@ -115,7 +115,7 @@ export default function DashboardContent() {
     0,
   );
   const closedCount =
-    (stats.byStatus.completed ?? 0) + (stats.byStatus.warranty ?? 0);
+    (stats.byStatus.completed ?? 0) + (stats.byStatus.complaint ?? 0);
 
   return (
     <div className="space-y-8">
