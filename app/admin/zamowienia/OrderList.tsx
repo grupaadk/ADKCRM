@@ -304,7 +304,15 @@ export default function OrderList() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {order.status === "complaint" ? (
+                        {order.status === "completed" ? (
+                          <Link
+                            href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=dokumenty`}
+                            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                            style={{ backgroundColor: "#2B2A2A" }}
+                          >
+                            Dokumenty
+                          </Link>
+                        ) : order.status === "complaint" ? (
                           <>
                             <Link
                               href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=reklamacja`}
