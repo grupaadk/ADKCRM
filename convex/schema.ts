@@ -10,8 +10,8 @@ export const CLIENT_STATUSES = [
   "contract",
   "production",
   "installation",
-  "completed",
   "complaint",
+  "completed",
 ] as const;
 
 // Dozwolone przejścia statusów wg PRD US-2.1

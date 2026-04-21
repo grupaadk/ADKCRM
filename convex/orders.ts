@@ -296,11 +296,13 @@ export const changeStatus = mutation({
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
 
-    const allowed = STATUS_TRANSITIONS[order.status];
-    if (!allowed?.includes(args.newStatus)) {
-      throw new Error(
-        `Niedozwolone przejście: ${order.status} → ${args.newStatus}`,
-      );
+    if (args.triggeredBy !== "trello") {
+      const allowed = STATUS_TRANSITIONS[order.status];
+      if (!allowed?.includes(args.newStatus)) {
+        throw new Error(
+          `Niedozwolone przejście: ${order.status} → ${args.newStatus}`,
+        );
+      }
     }
 
     await ctx.db.patch(args.orderId, { status: args.newStatus });

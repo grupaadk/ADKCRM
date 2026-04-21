@@ -11,8 +11,8 @@ const TRELLO_STATUS_ENTRIES = [
   "contract",
   "production",
   "installation",
-  "completed",
   "complaint",
+  "completed",
 ] as const;
 
 type ClientStatus = (typeof TRELLO_STATUS_ENTRIES)[number];

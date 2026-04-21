@@ -30,7 +30,7 @@ type CachedInvoice = {
 
 const STATUS_ORDER = [
   "lead", "inquiry", "measurement", "offer", "contract",
-  "production", "installation", "completed", "complaint",
+  "production", "installation", "complaint", "completed",
 ] as const;
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
