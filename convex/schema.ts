@@ -66,6 +66,8 @@ const documentEntry = v.object({
   enabled: v.boolean(),
   url: v.optional(v.string()),
   generatedAt: v.optional(v.number()),
+  error: v.optional(v.string()),
+  errorAt: v.optional(v.number()),
 });
 
 const warrantyCard = v.object({

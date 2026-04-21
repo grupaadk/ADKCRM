@@ -52,6 +52,8 @@ interface DocumentEntry {
   enabled: boolean;
   url?: string;
   generatedAt?: number;
+  error?: string;
+  errorAt?: number;
 }
 
 interface DocumentCheckboxesProps {
@@ -128,6 +130,7 @@ export default function DocumentCheckboxes({
                 !!template.googleDriveFileId;
               const isExpanded = expandedTemplate === key;
               const isGenerated = !!doc?.url;
+              const hasError = !isGenerated && !!doc?.error;
 
               return (
                 <div
@@ -135,7 +138,9 @@ export default function DocumentCheckboxes({
                   className={`flex flex-col rounded-xl border transition-colors ${
                     isGenerated
                       ? "border-emerald-200 bg-emerald-50"
-                      : "border-slate-200 bg-slate-50"
+                      : hasError
+                        ? "border-red-200 bg-red-50"
+                        : "border-slate-200 bg-slate-50"
                   }`}
                 >
                   {/* Card header */}
@@ -145,7 +150,9 @@ export default function DocumentCheckboxes({
                         className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
                           isGenerated
                             ? "bg-emerald-500 text-white"
-                            : "border-2 border-slate-300 bg-white"
+                            : hasError
+                              ? "bg-red-500 text-white"
+                              : "border-2 border-slate-300 bg-white"
                         }`}
                       >
                         {isGenerated && (
@@ -163,6 +170,21 @@ export default function DocumentCheckboxes({
                             />
                           </svg>
                         )}
+                        {hasError && (
+                          <svg
+                            className="h-3 w-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                            />
+                          </svg>
+                        )}
                       </div>
                       <div>
                         <div className="text-sm font-semibold text-slate-900">
@@ -172,11 +194,13 @@ export default function DocumentCheckboxes({
                           className={`mt-0.5 text-xs ${
                             isGenerated
                               ? "text-emerald-700"
-                              : isGenerating
-                                ? "text-blue-600"
-                                : !hasTemplate
-                                  ? "text-slate-400"
-                                  : "text-slate-500"
+                              : hasError
+                                ? "text-red-600"
+                                : isGenerating
+                                  ? "text-blue-600"
+                                  : !hasTemplate
+                                    ? "text-slate-400"
+                                    : "text-slate-500"
                           }`}
                         >
                           {isGenerating
@@ -185,9 +209,11 @@ export default function DocumentCheckboxes({
                               ? new Date(doc.generatedAt).toLocaleDateString(
                                   "pl-PL",
                                 )
-                              : !hasTemplate
-                                ? "Brak szablonu"
-                                : "Nie wygenerowano"}
+                              : hasError
+                                ? "Błąd generowania"
+                                : !hasTemplate
+                                  ? "Brak szablonu"
+                                  : "Nie wygenerowano"}
                         </div>
                       </div>
                     </div>
@@ -220,6 +246,15 @@ export default function DocumentCheckboxes({
                       </button>
                     )}
                   </div>
+
+                  {/* Error details */}
+                  {hasError && doc?.error && (
+                    <div className="mx-4 mb-1 rounded-lg border border-red-200 bg-white/60 px-3 py-2">
+                      <p className="break-all text-[11px] leading-relaxed text-red-700">
+                        {doc.error}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Card actions */}
                   <div className="mt-auto border-t border-black/5 px-4 py-3">
@@ -270,7 +305,11 @@ export default function DocumentCheckboxes({
                       <button
                         onClick={() => handleGenerate(key)}
                         disabled={isGenerating}
-                        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                          hasError
+                            ? "bg-red-600 hover:bg-red-700"
+                            : "bg-slate-900 hover:bg-slate-800"
+                        }`}
                       >
                         {isGenerating ? (
                           <>
@@ -294,6 +333,23 @@ export default function DocumentCheckboxes({
                               />
                             </svg>
                             Generowanie...
+                          </>
+                        ) : hasError ? (
+                          <>
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
+                              />
+                            </svg>
+                            Spróbuj ponownie
                           </>
                         ) : (
                           <>

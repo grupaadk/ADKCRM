@@ -31,7 +31,7 @@ export const initiateOAuth = httpAction(async (_ctx, request) => {
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: "https://www.googleapis.com/auth/drive email profile",
+    scope: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents email profile",
     access_type: "offline",
     prompt: "consent",
     state,

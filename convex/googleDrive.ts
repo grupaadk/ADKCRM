@@ -491,16 +491,16 @@ function resolveFieldValue(
 
 /**
  * Perform find & replace on a Google Docs document using batchUpdate.
- * Returns true on success, false on failure (logs error).
+ * Throws on failure so the caller knows the merge did not complete.
  */
 async function performMailMerge(
+  ctx: ActionCtx,
   documentId: string,
-  accessToken: string,
   client: Record<string, unknown>,
   fieldMappings: Array<{ placeholder: string; field: string }>,
-): Promise<boolean> {
+): Promise<void> {
   if (fieldMappings.length === 0) {
-    return true;
+    return;
   }
 
   const requests = fieldMappings.map((mapping) => ({
@@ -513,7 +513,7 @@ async function performMailMerge(
     },
   }));
 
-  try {
+  const execute = async (accessToken: string) => {
     const response = await fetch(
       `${DOCS_API_BASE}/documents/${documentId}:batchUpdate`,
       {
@@ -528,16 +528,25 @@ async function performMailMerge(
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(
-        `Mail merge failed for document ${documentId}: ${response.status} ${errorBody}`,
+      throw new Error(
+        `Google Docs API error ${response.status}: ${errorBody}`,
       );
-      return false;
     }
+  };
 
-    return true;
+  let connection = await getAuthorizedConnection(ctx);
+  try {
+    await execute(connection.accessToken);
   } catch (error) {
-    console.error(`Mail merge error for document ${documentId}:`, error);
-    return false;
+    if (
+      error instanceof Error &&
+      error.message.includes("Google Docs API error 401")
+    ) {
+      connection = await getAuthorizedConnection(ctx, { forceRefresh: true });
+      await execute(connection.accessToken);
+    } else {
+      throw error;
+    }
   }
 }
 
@@ -965,96 +974,102 @@ export const copyTemplate = action({
     templateKey: v.string(),
   },
   handler: async (ctx, args): Promise<{ url: string; fileId?: string }> => {
-    const order = await ctx.runQuery(api.orders.getById, {
-      orderId: args.orderId,
-    });
-    if (!order) {
-      throw new Error("Order not found");
-    }
-    if (!order.folderId) {
-      throw new Error("Order folder not created yet");
-    }
+    try {
+      const order = await ctx.runQuery(api.orders.getById, {
+        orderId: args.orderId,
+      });
+      if (!order) {
+        throw new Error("Order not found");
+      }
+      if (!order.folderId) {
+        throw new Error("Order folder not created yet");
+      }
 
-    // Check idempotency: skip if document URL already exists for this template
-    const docEntry =
-      order.documents[args.templateKey as keyof typeof order.documents];
-    if (docEntry?.url) {
-      return { url: docEntry.url };
-    }
+      // Check idempotency: skip if document URL already exists for this template
+      const docEntry =
+        order.documents[args.templateKey as keyof typeof order.documents];
+      if (docEntry?.url) {
+        return { url: docEntry.url };
+      }
 
-    // Read client data for name/city and mail merge
-    const client = await ctx.runQuery(api.clients.getById, {
-      clientId: order.clientId,
-    });
-    if (!client) {
-      throw new Error("Client not found");
-    }
+      // Read client data for name/city and mail merge
+      const client = await ctx.runQuery(api.clients.getById, {
+        clientId: order.clientId,
+      });
+      if (!client) {
+        throw new Error("Client not found");
+      }
 
-    const connection = await getAuthorizedConnection(ctx);
+      const connection = await getAuthorizedConnection(ctx);
 
-    // Get template
-    const template = await ctx.runQuery(api.documentTemplates.getByKey, {
-      key: args.templateKey,
-    });
-    if (!template) {
-      throw new Error(`Template not found: ${args.templateKey}`);
-    }
-    if (!template.googleDriveFileId) {
-      throw new Error(`Template has no Google Drive file: ${args.templateKey}`);
-    }
+      // Get template
+      const template = await ctx.runQuery(api.documentTemplates.getByKey, {
+        key: args.templateKey,
+      });
+      if (!template) {
+        throw new Error(`Template not found: ${args.templateKey}`);
+      }
+      if (!template.googleDriveFileId) {
+        throw new Error(`Template has no Google Drive file: ${args.templateKey}`);
+      }
 
-    // Build file name from pattern
-    let fileName = template.fileNamePattern;
-    fileName = fileName.replace("{{firstName}}", client.firstName);
-    fileName = fileName.replace("{{lastName}}", client.lastName);
-    fileName = fileName.replace("{{city}}", client.city ?? "");
-    fileName = fileName.replace(
-      "{{date}}",
-      new Date().toISOString().slice(0, 10),
-    );
-
-    // Copy file via Drive API
-    const copyData = await driveApiFetchWithRetry(
-      ctx,
-      `/files/${template.googleDriveFileId}/copy?supportsAllDrives=true`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          name: fileName,
-          parents: [order.folderId],
-        }),
-      },
-    );
-
-    if (!copyData.id) {
-      throw new Error("Google Drive copy returned no file id");
-    }
-
-    const fileUrl = `https://docs.google.com/document/d/${copyData.id}/edit`;
-
-    // Perform mail merge — replace placeholders in the copied document
-    if (template.fieldMappings && template.fieldMappings.length > 0) {
-      const mergeSuccess = await performMailMerge(
-        copyData.id,
-        connection.accessToken,
-        { ...client, ...order },
-        template.fieldMappings,
+      // Build file name from pattern
+      let fileName = template.fileNamePattern;
+      fileName = fileName.replace("{{firstName}}", client.firstName);
+      fileName = fileName.replace("{{lastName}}", client.lastName);
+      fileName = fileName.replace("{{city}}", client.city ?? "");
+      fileName = fileName.replace(
+        "{{date}}",
+        new Date().toISOString().slice(0, 10),
       );
-      if (!mergeSuccess) {
-        console.error(
-          `Mail merge failed for template ${args.templateKey}, document ${copyData.id}. File was copied but placeholders were not replaced.`,
+
+      // Copy file via Drive API
+      const copyData = await driveApiFetchWithRetry(
+        ctx,
+        `/files/${template.googleDriveFileId}/copy?supportsAllDrives=true`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            name: fileName,
+            parents: [order.folderId],
+          }),
+        },
+      );
+
+      if (!copyData.id) {
+        throw new Error("Google Drive copy returned no file id");
+      }
+
+      const fileUrl = `https://docs.google.com/document/d/${copyData.id}/edit`;
+
+      // Perform mail merge — replace placeholders in the copied document
+      if (template.fieldMappings && template.fieldMappings.length > 0) {
+        await performMailMerge(
+          ctx,
+          copyData.id,
+          { ...client, ...order },
+          template.fieldMappings,
         );
       }
+
+      // Save URL to order's documents
+      await ctx.runMutation(api.orders.updateDocumentUrl, {
+        orderId: args.orderId,
+        documentType: args.templateKey,
+        url: fileUrl,
+      });
+
+      return { url: fileUrl, fileId: copyData.id };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await ctx.runMutation(internal.orders.setDocumentError, {
+        orderId: args.orderId,
+        documentType: args.templateKey,
+        error: errorMessage,
+        errorAt: Date.now(),
+      });
+      throw error;
     }
-
-    // Save URL to order's documents
-    await ctx.runMutation(api.orders.updateDocumentUrl, {
-      orderId: args.orderId,
-      documentType: args.templateKey,
-      url: fileUrl,
-    });
-
-    return { url: fileUrl, fileId: copyData.id };
   },
 });
 
@@ -1179,8 +1194,6 @@ export const applyMailMerge = action({
       throw new Error("Client not found");
     }
 
-    const connection = await getAuthorizedConnection(ctx);
-
     const template = await ctx.runQuery(api.documentTemplates.getByKey, {
       key: args.templateKey,
     });
@@ -1192,17 +1205,17 @@ export const applyMailMerge = action({
       return { success: true };
     }
 
-    const success = await performMailMerge(
-      args.documentFileId,
-      connection.accessToken,
-      client,
-      template.fieldMappings,
-    );
-
-    if (!success) {
+    try {
+      await performMailMerge(
+        ctx,
+        args.documentFileId,
+        client,
+        template.fieldMappings,
+      );
+    } catch (error) {
       return {
         success: false,
-        error: `Mail merge failed for document ${args.documentFileId}`,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
 

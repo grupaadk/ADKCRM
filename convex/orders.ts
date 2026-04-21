@@ -456,6 +456,25 @@ export const updateDocumentUrl = mutation({
   },
 });
 
+export const setDocumentError = internalMutation({
+  args: {
+    orderId: v.id("orders"),
+    documentType: v.string(),
+    error: v.string(),
+    errorAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const order = await ctx.db.get(args.orderId);
+    if (!order) return;
+    const documents = { ...order.documents };
+    const key = args.documentType as keyof typeof documents;
+    if (documents[key]) {
+      documents[key] = { ...documents[key], error: args.error, errorAt: args.errorAt };
+    }
+    await ctx.db.patch(args.orderId, { documents });
+  },
+});
+
 export const updateDriveProjectFiles = mutation({
   args: {
     orderId: v.id("orders"),
