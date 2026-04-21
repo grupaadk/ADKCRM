@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/Table";
 import { StatusBadge } from "@/components/ui/Badge";
+import DocumentProgressTiles from "./DocumentProgressTiles";
 
 type Tab = "zlecenia" | "notatki" | "mail";
 
@@ -287,6 +288,7 @@ export default function ClientDetailPage({
                 <TableRow>
                   <TableHeaderCell>Zlecenie</TableHeaderCell>
                   <TableHeaderCell>Status</TableHeaderCell>
+                  <TableHeaderCell>Dokumenty</TableHeaderCell>
                   <TableHeaderCell>Usługi</TableHeaderCell>
                   <TableHeaderCell>Data utworzenia</TableHeaderCell>
                   <TableHeaderCell />
@@ -333,6 +335,9 @@ export default function ClientDetailPage({
                             </span>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <DocumentProgressTiles documents={order.documents} />
                       </TableCell>
                       <TableCell>
                         {order.services && order.services.length > 0
