@@ -477,115 +477,6 @@ export default function OrderLineItems({
         </div>
       )}
 
-      {/* Fakturownia */}
-      {items.length > 0 && fkConfig === null && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Skonfiguruj integrację Fakturowni (token API i subdomena) w{" "}
-          <span className="font-semibold">Ustawienia → Fakturownia</span>, aby wysłać wycenę jako zamówienie.
-        </div>
-      )}
-      {items.length > 0 && fkConfig && !fkConfig.hasApiToken && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Uzupełnij token API Fakturowni w ustawieniach lub ustaw zmienną{" "}
-          <code className="rounded bg-white px-1">FAKTUROWNIA_API_TOKEN</code> w Convex.
-        </div>
-      )}
-      {items.length > 0 && fkConfig?.hasApiToken && fkConfig.subdomain?.trim() && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
-            Fakturownia
-          </h3>
-          {fkMessage && (
-            <p className="mb-3 text-sm text-emerald-700">{fkMessage}</p>
-          )}
-          {fakturownia?.estimateId ? (
-            <div className="mb-4 space-y-2 text-sm text-slate-700">
-              <p>
-                <span className="font-semibold text-slate-900">Zamówienie w Fakturowni:</span>{" "}
-                {fakturownia.estimateNumber ?? `ID ${fakturownia.estimateId}`}
-                {fkBaseUrl && (
-                  <>
-                    {" "}
-                    <a
-                      href={`${fkBaseUrl}/invoices/${fakturownia.estimateId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      Otwórz
-                    </a>
-                  </>
-                )}
-              </p>
-              {fakturownia.estimateSyncedAt && (
-                <p className="text-xs text-slate-500">
-                  Ostatnio wysłano:{" "}
-                  {new Date(fakturownia.estimateSyncedAt).toLocaleString("pl-PL", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-              )}
-              {fakturownia.invoices.length > 0 && (
-                <ul className="mt-2 space-y-2 border-t border-slate-100 pt-2">
-                  {fakturownia.invoices.map((inv) => (
-                    <li
-                      key={`${inv.kind}-${inv.remoteId}-${inv.createdAt}`}
-                      className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
-                    >
-                      <span>
-                        {inv.kind === "advance" ? "Faktura zaliczkowa" : "Faktura końcowa"}
-                        {inv.number ? ` (${inv.number})` : ""}
-                        {inv.grossAmount != null ? ` — ${fmt(inv.grossAmount)} zł brutto` : ""}
-                      </span>
-                      {fkBaseUrl && (
-                        <a
-                          href={`${fkBaseUrl}/invoices/${inv.remoteId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-medium text-blue-600 hover:underline"
-                        >
-                          Podgląd
-                        </a>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ) : (
-            <p className="mb-4 text-sm text-slate-600">
-              Wyślij pozycje wyceny jako zamówienie do Fakturowni. Dane klienta zostaną pobrane z CRM.
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={!!fkBusy}
-              onClick={() =>
-                runFk(
-                  "estimate",
-                  () => pushEstimate({ orderId }),
-                  fakturownia?.estimateId
-                    ? "Zamówienie zaktualizowane w Fakturowni."
-                    : "Zamówienie wysłane do Fakturowni.",
-                )
-              }
-              className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-            >
-              {fkBusy === "estimate"
-                ? "Wysyłanie…"
-                : fakturownia?.estimateId
-                  ? "Wyślij ponownie do Fakturowni"
-                  : "Wyślij zamówienie do Fakturowni"}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Add form */}
       {showForm ? (
         <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -722,6 +613,115 @@ export default function OrderLineItems({
           <span className="text-lg leading-none">+</span>
           Dodaj pozycję
         </button>
+      )}
+
+      {/* Fakturownia */}
+      {items.length > 0 && fkConfig?.hasApiToken && fkConfig.subdomain?.trim() && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+            Fakturownia
+          </h3>
+          {fkMessage && (
+            <p className="mb-3 text-sm text-emerald-700">{fkMessage}</p>
+          )}
+          {fakturownia?.estimateId ? (
+            <div className="mb-4 space-y-2 text-sm text-slate-700">
+              <p>
+                <span className="font-semibold text-slate-900">Zamówienie w Fakturowni:</span>{" "}
+                {fakturownia.estimateNumber ?? `ID ${fakturownia.estimateId}`}
+                {fkBaseUrl && (
+                  <>
+                    {" "}
+                    <a
+                      href={`${fkBaseUrl}/invoices/${fakturownia.estimateId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Otwórz
+                    </a>
+                  </>
+                )}
+              </p>
+              {fakturownia.estimateSyncedAt && (
+                <p className="text-xs text-slate-500">
+                  Ostatnio wysłano:{" "}
+                  {new Date(fakturownia.estimateSyncedAt).toLocaleString("pl-PL", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              )}
+              {fakturownia.invoices.length > 0 && (
+                <ul className="mt-2 space-y-2 border-t border-slate-100 pt-2">
+                  {fakturownia.invoices.map((inv) => (
+                    <li
+                      key={`${inv.kind}-${inv.remoteId}-${inv.createdAt}`}
+                      className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
+                    >
+                      <span>
+                        {inv.kind === "advance" ? "Faktura zaliczkowa" : "Faktura końcowa"}
+                        {inv.number ? ` (${inv.number})` : ""}
+                        {inv.grossAmount != null ? ` — ${fmt(inv.grossAmount)} zł brutto` : ""}
+                      </span>
+                      {fkBaseUrl && (
+                        <a
+                          href={`${fkBaseUrl}/invoices/${inv.remoteId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-medium text-blue-600 hover:underline"
+                        >
+                          Podgląd
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <p className="mb-4 text-sm text-slate-600">
+              Wyślij pozycje wyceny jako zamówienie do Fakturowni. Dane klienta zostaną pobrane z CRM.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!!fkBusy}
+              onClick={() =>
+                runFk(
+                  "estimate",
+                  () => pushEstimate({ orderId }),
+                  fakturownia?.estimateId
+                    ? "Zamówienie zaktualizowane w Fakturowni."
+                    : "Zamówienie wysłane do Fakturowni.",
+                )
+              }
+              className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {fkBusy === "estimate"
+                ? "Wysyłanie…"
+                : fakturownia?.estimateId
+                  ? "Wyślij ponownie do Fakturowni"
+                  : "Wyślij zamówienie do Fakturowni"}
+            </button>
+          </div>
+        </div>
+      )}
+      {items.length > 0 && fkConfig === null && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Skonfiguruj integrację Fakturowni (token API i subdomena) w{" "}
+          <span className="font-semibold">Ustawienia → Fakturownia</span>, aby wysłać wycenę jako zamówienie.
+        </div>
+      )}
+      {items.length > 0 && fkConfig && !fkConfig.hasApiToken && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Uzupełnij token API Fakturowni w ustawieniach lub ustaw zmienną{" "}
+          <code className="rounded bg-white px-1">FAKTUROWNIA_API_TOKEN</code> w Convex.
+        </div>
       )}
     </div>
   );
