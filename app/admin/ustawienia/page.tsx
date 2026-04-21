@@ -2255,8 +2255,7 @@ function SzablonyTab() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-4">
+      <div className="space-y-4">
           {templates.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
               <p className="text-base font-medium text-slate-700">
@@ -2356,50 +2355,6 @@ function SzablonyTab() {
               </div>
             ))
           )}
-        </div>
-
-        <aside className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">
-            <h3 className="text-base font-semibold text-slate-900">
-              Stan integracji szablonow
-            </h3>
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-slate-500">Google Drive</p>
-                <p className="mt-1 font-medium text-slate-900">
-                  {driveConnection?.connectionStatus === "connected"
-                    ? "Polaczony"
-                    : "Niegotowy"}
-                </p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-slate-500">Folder szablonow</p>
-                <p className="mt-1 break-all font-mono text-xs text-slate-700">
-                  {driveConnection?.templatesFolderId ?? "Brak konfiguracji"}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">
-            <h3 className="text-base font-semibold text-slate-900">
-              Dobre praktyki
-            </h3>
-            <ul className="mt-4 space-y-3 text-sm text-slate-600">
-              <li>
-                Uzywaj stabilnych placeholderow, np.{" "}
-                <code>{"{{firstName}}"}</code>, <code>{"{{city}}"}</code>.
-              </li>
-              <li>
-                Trzymaj jeden typ dokumentu w jednym szablonie Google Docs.
-              </li>
-              <li>
-                Najpierw wybierz plik z Drive, potem ustaw mapper i preview
-                nazwy.
-              </li>
-            </ul>
-          </div>
-        </aside>
       </div>
 
       {showModal && (
