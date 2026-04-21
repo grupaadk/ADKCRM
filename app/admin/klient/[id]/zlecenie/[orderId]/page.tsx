@@ -126,6 +126,7 @@ export default function OrderDetailPage({
   const assignedInvoices = useQuery(api.fakturownia.listCachedInvoicesByOrder, { orderId: orderIdTyped });
   const allInvoices = useQuery(api.fakturownia.listCachedInvoices) as CachedInvoice[] | undefined;
   const fakturowniaConfig = useQuery(api.fakturownia.getConfig);
+  const existingComplaint = useQuery(api.complaints.getByOrderId, { orderId: orderIdTyped });
   const changeStatus = useMutation(api.orders.changeStatus);
   const assignInvoice = useMutation(api.fakturownia.assignInvoiceToOrder);
   const unassignInvoice = useMutation(api.fakturownia.unassignInvoiceFromOrder);
@@ -205,7 +206,7 @@ export default function OrderDetailPage({
     { key: "wycena", label: "Wycena" },
     { key: "dokumenty", label: "Dokumenty" },
     { key: "notatki", label: "Notatki" },
-    ...(order.status === "complaint" ? [{ key: "reklamacja" as Tab, label: "Reklamacja" }] : []),
+    ...(order.status === "complaint" || existingComplaint ? [{ key: "reklamacja" as Tab, label: "Reklamacja" }] : []),
   ];
 
   const createdDate = new Date(order._creationTime).toLocaleDateString("pl-PL", {
@@ -698,7 +699,7 @@ export default function OrderDetailPage({
       )}
 
       {/* Tab: Reklamacja */}
-      {activeTab === "reklamacja" && order.status === "complaint" && (
+      {activeTab === "reklamacja" && (order.status === "complaint" || existingComplaint) && (
         <ComplaintTab
           orderId={orderIdTyped}
           clientId={clientId}
