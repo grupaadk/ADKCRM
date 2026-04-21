@@ -23,6 +23,7 @@ const CLIENT_FIELDS = [
   { value: "comment", label: "Komentarz" },
   { value: "name", label: "Nr zlecenia" },
   { value: "estimateTotal", label: "Kwota wyceny (brutto)" },
+  { value: "estimateNetTotal", label: "Kwota wyceny (netto)" },
   { value: "estimate30pct", label: "30% wyceny (brutto)" },
   { value: "estimate70pct", label: "70% wyceny (brutto)" },
   { value: "__today", label: "Dzisiejsza data" },
@@ -52,6 +53,7 @@ const SAMPLE_DATA: Record<string, string> = {
   comment: "Prosze o szybki kontakt",
   name: "3/04/2026",
   estimateTotal: "10 000,00 zł",
+  estimateNetTotal: "8 130,08 zł",
   estimate30pct: "3 000,00 zł",
   estimate70pct: "7 000,00 zł",
   __today: new Date().toLocaleDateString("pl-PL", {
