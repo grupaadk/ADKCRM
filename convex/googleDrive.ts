@@ -866,6 +866,7 @@ export const uploadUserDocument = action({
     ),
     storageId: v.id("_storage"),
     fileName: v.string(),
+    signatureStatus: v.union(v.literal("signed"), v.literal("not_applicable")),
   },
   handler: async (ctx, args): Promise<string> => {
     const identity = await ctx.auth.getUserIdentity();
@@ -926,6 +927,7 @@ export const uploadUserDocument = action({
       documentType: args.documentType,
       driveFileUrl,
       performedBy,
+      signatureStatus: args.signatureStatus,
     });
 
     await ctx.storage.delete(args.storageId);

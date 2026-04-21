@@ -669,6 +669,7 @@ export const attachUploadedDocument = internalMutation({
     documentType: documentTypeValidator,
     driveFileUrl: v.string(),
     performedBy: v.string(),
+    signatureStatus: v.union(v.literal("signed"), v.literal("not_applicable")),
   },
   handler: async (ctx, args) => {
     const order = await ctx.db.get(args.orderId);
@@ -679,6 +680,7 @@ export const attachUploadedDocument = internalMutation({
       enabled: true,
       url: args.driveFileUrl,
       generatedAt: Date.now(),
+      signatureStatus: args.signatureStatus,
     };
 
     await ctx.db.patch(args.orderId, { documents });
@@ -687,7 +689,7 @@ export const attachUploadedDocument = internalMutation({
       clientId: order.clientId,
       orderId: args.orderId,
       type: "document_uploaded",
-      details: { documentType: args.documentType, driveUrl: args.driveFileUrl },
+      details: { documentType: args.documentType, driveUrl: args.driveFileUrl, signatureStatus: args.signatureStatus },
       performedBy: args.performedBy,
     });
   },

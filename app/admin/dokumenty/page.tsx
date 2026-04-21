@@ -49,6 +49,7 @@ export default function DodajDokumentPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<Id<"orders"> | null>(null);
   const [documentType, setDocumentType] = useState<DocumentType>("pomiar");
   const [file, setFile] = useState<File | null>(null);
+  const [signatureStatus, setSignatureStatus] = useState<"signed" | "not_applicable" | null>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ ok: true; url: string } | { ok: false; error: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -89,7 +90,7 @@ export default function DodajDokumentPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedClientId || !selectedOrderId || !file) return;
+    if (!selectedClientId || !selectedOrderId || !file || !signatureStatus) return;
 
     setUploading(true);
     setResult(null);
@@ -114,10 +115,12 @@ export default function DodajDokumentPage() {
         documentType,
         storageId,
         fileName: file.name,
+        signatureStatus: signatureStatus!,
       });
 
       setResult({ ok: true, url: driveUrl });
       setFile(null);
+      setSignatureStatus(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
       setResult({ ok: false, error: err instanceof Error ? err.message : "Nieznany błąd" });
@@ -126,7 +129,7 @@ export default function DodajDokumentPage() {
     }
   }
 
-  const canSubmit = !!selectedClientId && !!selectedOrderId && !!file && !uploading;
+  const canSubmit = !!selectedClientId && !!selectedOrderId && !!file && !!signatureStatus && !uploading;
 
   return (
     <div className="mx-auto max-w-xl px-4 py-10">
@@ -242,6 +245,71 @@ export default function DodajDokumentPage() {
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Signature status */}
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700">
+            Status podpisu <span className="text-red-500">*</span>
+          </label>
+          <div className="flex gap-3">
+            <label
+              className={`flex flex-1 cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-colors ${
+                signatureStatus === "signed"
+                  ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                  : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+              }`}
+            >
+              <input
+                type="radio"
+                name="signatureStatus"
+                value="signed"
+                checked={signatureStatus === "signed"}
+                onChange={() => setSignatureStatus("signed")}
+                className="sr-only"
+              />
+              <span
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                  signatureStatus === "signed"
+                    ? "border-emerald-500 bg-emerald-500"
+                    : "border-gray-400"
+                }`}
+              >
+                {signatureStatus === "signed" && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                )}
+              </span>
+              <span className="text-sm font-medium">Podpisany</span>
+            </label>
+            <label
+              className={`flex flex-1 cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-colors ${
+                signatureStatus === "not_applicable"
+                  ? "border-slate-500 bg-slate-50 text-slate-800"
+                  : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+              }`}
+            >
+              <input
+                type="radio"
+                name="signatureStatus"
+                value="not_applicable"
+                checked={signatureStatus === "not_applicable"}
+                onChange={() => setSignatureStatus("not_applicable")}
+                className="sr-only"
+              />
+              <span
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                  signatureStatus === "not_applicable"
+                    ? "border-slate-500 bg-slate-500"
+                    : "border-gray-400"
+                }`}
+              >
+                {signatureStatus === "not_applicable" && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                )}
+              </span>
+              <span className="text-sm font-medium">Nie dotyczy</span>
+            </label>
+          </div>
         </div>
 
         {/* File upload */}

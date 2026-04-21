@@ -68,6 +68,7 @@ const documentEntry = v.object({
   generatedAt: v.optional(v.number()),
   error: v.optional(v.string()),
   errorAt: v.optional(v.number()),
+  signatureStatus: v.optional(v.union(v.literal("signed"), v.literal("not_applicable"))),
 });
 
 const warrantyCard = v.object({
