@@ -9,7 +9,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import InlineEdit from "../../InlineEdit";
 import DocumentCheckboxes from "../../DocumentCheckboxes";
-import WarrantyCardUpload from "../../WarrantyCardUpload";
 import OrderLineItems from "../../OrderLineItems";
 import EventTimeline from "../../EventTimeline";
 import { useStatusLabels } from "@/components/StatusLabelsContext";
@@ -678,28 +677,6 @@ export default function OrderDetailPage({
       {activeTab === "dokumenty" && (
         <div className="space-y-6">
           <DocumentCheckboxes orderId={orderIdTyped} documents={order.documents} />
-          <SectionCard title="Karty gwarancyjne producentow">
-            {order.warrantyCards && order.warrantyCards.length > 0 ? (
-              <div className="mb-4 space-y-3">
-                {order.warrantyCards.map((card, index) => (
-                  <div key={`${card.manufacturer}-${card.uploadedAt}-${index}`}
-                    className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">{card.manufacturer}</div>
-                      <div className="mt-1 text-xs text-slate-500">{card.type} • {new Date(card.uploadedAt).toLocaleDateString("pl-PL")}</div>
-                    </div>
-                    <a href={card.fileUrl} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline">
-                      Otworz plik
-                    </a>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mb-4 text-sm italic text-slate-400">Brak dodanych kart gwarancyjnych.</p>
-            )}
-            <WarrantyCardUpload orderId={orderIdTyped} />
-          </SectionCard>
         </div>
       )}
 
