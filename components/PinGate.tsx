@@ -68,7 +68,6 @@ export default function PinGate({ children }: PinGateProps) {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/20 mb-4">
               <Lock className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-xl font-semibold text-white">Dostęp do Faktur</h1>
             <p className="mt-1 text-sm text-blue-100">Wprowadź 4-cyfrowy PIN</p>
           </div>
 
