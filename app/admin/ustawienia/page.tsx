@@ -6,6 +6,7 @@ import { DEFAULT_STATUS_LABELS, useStatusLabels } from "@/components/StatusLabel
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import type { Id } from "@/convex/_generated/dataModel";
+import PinGate from "@/components/PinGate";
 
 type Tab = "google-drive" | "jotform" | "fakturownia" | "trello" | "szablony" | "sms" | "crm";
 
@@ -3053,6 +3054,7 @@ export default function UstawieniaPage() {
   const [activeTab, setActiveTab] = useState<Tab>("google-drive");
 
   return (
+    <PinGate>
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">Ustawienia</h1>
@@ -3099,5 +3101,6 @@ export default function UstawieniaPage() {
       </div>
       ── */}
     </div>
+    </PinGate>
   );
 }
