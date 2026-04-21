@@ -59,7 +59,7 @@ const COLOR_FIELDS: Array<{ key: string; label: string }> = [
   { key: "constructionColor", label: "Konstrukcja" },
 ];
 
-type Tab = "zlecenie" | "wycena" | "dokumenty" | "notatki" | "historia" | "reklamacja";
+type Tab = "zlecenie" | "wycena" | "dokumenty" | "notatki" | "reklamacja";
 
 function getProjectFileLinks(projectFiles: string | undefined) {
   if (!projectFiles) return [];
@@ -205,7 +205,6 @@ export default function OrderDetailPage({
     { key: "wycena", label: "Wycena" },
     { key: "dokumenty", label: "Dokumenty" },
     { key: "notatki", label: "Notatki" },
-    { key: "historia", label: "Historia" },
     ...(order.status === "complaint" ? [{ key: "reklamacja" as Tab, label: "Reklamacja" }] : []),
   ];
 
@@ -696,13 +695,6 @@ export default function OrderDetailPage({
       {/* Tab: Notatki */}
       {activeTab === "notatki" && (
         <Notes clientId={clientId} orderId={orderIdTyped} />
-      )}
-
-      {/* Tab: Historia */}
-      {activeTab === "historia" && (
-        <SectionCard title="Historia zdarzeń">
-          <EventTimeline events={events} />
-        </SectionCard>
       )}
 
       {/* Tab: Reklamacja */}
