@@ -11,7 +11,6 @@ import InlineEdit from "../../InlineEdit";
 import DocumentCheckboxes from "../../DocumentCheckboxes";
 import WarrantyCardUpload from "../../WarrantyCardUpload";
 import OrderLineItems from "../../OrderLineItems";
-import Notes from "../../Notes";
 import EventTimeline from "../../EventTimeline";
 import { useStatusLabels } from "@/components/StatusLabelsContext";
 import ComplaintTab from "./ComplaintTab";
@@ -59,7 +58,7 @@ const COLOR_FIELDS: Array<{ key: string; label: string }> = [
   { key: "constructionColor", label: "Konstrukcja" },
 ];
 
-type Tab = "zlecenie" | "wycena" | "dokumenty" | "notatki" | "reklamacja";
+type Tab = "zlecenie" | "wycena" | "dokumenty" | "reklamacja";
 
 function getProjectFileLinks(projectFiles: string | undefined) {
   if (!projectFiles) return [];
@@ -205,7 +204,6 @@ export default function OrderDetailPage({
     { key: "zlecenie", label: "Zlecenie" },
     { key: "wycena", label: "Wycena" },
     { key: "dokumenty", label: "Dokumenty" },
-    { key: "notatki", label: "Notatki" },
     ...(order.status === "complaint" || existingComplaint ? [{ key: "reklamacja" as Tab, label: "Reklamacja" }] : []),
   ];
 
@@ -691,11 +689,6 @@ export default function OrderDetailPage({
             <WarrantyCardUpload orderId={orderIdTyped} />
           </SectionCard>
         </div>
-      )}
-
-      {/* Tab: Notatki */}
-      {activeTab === "notatki" && (
-        <Notes clientId={clientId} orderId={orderIdTyped} />
       )}
 
       {/* Tab: Reklamacja */}
