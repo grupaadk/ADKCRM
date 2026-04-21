@@ -108,6 +108,73 @@ export const sendAddressSms = action({
   },
 });
 
+// Wysyła adres inwestycji ze zlecenia na skonfigurowany wewnętrzny numer
+export const sendOrderAddressSms = action({
+  args: {
+    orderId: v.id("orders"),
+  },
+  handler: async (ctx, args) => {
+    const token = process.env.SMSAPI_TOKEN;
+    if (!token) {
+      throw new Error("SMSAPI_TOKEN nie ustawiony");
+    }
+
+    const [order, smsConfig] = await Promise.all([
+      ctx.runQuery(api.orders.getById, { orderId: args.orderId }),
+      ctx.runQuery(api.sms.getConfig, {}),
+    ]);
+
+    if (!order) {
+      throw new Error("Zlecenie nie znalezione");
+    }
+
+    const client = await ctx.runQuery(api.clients.getById, { clientId: order.clientId });
+
+    const internalPhone = smsConfig?.internalPhone || DEFAULT_INTERNAL_PHONE;
+    const senderName = smsConfig?.senderName || DEFAULT_SENDER;
+
+    const addressParts = [
+      order.investmentStreet && order.investmentBuildingNumber
+        ? `ul. ${order.investmentStreet} ${order.investmentBuildingNumber}${order.investmentApartmentNumber ? `/${order.investmentApartmentNumber}` : ""}`
+        : order.investmentStreet ?? null,
+      order.investmentPostalCode && order.investmentCity
+        ? `${order.investmentPostalCode} ${order.investmentCity}`
+        : order.investmentCity ?? null,
+    ].filter(Boolean);
+
+    const fullAddress = addressParts.join(", ");
+    const clientName = client ? `${client.firstName} ${client.lastName}` : "";
+    const message = clientName ? `${clientName}\n${fullAddress}` : fullAddress;
+
+    const body = new URLSearchParams({
+      to: internalPhone,
+      message,
+      from: senderName,
+      encoding: "utf-8",
+      format: "json",
+    });
+
+    const response = await fetch("https://api.smsapi.pl/sms.do", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    });
+
+    const result = (await response.json()) as Record<string, unknown>;
+    if (!response.ok || result.error) {
+      const raw = JSON.stringify(result);
+      console.error("[sms] Błąd wysyłki adresu zlecenia", { status: response.status, raw });
+      throw new Error(`Błąd SMSAPI (HTTP ${response.status}): ${raw}`);
+    }
+
+    const list = result.list as { id: string }[] | undefined;
+    console.info("[sms] Adres zlecenia wysłany SMS", { to: internalPhone, messageId: list?.[0]?.id });
+  },
+});
+
 // Wysyła SMS potwierdzający przyjęcie prośby o wycenę przez SMSAPI.pl
 export const sendQuoteConfirmation = internalAction({
   args: {
