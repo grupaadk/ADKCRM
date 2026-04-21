@@ -25,6 +25,7 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
+  AlertTriangle,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -98,6 +99,7 @@ const KIND_VARIANTS: Record<string, StatusVariant> = {
 
 type SortField = "number" | "kind" | "status" | "buyerName" | "issueDate" | "paymentTo" | "grossAmount";
 type SortDir = "asc" | "desc";
+type PaymentFilter = "" | "thisWeek" | "nextWeek";
 
 function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
   if (sortField !== field) return <ChevronsUpDown className="ml-1 inline size-3.5 text-gray-300" />;
@@ -284,6 +286,7 @@ export default function FakturaList() {
   const [syncResult, setSyncResult] = useState<{ count: number; pages: number } | null>(null);
   const [assigningInvoice, setAssigningInvoice] = useState<CachedInvoice | null>(null);
   const [kindFilter, setKindFilter] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("");
   const [sortField, setSortField] = useState<SortField>("issueDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const autoSyncDone = useRef(false);
@@ -357,7 +360,32 @@ export default function FakturaList() {
     if (!invoices) return undefined;
     let list = invoices;
     if (kindFilter) list = list.filter((i) => i.kind === kindFilter);
+    if (paymentFilter) {
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ...
+      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + daysToMonday);
+      monday.setHours(0, 0, 0, 0);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+      const from = paymentFilter === "thisWeek" ? monday : new Date(monday.getTime() + 7 * 86400000);
+      const to = paymentFilter === "thisWeek" ? sunday : new Date(sunday.getTime() + 7 * 86400000);
+      list = list.filter((i) => {
+        if (!i.paymentTo) return false;
+        const d = new Date(i.paymentTo);
+        return d >= from && d <= to;
+      });
+    }
+    const todayStr = new Date().toISOString().slice(0, 10);
+    function isToday(paymentTo?: string) {
+      return paymentTo?.slice(0, 10) === todayStr;
+    }
     return [...list].sort((a, b) => {
+      const aToday = isToday(a.paymentTo) ? 0 : 1;
+      const bToday = isToday(b.paymentTo) ? 0 : 1;
+      if (aToday !== bToday) return aToday - bToday;
       let cmp = 0;
       switch (sortField) {
         case "number":
@@ -384,7 +412,7 @@ export default function FakturaList() {
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [invoices, kindFilter, sortField, sortDir]);
+  }, [invoices, kindFilter, paymentFilter, sortField, sortDir]);
 
   const isLoading = invoices === undefined;
 
@@ -404,6 +432,7 @@ export default function FakturaList() {
   return (
     <div className="space-y-4">
       {/* Toolbar */}
+      <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Kind filters */}
         <div className="flex flex-wrap items-center gap-2">
@@ -463,6 +492,28 @@ export default function FakturaList() {
             <RefreshCw className={`size-4 ${syncing ? "animate-spin" : ""}`} />
             {syncing ? "Synchronizuję…" : "Odśwież"}
           </button>
+        </div>
+      </div>
+
+        {/* Payment date filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-gray-500">Płatność:</span>
+          {(["", "thisWeek", "nextWeek"] as PaymentFilter[]).map((val) => {
+            const label = val === "" ? "Wszystkie terminy" : val === "thisWeek" ? "Ten tydzień" : "Następny tydzień";
+            return (
+              <button
+                key={val}
+                onClick={() => setPaymentFilter(paymentFilter === val ? "" : val)}
+                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  paymentFilter === val
+                    ? "bg-amber-100 text-amber-800 border-amber-300"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-amber-300 hover:text-amber-700"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -593,9 +644,22 @@ export default function FakturaList() {
 
                     {/* Payment date */}
                     <TableCell className="whitespace-nowrap text-sm text-gray-600">
-                      {invoice.paymentTo
-                        ? new Date(invoice.paymentTo).toLocaleDateString("pl-PL")
-                        : <span className="text-gray-400">—</span>}
+                      {invoice.paymentTo ? (() => {
+                        const d = new Date(invoice.paymentTo);
+                        const today = new Date();
+                        const isToday =
+                          d.getFullYear() === today.getFullYear() &&
+                          d.getMonth() === today.getMonth() &&
+                          d.getDate() === today.getDate();
+                        return isToday ? (
+                          <Badge variant="error">
+                            <AlertTriangle className="mr-1 inline size-3 shrink-0" />
+                            {d.toLocaleDateString("pl-PL")}
+                          </Badge>
+                        ) : (
+                          d.toLocaleDateString("pl-PL")
+                        );
+                      })() : <span className="text-gray-400">—</span>}
                     </TableCell>
 
                     {/* Amount */}
