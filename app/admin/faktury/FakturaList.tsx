@@ -96,7 +96,7 @@ const KIND_VARIANTS: Record<string, StatusVariant> = {
   correction: "orange",
 };
 
-type SortField = "number" | "kind" | "status" | "buyerName" | "issueDate" | "grossAmount";
+type SortField = "number" | "kind" | "status" | "buyerName" | "issueDate" | "paymentTo" | "grossAmount";
 type SortDir = "asc" | "desc";
 
 function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
@@ -109,7 +109,7 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
 function SkeletonRow() {
   return (
     <TableRow className="animate-pulse">
-      {Array.from({ length: 7 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <TableCell key={i}><div className="h-4 rounded bg-gray-200" /></TableCell>
       ))}
     </TableRow>
@@ -375,6 +375,9 @@ export default function FakturaList() {
         case "issueDate":
           cmp = (a.issueDate ?? "").localeCompare(b.issueDate ?? "");
           break;
+        case "paymentTo":
+          cmp = (a.paymentTo ?? "").localeCompare(b.paymentTo ?? "");
+          break;
         case "grossAmount":
           cmp = (a.grossAmount ?? 0) - (b.grossAmount ?? 0);
           break;
@@ -505,6 +508,13 @@ export default function FakturaList() {
                   <SortIcon field="issueDate" sortField={sortField} sortDir={sortDir} />
                 </TableHeaderCell>
                 <TableHeaderCell
+                  onClick={() => handleSort("paymentTo")}
+                  className="cursor-pointer select-none hover:bg-gray-50"
+                >
+                  Data płatności
+                  <SortIcon field="paymentTo" sortField={sortField} sortDir={sortDir} />
+                </TableHeaderCell>
+                <TableHeaderCell
                   onClick={() => handleSort("grossAmount")}
                   className="cursor-pointer select-none hover:bg-gray-50 text-right"
                 >
@@ -521,7 +531,7 @@ export default function FakturaList() {
 
               {!isLoading && displayed && displayed.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-12 text-center text-gray-400">
+                  <TableCell colSpan={9} className="py-12 text-center text-gray-400">
                     {invoices?.length === 0
                       ? "Brak faktur. Kliknij Odśwież aby pobrać z Fakturowni."
                       : "Brak faktur dla wybranego filtra."}
@@ -578,6 +588,13 @@ export default function FakturaList() {
                     <TableCell className="whitespace-nowrap text-sm text-gray-600">
                       {invoice.issueDate
                         ? new Date(invoice.issueDate).toLocaleDateString("pl-PL")
+                        : <span className="text-gray-400">—</span>}
+                    </TableCell>
+
+                    {/* Payment date */}
+                    <TableCell className="whitespace-nowrap text-sm text-gray-600">
+                      {invoice.paymentTo
+                        ? new Date(invoice.paymentTo).toLocaleDateString("pl-PL")
                         : <span className="text-gray-400">—</span>}
                     </TableCell>
 
