@@ -29,7 +29,7 @@ type CachedInvoice = {
 };
 
 const STATUS_ORDER = [
-  "lead", "measurement", "offer", "contract",
+  "lead", "measurement", "contract",
   "production", "installation", "complaint", "completed",
 ] as const;
 
