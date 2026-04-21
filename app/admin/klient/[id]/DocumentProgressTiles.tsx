@@ -17,9 +17,8 @@ type DocEntry = {
 
 function tileColor(doc: DocEntry | undefined): string {
   if (!doc?.url) return "bg-slate-300";
-  if (doc.signatureStatus === "signed" || doc.signatureStatus === "not_applicable") {
-    return "bg-yellow-400";
-  }
+  if (doc.signatureStatus === "signed") return "bg-green-500";
+  if (doc.signatureStatus === "not_applicable") return "bg-yellow-400";
   return "bg-red-400";
 }
 
