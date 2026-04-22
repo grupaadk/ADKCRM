@@ -647,11 +647,9 @@ export default function FakturaList() {
                       {invoice.paymentTo ? (() => {
                         const d = new Date(invoice.paymentTo);
                         const today = new Date();
-                        const isToday =
-                          d.getFullYear() === today.getFullYear() &&
-                          d.getMonth() === today.getMonth() &&
-                          d.getDate() === today.getDate();
-                        return isToday ? (
+                        today.setHours(0, 0, 0, 0);
+                        const isOverdue = d < today && invoice.status !== "paid";
+                        return isOverdue ? (
                           <Badge variant="error">
                             <AlertTriangle className="mr-1 inline size-3 shrink-0" />
                             {d.toLocaleDateString("pl-PL")}
