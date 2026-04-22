@@ -699,6 +699,11 @@ export const createCardForPending = action({
     });
     if (!pending || pending.processed) return null;
 
+    // Idempotencja: jeśli karta już istnieje (akcja była ponowiona), zwróć istniejące ID
+    if (pending.trelloCardId) {
+      return { cardId: pending.trelloCardId, cardUrl: "" };
+    }
+
     // Karta trafia na listę "lead" lub domyślną listę
     const listId = getListIdForStatus(rawConfig, "lead");
     if (!listId) return null;
@@ -755,6 +760,12 @@ export const createCardForPending = action({
 
     const card: { id: string; shortUrl?: string; url: string } = await response.json();
 
+    // Zapisz ID karty Trello zanim zaczniemy załączniki — żeby retry akcji był idempotentny
+    await ctx.runMutation(api.jotformInternal.updatePendingWithCardId, {
+      pendingId: args.pendingId,
+      trelloCardId: card.id,
+    });
+
     // Dołącz załączniki z formularza
     const attachmentUrls = getAttachmentUrls(pending.projectFiles);
     for (const attachmentUrl of attachmentUrls) {
@@ -768,12 +779,6 @@ export const createCardForPending = action({
         }
       }
     }
-
-    // Zapisz ID karty Trello w oczekującym zgłoszeniu
-    await ctx.runMutation(api.jotformInternal.updatePendingWithCardId, {
-      pendingId: args.pendingId,
-      trelloCardId: card.id,
-    });
 
     return { cardId: card.id, cardUrl: card.shortUrl ?? card.url };
   },
