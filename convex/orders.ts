@@ -315,8 +315,9 @@ export const changeStatus = mutation({
     if (args.newStatus === "measurement") {
       const driveConnection = await ctx.db.query("driveConnection").first();
       if (
-        driveConnection?.connectionStatus === "connected" &&
-        driveConnection.sharedDriveId
+        driveConnection?.sharedDriveId &&
+        (driveConnection.connectionStatus === "connected" ||
+          driveConnection.connectionStatus === "token_expiring")
       ) {
         // Oznacz dokument pomiar jako aktywny (przed asynchronicznym generowaniem)
         if (!order.documents.pomiar.enabled) {

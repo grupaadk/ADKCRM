@@ -200,8 +200,9 @@ export const createFromPending = mutation({
     // Zaplanuj tworzenie folderu Drive
     const driveConnection = await ctx.db.query("driveConnection").first();
     if (
-      driveConnection?.connectionStatus === "connected" &&
-      driveConnection.sharedDriveId
+      driveConnection?.sharedDriveId &&
+      (driveConnection.connectionStatus === "connected" ||
+        driveConnection.connectionStatus === "token_expiring")
     ) {
       await ctx.scheduler.runAfter(
         0,
@@ -310,6 +311,20 @@ export const repairPendingSubmission = mutation({
     });
 
     await ctx.db.patch(args.pendingId, { processed: true });
+
+    // Zaplanuj tworzenie folderu Drive
+    const driveConnection = await ctx.db.query("driveConnection").first();
+    if (
+      driveConnection?.sharedDriveId &&
+      (driveConnection.connectionStatus === "connected" ||
+        driveConnection.connectionStatus === "token_expiring")
+    ) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.googleDrive.initializeMeasurement,
+        { orderId },
+      );
+    }
 
     return { alreadyProcessed: false, clientId, orderId };
   },
