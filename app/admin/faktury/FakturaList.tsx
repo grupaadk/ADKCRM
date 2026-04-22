@@ -99,7 +99,7 @@ const KIND_VARIANTS: Record<string, StatusVariant> = {
 
 type SortField = "number" | "kind" | "status" | "buyerName" | "issueDate" | "paymentTo" | "grossAmount";
 type SortDir = "asc" | "desc";
-type PaymentFilter = "" | "thisWeek" | "nextWeek";
+type PaymentFilter = "" | "thisWeek" | "nextWeek" | "overdue";
 
 function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
   if (sortField !== field) return <ChevronsUpDown className="ml-1 inline size-3.5 text-gray-300" />;
@@ -360,9 +360,16 @@ export default function FakturaList() {
     if (!invoices) return undefined;
     let list = invoices;
     if (kindFilter) list = list.filter((i) => i.kind === kindFilter);
-    if (paymentFilter) {
+    if (paymentFilter === "overdue") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      list = list.filter((i) => {
+        if (!i.paymentTo || i.status === "paid") return false;
+        return new Date(i.paymentTo) < today;
+      });
+    } else if (paymentFilter) {
       const now = new Date();
-      const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ...
+      const dayOfWeek = now.getDay();
       const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
       const monday = new Date(now);
       monday.setDate(now.getDate() + daysToMonday);
@@ -514,6 +521,16 @@ export default function FakturaList() {
               </button>
             );
           })}
+          <button
+            onClick={() => setPaymentFilter(paymentFilter === "overdue" ? "" : "overdue")}
+            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              paymentFilter === "overdue"
+                ? "bg-red-100 text-red-800 border-red-300"
+                : "bg-white text-red-600 border-red-200 hover:border-red-400 hover:text-red-800"
+            }`}
+          >
+            Windykacja
+          </button>
         </div>
       </div>
 
