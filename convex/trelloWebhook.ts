@@ -1,7 +1,7 @@
 import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { JOTFORM_SOURCE_LIST_ID, MEASUREMENT_LIST_ID } from "./trelloWebhookLists";
+import { MEASUREMENT_LIST_ID } from "./trelloWebhookLists";
 
 const TRELLO_STATUS_ENTRIES = [
   "lead",
@@ -102,12 +102,10 @@ export const webhook = httpAction(async (ctx, request) => {
     }
   }
 
-  // ── Przypadek 1: karta przeniesiona z listy JotForm na "Do pomiarów" ──────
-  // Tworzymy klienta + zamówienie z oczekującego zgłoszenia JotForm
-  if (
-    listAfterId === MEASUREMENT_LIST_ID &&
-    (listBeforeId === JOTFORM_SOURCE_LIST_ID || !listBeforeId)
-  ) {
+  // ── Przypadek 1: karta przeniesiona na "Do pomiarów" (oczekujące zgłoszenie JotForm) ──────
+  // Tworzymy klienta + zamówienie z oczekującego zgłoszenia JotForm.
+  // Sprawdzamy niezależnie od listy źródłowej — karta może być przenoszona przez listy pośrednie.
+  if (listAfterId === MEASUREMENT_LIST_ID) {
     const pending = await ctx.runQuery(
       api.jotformInternal.findPendingByCardId,
       { trelloCardId: cardId },
