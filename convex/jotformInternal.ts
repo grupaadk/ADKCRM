@@ -199,16 +199,26 @@ export const createFromPending = mutation({
 
     // Zaplanuj tworzenie folderu Drive
     const driveConnection = await ctx.db.query("driveConnection").first();
-    if (
-      driveConnection?.sharedDriveId &&
+    const driveReady =
+      !!driveConnection?.sharedDriveId &&
       (driveConnection.connectionStatus === "connected" ||
-        driveConnection.connectionStatus === "token_expiring")
-    ) {
+        driveConnection.connectionStatus === "token_expiring");
+
+    console.info("[jotform] drive scheduling check", {
+      driveConnectionExists: !!driveConnection,
+      connectionStatus: driveConnection?.connectionStatus,
+      sharedDriveId: driveConnection?.sharedDriveId ?? null,
+      driveReady,
+      orderId,
+    });
+
+    if (driveReady) {
       await ctx.scheduler.runAfter(
         0,
         internal.googleDrive.initializeMeasurement,
         { orderId },
       );
+      console.info("[jotform] initializeMeasurement scheduled", { orderId });
     }
 
     return { clientId, orderId };
