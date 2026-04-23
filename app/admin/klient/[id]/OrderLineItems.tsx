@@ -691,25 +691,50 @@ export default function OrderLineItems({
                     <tr className="border-b border-slate-100">
                       <td className="py-2 font-medium text-slate-700">Faktura zaliczkowa</td>
                       <td className="py-2 text-center">
-                        <div className="inline-flex items-center gap-1">
-                          <input
-                            type="number"
-                            min={1}
-                            max={99}
-                            step={1}
-                            value={advanceTranche.pct}
-                            onChange={(e) => {
-                              const v = Math.min(99, Math.max(1, parseInt(e.target.value) || 1));
-                              setTranches((ts) =>
-                                ts.map((t) =>
-                                  t.kind === "advance" ? { ...t, pct: v } :
-                                  t.kind === "final" ? { ...t, pct: 100 - v } : t,
-                                ),
-                              );
-                            }}
-                            className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-center text-sm"
-                          />
-                          <span className="text-slate-500">%</span>
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="flex gap-1">
+                            {[20, 30, 50, 70].map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() =>
+                                  setTranches((ts) =>
+                                    ts.map((t) =>
+                                      t.kind === "advance" ? { ...t, pct: preset } :
+                                      t.kind === "final" ? { ...t, pct: 100 - preset } : t,
+                                    ),
+                                  )
+                                }
+                                className={`rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
+                                  advanceTranche.pct === preset
+                                    ? "bg-slate-700 text-white"
+                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                }`}
+                              >
+                                {preset}%
+                              </button>
+                            ))}
+                          </div>
+                          <div className="inline-flex items-center gap-1">
+                            <input
+                              type="number"
+                              min={1}
+                              max={99}
+                              step={1}
+                              value={advanceTranche.pct}
+                              onChange={(e) => {
+                                const v = Math.min(99, Math.max(1, parseInt(e.target.value) || 1));
+                                setTranches((ts) =>
+                                  ts.map((t) =>
+                                    t.kind === "advance" ? { ...t, pct: v } :
+                                    t.kind === "final" ? { ...t, pct: 100 - v } : t,
+                                  ),
+                                );
+                              }}
+                              className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-center text-sm"
+                            />
+                            <span className="text-xs text-slate-500">%</span>
+                          </div>
                         </div>
                       </td>
                       <td className="py-2 text-right font-medium text-slate-900">
