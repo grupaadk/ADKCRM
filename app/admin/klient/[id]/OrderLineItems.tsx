@@ -697,8 +697,8 @@ export default function OrderLineItems({
             </p>
           )}
           {/* Invoice creation panel */}
-          {fakturownia?.estimateId && (() => {
-            const existingInvoices = fakturownia.invoices ?? [];
+          {(() => {
+            const existingInvoices = fakturownia?.invoices ?? [];
             const usedPct = existingInvoices
               .filter((inv) => inv.kind === "advance")
               .reduce((s, inv) => s + (inv.advancePercent ?? 0), 0);

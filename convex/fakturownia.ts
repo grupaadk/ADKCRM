@@ -300,15 +300,13 @@ export const appendFakturowniaInvoice = internalMutation({
   },
   handler: async (ctx, args) => {
     const order = await ctx.db.get(args.orderId);
-    if (!order?.fakturownia?.estimateId) {
-      throw new Error("Brak zamówienia (estimate) w Fakturowni dla tego zlecenia");
-    }
-    const prev = order.fakturownia.invoices ?? [];
+    if (!order) throw new Error("Zlecenie nie znalezione");
+    const fk = order.fakturownia;
+    const prev = fk?.invoices ?? [];
     await ctx.db.patch(args.orderId, {
-      fakturownia: {
-        ...order.fakturownia,
-        invoices: [...prev, args.entry],
-      },
+      fakturownia: fk
+        ? { ...fk, invoices: [...prev, args.entry] }
+        : { invoices: [args.entry] },
     });
   },
 });
@@ -555,9 +553,6 @@ export const createOrderInvoice = action({
 
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) throw new Error("Zlecenie nie znalezione");
-    if (!order.fakturownia?.estimateId) {
-      throw new Error("Najpierw wyślij zamówienie do Fakturowni (wycena musi istnieć)");
-    }
 
     const client = await ctx.runQuery(api.clients.getById, { clientId: order.clientId });
     if (!client) throw new Error("Klient nie znaleziony");
@@ -577,7 +572,7 @@ export const createOrderInvoice = action({
       if (!pct || pct <= 0 || pct >= 100) {
         throw new Error("Procent zaliczki musi być między 1 a 99");
       }
-      const usedPercent = (order.fakturownia.invoices ?? [])
+      const usedPercent = (order.fakturownia?.invoices ?? [])
         .filter((inv) => inv.kind === "advance")
         .reduce((sum, inv) => sum + (inv.advancePercent ?? 0), 0);
       if (usedPercent + pct > 100) {
@@ -587,7 +582,7 @@ export const createOrderInvoice = action({
       effectiveAdvancePercent = pct;
     } else {
       // final
-      const usedPercent = (order.fakturownia.invoices ?? [])
+      const usedPercent = (order.fakturownia?.invoices ?? [])
         .filter((inv) => inv.kind === "advance")
         .reduce((sum, inv) => sum + (inv.advancePercent ?? 0), 0);
       if (usedPercent <= 0) {
@@ -601,7 +596,7 @@ export const createOrderInvoice = action({
     }
 
     const today = new Date().toISOString().slice(0, 10);
-    const oid = order.fakturownia.oid ?? `adkokna-${args.orderId}`;
+    const oid = order.fakturownia?.oid ?? `adkokna-${args.orderId}`;
     const buyerName = `${client.firstName} ${client.lastName}`.trim();
     const street = buyerStreet(client);
     const orderLabel = order.name ?? oid;

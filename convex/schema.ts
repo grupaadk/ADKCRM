@@ -99,10 +99,10 @@ const fakturowniaInvoiceEntry = v.object({
 });
 
 const fakturowniaOrderLink = v.object({
-  estimateId: v.string(),
+  estimateId: v.optional(v.string()),
   estimateNumber: v.optional(v.string()),
   oid: v.optional(v.string()),
-  estimateSyncedAt: v.number(),
+  estimateSyncedAt: v.optional(v.number()),
   invoices: v.array(fakturowniaInvoiceEntry),
 });
 
