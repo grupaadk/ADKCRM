@@ -342,6 +342,7 @@ export default function OrderLineItems({
   const updateItem = useMutation(api.orderLineItems.update);
   const removeItem = useMutation(api.orderLineItems.remove);
   const pushEstimate = useAction(api.fakturownia.pushOrderEstimate);
+  const createInvoice = useAction(api.fakturownia.createOrderInvoice);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<AddFormState>(EMPTY_FORM);
@@ -350,6 +351,8 @@ export default function OrderLineItems({
   const [fkBusy, setFkBusy] = useState<string | null>(null);
   const [fkMessage, setFkMessage] = useState<string | null>(null);
   const [showNumberConflictModal, setShowNumberConflictModal] = useState(false);
+  const [invoiceKind, setInvoiceKind] = useState<"vat" | "advance" | "final" | null>(null);
+  const [invoiceAdvancePct, setInvoiceAdvancePct] = useState<number>(50);
 
   function onVatChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const rate = parseInt(e.target.value);
@@ -665,7 +668,11 @@ export default function OrderLineItems({
                       className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
                     >
                       <span>
-                        {inv.kind === "advance" ? "Faktura zaliczkowa" : "Faktura końcowa"}
+                        {inv.kind === "advance"
+                          ? `Faktura zaliczkowa${inv.advancePercent != null ? ` (${inv.advancePercent}%)` : ""}`
+                          : inv.kind === "vat"
+                            ? "Faktura VAT"
+                            : "Faktura końcowa"}
                         {inv.number ? ` (${inv.number})` : ""}
                         {inv.grossAmount != null ? ` — ${fmt(inv.grossAmount)} zł brutto` : ""}
                       </span>
@@ -689,7 +696,127 @@ export default function OrderLineItems({
               Wyślij pozycje wyceny jako zamówienie do Fakturowni. Dane klienta zostaną pobrane z CRM.
             </p>
           )}
-          <div className="flex flex-wrap gap-2">
+          {/* Invoice creation panel */}
+          {fakturownia?.estimateId && (() => {
+            const existingInvoices = fakturownia.invoices ?? [];
+            const usedPct = existingInvoices
+              .filter((inv) => inv.kind === "advance")
+              .reduce((s, inv) => s + (inv.advancePercent ?? 0), 0);
+            const remainingPct = Math.max(0, 100 - usedPct);
+            const totalGross = totals.totalGross;
+
+            const amountForKind = (kind: "vat" | "advance" | "final") => {
+              if (kind === "vat") return totalGross;
+              if (kind === "advance") return totalGross * invoiceAdvancePct / 100;
+              return totalGross * remainingPct / 100;
+            };
+
+            const finalDisabled = usedPct <= 0;
+            const advanceSumWouldExceed = usedPct + invoiceAdvancePct > 100;
+
+            return (
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">Wystaw fakturę</p>
+                <div className="space-y-2">
+                  {(["vat", "advance", "final"] as const).map((kind) => {
+                    const disabled = kind === "final" && finalDisabled;
+                    const label =
+                      kind === "vat"
+                        ? "Faktura VAT — pełna kwota"
+                        : kind === "advance"
+                          ? "Faktura zaliczkowa"
+                          : `Faktura końcowa${usedPct > 0 ? ` — pozostałe ${remainingPct}%` : ""}`;
+                    return (
+                      <label
+                        key={kind}
+                        className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                          disabled
+                            ? "cursor-not-allowed border-slate-100 opacity-40"
+                            : invoiceKind === kind
+                              ? "border-slate-800 bg-slate-50"
+                              : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="invoiceKind"
+                          value={kind}
+                          disabled={disabled}
+                          checked={invoiceKind === kind}
+                          onChange={() => !disabled && setInvoiceKind(kind)}
+                          className="mt-0.5 shrink-0 accent-slate-900"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                            <span className="text-sm font-medium text-slate-800">{label}</span>
+                            {invoiceKind === kind && (
+                              <span className="text-sm font-semibold text-slate-900">
+                                {fmt(amountForKind(kind))} zł
+                              </span>
+                            )}
+                          </div>
+                          {kind === "advance" && invoiceKind === "advance" && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <label className="text-xs text-slate-500">Procent:</label>
+                              <input
+                                type="number"
+                                min={1}
+                                max={99}
+                                step={1}
+                                value={invoiceAdvancePct}
+                                onChange={(e) => {
+                                  const v = Math.min(99, Math.max(1, parseInt(e.target.value) || 1));
+                                  setInvoiceAdvancePct(v);
+                                }}
+                                className="w-20 rounded-md border border-slate-300 px-2 py-1 text-sm"
+                              />
+                              <span className="text-xs text-slate-500">%</span>
+                              {advanceSumWouldExceed && (
+                                <span className="text-xs text-red-600">
+                                  Łączna zaliczka przekroczy 100% (wystawiono już {usedPct}%)
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {kind === "final" && finalDisabled && (
+                            <p className="mt-0.5 text-xs text-slate-400">
+                              Wymaga wcześniejszej faktury zaliczkowej
+                            </p>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                {invoiceKind && (
+                  <button
+                    type="button"
+                    disabled={
+                      !!fkBusy ||
+                      (invoiceKind === "advance" && advanceSumWouldExceed)
+                    }
+                    onClick={() =>
+                      runFk(
+                        "invoice",
+                        () =>
+                          createInvoice({
+                            orderId,
+                            kind: invoiceKind,
+                            advancePercent: invoiceKind === "advance" ? invoiceAdvancePct : undefined,
+                          }),
+                        "Faktura wystawiona w Fakturowni.",
+                      )
+                    }
+                    className="mt-3 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                  >
+                    {fkBusy === "invoice" ? "Wystawianie…" : "Wystaw fakturę"}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
               disabled={!!fkBusy}

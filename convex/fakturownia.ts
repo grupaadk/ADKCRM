@@ -27,10 +27,11 @@ function apiBase(subdomain: string): string {
 }
 
 const fakturowniaInvoiceEntry = v.object({
-  kind: v.union(v.literal("advance"), v.literal("final")),
+  kind: v.union(v.literal("advance"), v.literal("final"), v.literal("vat")),
   remoteId: v.string(),
   number: v.optional(v.string()),
   grossAmount: v.optional(v.number()),
+  advancePercent: v.optional(v.number()),
   createdAt: v.number(),
 });
 
@@ -529,6 +530,142 @@ export const pushOrderEstimate = action({
     });
 
     return { estimateId: created.id, estimateNumber: created.number, updated: false };
+  },
+});
+
+// ─── Action: create VAT / advance / final invoice ───────────────────────────
+
+export const createOrderInvoice = action({
+  args: {
+    orderId: v.id("orders"),
+    kind: v.union(v.literal("vat"), v.literal("advance"), v.literal("final")),
+    advancePercent: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<{ invoiceId: string; number?: string; grossAmount?: number }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    const userId = identity?.subject ?? "anonymous";
+
+    const token = await getDecryptedToken(ctx);
+    const sub = await resolveSubdomain(ctx);
+    if (!token) throw new Error("Fakturownia: skonfiguruj token API w Ustawieniach");
+    if (!sub) throw new Error("Fakturownia: skonfiguruj subdomenę");
+
+    const cfg = await ctx.runQuery(internal.fakturownia.getConfigInternal, {});
+    const departmentId = cfg?.departmentId?.trim();
+
+    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+    if (!order) throw new Error("Zlecenie nie znalezione");
+    if (!order.fakturownia?.estimateId) {
+      throw new Error("Najpierw wyślij zamówienie do Fakturowni (wycena musi istnieć)");
+    }
+
+    const client = await ctx.runQuery(api.clients.getById, { clientId: order.clientId });
+    if (!client) throw new Error("Klient nie znaleziony");
+    validateClientForFakturownia(client);
+
+    const { items } = await ctx.runQuery(api.orderLineItems.listByOrder, { orderId: args.orderId });
+    if (items.length === 0) throw new Error("Brak pozycji wyceny");
+
+    // Determine multiplier
+    let multiplier: number;
+    let effectiveAdvancePercent: number | undefined;
+
+    if (args.kind === "vat") {
+      multiplier = 1.0;
+    } else if (args.kind === "advance") {
+      const pct = args.advancePercent;
+      if (!pct || pct <= 0 || pct >= 100) {
+        throw new Error("Procent zaliczki musi być między 1 a 99");
+      }
+      const usedPercent = (order.fakturownia.invoices ?? [])
+        .filter((inv) => inv.kind === "advance")
+        .reduce((sum, inv) => sum + (inv.advancePercent ?? 0), 0);
+      if (usedPercent + pct > 100) {
+        throw new Error(`Łączna zaliczka przekracza 100% (już wystawiono ${usedPercent}%)`);
+      }
+      multiplier = pct / 100;
+      effectiveAdvancePercent = pct;
+    } else {
+      // final
+      const usedPercent = (order.fakturownia.invoices ?? [])
+        .filter((inv) => inv.kind === "advance")
+        .reduce((sum, inv) => sum + (inv.advancePercent ?? 0), 0);
+      if (usedPercent <= 0) {
+        throw new Error("Brak faktury zaliczkowej — wystawianie faktury końcowej wymaga wcześniejszej zaliczki");
+      }
+      const remaining = 100 - usedPercent;
+      if (remaining <= 0) {
+        throw new Error("Zaliczka pokrywa już 100% wartości zamówienia");
+      }
+      multiplier = remaining / 100;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const oid = order.fakturownia.oid ?? `adkokna-${args.orderId}`;
+    const buyerName = `${client.firstName} ${client.lastName}`.trim();
+    const street = buyerStreet(client);
+    const orderLabel = order.name ?? oid;
+
+    const positions = items.map((item) => {
+      const namePart = item.description ? `${item.name} — ${item.description}` : item.name;
+      const gross = lineItemGross(item);
+      return {
+        name: namePart,
+        quantity: item.quantity,
+        tax: item.vatRate,
+        total_price_gross: Math.round(gross * multiplier * 100) / 100,
+      };
+    });
+
+    const invoice: Record<string, unknown> = {
+      kind: args.kind,
+      issue_date: today,
+      sell_date: today,
+      payment_to_kind: 14,
+      client_id: -1,
+      buyer_name: buyerName,
+      buyer_first_name: client.firstName,
+      buyer_last_name: client.lastName,
+      buyer_email: client.email ?? "",
+      buyer_phone: client.phone ?? "",
+      buyer_street: street,
+      buyer_post_code: client.postalCode ?? "",
+      buyer_city: client.city ?? "",
+      buyer_country: "PL",
+      buyer_company: client.nip ? "1" : "0",
+      ...(client.nip ? { buyer_tax_no: client.nip } : {}),
+      oid,
+      notes: `Dotyczy: ${orderLabel}`,
+      positions,
+      lang: "pl",
+      currency: "PLN",
+    };
+
+    if (departmentId) invoice.department_id = departmentId;
+
+    const data = await postInvoice(apiBase(sub), token, invoice);
+    const result = extractCreatedInvoice(data);
+
+    await ctx.runMutation(internal.fakturownia.appendFakturowniaInvoice, {
+      orderId: args.orderId,
+      entry: {
+        kind: args.kind,
+        remoteId: result.id,
+        number: result.number,
+        grossAmount: result.grossAmount,
+        advancePercent: effectiveAdvancePercent,
+        createdAt: Date.now(),
+      },
+    });
+
+    await ctx.runMutation(internal.orders.addEvent, {
+      orderId: args.orderId,
+      type: "fakturownia_invoice_created",
+      details: { kind: args.kind, invoiceId: result.id, number: result.number, advancePercent: effectiveAdvancePercent },
+      performedBy: userId,
+    });
+
+    return { invoiceId: result.id, number: result.number, grossAmount: result.grossAmount };
   },
 });
 

@@ -90,10 +90,11 @@ const documentSet = v.object({
 });
 
 const fakturowniaInvoiceEntry = v.object({
-  kind: v.union(v.literal("advance"), v.literal("final")),
+  kind: v.union(v.literal("advance"), v.literal("final"), v.literal("vat")),
   remoteId: v.string(),
   number: v.optional(v.string()),
   grossAmount: v.optional(v.number()),
+  advancePercent: v.optional(v.number()),
   createdAt: v.number(),
 });
 
