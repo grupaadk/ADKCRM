@@ -560,17 +560,19 @@ function parseInvoiceFromApi(raw: Record<string, unknown>): {
 export const listCachedInvoices = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("fakturowniaInvoicesCache").order("desc").take(1000);
+    const all = await ctx.db.query("fakturowniaInvoicesCache").order("desc").take(1000);
+    return all.filter((inv) => inv.kind !== "estimate");
   },
 });
 
 export const listCachedInvoicesByOrder = query({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const all = await ctx.db
       .query("fakturowniaInvoicesCache")
       .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
       .collect();
+    return all.filter((inv) => inv.kind !== "estimate");
   },
 });
 
