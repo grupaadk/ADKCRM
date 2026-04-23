@@ -551,26 +551,14 @@ export const recordOrderInvoice = mutation({
 
     const existingInvoices = order.fakturownia.invoices ?? [];
 
-    let effectiveAdvancePercent: number | undefined;
-
-    if (args.kind === "advance") {
-      const pct = args.advancePercent;
-      if (!pct || pct <= 0 || pct >= 100) {
-        throw new Error("Procent zaliczki musi być między 1 a 99");
+    const pct = args.advancePercent;
+    if (pct !== undefined) {
+      if (pct <= 0 || pct > 100) {
+        throw new Error("Procent musi być między 1 a 100");
       }
-      const usedPercent = existingInvoices
-        .filter((inv) => inv.kind === "advance")
-        .reduce((sum, inv) => sum + (inv.advancePercent ?? 0), 0);
+      const usedPercent = existingInvoices.reduce((sum, inv) => sum + (inv.advancePercent ?? 0), 0);
       if (usedPercent + pct > 100) {
-        throw new Error(`Łączna zaliczka przekracza 100% (już wystawiono ${usedPercent}%)`);
-      }
-      effectiveAdvancePercent = pct;
-    } else if (args.kind === "final") {
-      const usedPercent = existingInvoices
-        .filter((inv) => inv.kind === "advance")
-        .reduce((sum, inv) => sum + (inv.advancePercent ?? 0), 0);
-      if (usedPercent <= 0) {
-        throw new Error("Brak faktury zaliczkowej — faktura końcowa wymaga wcześniejszej zaliczki");
+        throw new Error(`Łączny procent faktur przekracza 100% (już wystawiono ${usedPercent}%)`);
       }
     }
 
@@ -580,7 +568,7 @@ export const recordOrderInvoice = mutation({
         ...fk,
         invoices: [
           ...existingInvoices,
-          { kind: args.kind, advancePercent: effectiveAdvancePercent, createdAt: Date.now() },
+          { kind: args.kind, advancePercent: pct, createdAt: Date.now() },
         ],
       },
     });
