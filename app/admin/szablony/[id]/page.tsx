@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -48,11 +49,6 @@ const CLIENT_FIELDS = [
   { value: "__empty", label: "Puste pole" },
 ] as const;
 
-const QUICK_PLACEHOLDERS = CLIENT_FIELDS.map((field) => ({
-  ...field,
-  placeholder: `{{${field.value.replace(/^__/, "")}}}`,
-}));
-
 const SAMPLE_DATA: Record<string, string> = {
   firstName: "Jan",
   lastName: "Kowalski",
@@ -78,24 +74,20 @@ const SAMPLE_DATA: Record<string, string> = {
   constructionColor: "Czarny",
   sunProtectionType: "Roleta",
   comment: "Prosze o szybki kontakt",
-  name: "3/04/2026",
-  estimateTotal: "10 000,00 zł",
-  estimateNetTotal: "8 130,08 zł",
+  name: "ZL/2026/001",
+  estimateTotal: "12 000,00 zł",
+  estimateNetTotal: "9 756,10 zł",
   invoiceVatPct: "100%",
-  invoiceVatAmount: "10 000,00 zł",
-  invoiceVatNetAmount: "8 130,08 zł",
-  invoiceAdvancePct: "30%",
-  invoiceAdvanceAmount: "3 000,00 zł",
-  invoiceAdvanceNetAmount: "2 439,02 zł",
-  invoiceFinalPct: "70%",
-  invoiceFinalAmount: "7 000,00 zł",
-  invoiceFinalNetAmount: "5 691,06 zł",
-  __today: new Date().toLocaleDateString("pl-PL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }),
-  __year: new Date().getFullYear().toString(),
+  invoiceVatAmount: "12 000,00 zł",
+  invoiceVatNetAmount: "9 756,10 zł",
+  invoiceAdvancePct: "50%",
+  invoiceAdvanceAmount: "6 000,00 zł",
+  invoiceAdvanceNetAmount: "4 878,05 zł",
+  invoiceFinalPct: "50%",
+  invoiceFinalAmount: "6 000,00 zł",
+  invoiceFinalNetAmount: "4 878,05 zł",
+  __today: new Date().toLocaleDateString("pl-PL"),
+  __year: String(new Date().getFullYear()),
   __empty: "",
 };
 
@@ -124,11 +116,11 @@ function resolvePlaceholders(
 
 export default function TemplateEditorPage() {
   const params = useParams();
-  const key = params.key as string;
+  const id = params.id as Id<"documentTemplates">;
 
-  const template = useQuery(api.documentTemplates.getByKey, { key });
+  const template = useQuery(api.documentTemplates.getById, { id });
   const driveConnection = useQuery(api.googleDrive.getConnectionStatus);
-  const upsertTemplate = useMutation(api.documentTemplates.upsert);
+  const updateTemplate = useMutation(api.documentTemplates.updateById);
   const listTemplateFiles = useAction(api.googleDrive.listTemplateFiles);
   const detectTemplatePlaceholders = useAction(
     api.googleDrive.detectTemplatePlaceholders,
@@ -174,13 +166,13 @@ export default function TemplateEditorPage() {
       return null;
     }
 
-    const query = fileSearch.trim().toLowerCase();
-    if (!query) {
+    const q = fileSearch.trim().toLowerCase();
+    if (!q) {
       return availableFiles;
     }
 
     return availableFiles.filter((file) =>
-      file.name.toLowerCase().includes(query),
+      file.name.toLowerCase().includes(q),
     );
   }, [availableFiles, fileSearch]);
 
@@ -246,15 +238,14 @@ export default function TemplateEditorPage() {
     setSaving(true);
     setNotice(null);
     try {
-      await upsertTemplate({
-        key,
+      await updateTemplate({
+        id,
         name: name.trim(),
         googleDriveFileId: googleDriveFileId.trim() || undefined,
         fileNamePattern: fileNamePattern.trim(),
         fieldMappings: mappings.filter(
           (mapping) => mapping.placeholder && mapping.field,
         ),
-        version: template?.version,
         isActive,
       });
       setNotice({ type: "success", text: "Szablon zostal zapisany." });
@@ -356,8 +347,7 @@ export default function TemplateEditorPage() {
             Szablon nie znaleziony
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Szablon o kluczu <span className="font-mono">{key}</span> nie
-            istnieje.
+            Szablon o podanym ID nie istnieje.
           </p>
         </div>
       </div>
@@ -382,12 +372,12 @@ export default function TemplateEditorPage() {
           </h1>
           <p className="mt-2 text-sm text-slate-500">
             Klucz{" "}
-            <span className="font-mono text-xs text-slate-700">{key}</span> ·
+            <span className="font-mono text-xs text-slate-700">{template.key}</span> ·
             wersja v{template.version}
           </p>
         </div>
         <button
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           disabled={saving || !name.trim() || !fileNamePattern.trim()}
           className="inline-flex items-center rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
@@ -620,19 +610,44 @@ export default function TemplateEditorPage() {
 
         <aside className="space-y-6">
           <section className="rounded-2xl border border-slate-200 bg-white p-6">
-            <h2 className="text-lg font-bold text-slate-900">Referencja pol</h2>
-            <div className="mt-4 grid gap-2">
+            <h2 className="text-lg font-bold text-slate-900">Szybkie dodawanie</h2>
+            <p className="mt-1 mb-4 text-sm text-slate-500">
+              Kliknij pole, aby dodac do mappera lub nazwy pliku.
+            </p>
+            <div className="grid gap-2">
               {CLIENT_FIELDS.map((fieldOption) => (
                 <div
                   key={fieldOption.value}
-                  className="rounded-lg bg-slate-50 px-3 py-2"
+                  className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2"
                 >
-                  <p className="text-xs font-medium text-slate-900">
-                    {fieldOption.label}
-                  </p>
-                  <p className="mt-1 font-mono text-[11px] text-slate-500">
-                    {fieldOption.value}
-                  </p>
+                  <div>
+                    <p className="text-xs font-medium text-slate-900">
+                      {fieldOption.label}
+                    </p>
+                    <p className="mt-0.5 font-mono text-[11px] text-slate-500">
+                      {fieldOption.value}
+                    </p>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => addPresetMapping(fieldOption.value)}
+                      className="rounded px-1.5 py-1 text-[10px] font-semibold text-blue-600 hover:bg-blue-50"
+                      title="Dodaj do mappera"
+                    >
+                      +mapper
+                    </button>
+                    <button
+                      onClick={() =>
+                        insertPlaceholderIntoPattern(
+                          `{{${fieldOption.value.replace(/^__/, "")}}}`,
+                        )
+                      }
+                      className="rounded px-1.5 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100"
+                      title="Wstaw do wzorca nazwy"
+                    >
+                      +nazwa
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -2111,7 +2111,7 @@ function OgolneTab() {
 function SzablonyTab() {
   const templates = useQuery(api.documentTemplates.list);
   const driveConnection = useQuery(api.googleDrive.getConnectionStatus);
-  const upsert = useMutation(api.documentTemplates.upsert);
+  const createTemplate = useMutation(api.documentTemplates.create);
   const deleteTemplate = useMutation(api.documentTemplates.deleteTemplate);
   const listTemplateFiles = useAction(api.googleDrive.listTemplateFiles);
 
@@ -2169,7 +2169,7 @@ function SzablonyTab() {
     setSaving(true);
     setNotice(null);
     try {
-      await upsert({
+      await createTemplate({
         key: form.key.trim(),
         name: form.name.trim(),
         googleDriveFileId: form.googleDriveFileId.trim() || undefined,
@@ -2309,7 +2309,7 @@ function SzablonyTab() {
 
                   <div className="flex flex-wrap gap-2">
                     <Link
-                      href={`/admin/szablony/${template.key}`}
+                      href={`/admin/szablony/${template._id}`}
                       className="inline-flex items-center rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                     >
                       Edytuj mapper

@@ -370,6 +370,7 @@ export const toggleDocument = mutation({
     ),
     enabled: v.boolean(),
     url: v.optional(v.string()),
+    templateId: v.optional(v.id("documentTemplates")),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -407,6 +408,7 @@ export const toggleDocument = mutation({
         await ctx.scheduler.runAfter(0, api.googleDrive.copyTemplate, {
           orderId: args.orderId,
           templateKey: "gwarancja_alco",
+          templateId: args.templateId,
         });
         await ctx.scheduler.runAfter(0, api.googleDrive.copyTemplate, {
           orderId: args.orderId,
@@ -416,6 +418,7 @@ export const toggleDocument = mutation({
         await ctx.scheduler.runAfter(0, api.googleDrive.copyTemplate, {
           orderId: args.orderId,
           templateKey: args.documentType,
+          templateId: args.templateId,
         });
       }
     } else {

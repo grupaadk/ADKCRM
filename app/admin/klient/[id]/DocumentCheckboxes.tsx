@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -240,8 +240,19 @@ export default function DocumentCheckboxes({
   const [generating, setGenerating] = useState<Record<string, boolean>>({});
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
   const [pendingDocType, setPendingDocType] = useState<string | null>(null);
+  const [pendingTemplateDocType, setPendingTemplateDocType] = useState<string | null>(null);
 
   const missingGroups = getMissingFieldGroups(clientData, orderData);
+
+  const templatesByKey = useMemo(() => {
+    if (!templates) return {} as Record<string, typeof templates>;
+    const map: Record<string, typeof templates> = {};
+    for (const t of templates) {
+      if (!map[t.key]) map[t.key] = [];
+      map[t.key].push(t);
+    }
+    return map;
+  }, [templates]);
 
   // Clear generating state only when Convex confirms the document is done (url or error set)
   useEffect(() => {
@@ -258,13 +269,14 @@ export default function DocumentCheckboxes({
     });
   }, [documents]);
 
-  async function doGenerate(docType: string) {
+  async function doGenerate(docType: string, templateId?: Id<"documentTemplates">) {
     setGenerating((prev) => ({ ...prev, [docType]: true }));
     try {
       await toggleDocument({
         orderId,
         documentType: docType as DocumentType,
         enabled: true,
+        templateId,
       });
       // Do NOT reset here — useEffect clears it when Convex returns url/error
     } catch {
@@ -273,10 +285,15 @@ export default function DocumentCheckboxes({
   }
 
   function handleGenerate(docType: string) {
+    const keyTemplates = templatesByKey[docType]?.filter((t) => t.isActive && t.googleDriveFileId) ?? [];
+    if (keyTemplates.length > 1) {
+      setPendingTemplateDocType(docType);
+      return;
+    }
     if (missingGroups.length > 0) {
       setPendingDocType(docType);
     } else {
-      void doGenerate(docType);
+      void doGenerate(docType, keyTemplates[0]?._id);
     }
   }
 
@@ -290,6 +307,22 @@ export default function DocumentCheckboxes({
 
   return (
     <>
+      {pendingTemplateDocType && templatesByKey[pendingTemplateDocType] && (
+        <TemplatePickerModal
+          docType={pendingTemplateDocType}
+          templates={templatesByKey[pendingTemplateDocType].filter((t) => t.isActive && t.googleDriveFileId)}
+          onSelect={(templateId) => {
+            const docType = pendingTemplateDocType;
+            setPendingTemplateDocType(null);
+            if (missingGroups.length > 0) {
+              setPendingDocType(docType);
+            } else {
+              void doGenerate(docType, templateId);
+            }
+          }}
+          onCancel={() => setPendingTemplateDocType(null)}
+        />
+      )}
       {pendingDocType && (
         <MissingDataModal
           missingGroups={missingGroups}
@@ -312,11 +345,11 @@ export default function DocumentCheckboxes({
               {groupKeys.map((key) => {
                 const doc = documents[key];
                 const isGenerating = generating[key] === true;
-                const template = templates?.find((t) => t.key === key);
-                const hasTemplate =
-                  template != null &&
-                  template.isActive &&
-                  !!template.googleDriveFileId;
+                const keyTemplates = templatesByKey[key] ?? [];
+                const template = keyTemplates[0] ?? null;
+                const activeTemplates = keyTemplates.filter((t) => t.isActive && !!t.googleDriveFileId);
+                const hasTemplate = activeTemplates.length > 0;
+                const hasMultipleTemplates = activeTemplates.length > 1;
                 const isExpanded = expandedTemplate === key;
                 const isGenerated = !!doc?.url;
                 const hasError = !isGenerated && !!doc?.error;
@@ -588,59 +621,64 @@ export default function DocumentCheckboxes({
                     </div>
 
                     {/* Expanded template details */}
-                    {isExpanded && template && (
-                      <div className="rounded-b-xl border-t border-slate-200 bg-white/70 px-4 py-3">
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Nazwa:</span>
-                            <span className="font-medium text-slate-700">
-                              {template.name}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Status:</span>
-                            <span
-                              className={
-                                template.isActive
-                                  ? "font-medium text-emerald-600"
-                                  : "font-medium text-red-500"
-                              }
-                            >
-                              {template.isActive ? "Aktywny" : "Nieaktywny"}
-                            </span>
-                          </div>
-                          {template.googleDriveFileId && (
-                            <div className="flex justify-between gap-2">
-                              <span className="shrink-0 text-slate-500">
-                                Drive ID:
-                              </span>
-                              <span className="truncate font-mono text-slate-600">
-                                {template.googleDriveFileId}
+                    {isExpanded && keyTemplates.length > 0 && (
+                      <div className="rounded-b-xl border-t border-slate-200 bg-white/70 px-4 py-3 space-y-3">
+                        {keyTemplates.map((t) => (
+                          <div key={t._id} className="space-y-2 text-xs">
+                            {keyTemplates.length > 1 && (
+                              <p className="font-semibold text-slate-700">{t.name}</p>
+                            )}
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Nazwa:</span>
+                              <span className="font-medium text-slate-700">
+                                {t.name}
                               </span>
                             </div>
-                          )}
-                          {template.fieldMappings.length > 0 && (
-                            <div>
-                              <div className="mb-1 text-slate-500">
-                                Mapowania ({template.fieldMappings.length}):
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Status:</span>
+                              <span
+                                className={
+                                  t.isActive
+                                    ? "font-medium text-emerald-600"
+                                    : "font-medium text-red-500"
+                                }
+                              >
+                                {t.isActive ? "Aktywny" : "Nieaktywny"}
+                              </span>
+                            </div>
+                            {t.googleDriveFileId && (
+                              <div className="flex justify-between gap-2">
+                                <span className="shrink-0 text-slate-500">
+                                  Drive ID:
+                                </span>
+                                <span className="truncate font-mono text-slate-600">
+                                  {t.googleDriveFileId}
+                                </span>
                               </div>
-                              <div className="flex flex-wrap gap-1">
-                                {template.fieldMappings.map((m) => (
-                                  <span
-                                    key={m.placeholder}
-                                    className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600"
-                                  >
-                                    <span className="text-slate-400">
-                                      {m.placeholder}
+                            )}
+                            {t.fieldMappings.length > 0 && (
+                              <div>
+                                <div className="mb-1 text-slate-500">
+                                  Mapowania ({t.fieldMappings.length}):
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {t.fieldMappings.map((m) => (
+                                    <span
+                                      key={m.placeholder}
+                                      className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600"
+                                    >
+                                      <span className="text-slate-400">
+                                        {m.placeholder}
+                                      </span>
+                                      <span className="text-slate-300">→</span>
+                                      <span>{m.field}</span>
                                     </span>
-                                    <span className="text-slate-300">→</span>
-                                    <span>{m.field}</span>
-                                  </span>
-                                ))}
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -651,5 +689,45 @@ export default function DocumentCheckboxes({
         })}
       </div>
     </>
+  );
+}
+
+function TemplatePickerModal({
+  docType,
+  templates,
+  onSelect,
+  onCancel,
+}: {
+  docType: string;
+  templates: Array<{ _id: Id<"documentTemplates">; name: string; key: string }>;
+  onSelect: (templateId: Id<"documentTemplates">) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+        <h2 className="text-base font-bold text-slate-900">Wybierz szablon</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Dla dokumentu <span className="font-mono font-medium text-slate-700">{docType}</span> dostępnych jest kilka szablonów.
+        </p>
+        <div className="mt-4 space-y-2">
+          {templates.map((t) => (
+            <button
+              key={t._id}
+              onClick={() => onSelect(t._id)}
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-800 hover:border-slate-900 hover:bg-slate-50 transition-colors"
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={onCancel}
+          className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-500 hover:bg-slate-50"
+        >
+          Anuluj
+        </button>
+      </div>
+    </div>
   );
 }

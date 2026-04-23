@@ -13,11 +13,92 @@ export const getByKey = query({
   },
 });
 
+export const getById = query({
+  args: {
+    id: v.id("documentTemplates"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
 export const list = query({
   args: {},
   handler: async (ctx) => {
     const templates = await ctx.db.query("documentTemplates").collect();
-    return templates.sort((a, b) => a.key.localeCompare(b.key));
+    return templates.sort((a, b) => {
+      const keyCmp = a.key.localeCompare(b.key);
+      return keyCmp !== 0 ? keyCmp : a.name.localeCompare(b.name);
+    });
+  },
+});
+
+export const listByKey = query({
+  args: {
+    key: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const templates = await ctx.db
+      .query("documentTemplates")
+      .withIndex("by_key", (q) => q.eq("key", args.key))
+      .collect();
+    return templates.sort((a, b) => a.name.localeCompare(b.name));
+  },
+});
+
+export const create = mutation({
+  args: {
+    key: v.string(),
+    name: v.string(),
+    googleDriveFileId: v.optional(v.string()),
+    fileNamePattern: v.string(),
+    fieldMappings: v.array(
+      v.object({
+        placeholder: v.string(),
+        field: v.string(),
+      }),
+    ),
+    isActive: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("documentTemplates", {
+      key: args.key,
+      name: args.name,
+      googleDriveFileId: args.googleDriveFileId,
+      fileNamePattern: args.fileNamePattern,
+      fieldMappings: args.fieldMappings,
+      version: 1,
+      isActive: args.isActive ?? true,
+    });
+  },
+});
+
+export const updateById = mutation({
+  args: {
+    id: v.id("documentTemplates"),
+    name: v.string(),
+    googleDriveFileId: v.optional(v.string()),
+    fileNamePattern: v.string(),
+    fieldMappings: v.array(
+      v.object({
+        placeholder: v.string(),
+        field: v.string(),
+      }),
+    ),
+    isActive: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Szablon nie istnieje");
+    await ctx.db.patch(args.id, {
+      name: args.name,
+      googleDriveFileId: args.googleDriveFileId,
+      fileNamePattern: args.fileNamePattern,
+      fieldMappings: args.fieldMappings,
+      version: existing.version + 1,
+      isActive: args.isActive ?? existing.isActive,
+    });
+    return args.id;
   },
 });
 

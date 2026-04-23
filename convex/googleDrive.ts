@@ -974,6 +974,7 @@ export const copyTemplate = action({
   args: {
     orderId: v.id("orders"),
     templateKey: v.string(),
+    templateId: v.optional(v.id("documentTemplates")),
   },
   handler: async (ctx, args): Promise<{ url: string; fileId?: string }> => {
     try {
@@ -1040,10 +1041,10 @@ export const copyTemplate = action({
 
       const connection = await getAuthorizedConnection(ctx);
 
-      // Get template
-      const template = await ctx.runQuery(api.documentTemplates.getByKey, {
-        key: args.templateKey,
-      });
+      // Get template — by specific ID if provided, otherwise first by key
+      const template = args.templateId
+        ? await ctx.runQuery(api.documentTemplates.getById, { id: args.templateId })
+        : await ctx.runQuery(api.documentTemplates.getByKey, { key: args.templateKey });
       if (!template) {
         throw new Error(`Template not found: ${args.templateKey}`);
       }
