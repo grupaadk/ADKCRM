@@ -82,6 +82,7 @@ interface MissingFieldGroup {
 interface DocumentCheckboxesProps {
   orderId: Id<"orders">;
   documents: Record<string, DocumentEntry>;
+  warrantyDocs?: Record<string, DocumentEntry>;
   clientData?: ClientData;
   orderData?: OrderData;
 }
@@ -227,18 +228,28 @@ function getMissingFieldGroups(
   return groups;
 }
 
+// Keys that use the legacy fixed `documents` field; all others use `warrantyDocs`
+const LEGACY_DOCUMENT_KEYS = new Set([
+  "pomiar", "umowa", "gwarancja_alco", "rekojmia_adk",
+  "odbior_inwestor", "protokol_montaz", "faktura", "reklamacja",
+]);
+
 export default function DocumentCheckboxes({
   orderId,
   documents,
+  warrantyDocs,
   clientData,
   orderData,
 }: DocumentCheckboxesProps) {
   const toggleDocument = useMutation(api.orders.toggleDocument);
+  const generateWarrantyDoc = useMutation(api.orders.generateWarrantyDoc);
+  const removeWarrantyDoc = useMutation(api.orders.removeWarrantyDoc);
   const templates = useQuery(api.documentTemplates.list);
   const [generating, setGenerating] = useState<Record<string, boolean>>({});
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
   const [pendingDocType, setPendingDocType] = useState<string | null>(null);
   const [pendingTemplateId, setPendingTemplateId] = useState<Id<"documentTemplates"> | undefined>(undefined);
+  const [pendingIsWarranty, setPendingIsWarranty] = useState(false);
   const [pendingTemplateDocType, setPendingTemplateDocType] = useState<string | null>(null);
 
   const missingGroups = getMissingFieldGroups(clientData, orderData);
@@ -253,20 +264,22 @@ export default function DocumentCheckboxes({
     return map;
   }, [templates]);
 
-  // Clear generating state only when Convex confirms the document is done (url or error set)
+  // Clear generating state when Convex confirms doc is done (url or error set)
   useEffect(() => {
     setGenerating((prev) => {
       const next = { ...prev };
       let changed = false;
       for (const key of Object.keys(prev)) {
-        if (prev[key] && (documents[key]?.url || documents[key]?.error)) {
+        const legacyDone = documents[key]?.url || documents[key]?.error;
+        const warrantyDone = warrantyDocs?.[key]?.url || warrantyDocs?.[key]?.error;
+        if (prev[key] && (legacyDone || warrantyDone)) {
           next[key] = false;
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [documents]);
+  }, [documents, warrantyDocs]);
 
   async function doGenerate(docType: string, templateId?: Id<"documentTemplates">) {
     setGenerating((prev) => ({ ...prev, [docType]: true }));
@@ -277,9 +290,17 @@ export default function DocumentCheckboxes({
         enabled: true,
         templateId,
       });
-      // Do NOT reset here — useEffect clears it when Convex returns url/error
     } catch {
       setGenerating((prev) => ({ ...prev, [docType]: false }));
+    }
+  }
+
+  async function doGenerateWarranty(key: string, templateId: Id<"documentTemplates">) {
+    setGenerating((prev) => ({ ...prev, [key]: true }));
+    try {
+      await generateWarrantyDoc({ orderId, key, templateId });
+    } catch {
+      setGenerating((prev) => ({ ...prev, [key]: false }));
     }
   }
 
@@ -312,6 +333,10 @@ export default function DocumentCheckboxes({
   }
 
   async function handleRemove(docType: string) {
+    if (!LEGACY_DOCUMENT_KEYS.has(docType)) {
+      await removeWarrantyDoc({ orderId, key: docType });
+      return;
+    }
     await toggleDocument({
       orderId,
       documentType: docType as DocumentType,
@@ -344,9 +369,15 @@ export default function DocumentCheckboxes({
           onConfirm={() => {
             const docType = pendingDocType;
             const templateId = pendingTemplateId;
+            const isWarranty = pendingIsWarranty;
             setPendingDocType(null);
             setPendingTemplateId(undefined);
-            void doGenerate(docType, templateId);
+            setPendingIsWarranty(false);
+            if (isWarranty && templateId) {
+              void doGenerateWarranty(docType, templateId);
+            } else {
+              void doGenerate(docType, templateId);
+            }
           }}
           onCancel={() => setPendingDocType(null)}
         />
@@ -362,24 +393,42 @@ export default function DocumentCheckboxes({
             docKey: string;
             label: string;
             singleTemplate?: NonNullable<typeof templates>[0];
+            useWarrantyDocs: boolean;
           };
 
           const cardItems: CardItem[] = group.title === "Gwarancje"
             ? (() => {
-                const tpls = groupKeys.flatMap((k) =>
+                // Standard gwarancja_alco templates (legacy documents field)
+                const legacyTpls = groupKeys.flatMap((k) =>
                   (templatesByKey[k] ?? []).filter((t) => t.isActive && !!t.googleDriveFileId)
                 );
-                return tpls.length > 0
-                  ? tpls.map((t) => ({ cardId: t._id, docKey: t.key, label: t.name, singleTemplate: t }))
-                  : groupKeys.map((k) => ({ cardId: k, docKey: k, label: DOCUMENT_LABELS[k] ?? k }));
+                // Extra warranty templates (gwarancja_* keys not in fixed document types)
+                const extraTpls = Object.entries(templatesByKey)
+                  .filter(([k]) => k.startsWith("gwarancja_") && !LEGACY_DOCUMENT_KEYS.has(k))
+                  .flatMap(([, tpls]) => (tpls ?? []).filter((t) => t.isActive && !!t.googleDriveFileId));
+                const allTpls = [...legacyTpls, ...extraTpls];
+                if (allTpls.length > 0) {
+                  return allTpls.map((t) => ({
+                    cardId: t._id,
+                    docKey: t.key,
+                    label: t.name,
+                    singleTemplate: t,
+                    useWarrantyDocs: !LEGACY_DOCUMENT_KEYS.has(t.key),
+                  }));
+                }
+                return groupKeys.map((k) => ({
+                  cardId: k, docKey: k, label: DOCUMENT_LABELS[k] ?? k, useWarrantyDocs: false,
+                }));
               })()
-            : groupKeys.map((k) => ({ cardId: k, docKey: k, label: DOCUMENT_LABELS[k] ?? k }));
+            : groupKeys.map((k) => ({ cardId: k, docKey: k, label: DOCUMENT_LABELS[k] ?? k, useWarrantyDocs: false }));
 
           return (
             <DocGroupSection key={group.title} title={group.title}>
               {cardItems.map((item) => {
-                const { cardId, docKey, label, singleTemplate } = item;
-                const doc = documents[docKey];
+                const { cardId, docKey, label, singleTemplate, useWarrantyDocs } = item;
+                const doc = useWarrantyDocs
+                  ? (warrantyDocs?.[docKey] ?? { enabled: false })
+                  : documents[docKey];
                 const isGenerating = generating[docKey] === true;
                 const keyTemplates = singleTemplate
                   ? [singleTemplate]
@@ -399,6 +448,9 @@ export default function DocumentCheckboxes({
                     if (missingGroups.length > 0) {
                       setPendingTemplateId(singleTemplate._id);
                       setPendingDocType(docKey);
+                      setPendingIsWarranty(useWarrantyDocs);
+                    } else if (useWarrantyDocs) {
+                      void doGenerateWarranty(docKey, singleTemplate._id);
                     } else {
                       void doGenerate(docKey, singleTemplate._id);
                     }

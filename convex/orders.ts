@@ -484,6 +484,115 @@ export const setDocumentError = internalMutation({
   },
 });
 
+export const updateWarrantyDocUrl = mutation({
+  args: {
+    orderId: v.id("orders"),
+    key: v.string(),
+    url: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie znalezione");
+    const warrantyDocs = { ...(order.warrantyDocs ?? {}) };
+    warrantyDocs[args.key] = {
+      ...(warrantyDocs[args.key] ?? { enabled: true }),
+      url: args.url,
+      generatedAt: Date.now(),
+      error: undefined,
+      errorAt: undefined,
+    };
+    await ctx.db.patch(args.orderId, { warrantyDocs });
+  },
+});
+
+export const setWarrantyDocError = internalMutation({
+  args: {
+    orderId: v.id("orders"),
+    key: v.string(),
+    error: v.string(),
+    errorAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const order = await ctx.db.get(args.orderId);
+    if (!order) return;
+    const warrantyDocs = { ...(order.warrantyDocs ?? {}) };
+    warrantyDocs[args.key] = {
+      ...(warrantyDocs[args.key] ?? { enabled: true }),
+      error: args.error,
+      errorAt: args.errorAt,
+    };
+    await ctx.db.patch(args.orderId, { warrantyDocs });
+  },
+});
+
+export const generateWarrantyDoc = mutation({
+  args: {
+    orderId: v.id("orders"),
+    key: v.string(),
+    templateId: v.id("documentTemplates"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    const userId = identity?.subject ?? "anonymous";
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie znalezione");
+
+    const warrantyDocs = { ...(order.warrantyDocs ?? {}) };
+    warrantyDocs[args.key] = { ...(warrantyDocs[args.key] ?? {}), enabled: true };
+    await ctx.db.patch(args.orderId, { warrantyDocs });
+
+    await ctx.scheduler.runAfter(0, api.googleDrive.copyWarrantyTemplate, {
+      orderId: args.orderId,
+      key: args.key,
+      templateId: args.templateId,
+    });
+
+    await ctx.db.insert("clientEvents", {
+      clientId: order.clientId,
+      orderId: args.orderId,
+      type: "document_generated",
+      details: { documentType: args.key },
+      performedBy: userId,
+    });
+  },
+});
+
+export const removeWarrantyDoc = mutation({
+  args: {
+    orderId: v.id("orders"),
+    key: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    const userId = identity?.subject ?? "anonymous";
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie znalezione");
+
+    const warrantyDocs = { ...(order.warrantyDocs ?? {}) };
+    const existingUrl = warrantyDocs[args.key]?.url;
+    delete warrantyDocs[args.key];
+    await ctx.db.patch(args.orderId, { warrantyDocs });
+
+    if (existingUrl) {
+      const match = existingUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      const fileId = match?.[1];
+      if (fileId) {
+        await ctx.scheduler.runAfter(0, api.googleDrive.deleteFile, { fileId });
+      }
+    }
+
+    await ctx.db.insert("clientEvents", {
+      clientId: order.clientId,
+      orderId: args.orderId,
+      type: "document_removed",
+      details: { documentType: args.key },
+      performedBy: userId,
+    });
+  },
+});
+
 export const updateDriveProjectFiles = mutation({
   args: {
     orderId: v.id("orders"),

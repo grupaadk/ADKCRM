@@ -23,10 +23,10 @@ const TEMPLATE_TYPES = [
   ["pomiar", "pomiar", "Pomiar", "Pomiar_{{firstName}}_{{lastName}}_{{city}}"],
   ["umowa", "umowa", "Umowa", "Umowa_{{firstName}}_{{lastName}}_{{city}}"],
   [
-    "gwarancja_alco",
-    "gwarancja_alco",
-    "Gwarancja ALCO",
-    "ALCO_karta_gwarancyjna_{{firstName}}_{{lastName}}_{{city}}",
+    "gwarancja",
+    "gwarancja_",
+    "Gwarancja",
+    "Gwarancja_{{firstName}}_{{lastName}}_{{city}}",
   ],
   [
     "rekojmia_adk",
@@ -2412,9 +2412,13 @@ function SzablonyTab() {
                   onChange={(e) => setForm({ ...form, key: e.target.value })}
                   placeholder="np. pomiar"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  disabled={form.type !== "custom"}
+                  disabled={form.type !== "custom" && form.type !== "gwarancja"}
                 />
-                {form.type !== "custom" && (
+                {form.type === "gwarancja" ? (
+                  <p className="mt-1 text-xs text-slate-400">
+                    Klucz musi zaczynać się od <span className="font-mono">gwarancja_</span>
+                  </p>
+                ) : form.type !== "custom" && (
                   <p className="mt-1 text-xs text-slate-400">
                     Klucz wynika z wybranego typu dokumentu.
                   </p>

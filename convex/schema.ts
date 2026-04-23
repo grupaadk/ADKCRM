@@ -185,6 +185,9 @@ export default defineSchema({
     // Karty gwarancyjne producentów
     warrantyCards: v.optional(v.array(warrantyCard)),
 
+    // Dokumenty gwarancji — dowolne klucze (poza stałym gwarancja_alco w documents)
+    warrantyDocs: v.optional(v.record(v.string(), documentEntry)),
+
     // Google Drive
     folderId: v.optional(v.string()),
     folderUrl: v.optional(v.string()),

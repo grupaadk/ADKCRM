@@ -755,6 +755,7 @@ export default function OrderDetailPage({
           <DocumentCheckboxes
             orderId={orderIdTyped}
             documents={order.documents}
+            warrantyDocs={order.warrantyDocs ?? {}}
             clientData={client ?? undefined}
             orderData={order}
           />

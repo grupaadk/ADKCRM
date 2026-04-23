@@ -1130,6 +1130,100 @@ export const copyTemplate = action({
   },
 });
 
+export const copyWarrantyTemplate = action({
+  args: {
+    orderId: v.id("orders"),
+    key: v.string(),
+    templateId: v.id("documentTemplates"),
+  },
+  handler: async (ctx, args): Promise<{ url: string }> => {
+    try {
+      const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+      if (!order) throw new Error("Order not found");
+      if (!order.folderId) throw new Error("Order folder not created yet");
+
+      const existing = order.warrantyDocs?.[args.key];
+      if (existing?.url) return { url: existing.url };
+
+      const client = await ctx.runQuery(api.clients.getById, { clientId: order.clientId });
+      if (!client) throw new Error("Client not found");
+
+      const template = await ctx.runQuery(api.documentTemplates.getById, { id: args.templateId });
+      if (!template) throw new Error(`Template not found: ${args.templateId}`);
+      if (!template.googleDriveFileId) throw new Error(`Template has no Google Drive file: ${args.key}`);
+
+      const lineItemsResult = await ctx.runQuery(api.orderLineItems.listByOrder, { orderId: args.orderId });
+      const { totalGross, totalNet } = lineItemsResult.totals;
+      const formatPLN = (amount: number): string => {
+        const rounded = Math.round(amount * 100) / 100;
+        const str = rounded.toFixed(2);
+        const dotIdx = str.indexOf(".");
+        const intPart = str.slice(0, dotIdx);
+        const decPart = str.slice(dotIdx + 1);
+        return `${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ")},${decPart} zł`;
+      };
+      const invoiceType = order.invoicePlan?.type;
+      const storedAdvancePct = order.invoicePlan?.advancePct ?? 0;
+      const effectiveType = invoiceType ?? (storedAdvancePct > 0 ? "advance_final" : undefined);
+      const advancePct = effectiveType === "advance_final" ? storedAdvancePct : 0;
+      const finalPct = 100 - advancePct;
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      const computedFields = {
+        estimateTotal: formatPLN(totalGross),
+        estimateNetTotal: formatPLN(totalNet),
+        invoiceVatPct: effectiveType === "vat" ? "100%" : "",
+        invoiceVatAmount: effectiveType === "vat" ? formatPLN(totalGross) : "",
+        invoiceVatNetAmount: effectiveType === "vat" ? formatPLN(totalNet) : "",
+        invoiceAdvancePct: effectiveType === "advance_final" ? `${advancePct}%` : "",
+        invoiceAdvanceAmount: effectiveType === "advance_final" ? formatPLN(round2(totalGross * advancePct / 100)) : "",
+        invoiceAdvanceNetAmount: effectiveType === "advance_final" ? formatPLN(round2(totalNet * advancePct / 100)) : "",
+        invoiceFinalPct: effectiveType === "advance_final" ? `${finalPct}%` : "",
+        invoiceFinalAmount: effectiveType === "advance_final" ? formatPLN(round2(totalGross * finalPct / 100)) : "",
+        invoiceFinalNetAmount: effectiveType === "advance_final" ? formatPLN(round2(totalNet * finalPct / 100)) : "",
+      };
+
+      let fileName = template.fileNamePattern;
+      fileName = fileName.replace("{{firstName}}", client.firstName);
+      fileName = fileName.replace("{{lastName}}", client.lastName);
+      fileName = fileName.replace("{{city}}", client.city ?? "");
+      fileName = fileName.replace("{{date}}", new Date().toISOString().slice(0, 10));
+
+      const copyData = await driveApiFetchWithRetry(
+        ctx,
+        `/files/${template.googleDriveFileId}/copy?supportsAllDrives=true`,
+        {
+          method: "POST",
+          body: JSON.stringify({ name: fileName, parents: [order.folderId] }),
+        },
+      );
+      if (!copyData.id) throw new Error("Google Drive copy returned no file id");
+
+      const fileUrl = `https://docs.google.com/document/d/${copyData.id}/edit`;
+
+      if (template.fieldMappings && template.fieldMappings.length > 0) {
+        await performMailMerge(ctx, copyData.id, { ...client, ...order, ...computedFields }, template.fieldMappings);
+      }
+
+      await ctx.runMutation(api.orders.updateWarrantyDocUrl, {
+        orderId: args.orderId,
+        key: args.key,
+        url: fileUrl,
+      });
+
+      return { url: fileUrl };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await ctx.runMutation(internal.orders.setWarrantyDocError, {
+        orderId: args.orderId,
+        key: args.key,
+        error: errorMessage,
+        errorAt: Date.now(),
+      });
+      throw error;
+    }
+  },
+});
+
 export const initializeMeasurement = internalAction({
   args: {
     orderId: v.id("orders"),
