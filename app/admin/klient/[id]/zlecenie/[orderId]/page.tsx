@@ -19,6 +19,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFoot,
   TableHead,
   TableHeaderCell,
   TableRoot,
@@ -70,6 +71,7 @@ type CachedInvoice = {
   status?: string;
   buyerName?: string;
   issueDate?: string;
+  netAmount?: number;
   grossAmount?: number;
   currency?: string;
   orderId?: Id<"orders">;
@@ -668,6 +670,7 @@ export default function OrderDetailPage({
                       <TableHeaderCell>Status</TableHeaderCell>
                       <TableHeaderCell>Nabywca</TableHeaderCell>
                       <TableHeaderCell>Data wystawienia</TableHeaderCell>
+                      <TableHeaderCell className="text-right">Kwota netto</TableHeaderCell>
                       <TableHeaderCell className="text-right">Kwota brutto</TableHeaderCell>
                       <TableHeaderCell />
                     </TableRow>
@@ -711,6 +714,11 @@ export default function OrderDetailPage({
                               ? new Date(inv.issueDate).toLocaleDateString("pl-PL")
                               : <span className="text-gray-400">—</span>}
                           </TableCell>
+                          <TableCell className="whitespace-nowrap text-right tabular-nums text-sm text-gray-600">
+                            {inv.netAmount != null
+                              ? `${inv.netAmount.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${inv.currency ?? "PLN"}`
+                              : <span className="text-gray-400">—</span>}
+                          </TableCell>
                           <TableCell className="whitespace-nowrap text-right tabular-nums text-sm font-semibold text-gray-900">
                             {inv.grossAmount != null
                               ? `${inv.grossAmount.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${inv.currency ?? "PLN"}`
@@ -729,6 +737,27 @@ export default function OrderDetailPage({
                       );
                     })}
                   </TableBody>
+                  {(() => {
+                    const totalNet = assignedInvoices.reduce((s, i) => s + ((i as CachedInvoice).netAmount ?? 0), 0);
+                    const totalGross = assignedInvoices.reduce((s, i) => s + (i.grossAmount ?? 0), 0);
+                    const currency = assignedInvoices.find((i) => i.currency)?.currency ?? "PLN";
+                    return (
+                      <TableFoot>
+                        <TableRow className="bg-gray-50 font-semibold">
+                          <TableCell colSpan={5} className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            Suma ({assignedInvoices.length} {assignedInvoices.length === 1 ? "faktura" : "faktur"})
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-sm text-gray-700 whitespace-nowrap">
+                            {totalNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-sm text-gray-900 whitespace-nowrap font-bold">
+                            {totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
+                          </TableCell>
+                          <TableCell />
+                        </TableRow>
+                      </TableFoot>
+                    );
+                  })()}
                 </Table>
               </TableRoot>
             ) : (

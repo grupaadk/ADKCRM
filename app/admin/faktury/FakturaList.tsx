@@ -9,6 +9,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFoot,
   TableHead,
   TableHeaderCell,
   TableRoot,
@@ -97,7 +98,7 @@ const KIND_VARIANTS: Record<string, StatusVariant> = {
   correction: "orange",
 };
 
-type SortField = "number" | "kind" | "status" | "buyerName" | "issueDate" | "paymentTo" | "grossAmount";
+type SortField = "number" | "kind" | "status" | "buyerName" | "issueDate" | "paymentTo" | "grossAmount" | "netAmount";
 type SortDir = "asc" | "desc";
 type PaymentFilter = "" | "thisWeek" | "nextWeek" | "overdue";
 
@@ -111,7 +112,7 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
 function SkeletonRow() {
   return (
     <TableRow className="animate-pulse">
-      {Array.from({ length: 8 }).map((_, i) => (
+      {Array.from({ length: 10 }).map((_, i) => (
         <TableCell key={i}><div className="h-4 rounded bg-gray-200" /></TableCell>
       ))}
     </TableRow>
@@ -416,6 +417,9 @@ export default function FakturaList() {
         case "grossAmount":
           cmp = (a.grossAmount ?? 0) - (b.grossAmount ?? 0);
           break;
+        case "netAmount":
+          cmp = (a.netAmount ?? 0) - (b.netAmount ?? 0);
+          break;
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -583,6 +587,13 @@ export default function FakturaList() {
                   <SortIcon field="paymentTo" sortField={sortField} sortDir={sortDir} />
                 </TableHeaderCell>
                 <TableHeaderCell
+                  onClick={() => handleSort("netAmount")}
+                  className="cursor-pointer select-none hover:bg-gray-50 text-right"
+                >
+                  Kwota netto
+                  <SortIcon field="netAmount" sortField={sortField} sortDir={sortDir} />
+                </TableHeaderCell>
+                <TableHeaderCell
                   onClick={() => handleSort("grossAmount")}
                   className="cursor-pointer select-none hover:bg-gray-50 text-right"
                 >
@@ -599,7 +610,7 @@ export default function FakturaList() {
 
               {!isLoading && displayed && displayed.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-12 text-center text-gray-400">
+                  <TableCell colSpan={10} className="py-12 text-center text-gray-400">
                     {invoices?.length === 0
                       ? "Brak faktur. Kliknij Odśwież aby pobrać z Fakturowni."
                       : "Brak faktur dla wybranego filtra."}
@@ -677,7 +688,14 @@ export default function FakturaList() {
                       })() : <span className="text-gray-400">—</span>}
                     </TableCell>
 
-                    {/* Amount */}
+                    {/* Net amount */}
+                    <TableCell className="text-right tabular-nums text-sm text-gray-600 whitespace-nowrap">
+                      {invoice.netAmount != null
+                        ? `${invoice.netAmount.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${invoice.currency ?? "PLN"}`
+                        : <span className="text-gray-400">—</span>}
+                    </TableCell>
+
+                    {/* Gross amount */}
                     <TableCell className="text-right tabular-nums text-sm text-gray-900 whitespace-nowrap">
                       {invoice.grossAmount != null
                         ? `${invoice.grossAmount.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${invoice.currency ?? "PLN"}`
@@ -720,6 +738,27 @@ export default function FakturaList() {
                 );
               })}
             </TableBody>
+            {displayed && displayed.length > 0 && (() => {
+              const totalNet = displayed.reduce((s, i) => s + (i.netAmount ?? 0), 0);
+              const totalGross = displayed.reduce((s, i) => s + (i.grossAmount ?? 0), 0);
+              const currency = displayed.find((i) => i.currency)?.currency ?? "PLN";
+              return (
+                <TableFoot>
+                  <TableRow className="bg-gray-50 font-semibold">
+                    <TableCell colSpan={6} className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Suma ({displayed.length} {displayed.length === 1 ? "faktura" : "faktur"})
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-sm text-gray-700 whitespace-nowrap">
+                      {totalNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-sm text-gray-900 whitespace-nowrap font-bold">
+                      {totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
+                    </TableCell>
+                    <TableCell colSpan={2} />
+                  </TableRow>
+                </TableFoot>
+              );
+            })()}
           </Table>
         </TableRoot>
       </div>
