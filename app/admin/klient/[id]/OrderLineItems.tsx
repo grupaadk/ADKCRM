@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
@@ -331,9 +331,11 @@ const EMPTY_FORM: AddFormState = {
 export default function OrderLineItems({
   orderId,
   fakturownia,
+  invoicePlan,
 }: {
   orderId: Id<"orders">;
   fakturownia?: Doc<"orders">["fakturownia"];
+  invoicePlan?: Doc<"orders">["invoicePlan"];
 }) {
   const data = useQuery(api.orderLineItems.listByOrder, { orderId });
   const fkConfig = useQuery(api.fakturownia.getConfig);
@@ -342,6 +344,7 @@ export default function OrderLineItems({
   const updateItem = useMutation(api.orderLineItems.update);
   const removeItem = useMutation(api.orderLineItems.remove);
   const pushEstimate = useAction(api.fakturownia.pushOrderEstimate);
+  const saveInvoicePlan = useMutation(api.orders.saveInvoicePlan);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<AddFormState>(EMPTY_FORM);
@@ -351,6 +354,36 @@ export default function OrderLineItems({
   const [fkMessage, setFkMessage] = useState<string | null>(null);
   const [fkError, setFkError] = useState<string | null>(null);
   const [showNumberConflictModal, setShowNumberConflictModal] = useState(false);
+
+  const initializedRef = useRef(false);
+  const [tranches, setTranches] = useState<Array<{ kind: "vat" | "advance" | "final"; pct: number }>>(() => {
+    if (invoicePlan?.advancePct != null && invoicePlan.advancePct > 0) {
+      return [
+        { kind: "advance" as const, pct: invoicePlan.advancePct },
+        { kind: "final" as const, pct: 100 - invoicePlan.advancePct },
+      ];
+    }
+    return [];
+  });
+
+  const savePlanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      return;
+    }
+    const advancePct = tranches
+      .filter((t) => t.kind === "advance")
+      .reduce((s, t) => s + t.pct, 0);
+    if (savePlanTimerRef.current) clearTimeout(savePlanTimerRef.current);
+    savePlanTimerRef.current = setTimeout(() => {
+      saveInvoicePlan({ orderId, advancePct }).catch(() => {});
+    }, 800);
+    return () => {
+      if (savePlanTimerRef.current) clearTimeout(savePlanTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tranches, orderId]);
 
 
   function onVatChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -618,6 +651,131 @@ export default function OrderLineItems({
           Dodaj pozycję
         </button>
       )}
+
+      {/* Typ faktury (do umowy) */}
+      {items.length > 0 && (() => {
+        const hasVat = tranches.some((t) => t.kind === "vat");
+        const hasAdvance = tranches.some((t) => t.kind === "advance");
+        const hasFinal = tranches.some((t) => t.kind === "final");
+        const isEmpty = tranches.length === 0;
+        const advanceTranche = tranches.find((t) => t.kind === "advance");
+
+        return (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+              Typ faktury (do umowy)
+            </h3>
+
+            {isEmpty && (
+              <p className="mb-3 text-sm text-slate-500">Wybierz typ fakturowania dla tej umowy.</p>
+            )}
+
+            {tranches.length > 0 && (
+              <table className="mb-3 w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="pb-2 text-left text-xs font-medium text-slate-400">Typ faktury</th>
+                    <th className="pb-2 text-center text-xs font-medium text-slate-400">Udział</th>
+                    <th className="pb-2 text-right text-xs font-medium text-slate-400">Kwota brutto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {hasVat && (
+                    <tr className="border-b border-slate-100">
+                      <td className="py-2 font-medium text-slate-700">Faktura VAT</td>
+                      <td className="py-2 text-center text-slate-600">100%</td>
+                      <td className="py-2 text-right font-medium text-slate-900">{fmt(totals.totalGross)} zł</td>
+                    </tr>
+                  )}
+                  {hasAdvance && advanceTranche && (
+                    <tr className="border-b border-slate-100">
+                      <td className="py-2 font-medium text-slate-700">Faktura zaliczkowa</td>
+                      <td className="py-2 text-center">
+                        <div className="inline-flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={1}
+                            max={99}
+                            step={1}
+                            value={advanceTranche.pct}
+                            onChange={(e) => {
+                              const v = Math.min(99, Math.max(1, parseInt(e.target.value) || 1));
+                              setTranches((ts) =>
+                                ts.map((t) =>
+                                  t.kind === "advance" ? { ...t, pct: v } :
+                                  t.kind === "final" ? { ...t, pct: 100 - v } : t,
+                                ),
+                              );
+                            }}
+                            className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-center text-sm"
+                          />
+                          <span className="text-slate-500">%</span>
+                        </div>
+                      </td>
+                      <td className="py-2 text-right font-medium text-slate-900">
+                        {fmt((totals.totalGross * advanceTranche.pct) / 100)} zł
+                      </td>
+                    </tr>
+                  )}
+                  {hasFinal && (
+                    <tr className="border-b border-slate-100">
+                      <td className="py-2 font-medium text-slate-700">Faktura końcowa</td>
+                      <td className="py-2 text-center text-slate-600">{100 - (advanceTranche?.pct ?? 0)}%</td>
+                      <td className="py-2 text-right font-medium text-slate-900">
+                        {fmt((totals.totalGross * (100 - (advanceTranche?.pct ?? 0))) / 100)} zł
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              {isEmpty && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setTranches([{ kind: "vat", pct: 100 }])}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    + Faktura VAT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTranches([{ kind: "advance", pct: 50 }])}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    + Faktura zaliczkowa
+                  </button>
+                </>
+              )}
+              {hasAdvance && !hasFinal && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTranches((ts) => [
+                      ...ts,
+                      { kind: "final", pct: 100 - (ts.find((t) => t.kind === "advance")?.pct ?? 50) },
+                    ])
+                  }
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  + Faktura końcowa
+                </button>
+              )}
+              {!isEmpty && (
+                <button
+                  type="button"
+                  onClick={() => setTranches([])}
+                  className="text-xs text-slate-400 hover:text-red-500"
+                >
+                  Resetuj
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Fakturownia */}
       {items.length > 0 && fkConfig?.hasApiToken && fkConfig.subdomain?.trim() && (
