@@ -203,8 +203,11 @@ export default defineSchema({
     jotformSubmissionId: v.optional(v.string()),
     createdBy: v.string(),
 
-    // Plan fakturowania (zaliczka + końcowa)
-    invoicePlan: v.optional(v.object({ advancePct: v.number() })),
+    // Plan fakturowania (VAT / zaliczka + końcowa)
+    invoicePlan: v.optional(v.object({
+      type: v.optional(v.union(v.literal("vat"), v.literal("advance_final"))),
+      advancePct: v.number(),
+    })),
 
     // Fakturownia (zamówienie = estimate + faktury zaliczkowa / końcowa)
     fakturownia: v.optional(fakturowniaOrderLink),

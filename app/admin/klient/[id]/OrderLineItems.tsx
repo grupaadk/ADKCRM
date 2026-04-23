@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
@@ -355,8 +355,10 @@ export default function OrderLineItems({
   const [fkError, setFkError] = useState<string | null>(null);
   const [showNumberConflictModal, setShowNumberConflictModal] = useState(false);
 
-  const initializedRef = useRef(false);
   const [tranches, setTranches] = useState<Array<{ kind: "vat" | "advance" | "final"; pct: number }>>(() => {
+    if (invoicePlan?.type === "vat") {
+      return [{ kind: "vat" as const, pct: 100 }];
+    }
     if (invoicePlan?.advancePct != null && invoicePlan.advancePct > 0) {
       return [
         { kind: "advance" as const, pct: invoicePlan.advancePct },
@@ -365,25 +367,22 @@ export default function OrderLineItems({
     }
     return [];
   });
+  const [planSaved, setPlanSaved] = useState(invoicePlan != null);
+  const [planSaving, setPlanSaving] = useState(false);
 
-  const savePlanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (!initializedRef.current) {
-      initializedRef.current = true;
-      return;
+  async function confirmInvoicePlan() {
+    setPlanSaving(true);
+    try {
+      const hasVat = tranches.some((t) => t.kind === "vat");
+      const hasAdvance = tranches.some((t) => t.kind === "advance");
+      const advancePct = tranches.find((t) => t.kind === "advance")?.pct ?? 0;
+      const type = hasVat ? "vat" : hasAdvance ? "advance_final" : "none";
+      await saveInvoicePlan({ orderId, type, advancePct });
+      setPlanSaved(true);
+    } finally {
+      setPlanSaving(false);
     }
-    const advancePct = tranches
-      .filter((t) => t.kind === "advance")
-      .reduce((s, t) => s + t.pct, 0);
-    if (savePlanTimerRef.current) clearTimeout(savePlanTimerRef.current);
-    savePlanTimerRef.current = setTimeout(() => {
-      saveInvoicePlan({ orderId, advancePct }).catch(() => {});
-    }, 800);
-    return () => {
-      if (savePlanTimerRef.current) clearTimeout(savePlanTimerRef.current);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tranches, orderId]);
+  }
 
 
   function onVatChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -662,9 +661,14 @@ export default function OrderLineItems({
 
         return (
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
-              Typ faktury (do umowy)
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Typ faktury (do umowy)
+              </h3>
+              {planSaved && !planSaving && (
+                <span className="text-xs font-medium text-emerald-600">Zatwierdzone</span>
+              )}
+            </div>
 
             {isEmpty && (
               <p className="mb-3 text-sm text-slate-500">Wybierz typ fakturowania dla tej umowy.</p>
@@ -697,14 +701,15 @@ export default function OrderLineItems({
                               <button
                                 key={preset}
                                 type="button"
-                                onClick={() =>
+                                onClick={() => {
+                                  setPlanSaved(false);
                                   setTranches((ts) =>
                                     ts.map((t) =>
                                       t.kind === "advance" ? { ...t, pct: preset } :
                                       t.kind === "final" ? { ...t, pct: 100 - preset } : t,
                                     ),
-                                  )
-                                }
+                                  );
+                                }}
                                 className={`rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
                                   advanceTranche.pct === preset
                                     ? "bg-slate-700 text-white"
@@ -723,6 +728,7 @@ export default function OrderLineItems({
                               max={99}
                               value={advanceTranche.pct}
                               onChange={(e) => {
+                                setPlanSaved(false);
                                 const v = Math.min(99, Math.max(1, parseInt(e.target.value) || 1));
                                 setTranches((ts) =>
                                   ts.map((t) =>
@@ -760,14 +766,14 @@ export default function OrderLineItems({
                 <>
                   <button
                     type="button"
-                    onClick={() => setTranches([{ kind: "vat", pct: 100 }])}
+                    onClick={() => { setPlanSaved(false); setTranches([{ kind: "vat", pct: 100 }]); }}
                     className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     + Faktura VAT
                   </button>
                   <button
                     type="button"
-                    onClick={() => setTranches([{ kind: "advance", pct: 50 }])}
+                    onClick={() => { setPlanSaved(false); setTranches([{ kind: "advance", pct: 50 }]); }}
                     className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     + Faktura zaliczkowa
@@ -777,21 +783,32 @@ export default function OrderLineItems({
               {hasAdvance && !hasFinal && (
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    setPlanSaved(false);
                     setTranches((ts) => [
                       ...ts,
                       { kind: "final", pct: 100 - (ts.find((t) => t.kind === "advance")?.pct ?? 50) },
-                    ])
-                  }
+                    ]);
+                  }}
                   className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   + Faktura końcowa
                 </button>
               )}
+              {!isEmpty && !planSaved && (
+                <button
+                  type="button"
+                  onClick={() => void confirmInvoicePlan()}
+                  disabled={planSaving}
+                  className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+                >
+                  {planSaving ? "Zapisywanie..." : "Zatwierdź"}
+                </button>
+              )}
               {!isEmpty && (
                 <button
                   type="button"
-                  onClick={() => setTranches([])}
+                  onClick={() => { setPlanSaved(false); setTranches([]); }}
                   className="text-xs text-slate-400 hover:text-red-500"
                 >
                   Resetuj

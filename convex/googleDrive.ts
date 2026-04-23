@@ -1014,15 +1014,28 @@ export const copyTemplate = action({
         const decPart = str.slice(dotIdx + 1);
         return `${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ")},${decPart} zł`;
       };
-      const advancePct = order.invoicePlan?.advancePct ?? 0;
+      const invoiceType = order.invoicePlan?.type;
+      // Backward compat: type may be absent on older records
+      const storedAdvancePct = order.invoicePlan?.advancePct ?? 0;
+      const effectiveType = invoiceType ?? (storedAdvancePct > 0 ? "advance_final" : undefined);
+      const advancePct = effectiveType === "advance_final" ? storedAdvancePct : 0;
       const finalPct = 100 - advancePct;
+      const round2 = (n: number) => Math.round(n * 100) / 100;
       const computedFields = {
         estimateTotal: formatPLN(totalGross),
         estimateNetTotal: formatPLN(totalNet),
-        invoiceAdvancePct: `${advancePct}%`,
-        invoiceAdvanceAmount: formatPLN(Math.round(totalGross * advancePct / 100 * 100) / 100),
-        invoiceFinalPct: `${finalPct}%`,
-        invoiceFinalAmount: formatPLN(Math.round(totalGross * finalPct / 100 * 100) / 100),
+        // Faktura VAT
+        invoiceVatPct: effectiveType === "vat" ? "100%" : "",
+        invoiceVatAmount: effectiveType === "vat" ? formatPLN(totalGross) : "",
+        invoiceVatNetAmount: effectiveType === "vat" ? formatPLN(totalNet) : "",
+        // Faktura zaliczkowa
+        invoiceAdvancePct: effectiveType === "advance_final" ? `${advancePct}%` : "",
+        invoiceAdvanceAmount: effectiveType === "advance_final" ? formatPLN(round2(totalGross * advancePct / 100)) : "",
+        invoiceAdvanceNetAmount: effectiveType === "advance_final" ? formatPLN(round2(totalNet * advancePct / 100)) : "",
+        // Faktura końcowa
+        invoiceFinalPct: effectiveType === "advance_final" ? `${finalPct}%` : "",
+        invoiceFinalAmount: effectiveType === "advance_final" ? formatPLN(round2(totalGross * finalPct / 100)) : "",
+        invoiceFinalNetAmount: effectiveType === "advance_final" ? formatPLN(round2(totalNet * finalPct / 100)) : "",
       };
 
       const connection = await getAuthorizedConnection(ctx);
