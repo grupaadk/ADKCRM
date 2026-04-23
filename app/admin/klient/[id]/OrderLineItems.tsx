@@ -337,6 +337,7 @@ export default function OrderLineItems({
 }) {
   const data = useQuery(api.orderLineItems.listByOrder, { orderId });
   const fkConfig = useQuery(api.fakturownia.getConfig);
+  const numberConflict = useQuery(api.fakturownia.checkOrderNumberConflict, { orderId });
   const addItem = useMutation(api.orderLineItems.add);
   const updateItem = useMutation(api.orderLineItems.update);
   const removeItem = useMutation(api.orderLineItems.remove);
@@ -348,6 +349,7 @@ export default function OrderLineItems({
   const [error, setError] = useState<string | null>(null);
   const [fkBusy, setFkBusy] = useState<string | null>(null);
   const [fkMessage, setFkMessage] = useState<string | null>(null);
+  const [showNumberConflictModal, setShowNumberConflictModal] = useState(false);
 
   function onVatChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const rate = parseInt(e.target.value);
@@ -691,15 +693,19 @@ export default function OrderLineItems({
             <button
               type="button"
               disabled={!!fkBusy}
-              onClick={() =>
+              onClick={() => {
+                if (!fakturownia?.estimateId && numberConflict?.conflict) {
+                  setShowNumberConflictModal(true);
+                  return;
+                }
                 runFk(
                   "estimate",
                   () => pushEstimate({ orderId }),
                   fakturownia?.estimateId
                     ? "Zamówienie zaktualizowane w Fakturowni."
                     : "Zamówienie wysłane do Fakturowni.",
-                )
-              }
+                );
+              }}
               className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
             >
               {fkBusy === "estimate"
@@ -721,6 +727,27 @@ export default function OrderLineItems({
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Uzupełnij token API Fakturowni w ustawieniach lub ustaw zmienną{" "}
           <code className="rounded bg-white px-1">FAKTUROWNIA_API_TOKEN</code> w Convex.
+        </div>
+      )}
+
+      {showNumberConflictModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="mb-2 text-lg font-bold text-slate-900">Numer zlecenia zajęty</h2>
+            <p className="mb-4 text-sm text-slate-600">
+              Numer zlecenia{" "}
+              <span className="font-semibold">{numberConflict?.number}</span>{" "}
+              istnieje już w Fakturowni jako inne zamówienie. Aby wysłać tę wycenę, najpierw zmień numer zlecenia lub zamówienia w Fakturowni.
+            </p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowNumberConflictModal(false)}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Rozumiem
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -353,6 +353,37 @@ function validateClientForFakturownia(client: Doc<"clients">): void {
   }
 }
 
+// ─── Number conflict check ───────────────────────────────────────────────────
+
+export const checkOrderNumberConflict = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const order = await ctx.db.get(args.orderId);
+    if (!order?.name) return { conflict: false };
+
+    const orderNumber = order.name;
+    const currentOid = `adkokna-${args.orderId}`;
+
+    // Check if another order already sent an estimate with the same number
+    const allOrders = await ctx.db.query("orders").collect();
+    const conflictOrder = allOrders.find(
+      (o) => o._id !== args.orderId && o.fakturownia?.estimateNumber === orderNumber,
+    );
+    if (conflictOrder) return { conflict: true, number: orderNumber };
+
+    // Check invoices cache for documents with same number but different order
+    const cacheConflict = await ctx.db
+      .query("fakturowniaInvoicesCache")
+      .filter((q) =>
+        q.and(q.eq(q.field("number"), orderNumber), q.neq(q.field("oid"), currentOid)),
+      )
+      .first();
+    if (cacheConflict) return { conflict: true, number: orderNumber };
+
+    return { conflict: false };
+  },
+});
+
 // ─── Actions: Fakturownia API ──────────────────────────────────────────────
 
 export const pushOrderEstimate = action({
