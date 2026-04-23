@@ -357,23 +357,59 @@ export default function DocumentCheckboxes({
           const groupKeys = group.keys.filter((k) => k in documents);
           if (groupKeys.length === 0) return null;
 
+          type CardItem = {
+            cardId: string;
+            docKey: string;
+            label: string;
+            singleTemplate?: NonNullable<typeof templates>[0];
+          };
+
+          const cardItems: CardItem[] = group.title === "Gwarancje"
+            ? (() => {
+                const tpls = groupKeys.flatMap((k) =>
+                  (templatesByKey[k] ?? []).filter((t) => t.isActive && !!t.googleDriveFileId)
+                );
+                return tpls.length > 0
+                  ? tpls.map((t) => ({ cardId: t._id, docKey: t.key, label: t.name, singleTemplate: t }))
+                  : groupKeys.map((k) => ({ cardId: k, docKey: k, label: DOCUMENT_LABELS[k] ?? k }));
+              })()
+            : groupKeys.map((k) => ({ cardId: k, docKey: k, label: DOCUMENT_LABELS[k] ?? k }));
+
           return (
             <DocGroupSection key={group.title} title={group.title}>
-              {groupKeys.map((key) => {
-                const doc = documents[key];
-                const isGenerating = generating[key] === true;
-                const keyTemplates = templatesByKey[key] ?? [];
+              {cardItems.map((item) => {
+                const { cardId, docKey, label, singleTemplate } = item;
+                const doc = documents[docKey];
+                const isGenerating = generating[docKey] === true;
+                const keyTemplates = singleTemplate
+                  ? [singleTemplate]
+                  : (templatesByKey[docKey] ?? []);
                 const template = keyTemplates[0] ?? null;
-                const activeTemplates = keyTemplates.filter((t) => t.isActive && !!t.googleDriveFileId);
+                const activeTemplates = singleTemplate
+                  ? [singleTemplate]
+                  : keyTemplates.filter((t) => t.isActive && !!t.googleDriveFileId);
                 const hasTemplate = activeTemplates.length > 0;
-                const hasMultipleTemplates = activeTemplates.length > 1;
-                const isExpanded = expandedTemplate === key;
+                const hasMultipleTemplates = !singleTemplate && activeTemplates.length > 1;
+                const isExpanded = expandedTemplate === cardId;
                 const isGenerated = !!doc?.url;
                 const hasError = !isGenerated && !!doc?.error;
 
+                function handleGenerateCard() {
+                  if (singleTemplate) {
+                    if (missingGroups.length > 0) {
+                      setPendingTemplateId(singleTemplate._id);
+                      setPendingDocType(docKey);
+                    } else {
+                      void doGenerate(docKey, singleTemplate._id);
+                    }
+                  } else {
+                    handleGenerate(docKey);
+                  }
+                }
+
                 return (
                   <div
-                    key={key}
+                    key={cardId}
                     className={`flex flex-col rounded-xl border transition-colors ${
                       isGenerated
                         ? "border-emerald-200 bg-emerald-50"
@@ -427,7 +463,7 @@ export default function DocumentCheckboxes({
                         </div>
                         <div>
                           <div className="text-sm font-semibold text-slate-900">
-                            {DOCUMENT_LABELS[key] ?? key}
+                            {label}
                           </div>
                           <div
                             className={`mt-0.5 text-xs ${
@@ -460,7 +496,7 @@ export default function DocumentCheckboxes({
                       {template && (
                         <button
                           onClick={() =>
-                            setExpandedTemplate(isExpanded ? null : key)
+                            setExpandedTemplate(isExpanded ? null : cardId)
                           }
                           className={`rounded-lg p-1.5 transition-colors ${
                             isExpanded
@@ -541,7 +577,7 @@ export default function DocumentCheckboxes({
                               Otworz
                             </a>
                             <button
-                              onClick={() => handleRemove(key)}
+                              onClick={() => handleRemove(docKey)}
                               className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
                               title="Usun dokument"
                             >
@@ -563,7 +599,7 @@ export default function DocumentCheckboxes({
                         </div>
                       ) : hasTemplate ? (
                         <button
-                          onClick={() => handleGenerate(key)}
+                          onClick={() => handleGenerateCard()}
                           disabled={isGenerating}
                           className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                             hasError

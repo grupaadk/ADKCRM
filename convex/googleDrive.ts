@@ -532,6 +532,24 @@ async function performMailMerge(
         `Google Docs API error ${response.status}: ${errorBody}`,
       );
     }
+
+    const responseBody = await response.json() as {
+      replies?: Array<{ replaceAllText?: { occurrencesChanged?: number } }>;
+    };
+    const replies = responseBody.replies ?? [];
+    for (let i = 0; i < fieldMappings.length; i++) {
+      const occurrences = replies[i]?.replaceAllText?.occurrencesChanged ?? 0;
+      const mapping = fieldMappings[i];
+      if (occurrences === 0) {
+        console.warn(
+          `[mailMerge] BRAK DOPASOWANIA: placeholder="${mapping.placeholder}" field="${mapping.field}" value="${resolveFieldValue(client, mapping.field)}"`,
+        );
+      } else {
+        console.log(
+          `[mailMerge] OK: placeholder="${mapping.placeholder}" field="${mapping.field}" zastąpiono ${occurrences}x`,
+        );
+      }
+    }
   };
 
   let connection = await getAuthorizedConnection(ctx);
