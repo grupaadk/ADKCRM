@@ -71,6 +71,7 @@ interface OrderData {
   investmentBuildingNumber?: string;
   investmentPostalCode?: string;
   investmentCity?: string;
+  invoicePlan?: { type?: "vat" | "advance_final"; advancePct?: number };
 }
 
 interface MissingFieldGroup {
@@ -240,6 +241,7 @@ export default function DocumentCheckboxes({
   const [generating, setGenerating] = useState<Record<string, boolean>>({});
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
   const [pendingDocType, setPendingDocType] = useState<string | null>(null);
+  const [pendingTemplateId, setPendingTemplateId] = useState<Id<"documentTemplates"> | undefined>(undefined);
   const [pendingTemplateDocType, setPendingTemplateDocType] = useState<string | null>(null);
 
   const missingGroups = getMissingFieldGroups(clientData, orderData);
@@ -286,14 +288,29 @@ export default function DocumentCheckboxes({
 
   function handleGenerate(docType: string) {
     const keyTemplates = templatesByKey[docType]?.filter((t) => t.isActive && t.googleDriveFileId) ?? [];
-    if (keyTemplates.length > 1) {
+
+    let selectedTemplateId: Id<"documentTemplates"> | undefined = keyTemplates[0]?._id;
+
+    if (docType === "umowa" && keyTemplates.length > 1) {
+      const isAdvanceFinal = orderData?.invoicePlan?.type === "advance_final";
+      const targetName = isAdvanceFinal ? "Umowa_Zaliczka" : "Umowa_całość";
+      const autoSelected = keyTemplates.find((t) => t.name === targetName);
+      if (autoSelected) {
+        selectedTemplateId = autoSelected._id;
+      } else {
+        setPendingTemplateDocType(docType);
+        return;
+      }
+    } else if (keyTemplates.length > 1) {
       setPendingTemplateDocType(docType);
       return;
     }
+
     if (missingGroups.length > 0) {
+      setPendingTemplateId(selectedTemplateId);
       setPendingDocType(docType);
     } else {
-      void doGenerate(docType, keyTemplates[0]?._id);
+      void doGenerate(docType, selectedTemplateId);
     }
   }
 
@@ -315,6 +332,7 @@ export default function DocumentCheckboxes({
             const docType = pendingTemplateDocType;
             setPendingTemplateDocType(null);
             if (missingGroups.length > 0) {
+              setPendingTemplateId(templateId);
               setPendingDocType(docType);
             } else {
               void doGenerate(docType, templateId);
@@ -328,8 +346,10 @@ export default function DocumentCheckboxes({
           missingGroups={missingGroups}
           onConfirm={() => {
             const docType = pendingDocType;
+            const templateId = pendingTemplateId;
             setPendingDocType(null);
-            void doGenerate(docType);
+            setPendingTemplateId(undefined);
+            void doGenerate(docType, templateId);
           }}
           onCancel={() => setPendingDocType(null)}
         />
