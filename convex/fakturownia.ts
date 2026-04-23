@@ -451,7 +451,7 @@ export const pushOrderEstimate = action({
       buyer_company: client.nip ? "1" : "0",
       ...(client.nip ? { buyer_tax_no: client.nip } : {}),
       oid,
-      ...(order.name ? { number: order.name } : {}),
+      ...(order.name ? { number: `${order.name}_Test` } : {}),
       description: `Dotyczy: ${orderLabel}`,
       positions,
       lang: "pl",
