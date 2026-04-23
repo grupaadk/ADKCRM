@@ -350,6 +350,7 @@ export default function OrderLineItems({
   const [error, setError] = useState<string | null>(null);
   const [fkBusy, setFkBusy] = useState<string | null>(null);
   const [fkMessage, setFkMessage] = useState<string | null>(null);
+  const [fkError, setFkError] = useState<string | null>(null);
   const [showNumberConflictModal, setShowNumberConflictModal] = useState(false);
   const [invoiceKind, setInvoiceKind] = useState<"vat" | "advance" | "final" | null>(null);
   const [invoiceAdvancePct, setInvoiceAdvancePct] = useState<number>(50);
@@ -413,13 +414,13 @@ export default function OrderLineItems({
     successMsg?: string,
   ) {
     setFkMessage(null);
-    setError(null);
+    setFkError(null);
     setFkBusy(label);
     try {
       await fn();
       setFkMessage(successMsg ?? "Gotowe.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd Fakturowni");
+      setFkError(err instanceof Error ? err.message : "Błąd Fakturowni");
     } finally {
       setFkBusy(null);
     }
@@ -628,6 +629,9 @@ export default function OrderLineItems({
           </h3>
           {fkMessage && (
             <p className="mb-3 text-sm text-emerald-700">{fkMessage}</p>
+          )}
+          {fkError && (
+            <p className="mb-3 text-sm text-red-600">{fkError}</p>
           )}
           {fakturownia?.estimateId ? (
             <div className="mb-4 space-y-2 text-sm text-slate-700">
