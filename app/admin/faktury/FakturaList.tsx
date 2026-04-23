@@ -706,7 +706,7 @@ export default function FakturaList() {
                     <TableCell>
                       {assignedOrder ? (
                         <Link
-                          href={`/admin/klient/${assignedOrder.clientId}/zlecenie/${assignedOrder._id}`}
+                          href={`/admin/klient/${assignedOrder.clientId}/zlecenie/${assignedOrder._id}?tab=dokumenty`}
                           className="group flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
                         >
                           <Link2 className="size-3.5 shrink-0" />
