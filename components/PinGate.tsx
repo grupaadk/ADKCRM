@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Lock, Delete, ArrowLeft } from "lucide-react";
 
-const CORRECT_PIN = process.env.NEXT_PUBLIC_FAKTURY_PIN ?? "";
+const CORRECT_PIN = process.env.NEXT_PUBLIC_DASHBOARD_PIN ?? "";
 
 interface PinGateProps {
   children: React.ReactNode;

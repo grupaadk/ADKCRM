@@ -1,22 +1,15 @@
-"use client";
-
-import { useRouter } from "next/navigation";
 import FakturaList from "./FakturaList";
-import PinGate from "@/components/PinGate";
 
 export default function FakturyPage() {
-  const router = useRouter();
   return (
-    <PinGate onBack={() => router.back()}>
-      <div>
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Faktury</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Faktury pobrane z Fakturowni. Możesz przypisać je do zleceń w systemie.
-          </p>
-        </div>
-        <FakturaList />
+    <div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">Faktury</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Faktury pobrane z Fakturowni. Możesz przypisać je do zleceń w systemie.
+        </p>
       </div>
-    </PinGate>
+      <FakturaList />
+    </div>
   );
 }
