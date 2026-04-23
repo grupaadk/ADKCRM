@@ -764,7 +764,12 @@ export default function OrderDetailPage({
               <p className="text-sm italic text-slate-400">Brak przypisanych faktur.</p>
             )}
           </SectionCard>
-          <DocumentCheckboxes orderId={orderIdTyped} documents={order.documents} />
+          <DocumentCheckboxes
+            orderId={orderIdTyped}
+            documents={order.documents}
+            clientData={client ?? undefined}
+            orderData={order}
+          />
         </div>
       )}
 
