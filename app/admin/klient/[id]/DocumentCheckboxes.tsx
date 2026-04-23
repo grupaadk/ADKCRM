@@ -208,7 +208,6 @@ function getMissingFieldGroups(
 
     const addressFields: string[] = [];
     if (!clientData.street?.trim()) addressFields.push("Ulica");
-    if (!clientData.buildingNumber?.trim()) addressFields.push("Nr budynku");
     if (!clientData.postalCode?.trim()) addressFields.push("Kod pocztowy");
     if (!clientData.city?.trim()) addressFields.push("Miejscowość");
     if (addressFields.length > 0)
@@ -218,8 +217,6 @@ function getMissingFieldGroups(
   if (orderData) {
     const investFields: string[] = [];
     if (!orderData.investmentStreet?.trim()) investFields.push("Ulica");
-    if (!orderData.investmentBuildingNumber?.trim())
-      investFields.push("Nr budynku");
     if (!orderData.investmentPostalCode?.trim())
       investFields.push("Kod pocztowy");
     if (!orderData.investmentCity?.trim()) investFields.push("Miejscowość");
