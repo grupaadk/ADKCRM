@@ -717,10 +717,10 @@ export default function OrderLineItems({
                           </div>
                           <div className="inline-flex items-center gap-1">
                             <input
-                              type="number"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               min={1}
                               max={99}
-                              step={1}
                               value={advanceTranche.pct}
                               onChange={(e) => {
                                 const v = Math.min(99, Math.max(1, parseInt(e.target.value) || 1));
@@ -731,7 +731,7 @@ export default function OrderLineItems({
                                   ),
                                 );
                               }}
-                              className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-center text-sm"
+                              className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                             />
                             <span className="text-xs text-slate-500">%</span>
                           </div>
