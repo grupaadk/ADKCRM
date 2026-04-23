@@ -352,10 +352,7 @@ export default function OrderLineItems({
   const [fkMessage, setFkMessage] = useState<string | null>(null);
   const [fkError, setFkError] = useState<string | null>(null);
   const [showNumberConflictModal, setShowNumberConflictModal] = useState(false);
-  const [tranches, setTranches] = useState<Array<{ kind: "vat" | "advance" | "final"; pct: number }>>([
-    { kind: "advance", pct: 50 },
-    { kind: "final", pct: 50 },
-  ]);
+  const [tranches, setTranches] = useState<Array<{ kind: "vat" | "advance" | "final"; pct: number }>>([]);
 
   function onVatChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const rate = parseInt(e.target.value);
