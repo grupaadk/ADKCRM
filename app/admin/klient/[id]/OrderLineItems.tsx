@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 
@@ -342,7 +342,7 @@ export default function OrderLineItems({
   const updateItem = useMutation(api.orderLineItems.update);
   const removeItem = useMutation(api.orderLineItems.remove);
   const pushEstimate = useAction(api.fakturownia.pushOrderEstimate);
-  const createInvoice = useAction(api.fakturownia.createOrderInvoice);
+  const recordInvoice = useMutation(api.fakturownia.recordOrderInvoice);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<AddFormState>(EMPTY_FORM);
@@ -666,30 +666,17 @@ export default function OrderLineItems({
               )}
               {fakturownia.invoices.length > 0 && (
                 <ul className="mt-2 space-y-2 border-t border-slate-100 pt-2">
-                  {fakturownia.invoices.map((inv) => (
+                  {fakturownia.invoices.map((inv, idx) => (
                     <li
-                      key={`${inv.kind}-${inv.remoteId}-${inv.createdAt}`}
-                      className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
+                      key={`${inv.kind}-${idx}-${inv.createdAt}`}
+                      className="text-sm text-slate-700"
                     >
-                      <span>
-                        {inv.kind === "advance"
-                          ? `Faktura zaliczkowa${inv.advancePercent != null ? ` (${inv.advancePercent}%)` : ""}`
-                          : inv.kind === "vat"
-                            ? "Faktura VAT"
-                            : "Faktura końcowa"}
-                        {inv.number ? ` (${inv.number})` : ""}
-                        {inv.grossAmount != null ? ` — ${fmt(inv.grossAmount)} zł brutto` : ""}
-                      </span>
-                      {fkBaseUrl && (
-                        <a
-                          href={`${fkBaseUrl}/invoices/${inv.remoteId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-medium text-blue-600 hover:underline"
-                        >
-                          Podgląd
-                        </a>
-                      )}
+                      {inv.kind === "advance"
+                        ? `Faktura zaliczkowa${inv.advancePercent != null ? ` (${inv.advancePercent}%)` : ""}`
+                        : inv.kind === "vat"
+                          ? "Faktura VAT"
+                          : "Faktura końcowa"}
+                      {inv.grossAmount != null ? ` — ${fmt(inv.grossAmount)} zł brutto` : ""}
                     </li>
                   ))}
                 </ul>
@@ -718,9 +705,17 @@ export default function OrderLineItems({
             const finalDisabled = usedPct <= 0;
             const advanceSumWouldExceed = usedPct + invoiceAdvancePct > 100;
 
+            if (!fakturownia?.estimateId) {
+              return (
+                <p className="mt-4 border-t border-slate-100 pt-4 text-xs text-slate-400">
+                  Wyślij najpierw zamówienie do Fakturowni, aby móc zapisać typ faktury.
+                </p>
+              );
+            }
+
             return (
               <div className="mt-4 border-t border-slate-100 pt-4">
-                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">Wystaw fakturę</p>
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">Typ faktury (do umowy)</p>
                 <div className="space-y-2">
                   {(["vat", "advance", "final"] as const).map((kind) => {
                     const disabled = kind === "final" && finalDisabled;
@@ -803,17 +798,17 @@ export default function OrderLineItems({
                       runFk(
                         "invoice",
                         () =>
-                          createInvoice({
+                          recordInvoice({
                             orderId,
                             kind: invoiceKind,
                             advancePercent: invoiceKind === "advance" ? invoiceAdvancePct : undefined,
                           }),
-                        "Faktura wystawiona w Fakturowni.",
+                        "Typ faktury zapisany.",
                       )
                     }
                     className="mt-3 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
                   >
-                    {fkBusy === "invoice" ? "Wystawianie…" : "Wystaw fakturę"}
+                    {fkBusy === "invoice" ? "Zapisywanie…" : "Zapisz typ faktury"}
                   </button>
                 )}
               </div>
