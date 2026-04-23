@@ -497,6 +497,23 @@ export const updateDriveProjectFiles = mutation({
   },
 });
 
+export const saveInvoicePlan = mutation({
+  args: {
+    orderId: v.id("orders"),
+    advancePct: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Brak autoryzacji");
+    if (args.advancePct < 0 || args.advancePct > 100) {
+      throw new Error("Procent musi być między 0 a 100");
+    }
+    await ctx.db.patch(args.orderId, {
+      invoicePlan: { advancePct: args.advancePct },
+    });
+  },
+});
+
 export const updateDriveFolder = mutation({
   args: {
     orderId: v.id("orders"),

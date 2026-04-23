@@ -1014,11 +1014,15 @@ export const copyTemplate = action({
         const decPart = str.slice(dotIdx + 1);
         return `${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ")},${decPart} zł`;
       };
+      const advancePct = order.invoicePlan?.advancePct ?? 0;
+      const finalPct = 100 - advancePct;
       const computedFields = {
         estimateTotal: formatPLN(totalGross),
         estimateNetTotal: formatPLN(totalNet),
-        estimate30pct: formatPLN(Math.round(totalGross * 0.3 * 100) / 100),
-        estimate70pct: formatPLN(Math.round(totalGross * 0.7 * 100) / 100),
+        invoiceAdvancePct: `${advancePct}%`,
+        invoiceAdvanceAmount: formatPLN(Math.round(totalGross * advancePct / 100 * 100) / 100),
+        invoiceFinalPct: `${finalPct}%`,
+        invoiceFinalAmount: formatPLN(Math.round(totalGross * finalPct / 100 * 100) / 100),
       };
 
       const connection = await getAuthorizedConnection(ctx);

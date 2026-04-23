@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
@@ -331,9 +331,11 @@ const EMPTY_FORM: AddFormState = {
 export default function OrderLineItems({
   orderId,
   fakturownia,
+  invoicePlan,
 }: {
   orderId: Id<"orders">;
   fakturownia?: Doc<"orders">["fakturownia"];
+  invoicePlan?: Doc<"orders">["invoicePlan"];
 }) {
   const data = useQuery(api.orderLineItems.listByOrder, { orderId });
   const fkConfig = useQuery(api.fakturownia.getConfig);
@@ -343,6 +345,7 @@ export default function OrderLineItems({
   const removeItem = useMutation(api.orderLineItems.remove);
   const pushEstimate = useAction(api.fakturownia.pushOrderEstimate);
   const recordInvoice = useMutation(api.fakturownia.recordOrderInvoice);
+  const saveInvoicePlan = useMutation(api.orders.saveInvoicePlan);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<AddFormState>(EMPTY_FORM);
@@ -352,7 +355,37 @@ export default function OrderLineItems({
   const [fkMessage, setFkMessage] = useState<string | null>(null);
   const [fkError, setFkError] = useState<string | null>(null);
   const [showNumberConflictModal, setShowNumberConflictModal] = useState(false);
-  const [tranches, setTranches] = useState<Array<{ kind: "vat" | "advance" | "final"; pct: number }>>([]);
+
+  const initializedRef = useRef(false);
+  const [tranches, setTranches] = useState<Array<{ kind: "vat" | "advance" | "final"; pct: number }>>(() => {
+    if (invoicePlan?.advancePct != null && invoicePlan.advancePct > 0) {
+      return [
+        { kind: "advance" as const, pct: invoicePlan.advancePct },
+        { kind: "final" as const, pct: 100 - invoicePlan.advancePct },
+      ];
+    }
+    return [];
+  });
+
+  // Sync tranches → invoicePlan in DB (debounced)
+  const savePlanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      return;
+    }
+    const advancePct = tranches
+      .filter((t) => t.kind === "advance")
+      .reduce((s, t) => s + t.pct, 0);
+    if (savePlanTimerRef.current) clearTimeout(savePlanTimerRef.current);
+    savePlanTimerRef.current = setTimeout(() => {
+      saveInvoicePlan({ orderId, advancePct }).catch(() => {});
+    }, 800);
+    return () => {
+      if (savePlanTimerRef.current) clearTimeout(savePlanTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tranches, orderId]);
 
   function onVatChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const rate = parseInt(e.target.value);

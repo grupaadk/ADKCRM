@@ -639,7 +639,7 @@ export default function OrderDetailPage({
       {activeTab === "wycena" && (
         <div className="space-y-6">
           <SectionCard title="Pozycje zamówienia">
-            <OrderLineItems orderId={orderIdTyped} fakturownia={order.fakturownia} />
+            <OrderLineItems orderId={orderIdTyped} fakturownia={order.fakturownia} invoicePlan={order.invoicePlan} />
           </SectionCard>
 
         </div>
