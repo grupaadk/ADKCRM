@@ -648,7 +648,7 @@ export default function FakturaList() {
                     </TableCell>
 
                     {/* Buyer */}
-                    <TableCell className="text-sm text-gray-900">
+                    <TableCell className="whitespace-normal min-w-[160px] max-w-[260px] text-sm text-gray-900">
                       {invoice.buyerName ?? <span className="text-gray-400">—</span>}
                     </TableCell>
 

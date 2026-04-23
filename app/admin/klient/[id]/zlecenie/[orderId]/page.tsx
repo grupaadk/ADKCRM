@@ -703,7 +703,7 @@ export default function OrderDetailPage({
                               <span className="text-gray-400">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm text-gray-900">
+                          <TableCell className="whitespace-normal min-w-[160px] max-w-[260px] text-sm text-gray-900">
                             {inv.buyerName ?? <span className="text-gray-400">—</span>}
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-sm text-gray-600">
