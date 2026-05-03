@@ -253,7 +253,7 @@ export const createFromEmail = action({
       driveConnection?.sharedDriveId &&
       driveConnection.connectionStatus !== "disconnected"
     ) {
-      await ctx.scheduler.runAfter(0, internal.googleDrive.initializeMeasurement, { orderId });
+      await ctx.scheduler.runAfter(0, api.googleDrive.createOrderFolder, { orderId });
     }
 
     return { clientId, orderId };
@@ -303,7 +303,7 @@ export const insertOrder = mutation({
       services: args.services,
       comment: args.comment,
       status: "measurement",
-      documents: { ...DEFAULT_DOCUMENTS, pomiar: { enabled: true } },
+      documents: DEFAULT_DOCUMENTS,
       source: "manual",
       trelloCardId: args.trelloCardId,
       trelloCardUrl: args.trelloCardUrl,

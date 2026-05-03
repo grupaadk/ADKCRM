@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { api, internal } from "./_generated/api";
+import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { DEFAULT_DOCUMENTS, nextOrderNumber } from "./orders";
 
@@ -165,7 +165,7 @@ export const createFromPending = mutation({
       projectFiles: pending.projectFiles,
       comment: pending.comment,
       status: "measurement",
-      documents: { ...DEFAULT_DOCUMENTS, pomiar: { enabled: true } },
+      documents: DEFAULT_DOCUMENTS,
       source: "jotform",
       jotformSubmissionId: pending.submissionId,
       trelloCardId: args.trelloCardId,
@@ -214,10 +214,10 @@ export const createFromPending = mutation({
     if (driveReady) {
       await ctx.scheduler.runAfter(
         0,
-        internal.googleDrive.initializeMeasurement,
+        api.googleDrive.createOrderFolder,
         { orderId },
       );
-      console.info("[jotform] initializeMeasurement scheduled", { orderId });
+      console.info("[jotform] createOrderFolder scheduled", { orderId });
     }
 
     return { clientId, orderId };
@@ -312,7 +312,7 @@ export const repairPendingSubmission = mutation({
       projectFiles: pending.projectFiles,
       comment: pending.comment,
       status: "measurement",
-      documents: { ...DEFAULT_DOCUMENTS, pomiar: { enabled: true } },
+      documents: DEFAULT_DOCUMENTS,
       source: "jotform",
       jotformSubmissionId: pending.submissionId,
       trelloCardId: effectiveCardId,
@@ -329,7 +329,7 @@ export const repairPendingSubmission = mutation({
     ) {
       await ctx.scheduler.runAfter(
         0,
-        internal.googleDrive.initializeMeasurement,
+        api.googleDrive.createOrderFolder,
         { orderId },
       );
     }

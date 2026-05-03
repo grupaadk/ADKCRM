@@ -319,16 +319,9 @@ export const changeStatus = mutation({
         (driveConnection.connectionStatus === "connected" ||
           driveConnection.connectionStatus === "token_expiring")
       ) {
-        // Oznacz dokument pomiar jako aktywny (przed asynchronicznym generowaniem)
-        if (!order.documents.pomiar.enabled) {
-          const documents = { ...order.documents };
-          documents.pomiar = { ...documents.pomiar, enabled: true };
-          await ctx.db.patch(args.orderId, { documents });
-        }
-        // Utwórz folder zlecenia i wygeneruj plik pomiaru sekwencyjnie
         await ctx.scheduler.runAfter(
           0,
-          internal.googleDrive.initializeMeasurement,
+          api.googleDrive.createOrderFolder,
           { orderId: args.orderId },
         );
       }
@@ -378,6 +371,12 @@ export const toggleDocument = mutation({
 
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
+
+    if (args.enabled && args.documentType === "pomiar") {
+      if (!order.investmentStreet?.trim() || !order.investmentCity?.trim()) {
+        throw new Error("Uzupełnij adres inwestycji w zleceniu (ulica i miejscowość) przed wygenerowaniem dokumentu Pomiar.");
+      }
+    }
 
     const documents = { ...order.documents };
     const existingUrl = documents[args.documentType].url;
