@@ -325,7 +325,7 @@ export default function OrderList() {
                         )}
                         <Link
                           href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
-                          className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                          className="inline-flex items-center gap-1 rounded-md bg-orange-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-600"
                         >
                           Szczegóły
                         </Link>
