@@ -201,8 +201,7 @@ export const createFromPending = mutation({
     const driveConnection = await ctx.db.query("driveConnection").first();
     const driveReady =
       !!driveConnection?.sharedDriveId &&
-      (driveConnection.connectionStatus === "connected" ||
-        driveConnection.connectionStatus === "token_expiring");
+      driveConnection.connectionStatus !== "disconnected";
 
     console.info("[jotform] drive scheduling check", {
       driveConnectionExists: !!driveConnection,
@@ -326,8 +325,7 @@ export const repairPendingSubmission = mutation({
     const driveConnection = await ctx.db.query("driveConnection").first();
     if (
       driveConnection?.sharedDriveId &&
-      (driveConnection.connectionStatus === "connected" ||
-        driveConnection.connectionStatus === "token_expiring")
+      driveConnection.connectionStatus !== "disconnected"
     ) {
       await ctx.scheduler.runAfter(
         0,

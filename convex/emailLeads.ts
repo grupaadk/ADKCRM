@@ -249,7 +249,10 @@ export const createFromEmail = action({
 
     // Zaplanuj tworzenie folderu Drive
     const driveConnection = await ctx.runQuery(api.emailLeads.getDriveConnection);
-    if (driveConnection?.connectionStatus === "connected" && driveConnection.sharedDriveId) {
+    if (
+      driveConnection?.sharedDriveId &&
+      driveConnection.connectionStatus !== "disconnected"
+    ) {
       await ctx.scheduler.runAfter(0, internal.googleDrive.initializeMeasurement, { orderId });
     }
 
