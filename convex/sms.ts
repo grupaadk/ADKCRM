@@ -26,6 +26,7 @@ export const saveConfig = mutation({
   args: {
     internalPhone: v.string(),
     senderName: v.string(),
+    recipients: v.optional(v.array(v.object({ name: v.string(), phone: v.string() }))),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.query("smsConfig").first();
@@ -33,11 +34,13 @@ export const saveConfig = mutation({
       await ctx.db.patch(existing._id, {
         internalPhone: args.internalPhone,
         senderName: args.senderName,
+        recipients: args.recipients,
       });
     } else {
       await ctx.db.insert("smsConfig", {
         internalPhone: args.internalPhone,
         senderName: args.senderName,
+        recipients: args.recipients,
       });
     }
   },
@@ -108,15 +111,20 @@ export const sendAddressSms = action({
   },
 });
 
-// Wysyła adres inwestycji ze zlecenia na skonfigurowany wewnętrzny numer
+// Wysyła adres inwestycji ze zlecenia na wskazane numery telefonów
 export const sendOrderAddressSms = action({
   args: {
     orderId: v.id("orders"),
+    recipients: v.array(v.string()),
   },
   handler: async (ctx, args) => {
     const token = process.env.SMSAPI_TOKEN;
     if (!token) {
       throw new Error("SMSAPI_TOKEN nie ustawiony");
+    }
+
+    if (args.recipients.length === 0) {
+      throw new Error("Nie podano żadnych odbiorców");
     }
 
     const [order, smsConfig] = await Promise.all([
@@ -130,7 +138,6 @@ export const sendOrderAddressSms = action({
 
     const client = await ctx.runQuery(api.clients.getById, { clientId: order.clientId });
 
-    const internalPhone = smsConfig?.internalPhone || DEFAULT_INTERNAL_PHONE;
     const senderName = smsConfig?.senderName || DEFAULT_SENDER;
 
     const addressParts = [
@@ -146,32 +153,35 @@ export const sendOrderAddressSms = action({
     const clientName = client ? `${client.firstName} ${client.lastName}` : "";
     const message = clientName ? `${clientName}\n${fullAddress}` : fullAddress;
 
-    const body = new URLSearchParams({
-      to: internalPhone,
-      message,
-      from: senderName,
-      encoding: "utf-8",
-      format: "json",
-    });
+    for (const phone of args.recipients) {
+      const normalized = normalizePhone(phone);
+      const body = new URLSearchParams({
+        to: normalized,
+        message,
+        from: senderName,
+        encoding: "utf-8",
+        format: "json",
+      });
 
-    const response = await fetch("https://api.smsapi.pl/sms.do", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: body.toString(),
-    });
+      const response = await fetch("https://api.smsapi.pl/sms.do", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: body.toString(),
+      });
 
-    const result = (await response.json()) as Record<string, unknown>;
-    if (!response.ok || result.error) {
-      const raw = JSON.stringify(result);
-      console.error("[sms] Błąd wysyłki adresu zlecenia", { status: response.status, raw });
-      throw new Error(`Błąd SMSAPI (HTTP ${response.status}): ${raw}`);
+      const result = (await response.json()) as Record<string, unknown>;
+      if (!response.ok || result.error) {
+        const raw = JSON.stringify(result);
+        console.error("[sms] Błąd wysyłki adresu zlecenia", { status: response.status, raw, to: normalized });
+        throw new Error(`Błąd SMSAPI (HTTP ${response.status}): ${raw}`);
+      }
+
+      const list = result.list as { id: string }[] | undefined;
+      console.info("[sms] Adres zlecenia wysłany SMS", { to: normalized, messageId: list?.[0]?.id });
     }
-
-    const list = result.list as { id: string }[] | undefined;
-    console.info("[sms] Adres zlecenia wysłany SMS", { to: internalPhone, messageId: list?.[0]?.id });
   },
 });
 

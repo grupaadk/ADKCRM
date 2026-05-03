@@ -37,7 +37,7 @@ export async function nextOrderNumber(ctx: MutationCtx): Promise<string> {
   }
 
   const mm = String(month).padStart(2, "0");
-  return `${number}/${mm}/${year}_TEST`;
+  return `${number}/${mm}/${year}`;
 }
 
 export const DEFAULT_DOCUMENTS = {

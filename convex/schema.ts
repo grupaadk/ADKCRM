@@ -425,6 +425,7 @@ export default defineSchema({
   smsConfig: defineTable({
     internalPhone: v.string(),
     senderName: v.string(),
+    recipients: v.optional(v.array(v.object({ name: v.string(), phone: v.string() }))),
   }),
 
   // 3.15 Konfiguracja CRM (singleton) — m.in. niestandardowe nazwy statusów

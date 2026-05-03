@@ -14,13 +14,7 @@ const BATCH_SIZE = 100;
  * Po zakończeniu zawęź viewTypeValidator w viewConfig.ts i schema.ts
  * z powrotem do v.literal("table").
  */
-/**
- * Migracja: dopisuje suffix "_TEST" do nazwy każdego zlecenia.
- *
- * Uruchomienie:
- *   npx convex run migrations:addTestSuffixToOrders
- */
-export const addTestSuffixToOrders = internalMutation({
+export const removeTestSuffixFromOrders = internalMutation({
   args: {
     cursor: v.optional(v.string()),
   },
@@ -35,8 +29,8 @@ export const addTestSuffixToOrders = internalMutation({
 
     let processed = 0;
     for (const order of result.page) {
-      if (order.name && !order.name.endsWith("_TEST")) {
-        await ctx.db.patch(order._id, { name: `${order.name}_TEST` });
+      if (order.name && order.name.endsWith("_TEST")) {
+        await ctx.db.patch(order._id, { name: order.name.slice(0, -5) });
         processed++;
       }
     }
@@ -44,7 +38,7 @@ export const addTestSuffixToOrders = internalMutation({
     if (!result.isDone) {
       await ctx.scheduler.runAfter(
         0,
-        internal.migrations.addTestSuffixToOrders,
+        internal.migrations.removeTestSuffixFromOrders,
         { cursor: result.continueCursor },
       );
     }

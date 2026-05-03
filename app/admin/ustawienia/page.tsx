@@ -1943,6 +1943,8 @@ function TrelloTab() {
 
 // --- SMS Tab ---
 
+type SmsRecipient = { name: string; phone: string };
+
 function SmsTab() {
   const config = useQuery(api.sms.getConfig);
   const saveConfig = useMutation(api.sms.saveConfig);
@@ -1955,27 +1957,47 @@ function SmsTab() {
     text: string;
   } | null>(null);
 
+  const [newRecipientName, setNewRecipientName] = useState("");
+  const [newRecipientPhone, setNewRecipientPhone] = useState("");
+
   const effectivePhone = phone || config?.internalPhone || "";
   const effectiveSender = sender || config?.senderName || "ADK Okna";
+  const currentRecipients: SmsRecipient[] = config?.recipients ?? [];
 
-  const handleSave = async () => {
+  const saveWithRecipients = async (recipients: SmsRecipient[]) => {
     const phoneVal = effectivePhone.trim();
     const senderVal = effectiveSender.trim();
     if (!phoneVal || !senderVal) return;
     setSaving(true);
     setMessage(null);
     try {
-      await saveConfig({ internalPhone: phoneVal, senderName: senderVal });
+      await saveConfig({ internalPhone: phoneVal, senderName: senderVal, recipients });
       setMessage({ type: "success", text: "Konfiguracja SMS zapisana." });
-      setPhone("");
-      setSender("");
     } catch (error: unknown) {
-      setMessage({
-        type: "error",
-        text: getErrorMessage(error, "Błąd zapisu"),
-      });
+      setMessage({ type: "error", text: getErrorMessage(error, "Błąd zapisu") });
     }
     setSaving(false);
+  };
+
+  const handleSave = async () => {
+    setPhone("");
+    setSender("");
+    await saveWithRecipients(currentRecipients);
+  };
+
+  const handleAddRecipient = async () => {
+    const name = newRecipientName.trim();
+    const recipientPhone = newRecipientPhone.trim();
+    if (!name || !recipientPhone) return;
+    const updated = [...currentRecipients, { name, phone: recipientPhone }];
+    await saveWithRecipients(updated);
+    setNewRecipientName("");
+    setNewRecipientPhone("");
+  };
+
+  const handleRemoveRecipient = async (index: number) => {
+    const updated = currentRecipients.filter((_, i) => i !== index);
+    await saveWithRecipients(updated);
   };
 
   if (config === undefined) {
@@ -2010,8 +2032,7 @@ function SmsTab() {
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p className="mt-1 text-xs text-slate-400">
-              Na ten numer wysyłany jest SMS z danymi kontaktowymi klienta
-              (przycisk &quot;Wyślij adres&quot; w karcie klienta). Podaj numer
+              Używany przez przycisk &quot;Wyślij adres&quot; w karcie klienta. Podaj numer
               z prefiksem kraju bez znaku &quot;+&quot;, np.{" "}
               <code className="font-mono">48515453090</code>.
             </p>
@@ -2059,27 +2080,71 @@ function SmsTab() {
         </div>
       </div>
 
-      {config && (
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h4 className="text-sm font-semibold text-slate-900 mb-3">
-            Aktualna konfiguracja
-          </h4>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
-            <div>
-              <dt className="text-slate-500">Numer odbiorcy</dt>
-              <dd className="text-slate-900 font-medium mt-0.5 font-mono text-xs">
-                {config.internalPhone}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-slate-500">Nazwa nadawcy</dt>
-              <dd className="text-slate-900 font-medium mt-0.5">
-                {config.senderName}
-              </dd>
-            </div>
-          </dl>
+      {/* Lista adresatów */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h3 className="text-base font-semibold text-slate-900 mb-1">
+          Lista adresatów SMS
+        </h3>
+        <p className="text-sm text-slate-500 mb-5">
+          Osoby, które można wybrać przy wysyłce adresu inwestycji ze zlecenia.
+        </p>
+
+        <div className="space-y-2 mb-5">
+          {currentRecipients.length === 0 ? (
+            <p className="text-sm text-slate-400 italic">Brak zapisanych adresatów.</p>
+          ) : (
+            currentRecipients.map((r, i) => (
+              <div key={i} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2.5 bg-slate-50">
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-slate-800">{r.name}</span>
+                  <span className="ml-2 font-mono text-xs text-slate-500">{r.phone}</span>
+                </div>
+                <button
+                  onClick={() => void handleRemoveRecipient(i)}
+                  disabled={saving}
+                  className="ml-3 flex-shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-40"
+                  title="Usuń adresata"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))
+          )}
         </div>
-      )}
+
+        <div className="border-t border-slate-100 pt-4">
+          <p className="text-xs font-medium text-slate-600 mb-3">Dodaj nowego adresata</p>
+          <div className="flex gap-2 flex-wrap">
+            <input
+              type="text"
+              value={newRecipientName}
+              onChange={(e) => setNewRecipientName(e.target.value)}
+              placeholder="Imię i nazwisko"
+              className="flex-1 min-w-[140px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="tel"
+              value={newRecipientPhone}
+              onChange={(e) => setNewRecipientPhone(e.target.value)}
+              placeholder="np. 48515453090"
+              className="flex-1 min-w-[140px] rounded-md border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onKeyDown={(e) => { if (e.key === "Enter") void handleAddRecipient(); }}
+            />
+            <button
+              onClick={() => void handleAddRecipient()}
+              disabled={saving || !newRecipientName.trim() || !newRecipientPhone.trim()}
+              className="inline-flex items-center gap-1.5 rounded-md bg-slate-800 text-white px-4 py-2 text-sm font-medium hover:bg-slate-700 transition-colors disabled:opacity-40"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Dodaj
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
         <p className="text-xs text-amber-800">
