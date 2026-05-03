@@ -7,6 +7,9 @@ import { encrypt, decrypt } from "./lib/crypto";
 const DRIVE_API_BASE = "https://www.googleapis.com/drive/v3";
 const DOCS_API_BASE = "https://docs.googleapis.com/v1";
 
+const CLIENTS_FOLDER_ID = "0AF5F7v0YZWQHUk9PVA";
+const TEMPLATES_FOLDER_ID = "0ANuZnSEtUiLTUk9PVA";
+
 type DriveItem = {
   id: string;
   name: string;
@@ -582,8 +585,8 @@ export const getConnectionStatus = query({
       connectedBy: connection.connectedBy,
       connectedEmail: connection.connectedEmail,
       expiresAt: connection.expiresAt,
-      sharedDriveId: connection.sharedDriveId,
-      templatesFolderId: connection.templatesFolderId,
+      sharedDriveId: CLIENTS_FOLDER_ID,
+      templatesFolderId: TEMPLATES_FOLDER_ID,
       lastCheckedAt: connection.lastCheckedAt,
     };
   },
@@ -778,9 +781,6 @@ export const createOrderFolder = action({
     }
 
     const connection = await getAuthorizedConnection(ctx);
-    if (!connection.sharedDriveId) {
-      throw new Error("Shared drive not configured");
-    }
 
     // Krok 1: Znajdź lub utwórz folder klienta (Imię_Nazwisko) w shared drive
     let clientFolderId = client.clientFolderId;
@@ -789,7 +789,7 @@ export const createOrderFolder = action({
       const { id, url: clientFolderUrl } = await createDriveFolder(
         ctx,
         clientFolderName,
-        connection.sharedDriveId,
+        CLIENTS_FOLDER_ID,
       );
       clientFolderId = id;
 
@@ -1256,13 +1256,10 @@ export const initializeMeasurement = internalAction({
 export const listTemplateFiles = action({
   args: {},
   handler: async (ctx): Promise<Array<{ id: string; name: string }>> => {
-    const connection = await getAuthorizedConnection(ctx);
-    if (!connection.templatesFolderId) {
-      throw new Error("Templates folder not configured");
-    }
+    await getAuthorizedConnection(ctx);
 
     const params = new URLSearchParams({
-      q: `'${connection.templatesFolderId}' in parents and trashed=false`,
+      q: `'${TEMPLATES_FOLDER_ID}' in parents and trashed=false`,
       supportsAllDrives: "true",
       includeItemsFromAllDrives: "true",
       fields: "files(id,name,mimeType)",
