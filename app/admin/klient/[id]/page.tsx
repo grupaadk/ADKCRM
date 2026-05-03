@@ -374,7 +374,7 @@ export default function ClientDetailPage({
                           )}
                           <Link
                             href={`/admin/klient/${id}/zlecenie/${order._id}`}
-                            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:text-gray-600"
+                            className="inline-flex items-center gap-1 rounded-md bg-orange-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-600"
                           >
                             Szczegóły
                           </Link>
