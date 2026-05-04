@@ -12,6 +12,7 @@ const EMPTY_FORM = {
   lastName: "",
   email: "",
   phone: "",
+  nip: "",
   postalCode: "",
   city: "",
   street: "",
@@ -47,6 +48,7 @@ export default function KlienciPage() {
         lastName: form.lastName.trim(),
         email: form.email.trim() || undefined,
         phone: form.phone.trim() || undefined,
+        nip: form.nip.trim() || undefined,
         postalCode: form.postalCode.trim() || undefined,
         city: form.city.trim() || undefined,
         street: form.street.trim() || undefined,
@@ -99,17 +101,15 @@ export default function KlienciPage() {
             Lista wszystkich klientów w systemie.
           </p>
         </div>
-        <a
-          href="https://form.jotform.com/260517926002047"
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={() => setShowModal(true)}
           className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
           Dodaj klienta
-        </a>
+        </button>
       </div>
 
       <ClientList
@@ -206,6 +206,18 @@ export default function KlienciPage() {
                     placeholder="123 456 789"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label htmlFor="nip" className="mb-1 block text-sm font-medium text-slate-700">NIP</label>
+                <input
+                  id="nip"
+                  type="text"
+                  value={form.nip}
+                  onChange={(e) => handleChange("nip", e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                  placeholder="np. 1234567890 (opcjonalnie)"
+                />
               </div>
 
               <div>
