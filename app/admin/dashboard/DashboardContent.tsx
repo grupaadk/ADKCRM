@@ -174,7 +174,7 @@ export default function DashboardContent() {
           {events.length === 0 ? (
             <p className="p-4 text-sm text-gray-500">Brak aktywności.</p>
           ) : (
-            events.map((event) => (
+            events.map((event: NonNullable<typeof events>[number]) => (
               <div key={event._id} className="flex items-start gap-3 p-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-gray-900">
