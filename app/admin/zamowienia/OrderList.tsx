@@ -4,29 +4,18 @@ import { useState, useMemo } from "react"
 import { useQuery } from "convex/react"
 import Link from "next/link"
 import { api } from "@/convex/_generated/api"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRoot,
-  TableRow,
-} from "@/components/ui/Table"
-import { StatusBadge } from "@/components/ui/Badge"
-import { ChevronUp, ChevronDown, ChevronsUpDown, CalendarDays, Clock } from "lucide-react"
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
+import { CrmFilterTabs, CrmEmptyState, fmtDate } from "@/components/crm-ui"
 
-function relativeTime(ms: number): string {
-  const days = Math.floor((Date.now() - ms) / 86_400_000)
-  if (days === 0) return "dziś"
-  if (days === 1) return "wczoraj"
-  if (days < 7) return `${days} dni temu`
-  const weeks = Math.floor(days / 7)
-  if (weeks < 5) return `${weeks} tyg. temu`
-  const months = Math.floor(days / 30)
-  if (months < 12) return `${months} mies. temu`
-  return `${Math.floor(days / 365)} lat temu`
+const STATUS_LABELS: Record<string, string> = {
+  new: "Nowe",
+  measurement: "Pomiar",
+  offer: "Oferta",
+  production: "Produkcja",
+  installation: "Montaż",
+  completed: "Zakończone",
+  complaint: "Reklamacja",
 }
 
 type SortField = "client" | "city" | "status" | "services" | "createdAt" | "totalGross"
@@ -40,40 +29,27 @@ type Order = {
   services?: string[]
   name?: string
   client: { firstName: string; lastName: string; city?: string } | null
-  fakturownia?: {
-    invoices?: Array<{ kind: "advance" | "final" }>
-  }
+  fakturownia?: { invoices?: Array<{ kind: "advance" | "final" }> }
   documents?: Record<string, { url?: string; signatureStatus?: "signed" | "not_applicable" }>
   totalGross?: number | null
 }
 
-function SkeletonRow() {
-  return (
-    <TableRow className="animate-pulse">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <TableCell key={i}>
-          <div className="h-4 rounded bg-gray-200" />
-        </TableCell>
-      ))}
-    </TableRow>
-  )
+function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDirection }) {
+  const cls = "ml-1 inline"
+  if (sortField !== field) return <ChevronsUpDown className={`${cls} size-3`} style={{ color: "var(--text-mute)", opacity: 0.5 }} />
+  return sortDir === "asc"
+    ? <ChevronUp className={`${cls} size-3`} style={{ color: "var(--text-strong)" }} />
+    : <ChevronDown className={`${cls} size-3`} style={{ color: "var(--text-strong)" }} />
 }
 
-function SortIcon({
-  field,
-  sortField,
-  sortDir,
-}: {
-  field: SortField
-  sortField: SortField
-  sortDir: SortDirection
-}) {
-  if (sortField !== field) {
-    return <ChevronsUpDown className="ml-1 inline size-3.5 text-gray-300" />
-  }
-  return sortDir === "asc"
-    ? <ChevronUp className="ml-1 inline size-3.5 text-gray-700" />
-    : <ChevronDown className="ml-1 inline size-3.5 text-gray-700" />
+function relativeTime(ms: number): string {
+  const days = Math.floor((Date.now() - ms) / 86_400_000)
+  if (days === 0) return "dziś"
+  if (days === 1) return "wczoraj"
+  if (days < 7) return `${days} dni temu`
+  const weeks = Math.floor(days / 7)
+  if (weeks < 5) return `${weeks} tyg. temu`
+  return `${Math.floor(days / 30)} mies. temu`
 }
 
 export default function OrderList() {
@@ -85,12 +61,8 @@ export default function OrderList() {
   const [viewFilter, setViewFilter] = useState<"all" | "active" | "complaint" | "completed">("active")
 
   const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
-    } else {
-      setSortField(field)
-      setSortDir("asc")
-    }
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    else { setSortField(field); setSortDir("asc") }
   }
 
   const counts = useMemo(() => {
@@ -103,240 +75,147 @@ export default function OrderList() {
 
   const displayOrders = useMemo(() => {
     if (!orders) return undefined
-
     let filtered = orders as Order[]
-    if (viewFilter === "active") {
-      filtered = filtered.filter((o) => o.status !== "completed")
-    } else if (viewFilter === "complaint") {
-      filtered = filtered.filter((o) => o.status === "complaint")
-    } else if (viewFilter === "completed") {
-      filtered = filtered.filter((o) => o.status === "completed")
-    }
-
+    if (viewFilter === "active") filtered = filtered.filter((o) => o.status !== "completed")
+    else if (viewFilter === "complaint") filtered = filtered.filter((o) => o.status === "complaint")
+    else if (viewFilter === "completed") filtered = filtered.filter((o) => o.status === "completed")
     return [...filtered].sort((a, b) => {
-
       let cmp = 0
       switch (sortField) {
         case "client": {
           const aName = a.client ? `${a.client.lastName} ${a.client.firstName}` : ""
           const bName = b.client ? `${b.client.lastName} ${b.client.firstName}` : ""
-          cmp = aName.localeCompare(bName, "pl")
-          break
+          cmp = aName.localeCompare(bName, "pl"); break
         }
-        case "status":
-          cmp = a.status.localeCompare(b.status, "pl")
-          break
-        case "services": {
-          const aS = (a.services ?? []).join(", ")
-          const bS = (b.services ?? []).join(", ")
-          cmp = aS.localeCompare(bS, "pl")
-          break
-        }
-        case "createdAt":
-          cmp = a._creationTime - b._creationTime
-          break
-        case "city":
-          cmp = (a.client?.city ?? "").localeCompare(b.client?.city ?? "", "pl")
-          break
-        case "totalGross":
-          cmp = (a.totalGross ?? 0) - (b.totalGross ?? 0)
-          break
+        case "status": cmp = a.status.localeCompare(b.status, "pl"); break
+        case "services": cmp = (a.services ?? []).join().localeCompare((b.services ?? []).join(), "pl"); break
+        case "createdAt": cmp = a._creationTime - b._creationTime; break
+        case "city": cmp = (a.client?.city ?? "").localeCompare(b.client?.city ?? "", "pl"); break
+        case "totalGross": cmp = (a.totalGross ?? 0) - (b.totalGross ?? 0); break
       }
       return sortDir === "asc" ? cmp : -cmp
     })
   }, [orders, viewFilter, sortField, sortDir])
 
+  const filterTabs = [
+    { key: "all",       label: "Wszystkie",  count: counts.all },
+    { key: "active",    label: "Aktywne",    count: counts.active },
+    { key: "complaint", label: "Reklamacje", count: counts.complaint },
+    { key: "completed", label: "Zakończone", count: counts.completed },
+  ]
+
   return (
-    <div className="space-y-4">
-      {/* View filter tabs */}
-      <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-100 p-1 w-fit">
-        {(["all", "active", "complaint", "completed"] as const).map((tab) => {
-          const labels = { all: "Wszystkie", active: "Aktywne", complaint: "Reklamacje", completed: "Zakończone" }
-          const isActive = viewFilter === tab
-          return (
-            <button
-              key={tab}
-              onClick={() => setViewFilter(tab)}
-              className={`inline-flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-all ${
-                isActive
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {labels[tab]}
-              {orders && (
-                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${isActive ? "bg-gray-100 text-gray-600" : "bg-gray-200 text-gray-400"}`}>
-                  {counts[tab]}
-                </span>
-              )}
-            </button>
-          )
-        })}
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Toolbar */}
+      <div className="panel" style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+        <CrmFilterTabs
+          tabs={filterTabs}
+          active={viewFilter}
+          onChange={(k) => setViewFilter(k as typeof viewFilter)}
+        />
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        <TableRoot>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableHeaderCell className="text-gray-500 font-medium">
-                  ID Zlecenia
-                </TableHeaderCell>
-                <TableHeaderCell
-                  onClick={() => handleSort("client")}
-                  className="cursor-pointer select-none hover:bg-gray-50"
-                >
-                  Klient
-                  <SortIcon field="client" sortField={sortField} sortDir={sortDir} />
-                </TableHeaderCell>
-                <TableHeaderCell
-                  onClick={() => handleSort("city")}
-                  className="cursor-pointer select-none hover:bg-gray-50"
-                >
-                  Miasto
-                  <SortIcon field="city" sortField={sortField} sortDir={sortDir} />
-                </TableHeaderCell>
-                <TableHeaderCell
-                  onClick={() => handleSort("status")}
-                  className="cursor-pointer select-none hover:bg-gray-50"
-                >
-                  Status
-                  <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
-                </TableHeaderCell>
-                <TableHeaderCell>Dokumenty</TableHeaderCell>
-                <TableHeaderCell
-                  onClick={() => handleSort("services")}
-                  className="cursor-pointer select-none hover:bg-gray-50"
-                >
-                  Usługi
-                  <SortIcon field="services" sortField={sortField} sortDir={sortDir} />
-                </TableHeaderCell>
-                <TableHeaderCell
-                  onClick={() => handleSort("createdAt")}
-                  className="cursor-pointer select-none hover:bg-gray-50"
-                >
-                  Data utworzenia
-                  <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
-                </TableHeaderCell>
-                <TableHeaderCell
-                  onClick={() => handleSort("totalGross")}
-                  className="cursor-pointer select-none hover:bg-gray-50 text-right"
-                >
-                  Kwota brutto
-                  <SortIcon field="totalGross" sortField={sortField} sortDir={sortDir} />
-                </TableHeaderCell>
-                <TableHeaderCell />
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {isLoading &&
-                Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
+      <div className="panel" style={{ overflow: "hidden" }}>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th style={{ width: 130 }}>ID Zlecenia</th>
+              <th style={{ cursor: "pointer" }} onClick={() => handleSort("client")}>
+                Klient <SortIcon field="client" sortField={sortField} sortDir={sortDir} />
+              </th>
+              <th style={{ cursor: "pointer", width: 110 }} onClick={() => handleSort("city")}>
+                Miasto <SortIcon field="city" sortField={sortField} sortDir={sortDir} />
+              </th>
+              <th style={{ cursor: "pointer", width: 150 }} onClick={() => handleSort("status")}>
+                Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
+              </th>
+              <th style={{ width: 130 }}>Dokumenty</th>
+              <th style={{ cursor: "pointer" }} onClick={() => handleSort("services")}>
+                Usługi <SortIcon field="services" sortField={sortField} sortDir={sortDir} />
+              </th>
+              <th style={{ cursor: "pointer", width: 120 }} onClick={() => handleSort("createdAt")}>
+                Data <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
+              </th>
+              <th style={{ cursor: "pointer", width: 120, textAlign: "right" }} onClick={() => handleSort("totalGross")}>
+                Kwota brutto <SortIcon field="totalGross" sortField={sortField} sortDir={sortDir} />
+              </th>
+              <th style={{ width: 160 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading && Array.from({ length: 5 }).map((_, i) => (
+              <tr key={i}>
+                {Array.from({ length: 9 }).map((_, j) => (
+                  <td key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} /></td>
+                ))}
+              </tr>
+            ))}
 
-              {!isLoading && displayOrders && displayOrders.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="py-12 text-center text-gray-400"
-                  >
-                    Brak zamówień.
-                  </TableCell>
-                </TableRow>
-              )}
+            {!isLoading && displayOrders?.length === 0 && (
+              <tr>
+                <td colSpan={9}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
+              </tr>
+            )}
 
-              {displayOrders?.map((order) => {
-                const isCompleted = order.status === "completed"
-                return (
-                  <TableRow key={order._id} className={`transition-colors ${isCompleted ? "border-l-4 border-l-green-400 bg-green-50/40 hover:bg-green-50/70" : "hover:bg-gray-50"}`}>
-                    <TableCell className="whitespace-nowrap font-mono text-xs text-gray-500">
-                      {order.name ?? <span className="text-gray-300">—</span>}
-                    </TableCell>
-                    <TableCell className="font-medium text-gray-900">
-                      {order.client
-                        ? `${order.client.lastName} ${order.client.firstName}`
-                        : <span className="text-gray-400">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      {order.client?.city
-                        ? <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{order.client.city}</span>
-                        : <span className="text-gray-400">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={order.status} />
-                    </TableCell>
-                    <TableCell>
-                      <DocumentProgressTiles documents={order.documents} />
-                    </TableCell>
-                    <TableCell>
-                      {order.services && order.services.length > 0
-                        ? <div className="flex flex-wrap gap-1">{order.services.map((s) => <span key={s} className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{s}</span>)}</div>
-                        : <span className="text-gray-400">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="inline-flex items-center gap-1 text-sm text-gray-900">
-                          <CalendarDays className="size-3.5 text-gray-400 shrink-0" />
-                          {new Date(order._creationTime).toLocaleDateString("pl-PL")}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-xs text-gray-400">
-                          <Clock className="size-3 shrink-0" />
-                          {relativeTime(order._creationTime)}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-gray-900">
-                      {order.totalGross != null
-                        ? `${order.totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
-                        : <span className="text-gray-400">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {order.status === "completed" ? (
-                          <Link
-                            href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=dokumenty`}
-                            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
-                            style={{ backgroundColor: "#2B2A2A" }}
-                          >
-                            Dokumenty
-                          </Link>
-                        ) : order.status === "complaint" ? (
-                          <>
-                            <Link
-                              href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=reklamacja`}
-                              className="inline-flex items-center gap-1 rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-700"
-                            >
-                              Reklamacja
-                            </Link>
-                            <Link
-                              href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=wycena`}
-                              className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
-                            >
-                              Wycena
-                            </Link>
-                          </>
-                        ) : (
-                          <Link
-                            href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=wycena`}
-                            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
-                            style={{ backgroundColor: "#2B2A2A" }}
-                          >
-                            Wycena
-                          </Link>
-                        )}
-                        <Link
-                          href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
-                          className="inline-flex items-center gap-1 rounded-md bg-orange-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-600"
-                        >
-                          Szczegóły
+            {displayOrders?.map((order) => {
+              const isCompleted = order.status === "completed"
+              return (
+                <tr key={order._id} style={isCompleted ? { background: "var(--ok-soft)" } : {}}>
+                  <td className="mono" style={{ fontSize: 11, color: "var(--text-mute)" }}>
+                    {order.name ?? <span style={{ color: "var(--panel-3)" }}>—</span>}
+                  </td>
+                  <td>
+                    <div className="strong" style={{ fontWeight: 500 }}>
+                      {order.client ? `${order.client.lastName} ${order.client.firstName}` : <span className="mute">—</span>}
+                    </div>
+                  </td>
+                  <td>
+                    {order.client?.city ?? <span className="mute">—</span>}
+                  </td>
+                  <td style={{ fontSize: 12 }}>{STATUS_LABELS[order.status] ?? order.status}</td>
+                  <td><DocumentProgressTiles documents={order.documents} /></td>
+                  <td style={{ fontSize: 12 }}>
+                    {order.services && order.services.length > 0
+                      ? order.services.join(", ")
+                      : <span className="mute">—</span>}
+                  </td>
+                  <td>
+                    <div className="mono" style={{ fontSize: 11 }}>
+                      <div>{fmtDate(order._creationTime)}</div>
+                      <div className="mute" style={{ fontSize: 10.5, marginTop: 1 }}>{relativeTime(order._creationTime)}</div>
+                    </div>
+                  </td>
+                  <td className="mono tnum" style={{ textAlign: "right" }}>
+                    {order.totalGross != null
+                      ? `${order.totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
+                      : <span className="mute">—</span>}
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      {order.status === "completed" ? (
+                        <Link href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=dokumenty`} className="btn" style={{ fontSize: 11 }}>
+                          Dokumenty
                         </Link>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </TableRoot>
+                      ) : order.status === "complaint" ? (
+                        <Link href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=reklamacja`} className="btn" style={{ fontSize: 11, background: "var(--bad)", color: "#fff", borderColor: "transparent" }}>
+                          Reklamacja
+                        </Link>
+                      ) : (
+                        <Link href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=wycena`} className="btn" style={{ fontSize: 11 }}>
+                          Wycena
+                        </Link>
+                      )}
+                      <Link href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`} className="btn primary" style={{ fontSize: 11 }}>
+                        Szczegóły
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )

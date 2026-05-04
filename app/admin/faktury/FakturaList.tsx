@@ -15,7 +15,6 @@ import {
   TableRoot,
   TableRow,
 } from "@/components/ui/Table";
-import { Badge } from "@/components/ui/Badge";
 import {
   RefreshCw,
   ExternalLink,
@@ -78,25 +77,6 @@ const STATUS_LABELS: Record<string, string> = {
   draft: "Szkic",
 };
 
-type StatusVariant = "default" | "neutral" | "success" | "error" | "warning" | "purple" | "amber" | "orange" | "violet" | "teal" | "cyan";
-
-const STATUS_VARIANTS: Record<string, StatusVariant> = {
-  issued: "neutral",
-  sent: "default",
-  paid: "success",
-  partially_paid: "warning",
-  rejected: "error",
-  draft: "amber",
-};
-
-const KIND_VARIANTS: Record<string, StatusVariant> = {
-  vat: "default",
-  advance: "purple",
-  final: "teal",
-  estimate: "amber",
-  proforma: "neutral",
-  correction: "orange",
-};
 
 type SortField = "number" | "kind" | "status" | "buyerName" | "issueDate" | "paymentTo" | "grossAmount" | "netAmount";
 type SortDir = "asc" | "desc";
@@ -441,85 +421,73 @@ export default function FakturaList() {
   }, [orders]);
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Toolbar */}
-      <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Kind filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setKindFilter("")}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              kindFilter === ""
-                ? "bg-gray-900 text-white border-gray-900"
-                : "bg-white text-gray-600 border-gray-200 hover:border-gray-400 hover:text-gray-900"
-            }`}
-          >
-            Wszystkie
-            {invoices && (
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${kindFilter === "" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"}`}>
-                {invoices.length}
-              </span>
-            )}
-          </button>
-          {allKinds.map((kind) => (
-            <button
-              key={kind}
-              onClick={() => setKindFilter(kindFilter === kind ? "" : kind)}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                kindFilter === kind
-                  ? "bg-blue-100 text-blue-800 border-blue-300"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-700"
-              }`}
-            >
-              {KIND_LABELS[kind] ?? kind}
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${kindFilter === kind ? "bg-black/10" : "bg-gray-100 text-gray-500"}`}>
-                {kindCounts[kind] ?? 0}
-              </span>
-            </button>
-          ))}
-        </div>
+      <div className="panel" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          {/* Kind filters */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {[{ key: "", label: "Wszystkie", count: invoices?.length ?? 0 }, ...allKinds.map((k) => ({ key: k, label: KIND_LABELS[k] ?? k, count: kindCounts[k] ?? 0 }))].map(({ key, label, count }) => {
+              const isActive = kindFilter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setKindFilter(kindFilter === key ? "" : key)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    padding: "4px 10px", borderRadius: 4, fontSize: 11.5,
+                    background: isActive ? "var(--accent-soft)" : "transparent",
+                    color: isActive ? "var(--accent)" : "var(--text-mute)",
+                    border: "1px solid", borderColor: isActive ? "var(--accent-line)" : "transparent",
+                    fontWeight: isActive ? 600 : 500, cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  {label}
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, padding: "0 5px", borderRadius: 999,
+                    background: isActive ? "var(--accent)" : "var(--panel-3)",
+                    color: isActive ? "#fff" : "var(--text-mute)",
+                  }}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
 
-        {/* Sync controls */}
-        <div className="flex items-center gap-3">
-          {lastSyncAt > 0 && !syncing && (
-            <span className="text-xs text-gray-400">
-              Synchronizacja: {relativeTime(lastSyncAt)}
-            </span>
-          )}
-          {syncResult && !syncing && (
-            <span className="text-xs text-emerald-600">
-              Pobrano {syncResult.count} faktur
-            </span>
-          )}
-          {syncError && (
-            <span className="max-w-xs truncate text-xs text-red-500">{syncError}</span>
-          )}
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw className={`size-4 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Synchronizuję…" : "Odśwież"}
-          </button>
+          {/* Sync controls */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {lastSyncAt > 0 && !syncing && (
+              <span className="mute" style={{ fontSize: 11 }}>Sync: {relativeTime(lastSyncAt)}</span>
+            )}
+            {syncResult && !syncing && (
+              <span style={{ fontSize: 11, color: "var(--ok)" }}>Pobrano {syncResult.count} faktur</span>
+            )}
+            {syncError && (
+              <span style={{ fontSize: 11, color: "var(--bad)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{syncError}</span>
+            )}
+            <button onClick={handleSync} disabled={syncing} className="btn" style={{ fontSize: 11 }}>
+              <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
+              {syncing ? "Synchronizuję…" : "Odśwież"}
+            </button>
+          </div>
         </div>
-      </div>
 
         {/* Payment date filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-gray-500">Płatność:</span>
-          {(["", "thisWeek", "nextWeek"] as PaymentFilter[]).map((val) => {
-            const label = val === "" ? "Wszystkie terminy" : val === "thisWeek" ? "Ten tydzień" : "Następny tydzień";
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+          <span className="mute" style={{ fontSize: 11, marginRight: 2 }}>Płatność:</span>
+          {([["", "Wszystkie terminy"], ["thisWeek", "Ten tydzień"], ["nextWeek", "Następny tydzień"]] as [PaymentFilter, string][]).map(([val, label]) => {
+            const isActive = paymentFilter === val;
             return (
               <button
                 key={val}
                 onClick={() => setPaymentFilter(paymentFilter === val ? "" : val)}
-                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  paymentFilter === val
-                    ? "bg-amber-100 text-amber-800 border-amber-300"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-amber-300 hover:text-amber-700"
-                }`}
+                style={{
+                  display: "inline-flex", alignItems: "center",
+                  padding: "4px 10px", borderRadius: 4, fontSize: 11.5,
+                  background: isActive ? "var(--warn-soft)" : "transparent",
+                  color: isActive ? "var(--warn)" : "var(--text-mute)",
+                  border: "1px solid", borderColor: isActive ? "oklch(0.82 0.14 75 / 0.35)" : "transparent",
+                  fontWeight: isActive ? 600 : 500, cursor: "pointer", fontFamily: "inherit",
+                }}
               >
                 {label}
               </button>
@@ -527,11 +495,14 @@ export default function FakturaList() {
           })}
           <button
             onClick={() => setPaymentFilter(paymentFilter === "overdue" ? "" : "overdue")}
-            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              paymentFilter === "overdue"
-                ? "bg-red-100 text-red-800 border-red-300"
-                : "bg-white text-red-600 border-red-200 hover:border-red-400 hover:text-red-800"
-            }`}
+            style={{
+              display: "inline-flex", alignItems: "center",
+              padding: "4px 10px", borderRadius: 4, fontSize: 11.5,
+              background: paymentFilter === "overdue" ? "var(--bad-soft)" : "transparent",
+              color: paymentFilter === "overdue" ? "var(--bad)" : "var(--bad)",
+              border: "1px solid", borderColor: paymentFilter === "overdue" ? "oklch(0.72 0.18 25 / 0.4)" : "oklch(0.72 0.18 25 / 0.2)",
+              fontWeight: paymentFilter === "overdue" ? 600 : 500, cursor: "pointer", fontFamily: "inherit",
+            }}
           >
             Windykacja
           </button>
@@ -539,7 +510,7 @@ export default function FakturaList() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="panel" style={{ overflow: "hidden" }}>
         <TableRoot>
           <Table>
             <TableHead>
@@ -641,21 +612,13 @@ export default function FakturaList() {
                     </TableCell>
 
                     {/* Kind */}
-                    <TableCell>
-                      <Badge variant={KIND_VARIANTS[invoice.kind] ?? "neutral"}>
-                        {KIND_LABELS[invoice.kind] ?? invoice.kind}
-                      </Badge>
+                    <TableCell className="text-sm text-gray-700">
+                      {KIND_LABELS[invoice.kind] ?? invoice.kind}
                     </TableCell>
 
                     {/* Status */}
-                    <TableCell>
-                      {invoice.status ? (
-                        <Badge variant={STATUS_VARIANTS[invoice.status] ?? "neutral"}>
-                          {STATUS_LABELS[invoice.status] ?? invoice.status}
-                        </Badge>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
+                    <TableCell className="text-sm text-gray-700">
+                      {invoice.status ? (STATUS_LABELS[invoice.status] ?? invoice.status) : <span className="text-gray-400">—</span>}
                     </TableCell>
 
                     {/* Buyer */}
@@ -678,10 +641,10 @@ export default function FakturaList() {
                         today.setHours(0, 0, 0, 0);
                         const isOverdue = d < today && invoice.status !== "paid";
                         return isOverdue ? (
-                          <Badge variant="error">
-                            <AlertTriangle className="mr-1 inline size-3 shrink-0" />
+                          <span className="flex items-center gap-1 text-red-600">
+                            <AlertTriangle className="size-3 shrink-0" />
                             {d.toLocaleDateString("pl-PL")}
-                          </Badge>
+                          </span>
                         ) : (
                           d.toLocaleDateString("pl-PL")
                         );
@@ -728,9 +691,10 @@ export default function FakturaList() {
                     <TableCell>
                       <button
                         onClick={() => setAssigningInvoice(invoice)}
-                        className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900"
+                        className="btn"
+                        style={{ fontSize: 11 }}
                       >
-                        <Link2 className="size-3.5" />
+                        <Link2 size={12} />
                         {invoice.orderId ? "Zmień" : "Przypisz"}
                       </button>
                     </TableCell>

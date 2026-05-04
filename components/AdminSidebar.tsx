@@ -15,14 +15,16 @@ import {
   SidebarMenu,
   SidebarMenuItem,
 } from "@/components/ui/Sidebar"
-import { Divider } from "@/components/ui/Divider"
 import { cx, focusRing } from "@/components/ui/utils"
 import {
   ClipboardList,
   Users,
-  UserPlus,
   FileText,
   Settings,
+  Mail,
+  Receipt,
+  ScrollText,
+  Upload,
 } from "lucide-react"
 
 type NavItem = {
@@ -30,32 +32,91 @@ type NavItem = {
   label: string
   icon: React.ElementType
   countKey?: "clients" | "templates"
-  exactMatch?: boolean
+  alsoActiveFor?: string[]
 }
 
-const navItems: NavItem[] = [
+const mainItems: NavItem[] = [
   { href: "/admin/zamowienia", label: "Zlecenia", icon: ClipboardList },
-  {
-    href: "/admin",
-    label: "Klienci",
-    icon: Users,
-    countKey: "clients",
-    exactMatch: true,
-  },
-  { href: "/admin/nowy", label: "Nowy klient", icon: UserPlus },
+  { href: "/admin/klienci", label: "Klienci", icon: Users, countKey: "clients", alsoActiveFor: ["/admin/klient/"] },
+  { href: "/admin/faktury", label: "Faktury", icon: Receipt },
+  { href: "/admin/mail", label: "Mail", icon: Mail },
+]
+
+const toolItems: NavItem[] = [
   { href: "/admin/szablony", label: "Szablony", icon: FileText, countKey: "templates" },
+  { href: "/admin/dokumenty", label: "Dokumenty", icon: Upload },
+]
+
+const adminItems: NavItem[] = [
   { href: "/admin/ustawienia", label: "Ustawienia", icon: Settings },
+  { href: "/admin/logi", label: "Logi systemu", icon: ScrollText },
 ]
 
 function isNavItemActive(item: NavItem, pathname: string): boolean {
-  if (item.exactMatch) {
-    // Klienci: active on /admin, /admin/klient/...
-    return (
-      pathname === "/admin" ||
-      pathname.startsWith("/admin/klient/")
-    )
-  }
-  return pathname.startsWith(item.href)
+  if (pathname.startsWith(item.href)) return true
+  return item.alsoActiveFor?.some((prefix) => pathname.startsWith(prefix)) ?? false
+}
+
+function NavSection({
+  label,
+  items,
+  pathname,
+  counts,
+}: {
+  label: string
+  items: NavItem[]
+  pathname: string
+  counts?: { clients?: number; templates?: number } | null
+}) {
+  return (
+    <SidebarGroup className="py-0">
+      <div className="px-3 pb-1 pt-4">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+          {label}
+        </span>
+      </div>
+      <SidebarGroupContent>
+        <SidebarMenu className="gap-0.5">
+          {items.map((item) => {
+            const active = isNavItemActive(item, pathname)
+            const count = item.countKey && counts ? counts[item.countKey] : undefined
+            return (
+              <SidebarMenuItem key={item.href}>
+                <Link
+                  href={item.href}
+                  data-active={active}
+                  className={cx(
+                    "flex items-center justify-between rounded-md px-2.5 py-[7px] text-[12.5px] transition-colors",
+                    "border-l-2 border-transparent",
+                    "text-gray-600 hover:bg-gray-100/80 hover:text-gray-900",
+                    "data-[active=true]:border-brand data-[active=true]:bg-[var(--accent-soft)] data-[active=true]:font-medium data-[active=true]:text-brand",
+                    focusRing,
+                  )}
+                >
+                  <span className="flex items-center gap-x-2.5">
+                    <item.icon className="size-[15px] shrink-0" aria-hidden="true" />
+                    {item.label}
+                  </span>
+                  {count !== undefined && (
+                    <span
+                      className={cx(
+                        "inline-flex min-w-[1.25rem] items-center justify-center rounded px-1.5 text-[10px] font-semibold",
+                        active
+                          ? "bg-brand text-white"
+                          : "bg-gray-100 text-gray-500",
+                      )}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </Link>
+              </SidebarMenuItem>
+            )
+          })}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  )
 }
 
 export function AdminSidebar() {
@@ -64,62 +125,28 @@ export function AdminSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="px-3 py-4">
+      <SidebarHeader className="border-b border-gray-200 px-3 py-3.5">
         <div className="flex items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-white shadow-sm ring-1 ring-gray-200">
-            <span className="text-base font-bold text-blue-600">A</span>
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand shadow-sm">
+            <span className="text-[13px] font-bold text-white">A</span>
           </span>
           <div>
-            <span className="block text-sm font-semibold text-gray-900">ADK / ALCO</span>
-            <span className="block text-xs text-gray-500">Panel zarządzania</span>
+            <span className="block text-[13px] font-semibold text-gray-900">ADK</span>
+            <span className="block text-[10.5px] text-gray-500">Panel zarządzania</span>
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup className="pt-0">
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {navItems.map((item) => {
-                const isActive = isNavItemActive(item, pathname)
-                const count =
-                  item.countKey && counts ? counts[item.countKey] : undefined
-
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <Link
-                      href={item.href}
-                      data-active={isActive}
-                      className={cx(
-                        "flex items-center justify-between rounded-md p-2 text-sm transition",
-                        "text-gray-700 hover:bg-gray-200/50 hover:text-gray-900",
-                        "data-[active=true]:bg-blue-50 data-[active=true]:text-blue-600",
-                        focusRing,
-                      )}
-                    >
-                      <span className="flex items-center gap-x-2.5">
-                        <item.icon className="size-[18px] shrink-0" aria-hidden="true" />
-                        {item.label}
-                      </span>
-                      {count !== undefined && (
-                        <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded bg-blue-100 px-1 text-xs font-medium text-blue-600">
-                          {count}
-                        </span>
-                      )}
-                    </Link>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+      <SidebarContent className="py-1">
+        <NavSection label="Główne" items={mainItems} pathname={pathname} counts={counts} />
+        <NavSection label="Narzędzia" items={toolItems} pathname={pathname} counts={counts} />
+        <NavSection label="Administracja" items={adminItems} pathname={pathname} counts={counts} />
       </SidebarContent>
 
-      <SidebarFooter>
-        <Divider className="py-0" />
-        <div className="flex items-center gap-3 px-1 py-1">
+      <SidebarFooter className="border-t border-gray-200 py-3">
+        <div className="flex items-center gap-3 px-1">
           <UserButton appearance={{ elements: { avatarBox: "w-8 h-8" } }} />
-          <span className="text-sm text-gray-600">Moje konto</span>
+          <span className="text-[12px] text-gray-600">Moje konto</span>
         </div>
       </SidebarFooter>
     </Sidebar>

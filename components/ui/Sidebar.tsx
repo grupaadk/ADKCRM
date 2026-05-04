@@ -92,12 +92,12 @@ SidebarProvider.displayName = "SidebarProvider"
 
 export const Sidebar = React.forwardRef<HTMLDivElement, React.ComponentProps<"div">>(
   ({ className, children, ...props }, ref) => {
-    const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+    const { isMobile, openMobile, setOpenMobile } = useSidebar()
 
     if (isMobile) {
       return (
         <Drawer open={openMobile} onOpenChange={setOpenMobile}>
-          <DrawerContent className="bg-gray-50 p-0 text-gray-900">
+          <DrawerContent className="bg-white p-0 text-gray-900">
             <VisuallyHidden.Root>
               <DrawerTitle>Navigation</DrawerTitle>
             </VisuallyHidden.Root>
@@ -115,26 +115,16 @@ export const Sidebar = React.forwardRef<HTMLDivElement, React.ComponentProps<"di
     }
 
     return (
-      <div ref={ref} className="group peer hidden md:block" data-state={state} data-collapsible={state === "collapsed" ? true : false}>
-        <div
-          className={cx(
-            "relative h-svh w-[--sidebar-width] bg-transparent transition-[width] duration-150 ease-in-out will-change-transform",
-            "group-data-[collapsible=true]:w-0",
-          )}
-        />
-        <div
-          className={cx(
-            "fixed inset-y-0 z-10 hidden h-svh w-[--sidebar-width] transition-[left,right,width] duration-150 ease-in-out will-change-transform md:flex",
-            "left-0 group-data-[collapsible=true]:left-[calc(var(--sidebar-width)*-1)]",
-            "border-r border-gray-200",
-            className,
-          )}
-          {...props}
-        >
-          <div className="flex h-full w-full flex-col bg-gray-50">
-            {children}
-          </div>
-        </div>
+      <div
+        ref={ref}
+        className={cx(
+          "hidden md:flex flex-col shrink-0 w-[--sidebar-width] h-svh sticky top-0",
+          "border-r border-gray-200 bg-white overflow-y-auto",
+          className,
+        )}
+        {...props}
+      >
+        {children}
       </div>
     )
   },

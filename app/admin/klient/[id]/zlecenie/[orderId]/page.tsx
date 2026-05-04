@@ -126,12 +126,12 @@ function getFileName(url: string, index: number) {
 
 function SectionCard({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-        <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{title}</h2>
+    <section className="panel" style={{ overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid var(--line)" }}>
+        <span className="up mute">{title}</span>
         {action}
       </div>
-      <div className="p-6">{children}</div>
+      <div style={{ padding: 16 }}>{children}</div>
     </section>
   );
 }
@@ -139,11 +139,11 @@ function SectionCard({ title, children, action }: { title: string; children: Rea
 function ColorCard({ label, values }: { label: string; values: string[] }) {
   if (!values?.length) return null;
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
-      <div className="flex flex-wrap gap-1.5">
+    <div style={{ borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", padding: "10px 12px" }}>
+      <div className="up mute" style={{ marginBottom: 6 }}>{label}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
         {values.map((v) => (
-          <span key={v} className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-200">{v}</span>
+          <span key={v} className="chip">{v}</span>
         ))}
       </div>
     </div>
@@ -356,62 +356,51 @@ export default function OrderDetailPage({
       : null;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Header */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="panel" style={{ overflow: "hidden" }}>
 
-        {/* Top bar: navigation + actions */}
-        <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-3">
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
-            <Link href="/admin" className="hover:text-slate-600 transition-colors">Klienci</Link>
-            <svg className="h-3 w-3 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" /></svg>
-            <Link
-              href={`/admin/klient/${id}`}
-              className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1 font-semibold text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-700 border border-transparent hover:border-blue-200"
-            >
-              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
+        {/* Breadcrumb + actions */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid var(--line)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-mute)" }}>
+            <Link href="/admin" style={{ color: "var(--text-mute)", textDecoration: "none" }}>Klienci</Link>
+            <span style={{ opacity: 0.5 }}>›</span>
+            <Link href={`/admin/klient/${id}`} className="btn" style={{ fontSize: 11, padding: "3px 8px" }}>
               {client.firstName} {client.lastName}
             </Link>
-            <svg className="h-3 w-3 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" /></svg>
-            <span className="font-medium text-slate-600">{orderNumber}</span>
+            <span style={{ opacity: 0.5 }}>›</span>
+            <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>{orderNumber}</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={openSmsModal}
-              className="flex items-center gap-1.5 rounded-lg border border-transparent bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
-            >
-              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button onClick={openSmsModal} className="btn" style={{ fontSize: 11 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
               Wyślij adres
             </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 hover:border-red-300"
+              className="btn"
+              style={{ fontSize: 11, color: "var(--bad)", borderColor: "oklch(0.72 0.18 25 / 0.4)" }}
             >
-              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
-              Usuń Zlecenie
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+              Usuń
             </button>
           </div>
         </div>
 
         {/* Main heading */}
-        <div className="px-6 pt-5 pb-4">
-          <h1 className="text-xl font-black tracking-tight text-slate-900">{orderNumber}</h1>
-          <p className="mt-0.5 text-sm text-slate-400">
-            {client.city ? `${client.city}` : ""}
-            {servicesSummary ? `${client.city ? " • " : ""}${servicesSummary}` : ""}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div style={{ padding: "16px 20px" }}>
+          <h1 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 6px", color: "var(--text-strong)" }}>{orderNumber}</h1>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+            {client.city && <span className="chip">{client.city}</span>}
+            {servicesSummary && <span className="mute" style={{ fontSize: 12 }}>{servicesSummary}</span>}
             <DocumentProgressTiles documents={order.documents} />
-            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">
-              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" /></svg>
-              Dodano: {createdDate}
-            </span>
+            <span className="mono mute" style={{ fontSize: 11 }}>Dodano: {createdDate}</span>
           </div>
         </div>
 
         {/* Status timeline */}
-        <div className={`border-t px-6 py-5 ${existingComplaint ? "border-orange-200 bg-orange-50/60" : "border-slate-100 bg-slate-50/60"}`}>
+        <div style={{ borderTop: `1px solid ${existingComplaint ? "oklch(0.72 0.18 25 / 0.35)" : "var(--line)"}`, padding: "16px 20px", background: existingComplaint ? "var(--bad-soft)" : "var(--panel-2)" }}>
           {existingComplaint && (
             <div className="mb-4 flex items-center">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1 text-[11px] font-semibold text-orange-700 ring-1 ring-orange-300">
@@ -467,22 +456,28 @@ export default function OrderDetailPage({
         </div>
 
         {/* Tabs */}
-        <div className="flex border-t border-slate-100">
+        <div style={{ display: "flex", borderTop: "1px solid var(--line)", gap: 2 }}>
           {tabs.map((tab) => {
+            const isActive = activeTab === tab.key;
             const isComplaintTab = tab.key === "reklamacja";
+            const activeColor = isComplaintTab ? "var(--bad)" : "var(--accent)";
             return (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 px-6 py-3 text-sm font-semibold transition-colors sm:flex-none ${
-                  activeTab === tab.key
-                    ? isComplaintTab
-                      ? "border-b-2 border-orange-500 text-orange-600"
-                      : "border-b-2 border-blue-600 text-blue-600"
-                    : isComplaintTab
-                    ? "text-orange-500 hover:text-orange-600"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
+                style={{
+                  padding: "9px 16px",
+                  fontSize: 12.5,
+                  fontWeight: isActive ? 600 : 500,
+                  color: isActive ? activeColor : "var(--text-mute)",
+                  borderBottom: isActive ? `2px solid ${activeColor}` : "2px solid transparent",
+                  marginBottom: -1,
+                  background: "none",
+                  border: "none",
+                  borderBottomStyle: "solid",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
               >
                 {tab.label}
               </button>
@@ -493,8 +488,8 @@ export default function OrderDetailPage({
 
       {/* Tab: Zlecenie */}
       {activeTab === "zlecenie" && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-          <div className="flex flex-col gap-6 lg:col-span-2">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, gridColumn: "span 2" }}>
             <SectionCard title="Linki">
               <div className="space-y-3">
                 {order.folderUrl ? (
@@ -513,11 +508,10 @@ export default function OrderDetailPage({
                     </svg>
                   </a>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
-                    <p className="mb-3 text-sm text-slate-500">Folder zlecenia nie zostal jeszcze utworzony.</p>
-                    <button onClick={handleCreateFolder}
-                      className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
-                      Utworz folder
+                  <div style={{ border: "1px dashed var(--line-2)", borderRadius: 6, background: "var(--panel-2)", padding: 14 }}>
+                    <p className="mute" style={{ fontSize: 13, marginBottom: 10 }}>Folder zlecenia nie został jeszcze utworzony.</p>
+                    <button onClick={handleCreateFolder} className="btn primary" style={{ fontSize: 12 }}>
+                      Utwórz folder
                     </button>
                   </div>
                 )}
@@ -542,8 +536,8 @@ export default function OrderDetailPage({
             </SectionCard>
           </div>
 
-          <div className="lg:col-span-3">
-            <SectionCard title="Szczegoly zlecenia">
+          <div style={{ gridColumn: "span 3" }}>
+            <SectionCard title="Szczegóły zlecenia">
               <div className="space-y-6">
                 <InvestmentLocation
                   orderId={orderIdTyped}
@@ -558,10 +552,10 @@ export default function OrderDetailPage({
                 <div className="space-y-6">
                   {order.services && order.services.length > 0 && (
                     <div>
-                      <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Uslugi</div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="up mute" style={{ marginBottom: 8 }}>Usługi</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                         {order.services.map((service) => (
-                          <span key={service} className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">{service}</span>
+                          <span key={service} className="chip">{service}</span>
                         ))}
                       </div>
                     </div>
@@ -580,10 +574,10 @@ export default function OrderDetailPage({
 
                   {order.sunProtectionType && order.sunProtectionType.length > 0 && (
                     <div>
-                      <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">System przeciwsloneczny</div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="up mute" style={{ marginBottom: 8 }}>System przeciwsłoneczny</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                         {order.sunProtectionType.map((type) => (
-                          <span key={type} className="rounded-full border border-amber-100 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">{type}</span>
+                          <span key={type} className="chip">{type}</span>
                         ))}
                       </div>
                     </div>
@@ -653,7 +647,7 @@ export default function OrderDetailPage({
 
       {/* Tab: Wycena */}
       {activeTab === "wycena" && (
-        <div className="space-y-6">
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <SectionCard title="Pozycje zamówienia">
             <OrderLineItems orderId={orderIdTyped} fakturownia={order.fakturownia} invoicePlan={order.invoicePlan} />
           </SectionCard>
@@ -663,15 +657,12 @@ export default function OrderDetailPage({
 
       {/* Tab: Dokumenty */}
       {activeTab === "dokumenty" && (
-        <div className="space-y-6">
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <SectionCard
             title="Faktury z Fakturowni"
             action={
-              <button
-                onClick={() => setShowInvoiceModal(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              <button onClick={() => setShowInvoiceModal(true)} className="btn" style={{ fontSize: 11 }}>
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                 Przypisz fakturę
               </button>
             }
@@ -1017,20 +1008,23 @@ export default function OrderDetailPage({
 
       {/* Delete modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="mb-2 text-lg font-bold text-slate-900">Usunąć zlecenie?</h2>
-            <p className="mb-6 text-sm text-slate-500">
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", padding: 16 }}>
+          <div className="panel" style={{ width: "100%", maxWidth: 400, padding: 24 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 8px", color: "var(--text-strong)" }}>Usunąć zlecenie?</h2>
+            <p style={{ fontSize: 13, color: "var(--text-mute)", margin: "0 0 24px" }}>
               Zostaną usunięte wszystkie dane zlecenia, dokumenty i folder Google Drive.
             </p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowDeleteConfirm(false)} disabled={deleteLoading}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button onClick={() => setShowDeleteConfirm(false)} disabled={deleteLoading} className="btn">
                 Anuluj
               </button>
-              <button onClick={handleDelete} disabled={deleteLoading}
-                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
-                {deleteLoading ? "Usuwanie..." : "Tak, usuń"}
+              <button
+                onClick={handleDelete}
+                disabled={deleteLoading}
+                className="btn"
+                style={{ background: "var(--bad)", color: "#fff", borderColor: "transparent" }}
+              >
+                {deleteLoading ? "Usuwanie…" : "Tak, usuń"}
               </button>
             </div>
           </div>

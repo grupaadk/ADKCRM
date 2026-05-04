@@ -69,7 +69,7 @@ export default function PinGate({ children, onBack }: PinGateProps) {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/20 mb-4">
               <Lock className="w-8 h-8 text-white" />
             </div>
-            <p className="mt-1 text-sm text-blue-100">Wprowadź 4-cyfrowy PIN</p>
+            <p className="mt-1 text-sm text-white/80">Wprowadź 4-cyfrowy PIN</p>
           </div>
 
           {/* PIN dots */}
@@ -84,7 +84,7 @@ export default function PinGate({ children, onBack }: PinGateProps) {
                     digits[i] !== undefined
                       ? error
                         ? "bg-red-500 border-red-500 scale-110"
-                        : "bg-blue-600 border-blue-600 scale-110"
+                        : "bg-brand border-brand scale-110"
                       : "border-gray-300 bg-transparent"
                   }`}
                 />

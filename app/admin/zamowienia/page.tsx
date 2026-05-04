@@ -1,16 +1,27 @@
-"use client";
+"use client"
 
-import OrderList from "./OrderList";
+import OrderList from "./OrderList"
+import { CrmPageHeader } from "@/components/crm-ui"
+import { Plus, SlidersHorizontal } from "lucide-react"
 
 export default function ZamowieniaPage() {
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Zlecenia</h1>
-        <p className="mt-1 text-sm text-gray-500">Lista wszystkich zleceń w systemie.</p>
-      </div>
-
+      <CrmPageHeader
+        title="Zlecenia"
+        sub="Lista wszystkich zleceń w systemie."
+        actions={
+          <>
+            <button className="btn">
+              <SlidersHorizontal size={13} /> Filtry
+            </button>
+            <button className="btn primary">
+              <Plus size={13} /> Nowe zlecenie
+            </button>
+          </>
+        }
+      />
       <OrderList />
     </div>
-  );
+  )
 }

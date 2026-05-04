@@ -8,7 +8,7 @@ import { cx, focusRing } from "./utils"
 
 const buttonVariants = tv({
   base: [
-    "relative inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-center text-sm font-medium shadow-sm transition-all duration-100 ease-in-out",
+    "relative inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-center text-sm font-medium shadow-sm transition-all duration-100 ease-in-out no-underline",
     "disabled:pointer-events-none disabled:shadow-none",
     focusRing,
   ],
@@ -16,8 +16,8 @@ const buttonVariants = tv({
     variant: {
       primary: [
         "border-transparent text-white",
-        "bg-blue-500 hover:bg-blue-600",
-        "disabled:bg-blue-300 disabled:text-white",
+        "bg-brand hover:bg-brand-hover",
+        "disabled:opacity-50 disabled:text-white",
       ],
       secondary: [
         "border-gray-300 text-gray-900",

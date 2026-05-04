@@ -3,24 +3,34 @@
 import { ReactNode } from "react"
 import { Authenticated, Unauthenticated, AuthLoading } from "convex/react"
 import { SignInButton } from "@clerk/nextjs"
-import { AdminHeader } from "@/components/AdminHeader"
+import { AdminSidebar } from "@/components/AdminSidebar"
+import { AdminTopbar } from "@/components/AdminTopbar"
+import { SidebarProvider } from "@/components/ui/Sidebar"
 import { StatusLabelsProvider } from "@/components/StatusLabelsContext"
 
 function LoginRedirect() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+    <div
+      className="flex items-center justify-center min-h-screen"
+      style={{ background: "var(--background)" }}
+    >
       <div className="text-center flex flex-col gap-4 items-center">
-        <div className="flex size-14 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-gray-200">
-          <span className="text-2xl font-bold text-blue-600">A</span>
+        <div
+          className="flex size-14 items-center justify-center rounded-xl"
+          style={{ background: "var(--panel)", border: "1px solid var(--line)", boxShadow: "0 2px 8px rgba(0,0,0,.06)" }}
+        >
+          <span style={{ fontSize: 24, fontWeight: 800, color: "var(--accent)" }}>A</span>
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">ADK / ALCO CRM</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text-strong)" }}>
+            ADK CRM
+          </h1>
+          <p style={{ marginTop: 4, fontSize: 13, color: "var(--text-mute)" }}>
             Zaloguj się, aby uzyskać dostęp do panelu.
           </p>
         </div>
         <SignInButton mode="modal">
-          <button className="rounded-md bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+          <button className="btn primary" style={{ padding: "8px 24px", fontSize: 13 }}>
             Zaloguj się
           </button>
         </SignInButton>
@@ -33,16 +43,26 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <AuthLoading>
-        <div className="flex items-center justify-center min-h-screen bg-gray-50" />
+        <div className="flex items-center justify-center min-h-screen" style={{ background: "var(--background)" }} />
       </AuthLoading>
+
       <Authenticated>
-        <div className="flex flex-col min-h-svh">
-          <AdminHeader />
-          <StatusLabelsProvider>
-            <main className="flex-1 p-6 bg-gray-50">{children}</main>
-          </StatusLabelsProvider>
-        </div>
+        <SidebarProvider>
+          <AdminSidebar />
+          <div className="flex flex-1 flex-col min-h-svh min-w-0">
+            <AdminTopbar />
+            <StatusLabelsProvider>
+              <main
+                className="flex-1 overflow-auto"
+                style={{ background: "var(--background)", padding: "20px 24px 40px" }}
+              >
+                {children}
+              </main>
+            </StatusLabelsProvider>
+          </div>
+        </SidebarProvider>
       </Authenticated>
+
       <Unauthenticated>
         <LoginRedirect />
       </Unauthenticated>
