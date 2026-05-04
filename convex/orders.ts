@@ -172,6 +172,11 @@ export const create = mutation({
     projectFiles: v.optional(v.string()),
     comment: v.optional(v.string()),
     name: v.optional(v.string()),
+    investmentStreet: v.optional(v.string()),
+    investmentBuildingNumber: v.optional(v.string()),
+    investmentApartmentNumber: v.optional(v.string()),
+    investmentPostalCode: v.optional(v.string()),
+    investmentCity: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();

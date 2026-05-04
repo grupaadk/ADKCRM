@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/Table";
 import { StatusBadge } from "@/components/ui/Badge";
 import DocumentProgressTiles from "./DocumentProgressTiles";
+import NewOrderModal from "./NewOrderModal";
 
 type Tab = "zlecenia" | "notatki" | "mail";
 
@@ -67,6 +68,7 @@ export default function ClientDetailPage({
   const statusLabels = useStatusLabels();
   const [activeTab, setActiveTab] = useState<Tab>("zlecenia");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showNewOrderModal, setShowNewOrderModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [sendingAddress, setSendingAddress] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
@@ -296,6 +298,18 @@ export default function ClientDetailPage({
       {/* Tab: Zlecenia */}
       {activeTab === "zlecenia" && (
         <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-3">
+            <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Zlecenia</h2>
+            <button
+              onClick={() => setShowNewOrderModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-slate-800"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Nowe zlecenie
+            </button>
+          </div>
           <TableRoot>
             <Table>
               <TableHead>
@@ -426,6 +440,18 @@ export default function ClientDetailPage({
             <ClientMailTab clientEmail={client.email ?? ""} />
           </div>
         </div>
+      )}
+
+      {/* New Order Modal */}
+      {showNewOrderModal && (
+        <NewOrderModal
+          clientId={clientId}
+          onClose={() => setShowNewOrderModal(false)}
+          onSuccess={(orderId) => {
+            setShowNewOrderModal(false);
+            router.push(`/admin/klient/${id}/zlecenie/${orderId}`);
+          }}
+        />
       )}
 
       {/* Delete modal */}
