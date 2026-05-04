@@ -75,8 +75,10 @@ export const create = mutation({
 
     const driveConnection = await ctx.db.query("driveConnection").first();
     const driveReady =
-      !!driveConnection?.sharedDriveId &&
-      driveConnection.connectionStatus !== "disconnected";
+      !!driveConnection &&
+      driveConnection.connectionStatus !== "disconnected" &&
+      driveConnection.connectionStatus !== "error" &&
+      driveConnection.connectionStatus !== "expired";
 
     if (driveReady) {
       await ctx.scheduler.runAfter(0, api.googleDrive.createClientFolder, { clientId });
