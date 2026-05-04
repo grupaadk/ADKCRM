@@ -874,25 +874,47 @@ export const createClientFolder = action({
     clientId: v.id("clients"),
   },
   handler: async (ctx, args) => {
+    console.info("[createClientFolder] START", { clientId: args.clientId });
+
     const connection = await getDecryptedConnection(ctx);
+    console.info("[createClientFolder] connection check", {
+      clientId: args.clientId,
+      hasConnection: !!connection,
+      status: connection ? (connection as { connectionStatus?: string }).connectionStatus : null,
+    });
+
     if (!connection) {
-      console.info("[createClientFolder] Drive not connected, skipping", { clientId: args.clientId });
+      console.warn("[createClientFolder] Drive not connected, skipping", { clientId: args.clientId });
       return null;
     }
 
     const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
+    console.info("[createClientFolder] client fetched", {
+      clientId: args.clientId,
+      found: !!client,
+      existingFolderId: client?.clientFolderId ?? null,
+    });
+
     if (!client) throw new Error("Client not found");
 
     if (client.clientFolderId) {
+      console.info("[createClientFolder] folder already exists, skipping", {
+        clientId: args.clientId,
+        folderId: client.clientFolderId,
+      });
       return { clientFolderId: client.clientFolderId, clientFolderUrl: client.clientFolderUrl };
     }
 
     const clientFolderName = `${client.firstName}_${client.lastName}`;
+    console.info("[createClientFolder] creating Drive folder", { clientFolderName, CLIENTS_FOLDER_ID });
+
     const { id, url: clientFolderUrl } = await createDriveFolder(
       ctx,
       clientFolderName,
       CLIENTS_FOLDER_ID,
     );
+
+    console.info("[createClientFolder] Drive folder created", { id, clientFolderUrl });
 
     await ctx.runMutation(api.clients.updateClientFolder, {
       clientId: args.clientId,
@@ -900,7 +922,7 @@ export const createClientFolder = action({
       clientFolderUrl,
     });
 
-    console.info("[createClientFolder] folder created", { clientId: args.clientId, folderId: id });
+    console.info("[createClientFolder] DONE", { clientId: args.clientId, folderId: id });
     return { clientFolderId: id, clientFolderUrl };
   },
 });

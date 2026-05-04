@@ -73,7 +73,9 @@ export const create = mutation({
       performedBy: userId,
     });
 
+    console.info("[clients.create] scheduling createClientFolder", { clientId, userId });
     await ctx.scheduler.runAfter(0, api.googleDrive.createClientFolder, { clientId });
+    console.info("[clients.create] createClientFolder scheduled OK", { clientId });
 
     return clientId;
   },
