@@ -79,3 +79,47 @@ export const fixViewConfigTypes = internalMutation({
     return { processed, hasMore: !result.isDone };
   },
 });
+
+export const resetOrderCounter = internalMutation({
+  args: {},
+  returns: v.string(),
+  handler: async (ctx) => {
+    const all = await ctx.db.query("orderCounters").collect();
+    const counter = all.find((c) => c.year === 2026 && c.month === 5);
+    if (counter) {
+      await ctx.db.patch(counter._id, { lastNumber: 0 });
+      return `Zresetowano: był ${counter.lastNumber}, ustawiono na 0`;
+    }
+    await ctx.db.insert("orderCounters", { year: 2026, month: 5, lastNumber: 0 });
+    return "Nie było licznika — utworzono nowy z lastNumber=0";
+  },
+});
+
+/**
+ * Migracja jednorazowa: zmienia nazwę zlecenia k574vyb70wq0ks7ejb14148rys86324v
+ * z "6/05/2026" na "1/05/2026" i ustawia licznik na 1 (następne będzie 2/05/2026).
+ *
+ * Uruchomienie:
+ *   npx convex run migrations:fixFirstMayOrder
+ */
+export const fixFirstMayOrder = internalMutation({
+  args: {},
+  returns: v.string(),
+  handler: async (ctx) => {
+    const orders = await ctx.db.query("orders").collect();
+    const order = orders.find((o) => o.name === "6/05/2026");
+    if (!order) return "BŁĄD: zlecenie z nazwą '6/05/2026' nie znalezione";
+
+    await ctx.db.patch(order._id, { name: "1/05/2026" });
+
+    const counters = await ctx.db.query("orderCounters").collect();
+    const counter = counters.find((c) => c.year === 2026 && c.month === 5);
+    if (counter) {
+      await ctx.db.patch(counter._id, { lastNumber: 1 });
+    } else {
+      await ctx.db.insert("orderCounters", { year: 2026, month: 5, lastNumber: 1 });
+    }
+
+    return `Zmieniono: "6/05/2026" → "1/05/2026". Licznik 05/2026 → 1 (następne zlecenie: 2/05/2026).`;
+  },
+});
