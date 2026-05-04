@@ -874,47 +874,63 @@ export const createClientFolder = action({
     clientId: v.id("clients"),
   },
   handler: async (ctx, args) => {
-    console.info("[createClientFolder] START", { clientId: args.clientId });
+    const log = async (
+      level: "info" | "warn" | "error",
+      message: string,
+      data?: Record<string, unknown>,
+    ) => {
+      console[level](`[createClientFolder] ${message}`, data ?? "");
+      await ctx.runMutation(internal.systemLogs.insert, {
+        level,
+        source: "createClientFolder",
+        message,
+        data: { clientId: args.clientId, ...data },
+      });
+    };
+
+    await log("info", "START");
 
     const connection = await getDecryptedConnection(ctx);
-    console.info("[createClientFolder] connection check", {
-      clientId: args.clientId,
+    await log("info", "connection check", {
       hasConnection: !!connection,
       status: connection ? (connection as { connectionStatus?: string }).connectionStatus : null,
     });
 
     if (!connection) {
-      console.warn("[createClientFolder] Drive not connected, skipping", { clientId: args.clientId });
+      await log("warn", "Drive not connected — brak połączenia z Google Drive");
       return null;
     }
 
     const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
-    console.info("[createClientFolder] client fetched", {
-      clientId: args.clientId,
+    await log("info", "client fetched", {
       found: !!client,
       existingFolderId: client?.clientFolderId ?? null,
     });
 
-    if (!client) throw new Error("Client not found");
+    if (!client) {
+      await log("error", "Client not found");
+      throw new Error("Client not found");
+    }
 
     if (client.clientFolderId) {
-      console.info("[createClientFolder] folder already exists, skipping", {
-        clientId: args.clientId,
-        folderId: client.clientFolderId,
-      });
+      await log("info", "folder already exists — pomijam", { folderId: client.clientFolderId });
       return { clientFolderId: client.clientFolderId, clientFolderUrl: client.clientFolderUrl };
     }
 
     const clientFolderName = `${client.firstName}_${client.lastName}`;
-    console.info("[createClientFolder] creating Drive folder", { clientFolderName, CLIENTS_FOLDER_ID });
+    await log("info", "creating Drive folder", { clientFolderName, parentId: CLIENTS_FOLDER_ID });
 
-    const { id, url: clientFolderUrl } = await createDriveFolder(
-      ctx,
-      clientFolderName,
-      CLIENTS_FOLDER_ID,
-    );
-
-    console.info("[createClientFolder] Drive folder created", { id, clientFolderUrl });
+    let id: string;
+    let clientFolderUrl: string;
+    try {
+      const result = await createDriveFolder(ctx, clientFolderName, CLIENTS_FOLDER_ID);
+      id = result.id;
+      clientFolderUrl = result.url;
+      await log("info", "Drive folder created OK", { folderId: id, clientFolderUrl });
+    } catch (err) {
+      await log("error", "Drive folder creation FAILED", { error: String(err) });
+      throw err;
+    }
 
     await ctx.runMutation(api.clients.updateClientFolder, {
       clientId: args.clientId,
@@ -922,7 +938,7 @@ export const createClientFolder = action({
       clientFolderUrl,
     });
 
-    console.info("[createClientFolder] DONE", { clientId: args.clientId, folderId: id });
+    await log("info", "DONE — folder zapisany w rekordzie klienta", { folderId: id });
     return { clientFolderId: id, clientFolderUrl };
   },
 });

@@ -9,7 +9,7 @@ import Link from "next/link";
 import type { Id } from "@/convex/_generated/dataModel";
 import PinGate from "@/components/PinGate";
 
-type Tab = "google-drive" | "jotform" | "fakturownia" | "trello" | "szablony" | "sms" | "crm";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "trello" | "szablony" | "sms" | "crm" | "logi";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -3061,6 +3061,93 @@ function CrmTab() {
   );
 }
 
+// --- Logi Tab ---
+
+const LEVEL_STYLES: Record<string, string> = {
+  info:  "bg-blue-50 text-blue-700",
+  warn:  "bg-yellow-50 text-yellow-700",
+  error: "bg-red-50 text-red-700",
+};
+
+function LogiTab() {
+  const [source, setSource] = useState<string>("");
+  const logs = useQuery(api.systemLogs.list, {
+    source: source || undefined,
+    limit: 200,
+  });
+
+  const SOURCES = ["createClientFolder", "createOrderFolder"];
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-slate-900">Logi systemowe</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Logi z akcji Convex zapisywane w czasie rzeczywistym.
+        </p>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <label className="text-sm text-slate-600">Źródło:</label>
+        <select
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">Wszystkie</option>
+          {SOURCES.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+
+      {logs === undefined ? (
+        <p className="text-sm text-slate-400">Ładowanie...</p>
+      ) : logs.length === 0 ? (
+        <p className="text-sm text-slate-400">Brak logów.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-500">
+              <tr>
+                <th className="px-3 py-2 font-medium">Czas</th>
+                <th className="px-3 py-2 font-medium">Poziom</th>
+                <th className="px-3 py-2 font-medium">Źródło</th>
+                <th className="px-3 py-2 font-medium">Wiadomość</th>
+                <th className="px-3 py-2 font-medium">Dane</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {logs.map((log) => (
+                <tr key={log._id} className="hover:bg-slate-50">
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-slate-400">
+                    {new Date(log._creationTime).toLocaleString("pl-PL", {
+                      day: "2-digit", month: "2-digit",
+                      hour: "2-digit", minute: "2-digit", second: "2-digit",
+                    })}
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${LEVEL_STYLES[log.level] ?? ""}`}>
+                      {log.level}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-slate-500">
+                    {log.source}
+                  </td>
+                  <td className="px-3 py-2 text-slate-700">{log.message}</td>
+                  <td className="max-w-xs px-3 py-2 font-mono text-xs text-slate-400 break-all">
+                    {log.data ? JSON.stringify(log.data) : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Tabs config ---
 
 const TABS: Array<{ key: Tab; label: string }> = [
@@ -3071,6 +3158,7 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "sms", label: "SMS" },
   { key: "szablony", label: "Szablony" },
   { key: "crm", label: "CRM" },
+  { key: "logi", label: "Logi" },
 ];
 
 // --- Main Page ---
@@ -3114,6 +3202,7 @@ export default function UstawieniaPage() {
       {activeTab === "sms" && <SmsTab />}
       {activeTab === "szablony" && <SzablonyTab />}
       {activeTab === "crm" && <CrmTab />}
+      {activeTab === "logi" && <LogiTab />}
 
       {/* ── TEST SENTRY — odkomentuj żeby sprawdzić czy błędy docierają do Sentry ──
       <div className="mt-8 p-4 border border-dashed border-red-300 rounded-lg">

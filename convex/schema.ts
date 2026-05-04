@@ -527,4 +527,14 @@ export default defineSchema({
     syncEnabled: v.boolean(),
     connectedBy: v.string(),
   }),
+
+  // Logi systemowe
+  systemLogs: defineTable({
+    level: v.union(v.literal("info"), v.literal("warn"), v.literal("error")),
+    source: v.string(),
+    message: v.string(),
+    data: v.optional(v.any()),
+  })
+    .index("by_source", ["source"])
+    .index("by_level", ["level"]),
 });
