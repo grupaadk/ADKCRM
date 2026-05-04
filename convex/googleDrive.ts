@@ -869,6 +869,35 @@ export const createOrderFolder = action({
   },
 });
 
+export const createClientFolder = action({
+  args: {
+    clientId: v.id("clients"),
+  },
+  handler: async (ctx, args) => {
+    const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
+    if (!client) throw new Error("Client not found");
+
+    if (client.clientFolderId) {
+      return { clientFolderId: client.clientFolderId, clientFolderUrl: client.clientFolderUrl };
+    }
+
+    const clientFolderName = `${client.firstName}_${client.lastName}`;
+    const { id, url: clientFolderUrl } = await createDriveFolder(
+      ctx,
+      clientFolderName,
+      CLIENTS_FOLDER_ID,
+    );
+
+    await ctx.runMutation(api.clients.updateClientFolder, {
+      clientId: args.clientId,
+      clientFolderId: id,
+      clientFolderUrl,
+    });
+
+    return { clientFolderId: id, clientFolderUrl };
+  },
+});
+
 export const uploadUserDocument = action({
   args: {
     orderId: v.id("orders"),

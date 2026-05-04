@@ -73,6 +73,15 @@ export const create = mutation({
       performedBy: userId,
     });
 
+    const driveConnection = await ctx.db.query("driveConnection").first();
+    const driveReady =
+      !!driveConnection?.sharedDriveId &&
+      driveConnection.connectionStatus !== "disconnected";
+
+    if (driveReady) {
+      await ctx.scheduler.runAfter(0, api.googleDrive.createClientFolder, { clientId });
+    }
+
     return clientId;
   },
 });
