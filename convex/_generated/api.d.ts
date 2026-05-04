@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as attachments from "../attachments.js";
 import type * as clients from "../clients.js";
 import type * as complaints from "../complaints.js";
 import type * as crmConfig from "../crmConfig.js";
@@ -50,6 +51,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  attachments: typeof attachments;
   clients: typeof clients;
   complaints: typeof complaints;
   crmConfig: typeof crmConfig;

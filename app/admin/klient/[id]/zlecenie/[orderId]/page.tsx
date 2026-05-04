@@ -13,6 +13,7 @@ import OrderLineItems from "../../OrderLineItems";
 import EventTimeline from "../../EventTimeline";
 import { useStatusLabels } from "@/components/StatusLabelsContext";
 import ComplaintTab from "./ComplaintTab";
+import AttachmentsSection from "./AttachmentsSection";
 import DocumentProgressTiles from "../../DocumentProgressTiles";
 import InvestmentLocation from "../../InvestmentLocation";
 import {
@@ -779,6 +780,10 @@ export default function OrderDetailPage({
               <p className="text-sm italic text-slate-400">Brak przypisanych faktur.</p>
             )}
           </SectionCard>
+          <AttachmentsSection
+            orderId={orderIdTyped}
+            hasDriveFolder={!!order.folderId}
+          />
           <DocumentCheckboxes
             orderId={orderIdTyped}
             documents={order.documents}

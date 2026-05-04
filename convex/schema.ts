@@ -196,6 +196,7 @@ export default defineSchema({
       name: v.string(),
       url: v.string(),
     }))),
+    attachmentsFolderId: v.optional(v.string()),
 
     // Trello
     trelloCardId: v.optional(v.string()),
@@ -527,6 +528,19 @@ export default defineSchema({
     syncEnabled: v.boolean(),
     connectedBy: v.string(),
   }),
+
+  // 3.18 Załączniki do zleceń (pliki w folderze "Załączniki" w Google Drive)
+  orderAttachments: defineTable({
+    orderId: v.id("orders"),
+    fileId: v.string(),
+    name: v.string(),
+    url: v.string(),
+    mimeType: v.optional(v.string()),
+    size: v.optional(v.number()),
+    folderPath: v.optional(v.string()),
+    uploadedAt: v.number(),
+    uploadedBy: v.string(),
+  }).index("by_order", ["orderId"]),
 
   // Logi systemowe
   systemLogs: defineTable({

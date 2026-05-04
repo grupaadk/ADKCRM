@@ -1064,6 +1064,183 @@ export const deleteFile = action({
   },
 });
 
+// ─── Attachments ─────────────────────────────────────────────────────────────
+
+async function findOrCreateDriveFolder(
+  accessToken: string,
+  name: string,
+  parentId: string,
+): Promise<string> {
+  const q = `name='${name.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+  const searchParams = new URLSearchParams({
+    q,
+    supportsAllDrives: "true",
+    includeItemsFromAllDrives: "true",
+    fields: "files(id)",
+    pageSize: "1",
+  });
+  const searchRes = await fetch(`${DRIVE_API_BASE}/files?${searchParams.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (searchRes.ok) {
+    const data = await searchRes.json() as { files?: DriveItem[] };
+    if (data.files && data.files.length > 0 && data.files[0].id) {
+      return data.files[0].id;
+    }
+  }
+  const createRes = await fetch(`${DRIVE_API_BASE}/files?supportsAllDrives=true`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentId],
+    }),
+  });
+  if (!createRes.ok) {
+    const errorBody = await createRes.text();
+    throw new Error(`Nie udało się utworzyć folderu Drive: ${errorBody}`);
+  }
+  const folder = await createRes.json() as { id?: string };
+  if (!folder.id) throw new Error("Drive nie zwróciło ID folderu");
+  return folder.id;
+}
+
+export const uploadOrderAttachment = action({
+  args: {
+    orderId: v.id("orders"),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    mimeType: v.optional(v.string()),
+    size: v.optional(v.number()),
+    folderPath: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ fileId: string; name: string; url: string }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    const performedBy = identity?.subject ?? "anonymous";
+
+    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+    if (!order) throw new Error("Zlecenie nie znalezione");
+    if (!order.folderId) throw new Error("To zlecenie nie ma folderu w Google Drive.");
+
+    const connection = await getAuthorizedConnection(ctx);
+    const { accessToken } = connection;
+
+    // Get or create "Załączniki" subfolder
+    let attachmentsFolderId = order.attachmentsFolderId;
+    if (!attachmentsFolderId) {
+      attachmentsFolderId = await findOrCreateDriveFolder(accessToken, "Załączniki", order.folderId);
+      await ctx.runMutation(internal.attachments.setAttachmentsFolderId, {
+        orderId: args.orderId,
+        folderId: attachmentsFolderId,
+      });
+    }
+
+    // Resolve target folder for nested paths
+    let targetFolderId = attachmentsFolderId;
+    if (args.folderPath) {
+      const parts = args.folderPath.split("/").filter(Boolean);
+      for (const part of parts) {
+        targetFolderId = await findOrCreateDriveFolder(accessToken, part, targetFolderId);
+      }
+    }
+
+    // Download from Convex storage
+    const fileUrl = await ctx.storage.getUrl(args.storageId);
+    if (!fileUrl) throw new Error("Nie znaleziono pliku w storage");
+
+    const fileResponse = await fetch(fileUrl);
+    if (!fileResponse.ok) throw new Error(`Nie udało się pobrać pliku: ${fileResponse.status}`);
+
+    const contentType = args.mimeType || fileResponse.headers.get("content-type") || "application/octet-stream";
+    const fileBuffer = await fileResponse.arrayBuffer();
+
+    // Upload to Drive (multipart)
+    const metadata = JSON.stringify({ name: args.fileName, parents: [targetFolderId] });
+    const boundary = `drive_upload_${Date.now()}`;
+    const encoder = new TextEncoder();
+    const preamble = encoder.encode(
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`,
+    );
+    const epilogue = encoder.encode(`\r\n--${boundary}--`);
+    const body = new Uint8Array(preamble.byteLength + fileBuffer.byteLength + epilogue.byteLength);
+    body.set(preamble, 0);
+    body.set(new Uint8Array(fileBuffer), preamble.byteLength);
+    body.set(epilogue, preamble.byteLength + fileBuffer.byteLength);
+
+    const uploadResponse = await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": `multipart/related; boundary=${boundary}`,
+        },
+        body,
+      },
+    );
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      throw new Error(`Błąd uploadu do Drive (${uploadResponse.status}): ${errorText}`);
+    }
+
+    const uploaded = await uploadResponse.json() as { id?: string; name?: string };
+    if (!uploaded.id) throw new Error("Google Drive nie zwróciło ID pliku");
+
+    const driveUrl = `https://drive.google.com/file/d/${uploaded.id}/view`;
+
+    await ctx.runMutation(internal.attachments.add, {
+      orderId: args.orderId,
+      fileId: uploaded.id,
+      name: args.fileName,
+      url: driveUrl,
+      mimeType: contentType,
+      size: args.size,
+      folderPath: args.folderPath,
+      uploadedBy: performedBy,
+    });
+
+    await ctx.storage.delete(args.storageId);
+
+    return { fileId: uploaded.id, name: args.fileName, url: driveUrl };
+  },
+});
+
+export const deleteOrderAttachment = action({
+  args: {
+    attachmentId: v.id("orderAttachments"),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const attachment = await ctx.runQuery(internal.attachments.getById, {
+      attachmentId: args.attachmentId,
+    });
+    if (!attachment) throw new Error("Załącznik nie znaleziony");
+
+    const connection = await getAuthorizedConnection(ctx);
+
+    const deleteRes = await fetch(
+      `${DRIVE_API_BASE}/files/${attachment.fileId}?supportsAllDrives=true`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${connection.accessToken}` },
+      },
+    );
+
+    if (!deleteRes.ok && deleteRes.status !== 404) {
+      const errorBody = await deleteRes.text();
+      throw new Error(`Google Drive API error ${deleteRes.status}: ${errorBody}`);
+    }
+
+    await ctx.runMutation(internal.attachments.removeById, {
+      attachmentId: args.attachmentId,
+    });
+  },
+});
+
 export const copyTemplate = action({
   args: {
     orderId: v.id("orders"),
