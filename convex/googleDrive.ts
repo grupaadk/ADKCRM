@@ -874,6 +874,12 @@ export const createClientFolder = action({
     clientId: v.id("clients"),
   },
   handler: async (ctx, args) => {
+    const connection = await getDecryptedConnection(ctx);
+    if (!connection) {
+      console.info("[createClientFolder] Drive not connected, skipping", { clientId: args.clientId });
+      return null;
+    }
+
     const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
     if (!client) throw new Error("Client not found");
 
@@ -894,6 +900,7 @@ export const createClientFolder = action({
       clientFolderUrl,
     });
 
+    console.info("[createClientFolder] folder created", { clientId: args.clientId, folderId: id });
     return { clientFolderId: id, clientFolderUrl };
   },
 });
