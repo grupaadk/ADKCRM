@@ -179,7 +179,7 @@ export default function DodajDokumentPage() {
 
             {showClientDropdown && searchResults && searchResults.length > 0 && (
               <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
-                {searchResults.map((client) => (
+                {searchResults.map((client: NonNullable<typeof searchResults>[number]) => (
                   <button
                     key={client._id}
                     type="button"
