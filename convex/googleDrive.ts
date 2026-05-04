@@ -1040,9 +1040,11 @@ export const copyTemplate = action({
       const advancePct = effectiveType === "advance_final" ? storedAdvancePct : 0;
       const finalPct = 100 - advancePct;
       const round2 = (n: number) => Math.round(n * 100) / 100;
+      const lineItemsList = lineItemsResult.items.map((item) => item.name).join("\n");
       const computedFields = {
         estimateTotal: formatPLN(totalGross),
         estimateNetTotal: formatPLN(totalNet),
+        lineItemsList,
         // Faktura VAT
         invoiceVatPct: effectiveType === "vat" ? "100%" : "",
         invoiceVatAmount: effectiveType === "vat" ? formatPLN(totalGross) : "",
@@ -1168,9 +1170,11 @@ export const copyWarrantyTemplate = action({
       const advancePct = effectiveType === "advance_final" ? storedAdvancePct : 0;
       const finalPct = 100 - advancePct;
       const round2 = (n: number) => Math.round(n * 100) / 100;
+      const lineItemsList = lineItemsResult.items.map((item) => item.name).join("\n");
       const computedFields = {
         estimateTotal: formatPLN(totalGross),
         estimateNetTotal: formatPLN(totalNet),
+        lineItemsList,
         invoiceVatPct: effectiveType === "vat" ? "100%" : "",
         invoiceVatAmount: effectiveType === "vat" ? formatPLN(totalGross) : "",
         invoiceVatNetAmount: effectiveType === "vat" ? formatPLN(totalNet) : "",
