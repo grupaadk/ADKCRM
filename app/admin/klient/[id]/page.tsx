@@ -69,11 +69,13 @@ export default function ClientDetailPage({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [sendingAddress, setSendingAddress] = useState(false);
+  const [creatingFolder, setCreatingFolder] = useState(false);
   const client = useQuery(api.clients.getById, { clientId });
   const orders = useQuery(api.orders.listByClient, { clientId });
   const updateClient = useMutation(api.clients.update);
   const deleteClient = useAction(api.clients.deleteClient);
   const sendAddressSms = useAction(api.sms.sendAddressSms);
+  const createClientFolder = useAction(api.googleDrive.createClientFolder);
 
   if (client === undefined) {
     return (
@@ -120,6 +122,17 @@ export default function ClientDetailPage({
     }
   }
 
+  async function handleCreateFolder() {
+    setCreatingFolder(true);
+    try {
+      await createClientFolder({ clientId });
+    } catch (error) {
+      console.error("Błąd tworzenia folderu:", error);
+    } finally {
+      setCreatingFolder(false);
+    }
+  }
+
   async function handleDelete() {
     setDeleteLoading(true);
     try {
@@ -152,7 +165,7 @@ export default function ClientDetailPage({
           </div>
 
           <div className="flex items-center gap-2">
-            {(client.clientFolderUrl ?? client.folderUrl) && (
+            {(client.clientFolderUrl ?? client.folderUrl) ? (
               <a
                 href={(client.clientFolderUrl ?? client.folderUrl)!}
                 target="_blank"
@@ -164,6 +177,17 @@ export default function ClientDetailPage({
                 </svg>
                 Folder
               </a>
+            ) : (
+              <button
+                onClick={handleCreateFolder}
+                disabled={creatingFolder}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                {creatingFolder ? "Tworzenie..." : "Dodaj folder"}
+              </button>
             )}
             <button
               onClick={() => setShowDeleteConfirm(true)}

@@ -37,6 +37,7 @@ import type * as seed from "../seed.js";
 import type * as servicePricing from "../servicePricing.js";
 import type * as sms from "../sms.js";
 import type * as storage from "../storage.js";
+import type * as systemLogs from "../systemLogs.js";
 import type * as trello from "../trello.js";
 import type * as trelloWebhook from "../trelloWebhook.js";
 import type * as trelloWebhookLists from "../trelloWebhookLists.js";
@@ -78,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   servicePricing: typeof servicePricing;
   sms: typeof sms;
   storage: typeof storage;
+  systemLogs: typeof systemLogs;
   trello: typeof trello;
   trelloWebhook: typeof trelloWebhook;
   trelloWebhookLists: typeof trelloWebhookLists;
