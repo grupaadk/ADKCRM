@@ -421,7 +421,7 @@ export const pushOrderEstimate = action({
 
     const orderLabel = order.name ?? oid;
 
-    const positions = items.map((item) => {
+    const positions = items.map((item: { name: string; description?: string; quantity: number; unitPrice: number; vatRate: number; unit: string; discountPercent?: number }) => {
       const namePart = item.description
         ? `${item.name} — ${item.description}`
         : item.name;

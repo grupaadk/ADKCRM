@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import type { ActionCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { query, mutation, action, internalMutation, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { encrypt, decrypt } from "./lib/crypto";
@@ -873,7 +874,7 @@ export const createClientFolder = action({
   args: {
     clientId: v.id("clients"),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ clientFolderId: string; clientFolderUrl: string } | null> => {
     // Zapisuje log do DB — błąd zapisu nie przerywa akcji
     const log = async (
       level: "info" | "warn" | "error",
@@ -907,7 +908,7 @@ export const createClientFolder = action({
         return null;
       }
 
-      const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
+      const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId }) as Doc<"clients"> | null;
       await log("info", "client fetched", {
         found: !!client,
         existingFolderId: client?.clientFolderId ?? null,
@@ -920,7 +921,7 @@ export const createClientFolder = action({
 
       if (client.clientFolderId) {
         await log("info", "folder already exists — pomijam", { folderId: client.clientFolderId });
-        return { clientFolderId: client.clientFolderId, clientFolderUrl: client.clientFolderUrl };
+        return { clientFolderId: client.clientFolderId, clientFolderUrl: client.clientFolderUrl ?? "" };
       }
 
       const clientFolderName = `${client.firstName}_${client.lastName}`;
