@@ -1,4 +1,4 @@
-# ADK/ALCO CRM
+# ADK CRM
 
 System zarzadzania klientami i dokumentami dla ADK Okna.
 
