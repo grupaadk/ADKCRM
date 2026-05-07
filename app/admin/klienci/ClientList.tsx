@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react"
 import { useQuery, useMutation } from "convex/react"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 import { CrmSearch, CrmAvatar, CrmEmptyState, fmtDate } from "@/components/crm-ui"
@@ -37,6 +37,7 @@ function SortIcon({ column, sortBy }: { column: string; sortBy: SortConfig }) {
 }
 
 export default function ClientList({ viewConfig }: { viewConfig?: ViewConfig }) {
+  const router = useRouter()
   const updateSortMutation = useMutation(api.viewConfig.updateSort)
 
   const [query, setQuery] = useState("")
@@ -130,13 +131,12 @@ export default function ClientList({ viewConfig }: { viewConfig?: ViewConfig }) 
               <th style={{ ...thStyle("createdAt"), width: 120 }} onClick={() => handleSort("createdAt")}>
                 Dodano <SortIcon column="createdAt" sortBy={sortBy} />
               </th>
-              <th style={{ width: 130 }}></th>
             </tr>
           </thead>
           <tbody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
               <tr key={i}>
-                {Array.from({ length: 7 }).map((_, j) => (
+                {Array.from({ length: 6 }).map((_, j) => (
                   <td key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)" }} /></td>
                 ))}
               </tr>
@@ -144,14 +144,18 @@ export default function ClientList({ viewConfig }: { viewConfig?: ViewConfig }) 
 
             {!isLoading && displayClients?.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={6}>
                   <CrmEmptyState message={query ? "Brak klientów spełniających kryteria wyszukiwania." : "Brak klientów. Dodaj pierwszego klienta."} />
                 </td>
               </tr>
             )}
 
             {displayClients?.map((client) => (
-              <tr key={client._id}>
+              <tr
+                key={client._id}
+                onClick={() => router.push(`/admin/klient/${client._id}`)}
+                style={{ cursor: "pointer" }}
+              >
                 <td style={{ paddingRight: 0 }}>
                   <CrmAvatar name={`${client.firstName} ${client.lastName}`} size={26} />
                 </td>
@@ -164,15 +168,6 @@ export default function ClientList({ viewConfig }: { viewConfig?: ViewConfig }) 
                 <td className="dim" style={{ fontSize: 12 }}>{client.email ?? <span className="mute">—</span>}</td>
                 <td style={{ fontSize: 12 }}>{client.city ?? <span className="mute">—</span>}</td>
                 <td className="mono mute" style={{ fontSize: 11 }}>{fmtDate(client._creationTime)}</td>
-                <td>
-                  <Link
-                    href={`/admin/klient/${client._id}`}
-                    className="btn primary"
-                    style={{ fontSize: 11, width: "100%", justifyContent: "center" }}
-                  >
-                    Otwórz profil →
-                  </Link>
-                </td>
               </tr>
             ))}
           </tbody>
