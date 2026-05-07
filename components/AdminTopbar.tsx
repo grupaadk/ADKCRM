@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import { Bell } from "lucide-react"
+import { SidebarTrigger } from "@/components/ui/Sidebar"
 
 const ROUTE_LABELS: Record<string, string> = {
   "/admin": "Klienci",
@@ -35,6 +36,7 @@ export function AdminTopbar() {
         borderColor: "var(--line)",
       }}
     >
+      <SidebarTrigger />
       <div style={{ fontSize: 12.5 }}>
         <span style={{ color: "var(--text-mute)" }}>ADK</span>
         <span style={{ margin: "0 6px", color: "var(--text-mute)", opacity: 0.5 }}>›</span>

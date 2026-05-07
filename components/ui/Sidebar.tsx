@@ -114,12 +114,21 @@ export const Sidebar = React.forwardRef<HTMLDivElement, React.ComponentProps<"di
       )
     }
 
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { state } = useSidebar()
+    const collapsed = state === "collapsed"
+
     return (
       <div
         ref={ref}
+        style={{
+          width: collapsed ? "52px" : "16rem",
+          transition: "width 200ms ease",
+          overflow: "hidden",
+        }}
         className={cx(
-          "hidden md:flex flex-col shrink-0 w-[--sidebar-width] h-svh sticky top-0",
-          "border-r border-gray-200 bg-white overflow-y-auto",
+          "hidden md:flex flex-col shrink-0 h-svh sticky top-0",
+          "border-r border-gray-200 bg-white",
           className,
         )}
         {...props}

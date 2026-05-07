@@ -1,0 +1,171 @@
+======================================================================
+KONTEKST ROZMOWY — UI Kanban zleceń + zwijana nawigacja
+Data: 2026-05-08
+Projekt: ADKokna (Next.js 16 + Convex + Clerk)
+======================================================================
+
+----------------------------------------------------------------------
+1. STRUKTURA PROJEKTU
+----------------------------------------------------------------------
+
+Stack: Next.js 16 (App Router), Convex (backend/DB), Clerk (auth)
+Styling: Tailwind CSS v4 via PostCSS, CSS zmienne (var(--brand), var(--panel), itd.)
+Główny kolor marki: #4ABBC3
+
+Ważne pliki:
+- app/admin/layout.tsx          — layout admina (Sidebar + Topbar + main z paddingiem 20px 24px 40px)
+- components/AdminSidebar.tsx   — nawigacja boczna
+- components/AdminTopbar.tsx    — górny pasek
+- components/ui/Sidebar.tsx     — bazowy komponent sidebara (SidebarProvider, useSidebar, itd.)
+- components/StatusLabelsContext.tsx — kontekst etykiet statusów
+- convex/schema.ts              — schemat bazy (CLIENT_STATUSES, STATUS_TRANSITIONS, DOCUMENT_TYPES)
+
+----------------------------------------------------------------------
+2. STATUSY I ETYKIETY
+----------------------------------------------------------------------
+
+Kod statusu       → Etykieta domyślna (DEFAULT_STATUS_LABELS)
+-----------------------------------------------------------
+lead              → Oferta
+inquiry           → Oferta wysłana
+measurement       → Do pomiarów
+offer             → Oferta po pomiarze
+contract          → Akceptacja
+production        → Zamówienie
+installation      → Realizowane
+completed         → Zakończone
+complaint         → Reklamacja
+
+STATUS_TRANSITIONS (dozwolone przejścia) — convex/schema.ts:18-28:
+lead:         → inquiry, measurement
+inquiry:      → measurement, offer
+measurement:  → offer, contract
+offer:        → contract, lead
+contract:     → production
+production:   → installation
+installation: → completed, complaint
+completed:    → (brak)
+complaint:    → completed
+
+----------------------------------------------------------------------
+3. TYPY DOKUMENTÓW (convex/schema.ts)
+----------------------------------------------------------------------
+
+DOCUMENT_TYPES = ["pomiar", "umowa", "gwarancja_alco", "rekojmia_adk",
+                  "odbior_inwestor", "protokol_montaz", "faktura", "reklamacja"]
+
+Struktura documentEntry:
+  enabled: boolean
+  url?: string
+  generatedAt?: number
+  error?: string
+  errorAt?: number
+  signatureStatus?: "signed" | "not_applicable"
+
+Logika kolorów kwadracików dokumentów (z designu):
+  Szary  — dokument nie wygenerowany (enabled=false lub brak url)
+  Czerwony — wygenerowany ale nie podpisany (jest url, brak signatureStatus="signed")
+  Zielony  — wygenerowany i podpisany (signatureStatus="signed" lub "not_applicable")
+
+----------------------------------------------------------------------
+4. CO ZOSTAŁO ZBUDOWANE W TEJ ROZMOWIE
+----------------------------------------------------------------------
+
+A) NOWA STRONA: /app/admin/panel/page.tsx
+-----------------------------------------
+- Kanban board z 9 kolumnami (wszystkie statusy)
+- Styl: Wariant 1 "Minimalistyczny" z pliku designu (kolorowe headery kolumn, białe karty)
+- Na razie MOCK DATA (brak Convex queries — logikę dopiszemy później)
+- Karty zawierają:
+    • Nr zlecenia (np. "1/01/2025")
+    • Badge "B2B" (fioletowy) jeśli clientType === "b2b"
+    • Imię/nazwisko lub nazwa firmy
+    • Usługi (tekstowo)
+    • Kwota (zł, format pl-PL)
+    • 8 kolorowych kwadracików dokumentów (gray/red/green) z tooltip
+- Drag & drop między kolumnami (HTML5 drag API)
+    • Drop zone podświetla się akcentem marki (#4ABBC3)
+    • Brak walidacji STATUS_TRANSITIONS w UI na razie (do dodania w kolejnej iteracji)
+- Legenda kolorów w nagłówku strony
+- Kolory kolumn:
+    lead:         #8b5cf6 (purple)
+    inquiry:      #6366f1 (indigo)
+    measurement:  #f59e0b (amber)
+    offer:        #ec4899 (pink)
+    contract:     #8b5cf6 (purple)
+    production:   #3b82f6 (blue)
+    installation: #06b6d4 (cyan)
+    completed:    #10b981 (green)
+    complaint:    #ef4444 (red)
+
+B) AKTUALIZACJA NAWIGACJI: /components/AdminSidebar.tsx
+-------------------------------------------------------
+- Dodano "Panel" (ikona LayoutGrid) jako PIERWSZY wpis w sekcji "Główne"
+  href: /admin/panel
+- Dodano obsługę zwijania/rozwijania sidebara:
+    • Przycisk toggle w stopce sidebara (PanelLeftClose / PanelLeftOpen)
+    • Tryb zwinięty: szerokość 52px, tylko ikony wyśrodkowane, title tooltip
+    • Tryb rozwinięty: szerokość 16rem (256px), pełne etykiety
+    • Animacja: transition width 200ms ease
+    • Stan persystowany w cookie "sidebar:state" (już była ta logika w SidebarContext)
+
+C) AKTUALIZACJA TOPBARA: /components/AdminTopbar.tsx
+-----------------------------------------------------
+- Dodano <SidebarTrigger /> z lewej strony topbara (ikona PanelLeft)
+  Umożliwia toggle sidebara z poziomu topbara
+
+D) AKTUALIZACJA BAZOWEGO SIDEBARA: /components/ui/Sidebar.tsx
+-------------------------------------------------------------
+- Komponent <Sidebar> teraz odczytuje state z useSidebar()
+- Przy collapsed: width: 52px, overflow: hidden
+- Przy expanded: width: 16rem
+- Oba z transition: width 200ms ease
+- Zmieniono z klasy Tailwind w-[--sidebar-width] na inline style dla obsługi animacji
+
+----------------------------------------------------------------------
+5. CO ZOSTAŁO ODŁOŻONE NA PÓŹNIEJ (następna iteracja)
+----------------------------------------------------------------------
+
+1. Podłączenie prawdziwych danych z Convex:
+   - useQuery(api.orders.list) lub podobne
+   - Wyświetlanie rzeczywistych zleceń na kanbanie
+
+2. Mutacja zmiany statusu przy drag & drop:
+   - useMutation(api.orders.changeStatus)
+   - Walidacja STATUS_TRANSITIONS w UI (blokowanie niedozwolonych przeciągnięć)
+   - triggeredBy: "user"
+
+3. Usunięcie Trello side-effectu:
+   - W convex/orders.ts: usunąć/wyłączyć wywołanie syncCardForStatus
+   - Webhook Trello przestaje być potrzebny
+
+4. Filtrowanie/sortowanie kart na kanbanie
+
+5. Kliknięcie karty → przejście do szczegółów zlecenia
+
+----------------------------------------------------------------------
+6. ŹRÓDŁO DESIGNU
+----------------------------------------------------------------------
+
+Plik: "Kanban Zleceń - Warianty.html" (z pakietu handoff claude.ai/design)
+Projekt: adk-inspiracje (Claude Design export)
+Wybrany wariant: Wariant 1 — Minimalistyczny
+  (kolorowe headery kolumn, białe karty, kompaktowy, 190px szerokość kolumny)
+
+Pozostałe warianty w pliku (nie zaimplementowane):
+  Wariant 2 — Expansive (kolorowe tło kolumn, 220px)
+  Wariant 3 — Dark Glassmorphism (ciemny motyw)
+
+----------------------------------------------------------------------
+7. DECYZJE PROJEKTOWE / NOTATKI
+----------------------------------------------------------------------
+
+- Użytkownik NIE chce już korzystać z Trello — kanban ma być w systemie
+- Logika statusów (STATUS_TRANSITIONS) ma być zachowana
+- Kolumna 190px × 9 = ~1710px + gap → wymaga zwinięcia sidebara dla widoku bez scrolla
+- Sidebar po zwinięciu: 52px. Przy rozdzielczości ~1280px+ wszystkie 9 kolumn mieszczą się bez scrolla
+- Strona /admin/panel jest dostępna bez PinGate (inaczej niż /admin/dashboard)
+
+======================================================================
+KONIEC KONTEKSTU
+======================================================================
