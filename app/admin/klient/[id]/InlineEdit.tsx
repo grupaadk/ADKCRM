@@ -9,20 +9,22 @@ interface InlineEditProps {
   placeholder?: string;
 }
 
-export default function InlineEdit({
-  value,
-  onSave,
-  label,
-  placeholder,
-}: InlineEditProps) {
+const LABEL_STYLE: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: "var(--text-mute)",
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  marginBottom: 4,
+  display: "block",
+};
+
+export default function InlineEdit({ value, onSave, label, placeholder }: InlineEditProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setDraft(value);
-  }, [value]);
-
+  useEffect(() => { setDraft(value); }, [value]);
   useEffect(() => {
     if (editing) {
       inputRef.current?.focus();
@@ -32,9 +34,7 @@ export default function InlineEdit({
 
   function commit() {
     const trimmed = draft.trim();
-    if (trimmed !== value) {
-      onSave(trimmed);
-    }
+    if (trimmed !== value) onSave(trimmed);
     setEditing(false);
   }
 
@@ -45,8 +45,8 @@ export default function InlineEdit({
 
   if (editing) {
     return (
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-slate-500">{label}</label>
+      <div>
+        <label style={LABEL_STYLE}>{label}</label>
         <input
           ref={inputRef}
           type="text"
@@ -58,26 +58,55 @@ export default function InlineEdit({
             if (e.key === "Escape") cancel();
           }}
           placeholder={placeholder}
-          className="border border-slate-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+          style={{
+            width: "100%",
+            border: "1px solid var(--accent)",
+            borderRadius: 5,
+            padding: "5px 8px",
+            fontSize: 13,
+            fontFamily: "inherit",
+            color: "var(--text-strong)",
+            background: "var(--panel)",
+            outline: "none",
+            boxShadow: "0 0 0 3px var(--accent-soft)",
+          }}
         />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-semibold text-slate-600">{label}</label>
+    <div>
+      <label style={LABEL_STYLE}>{label}</label>
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="text-left text-sm text-slate-900 hover:bg-blue-50 border border-transparent hover:border-slate-300 rounded-md px-3 py-1.5 -mx-3 transition-all group cursor-pointer"
+        style={{
+          display: "block",
+          width: "calc(100% + 12px)",
+          textAlign: "left",
+          fontSize: 13,
+          color: value ? "var(--text)" : "var(--text-mute)",
+          fontStyle: value ? "normal" : "italic",
+          background: "transparent",
+          border: "1px solid transparent",
+          borderRadius: 5,
+          padding: "4px 6px",
+          margin: "0 -6px",
+          cursor: "pointer",
+          fontFamily: "inherit",
+          transition: "background 0.1s, border-color 0.1s",
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.background = "var(--panel-2)";
+          e.currentTarget.style.borderColor = "var(--line-2)";
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.background = "transparent";
+          e.currentTarget.style.borderColor = "transparent";
+        }}
       >
-        {value || (
-          <span className="text-slate-400 italic">{placeholder ?? "---"}</span>
-        )}
-        <span className="ml-2 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs">
-          edytuj
-        </span>
+        {value || (placeholder ?? "—")}
       </button>
     </div>
   );

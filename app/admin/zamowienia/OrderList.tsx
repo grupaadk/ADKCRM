@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
-import { CrmFilterTabs, CrmEmptyState, fmtDate } from "@/components/crm-ui"
+import { CrmEmptyState, fmtDate } from "@/components/crm-ui"
 
 const STATUS_LABELS: Record<string, string> = {
   new: "Nowe",
@@ -17,6 +17,8 @@ const STATUS_LABELS: Record<string, string> = {
   completed: "Zakończone",
   complaint: "Reklamacja",
 }
+
+const STATUS_ORDER = ["new", "measurement", "offer", "production", "installation", "complaint", "completed"]
 
 type SortField = "client" | "city" | "status" | "services" | "createdAt" | "totalGross"
 type SortDirection = "asc" | "desc"
@@ -78,6 +80,7 @@ export default function OrderList() {
   const [sortField, setSortField] = useState<SortField>("createdAt")
   const [sortDir, setSortDir] = useState<SortDirection>("desc")
   const [viewFilter, setViewFilter] = useState<"all" | "active" | "complaint" | "completed">("active")
+  const [statusFilter, setStatusFilter] = useState<string | null>(null)
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"))
@@ -92,12 +95,21 @@ export default function OrderList() {
     return { all, active: all - completed, complaint, completed }
   }, [orders])
 
+  const statusCounts = useMemo(() => {
+    if (!orders) return {} as Record<string, number>
+    return (orders as Order[]).reduce<Record<string, number>>((acc, o) => {
+      acc[o.status] = (acc[o.status] ?? 0) + 1
+      return acc
+    }, {})
+  }, [orders])
+
   const displayOrders = useMemo(() => {
     if (!orders) return undefined
     let filtered = orders as Order[]
     if (viewFilter === "active") filtered = filtered.filter((o) => o.status !== "completed")
     else if (viewFilter === "complaint") filtered = filtered.filter((o) => o.status === "complaint")
     else if (viewFilter === "completed") filtered = filtered.filter((o) => o.status === "completed")
+    if (statusFilter) filtered = filtered.filter((o) => o.status === statusFilter)
     return [...filtered].sort((a, b) => {
       let cmp = 0
       switch (sortField) {
@@ -114,24 +126,64 @@ export default function OrderList() {
       }
       return sortDir === "asc" ? cmp : -cmp
     })
-  }, [orders, viewFilter, sortField, sortDir])
+  }, [orders, viewFilter, statusFilter, sortField, sortDir])
 
-  const filterTabs = [
+  const viewTabs: { key: "all" | "active" | "complaint" | "completed"; label: string; count: number }[] = [
     { key: "all",       label: "Wszystkie",  count: counts.all },
     { key: "active",    label: "Aktywne",    count: counts.active },
     { key: "complaint", label: "Reklamacje", count: counts.complaint },
     { key: "completed", label: "Zakończone", count: counts.completed },
   ]
 
+  function FilterBtn({ isActive, onClick, children }: { isActive: boolean; onClick: () => void; children: React.ReactNode }) {
+    return (
+      <button
+        onClick={onClick}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: "4px 10px", borderRadius: 4, fontSize: 11.5,
+          background: isActive ? "var(--accent-soft)" : "transparent",
+          color: isActive ? "var(--accent)" : "var(--text-mute)",
+          border: "1px solid", borderColor: isActive ? "var(--accent-line)" : "transparent",
+          fontWeight: isActive ? 600 : 500, cursor: "pointer", fontFamily: "inherit",
+        }}
+      >
+        {children}
+      </button>
+    )
+  }
+
+  function CountBadge({ count, active }: { count: number; active: boolean }) {
+    return (
+      <span style={{
+        fontSize: 10, fontWeight: 600, padding: "0 5px", borderRadius: 999,
+        background: active ? "var(--accent)" : "var(--panel-3)",
+        color: active ? "#fff" : "var(--text-mute)",
+      }}>{count}</span>
+    )
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Toolbar */}
-      <div className="panel" style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
-        <CrmFilterTabs
-          tabs={filterTabs}
-          active={viewFilter}
-          onChange={(k) => setViewFilter(k as typeof viewFilter)}
-        />
+      <div className="panel" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+        {/* Row 1: view filter */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {viewTabs.map(({ key, label, count }) => (
+            <FilterBtn key={key} isActive={viewFilter === key} onClick={() => setViewFilter(key)}>
+              {label} <CountBadge count={count} active={viewFilter === key} />
+            </FilterBtn>
+          ))}
+        </div>
+        {/* Row 2: status filter */}
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+          <span className="mute" style={{ fontSize: 11, marginRight: 2 }}>Status:</span>
+          {STATUS_ORDER.filter((s) => (statusCounts[s] ?? 0) > 0).map((s) => (
+            <FilterBtn key={s} isActive={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? null : s)}>
+              {STATUS_LABELS[s] ?? s} <CountBadge count={statusCounts[s] ?? 0} active={statusFilter === s} />
+            </FilterBtn>
+          ))}
+        </div>
       </div>
 
       {/* Table */}

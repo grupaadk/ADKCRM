@@ -27,16 +27,35 @@ import NewOrderModal from "./NewOrderModal";
 type Tab = "zlecenia" | "notatki";
 
 function relativeTime(ms: number): string {
-  const days = Math.floor((Date.now() - ms) / 86_400_000)
-  if (days === 0) return "dziś"
-  if (days === 1) return "wczoraj"
-  if (days < 7) return `${days} dni temu`
-  const weeks = Math.floor(days / 7)
-  if (weeks < 5) return `${weeks} tyg. temu`
-  const months = Math.floor(days / 30)
-  if (months < 12) return `${months} mies. temu`
-  return `${Math.floor(days / 365)} lat temu`
+  const days = Math.floor((Date.now() - ms) / 86_400_000);
+  if (days === 0) return "dziś";
+  if (days === 1) return "wczoraj";
+  if (days < 7) return `${days} dni temu`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks} tyg. temu`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} mies. temu`;
+  return `${Math.floor(days / 365)} lat temu`;
 }
+
+const FIELD_LABEL: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: "var(--text-mute)",
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  display: "block",
+  marginBottom: 4,
+};
+
+const KPI_CARD: React.CSSProperties = {
+  padding: "10px 12px",
+  background: "var(--panel-2)",
+  borderRadius: 6,
+  display: "flex",
+  flexDirection: "column",
+  gap: 3,
+};
 
 export default function ClientDetailPage({
   params,
@@ -51,14 +70,12 @@ export default function ClientDetailPage({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showNewOrderModal, setShowNewOrderModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [sendingAddress, setSendingAddress] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
 
   const client = useQuery(api.clients.getById, { clientId });
   const orders = useQuery(api.orders.listByClient, { clientId });
   const updateClient = useMutation(api.clients.update);
   const deleteClient = useAction(api.clients.deleteClient);
-  const sendAddressSms = useAction(api.sms.sendAddressSms);
   const createClientFolder = useAction(api.googleDrive.createClientFolder);
 
   if (client === undefined) {
@@ -93,17 +110,6 @@ export default function ClientDetailPage({
     }
   }
 
-  async function handleSendAddress() {
-    setSendingAddress(true);
-    try {
-      await sendAddressSms({ clientId });
-    } catch (error) {
-      console.error("Błąd wysyłki SMS z adresem:", error);
-    } finally {
-      setSendingAddress(false);
-    }
-  }
-
   async function handleCreateFolder() {
     setCreatingFolder(true);
     try {
@@ -127,157 +133,208 @@ export default function ClientDetailPage({
     }
   }
 
+  const folderUrl = client.clientFolderUrl ?? client.folderUrl;
+  const totalOrders = orders?.length ?? 0;
+  const completedOrders = orders?.filter((o) => o.status === "completed").length ?? 0;
+  const totalGross = orders?.reduce((sum, o) => sum + ((o as { totalGross?: number }).totalGross ?? 0), 0) ?? 0;
+
   const tabs: Array<{ key: Tab; label: string; count?: number }> = [
     { key: "zlecenia", label: "Zlecenia", count: orders?.length },
     { key: "notatki", label: "Notatki" },
   ];
 
-  const folderUrl = client.clientFolderUrl ?? client.folderUrl;
-
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-      {/* ── Header card ── */}
-      <div className="panel" style={{ overflow: "hidden" }}>
+      {/* Breadcrumb */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-mute)" }}>
+        <Link
+          href="/admin"
+          style={{ color: "var(--text-mute)", textDecoration: "none" }}
+          onMouseOver={(e) => (e.currentTarget.style.color = "var(--text)")}
+          onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-mute)")}
+        >
+          Klienci
+        </Link>
+        <span style={{ opacity: 0.5 }}>›</span>
+        <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>{client.firstName} {client.lastName}</span>
+      </div>
 
-        {/* Breadcrumb + actions */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid var(--line)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-mute)" }}>
-            <Link href="/admin" style={{ color: "var(--text-mute)", textDecoration: "none" }}
-              onMouseOver={(e) => (e.currentTarget.style.color = "var(--text)")}
-              onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-mute)")}
-            >
-              Klienci
-            </Link>
-            <span style={{ opacity: 0.5 }}>›</span>
-            <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>{client.firstName} {client.lastName}</span>
-          </div>
+      {/* ── Main panel ── */}
+      <div className="panel" style={{ overflow: "visible" }}>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {folderUrl ? (
-              <a href={folderUrl} target="_blank" rel="noopener noreferrer" className="btn" style={{ fontSize: 11 }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
-                </svg>
-                Folder
-              </a>
-            ) : (
-              <button onClick={handleCreateFolder} disabled={creatingFolder} className="btn" style={{ fontSize: 11 }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                {creatingFolder ? "Tworzenie…" : "Dodaj folder"}
-              </button>
-            )}
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="btn"
-              style={{ fontSize: 11, color: "var(--bad)", borderColor: "oklch(0.72 0.18 25 / 0.4)" }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-              </svg>
-              Usuń
-            </button>
-          </div>
-        </div>
-
-        {/* Client identity */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px" }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 20, padding: "20px 24px", borderBottom: "1px solid var(--line)" }}>
           <CrmAvatar name={`${client.firstName} ${client.lastName}`} size={44} />
-          <div>
-            <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-strong)", margin: 0, lineHeight: 1.2 }}>
               {client.firstName} {client.lastName}
             </h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, fontSize: 12, flexWrap: "wrap" }}>
               {client.city && <span className="chip">{client.city}</span>}
-              {client.phone && <span className="mono mute" style={{ fontSize: 12 }}>{client.phone}</span>}
-              {client.email && <span className="dim" style={{ fontSize: 12 }}>{client.email}</span>}
+              {client.phone && <span style={{ color: "var(--text-mute)" }}>{client.phone}</span>}
+              {client.email && <span style={{ color: "var(--text-dim)" }}>{client.email}</span>}
             </div>
           </div>
         </div>
 
-        {/* Contact fields */}
-        <div style={{ borderTop: "1px solid var(--line)", padding: "14px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-            <InlineEdit label="Imię" value={client.firstName} onSave={(v) => handleFieldSave("firstName", v)} />
-            <InlineEdit label="Nazwisko" value={client.lastName} onSave={(v) => handleFieldSave("lastName", v)} />
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label className="text-xs font-semibold text-slate-600">Płeć</label>
-              <div style={{ display: "flex", gap: 4 }}>
-                {([["male", "M"] as const, ["female", "K"] as const]).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => void updateClient({ clientId, gender: value })}
-                    style={{
-                      flex: 1, padding: "5px 8px", borderRadius: 6, fontSize: 12,
-                      fontWeight: 500, cursor: "pointer", border: "1px solid",
-                      borderColor: client.gender === value ? "var(--accent)" : "var(--line)",
-                      background: client.gender === value ? "var(--accent-soft)" : "transparent",
-                      color: client.gender === value ? "var(--accent)" : "var(--text-mute)",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+        {/* Actions bar */}
+        <div style={{ display: "flex", gap: 8, padding: "12px 24px", borderBottom: "1px solid var(--line)", alignItems: "center", flexWrap: "wrap" }}>
+          <button onClick={() => setShowNewOrderModal(true)} className="btn primary" style={{ fontSize: 12 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Nowe zlecenie
+          </button>
+
+          {folderUrl ? (
+            <a href={folderUrl} target="_blank" rel="noopener noreferrer" className="btn" style={{ fontSize: 12 }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+              </svg>
+              Folder
+            </a>
+          ) : (
+            <button onClick={handleCreateFolder} disabled={creatingFolder} className="btn" style={{ fontSize: 12 }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              {creatingFolder ? "Tworzenie…" : "Dodaj folder"}
+            </button>
+          )}
+
+          <div style={{ flex: 1 }} />
+
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="btn"
+            style={{ fontSize: 12, color: "var(--bad)", borderColor: "oklch(0.72 0.18 25 / 0.35)" }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+            </svg>
+            Usuń klienta
+          </button>
+        </div>
+
+        {/* Contact + Address grid */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+          gap: "16px 20px",
+          padding: "20px 24px",
+        }}>
+          <InlineEdit label="Imię" value={client.firstName} onSave={(v) => handleFieldSave("firstName", v)} />
+          <InlineEdit label="Nazwisko" value={client.lastName} onSave={(v) => handleFieldSave("lastName", v)} />
+          <InlineEdit label="Email" value={client.email ?? ""} onSave={(v) => handleFieldSave("email", v)} placeholder="brak" />
+          <InlineEdit label="Telefon" value={client.phone ?? ""} onSave={(v) => handleFieldSave("phone", v)} placeholder="brak" />
+          <InlineEdit label="NIP" value={client.nip ?? ""} onSave={(v) => handleFieldSave("nip", v)} placeholder="brak" />
+
+          {/* Gender */}
+          <div>
+            <span style={FIELD_LABEL}>Płeć</span>
+            <div style={{ display: "flex", gap: 4 }}>
+              {([["male", "Mężczyzna"] as const, ["female", "Kobieta"] as const]).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => void updateClient({ clientId, gender: value })}
+                  style={{
+                    flex: 1, padding: "4px 6px", borderRadius: 5, fontSize: 11.5,
+                    fontWeight: 500, cursor: "pointer", border: "1px solid",
+                    borderColor: client.gender === value ? "var(--accent)" : "var(--line)",
+                    background: client.gender === value ? "var(--accent-soft)" : "transparent",
+                    color: client.gender === value ? "var(--accent)" : "var(--text-mute)",
+                    fontFamily: "inherit",
+                    transition: "all 0.12s",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-            <InlineEdit label="Email" value={client.email ?? ""} onSave={(v) => handleFieldSave("email", v)} placeholder="brak" />
-            <InlineEdit label="Telefon" value={client.phone ?? ""} onSave={(v) => handleFieldSave("phone", v)} placeholder="brak" />
-            <InlineEdit label="NIP" value={client.nip ?? ""} onSave={(v) => handleFieldSave("nip", v)} placeholder="brak" />
           </div>
 
-          <div>
-            <p className="up mute" style={{ marginBottom: 6 }}>Adres</p>
+          <InlineEdit label="Ulica" value={client.street ?? ""} onSave={(v) => handleFieldSave("street", v)} placeholder="brak" />
+          <InlineEdit label="Nr budynku" value={client.buildingNumber ?? ""} onSave={(v) => handleFieldSave("buildingNumber", v)} placeholder="brak" />
+          <InlineEdit label="Nr mieszkania" value={client.apartmentNumber ?? ""} onSave={(v) => handleFieldSave("apartmentNumber", v)} placeholder="brak" />
+          <InlineEdit label="Kod pocztowy" value={client.postalCode ?? ""} onSave={(v) => handleFieldSave("postalCode", v)} placeholder="brak" />
+          <InlineEdit label="Miejscowość" value={client.city ?? ""} onSave={(v) => handleFieldSave("city", v)} placeholder="brak" />
+
+          {/* Address search — spans full width */}
+          <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={FIELD_LABEL}>Wyszukaj adres</span>
             <AddressSearch onSelect={handleAddressSelect} />
           </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-            <InlineEdit label="Kod pocztowy" value={client.postalCode ?? ""} onSave={(v) => handleFieldSave("postalCode", v)} placeholder="brak" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <InlineEdit label="Miejscowość" value={client.city ?? ""} onSave={(v) => handleFieldSave("city", v)} placeholder="brak" />
-              {client.city && (
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([client.street, client.buildingNumber, client.postalCode, client.city].filter(Boolean).join(" "))}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none" }}
-                  >
-                    Google Maps ↗
-                  </a>
-                  <CityDistance city={client.city} />
-                </div>
-              )}
-            </div>
-            <InlineEdit label="Ulica" value={client.street ?? ""} onSave={(v) => handleFieldSave("street", v)} placeholder="brak" />
-            <InlineEdit label="Nr budynku" value={client.buildingNumber ?? ""} onSave={(v) => handleFieldSave("buildingNumber", v)} placeholder="brak" />
-            <InlineEdit label="Nr mieszkania" value={client.apartmentNumber ?? ""} onSave={(v) => handleFieldSave("apartmentNumber", v)} placeholder="brak" />
-          </div>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: "flex", borderTop: "1px solid var(--line)", gap: 2 }}>
+        {/* Maps + distance */}
+        {client.city && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 24px 16px" }}>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                [client.street, client.buildingNumber, client.postalCode, client.city].filter(Boolean).join(" ")
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 11.5, color: "var(--accent)", textDecoration: "none" }}
+            >
+              Google Maps ↗
+            </a>
+            <CityDistance city={client.city} />
+          </div>
+        )}
+
+        {/* KPI stats row */}
+        {orders !== undefined && (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(auto-fill, minmax(120px, 1fr))`,
+            gap: 8,
+            padding: "0 24px 20px",
+          }}>
+            <div style={KPI_CARD}>
+              <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Zlecenia</span>
+              <span style={{ fontSize: 20, fontWeight: 700, color: "var(--accent)", lineHeight: 1 }}>{totalOrders}</span>
+            </div>
+            <div style={{ ...KPI_CARD, background: "var(--ok-soft)" }}>
+              <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Zakończone</span>
+              <span style={{ fontSize: 20, fontWeight: 700, color: "var(--ok)", lineHeight: 1 }}>{completedOrders}</span>
+            </div>
+            {totalGross > 0 && (
+              <div style={{ ...KPI_CARD, gridColumn: "span 2" }}>
+                <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Wartość łączna</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+                  {totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} zł
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tabs bar — at bottom of main panel */}
+        <div style={{ display: "flex", borderTop: "1px solid var(--line)", padding: "0 6px" }}>
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               style={{
-                padding: "9px 16px",
-                fontSize: 12.5,
+                padding: "11px 16px",
+                fontSize: 13,
                 fontWeight: activeTab === tab.key ? 600 : 500,
                 color: activeTab === tab.key ? "var(--accent)" : "var(--text-mute)",
                 borderBottom: activeTab === tab.key ? "2px solid var(--accent)" : "2px solid transparent",
-                marginBottom: -1,
                 background: "none",
                 border: "none",
                 borderBottomStyle: "solid",
+                borderBottomWidth: 2,
+                borderBottomColor: activeTab === tab.key ? "var(--accent)" : "transparent",
                 cursor: "pointer",
                 fontFamily: "inherit",
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
+                transition: "color 0.12s",
               }}
             >
               {tab.label}
@@ -296,18 +353,10 @@ export default function ClientDetailPage({
         </div>
       </div>
 
-      {/* ── Tab: Zlecenia ── */}
-      {activeTab === "zlecenia" && (
-        <div className="panel" style={{ overflow: "hidden" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid var(--line)" }}>
-            <span className="up mute">Zlecenia</span>
-            <button onClick={() => setShowNewOrderModal(true)} className="btn primary" style={{ fontSize: 11 }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              Nowe zlecenie
-            </button>
-          </div>
+      {/* ── Tab content (separate panel) ── */}
+      <div className="panel" style={{ overflow: "hidden" }}>
+        {/* Tab: Zlecenia */}
+        {activeTab === "zlecenia" && (
           <TableRoot>
             <Table>
               <TableHead>
@@ -324,14 +373,18 @@ export default function ClientDetailPage({
                 {orders === undefined && Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
                     {Array.from({ length: 6 }).map((_, j) => (
-                      <TableCell key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} /></TableCell>
+                      <TableCell key={j}>
+                        <div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                      </TableCell>
                     ))}
                   </TableRow>
                 ))}
 
                 {orders !== undefined && orders.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6}><CrmEmptyState message="Brak zleceń dla tego klienta." /></TableCell>
+                    <TableCell colSpan={6}>
+                      <CrmEmptyState message="Brak zleceń dla tego klienta." />
+                    </TableCell>
                   </TableRow>
                 )}
 
@@ -339,7 +392,11 @@ export default function ClientDetailPage({
                   const isCompleted = order.status === "completed";
                   const hasFinalInvoice = (order.fakturownia?.invoices ?? []).some((inv) => inv.kind === "final");
                   return (
-                    <TableRow key={order._id} style={isCompleted ? { background: "var(--ok-soft)", cursor: "pointer" } : { cursor: "pointer" }} onClick={() => router.push(`/admin/klient/${id}/zlecenie/${order._id}`)}>
+                    <TableRow
+                      key={order._id}
+                      style={isCompleted ? { background: "var(--ok-soft)", cursor: "pointer" } : { cursor: "pointer" }}
+                      onClick={() => router.push(`/admin/klient/${id}/zlecenie/${order._id}`)}
+                    >
                       <TableCell>
                         <div className="strong" style={{ fontWeight: 500, fontSize: 12.5 }}>
                           {order.name ?? <span className="mute">Zlecenie z {fmtDate(order._creationTime)}</span>}
@@ -384,13 +441,17 @@ export default function ClientDetailPage({
               </TableBody>
             </Table>
           </TableRoot>
-        </div>
-      )}
+        )}
 
-      {/* ── Tab: Notatki ── */}
-      {activeTab === "notatki" && <Notes clientId={clientId} />}
+        {/* Tab: Notatki */}
+        {activeTab === "notatki" && (
+          <div style={{ padding: 16 }}>
+            <Notes clientId={clientId} />
+          </div>
+        )}
+      </div>
 
-{/* New Order Modal */}
+      {/* New Order Modal */}
       {showNewOrderModal && (
         <NewOrderModal
           clientId={clientId}
