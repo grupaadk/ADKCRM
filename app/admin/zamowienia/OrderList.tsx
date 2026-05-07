@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { useQuery } from "convex/react"
+import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
@@ -52,6 +53,7 @@ function relativeTime(ms: number): string {
 }
 
 export default function OrderList() {
+  const router = useRouter()
   const orders = useQuery(api.orders.list, {})
   const isLoading = orders === undefined
 
@@ -159,7 +161,7 @@ export default function OrderList() {
             {displayOrders?.map((order) => {
               const isCompleted = order.status === "completed"
               return (
-                <tr key={order._id} style={isCompleted ? { background: "var(--ok-soft)" } : {}}>
+                <tr key={order._id} style={isCompleted ? { background: "var(--ok-soft)", cursor: "pointer" } : { cursor: "pointer" }} onClick={() => router.push(`/admin/klient/${order.clientId}/zlecenie/${order._id}`)}>
                   <td className="mono" style={{ fontSize: 11, color: "var(--text-mute)" }}>
                     {order.name ?? <span style={{ color: "var(--panel-3)" }}>—</span>}
                   </td>

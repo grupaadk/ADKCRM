@@ -319,7 +319,7 @@ export default function ClientDetailPage({
                   const isCompleted = order.status === "completed";
                   const hasFinalInvoice = (order.fakturownia?.invoices ?? []).some((inv) => inv.kind === "final");
                   return (
-                    <TableRow key={order._id} style={isCompleted ? { background: "var(--ok-soft)" } : {}}>
+                    <TableRow key={order._id} style={isCompleted ? { background: "var(--ok-soft)", cursor: "pointer" } : { cursor: "pointer" }} onClick={() => router.push(`/admin/klient/${id}/zlecenie/${order._id}`)}>
                       <TableCell>
                         <div className="strong" style={{ fontWeight: 500, fontSize: 12.5 }}>
                           {order.name ?? <span className="mute">Zlecenie z {fmtDate(order._creationTime)}</span>}
