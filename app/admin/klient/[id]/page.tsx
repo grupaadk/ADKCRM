@@ -298,13 +298,12 @@ export default function ClientDetailPage({
                   <TableHeaderCell>Dokumenty</TableHeaderCell>
                   <TableHeaderCell>Usługi</TableHeaderCell>
                   <TableHeaderCell>Data</TableHeaderCell>
-                  <TableHeaderCell />
                 </TableRow>
               </TableHead>
               <TableBody>
                 {orders === undefined && Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 6 }).map((_, j) => (
+                    {Array.from({ length: 5 }).map((_, j) => (
                       <TableCell key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} /></TableCell>
                     ))}
                   </TableRow>
@@ -312,7 +311,7 @@ export default function ClientDetailPage({
 
                 {orders !== undefined && orders.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6}><CrmEmptyState message="Brak zleceń dla tego klienta." /></TableCell>
+                    <TableCell colSpan={5}><CrmEmptyState message="Brak zleceń dla tego klienta." /></TableCell>
                   </TableRow>
                 )}
 
@@ -352,26 +351,6 @@ export default function ClientDetailPage({
                             <Clock size={10} />
                             {relativeTime(order._creationTime)}
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          {isCompleted ? (
-                            <Link href={`/admin/klient/${id}/zlecenie/${order._id}?tab=dokumenty`} className="btn" style={{ fontSize: 11 }}>
-                              Dokumenty
-                            </Link>
-                          ) : order.status === "complaint" ? (
-                            <Link href={`/admin/klient/${id}/zlecenie/${order._id}?tab=reklamacja`} className="btn" style={{ fontSize: 11, background: "var(--bad)", color: "#fff", borderColor: "transparent" }}>
-                              Reklamacja
-                            </Link>
-                          ) : (
-                            <Link href={`/admin/klient/${id}/zlecenie/${order._id}?tab=wycena`} className="btn" style={{ fontSize: 11 }}>
-                              Wycena
-                            </Link>
-                          )}
-                          <Link href={`/admin/klient/${id}/zlecenie/${order._id}`} className="btn primary" style={{ fontSize: 11 }}>
-                            Szczegóły
-                          </Link>
                         </div>
                       </TableCell>
                     </TableRow>
