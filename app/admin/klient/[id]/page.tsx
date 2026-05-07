@@ -10,7 +10,6 @@ import { CalendarDays, Clock } from "lucide-react";
 import InlineEdit from "./InlineEdit";
 import CityDistance from "./CityDistance";
 import Notes from "./Notes";
-import ClientMailTab from "./ClientMailTab";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import {
   Table,
@@ -25,7 +24,7 @@ import { StatusPill, CrmAvatar, fmtDate, CrmEmptyState } from "@/components/crm-
 import DocumentProgressTiles from "./DocumentProgressTiles";
 import NewOrderModal from "./NewOrderModal";
 
-type Tab = "zlecenia" | "notatki" | "mail";
+type Tab = "zlecenia" | "notatki";
 
 function relativeTime(ms: number): string {
   const days = Math.floor((Date.now() - ms) / 86_400_000)
@@ -131,7 +130,6 @@ export default function ClientDetailPage({
   const tabs: Array<{ key: Tab; label: string; count?: number }> = [
     { key: "zlecenia", label: "Zlecenia", count: orders?.length },
     { key: "notatki", label: "Notatki" },
-    { key: "mail", label: "Mail" },
   ];
 
   const folderUrl = client.clientFolderUrl ?? client.folderUrl;
@@ -204,6 +202,27 @@ export default function ClientDetailPage({
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
             <InlineEdit label="Imię" value={client.firstName} onSave={(v) => handleFieldSave("firstName", v)} />
             <InlineEdit label="Nazwisko" value={client.lastName} onSave={(v) => handleFieldSave("lastName", v)} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label className="text-xs font-semibold text-slate-600">Płeć</label>
+              <div style={{ display: "flex", gap: 4 }}>
+                {([["male", "M"] as const, ["female", "K"] as const]).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => void updateClient({ clientId, gender: value })}
+                    style={{
+                      flex: 1, padding: "5px 8px", borderRadius: 6, fontSize: 12,
+                      fontWeight: 500, cursor: "pointer", border: "1px solid",
+                      borderColor: client.gender === value ? "var(--accent)" : "var(--line)",
+                      background: client.gender === value ? "var(--accent-soft)" : "transparent",
+                      color: client.gender === value ? "var(--accent)" : "var(--text-mute)",
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <InlineEdit label="Email" value={client.email ?? ""} onSave={(v) => handleFieldSave("email", v)} placeholder="brak" />
             <InlineEdit label="Telefon" value={client.phone ?? ""} onSave={(v) => handleFieldSave("phone", v)} placeholder="brak" />
             <InlineEdit label="NIP" value={client.nip ?? ""} onSave={(v) => handleFieldSave("nip", v)} placeholder="brak" />
@@ -355,8 +374,8 @@ export default function ClientDetailPage({
                         </div>
                       </TableCell>
                       <TableCell className="mono tnum" style={{ textAlign: "right" }}>
-                        {order.totalGross != null
-                          ? `${order.totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
+                        {(order as { totalGross?: number }).totalGross != null
+                          ? `${(order as { totalGross?: number }).totalGross!.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
                           : <span className="mute">—</span>}
                       </TableCell>
                     </TableRow>
@@ -371,19 +390,7 @@ export default function ClientDetailPage({
       {/* ── Tab: Notatki ── */}
       {activeTab === "notatki" && <Notes clientId={clientId} />}
 
-      {/* ── Tab: Mail ── */}
-      {activeTab === "mail" && (
-        <div className="panel" style={{ overflow: "hidden" }}>
-          <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--line)" }}>
-            <span className="up mute">Korespondencja email</span>
-          </div>
-          <div style={{ padding: 16 }}>
-            <ClientMailTab clientEmail={client.email ?? ""} />
-          </div>
-        </div>
-      )}
-
-      {/* New Order Modal */}
+{/* New Order Modal */}
       {showNewOrderModal && (
         <NewOrderModal
           clientId={clientId}

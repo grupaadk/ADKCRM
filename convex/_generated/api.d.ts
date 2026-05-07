@@ -33,6 +33,7 @@ import type * as migrations from "../migrations.js";
 import type * as notes from "../notes.js";
 import type * as orderLineItems from "../orderLineItems.js";
 import type * as orders from "../orders.js";
+import type * as paymentReminders from "../paymentReminders.js";
 import type * as places from "../places.js";
 import type * as seed from "../seed.js";
 import type * as servicePricing from "../servicePricing.js";
@@ -76,6 +77,7 @@ declare const fullApi: ApiFromModules<{
   notes: typeof notes;
   orderLineItems: typeof orderLineItems;
   orders: typeof orders;
+  paymentReminders: typeof paymentReminders;
   places: typeof places;
   seed: typeof seed;
   servicePricing: typeof servicePricing;

@@ -16,6 +16,7 @@ import ComplaintTab from "./ComplaintTab";
 import AttachmentsSection from "./AttachmentsSection";
 import DocumentProgressTiles from "../../DocumentProgressTiles";
 import InvestmentLocation from "../../InvestmentLocation";
+import ReminderModal from "@/app/admin/faktury/ReminderModal";
 import {
   Table,
   TableBody,
@@ -173,6 +174,7 @@ export default function OrderDetailPage({
   const [smsError, setSmsError] = useState<string | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [reminderInvoiceId, setReminderInvoiceId] = useState<Id<"fakturowniaInvoicesCache"> | null>(null);
 
   const client = useQuery(api.clients.getById, { clientId });
   const order = useQuery(api.orders.getById, { orderId: orderIdTyped });
@@ -184,6 +186,7 @@ export default function OrderDetailPage({
   const changeStatus = useMutation(api.orders.changeStatus);
   const assignInvoice = useMutation(api.fakturownia.assignInvoiceToOrder);
   const unassignInvoice = useMutation(api.fakturownia.unassignInvoiceFromOrder);
+  const paymentReminders = useQuery(api.paymentReminders.listByOrder, { orderId: orderIdTyped });
   const smsConfig = useQuery(api.sms.getConfig);
   const createOrderFolder = useAction(api.googleDrive.createOrderFolder);
   const deleteOrder = useAction(api.orders.deleteOrder);
@@ -680,6 +683,7 @@ export default function OrderDetailPage({
                       <TableHeaderCell className="text-right">Kwota netto</TableHeaderCell>
                       <TableHeaderCell className="text-right">Kwota brutto</TableHeaderCell>
                       <TableHeaderCell />
+                      <TableHeaderCell />
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -732,6 +736,19 @@ export default function OrderDetailPage({
                               : <span className="text-gray-400">—</span>}
                           </TableCell>
                           <TableCell className="text-right">
+                            {inv.status !== "paid" && (
+                              <button
+                                onClick={() => setReminderInvoiceId(inv._id)}
+                                className="btn"
+                                style={{ fontSize: 11 }}
+                                title="Wyślij przypomnienie o płatności"
+                              >
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
+                                Przypomnienie
+                              </button>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
                             <button
                               onClick={() => unassignInvoice({ invoiceId: inv._id })}
                               className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 ml-auto"
@@ -751,7 +768,7 @@ export default function OrderDetailPage({
                     return (
                       <TableFoot>
                         <TableRow className="bg-gray-50 font-semibold">
-                          <TableCell colSpan={5} className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          <TableCell colSpan={5} className="text-xs font-semibold text-gray-500 uppercase tracking-wide" style={{ whiteSpace: "nowrap" }}>
                             Suma ({assignedInvoices.length} {assignedInvoices.length === 1 ? "faktura" : "faktur"})
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-sm text-gray-700 whitespace-nowrap">
@@ -760,7 +777,7 @@ export default function OrderDetailPage({
                           <TableCell className="text-right tabular-nums text-sm text-gray-900 whitespace-nowrap font-bold">
                             {totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
                           </TableCell>
-                          <TableCell />
+                          <TableCell colSpan={2} />
                         </TableRow>
                       </TableFoot>
                     );
@@ -771,6 +788,27 @@ export default function OrderDetailPage({
               <p className="text-sm italic text-slate-400">Brak przypisanych faktur.</p>
             )}
           </SectionCard>
+          {paymentReminders && paymentReminders.length > 0 && (
+            <SectionCard title="Historia przypomnień o płatności">
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {paymentReminders.map((r) => (
+                  <div
+                    key={r._id}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: 6, background: "var(--panel-2)", border: "1px solid var(--line)" }}
+                  >
+                    <span style={{ fontSize: 12, color: "var(--text)" }}>
+                      {new Date(r.sentAt).toLocaleString("pl-PL")}
+                    </span>
+                    <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
+                      {r.recipientEmail}
+                      {r.invoiceNumber && <span style={{ marginLeft: 8, fontFamily: "monospace" }}>{r.invoiceNumber}</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          )}
+
           <AttachmentsSection
             orderId={orderIdTyped}
             hasDriveFolder={!!order.folderId}
@@ -791,6 +829,14 @@ export default function OrderDetailPage({
           orderId={orderIdTyped}
           clientId={clientId}
           complaintStartDate={warrantyEvent?._creationTime ?? null}
+        />
+      )}
+
+      {/* Payment reminder modal */}
+      {reminderInvoiceId && (
+        <ReminderModal
+          invoiceId={reminderInvoiceId}
+          onClose={() => setReminderInvoiceId(null)}
         />
       )}
 

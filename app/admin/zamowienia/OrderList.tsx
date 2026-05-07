@@ -29,9 +29,27 @@ type Order = {
   services?: string[]
   name?: string
   client: { firstName: string; lastName: string; city?: string } | null
-  fakturownia?: { invoices?: Array<{ kind: "advance" | "final" }> }
+  fakturownia?: { invoices?: Array<{ kind: "advance" | "final" | "vat"; number?: string }> }
   documents?: Record<string, { url?: string; signatureStatus?: "signed" | "not_applicable" }>
   totalGross?: number | null
+}
+
+function InvoiceBadge({ invoices }: { invoices?: Array<{ kind: "advance" | "final" | "vat"; number?: string }> }) {
+  const issued = (invoices ?? []).filter((i) => i.number)
+  if (issued.length === 0) return <span className="mute">—</span>
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {issued.map((inv, i) => {
+        const label = inv.kind === "advance" ? "Zaliczka" : inv.kind === "final" ? "Końcowa" : "VAT"
+        const color = inv.kind === "final" ? "var(--ok)" : inv.kind === "advance" ? "var(--warn)" : "var(--info, #6366f1)"
+        return (
+          <span key={i} style={{ fontSize: 11, fontWeight: 500, color, whiteSpace: "nowrap" }}>
+            {label}
+          </span>
+        )
+      })}
+    </div>
+  )
 }
 
 function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDirection }) {
@@ -132,6 +150,7 @@ export default function OrderList() {
                 Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
               </th>
               <th style={{ width: 130 }}>Dokumenty</th>
+              <th style={{ width: 90 }}>Faktura</th>
               <th style={{ cursor: "pointer" }} onClick={() => handleSort("services")}>
                 Usługi <SortIcon field="services" sortField={sortField} sortDir={sortDir} />
               </th>
@@ -146,7 +165,7 @@ export default function OrderList() {
           <tbody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
               <tr key={i}>
-                {Array.from({ length: 8 }).map((_, j) => (
+                {Array.from({ length: 9 }).map((_, j) => (
                   <td key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} /></td>
                 ))}
               </tr>
@@ -154,7 +173,7 @@ export default function OrderList() {
 
             {!isLoading && displayOrders?.length === 0 && (
               <tr>
-                <td colSpan={8}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
+                <td colSpan={9}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
               </tr>
             )}
 
@@ -175,6 +194,7 @@ export default function OrderList() {
                   </td>
                   <td style={{ fontSize: 12 }}>{STATUS_LABELS[order.status] ?? order.status}</td>
                   <td><DocumentProgressTiles documents={order.documents} /></td>
+                  <td><InvoiceBadge invoices={order.fakturownia?.invoices} /></td>
                   <td style={{ fontSize: 12 }}>
                     {order.services && order.services.length > 0
                       ? order.services.join(", ")

@@ -21,7 +21,6 @@ import {
   Users,
   FileText,
   Settings,
-  Mail,
   Receipt,
   ScrollText,
   Upload,
@@ -39,7 +38,6 @@ const mainItems: NavItem[] = [
   { href: "/admin/zamowienia", label: "Zlecenia", icon: ClipboardList },
   { href: "/admin/klienci", label: "Klienci", icon: Users, countKey: "clients", alsoActiveFor: ["/admin/klient/"] },
   { href: "/admin/faktury", label: "Faktury", icon: Receipt },
-  { href: "/admin/mail", label: "Mail", icon: Mail },
 ]
 
 const toolItems: NavItem[] = [

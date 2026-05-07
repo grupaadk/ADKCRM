@@ -112,6 +112,7 @@ export default defineSchema({
   clients: defineTable({
     firstName: v.string(),
     lastName: v.string(),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     nip: v.optional(v.string()),
@@ -542,6 +543,19 @@ export default defineSchema({
     uploadedAt: v.number(),
     uploadedBy: v.string(),
   }).index("by_order", ["orderId"]),
+
+  // 3.19 Historia przypomnień o płatności (windykacja)
+  paymentReminders: defineTable({
+    invoiceId: v.id("fakturowniaInvoicesCache"),
+    orderId: v.optional(v.id("orders")),
+    clientId: v.id("clients"),
+    sentAt: v.number(),
+    recipientEmail: v.string(),
+    sentBy: v.string(),
+    invoiceNumber: v.optional(v.string()),
+  })
+    .index("by_invoice", ["invoiceId"])
+    .index("by_order", ["orderId"]),
 
   // Logi systemowe
   systemLogs: defineTable({

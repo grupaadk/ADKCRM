@@ -26,7 +26,9 @@ import {
   ChevronDown,
   ChevronsUpDown,
   AlertTriangle,
+  Bell,
 } from "lucide-react";
+import ReminderModal from "./ReminderModal";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -264,8 +266,9 @@ export default function FakturaList() {
 
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [syncResult, setSyncResult] = useState<{ count: number; pages: number } | null>(null);
+  const [syncResult, setSyncResult] = useState<{ count: number; pages: number; deleted: number } | null>(null);
   const [assigningInvoice, setAssigningInvoice] = useState<CachedInvoice | null>(null);
+  const [reminderInvoiceId, setReminderInvoiceId] = useState<Id<"fakturowniaInvoicesCache"> | null>(null);
   const [kindFilter, setKindFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("");
   const [sortField, setSortField] = useState<SortField>("issueDate");
@@ -459,7 +462,10 @@ export default function FakturaList() {
               <span className="mute" style={{ fontSize: 11 }}>Sync: {relativeTime(lastSyncAt)}</span>
             )}
             {syncResult && !syncing && (
-              <span style={{ fontSize: 11, color: "var(--ok)" }}>Pobrano {syncResult.count} faktur</span>
+              <span style={{ fontSize: 11, color: "var(--ok)" }}>
+                Pobrano {syncResult.count} faktur
+                {syncResult.deleted > 0 && `, usunięto ${syncResult.deleted} usuniętych`}
+              </span>
             )}
             {syncError && (
               <span style={{ fontSize: 11, color: "var(--bad)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{syncError}</span>
@@ -572,6 +578,7 @@ export default function FakturaList() {
                   <SortIcon field="grossAmount" sortField={sortField} sortDir={sortDir} />
                 </TableHeaderCell>
                 <TableHeaderCell>Zlecenie</TableHeaderCell>
+                <TableHeaderCell>Windykacja</TableHeaderCell>
                 <TableHeaderCell />
               </TableRow>
             </TableHead>
@@ -687,6 +694,21 @@ export default function FakturaList() {
                       )}
                     </TableCell>
 
+                    {/* Windykacja */}
+                    <TableCell>
+                      {invoice.status !== "paid" && (
+                        <button
+                          onClick={() => setReminderInvoiceId(invoice._id)}
+                          className="btn"
+                          style={{ fontSize: 11 }}
+                          title="Wyślij przypomnienie o płatności"
+                        >
+                          <Bell size={12} />
+                          Wyślij
+                        </button>
+                      )}
+                    </TableCell>
+
                     {/* Actions */}
                     <TableCell>
                       <button
@@ -709,7 +731,7 @@ export default function FakturaList() {
               return (
                 <TableFoot>
                   <TableRow className="bg-gray-50 font-semibold">
-                    <TableCell colSpan={6} className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <TableCell colSpan={7} className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                       Suma ({displayed.length} {displayed.length === 1 ? "faktura" : "faktur"})
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-sm text-gray-700 whitespace-nowrap">
@@ -726,6 +748,14 @@ export default function FakturaList() {
           </Table>
         </TableRoot>
       </div>
+
+      {/* Reminder modal */}
+      {reminderInvoiceId && (
+        <ReminderModal
+          invoiceId={reminderInvoiceId}
+          onClose={() => setReminderInvoiceId(null)}
+        />
+      )}
 
       {/* Assignment modal */}
       {assigningInvoice && orders && (

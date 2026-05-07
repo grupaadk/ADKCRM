@@ -50,7 +50,7 @@ describe("US-1.1 — Jotform Webhook (createFromWebhook)", () => {
     const t = convexTest(schema);
 
     const { clientId, orderId } = await t.mutation(api.jotformInternal.createFromWebhook, {
-      firstName: "Anna",
+      firstName: "Maria",
       lastName: "Nowak",
       services: ["Okna", "Brama", "Zabudowa tarasu"],
       windowColor: ["Biały", "Złoty dąb"],
@@ -83,7 +83,7 @@ describe("US-1.1 — Jotform Webhook (createFromWebhook)", () => {
     const t = convexTest(schema);
 
     const { clientId } = await t.mutation(api.jotformInternal.createFromWebhook, {
-      firstName: "Piotr",
+      firstName: "Andrzej",
       lastName: "Wiśniewski",
       services: ["Okna"],
       submissionId: "jotform-99999",
@@ -138,6 +138,7 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
     const clientId = await t.mutation(api.clients.create, {
       firstName: "Tomasz",
       lastName: "Krawczyk",
+      gender: "male",
       email: "tomasz@example.com",
       phone: "+48987654321",
       city: "Kraków",
@@ -162,6 +163,7 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
     const clientId = await t.mutation(api.clients.create, {
       firstName: "Ewa",
       lastName: "Maj",
+      gender: "female",
     });
 
     const client = await t.query(api.clients.getById, { clientId });
@@ -175,8 +177,9 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
     const t = convexTest(schema);
 
     const clientId = await t.mutation(api.clients.create, {
-      firstName: "Katarzyna",
+      firstName: "Anna",
       lastName: "Duda",
+      gender: "female",
     });
 
     const events = await t.run(async (ctx) => {
@@ -200,8 +203,9 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
     });
 
     const clientId = await asUser.mutation(api.clients.create, {
-      firstName: "Michał",
+      firstName: "Marek",
       lastName: "Borkowski",
+      gender: "male",
     });
 
     const client = await t.query(api.clients.getById, { clientId });
@@ -226,9 +230,9 @@ describe("US-1.3 — Client Listing & Search", () => {
   test("lists all clients", async () => {
     const t = convexTest(schema);
 
-    await t.mutation(api.clients.create, { firstName: "Klient", lastName: "Pierwszy" });
-    await t.mutation(api.clients.create, { firstName: "Klient", lastName: "Drugi" });
-    await t.mutation(api.clients.create, { firstName: "Klient", lastName: "Trzeci" });
+    await t.mutation(api.clients.create, { firstName: "Klient", lastName: "Pierwszy", gender: "male" });
+    await t.mutation(api.clients.create, { firstName: "Klient", lastName: "Drugi", gender: "male" });
+    await t.mutation(api.clients.create, { firstName: "Klient", lastName: "Trzeci", gender: "male" });
 
     const result = await t.query(api.clients.list, {});
     expect(result.page).toHaveLength(3);
@@ -240,6 +244,7 @@ describe("US-1.3 — Client Listing & Search", () => {
     const clientId = await t.mutation(api.clients.create, {
       firstName: "Zofia",
       lastName: "Kaminska",
+      gender: "female",
       email: "zofia@test.pl",
     });
 
@@ -255,7 +260,8 @@ describe("US-1.3 — Client Listing & Search", () => {
 
     const clientId = await t.mutation(api.clients.create, {
       firstName: "Temp",
-      lastName: "Temp",
+      lastName: "Testowy",
+      gender: "male",
     });
 
     await t.run(async (ctx) => {
@@ -269,9 +275,9 @@ describe("US-1.3 — Client Listing & Search", () => {
   test("searches by lastName", async () => {
     const t = convexTest(schema);
 
-    await t.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
-    await t.mutation(api.clients.create, { firstName: "Anna", lastName: "Nowak" });
-    await t.mutation(api.clients.create, { firstName: "Piotr", lastName: "Kowalczyk" });
+    await t.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski", gender: "male" });
+    await t.mutation(api.clients.create, { firstName: "Anna", lastName: "Nowak", gender: "female" });
+    await t.mutation(api.clients.create, { firstName: "Piotr", lastName: "Kowalczyk", gender: "male" });
 
     const results = await t.query(api.clients.search, { searchTerm: "Kowalski" });
 

@@ -14,6 +14,7 @@ export default function NowyKlientPage() {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
+    gender: "" as "male" | "female" | "",
     email: "",
     phone: "",
     nip: "",
@@ -35,6 +36,9 @@ export default function NowyKlientPage() {
     if (!form.lastName.trim()) {
       newErrors.lastName = "Nazwisko jest wymagane";
     }
+    if (!form.gender) {
+      newErrors.gender = "Płeć jest wymagana";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
@@ -48,6 +52,7 @@ export default function NowyKlientPage() {
       await createClient({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
+        gender: form.gender as "male" | "female",
         email: form.email.trim() || undefined,
         phone: form.phone.trim() || undefined,
         nip: form.nip.trim() || undefined,
@@ -153,6 +158,32 @@ export default function NowyKlientPage() {
                 <p className="mt-1 text-xs text-red-600">{errors.lastName}</p>
               )}
             </div>
+          </div>
+
+          {/* Płeć */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Płeć <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-3">
+              {([["male", "Mężczyzna"], ["female", "Kobieta"]] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => handleChange("gender", value)}
+                  className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                    form.gender === value
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-300 bg-white text-slate-700 hover:border-slate-400"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {errors.gender && (
+              <p className="mt-1 text-xs text-red-600">{errors.gender}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

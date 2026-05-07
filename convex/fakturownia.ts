@@ -690,6 +690,20 @@ export const upsertManyInvoices = internalMutation({
   },
 });
 
+export const deleteStaleInvoices = internalMutation({
+  args: { syncedBefore: v.number() },
+  handler: async (ctx, args) => {
+    const stale = await ctx.db
+      .query("fakturowniaInvoicesCache")
+      .withIndex("by_synced", (q) => q.lt("syncedAt", args.syncedBefore))
+      .collect();
+    for (const entry of stale) {
+      await ctx.db.delete(entry._id);
+    }
+    return stale.length;
+  },
+});
+
 export const assignInvoiceToOrder = mutation({
   args: {
     invoiceId: v.id("fakturowniaInvoicesCache"),
@@ -715,7 +729,7 @@ export const unassignInvoiceFromOrder = mutation({
 
 export const syncInvoicesFromFakturownia = action({
   args: {},
-  handler: async (ctx): Promise<{ count: number; pages: number }> => {
+  handler: async (ctx): Promise<{ count: number; pages: number; deleted: number }> => {
     const token = await getDecryptedToken(ctx);
     const sub = await resolveSubdomain(ctx);
     if (!token) throw new Error("Fakturownia: skonfiguruj token API w Ustawieniach");
@@ -745,7 +759,12 @@ export const syncInvoicesFromFakturownia = action({
       page++;
     }
 
-    return { count: totalCount, pages: page };
+    // Remove cache entries not returned by Fakturownia — they were deleted remotely
+    const deleted = await ctx.runMutation(internal.fakturownia.deleteStaleInvoices, {
+      syncedBefore: syncedAt,
+    });
+
+    return { count: totalCount, pages: page, deleted };
   },
 });
 
