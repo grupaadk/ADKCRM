@@ -48,6 +48,7 @@ export const SERVICES = [
   "Konstrukcja aluminiowa",
   "Ogrodzenie",
   "System przeciwsłoneczny",
+  "Inne",
 ] as const;
 
 const clientStatus = v.union(
