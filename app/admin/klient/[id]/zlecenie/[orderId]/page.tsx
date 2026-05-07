@@ -163,7 +163,7 @@ export default function OrderDetailPage({
 
   const statusLabels = useStatusLabels();
   const searchParams = useSearchParams();
-  const initialTab = (searchParams.get("tab") as Tab) ?? "zlecenie";
+  const initialTab = (searchParams.get("tab") as Tab) ?? "dokumenty";
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
