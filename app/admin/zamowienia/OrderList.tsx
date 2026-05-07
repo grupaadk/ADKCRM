@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react"
 import { useQuery } from "convex/react"
-import Link from "next/link"
 import { api } from "@/convex/_generated/api"
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
@@ -140,13 +139,12 @@ export default function OrderList() {
               <th style={{ cursor: "pointer", width: 120, textAlign: "right" }} onClick={() => handleSort("totalGross")}>
                 Kwota brutto <SortIcon field="totalGross" sortField={sortField} sortDir={sortDir} />
               </th>
-              <th style={{ width: 160 }}></th>
             </tr>
           </thead>
           <tbody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
               <tr key={i}>
-                {Array.from({ length: 9 }).map((_, j) => (
+                {Array.from({ length: 8 }).map((_, j) => (
                   <td key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} /></td>
                 ))}
               </tr>
@@ -154,7 +152,7 @@ export default function OrderList() {
 
             {!isLoading && displayOrders?.length === 0 && (
               <tr>
-                <td colSpan={9}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
+                <td colSpan={8}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
               </tr>
             )}
 
@@ -190,26 +188,6 @@ export default function OrderList() {
                     {order.totalGross != null
                       ? `${order.totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
                       : <span className="mute">—</span>}
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      {order.status === "completed" ? (
-                        <Link href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=dokumenty`} className="btn" style={{ fontSize: 11 }}>
-                          Dokumenty
-                        </Link>
-                      ) : order.status === "complaint" ? (
-                        <Link href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=reklamacja`} className="btn" style={{ fontSize: 11, background: "var(--bad)", color: "#fff", borderColor: "transparent" }}>
-                          Reklamacja
-                        </Link>
-                      ) : (
-                        <Link href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=wycena`} className="btn" style={{ fontSize: 11 }}>
-                          Wycena
-                        </Link>
-                      )}
-                      <Link href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`} className="btn primary" style={{ fontSize: 11 }}>
-                        Szczegóły
-                      </Link>
-                    </div>
                   </td>
                 </tr>
               )
