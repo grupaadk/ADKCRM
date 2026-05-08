@@ -47,7 +47,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </AuthLoading>
 
       <Authenticated>
-        <SidebarProvider>
+        <SidebarProvider defaultOpen={false}>
           <AdminSidebar />
           <div className="flex flex-1 flex-col min-h-svh min-w-0">
             <AdminTopbar />
