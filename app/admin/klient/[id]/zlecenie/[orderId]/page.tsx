@@ -80,6 +80,7 @@ type CachedInvoice = {
 };
 
 const STATUS_ORDER = [
+  "lead", "inquiry",
   "measurement", "contract",
   "production", "installation", "complaint", "completed",
 ] as const;
@@ -97,6 +98,7 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 };
 
 const ORDER_VISIBLE_STATUSES = new Set([
+  "lead", "inquiry",
   "measurement", "offer", "contract", "production",
   "installation", "completed", "complaint",
 ]);
@@ -215,17 +217,6 @@ export default function OrderDetailPage({
   const statusLabel = statusLabels[order.status] ?? order.status;
   const currentStatusIndex = STATUS_ORDER.indexOf(order.status as (typeof STATUS_ORDER)[number]);
 
-  // Statusy, które zostały osiągnięte przez ruch karty w Trello
-  const trelloVisitedStatuses = new Set(
-    (events ?? [])
-      .filter(
-        (e) =>
-          e.type === "status_changed" &&
-          (e.details?.triggeredBy === "trello" ||
-            e.details?.triggeredBy === "trello_card_move"),
-      )
-      .map((e) => e.details?.to as string),
-  );
   const showOrderDetails = ORDER_VISIBLE_STATUSES.has(order.status);
   const projectFileLinks = getProjectFileLinks(order.projectFiles);
 
@@ -417,8 +408,6 @@ export default function OrderDetailPage({
               const isPast = index < currentStatusIndex;
               const isCurrent = index === currentStatusIndex;
               const isLast = index === STATUS_ORDER.length - 1;
-              const wasOnTrello = trelloVisitedStatuses.has(status);
-              const isOrange = isPast && !wasOnTrello;
               return (
                 <div key={status} className={`flex items-center ${!isLast ? "flex-1 min-w-0" : ""}`}>
                   <div className="flex flex-col items-center">
@@ -427,8 +416,6 @@ export default function OrderDetailPage({
                         ? "bg-emerald-500 text-white ring-4 ring-emerald-100 shadow-md"
                         : isCurrent
                         ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-md"
-                        : isOrange
-                        ? "bg-orange-400 text-white"
                         : isPast
                         ? "bg-emerald-500 text-white"
                         : "bg-white text-slate-400 ring-1 ring-slate-200"
@@ -442,7 +429,7 @@ export default function OrderDetailPage({
                       )}
                     </div>
                     <span className={`mt-1.5 w-14 text-[10px] font-semibold leading-tight text-center ${
-                      isCurrent && status === "completed" ? "text-emerald-600" : isCurrent ? "text-blue-700" : isOrange ? "text-orange-500" : isPast ? "text-emerald-600" : "text-slate-400"
+                      isCurrent && status === "completed" ? "text-emerald-600" : isCurrent ? "text-blue-700" : isPast ? "text-emerald-600" : "text-slate-400"
                     }`}>
                       {statusLabels[status] ?? status}
                     </span>
@@ -519,22 +506,6 @@ export default function OrderDetailPage({
                   </div>
                 )}
 
-                {order.trelloCardUrl && (
-                  <a href={order.trelloCardUrl} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 transition-colors hover:bg-slate-100">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-sm">
-                        <svg className="h-4 w-4 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M21 0H3C1.343 0 0 1.343 0 3v18c0 1.656 1.343 3 3 3h18c1.656 0 3-1.344 3-3V3c0-1.657-1.344-3-3-3zM10.44 18.18c0 .795-.645 1.44-1.44 1.44H4.56c-.795 0-1.44-.645-1.44-1.44V4.56c0-.795.645-1.44 1.44-1.44H9c.795 0 1.44.645 1.44 1.44v13.62zm10.44-6c0 .794-.645 1.44-1.44 1.44H15c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.645-1.44 1.44-1.44h4.44c.795 0 1.44.645 1.44 1.44v7.62z" />
-                        </svg>
-                      </div>
-                      <span className="text-sm font-medium text-slate-700">Karta Trello</span>
-                    </div>
-                    <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                    </svg>
-                  </a>
-                )}
               </div>
             </SectionCard>
           </div>

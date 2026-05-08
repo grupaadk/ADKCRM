@@ -7,18 +7,9 @@ import { api } from "@/convex/_generated/api"
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
 import { CrmEmptyState, fmtDate } from "@/components/crm-ui"
+import { useStatusLabels } from "@/components/StatusLabelsContext"
 
-const STATUS_LABELS: Record<string, string> = {
-  new: "Nowe",
-  measurement: "Pomiar",
-  offer: "Oferta",
-  production: "Produkcja",
-  installation: "Montaż",
-  completed: "Zakończone",
-  complaint: "Reklamacja",
-}
-
-const STATUS_ORDER = ["new", "measurement", "offer", "production", "installation", "complaint", "completed"]
+const STATUS_ORDER = ["lead", "inquiry", "measurement", "offer", "contract", "production", "installation", "complaint", "completed"]
 
 type SortField = "client" | "city" | "status" | "services" | "createdAt" | "totalGross"
 type SortDirection = "asc" | "desc"
@@ -74,6 +65,7 @@ function relativeTime(ms: number): string {
 
 export default function OrderList() {
   const router = useRouter()
+  const statusLabels = useStatusLabels()
   const orders = useQuery(api.orders.list, {})
   const isLoading = orders === undefined
 
@@ -180,7 +172,7 @@ export default function OrderList() {
           <span className="mute" style={{ fontSize: 11, marginRight: 2 }}>Status:</span>
           {STATUS_ORDER.filter((s) => (statusCounts[s] ?? 0) > 0).map((s) => (
             <FilterBtn key={s} isActive={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? null : s)}>
-              {STATUS_LABELS[s] ?? s} <CountBadge count={statusCounts[s] ?? 0} active={statusFilter === s} />
+              {statusLabels[s] ?? s} <CountBadge count={statusCounts[s] ?? 0} active={statusFilter === s} />
             </FilterBtn>
           ))}
         </div>
@@ -244,7 +236,7 @@ export default function OrderList() {
                   <td>
                     {order.client?.city ?? <span className="mute">—</span>}
                   </td>
-                  <td style={{ fontSize: 12 }}>{STATUS_LABELS[order.status] ?? order.status}</td>
+                  <td style={{ fontSize: 12 }}>{statusLabels[order.status] ?? order.status}</td>
                   <td><DocumentProgressTiles documents={order.documents} /></td>
                   <td><InvoiceBadge invoices={order.fakturownia?.invoices} /></td>
                   <td style={{ fontSize: 12 }}>

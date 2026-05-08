@@ -342,11 +342,28 @@ export const webhook = httpAction(async (ctx, request) => {
     );
   }
 
-  // Zapisz zgłoszenie jako oczekujące — klient i zamówienie są tworzone dopiero
-  // gdy karta Trello zostanie przeniesiona na listę "Do pomiarów".
+  // Utwórz klienta od razu przy zgłoszeniu (lub znajdź istniejącego)
+  const clientId = await ctx.runMutation(
+    api.jotformInternal.createOrFindClient,
+    {
+      firstName: mapped.firstName,
+      lastName: mapped.lastName,
+      email: mapped.email,
+      phone: mapped.phone,
+      street: mapped.street,
+      buildingNumber: mapped.buildingNumber,
+      apartmentNumber: mapped.apartmentNumber,
+      postalCode: mapped.postalCode,
+      city: mapped.city,
+      submissionId: mapped.submissionId,
+    },
+  );
+
+  // Zapisz zgłoszenie jako oczekujące — zlecenie tworzone jest dopiero
+  // gdy admin przesunie kartę na Kanbanie do "Do pomiarów".
   const pendingId = await ctx.runMutation(
     api.jotformInternal.savePendingSubmission,
-    { ...mapped },
+    { ...mapped, clientId },
   );
 
   // Wyślij SMS potwierdzający przyjęcie prośby o wycenę
@@ -357,12 +374,8 @@ export const webhook = httpAction(async (ctx, request) => {
     });
   }
 
-  // Utwórz kartę Trello z danymi ze zgłoszenia
-  await ctx.scheduler.runAfter(0, api.trello.createCardForPending, {
-    pendingId,
-  });
-
-  console.info("[jotform] pending submission saved", {
+  console.info("[jotform] client created and pending submission saved", {
+    clientId,
     pendingId,
     email: mapped.email,
     submissionId: mapped.submissionId,

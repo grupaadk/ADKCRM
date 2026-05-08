@@ -4,8 +4,69 @@ import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { DEFAULT_DOCUMENTS, nextOrderNumber } from "./orders";
 
+// Znajdź istniejącego klienta lub utwórz nowego na podstawie danych z Jotform.
+// Wywoływane od razu przy przychodzącej odpowiedzi z formularza.
+export const createOrFindClient = mutation({
+  args: {
+    firstName: v.string(),
+    lastName: v.string(),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    street: v.optional(v.string()),
+    buildingNumber: v.optional(v.string()),
+    apartmentNumber: v.optional(v.string()),
+    postalCode: v.optional(v.string()),
+    city: v.optional(v.string()),
+    submissionId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Dopasowanie po emailu + imieniu + nazwisku
+    let existingClient = null;
+    if (args.email) {
+      const byEmail = await ctx.db
+        .query("clients")
+        .withIndex("by_email", (q) => q.eq("email", args.email!))
+        .collect();
+      existingClient =
+        byEmail.find(
+          (c) =>
+            c.firstName === args.firstName &&
+            c.lastName === args.lastName &&
+            (!args.phone || !c.phone || c.phone === args.phone),
+        ) ?? null;
+    }
+
+    if (existingClient) {
+      return existingClient._id;
+    }
+
+    const clientId = await ctx.db.insert("clients", {
+      firstName: args.firstName,
+      lastName: args.lastName,
+      email: args.email,
+      phone: args.phone,
+      street: args.street,
+      buildingNumber: args.buildingNumber,
+      apartmentNumber: args.apartmentNumber,
+      postalCode: args.postalCode,
+      city: args.city,
+      source: "jotform",
+      createdBy: "system",
+    });
+
+    await ctx.db.insert("clientEvents", {
+      clientId,
+      type: "created",
+      details: { source: "jotform", submissionId: args.submissionId },
+      performedBy: "system",
+    });
+
+    return clientId;
+  },
+});
+
 // Zapis oczekującego zgłoszenia z JotForm.
-// Klient i zamówienie tworzone są dopiero po przeniesieniu karty Trello na listę "Do pomiarów".
+// Klient jest już utworzony, zlecenie tworzone jest dopiero po przesunięciu karty do "Do pomiarów".
 export const savePendingSubmission = mutation({
   args: {
     firstName: v.string(),
@@ -27,6 +88,7 @@ export const savePendingSubmission = mutation({
     projectFiles: v.optional(v.string()),
     comment: v.optional(v.string()),
     submissionId: v.optional(v.string()),
+    clientId: v.optional(v.id("clients")),
   },
   handler: async (ctx, args) => {
     // Idempotencja: jeśli zgłoszenie z tym submissionId już istnieje, zwróć je
@@ -44,19 +106,9 @@ export const savePendingSubmission = mutation({
 
     return await ctx.db.insert("pendingJotformSubmissions", {
       ...args,
+      stage: "lead",
       processed: false,
     });
-  },
-});
-
-// Zapisanie ID karty Trello do oczekującego zgłoszenia
-export const updatePendingWithCardId = mutation({
-  args: {
-    pendingId: v.id("pendingJotformSubmissions"),
-    trelloCardId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.pendingId, { trelloCardId: args.trelloCardId });
   },
 });
 
@@ -68,37 +120,36 @@ export const getPendingById = query({
   },
 });
 
-// Wyszukanie oczekującego zgłoszenia po ID karty Trello
-export const findPendingByCardId = query({
-  args: { trelloCardId: v.string() },
+// Aktualizacja etapu oczekującego zgłoszenia (np. lead → inquiry w Kanbanie)
+export const updatePendingStage = mutation({
+  args: {
+    pendingId: v.id("pendingJotformSubmissions"),
+    stage: v.union(v.literal("lead"), v.literal("inquiry")),
+  },
   handler: async (ctx, args) => {
-    return ctx.db
-      .query("pendingJotformSubmissions")
-      .withIndex("by_trello_card", (q) => q.eq("trelloCardId", args.trelloCardId))
-      .filter((q) => q.eq(q.field("processed"), false))
-      .first();
+    const pending = await ctx.db.get(args.pendingId);
+    if (!pending) throw new Error("Pending submission not found");
+    if (pending.processed) throw new Error("Submission already processed");
+    await ctx.db.patch(args.pendingId, { stage: args.stage });
   },
 });
 
-// Tworzenie klienta + zamówienia z oczekującego zgłoszenia.
-// Wywoływane gdy karta Trello trafi na listę "Do pomiarów".
-export const createFromPending = mutation({
+// Tworzenie zlecenia z oczekującego zgłoszenia.
+// Wywoływane gdy admin przesunie kartę na Kanbanie do kolumny "Do pomiarów".
+export const promoteToMeasurement = mutation({
   args: {
     pendingId: v.id("pendingJotformSubmissions"),
-    trelloCardId: v.optional(v.string()),
-    trelloCardUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const pending = await ctx.db.get(args.pendingId);
     if (!pending) throw new Error("Pending submission not found");
     if (pending.processed) {
-      // Już przetworzone — zwróć istniejące dane
-      const existingOrder = pending.trelloCardId
+      // Już przetworzone — znajdź istniejące zlecenie
+      const existingOrder = pending.clientId
         ? await ctx.db
             .query("orders")
-            .withIndex("by_trello_card", (q) =>
-              q.eq("trelloCardId", pending.trelloCardId!),
-            )
+            .withIndex("by_client", (q) => q.eq("clientId", pending.clientId!))
+            .filter((q) => q.eq(q.field("jotformSubmissionId"), pending.submissionId))
             .first()
         : null;
       if (existingOrder) {
@@ -106,51 +157,52 @@ export const createFromPending = mutation({
       }
     }
 
-    // Dopasowanie klienta: imię + nazwisko + email + telefon
+    // Klient powinien być już utworzony przy webhookunie Jotform
     let clientId: Id<"clients">;
-
-    let existingClient = null;
-    if (pending.email) {
-      const byEmail = await ctx.db
-        .query("clients")
-        .withIndex("by_email", (q) => q.eq("email", pending.email!))
-        .collect();
-
-      existingClient =
-        byEmail.find(
-          (c) =>
-            c.firstName === pending.firstName &&
-            c.lastName === pending.lastName &&
-            (!pending.phone || !c.phone || c.phone === pending.phone),
-        ) ?? null;
-    }
-
-    if (existingClient) {
-      clientId = existingClient._id;
+    if (pending.clientId) {
+      clientId = pending.clientId;
     } else {
-      clientId = await ctx.db.insert("clients", {
-        firstName: pending.firstName,
-        lastName: pending.lastName,
-        email: pending.email,
-        phone: pending.phone,
-        street: pending.street,
-        buildingNumber: pending.buildingNumber,
-        apartmentNumber: pending.apartmentNumber,
-        postalCode: pending.postalCode,
-        city: pending.city,
-        source: "jotform",
-        createdBy: "system",
-      });
-
-      await ctx.db.insert("clientEvents", {
-        clientId,
-        type: "created",
-        details: { source: "jotform", submissionId: pending.submissionId },
-        performedBy: "system",
-      });
+      // Fallback: utwórz klienta jeśli z jakiegoś powodu nie istnieje
+      let existingClient = null;
+      if (pending.email) {
+        const byEmail = await ctx.db
+          .query("clients")
+          .withIndex("by_email", (q) => q.eq("email", pending.email!))
+          .collect();
+        existingClient =
+          byEmail.find(
+            (c) =>
+              c.firstName === pending.firstName &&
+              c.lastName === pending.lastName,
+          ) ?? null;
+      }
+      if (existingClient) {
+        clientId = existingClient._id;
+        await ctx.db.patch(args.pendingId, { clientId });
+      } else {
+        clientId = await ctx.db.insert("clients", {
+          firstName: pending.firstName,
+          lastName: pending.lastName,
+          email: pending.email,
+          phone: pending.phone,
+          street: pending.street,
+          buildingNumber: pending.buildingNumber,
+          apartmentNumber: pending.apartmentNumber,
+          postalCode: pending.postalCode,
+          city: pending.city,
+          source: "jotform",
+          createdBy: "system",
+        });
+        await ctx.db.insert("clientEvents", {
+          clientId,
+          type: "created",
+          details: { source: "jotform", submissionId: pending.submissionId },
+          performedBy: "system",
+        });
+      }
     }
 
-    // Utwórz zamówienie ze statusem "measurement" (karta trafia od razu na "Do pomiarów")
+    // Utwórz zlecenie ze statusem "measurement"
     const orderName = await nextOrderNumber(ctx);
     const orderId = await ctx.db.insert("orders", {
       clientId,
@@ -168,8 +220,6 @@ export const createFromPending = mutation({
       documents: DEFAULT_DOCUMENTS,
       source: "jotform",
       jotformSubmissionId: pending.submissionId,
-      trelloCardId: args.trelloCardId,
-      trelloCardUrl: args.trelloCardUrl,
       createdBy: "system",
     });
 
@@ -177,12 +227,7 @@ export const createFromPending = mutation({
       clientId,
       orderId,
       type: "order_created",
-      details: {
-        source: "jotform",
-        submissionId: pending.submissionId,
-        services: pending.services,
-        triggeredBy: "trello_card_move",
-      },
+      details: { source: "jotform", submissionId: pending.submissionId, services: pending.services },
       performedBy: "system",
     });
 
@@ -190,133 +235,8 @@ export const createFromPending = mutation({
       clientId,
       orderId,
       type: "status_changed",
-      details: { from: "lead", to: "measurement", triggeredBy: "trello_card_move" },
+      details: { from: "lead", to: "measurement" },
       performedBy: "system",
-    });
-
-    // Oznacz zgłoszenie jako przetworzone
-    await ctx.db.patch(args.pendingId, { processed: true });
-
-    // Zaplanuj tworzenie folderu Drive
-    const driveConnection = await ctx.db.query("driveConnection").first();
-    const driveReady =
-      !!driveConnection?.sharedDriveId &&
-      driveConnection.connectionStatus !== "disconnected";
-
-    console.info("[jotform] drive scheduling check", {
-      driveConnectionExists: !!driveConnection,
-      connectionStatus: driveConnection?.connectionStatus,
-      sharedDriveId: driveConnection?.sharedDriveId ?? null,
-      driveReady,
-      orderId,
-    });
-
-    if (driveReady) {
-      await ctx.scheduler.runAfter(
-        0,
-        api.googleDrive.createOrderFolder,
-        { orderId },
-      );
-      console.info("[jotform] createOrderFolder scheduled", { orderId });
-    }
-
-    return { clientId, orderId };
-  },
-});
-
-// Ręczne tworzenie klienta+zamówienia z oczekującego zgłoszenia JotForm.
-// Używane gdy automatyczny flow zawiódł (np. zły trelloCardId w pending).
-// Wywołaj z Convex Dashboard: jotformInternal.repairPendingSubmission
-export const repairPendingSubmission = mutation({
-  args: {
-    pendingId: v.id("pendingJotformSubmissions"),
-    trelloCardId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const pending = await ctx.db.get(args.pendingId);
-    if (!pending) throw new Error("Pending submission not found");
-    if (pending.processed) {
-      const existingOrder = pending.trelloCardId
-        ? await ctx.db
-            .query("orders")
-            .withIndex("by_trello_card", (q) =>
-              q.eq("trelloCardId", pending.trelloCardId!),
-            )
-            .first()
-        : null;
-      return {
-        alreadyProcessed: true,
-        clientId: existingOrder?.clientId ?? null,
-        orderId: existingOrder?._id ?? null,
-      };
-    }
-
-    // Nadpisz trelloCardId jeśli podano nowe
-    if (args.trelloCardId && args.trelloCardId !== pending.trelloCardId) {
-      await ctx.db.patch(args.pendingId, { trelloCardId: args.trelloCardId });
-    }
-
-    const effectiveCardId = args.trelloCardId ?? pending.trelloCardId;
-
-    let clientId: Id<"clients">;
-    let existingClient = null;
-    if (pending.email) {
-      const byEmail = await ctx.db
-        .query("clients")
-        .withIndex("by_email", (q) => q.eq("email", pending.email!))
-        .collect();
-      existingClient =
-        byEmail.find(
-          (c) =>
-            c.firstName === pending.firstName &&
-            c.lastName === pending.lastName &&
-            (!pending.phone || !c.phone || c.phone === pending.phone),
-        ) ?? null;
-    }
-
-    if (existingClient) {
-      clientId = existingClient._id;
-    } else {
-      clientId = await ctx.db.insert("clients", {
-        firstName: pending.firstName,
-        lastName: pending.lastName,
-        email: pending.email,
-        phone: pending.phone,
-        street: pending.street,
-        buildingNumber: pending.buildingNumber,
-        apartmentNumber: pending.apartmentNumber,
-        postalCode: pending.postalCode,
-        city: pending.city,
-        source: "jotform",
-        createdBy: "system",
-      });
-      await ctx.db.insert("clientEvents", {
-        clientId,
-        type: "created",
-        details: { source: "jotform", submissionId: pending.submissionId, repairedManually: true },
-        performedBy: "system",
-      });
-    }
-
-    const orderName = await nextOrderNumber(ctx);
-    const orderId = await ctx.db.insert("orders", {
-      clientId,
-      name: orderName,
-      services: pending.services,
-      windowColor: pending.windowColor,
-      doorColor: pending.doorColor,
-      gateColor: pending.gateColor,
-      terraceColor: pending.terraceColor,
-      constructionColor: pending.constructionColor,
-      sunProtectionType: pending.sunProtectionType,
-      projectFiles: pending.projectFiles,
-      comment: pending.comment,
-      status: "measurement",
-      documents: DEFAULT_DOCUMENTS,
-      source: "jotform",
-      jotformSubmissionId: pending.submissionId,
-      trelloCardId: effectiveCardId,
-      createdBy: "system",
     });
 
     await ctx.db.patch(args.pendingId, { processed: true });
@@ -334,31 +254,66 @@ export const repairPendingSubmission = mutation({
       );
     }
 
-    return { alreadyProcessed: false, clientId, orderId };
+    return { clientId, orderId };
   },
 });
 
-// Dodanie eventu dla duplikatu (zachowane dla kompatybilności)
-export const addSubmissionEvent = mutation({
+// Ręczna naprawa oczekującego zgłoszenia (wywołaj z Convex Dashboard).
+// Alias do promoteToMeasurement — zachowane dla wstecznej kompatybilności.
+export const repairPendingSubmission = mutation({
   args: {
-    clientId: v.id("clients"),
-    submissionId: v.optional(v.string()),
-    payload: v.any(),
+    pendingId: v.id("pendingJotformSubmissions"),
   },
-  handler: async (ctx, args) => {
-    await ctx.db.insert("clientEvents", {
-      clientId: args.clientId,
-      type: "jotform_duplicate_submission",
-      details: {
-        submissionId: args.submissionId,
-        payload: args.payload,
-      },
-      performedBy: "system",
+  handler: async (ctx, args): Promise<{ clientId: Id<"clients">; orderId: Id<"orders"> } | { alreadyProcessed: true; clientId: Id<"clients"> | null; orderId: null }> => {
+    const pending = await ctx.db.get(args.pendingId);
+    if (!pending) throw new Error("Pending submission not found");
+    if (pending.processed) {
+      return { alreadyProcessed: true, clientId: pending.clientId ?? null, orderId: null };
+    }
+    // Inline core promotion logic (nie możemy wywołać ctx.runMutation z mutacji)
+    let clientId: Id<"clients">;
+    if (pending.clientId) {
+      clientId = pending.clientId;
+    } else {
+      clientId = await ctx.db.insert("clients", {
+        firstName: pending.firstName,
+        lastName: pending.lastName,
+        email: pending.email,
+        phone: pending.phone,
+        street: pending.street,
+        buildingNumber: pending.buildingNumber,
+        apartmentNumber: pending.apartmentNumber,
+        postalCode: pending.postalCode,
+        city: pending.city,
+        source: "jotform",
+        createdBy: "system",
+      });
+    }
+    const orderName = await nextOrderNumber(ctx);
+    const orderId = await ctx.db.insert("orders", {
+      clientId,
+      name: orderName,
+      services: pending.services,
+      windowColor: pending.windowColor,
+      doorColor: pending.doorColor,
+      gateColor: pending.gateColor,
+      terraceColor: pending.terraceColor,
+      constructionColor: pending.constructionColor,
+      sunProtectionType: pending.sunProtectionType,
+      projectFiles: pending.projectFiles,
+      comment: pending.comment,
+      status: "measurement",
+      documents: DEFAULT_DOCUMENTS,
+      source: "jotform",
+      jotformSubmissionId: pending.submissionId,
+      createdBy: "system",
     });
+    await ctx.db.patch(args.pendingId, { processed: true });
+    return { clientId, orderId };
   },
 });
 
-// Zachowane dla wstecznej kompatybilności (ręczne tworzenie zamówień przez webhook)
+// Jednoetapowe tworzenie klienta+zlecenia (dla testów i ręcznego użycia z Dashboard).
 export const createFromWebhook = mutation({
   args: {
     firstName: v.string(),
@@ -383,17 +338,12 @@ export const createFromWebhook = mutation({
   },
   handler: async (ctx, args) => {
     const { submissionId } = args;
-
     if (submissionId) {
-      const existingOrder = await ctx.db
+      const existing = await ctx.db
         .query("orders")
-        .withIndex("by_jotform_submission", (q) =>
-          q.eq("jotformSubmissionId", submissionId),
-        )
+        .withIndex("by_jotform_submission", (q) => q.eq("jotformSubmissionId", submissionId))
         .first();
-      if (existingOrder) {
-        return { clientId: existingOrder.clientId, orderId: existingOrder._id };
-      }
+      if (existing) return { clientId: existing.clientId, orderId: existing._id };
     }
 
     let clientId: Id<"clients">;
@@ -403,7 +353,6 @@ export const createFromWebhook = mutation({
         .query("clients")
         .withIndex("by_email", (q) => q.eq("email", args.email!))
         .collect();
-
       existingClient =
         byEmail.find(
           (c) =>
@@ -412,7 +361,6 @@ export const createFromWebhook = mutation({
             (!args.phone || !c.phone || c.phone === args.phone),
         ) ?? null;
     }
-
     if (existingClient) {
       clientId = existingClient._id;
     } else {
@@ -429,7 +377,6 @@ export const createFromWebhook = mutation({
         source: "jotform",
         createdBy: "system",
       });
-
       await ctx.db.insert("clientEvents", {
         clientId,
         type: "created",
@@ -455,7 +402,6 @@ export const createFromWebhook = mutation({
       jotformSubmissionId: submissionId,
       createdBy: "system",
     });
-
     await ctx.db.insert("clientEvents", {
       clientId,
       orderId,
@@ -464,11 +410,23 @@ export const createFromWebhook = mutation({
       performedBy: "system",
     });
 
-    const trelloConfig = await ctx.db.query("trelloConfig").first();
-    if (trelloConfig?.syncEnabled) {
-      await ctx.scheduler.runAfter(0, api.trello.createCard, { orderId });
-    }
-
     return { clientId, orderId };
+  },
+});
+
+// Dodanie eventu dla duplikatu (zachowane dla kompatybilności)
+export const addSubmissionEvent = mutation({
+  args: {
+    clientId: v.id("clients"),
+    submissionId: v.optional(v.string()),
+    payload: v.any(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("clientEvents", {
+      clientId: args.clientId,
+      type: "jotform_duplicate_submission",
+      details: { submissionId: args.submissionId, payload: args.payload },
+      performedBy: "system",
+    });
   },
 });

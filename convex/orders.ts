@@ -137,16 +137,6 @@ export const getById = query({
   },
 });
 
-export const findByTrelloCardId = query({
-  args: { trelloCardId: v.string() },
-  handler: async (ctx, args) => {
-    return ctx.db
-      .query("orders")
-      .withIndex("by_trello_card", (q) => q.eq("trelloCardId", args.trelloCardId))
-      .unique();
-  },
-});
-
 export const findByJotformSubmissionId = query({
   args: { submissionId: v.string() },
   handler: async (ctx, args) => {
@@ -297,7 +287,6 @@ export const changeStatus = mutation({
   args: {
     orderId: v.id("orders"),
     newStatus: orderStatusValidator,
-    triggeredBy: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -306,13 +295,8 @@ export const changeStatus = mutation({
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
 
-    if (args.triggeredBy !== "trello") {
-      const allowed = STATUS_TRANSITIONS[order.status];
-      if (!allowed?.includes(args.newStatus)) {
-        throw new Error(
-          `Niedozwolone przejście: ${order.status} → ${args.newStatus}`,
-        );
-      }
+    if (order.status === args.newStatus) {
+      throw new Error("Status jest już ustawiony na tę wartość");
     }
 
     await ctx.db.patch(args.orderId, { status: args.newStatus });
@@ -332,20 +316,11 @@ export const changeStatus = mutation({
       }
     }
 
-    if (order.trelloCardId) {
-      const trelloConfig = await ctx.db.query("trelloConfig").first();
-      if (trelloConfig?.syncEnabled) {
-        await ctx.scheduler.runAfter(0, api.trello.syncCardForStatus, {
-          orderId: args.orderId,
-        });
-      }
-    }
-
     await ctx.db.insert("clientEvents", {
       clientId: order.clientId,
       orderId: args.orderId,
       type: "status_changed",
-      details: { from: order.status, to: args.newStatus, ...(args.triggeredBy ? { triggeredBy: args.triggeredBy } : {}) },
+      details: { from: order.status, to: args.newStatus },
       performedBy: userId,
     });
 
@@ -649,20 +624,6 @@ export const updateDriveFolder = mutation({
   },
 });
 
-export const updateTrelloCard = mutation({
-  args: {
-    orderId: v.id("orders"),
-    trelloCardId: v.string(),
-    trelloCardUrl: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.orderId, {
-      trelloCardId: args.trelloCardId,
-      trelloCardUrl: args.trelloCardUrl,
-    });
-  },
-});
-
 export const addWarrantyCard = mutation({
   args: {
     orderId: v.id("orders"),
@@ -783,8 +744,6 @@ export const migrateClientsToOrders = internalMutation({
         warrantyCards: client.warrantyCards,
         folderId: client.folderId,
         folderUrl: client.folderUrl,
-        trelloCardId: client.trelloCardId,
-        trelloCardUrl: client.trelloCardUrl,
         source: client.source,
         jotformSubmissionId: client.jotformSubmissionId,
         createdBy: client.createdBy,

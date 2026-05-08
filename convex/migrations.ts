@@ -123,3 +123,15 @@ export const fixFirstMayOrder = internalMutation({
     return `Zmieniono: "6/05/2026" → "1/05/2026". Licznik 05/2026 → 1 (następne zlecenie: 2/05/2026).`;
   },
 });
+
+/**
+ * Migracja: usuwa pola trelloCardId i trelloCardUrl z istniejących rekordów.
+ *
+ * Uruchomienie (jednorazowe):
+ *   npx convex run migrations:clearTrelloFields
+ *
+ * Po zakończeniu usuń pola trelloCardId/trelloCardUrl ze schematu
+ * (są oznaczone komentarzem "Legacy — do usunięcia po migracji clearTrelloFields").
+ */
+// Migracja clearTrelloFields została wykonana — dane są czyste (uruchomiona 2026-05-08).
+// Pola trelloCardId/trelloCardUrl zostały usunięte z bazy danych i schematu.

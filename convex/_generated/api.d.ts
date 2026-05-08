@@ -16,7 +16,6 @@ import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
 import type * as documentTemplates from "../documentTemplates.js";
 import type * as emailClassification from "../emailClassification.js";
-import type * as emailLeads from "../emailLeads.js";
 import type * as events from "../events.js";
 import type * as fakturownia from "../fakturownia.js";
 import type * as gmail from "../gmail.js";
@@ -27,6 +26,7 @@ import type * as http from "../http.js";
 import type * as jotform from "../jotform.js";
 import type * as jotformAdmin from "../jotformAdmin.js";
 import type * as jotformInternal from "../jotformInternal.js";
+import type * as kanban from "../kanban.js";
 import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_sentry from "../lib/sentry.js";
 import type * as migrations from "../migrations.js";
@@ -40,9 +40,6 @@ import type * as servicePricing from "../servicePricing.js";
 import type * as sms from "../sms.js";
 import type * as storage from "../storage.js";
 import type * as systemLogs from "../systemLogs.js";
-import type * as trello from "../trello.js";
-import type * as trelloWebhook from "../trelloWebhook.js";
-import type * as trelloWebhookLists from "../trelloWebhookLists.js";
 import type * as viewConfig from "../viewConfig.js";
 
 import type {
@@ -60,7 +57,6 @@ declare const fullApi: ApiFromModules<{
   dashboard: typeof dashboard;
   documentTemplates: typeof documentTemplates;
   emailClassification: typeof emailClassification;
-  emailLeads: typeof emailLeads;
   events: typeof events;
   fakturownia: typeof fakturownia;
   gmail: typeof gmail;
@@ -71,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   jotform: typeof jotform;
   jotformAdmin: typeof jotformAdmin;
   jotformInternal: typeof jotformInternal;
+  kanban: typeof kanban;
   "lib/crypto": typeof lib_crypto;
   "lib/sentry": typeof lib_sentry;
   migrations: typeof migrations;
@@ -84,9 +81,6 @@ declare const fullApi: ApiFromModules<{
   sms: typeof sms;
   storage: typeof storage;
   systemLogs: typeof systemLogs;
-  trello: typeof trello;
-  trelloWebhook: typeof trelloWebhook;
-  trelloWebhookLists: typeof trelloWebhookLists;
   viewConfig: typeof viewConfig;
 }>;
 

@@ -135,8 +135,6 @@ export default defineSchema({
     warrantyCards: v.optional(v.array(warrantyCard)),
     folderId: v.optional(v.string()),
     folderUrl: v.optional(v.string()),
-    trelloCardId: v.optional(v.string()),
-    trelloCardUrl: v.optional(v.string()),
     jotformSubmissionId: v.optional(v.string()),
     services: v.optional(v.array(v.string())),
     windowColor: v.optional(v.array(v.string())),
@@ -200,10 +198,6 @@ export default defineSchema({
     }))),
     attachmentsFolderId: v.optional(v.string()),
 
-    // Trello
-    trelloCardId: v.optional(v.string()),
-    trelloCardUrl: v.optional(v.string()),
-
     // Metadane
     source: v.union(v.literal("jotform"), v.literal("manual")),
     jotformSubmissionId: v.optional(v.string()),
@@ -220,7 +214,6 @@ export default defineSchema({
   })
     .index("by_client", ["clientId"])
     .index("by_status", ["status"])
-    .index("by_trello_card", ["trelloCardId"])
     .index("by_jotform_submission", ["jotformSubmissionId"]),
 
   // 3.1c Liczniki numeracji zleceń (per miesiąc)
@@ -326,8 +319,7 @@ export default defineSchema({
     .index("by_client", ["clientId"])
     .index("by_order", ["orderId"]),
 
-  // 3.8 Oczekujące zgłoszenia z JotForm (przed utworzeniem klienta/zamówienia)
-  // Klient + zamówienie tworzone są dopiero gdy karta Trello trafi na listę "Do pomiarów"
+  // 3.8 Oczekujące zgłoszenia z JotForm (klient tworzony od razu, zlecenie tworzone przy przesunięciu do "Do pomiarów")
   pendingJotformSubmissions: defineTable({
     firstName: v.string(),
     lastName: v.string(),
@@ -348,20 +340,12 @@ export default defineSchema({
     projectFiles: v.optional(v.string()),
     comment: v.optional(v.string()),
     submissionId: v.optional(v.string()),
-    trelloCardId: v.optional(v.string()),
+    clientId: v.optional(v.id("clients")),
+    stage: v.optional(v.union(v.literal("lead"), v.literal("inquiry"))),
     processed: v.boolean(),
   })
-    .index("by_trello_card", ["trelloCardId"])
+    .index("by_client", ["clientId"])
     .index("by_submission", ["submissionId"]),
-
-  // 3.10 Oczekujące zgłoszenia z maila (przed ekstrakcją AI i utworzeniem klienta/zamówienia)
-  pendingEmailSubmissions: defineTable({
-    trelloCardId: v.optional(v.string()),
-    from: v.string(),
-    subject: v.string(),
-    body: v.string(),
-    processed: v.boolean(),
-  }).index("by_trello_card", ["trelloCardId"]),
 
   // 3.9 Konfiguracja Gmail (multi-account: main / secondary)
   gmailConnection: defineTable({
@@ -506,30 +490,6 @@ export default defineSchema({
   })
     .index("by_order", ["orderId"])
     .index("by_client", ["clientId"]),
-
-  // 3.7 Konfiguracja Trello (singleton)
-  trelloConfig: defineTable({
-    apiKey: v.string(),
-    apiToken: v.string(),
-    boardId: v.optional(v.string()),
-    listId: v.optional(v.string()),
-    webhookId: v.optional(v.string()),
-    statusListMap: v.optional(
-      v.object({
-        lead: v.optional(v.string()),
-        inquiry: v.optional(v.string()),
-        measurement: v.optional(v.string()),
-        offer: v.optional(v.string()),
-        contract: v.optional(v.string()),
-        production: v.optional(v.string()),
-        installation: v.optional(v.string()),
-        completed: v.optional(v.string()),
-        complaint: v.optional(v.string()),
-      }),
-    ),
-    syncEnabled: v.boolean(),
-    connectedBy: v.string(),
-  }),
 
   // 3.18 Załączniki do zleceń (pliki w folderze "Załączniki" w Google Drive)
   orderAttachments: defineTable({
