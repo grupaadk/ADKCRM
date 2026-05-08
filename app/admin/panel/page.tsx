@@ -1,11 +1,13 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { useQuery, useMutation } from "convex/react"
+import { useQuery, useMutation, useAction } from "convex/react"
 import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { useStatusLabels } from "@/components/StatusLabelsContext"
 import type { KanbanItem } from "@/convex/kanban"
+import { Plus } from "lucide-react"
+import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 
 const KANBAN_COLUMNS = [
   { key: "lead",         bg: "#8b5cf6", border: "#7c3aed" },
@@ -93,16 +95,19 @@ function OrderCard({
   onDragStart,
   onDragEnd,
   onClick,
+  onDelete,
 }: {
   item: KanbanItem
   isDragging: boolean
   onDragStart: (e: React.DragEvent, item: KanbanItem) => void
   onDragEnd: () => void
   onClick: () => void
+  onDelete: (item: KanbanItem) => void
 }) {
   const isPending = item.type === "pending"
   const fullName = `${item.clientFirstName} ${item.clientLastName}`.trim()
   const didDragRef = useRef(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   return (
     <div
@@ -140,6 +145,65 @@ function OrderCard({
         }
       }}
     >
+      {/* Przycisk usuwania */}
+      {!confirmDelete ? (
+        <button
+          onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }}
+          style={{
+            position: "absolute", top: 7, right: isPending ? 52 : 8,
+            width: 20, height: 20, borderRadius: 4,
+            background: "transparent", border: "none",
+            color: "var(--text-mute)", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            opacity: 0.4, transition: "opacity 0.15s, background 0.15s",
+            fontSize: 13, lineHeight: 1,
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; (e.currentTarget as HTMLButtonElement).style.background = "#fee2e2"; (e.currentTarget as HTMLButtonElement).style.color = "#ef4444" }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.4"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "var(--text-mute)" }}
+          title="Usuń"
+        >
+          ×
+        </button>
+      ) : (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute", top: 5, right: 5, left: 5,
+            background: "var(--panel)", border: "1px solid #fca5a5",
+            borderRadius: 6, padding: "8px 10px",
+            display: "flex", flexDirection: "column", gap: 6,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+            zIndex: 10,
+          }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#dc2626" }}>
+            Usunąć {item.type === "pending" ? "zgłoszenie" : "zlecenie"}?
+          </span>
+          <div style={{ display: "flex", gap: 5 }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(item) }}
+              style={{
+                flex: 1, padding: "4px 0", borderRadius: 4, border: "none",
+                background: "#ef4444", color: "#fff",
+                fontSize: 11, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Usuń
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmDelete(false) }}
+              style={{
+                flex: 1, padding: "4px 0", borderRadius: 4,
+                border: "1px solid var(--line)", background: "var(--panel-2)",
+                fontSize: 11, fontWeight: 500, cursor: "pointer", color: "var(--text)",
+              }}
+            >
+              Anuluj
+            </button>
+          </div>
+        </div>
+      )}
+
       {isPending && (
         <div style={{
           position: "absolute", top: 8, right: 10,
@@ -259,11 +323,28 @@ export default function PanelPage() {
   const [draggingItem, setDraggingItem] = useState<KanbanItem | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [showNewOrderModal, setShowNewOrderModal] = useState(false)
 
   const items = useQuery(api.kanban.list)
   const changeStatus = useMutation(api.orders.changeStatus)
   const promoteToMeasurement = useMutation(api.jotformInternal.promoteToMeasurement)
   const updatePendingStage = useMutation(api.jotformInternal.updatePendingStage)
+  const deleteOrder = useAction(api.orders.deleteOrder)
+  const deletePending = useMutation(api.jotformInternal.deletePending)
+
+  async function handleDelete(item: KanbanItem) {
+    try {
+      if (item.type === "order") {
+        await deleteOrder({ orderId: item.orderId })
+      } else {
+        await deletePending({ pendingId: item.pendingId })
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Błąd usuwania"
+      setErrorMsg(msg)
+      setTimeout(() => setErrorMsg(null), 3000)
+    }
+  }
 
   function getValidTargets(item: KanbanItem): string[] {
     if (item.type === "pending") {
@@ -358,19 +439,24 @@ export default function PanelPage() {
             {totalPending > 0 && ` · ${totalPending} nowych zgłoszeń`}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 6, fontSize: 10, color: "var(--text-mute)", alignItems: "center" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: "#d0d4dc", display: "inline-block" }} />
-            Nie wygenerowany
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: "#ef4444", display: "inline-block" }} />
-            Nie podpisany
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: "#22c55e", display: "inline-block" }} />
-            Podpisany
-          </span>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 6, fontSize: 10, color: "var(--text-mute)", alignItems: "center" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: "#d0d4dc", display: "inline-block" }} />
+              Nie wygenerowany
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: "#ef4444", display: "inline-block" }} />
+              Nie podpisany
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: "#22c55e", display: "inline-block" }} />
+              Podpisany
+            </span>
+          </div>
+          <button className="btn primary" onClick={() => setShowNewOrderModal(true)}>
+            <Plus size={13} /> Nowe zlecenie
+          </button>
         </div>
       </div>
 
@@ -473,6 +559,7 @@ export default function PanelPage() {
                       isDragging={draggingItem?.id === item.id}
                       onDragStart={handleDragStart}
                       onDragEnd={handleDragEnd}
+                      onDelete={handleDelete}
                       onClick={() => handleCardClick(item)}
                     />
                   ))}
@@ -494,6 +581,15 @@ export default function PanelPage() {
       {/* Zakończone tab */}
       {activeTab === "completed" && <CompletedTab />}
 
+      {showNewOrderModal && (
+        <NewOrderModal
+          onClose={() => setShowNewOrderModal(false)}
+          onSuccess={(orderId, clientId) => {
+            setShowNewOrderModal(false)
+            router.push(`/admin/klient/${clientId}/zlecenie/${orderId}`)
+          }}
+        />
+      )}
     </div>
   )
 }

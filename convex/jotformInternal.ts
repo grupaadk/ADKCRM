@@ -430,3 +430,12 @@ export const addSubmissionEvent = mutation({
     });
   },
 });
+
+export const deletePending = mutation({
+  args: { pendingId: v.id("pendingJotformSubmissions") },
+  handler: async (ctx, args) => {
+    const pending = await ctx.db.get(args.pendingId);
+    if (!pending) throw new Error("Zgłoszenie nie znalezione");
+    await ctx.db.delete(args.pendingId);
+  },
+});

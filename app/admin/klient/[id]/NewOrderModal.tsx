@@ -1,19 +1,56 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { SERVICES } from "@/convex/schema";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 
 interface NewOrderModalProps {
-  clientId: Id<"clients">;
+  clientId?: Id<"clients">;
   onClose: () => void;
-  onSuccess: (orderId: Id<"orders">) => void;
+  onSuccess: (orderId: Id<"orders">, clientId: Id<"clients">) => void;
 }
 
-type Step = "services" | "colors" | "location";
+type Step = "client" | "services" | "colors" | "location";
+
+function ClientSearch({ onSelect }: { onSelect: (id: Id<"clients">, name: string) => void }) {
+  const [query, setQuery] = useState("");
+  const results = useQuery(api.clients.search, query.trim().length >= 2 ? { searchTerm: query.trim() } : "skip");
+  const recentClients = useQuery(api.clients.list, query.trim().length < 2 ? {} : "skip");
+
+  const items = query.trim().length >= 2 ? results : recentClients?.page;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <p className="text-sm text-slate-500">Wyszukaj klienta po nazwisku.</p>
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Wpisz nazwisko..."
+        autoFocus
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+      />
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 280, overflowY: "auto" }}>
+        {items === undefined && <p className="text-xs text-slate-400">Ładowanie...</p>}
+        {items?.length === 0 && <p className="text-xs text-slate-400">Brak wyników.</p>}
+        {items?.map((c) => (
+          <button
+            key={c._id}
+            type="button"
+            onClick={() => onSelect(c._id, `${c.firstName} ${c.lastName}`)}
+            className="rounded-lg border border-slate-200 px-4 py-2.5 text-left text-sm hover:border-slate-300 hover:bg-slate-50"
+          >
+            <span className="font-medium text-slate-800">{c.lastName} {c.firstName}</span>
+            {c.city && <span className="ml-2 text-xs text-slate-400">{c.city}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const WINDOW_COLORS = ["Złoty dąb", "Orzech", "Winchester", "Antracyt", "Biały", "Woodec Oak", "Niestandardowy"];
 const TERRACE_COLORS = ["Antracyt", "Brąz jasny", "Niestandardowy"];
@@ -59,8 +96,9 @@ function ColorSection({
   );
 }
 
-export default function NewOrderModal({ clientId, onClose, onSuccess }: NewOrderModalProps) {
-  const [step, setStep] = useState<Step>("services");
+export default function NewOrderModal({ clientId: initialClientId, onClose, onSuccess }: NewOrderModalProps) {
+  const [resolvedClientId, setResolvedClientId] = useState<Id<"clients"> | undefined>(initialClientId);
+  const [step, setStep] = useState<Step>(initialClientId ? "services" : "client");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [windowColor, setWindowColor] = useState<string[]>([]);
   const [doorColor, setDoorColor] = useState<string[]>([]);
@@ -82,7 +120,8 @@ export default function NewOrderModal({ clientId, onClose, onSuccess }: NewOrder
   const createOrder = useMutation(api.orders.create);
 
   const hasColorStep = selectedServices.some((s) => COLOR_SERVICES.has(s));
-  const allSteps: Step[] = hasColorStep ? ["services", "colors", "location"] : ["services", "location"];
+  const baseSteps: Step[] = hasColorStep ? ["services", "colors", "location"] : ["services", "location"];
+  const allSteps: Step[] = initialClientId ? baseSteps : ["client", ...baseSteps];
   const stepIndex = allSteps.indexOf(step);
 
   function toggleService(service: string) {
@@ -102,7 +141,14 @@ export default function NewOrderModal({ clientId, onClose, onSuccess }: NewOrder
   }
 
   function handleNext() {
-    if (step === "services") {
+    if (step === "client") {
+      if (!resolvedClientId) {
+        setError("Wybierz klienta.");
+        return;
+      }
+      setError(null);
+      setStep("services");
+    } else if (step === "services") {
       if (selectedServices.length === 0) {
         setError("Wybierz co najmniej jedną usługę.");
         return;
@@ -118,15 +164,17 @@ export default function NewOrderModal({ clientId, onClose, onSuccess }: NewOrder
   function handleBack() {
     setError(null);
     if (step === "location") setStep(hasColorStep ? "colors" : "services");
-    if (step === "colors") setStep("services");
+    else if (step === "colors") setStep("services");
+    else if (step === "services" && !initialClientId) setStep("client");
   }
 
   async function handleSubmit() {
+    if (!resolvedClientId) { setError("Brak klienta."); return; }
     setSubmitting(true);
     setError(null);
     try {
       const orderId = await createOrder({
-        clientId,
+        clientId: resolvedClientId,
         services: selectedServices.length > 0 ? selectedServices : undefined,
         windowColor: windowColor.length > 0 ? windowColor : undefined,
         doorColor: doorColor.length > 0 ? doorColor : undefined,
@@ -141,7 +189,7 @@ export default function NewOrderModal({ clientId, onClose, onSuccess }: NewOrder
         investmentCity: investment.city.trim() || undefined,
         comment: comment.trim() || undefined,
       });
-      onSuccess(orderId);
+      onSuccess(orderId, resolvedClientId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Wystąpił błąd podczas tworzenia zlecenia.");
       setSubmitting(false);
@@ -203,6 +251,11 @@ export default function NewOrderModal({ clientId, onClose, onSuccess }: NewOrder
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
+          {/* Krok 0: Wybór klienta */}
+          {step === "client" && (
+            <ClientSearch onSelect={(id) => { setResolvedClientId(id); setError(null); setStep("services"); }} />
+          )}
+
           {/* Krok 1: Usługi */}
           {step === "services" && (
             <div className="space-y-4">
@@ -338,7 +391,16 @@ export default function NewOrderModal({ clientId, onClose, onSuccess }: NewOrder
             <p className="mb-3 text-xs font-medium text-red-600">{error}</p>
           )}
           <div className="flex items-center justify-between">
-            {step !== "services" ? (
+            {step !== "services" && step !== "client" ? (
+              <button
+                type="button"
+                onClick={handleBack}
+                disabled={submitting}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              >
+                Wstecz
+              </button>
+            ) : step === "services" && !initialClientId ? (
               <button
                 type="button"
                 onClick={handleBack}
@@ -351,7 +413,7 @@ export default function NewOrderModal({ clientId, onClose, onSuccess }: NewOrder
               <div />
             )}
 
-            {step !== "location" ? (
+            {step !== "location" && step !== "client" ? (
               <button
                 type="button"
                 onClick={handleNext}
@@ -359,6 +421,8 @@ export default function NewOrderModal({ clientId, onClose, onSuccess }: NewOrder
               >
                 Dalej
               </button>
+            ) : step === "client" ? (
+              <div />
             ) : (
               <button
                 type="button"
