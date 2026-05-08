@@ -217,7 +217,7 @@ function OrderCard({
 
       {item.type === "order" && item.orderName ? (
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", marginBottom: 2, fontFamily: "monospace", paddingRight: isPending ? 44 : 0 }}>
-          #{item.orderName}
+          {item.orderName}
         </div>
       ) : item.type === "pending" ? (
         <div style={{ fontSize: 13, fontWeight: 700, color: "#b45309", marginBottom: 2, paddingRight: 44 }}>
