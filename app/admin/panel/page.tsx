@@ -587,7 +587,6 @@ export default function PanelPage() {
               fontSize: 12.5,
               fontWeight: activeTab === tab ? 600 : 500,
               color: activeTab === tab ? "var(--accent)" : "var(--text-mute)",
-              borderBottom: activeTab === tab ? "2px solid var(--accent)" : "2px solid transparent",
               marginBottom: -1,
               background: "none",
               border: "none",

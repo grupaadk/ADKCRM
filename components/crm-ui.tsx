@@ -40,13 +40,12 @@ export function CrmPageHeader({ title, sub, actions, tabs, activeTab, onTab }: P
                 fontSize: 12.5,
                 fontWeight: activeTab === t.key ? 600 : 500,
                 color: activeTab === t.key ? "var(--text-strong)" : "var(--text-mute)",
-                borderBottom: activeTab === t.key
-                  ? "2px solid var(--accent)"
-                  : "2px solid transparent",
                 marginBottom: -1,
                 background: "none",
                 border: "none",
                 borderBottomStyle: "solid",
+                borderBottomWidth: 2,
+                borderBottomColor: activeTab === t.key ? "var(--accent)" : "transparent",
                 cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center",

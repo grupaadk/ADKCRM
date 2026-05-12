@@ -323,7 +323,6 @@ export default function ClientDetailPage({
                 fontSize: 13,
                 fontWeight: activeTab === tab.key ? 600 : 500,
                 color: activeTab === tab.key ? "var(--accent)" : "var(--text-mute)",
-                borderBottom: activeTab === tab.key ? "2px solid var(--accent)" : "2px solid transparent",
                 background: "none",
                 border: "none",
                 borderBottomStyle: "solid",
