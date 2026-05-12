@@ -22,22 +22,27 @@ export async function nextOrderNumber(ctx: MutationCtx): Promise<string> {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
+  const mm = String(month).padStart(2, "0");
+  const suffix = `/${mm}/${year}`;
 
-  const counter = await ctx.db
-    .query("orderCounters")
-    .withIndex("by_year_month", (q) => q.eq("year", year).eq("month", month))
-    .first();
+  const monthStart = new Date(year, month - 1, 1).getTime();
+  const monthEnd = new Date(year, month, 1).getTime();
 
-  let number: number;
-  if (counter) {
-    number = counter.lastNumber + 1;
-    await ctx.db.patch(counter._id, { lastNumber: number });
-  } else {
-    number = 1;
-    await ctx.db.insert("orderCounters", { year, month, lastNumber: 1 });
+  const ordersThisMonth = await ctx.db
+    .query("orders")
+    .withIndex("by_creation_time", (q) =>
+      q.gte("_creationTime", monthStart).lt("_creationTime", monthEnd),
+    )
+    .collect();
+
+  let maxN = 0;
+  for (const o of ordersThisMonth) {
+    if (!o.name?.endsWith(suffix)) continue;
+    const n = parseInt(o.name.split("/")[0], 10);
+    if (Number.isFinite(n) && n > maxN) maxN = n;
   }
 
-  const mm = String(month).padStart(2, "0");
+  const number = maxN + 1;
   return `${number}/${mm}/${year}`;
 }
 
