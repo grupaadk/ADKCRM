@@ -385,6 +385,7 @@ export default function PanelPage() {
   const bottomScrollRef = useRef<HTMLDivElement>(null)
   const syncingFromRef = useRef<HTMLDivElement | null>(null)
   const [scrollWidth, setScrollWidth] = useState(0)
+  const [hasOverflow, setHasOverflow] = useState(false)
 
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
@@ -392,7 +393,10 @@ export default function PanelPage() {
     if (activeTab !== "kanban" && activeTab !== "opportunities") return
     const el = bottomScrollRef.current
     if (!el) return
-    const update = () => setScrollWidth(el.scrollWidth)
+    const update = () => {
+      setScrollWidth(el.scrollWidth)
+      setHasOverflow(el.scrollWidth - el.clientWidth > 1)
+    }
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
@@ -405,6 +409,13 @@ export default function PanelPage() {
       ? OPPORTUNITY_KEYS.includes(c.key)
       : !OPPORTUNITY_KEYS.includes(c.key),
   )
+
+  // Szanse sprzedaży: tylko 2 kolumny — ograniczamy max szerokość, żeby nie rozjeżdżały się przez cały ekran.
+  // Pozostałe widoki: kolumny rozciągają się równomiernie do pełnej dostępnej szerokości.
+  const gridTemplate =
+    activeTab === "opportunities"
+      ? `repeat(${visibleColumns.length}, minmax(220px, 340px))`
+      : `repeat(${visibleColumns.length}, minmax(178px, 1fr))`
 
   const syncScroll = (source: HTMLDivElement | null) => {
     if (!source) return
@@ -527,10 +538,10 @@ export default function PanelPage() {
   const totalPending = items?.filter((i) => i.type === "pending").length ?? 0
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0 }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
             Panel zleceń
           </h1>
@@ -539,8 +550,8 @@ export default function PanelPage() {
             {totalPending > 0 && ` · ${totalPending} nowych zgłoszeń`}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <div style={{ display: "flex", gap: 6, fontSize: 10, color: "var(--text-mute)", alignItems: "center" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, fontSize: 10, color: "var(--text-mute)", alignItems: "center" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <span style={{ width: 10, height: 10, borderRadius: 2, background: "#d0d4dc", display: "inline-block" }} />
               Nie wygenerowany
@@ -620,27 +631,29 @@ export default function PanelPage() {
       {/* Kanban tab (Zlecenia + Szanse sprzedaży) */}
       {(activeTab === "kanban" || activeTab === "opportunities") && (
         <>
-          {/* Sticky top scrollbar — jedyny widoczny pasek */}
-          <div style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--background)", paddingTop: 4, paddingBottom: 2 }}>
-            <div
-              ref={topScrollRef}
-              onScroll={() => syncScroll(topScrollRef.current)}
-              style={{ overflowX: "auto", overflowY: "hidden", height: 14 }}
-            >
-              <div style={{ width: scrollWidth, height: 1 }} />
+          {/* Sticky top scrollbar — widoczny tylko gdy kolumny nie mieszczą się w szerokości */}
+          {hasOverflow && (
+            <div style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--background)", paddingTop: 4, paddingBottom: 2 }}>
+              <div
+                ref={topScrollRef}
+                onScroll={() => syncScroll(topScrollRef.current)}
+                style={{ overflowX: "auto", overflowY: "hidden", height: 14 }}
+              >
+                <div style={{ width: scrollWidth, height: 1 }} />
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Headers + bodies w jednym kontenerze ze wspólnym scrollem (ukryty) */}
+          {/* Headers + bodies — pełna szerokość, grid z minmax dla równomiernego rozłożenia */}
           <div
             ref={bottomScrollRef}
             onScroll={() => syncScroll(bottomScrollRef.current)}
             className="no-scrollbar"
-            style={{ overflowX: "auto", paddingBottom: 12 }}
+            style={{ overflowX: "auto", paddingBottom: 12, width: "100%" }}
           >
-            <div style={{ width: "max-content", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ minWidth: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
               {/* Wiersz nagłówków */}
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8 }}>
                 {visibleColumns.map((col) => {
                   const colItems = (items ?? []).filter((i) => i.status === col.key)
                   const validTargets = draggingItem ? getValidTargets(draggingItem) : []
@@ -651,7 +664,7 @@ export default function PanelPage() {
                   return (
                     <div
                       key={col.key}
-                      style={{ flex: "0 0 168px", minWidth: 0, maxWidth: 168, opacity: colOpacity, transition: "opacity 0.15s" }}
+                      style={{ minWidth: 0, opacity: colOpacity, transition: "opacity 0.15s" }}
                       onDragOver={(e) => handleDragOver(e, col.key)}
                       onDrop={(e) => handleDrop(e, col.key)}
                       onDragLeave={() => setDragOverCol(null)}
@@ -679,7 +692,7 @@ export default function PanelPage() {
               </div>
 
               {/* Wiersz treści kolumn */}
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8, alignItems: "start" }}>
                 {visibleColumns.map((col) => {
                   const colItems = (items ?? []).filter((i) => i.status === col.key)
                   const isOver = dragOverCol === col.key
@@ -703,7 +716,7 @@ export default function PanelPage() {
                   return (
                     <div
                       key={col.key}
-                      style={{ flex: "0 0 168px", minWidth: 0, maxWidth: 168, display: "flex", flexDirection: "column", opacity: colOpacity, transition: "opacity 0.15s" }}
+                      style={{ minWidth: 0, display: "flex", flexDirection: "column", opacity: colOpacity, transition: "opacity 0.15s" }}
                       onDragOver={(e) => handleDragOver(e, col.key)}
                       onDrop={(e) => handleDrop(e, col.key)}
                       onDragLeave={() => setDragOverCol(null)}
