@@ -21,6 +21,8 @@ const KANBAN_COLUMNS = [
   { key: "completed",    bg: "#16a34a", border: "#15803d" },
 ] as const
 
+const OPPORTUNITY_KEYS: ReadonlyArray<string> = ["lead", "inquiry"]
+
 type ColumnKey = (typeof KANBAN_COLUMNS)[number]["key"]
 type DocState = "gray" | "red" | "green"
 
@@ -289,18 +291,18 @@ function OrderCard({
   )
 }
 
-// ─── Zakładka Zakończone ────────────────────────────────────────────
-function CompletedTab() {
+// ─── Zakładka Archiwum ──────────────────────────────────────────────
+function ArchivedTab() {
   const statusLabels = useStatusLabels()
   const router = useRouter()
-  const completed = useQuery(api.kanban.listCompleted)
+  const archived = useQuery(api.kanban.listArchived)
 
-  if (!completed) {
+  if (!archived) {
     return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Ładowanie...</div>
   }
 
-  if (completed.length === 0) {
-    return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak zakończonych zleceń</div>
+  if (archived.length === 0) {
+    return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak zarchiwizowanych zleceń</div>
   }
 
   return (
@@ -316,7 +318,7 @@ function CompletedTab() {
           </tr>
         </thead>
         <tbody>
-          {completed.map((order) => (
+          {archived.map((order) => (
             <tr
               key={order._id}
               style={{ borderBottom: "1px solid var(--line)", cursor: "pointer" }}
@@ -345,8 +347,8 @@ function CompletedTab() {
                 </div>
               </td>
               <td style={{ padding: "10px 12px" }}>
-                <span style={{ fontSize: 10, fontWeight: 700, background: "#dcfce7", color: "#15803d", borderRadius: 3, padding: "2px 6px" }}>
-                  {statusLabels["completed"] ?? "Zakończone"}
+                <span style={{ fontSize: 10, fontWeight: 700, background: "#e2e8f0", color: "#475569", borderRadius: 3, padding: "2px 6px" }}>
+                  {statusLabels["archived"] ?? "Archiwalne"}
                 </span>
               </td>
               <td style={{ padding: "10px 12px", textAlign: "right" }}>
@@ -364,7 +366,7 @@ function CompletedTab() {
 export default function PanelPage() {
   const statusLabels = useStatusLabels()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<"kanban" | "completed">("kanban")
+  const [activeTab, setActiveTab] = useState<"kanban" | "opportunities" | "archived">("kanban")
   const [draggingItem, setDraggingItem] = useState<KanbanItem | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -385,7 +387,7 @@ export default function PanelPage() {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    if (activeTab !== "kanban") return
+    if (activeTab !== "kanban" && activeTab !== "opportunities") return
     const el = bottomScrollRef.current
     if (!el) return
     const update = () => setScrollWidth(el.scrollWidth)
@@ -395,6 +397,12 @@ export default function PanelPage() {
     Array.from(el.children).forEach((c) => ro.observe(c))
     return () => ro.disconnect()
   }, [activeTab, items, expandedCards])
+
+  const visibleColumns = KANBAN_COLUMNS.filter((c) =>
+    activeTab === "opportunities"
+      ? OPPORTUNITY_KEYS.includes(c.key)
+      : !OPPORTUNITY_KEYS.includes(c.key),
+  )
 
   const syncScroll = (source: HTMLDivElement | null) => {
     if (!source) return
@@ -544,7 +552,7 @@ export default function PanelPage() {
               Podpisany
             </span>
           </div>
-          {activeTab === "kanban" && (items?.length ?? 0) > 0 && (
+          {(activeTab === "kanban" || activeTab === "opportunities") && (items?.length ?? 0) > 0 && (
             <button
               onClick={toggleAll}
               style={{
@@ -578,7 +586,7 @@ export default function PanelPage() {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 2, borderBottom: "1px solid var(--line)", marginBottom: 4 }}>
-        {(["kanban", "completed"] as const).map((tab) => (
+        {(["kanban", "opportunities", "archived"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -596,13 +604,13 @@ export default function PanelPage() {
               cursor: "pointer",
             }}
           >
-            {tab === "kanban" ? "Kanban" : "Archiwum"}
+            {tab === "kanban" ? "Zlecenia" : tab === "opportunities" ? "Szanse sprzedaży" : "Archiwum"}
           </button>
         ))}
       </div>
 
-      {/* Kanban tab */}
-      {activeTab === "kanban" && (
+      {/* Kanban tab (Zlecenia + Szanse sprzedaży) */}
+      {(activeTab === "kanban" || activeTab === "opportunities") && (
         <>
           {/* Sticky top scrollbar — jedyny widoczny pasek */}
           <div style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--background)", paddingTop: 4, paddingBottom: 2 }}>
@@ -625,7 +633,7 @@ export default function PanelPage() {
             <div style={{ width: "max-content", display: "flex", flexDirection: "column", gap: 8 }}>
               {/* Wiersz nagłówków */}
               <div style={{ display: "flex", gap: 8 }}>
-                {KANBAN_COLUMNS.map((col) => {
+                {visibleColumns.map((col) => {
                   const colItems = (items ?? []).filter((i) => i.status === col.key)
                   const validTargets = draggingItem ? getValidTargets(draggingItem) : []
                   const isValid = validTargets.includes(col.key)
@@ -664,7 +672,7 @@ export default function PanelPage() {
 
               {/* Wiersz treści kolumn */}
               <div style={{ display: "flex", gap: 8 }}>
-                {KANBAN_COLUMNS.map((col) => {
+                {visibleColumns.map((col) => {
                   const colItems = (items ?? []).filter((i) => i.status === col.key)
                   const isOver = dragOverCol === col.key
                   const isDraggingOver = draggingItem !== null && isOver
@@ -730,7 +738,7 @@ export default function PanelPage() {
       )}
 
       {/* Zakończone tab */}
-      {activeTab === "completed" && <CompletedTab />}
+      {activeTab === "archived" && <ArchivedTab />}
 
       {showNewOrderModal && (
         <NewOrderModal

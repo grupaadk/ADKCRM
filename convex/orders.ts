@@ -15,6 +15,7 @@ const orderStatusValidator = v.union(
   v.literal("installation"),
   v.literal("completed"),
   v.literal("complaint"),
+  v.literal("archived"),
 );
 
 export async function nextOrderNumber(ctx: MutationCtx): Promise<string> {
@@ -179,11 +180,24 @@ export const create = mutation({
       clientId,
       ...orderData,
       name,
-      status: "lead",
+      status: "measurement",
       documents: DEFAULT_DOCUMENTS,
       source: "manual",
       createdBy: userId,
     });
+
+    const driveConnection = await ctx.db.query("driveConnection").first();
+    if (
+      driveConnection?.sharedDriveId &&
+      (driveConnection.connectionStatus === "connected" ||
+        driveConnection.connectionStatus === "token_expiring")
+    ) {
+      await ctx.scheduler.runAfter(
+        0,
+        api.googleDrive.createOrderFolder,
+        { orderId },
+      );
+    }
 
     await ctx.db.insert("clientEvents", {
       clientId,

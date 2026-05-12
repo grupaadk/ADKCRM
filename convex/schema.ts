@@ -12,19 +12,22 @@ export const CLIENT_STATUSES = [
   "installation",
   "complaint",
   "completed",
+  "archived",
 ] as const;
 
 // Dozwolone przejścia statusów wg PRD US-2.1
+// Każdy status (poza "archived") może zostać zarchiwizowany — przejście wykonuje przycisk "Archiwizuj".
 export const STATUS_TRANSITIONS: Record<string, string[]> = {
-  lead: ["inquiry", "measurement"],
-  inquiry: ["measurement", "offer"],
-  measurement: ["offer", "contract"],
-  offer: ["contract", "lead"],
-  contract: ["production"],
-  production: ["installation"],
-  installation: ["completed", "complaint"],
-  completed: [],
-  complaint: ["completed"],
+  lead: ["inquiry", "measurement", "archived"],
+  inquiry: ["measurement", "offer", "archived"],
+  measurement: ["offer", "contract", "archived"],
+  offer: ["contract", "lead", "archived"],
+  contract: ["production", "archived"],
+  production: ["installation", "archived"],
+  installation: ["completed", "complaint", "archived"],
+  completed: ["archived"],
+  complaint: ["completed", "archived"],
+  archived: ["completed"],
 };
 
 // Typy dokumentów wg PRD sekcja 3.1 + 4.1
@@ -61,6 +64,7 @@ const clientStatus = v.union(
   v.literal("installation"),
   v.literal("completed"),
   v.literal("complaint"),
+  v.literal("archived"),
 );
 
 const documentEntry = v.object({
@@ -428,6 +432,7 @@ export default defineSchema({
         installation: v.optional(v.string()),
         completed: v.optional(v.string()),
         complaint: v.optional(v.string()),
+        archived: v.optional(v.string()),
       }),
     ),
   }),

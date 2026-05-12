@@ -52,13 +52,13 @@ export type KanbanItem = KanbanOrderItem | KanbanPendingItem;
 export const list = query({
   args: {},
   handler: async (ctx): Promise<KanbanItem[]> => {
-    // Pobierz wszystkie aktywne zlecenia (bez zakończonych)
+    // Pobierz wszystkie aktywne zlecenia (bez zarchiwizowanych)
     const allOrders = await ctx.db
       .query("orders")
       .order("desc")
       .take(500);
 
-    const activeOrders = allOrders;
+    const activeOrders = allOrders.filter((o) => o.status !== "archived");
 
     // Pobierz wszystkie nieprzetworzone pending submissions
     const pendings = await ctx.db
@@ -123,12 +123,12 @@ export const list = query({
   },
 });
 
-export const listCompleted = query({
+export const listArchived = query({
   args: {},
   handler: async (ctx) => {
     const orders = await ctx.db
       .query("orders")
-      .withIndex("by_status", (q) => q.eq("status", "completed"))
+      .withIndex("by_status", (q) => q.eq("status", "archived"))
       .order("desc")
       .take(300);
 

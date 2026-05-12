@@ -9,7 +9,7 @@ import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles
 import { CrmEmptyState, fmtDate } from "@/components/crm-ui"
 import { useStatusLabels } from "@/components/StatusLabelsContext"
 
-const STATUS_ORDER = ["lead", "inquiry", "measurement", "offer", "contract", "production", "installation", "complaint", "completed"]
+const STATUS_ORDER = ["lead", "inquiry", "measurement", "offer", "contract", "production", "installation", "complaint", "completed", "archived"]
 
 type SortField = "client" | "city" | "status" | "services" | "createdAt" | "totalGross"
 type SortDirection = "asc" | "desc"

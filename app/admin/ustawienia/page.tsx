@@ -2259,7 +2259,7 @@ function CennikTab() {
 
 const CRM_STATUS_KEYS = [
   "lead", "inquiry", "measurement", "offer", "contract",
-  "production", "installation", "completed", "complaint",
+  "production", "installation", "completed", "complaint", "archived",
 ] as const;
 
 function CrmTab() {

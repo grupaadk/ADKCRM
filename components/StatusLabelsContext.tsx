@@ -14,6 +14,7 @@ export const DEFAULT_STATUS_LABELS: Record<string, string> = {
   installation: "Realizowane",
   completed: "Zakończone",
   complaint: "Reklamacja",
+  archived: "Archiwalne",
 };
 
 const StatusLabelsContext = createContext<Record<string, string>>(DEFAULT_STATUS_LABELS);
