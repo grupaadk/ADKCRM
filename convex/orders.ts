@@ -211,47 +211,6 @@ export const create = mutation({
   },
 });
 
-export const createFromWebhook = internalMutation({
-  args: {
-    clientId: v.id("clients"),
-    services: v.optional(v.array(v.string())),
-    windowColor: v.optional(v.array(v.string())),
-    doorColor: v.optional(v.array(v.string())),
-    gateColor: v.optional(v.array(v.string())),
-    terraceColor: v.optional(v.array(v.string())),
-    constructionColor: v.optional(v.array(v.string())),
-    sunProtectionType: v.optional(v.array(v.string())),
-    projectFiles: v.optional(v.string()),
-    comment: v.optional(v.string()),
-    submissionId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { clientId, submissionId, ...orderData } = args;
-    const name = await nextOrderNumber(ctx);
-
-    const orderId = await ctx.db.insert("orders", {
-      clientId,
-      ...orderData,
-      name,
-      status: "lead",
-      documents: DEFAULT_DOCUMENTS,
-      source: "jotform",
-      jotformSubmissionId: submissionId,
-      createdBy: "system",
-    });
-
-    await ctx.db.insert("clientEvents", {
-      clientId,
-      orderId,
-      type: "order_created",
-      details: { source: "jotform", submissionId, services: args.services },
-      performedBy: "system",
-    });
-
-    return orderId;
-  },
-});
-
 export const update = mutation({
   args: {
     orderId: v.id("orders"),

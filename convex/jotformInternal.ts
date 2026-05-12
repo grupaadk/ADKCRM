@@ -245,7 +245,8 @@ export const promoteToMeasurement = mutation({
     const driveConnection = await ctx.db.query("driveConnection").first();
     if (
       driveConnection?.sharedDriveId &&
-      driveConnection.connectionStatus !== "disconnected"
+      (driveConnection.connectionStatus === "connected" ||
+        driveConnection.connectionStatus === "token_expiring")
     ) {
       await ctx.scheduler.runAfter(
         0,
@@ -309,107 +310,6 @@ export const repairPendingSubmission = mutation({
       createdBy: "system",
     });
     await ctx.db.patch(args.pendingId, { processed: true });
-    return { clientId, orderId };
-  },
-});
-
-// Jednoetapowe tworzenie klienta+zlecenia (dla testów i ręcznego użycia z Dashboard).
-export const createFromWebhook = mutation({
-  args: {
-    firstName: v.string(),
-    lastName: v.string(),
-    email: v.optional(v.string()),
-    phone: v.optional(v.string()),
-    street: v.optional(v.string()),
-    buildingNumber: v.optional(v.string()),
-    apartmentNumber: v.optional(v.string()),
-    postalCode: v.optional(v.string()),
-    city: v.optional(v.string()),
-    services: v.optional(v.array(v.string())),
-    windowColor: v.optional(v.array(v.string())),
-    doorColor: v.optional(v.array(v.string())),
-    gateColor: v.optional(v.array(v.string())),
-    terraceColor: v.optional(v.array(v.string())),
-    constructionColor: v.optional(v.array(v.string())),
-    sunProtectionType: v.optional(v.array(v.string())),
-    projectFiles: v.optional(v.string()),
-    comment: v.optional(v.string()),
-    submissionId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { submissionId } = args;
-    if (submissionId) {
-      const existing = await ctx.db
-        .query("orders")
-        .withIndex("by_jotform_submission", (q) => q.eq("jotformSubmissionId", submissionId))
-        .first();
-      if (existing) return { clientId: existing.clientId, orderId: existing._id };
-    }
-
-    let clientId: Id<"clients">;
-    let existingClient = null;
-    if (args.email) {
-      const byEmail = await ctx.db
-        .query("clients")
-        .withIndex("by_email", (q) => q.eq("email", args.email!))
-        .collect();
-      existingClient =
-        byEmail.find(
-          (c) =>
-            c.firstName === args.firstName &&
-            c.lastName === args.lastName &&
-            (!args.phone || !c.phone || c.phone === args.phone),
-        ) ?? null;
-    }
-    if (existingClient) {
-      clientId = existingClient._id;
-    } else {
-      clientId = await ctx.db.insert("clients", {
-        firstName: args.firstName,
-        lastName: args.lastName,
-        email: args.email,
-        phone: args.phone,
-        street: args.street,
-        buildingNumber: args.buildingNumber,
-        apartmentNumber: args.apartmentNumber,
-        postalCode: args.postalCode,
-        city: args.city,
-        source: "jotform",
-        createdBy: "system",
-      });
-      await ctx.db.insert("clientEvents", {
-        clientId,
-        type: "created",
-        details: { source: "jotform", submissionId },
-        performedBy: "system",
-      });
-    }
-
-    const orderId = await ctx.db.insert("orders", {
-      clientId,
-      services: args.services,
-      windowColor: args.windowColor,
-      doorColor: args.doorColor,
-      gateColor: args.gateColor,
-      terraceColor: args.terraceColor,
-      constructionColor: args.constructionColor,
-      sunProtectionType: args.sunProtectionType,
-      projectFiles: args.projectFiles,
-      comment: args.comment,
-      status: "lead",
-      documents: DEFAULT_DOCUMENTS,
-      source: "jotform",
-      jotformSubmissionId: submissionId,
-      createdBy: "system",
-    });
-    await ctx.db.insert("clientEvents", {
-      clientId,
-      orderId,
-      type: "order_created",
-      details: { source: "jotform", submissionId, services: args.services },
-      performedBy: "system",
-    });
-
     return { clientId, orderId };
   },
 });

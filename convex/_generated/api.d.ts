@@ -35,6 +35,7 @@ import type * as orderLineItems from "../orderLineItems.js";
 import type * as orders from "../orders.js";
 import type * as paymentReminders from "../paymentReminders.js";
 import type * as places from "../places.js";
+import type * as salesOpportunities from "../salesOpportunities.js";
 import type * as seed from "../seed.js";
 import type * as servicePricing from "../servicePricing.js";
 import type * as sms from "../sms.js";
@@ -76,6 +77,7 @@ declare const fullApi: ApiFromModules<{
   orders: typeof orders;
   paymentReminders: typeof paymentReminders;
   places: typeof places;
+  salesOpportunities: typeof salesOpportunities;
   seed: typeof seed;
   servicePricing: typeof servicePricing;
   sms: typeof sms;

@@ -4,131 +4,6 @@ import { api } from "../_generated/api";
 import schema from "../schema";
 
 // ============================================================
-// US-1.1 — Jotform Webhook (createFromWebhook)
-// ============================================================
-describe("US-1.1 — Jotform Webhook (createFromWebhook)", () => {
-  test("creates client and order from webhook data with status 'lead' and source 'jotform'", async () => {
-    const t = convexTest(schema);
-
-    const result = await t.mutation(api.jotformInternal.createFromWebhook, {
-      firstName: "Jan",
-      lastName: "Kowalski",
-      email: "jan@example.com",
-      phone: "+48123456789",
-      city: "Warszawa",
-      services: ["Okna", "Drzwi"],
-      windowColor: ["Biały"],
-      doorColor: ["Antracyt"],
-      gateColor: ["Srebrny"],
-      terraceColor: ["Orzech"],
-      constructionColor: ["RAL 7016"],
-      sunProtectionType: ["Roleta zewnętrzna"],
-      projectFiles: "https://jotform.com/uploads/file.pdf",
-      comment: "Proszę o kontakt wieczorem",
-      submissionId: "jotform-12345",
-    });
-
-    const { clientId, orderId } = result;
-    expect(clientId).toBeDefined();
-    expect(orderId).toBeDefined();
-
-    const client = await t.query(api.clients.getById, { clientId });
-    expect(client).not.toBeNull();
-    expect(client!.source).toBe("jotform");
-    expect(client!.firstName).toBe("Jan");
-    expect(client!.lastName).toBe("Kowalski");
-    expect(client!.createdBy).toBe("system");
-
-    const order = await t.query(api.orders.getById, { orderId });
-    expect(order).not.toBeNull();
-    expect(order!.status).toBe("lead");
-    expect(order!.source).toBe("jotform");
-    expect(order!.jotformSubmissionId).toBe("jotform-12345");
-  });
-
-  test("stores all order data (services, colors, etc.)", async () => {
-    const t = convexTest(schema);
-
-    const { clientId, orderId } = await t.mutation(api.jotformInternal.createFromWebhook, {
-      firstName: "Maria",
-      lastName: "Nowak",
-      services: ["Okna", "Brama", "Zabudowa tarasu"],
-      windowColor: ["Biały", "Złoty dąb"],
-      doorColor: ["Antracyt"],
-      gateColor: ["Srebrny"],
-      terraceColor: ["Orzech"],
-      constructionColor: ["RAL 9005"],
-      sunProtectionType: ["Markiza"],
-      projectFiles: "https://jotform.com/uploads/plan.pdf",
-      comment: "Pilne zamówienie",
-    });
-
-    const client = await t.query(api.clients.getById, { clientId });
-    expect(client).not.toBeNull();
-
-    const order = await t.query(api.orders.getById, { orderId });
-    expect(order).not.toBeNull();
-    expect(order!.services).toEqual(["Okna", "Brama", "Zabudowa tarasu"]);
-    expect(order!.windowColor).toEqual(["Biały", "Złoty dąb"]);
-    expect(order!.doorColor).toEqual(["Antracyt"]);
-    expect(order!.gateColor).toEqual(["Srebrny"]);
-    expect(order!.terraceColor).toEqual(["Orzech"]);
-    expect(order!.constructionColor).toEqual(["RAL 9005"]);
-    expect(order!.sunProtectionType).toEqual(["Markiza"]);
-    expect(order!.projectFiles).toBe("https://jotform.com/uploads/plan.pdf");
-    expect(order!.comment).toBe("Pilne zamówienie");
-  });
-
-  test("creates 'created' and 'order_created' events", async () => {
-    const t = convexTest(schema);
-
-    const { clientId } = await t.mutation(api.jotformInternal.createFromWebhook, {
-      firstName: "Andrzej",
-      lastName: "Wiśniewski",
-      services: ["Okna"],
-      submissionId: "jotform-99999",
-    });
-
-    const events = await t.run(async (ctx) => {
-      return await ctx.db
-        .query("clientEvents")
-        .withIndex("by_client", (q) => q.eq("clientId", clientId))
-        .collect();
-    });
-
-    expect(events.length).toBeGreaterThanOrEqual(1);
-    const createdEvent = events.find((e) => e.type === "created");
-    expect(createdEvent).toBeDefined();
-    expect(createdEvent!.details.source).toBe("jotform");
-    expect(createdEvent!.details.submissionId).toBe("jotform-99999");
-    expect(createdEvent!.performedBy).toBe("system");
-  });
-
-  test("handles minimal data (only firstName and lastName)", async () => {
-    const t = convexTest(schema);
-
-    const { clientId, orderId } = await t.mutation(api.jotformInternal.createFromWebhook, {
-      firstName: "Marek",
-      lastName: "Zielinski",
-    });
-
-    const client = await t.query(api.clients.getById, { clientId });
-    expect(client).not.toBeNull();
-    expect(client!.firstName).toBe("Marek");
-    expect(client!.lastName).toBe("Zielinski");
-    expect(client!.email).toBeUndefined();
-    expect(client!.phone).toBeUndefined();
-    expect(client!.city).toBeUndefined();
-
-    const order = await t.query(api.orders.getById, { orderId });
-    expect(order).not.toBeNull();
-    expect(order!.status).toBe("lead");
-    expect(order!.source).toBe("jotform");
-    expect(order!.services).toBeUndefined();
-  });
-});
-
-// ============================================================
 // US-1.2 — Manual Client Creation
 // ============================================================
 describe("US-1.2 — Manual Client Creation (clients.create)", () => {
@@ -293,9 +168,10 @@ describe("Deduplication", () => {
   test("findByEmail returns existing client", async () => {
     const t = convexTest(schema);
 
-    await t.mutation(api.jotformInternal.createFromWebhook, {
+    await t.mutation(api.clients.create, {
       firstName: "Jan",
       lastName: "Kowalski",
+      gender: "male",
       email: "jan@example.com",
     });
 
@@ -322,11 +198,11 @@ describe("Deduplication", () => {
   test("addSubmissionEvent logs duplicate event", async () => {
     const t = convexTest(schema);
 
-    const { clientId } = await t.mutation(api.jotformInternal.createFromWebhook, {
+    const clientId = await t.mutation(api.clients.create, {
       firstName: "Jan",
       lastName: "Kowalski",
+      gender: "male",
       email: "jan@example.com",
-      submissionId: "jotform-001",
     });
 
     await t.mutation(api.jotformInternal.addSubmissionEvent, {
