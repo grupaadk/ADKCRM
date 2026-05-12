@@ -760,113 +760,144 @@ export const createOrderFolder = action({
     ctx,
     args,
   ): Promise<{ folderId: string; folderUrl: string | undefined }> => {
-    // Read order data
-    const order = await ctx.runQuery(api.orders.getById, {
-      orderId: args.orderId,
-    });
-    if (!order) {
-      throw new Error("Order not found");
-    }
-
-    // Idempotency: skip if folder already exists
-    if (order.folderId) {
-      return { folderId: order.folderId, folderUrl: order.folderUrl };
-    }
-
-    // Read client data
-    const client = await ctx.runQuery(api.clients.getById, {
-      clientId: order.clientId,
-    });
-    if (!client) {
-      throw new Error("Client not found");
-    }
-
-    const connection = await getAuthorizedConnection(ctx);
-
-    // Krok 1: Znajdź lub utwórz folder klienta (Imię_Nazwisko) w shared drive
-    let clientFolderId = client.clientFolderId;
-    if (!clientFolderId) {
-      const clientFolderName = `${client.firstName}_${client.lastName}`;
-      const { id, url: clientFolderUrl } = await createDriveFolder(
-        ctx,
-        clientFolderName,
-        CLIENTS_FOLDER_ID,
-      );
-      clientFolderId = id;
-
-      await ctx.runMutation(api.clients.updateClientFolder, {
-        clientId: order.clientId,
-        clientFolderId: id,
-        clientFolderUrl,
-      });
-    }
-
-    // Krok 2: Utwórz podfolder zlecenia wewnątrz folderu klienta
-    // Konwencja: DD.MM.YYYY_Usługa_Miejscowość
-    const now = new Date();
-    const dd = String(now.getDate()).padStart(2, "0");
-    const mm = String(now.getMonth() + 1).padStart(2, "0");
-    const yyyy = now.getFullYear();
-    const service = (order.services ?? []).join("-") || "Zlecenie";
-    const city = client.city ?? "";
-    const orderFolderName = `${dd}.${mm}.${yyyy}_${service}_${city}`;
-
-    const { id: folderId, url: folderUrl } = await createDriveFolder(
-      ctx,
-      orderFolderName,
-      clientFolderId,
-    );
-
-    // Krok 3: Wgraj załączniki z formularza bezpośrednio do folderu zlecenia
-    const attachmentUrls = (order.projectFiles ?? "")
-      .split(/[\n,]+/)
-      .map((u: string) => u.trim())
-      .filter(Boolean);
-
-    const fromJotform =
-      order.source === "jotform" || !!order.jotformSubmissionId;
-    const jotformApiKey = fromJotform
-      ? await getJotformApiKeyForActions(ctx)
-      : null;
-    if (fromJotform && attachmentUrls.length > 0 && !jotformApiKey) {
-      console.warn(
-        "[googleDrive] Jotform order has attachments but no API key; downloads may return login HTML. Configure Jotform API key in Settings.",
-      );
-    }
-
-    const driveProjectFiles: Array<{ fileId: string; name: string; url: string }> = [];
-    for (const url of attachmentUrls) {
+    const log = async (
+      level: "info" | "warn" | "error",
+      message: string,
+      data?: Record<string, unknown>,
+    ) => {
+      console[level](`[createOrderFolder] ${message}`, data ?? "");
       try {
-        const result = await uploadFileToDrive(ctx, url, folderId, { jotformApiKey });
-        if (result) driveProjectFiles.push(result);
-      } catch (error) {
-        console.error(`Failed to upload attachment to Drive: ${url}`, error);
+        await ctx.runMutation(internal.systemLogs.insert, {
+          level,
+          source: "createOrderFolder",
+          message,
+          data: { orderId: args.orderId, ...data },
+        });
+      } catch (e) {
+        console.error("[createOrderFolder] systemLogs.insert failed", e);
       }
-    }
+    };
 
-    // Zapisz ID folderu zlecenia w rekordzie zlecenia
-    await ctx.runMutation(api.orders.updateDriveFolder, {
-      orderId: args.orderId,
-      folderId,
-      folderUrl,
-    });
+    try {
+      await log("info", "START");
 
-    if (driveProjectFiles.length > 0) {
-      await ctx.runMutation(api.orders.updateDriveProjectFiles, {
+      const order = await ctx.runQuery(api.orders.getById, {
         orderId: args.orderId,
-        driveProjectFiles,
       });
+      if (!order) {
+        await log("error", "Order not found");
+        throw new Error("Order not found");
+      }
+
+      if (order.folderId) {
+        await log("info", "folder already exists — pomijam", { folderId: order.folderId });
+        return { folderId: order.folderId, folderUrl: order.folderUrl };
+      }
+
+      const client = await ctx.runQuery(api.clients.getById, {
+        clientId: order.clientId,
+      });
+      if (!client) {
+        await log("error", "Client not found", { clientId: order.clientId });
+        throw new Error("Client not found");
+      }
+
+      const connection = await getAuthorizedConnection(ctx);
+      await log("info", "connection OK", { connectedEmail: connection.connectedEmail });
+
+      // Krok 1: Znajdź lub utwórz folder klienta (Imię_Nazwisko) w shared drive
+      let clientFolderId = client.clientFolderId;
+      if (!clientFolderId) {
+        const clientFolderName = `${client.firstName}_${client.lastName}`;
+        await log("info", "creating client folder", { clientFolderName, parentId: CLIENTS_FOLDER_ID });
+        const { id, url: clientFolderUrl } = await createDriveFolder(
+          ctx,
+          clientFolderName,
+          CLIENTS_FOLDER_ID,
+        );
+        clientFolderId = id;
+        await ctx.runMutation(api.clients.updateClientFolder, {
+          clientId: order.clientId,
+          clientFolderId: id,
+          clientFolderUrl,
+        });
+        await log("info", "client folder created", { clientFolderId: id });
+      } else {
+        await log("info", "client folder exists — reusing", { clientFolderId });
+      }
+
+      // Krok 2: Utwórz podfolder zlecenia wewnątrz folderu klienta
+      // Konwencja: DD.MM.YYYY_Usługa_Miejscowość
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, "0");
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const yyyy = now.getFullYear();
+      const service = (order.services ?? []).join("-") || "Zlecenie";
+      const city = client.city ?? "";
+      const orderFolderName = `${dd}.${mm}.${yyyy}_${service}_${city}`;
+
+      await log("info", "creating order folder", { orderFolderName, parentId: clientFolderId });
+      const { id: folderId, url: folderUrl } = await createDriveFolder(
+        ctx,
+        orderFolderName,
+        clientFolderId,
+      );
+      await log("info", "order folder created", { folderId, folderUrl });
+
+      // Krok 3: Wgraj załączniki z formularza bezpośrednio do folderu zlecenia
+      const attachmentUrls = (order.projectFiles ?? "")
+        .split(/[\n,]+/)
+        .map((u: string) => u.trim())
+        .filter(Boolean);
+
+      const fromJotform =
+        order.source === "jotform" || !!order.jotformSubmissionId;
+      const jotformApiKey = fromJotform
+        ? await getJotformApiKeyForActions(ctx)
+        : null;
+      if (fromJotform && attachmentUrls.length > 0 && !jotformApiKey) {
+        await log("warn", "Jotform order has attachments but no API key configured");
+      }
+
+      const driveProjectFiles: Array<{ fileId: string; name: string; url: string }> = [];
+      for (const url of attachmentUrls) {
+        try {
+          const result = await uploadFileToDrive(ctx, url, folderId, { jotformApiKey });
+          if (result) driveProjectFiles.push(result);
+        } catch (error) {
+          await log("error", "attachment upload failed", { url, error: String(error) });
+        }
+      }
+      if (attachmentUrls.length > 0) {
+        await log("info", "attachments uploaded", { uploaded: driveProjectFiles.length, total: attachmentUrls.length });
+      }
+
+      await ctx.runMutation(api.orders.updateDriveFolder, {
+        orderId: args.orderId,
+        folderId,
+        folderUrl,
+      });
+
+      if (driveProjectFiles.length > 0) {
+        await ctx.runMutation(api.orders.updateDriveProjectFiles, {
+          orderId: args.orderId,
+          driveProjectFiles,
+        });
+      }
+
+      await ctx.runMutation(internal.orders.addEvent, {
+        orderId: args.orderId,
+        type: "folder_created",
+        details: { folderId, folderUrl, folderName: orderFolderName, clientFolderId },
+        performedBy: connection.connectedBy,
+      });
+
+      await log("info", "DONE — folder zapisany w rekordzie zlecenia", { folderId });
+      return { folderId, folderUrl };
+    } catch (err) {
+      await log("error", "NIEOCZEKIWANY BŁĄD", { error: String(err) });
+      throw err;
     }
-
-    // Zaloguj event
-    await ctx.runMutation(internal.orders.addEvent, {
-      orderId: args.orderId,
-      type: "folder_created",
-      details: { folderId, folderUrl, folderName: orderFolderName, clientFolderId },
-      performedBy: connection.connectedBy,
-    });
-
-    return { folderId, folderUrl };
   },
 });
 

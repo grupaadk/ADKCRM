@@ -188,7 +188,7 @@ export const create = mutation({
 
     const driveConnection = await ctx.db.query("driveConnection").first();
     if (
-      driveConnection?.sharedDriveId &&
+      driveConnection &&
       (driveConnection.connectionStatus === "connected" ||
         driveConnection.connectionStatus === "token_expiring")
     ) {
@@ -277,7 +277,7 @@ export const changeStatus = mutation({
     if (args.newStatus === "measurement") {
       const driveConnection = await ctx.db.query("driveConnection").first();
       if (
-        driveConnection?.sharedDriveId &&
+        driveConnection &&
         (driveConnection.connectionStatus === "connected" ||
           driveConnection.connectionStatus === "token_expiring")
       ) {

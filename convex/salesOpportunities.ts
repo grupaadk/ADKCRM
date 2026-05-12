@@ -333,7 +333,7 @@ export const convertToOrder = mutation({
     // Folder Drive
     const driveConnection = await ctx.db.query("driveConnection").first();
     if (
-      driveConnection?.sharedDriveId &&
+      driveConnection &&
       (driveConnection.connectionStatus === "connected" ||
         driveConnection.connectionStatus === "token_expiring")
     ) {

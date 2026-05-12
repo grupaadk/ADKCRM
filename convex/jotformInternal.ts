@@ -244,7 +244,7 @@ export const promoteToMeasurement = mutation({
     // Zaplanuj tworzenie folderu Drive
     const driveConnection = await ctx.db.query("driveConnection").first();
     if (
-      driveConnection?.sharedDriveId &&
+      driveConnection &&
       (driveConnection.connectionStatus === "connected" ||
         driveConnection.connectionStatus === "token_expiring")
     ) {
