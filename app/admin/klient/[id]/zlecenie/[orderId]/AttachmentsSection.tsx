@@ -117,10 +117,15 @@ export default function AttachmentsSection({
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadAttachment = useAction(api.googleDrive.uploadOrderAttachment);
   const deleteAttachment = useAction(api.googleDrive.deleteOrderAttachment);
+  const syncAttachments = useAction(api.googleDrive.syncOrderAttachments);
 
   const [isDragging, setIsDragging] = useState(false);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<
+    { type: "success" | "error"; text: string } | null
+  >(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -222,6 +227,31 @@ export default function AttachmentsSection({
     [uploadFile],
   );
 
+  const handleSync = useCallback(async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    setSyncMessage(null);
+    try {
+      const result = await syncAttachments({ orderId });
+      const parts: string[] = [];
+      if (result.added > 0) parts.push(`dodano: ${result.added}`);
+      if (result.updated > 0) parts.push(`zaktualizowano: ${result.updated}`);
+      if (result.removed > 0) parts.push(`usunięto: ${result.removed}`);
+      setSyncMessage({
+        type: "success",
+        text: parts.length > 0 ? `Zsynchronizowano (${parts.join(", ")})` : "Brak zmian — wszystko jest aktualne",
+      });
+    } catch (err) {
+      setSyncMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Błąd synchronizacji",
+      });
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncMessage(null), 4000);
+    }
+  }, [isSyncing, syncAttachments, orderId]);
+
   const handleDelete = useCallback(
     async (attachmentId: Id<"orderAttachments">, name: string) => {
       if (!confirm(`Usuń załącznik "${name}"?`)) return;
@@ -243,6 +273,24 @@ export default function AttachmentsSection({
       action={
         hasDriveFolder ? (
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleSync}
+              disabled={isSyncing}
+              title="Pobierz pliki dodane bezpośrednio do folderu na Google Drive"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSyncing ? (
+                <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+              )}
+              {isSyncing ? "Synchronizuję…" : "Odśwież z Drive"}
+            </button>
             <button
               onClick={() => folderInputRef.current?.click()}
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900"
@@ -282,6 +330,19 @@ export default function AttachmentsSection({
         // @ts-expect-error webkitdirectory is not in React's HTML types
         webkitdirectory=""
       />
+
+      {/* Sync status banner */}
+      {syncMessage && (
+        <p
+          className={`mb-4 rounded-lg border px-4 py-2 text-xs ${
+            syncMessage.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-red-200 bg-red-50 text-red-700"
+          }`}
+        >
+          {syncMessage.text}
+        </p>
+      )}
 
       {/* No Drive folder warning */}
       {!hasDriveFolder && (

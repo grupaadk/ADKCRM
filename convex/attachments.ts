@@ -45,6 +45,24 @@ export const add = internalMutation({
   },
 });
 
+export const updateFromDrive = internalMutation({
+  args: {
+    attachmentId: v.id("orderAttachments"),
+    name: v.string(),
+    mimeType: v.optional(v.string()),
+    size: v.optional(v.number()),
+    folderPath: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.attachmentId, {
+      name: args.name,
+      mimeType: args.mimeType,
+      size: args.size,
+      folderPath: args.folderPath,
+    });
+  },
+});
+
 export const removeById = internalMutation({
   args: { attachmentId: v.id("orderAttachments") },
   handler: async (ctx, args) => {

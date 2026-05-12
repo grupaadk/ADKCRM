@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -193,6 +193,48 @@ export default function OrderDetailPage({
   const createOrderFolder = useAction(api.googleDrive.createOrderFolder);
   const deleteOrder = useAction(api.orders.deleteOrder);
   const sendOrderAddressSms = useAction(api.sms.sendOrderAddressSms);
+  const listOrderFolderFiles = useAction(api.googleDrive.listOrderFolderFiles);
+
+  const orderFolderId = order?.folderId;
+  const [orderFiles, setOrderFiles] = useState<
+    Array<{
+      fileId: string;
+      name: string;
+      mimeType?: string;
+      size?: number;
+      folderPath: string;
+      webViewLink?: string;
+    }> | null
+  >(null);
+  const [orderFilesLoading, setOrderFilesLoading] = useState(false);
+  const [orderFilesError, setOrderFilesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!orderFolderId) {
+      setOrderFiles(null);
+      return;
+    }
+    let cancelled = false;
+    setOrderFilesLoading(true);
+    setOrderFilesError(null);
+    listOrderFolderFiles({ orderId: orderIdTyped })
+      .then((files) => {
+        if (!cancelled) setOrderFiles(files);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setOrderFilesError(
+            error instanceof Error ? error.message : "Nie udało się pobrać plików.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setOrderFilesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orderFolderId, orderIdTyped, listOrderFolderFiles]);
 
   if (client === undefined || order === undefined) {
     return (
@@ -460,11 +502,12 @@ export default function OrderDetailPage({
                   fontSize: 12.5,
                   fontWeight: isActive ? 600 : 500,
                   color: isActive ? activeColor : "var(--text-mute)",
+                  borderTop: "none",
+                  borderLeft: "none",
+                  borderRight: "none",
                   borderBottom: isActive ? `2px solid ${activeColor}` : "2px solid transparent",
                   marginBottom: -1,
                   background: "none",
-                  border: "none",
-                  borderBottomStyle: "solid",
                   cursor: "pointer",
                   fontFamily: "inherit",
                 }}
@@ -503,6 +546,48 @@ export default function OrderDetailPage({
                     <button onClick={handleCreateFolder} className="btn primary" style={{ fontSize: 12 }}>
                       Utwórz folder
                     </button>
+                  </div>
+                )}
+
+                {order.folderUrl && (
+                  <div className="pt-1">
+                    <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Pliki w folderze
+                    </div>
+                    {orderFilesLoading && orderFiles === null ? (
+                      <div className="text-xs text-slate-400">Ładowanie plików…</div>
+                    ) : orderFilesError ? (
+                      <div className="text-xs text-red-500">{orderFilesError}</div>
+                    ) : orderFiles && orderFiles.length > 0 ? (
+                      <ul className="space-y-1.5">
+                        {orderFiles.map((file) => (
+                          <li key={file.fileId}>
+                            <a
+                              href={
+                                file.webViewLink ??
+                                `https://drive.google.com/file/d/${file.fileId}/view`
+                              }
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 transition-colors hover:bg-slate-50"
+                              title={file.folderPath ? `${file.folderPath}/${file.name}` : file.name}
+                            >
+                              <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                              </svg>
+                              <span className="min-w-0 flex-1 truncate text-xs text-slate-700">{file.name}</span>
+                              {file.folderPath && (
+                                <span className="shrink-0 text-[10px] uppercase tracking-wide text-slate-400">
+                                  {file.folderPath}
+                                </span>
+                              )}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="text-xs text-slate-400">Brak plików.</div>
+                    )}
                   </div>
                 )}
 

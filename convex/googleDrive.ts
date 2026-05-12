@@ -1210,6 +1210,203 @@ export const uploadOrderAttachment = action({
   },
 });
 
+async function listDriveFolderRecursive(
+  ctx: ActionCtx,
+  folderId: string,
+  currentPath: string,
+  results: Array<{
+    fileId: string;
+    name: string;
+    mimeType?: string;
+    size?: number;
+    folderPath: string;
+    webViewLink?: string;
+  }>,
+): Promise<void> {
+  let pageToken: string | undefined;
+  do {
+    const params = new URLSearchParams({
+      q: `'${folderId}' in parents and trashed=false`,
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+      fields: "nextPageToken,files(id,name,mimeType,size,webViewLink)",
+      pageSize: "200",
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+
+    const data = (await driveApiFetchWithRetry(
+      ctx,
+      `/files?${params.toString()}`,
+    )) as unknown as {
+      files?: Array<{
+        id?: string;
+        name?: string;
+        mimeType?: string;
+        size?: string;
+        webViewLink?: string;
+      }>;
+      nextPageToken?: string;
+    };
+
+    for (const file of data.files ?? []) {
+      if (!file.id || !file.name) continue;
+      if (file.mimeType === "application/vnd.google-apps.folder") {
+        const subPath = currentPath ? `${currentPath}/${file.name}` : file.name;
+        await listDriveFolderRecursive(ctx, file.id, subPath, results);
+      } else {
+        results.push({
+          fileId: file.id,
+          name: file.name,
+          mimeType: file.mimeType,
+          size: file.size ? Number(file.size) : undefined,
+          folderPath: currentPath,
+          webViewLink: file.webViewLink,
+        });
+      }
+    }
+
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+}
+
+export const listOrderFolderFiles = action({
+  args: { orderId: v.id("orders") },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    Array<{
+      fileId: string;
+      name: string;
+      mimeType?: string;
+      size?: number;
+      folderPath: string;
+      webViewLink?: string;
+    }>
+  > => {
+    const order = await ctx.runQuery(api.orders.getById, {
+      orderId: args.orderId,
+    });
+    if (!order) throw new Error("Zlecenie nie znalezione");
+    if (!order.folderId) return [];
+
+    await getAuthorizedConnection(ctx);
+
+    const files: Array<{
+      fileId: string;
+      name: string;
+      mimeType?: string;
+      size?: number;
+      folderPath: string;
+      webViewLink?: string;
+    }> = [];
+    await listDriveFolderRecursive(ctx, order.folderId, "", files);
+
+    files.sort((a, b) => {
+      const pathCmp = a.folderPath.localeCompare(b.folderPath, "pl");
+      if (pathCmp !== 0) return pathCmp;
+      return a.name.localeCompare(b.name, "pl");
+    });
+
+    return files;
+  },
+});
+
+export const syncOrderAttachments = action({
+  args: { orderId: v.id("orders") },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ added: number; removed: number; updated: number }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    const performedBy = identity?.subject ?? "anonymous";
+
+    const order = await ctx.runQuery(api.orders.getById, {
+      orderId: args.orderId,
+    });
+    if (!order) throw new Error("Zlecenie nie znalezione");
+    if (!order.folderId)
+      throw new Error("To zlecenie nie ma folderu w Google Drive.");
+
+    const connection = await getAuthorizedConnection(ctx);
+    const { accessToken } = connection;
+
+    let attachmentsFolderId = order.attachmentsFolderId;
+    if (!attachmentsFolderId) {
+      attachmentsFolderId = await findOrCreateDriveFolder(
+        accessToken,
+        "Załączniki",
+        order.folderId,
+      );
+      await ctx.runMutation(internal.attachments.setAttachmentsFolderId, {
+        orderId: args.orderId,
+        folderId: attachmentsFolderId,
+      });
+    }
+
+    const driveFiles: Array<{
+      fileId: string;
+      name: string;
+      mimeType?: string;
+      size?: number;
+      folderPath: string;
+    }> = [];
+    await listDriveFolderRecursive(ctx, attachmentsFolderId, "", driveFiles);
+
+    const existingAttachments = await ctx.runQuery(api.attachments.listByOrder, {
+      orderId: args.orderId,
+    });
+    const existingByFileId = new Map(
+      existingAttachments.map((a) => [a.fileId, a] as const),
+    );
+    const driveFileIds = new Set(driveFiles.map((f) => f.fileId));
+
+    let added = 0;
+    let updated = 0;
+    for (const file of driveFiles) {
+      const existing = existingByFileId.get(file.fileId);
+      if (!existing) {
+        await ctx.runMutation(internal.attachments.add, {
+          orderId: args.orderId,
+          fileId: file.fileId,
+          name: file.name,
+          url: `https://drive.google.com/file/d/${file.fileId}/view`,
+          mimeType: file.mimeType,
+          size: file.size,
+          folderPath: file.folderPath || undefined,
+          uploadedBy: performedBy,
+        });
+        added++;
+      } else if (
+        existing.name !== file.name ||
+        (existing.folderPath ?? "") !== file.folderPath ||
+        existing.size !== file.size ||
+        existing.mimeType !== file.mimeType
+      ) {
+        await ctx.runMutation(internal.attachments.updateFromDrive, {
+          attachmentId: existing._id,
+          name: file.name,
+          mimeType: file.mimeType,
+          size: file.size,
+          folderPath: file.folderPath || undefined,
+        });
+        updated++;
+      }
+    }
+
+    let removed = 0;
+    for (const attachment of existingAttachments) {
+      if (driveFileIds.has(attachment.fileId)) continue;
+      await ctx.runMutation(internal.attachments.removeById, {
+        attachmentId: attachment._id,
+      });
+      removed++;
+    }
+
+    return { added, removed, updated };
+  },
+});
+
 export const deleteOrderAttachment = action({
   args: {
     attachmentId: v.id("orderAttachments"),
