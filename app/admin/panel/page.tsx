@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useQuery, useMutation, useAction } from "convex/react"
 import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { useStatusLabels } from "@/components/StatusLabelsContext"
 import type { KanbanItem } from "@/convex/kanban"
-import { Plus } from "lucide-react"
+import { Plus, ChevronDown, ChevronUp } from "lucide-react"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 
 const KANBAN_COLUMNS = [
@@ -48,7 +48,7 @@ function ServiceBadges({ services }: { services: string[] }) {
   const shown = services.slice(0, MAX)
   const rest = services.length - MAX
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 7 }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 7, minWidth: 0, maxWidth: "100%" }}>
       {shown.map((s, i) => {
         const color = SERVICE_COLORS[i % SERVICE_COLORS.length]
         return (
@@ -57,6 +57,10 @@ function ServiceBadges({ services }: { services: string[] }) {
             background: color.bg, color: color.text,
             borderRadius: 4, padding: "2px 7px", lineHeight: 1.5,
             whiteSpace: "nowrap",
+            maxWidth: "100%",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            display: "inline-block",
           }}>
             {s}
           </span>
@@ -92,22 +96,37 @@ function DocSquares({ docs }: { docs: Record<string, DocState> }) {
 function OrderCard({
   item,
   isDragging,
+  expanded,
   onDragStart,
   onDragEnd,
   onClick,
   onDelete,
+  onToggleExpand,
 }: {
   item: KanbanItem
   isDragging: boolean
+  expanded: boolean
   onDragStart: (e: React.DragEvent, item: KanbanItem) => void
   onDragEnd: () => void
   onClick: () => void
   onDelete: (item: KanbanItem) => void
+  onToggleExpand: () => void
 }) {
   const isPending = item.type === "pending"
   const fullName = `${item.clientFirstName} ${item.clientLastName}`.trim()
   const didDragRef = useRef(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const titleText =
+    item.type === "order" && item.orderName
+      ? item.orderName
+      : item.type === "pending"
+        ? "Nowe zgłoszenie"
+        : "—"
+  const titleStyle: React.CSSProperties =
+    item.type === "order" && item.orderName
+      ? { fontSize: 12, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace" }
+      : { fontSize: 11.5, fontWeight: 700, color: "#b45309" }
 
   return (
     <div
@@ -118,8 +137,8 @@ function OrderCard({
       style={{
         background: "var(--panel)",
         border: `1px solid ${isDragging ? "var(--accent)" : isPending ? "#f59e0b55" : "var(--line)"}`,
-        borderRadius: 8,
-        padding: "11px 13px",
+        borderRadius: 7,
+        padding: expanded ? "7px 8px 9px" : "6px 8px",
         cursor: isDragging ? "grabbing" : "grab",
         userSelect: "none",
         transition: "all 0.15s ease",
@@ -127,6 +146,10 @@ function OrderCard({
         transform: isDragging ? "scale(1.02)" : undefined,
         opacity: isDragging ? 0.6 : 1,
         position: "relative",
+        minWidth: 0,
+        maxWidth: "100%",
+        boxSizing: "border-box",
+        overflow: confirmDelete ? "visible" : "hidden",
       }}
       onMouseEnter={(e) => {
         if (!isDragging) {
@@ -145,17 +168,45 @@ function OrderCard({
         }
       }}
     >
-      {/* Przycisk usuwania */}
-      {!confirmDelete ? (
+      {/* Wiersz tytułu + akcje */}
+      <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ ...titleStyle, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1.25 }}>
+            {titleText}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1, lineHeight: 1.3 }}>
+            {fullName || "—"}
+          </div>
+        </div>
+
+        {/* Chevron rozwijania */}
         <button
-          onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }}
+          onClick={(e) => { e.stopPropagation(); onToggleExpand() }}
           style={{
-            position: "absolute", top: 7, right: isPending ? 52 : 8,
-            width: 20, height: 20, borderRadius: 4,
+            width: 18, height: 18, borderRadius: 4,
             background: "transparent", border: "none",
             color: "var(--text-mute)", cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
-            opacity: 0.4, transition: "opacity 0.15s, background 0.15s",
+            opacity: 0.6, flexShrink: 0,
+            transition: "opacity 0.15s, background 0.15s",
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; (e.currentTarget as HTMLButtonElement).style.background = "var(--panel-2)" }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.6"; (e.currentTarget as HTMLButtonElement).style.background = "transparent" }}
+          title={expanded ? "Zwiń" : "Rozwiń szczegóły"}
+        >
+          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
+
+        {/* Przycisk usuwania */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }}
+          style={{
+            width: 18, height: 18, borderRadius: 4,
+            background: "transparent", border: "none",
+            color: "var(--text-mute)", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            opacity: 0.4, flexShrink: 0,
+            transition: "opacity 0.15s, background 0.15s",
             fontSize: 13, lineHeight: 1,
           }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; (e.currentTarget as HTMLButtonElement).style.background = "#fee2e2"; (e.currentTarget as HTMLButtonElement).style.color = "#ef4444" }}
@@ -164,7 +215,38 @@ function OrderCard({
         >
           ×
         </button>
-      ) : (
+      </div>
+
+      {/* Szczegóły rozwinięte */}
+      {expanded && (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--line)" }}>
+          {isPending && (
+            <div style={{
+              display: "inline-block",
+              fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
+              background: "#fef3c7", color: "#b45309",
+              borderRadius: 4, padding: "2px 6px", marginBottom: 6,
+            }}>
+              NOWE
+            </div>
+          )}
+
+          {item.type === "order" && item.grossAmount != null && (
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)", marginBottom: 2 }}>
+              {item.grossAmount.toLocaleString("pl-PL", { style: "currency", currency: "PLN", minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </div>
+          )}
+
+          <ServiceBadges services={item.services} />
+
+          {item.type === "order" && (
+            <DocSquares docs={item.docs} />
+          )}
+        </div>
+      )}
+
+      {/* Overlay potwierdzenia usuwania */}
+      {confirmDelete && (
         <div
           onClick={(e) => e.stopPropagation()}
           style={{
@@ -202,43 +284,6 @@ function OrderCard({
             </button>
           </div>
         </div>
-      )}
-
-      {isPending && (
-        <div style={{
-          position: "absolute", top: 8, right: 10,
-          fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
-          background: "#fef3c7", color: "#b45309",
-          borderRadius: 4, padding: "2px 6px",
-        }}>
-          NOWE
-        </div>
-      )}
-
-      {item.type === "order" && item.orderName ? (
-        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", marginBottom: 2, fontFamily: "monospace", paddingRight: isPending ? 44 : 0 }}>
-          {item.orderName}
-        </div>
-      ) : item.type === "pending" ? (
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#b45309", marginBottom: 2, paddingRight: 44 }}>
-          Nowe zgłoszenie
-        </div>
-      ) : null}
-
-      <div style={{ fontSize: 12, color: "var(--text-mute)", marginBottom: 3 }}>
-        {fullName || "—"}
-      </div>
-
-      {item.type === "order" && item.grossAmount != null && (
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)", marginBottom: 2 }}>
-          {item.grossAmount.toLocaleString("pl-PL", { style: "currency", currency: "PLN", minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-        </div>
-      )}
-
-      <ServiceBadges services={item.services} />
-
-      {item.type === "order" && (
-        <DocSquares docs={item.docs} />
       )}
     </div>
   )
@@ -331,6 +376,51 @@ export default function PanelPage() {
   const updatePendingStage = useMutation(api.jotformInternal.updatePendingStage)
   const deleteOrder = useAction(api.orders.deleteOrder)
   const deletePending = useMutation(api.jotformInternal.deletePending)
+
+  const topScrollRef = useRef<HTMLDivElement>(null)
+  const bottomScrollRef = useRef<HTMLDivElement>(null)
+  const syncingFromRef = useRef<HTMLDivElement | null>(null)
+  const [scrollWidth, setScrollWidth] = useState(0)
+
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (activeTab !== "kanban") return
+    const el = bottomScrollRef.current
+    if (!el) return
+    const update = () => setScrollWidth(el.scrollWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    Array.from(el.children).forEach((c) => ro.observe(c))
+    return () => ro.disconnect()
+  }, [activeTab, items, expandedCards])
+
+  const syncScroll = (source: HTMLDivElement | null) => {
+    if (!source) return
+    if (syncingFromRef.current && syncingFromRef.current !== source) return
+    syncingFromRef.current = source
+    const left = source.scrollLeft
+    if (topScrollRef.current && topScrollRef.current !== source) topScrollRef.current.scrollLeft = left
+    if (bottomScrollRef.current && bottomScrollRef.current !== source) bottomScrollRef.current.scrollLeft = left
+    requestAnimationFrame(() => { syncingFromRef.current = null })
+  }
+
+  const toggleCard = (id: string) => {
+    setExpandedCards((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const allIds = (items ?? []).map((i) => i.id)
+  const allExpanded = allIds.length > 0 && allIds.every((id) => expandedCards.has(id))
+  const toggleAll = () => {
+    if (allExpanded) setExpandedCards(new Set())
+    else setExpandedCards(new Set(allIds))
+  }
 
   async function handleDelete(item: KanbanItem) {
     try {
@@ -454,6 +544,22 @@ export default function PanelPage() {
               Podpisany
             </span>
           </div>
+          {activeTab === "kanban" && (items?.length ?? 0) > 0 && (
+            <button
+              onClick={toggleAll}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                padding: "6px 10px", borderRadius: 6,
+                border: "1px solid var(--line)", background: "var(--panel)",
+                fontSize: 12, fontWeight: 500, color: "var(--text)",
+                cursor: "pointer",
+              }}
+              title={allExpanded ? "Zwiń wszystkie karty" : "Rozwiń wszystkie karty"}
+            >
+              {allExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              {allExpanded ? "Zwiń wszystkie" : "Rozwiń wszystkie"}
+            </button>
+          )}
           <button className="btn primary" onClick={() => setShowNewOrderModal(true)}>
             <Plus size={13} /> Nowe zlecenie
           </button>
@@ -498,84 +604,130 @@ export default function PanelPage() {
 
       {/* Kanban tab */}
       {activeTab === "kanban" && (
-        <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 12 }}>
-          {KANBAN_COLUMNS.map((col) => {
-            const colItems = (items ?? []).filter((i) => i.status === col.key)
-            const isOver = dragOverCol === col.key
-            const isDraggingOver = draggingItem !== null && isOver
-            const validTargets = draggingItem ? getValidTargets(draggingItem) : []
-            const isValid = validTargets.includes(col.key)
-            const isDraggingSameCol = draggingItem?.status === col.key
+        <>
+          {/* Sticky top scrollbar — jedyny widoczny pasek */}
+          <div style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--background)", paddingTop: 4, paddingBottom: 2 }}>
+            <div
+              ref={topScrollRef}
+              onScroll={() => syncScroll(topScrollRef.current)}
+              style={{ overflowX: "auto", overflowY: "hidden", height: 14 }}
+            >
+              <div style={{ width: scrollWidth, height: 1 }} />
+            </div>
+          </div>
 
-            let dropBg = "transparent"
-            let dropBorder = "1.5px dashed transparent"
-            if (isDraggingOver && isValid) {
-              dropBg = "rgba(74,187,195,0.06)"
-              dropBorder = "1.5px dashed var(--accent)"
-            } else if (isDraggingOver && !isValid && !isDraggingSameCol) {
-              dropBg = "rgba(239,68,68,0.04)"
-              dropBorder = "1.5px dashed #fca5a5"
-            }
+          {/* Headers + bodies w jednym kontenerze ze wspólnym scrollem (ukryty) */}
+          <div
+            ref={bottomScrollRef}
+            onScroll={() => syncScroll(bottomScrollRef.current)}
+            className="no-scrollbar"
+            style={{ overflowX: "auto", paddingBottom: 12 }}
+          >
+            <div style={{ width: "max-content", display: "flex", flexDirection: "column", gap: 8 }}>
+              {/* Wiersz nagłówków */}
+              <div style={{ display: "flex", gap: 8 }}>
+                {KANBAN_COLUMNS.map((col) => {
+                  const colItems = (items ?? []).filter((i) => i.status === col.key)
+                  const validTargets = draggingItem ? getValidTargets(draggingItem) : []
+                  const isValid = validTargets.includes(col.key)
+                  const isDraggingSameCol = draggingItem?.status === col.key
+                  const colOpacity = draggingItem && !isDraggingSameCol && !isValid ? 0.45 : 1
 
-            // Dim invalid columns while dragging
-            const colOpacity = draggingItem && !isDraggingSameCol && !isValid ? 0.45 : 1
-
-            return (
-              <div
-                key={col.key}
-                style={{ flex: "0 0 215px", display: "flex", flexDirection: "column", gap: 8, opacity: colOpacity, transition: "opacity 0.15s" }}
-                onDragOver={(e) => handleDragOver(e, col.key)}
-                onDrop={(e) => handleDrop(e, col.key)}
-                onDragLeave={() => setDragOverCol(null)}
-              >
-                {/* Column header */}
-                <div style={{
-                  padding: "9px 12px", borderRadius: 8,
-                  background: col.bg, border: `1px solid ${col.border}`,
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  fontSize: 12, fontWeight: 700, color: "white",
-                }}>
-                  <span>{statusLabels[col.key] ?? col.key}</span>
-                  <span style={{
-                    background: "rgba(255,255,255,0.25)",
-                    borderRadius: 5, padding: "1px 7px",
-                    fontSize: 11, fontWeight: 700,
-                  }}>
-                    {colItems.length}
-                  </span>
-                </div>
-
-                {/* Column body */}
-                <div style={{
-                  display: "flex", flexDirection: "column", gap: 8,
-                  minHeight: 80, padding: 4, borderRadius: 6,
-                  background: dropBg, border: dropBorder,
-                  transition: "background 0.15s, border 0.15s",
-                }}>
-                  {colItems.map((item) => (
-                    <OrderCard
-                      key={item.id}
-                      item={item}
-                      isDragging={draggingItem?.id === item.id}
-                      onDragStart={handleDragStart}
-                      onDragEnd={handleDragEnd}
-                      onDelete={handleDelete}
-                      onClick={() => handleCardClick(item)}
-                    />
-                  ))}
-                  {colItems.length === 0 && (
-                    <div style={{
-                      textAlign: "center", fontSize: 10,
-                      color: "var(--text-mute)", padding: "12px 0", opacity: 0.6,
-                    }}>
-                      Brak zleceń
+                  return (
+                    <div
+                      key={col.key}
+                      style={{ flex: "0 0 168px", minWidth: 0, maxWidth: 168, opacity: colOpacity, transition: "opacity 0.15s" }}
+                      onDragOver={(e) => handleDragOver(e, col.key)}
+                      onDrop={(e) => handleDrop(e, col.key)}
+                      onDragLeave={() => setDragOverCol(null)}
+                    >
+                      <div style={{
+                        padding: "7px 10px", borderRadius: 7,
+                        background: col.bg, border: `1px solid ${col.border}`,
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        fontSize: 11.5, fontWeight: 700, color: "white",
+                      }}>
+                        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {statusLabels[col.key] ?? col.key}
+                        </span>
+                        <span style={{
+                          background: "rgba(255,255,255,0.25)",
+                          borderRadius: 4, padding: "1px 6px",
+                          fontSize: 10.5, fontWeight: 700, flexShrink: 0, marginLeft: 4,
+                        }}>
+                          {colItems.length}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  )
+                })}
               </div>
-            )
-          })}
-        </div>
+
+              {/* Wiersz treści kolumn */}
+              <div style={{ display: "flex", gap: 8 }}>
+                {KANBAN_COLUMNS.map((col) => {
+                  const colItems = (items ?? []).filter((i) => i.status === col.key)
+                  const isOver = dragOverCol === col.key
+                  const isDraggingOver = draggingItem !== null && isOver
+                  const validTargets = draggingItem ? getValidTargets(draggingItem) : []
+                  const isValid = validTargets.includes(col.key)
+                  const isDraggingSameCol = draggingItem?.status === col.key
+
+                  let dropBg = "transparent"
+                  let dropBorder = "1.5px dashed transparent"
+                  if (isDraggingOver && isValid) {
+                    dropBg = "rgba(74,187,195,0.06)"
+                    dropBorder = "1.5px dashed var(--accent)"
+                  } else if (isDraggingOver && !isValid && !isDraggingSameCol) {
+                    dropBg = "rgba(239,68,68,0.04)"
+                    dropBorder = "1.5px dashed #fca5a5"
+                  }
+
+                  const colOpacity = draggingItem && !isDraggingSameCol && !isValid ? 0.45 : 1
+
+                  return (
+                    <div
+                      key={col.key}
+                      style={{ flex: "0 0 168px", minWidth: 0, maxWidth: 168, display: "flex", flexDirection: "column", opacity: colOpacity, transition: "opacity 0.15s" }}
+                      onDragOver={(e) => handleDragOver(e, col.key)}
+                      onDrop={(e) => handleDrop(e, col.key)}
+                      onDragLeave={() => setDragOverCol(null)}
+                    >
+                      <div style={{
+                        display: "flex", flexDirection: "column", gap: 6,
+                        minHeight: 80, padding: 3, borderRadius: 6,
+                        background: dropBg, border: dropBorder,
+                        transition: "background 0.15s, border 0.15s",
+                      }}>
+                        {colItems.map((item) => (
+                          <OrderCard
+                            key={item.id}
+                            item={item}
+                            isDragging={draggingItem?.id === item.id}
+                            expanded={expandedCards.has(item.id)}
+                            onToggleExpand={() => toggleCard(item.id)}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                            onDelete={handleDelete}
+                            onClick={() => handleCardClick(item)}
+                          />
+                        ))}
+                        {colItems.length === 0 && (
+                          <div style={{
+                            textAlign: "center", fontSize: 10,
+                            color: "var(--text-mute)", padding: "12px 0", opacity: 0.6,
+                          }}>
+                            Brak zleceń
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Zakończone tab */}

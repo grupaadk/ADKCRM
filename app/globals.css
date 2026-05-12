@@ -223,3 +223,7 @@ input:focus, select:focus, textarea:focus {
 
 /* ── Headings ───────────────────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 { color: var(--text-strong); }
+
+/* ── Utilities ──────────────────────────────────────────────────── */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
