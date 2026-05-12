@@ -347,6 +347,8 @@ export default defineSchema({
     clientId: v.optional(v.id("clients")),
     stage: v.optional(v.union(v.literal("lead"), v.literal("inquiry"))),
     processed: v.boolean(),
+    archived: v.optional(v.boolean()),
+    offerSentAt: v.optional(v.number()),
   })
     .index("by_client", ["clientId"])
     .index("by_submission", ["submissionId"]),

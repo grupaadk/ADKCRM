@@ -8,6 +8,7 @@ import { useStatusLabels } from "@/components/StatusLabelsContext"
 import type { KanbanItem } from "@/convex/kanban"
 import { Plus, ChevronDown, ChevronUp } from "lucide-react"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
+import NewOpportunityModal from "@/components/NewOpportunityModal"
 
 const KANBAN_COLUMNS = [
   { key: "lead",         bg: "#8b5cf6", border: "#7c3aed" },
@@ -371,6 +372,7 @@ export default function PanelPage() {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [showNewOrderModal, setShowNewOrderModal] = useState(false)
+  const [showNewOpportunityModal, setShowNewOpportunityModal] = useState(false)
 
   const items = useQuery(api.kanban.list)
   const changeStatus = useMutation(api.orders.changeStatus)
@@ -516,8 +518,8 @@ export default function PanelPage() {
   function handleCardClick(item: KanbanItem) {
     if (item.type === "order") {
       router.push(`/admin/klient/${item.clientId}/zlecenie/${item.orderId}`)
-    } else if (item.clientId) {
-      router.push(`/admin/klient/${item.clientId}`)
+    } else {
+      router.push(`/admin/szansa/${item.pendingId}`)
     }
   }
 
@@ -568,9 +570,15 @@ export default function PanelPage() {
               {allExpanded ? "Zwiń wszystkie" : "Rozwiń wszystkie"}
             </button>
           )}
-          <button className="btn primary" onClick={() => setShowNewOrderModal(true)}>
-            <Plus size={13} /> Nowe zlecenie
-          </button>
+          {activeTab === "opportunities" ? (
+            <button className="btn primary" onClick={() => setShowNewOpportunityModal(true)}>
+              <Plus size={13} /> Nowa szansa sprzedaży
+            </button>
+          ) : (
+            <button className="btn primary" onClick={() => setShowNewOrderModal(true)}>
+              <Plus size={13} /> Nowe zlecenie
+            </button>
+          )}
         </div>
       </div>
 
@@ -746,6 +754,16 @@ export default function PanelPage() {
           onSuccess={(orderId, clientId) => {
             setShowNewOrderModal(false)
             router.push(`/admin/klient/${clientId}/zlecenie/${orderId}`)
+          }}
+        />
+      )}
+
+      {showNewOpportunityModal && (
+        <NewOpportunityModal
+          onClose={() => setShowNewOpportunityModal(false)}
+          onSuccess={(opportunityId) => {
+            setShowNewOpportunityModal(false)
+            router.push(`/admin/szansa/${opportunityId}`)
           }}
         />
       )}
