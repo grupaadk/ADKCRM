@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 const EMOJIS = ["💵", "💰", "💸", "💴", "💶"]
-const COUNT = 45
-const DURATION_MS = 2800
+const COUNT = 180
+const DURATION_MS = 11000
+const MAX_STAGGER_MS = 8000
 
 type Drop = {
   emoji: string
@@ -21,7 +22,7 @@ function makeDrops(): Drop[] {
   return Array.from({ length: COUNT }, () => ({
     emoji: EMOJIS[Math.floor(Math.random() * EMOJIS.length)],
     left: Math.random() * 100,
-    delay: Math.random() * 600,
+    delay: Math.random() * MAX_STAGGER_MS,
     duration: 1800 + Math.random() * 1400,
     rotateFrom: Math.random() * 360 - 180,
     rotateTo: Math.random() * 720 - 360,
@@ -47,11 +48,28 @@ export default function DollarRain({ trigger }: { trigger: number | null }) {
 
 function Burst({ onDone }: { onDone: () => void }) {
   const drops = useMemo(() => makeDrops(), [])
+  const [armed, setArmed] = useState<boolean>(() => {
+    if (typeof document === "undefined") return true
+    return document.visibilityState === "visible"
+  })
 
   useEffect(() => {
+    if (armed) return
+    if (typeof document === "undefined") return
+    const onVis = () => {
+      if (document.visibilityState === "visible") setArmed(true)
+    }
+    document.addEventListener("visibilitychange", onVis)
+    return () => document.removeEventListener("visibilitychange", onVis)
+  }, [armed])
+
+  useEffect(() => {
+    if (!armed) return
     const t = setTimeout(onDone, DURATION_MS)
     return () => clearTimeout(t)
-  }, [onDone])
+  }, [armed, onDone])
+
+  if (!armed) return null
 
   return (
     <div
@@ -67,8 +85,8 @@ function Burst({ onDone }: { onDone: () => void }) {
       <style>{`
         @keyframes adk-dollar-fall {
           0%   { transform: translate3d(0, -15vh, 0) rotate(var(--r0)); opacity: 0; }
-          10%  { opacity: 1; }
-          90%  { opacity: 1; }
+          6%   { opacity: 1; }
+          94%  { opacity: 1; }
           100% { transform: translate3d(var(--dx), 115vh, 0) rotate(var(--r1)); opacity: 0; }
         }
       `}</style>
