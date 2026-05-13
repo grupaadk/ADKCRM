@@ -22,16 +22,22 @@ export default function NewLeadAnnouncer() {
   const [lastSeen, setLastSeen] = useState<number | null>(readStored)
   const [trigger, setTrigger] = useState<number | null>(null)
   const [prev, setPrev] = useState<number | null | undefined>(undefined)
+  const [initialized, setInitialized] = useState(false)
 
   if (latest !== undefined && latestCreatedAt !== prev) {
     setPrev(latestCreatedAt)
-    if (latestCreatedAt !== null) {
-      if (lastSeen === null) {
+
+    if (!initialized) {
+      setInitialized(true)
+      if (latestCreatedAt !== null && (lastSeen === null || latestCreatedAt > lastSeen)) {
         setLastSeen(latestCreatedAt)
-      } else if (latestCreatedAt > lastSeen) {
-        setLastSeen(latestCreatedAt)
-        setTrigger(latestCreatedAt)
       }
+    } else if (
+      latestCreatedAt !== null &&
+      (lastSeen === null || latestCreatedAt > lastSeen)
+    ) {
+      setLastSeen(latestCreatedAt)
+      setTrigger(latestCreatedAt)
     }
   }
 
