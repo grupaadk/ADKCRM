@@ -11,8 +11,8 @@ import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 import NewOpportunityModal from "@/components/NewOpportunityModal"
 
 const KANBAN_COLUMNS = [
-  { key: "lead",         bg: "#8b5cf6", border: "#7c3aed" },
-  { key: "inquiry",      bg: "#6366f1", border: "#4f46e5" },
+  { key: "lead",         bg: "#50253F", border: "#3C1C2F" },
+  { key: "inquiry",      bg: "#50253F", border: "#3C1C2F" },
   { key: "measurement",  bg: "#3E5224", border: "#2E3E1B" },
   { key: "offer",        bg: "#50253F", border: "#3C1C2F" },
   { key: "contract",     bg: "#50253F", border: "#3C1C2F" },
