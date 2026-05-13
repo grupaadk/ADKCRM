@@ -727,7 +727,7 @@ export default function PanelPage() {
                   const isValid = validTargets.includes(col.key)
                   const isDraggingSameCol = draggingItem?.status === col.key
 
-                  let dropBg: string = col.bg
+                  let dropBg: string = "transparent"
                   let dropBorder = `1.5px dashed ${col.border}`
                   if (isDraggingOver && isValid) {
                     dropBorder = "1.5px dashed var(--accent)"
