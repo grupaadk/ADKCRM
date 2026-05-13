@@ -115,6 +115,23 @@ export const listArchivedOpportunities = query({
   },
 });
 
+// Najnowsza aktywna szansa w kolumnie "Oferty" (stage: "lead").
+// Używane przez animację "deszczu dolarów" — porównanie createdAt z localStorage.
+export const latestLeadOpportunity = query({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db
+      .query("pendingJotformSubmissions")
+      .order("desc")
+      .take(50);
+    const latest = all.find(
+      (o) => o.stage === "lead" && !o.processed && o.archived !== true,
+    );
+    if (!latest) return null;
+    return { id: latest._id, createdAt: latest._creationTime };
+  },
+});
+
 // Zmiana etapu (lead ↔ inquiry). Konwersja do zlecenia osobnym triggerem.
 export const updateOpportunityStage = mutation({
   args: {

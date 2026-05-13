@@ -13,13 +13,13 @@ import NewOpportunityModal from "@/components/NewOpportunityModal"
 const KANBAN_COLUMNS = [
   { key: "lead",         bg: "#8b5cf6", border: "#7c3aed" },
   { key: "inquiry",      bg: "#6366f1", border: "#4f46e5" },
-  { key: "measurement",  bg: "#f59e0b", border: "#d97706" },
-  { key: "offer",        bg: "#ec4899", border: "#db2777" },
-  { key: "contract",     bg: "#8b5cf6", border: "#7c3aed" },
-  { key: "production",   bg: "#3b82f6", border: "#1d4ed8" },
-  { key: "installation", bg: "#06b6d4", border: "#0891b2" },
-  { key: "complaint",    bg: "#ef4444", border: "#dc2626" },
-  { key: "completed",    bg: "#16a34a", border: "#15803d" },
+  { key: "measurement",  bg: "#3E5224", border: "#2E3E1B" },
+  { key: "offer",        bg: "#50253F", border: "#3C1C2F" },
+  { key: "contract",     bg: "#50253F", border: "#3C1C2F" },
+  { key: "production",   bg: "#164555", border: "#0E3340" },
+  { key: "installation", bg: "#533F04", border: "#3F2F03" },
+  { key: "complaint",    bg: "#533F04", border: "#3F2F03" },
+  { key: "completed",    bg: "#37471F", border: "#283517" },
 ] as const
 
 const OPPORTUNITY_KEYS: ReadonlyArray<string> = ["lead", "inquiry"]
@@ -410,6 +410,8 @@ export default function PanelPage() {
       : !OPPORTUNITY_KEYS.includes(c.key),
   )
 
+  const newLeadsCount = (items ?? []).filter((i) => i.status === "lead").length
+
   // Szanse sprzedaży: tylko 2 kolumny — ograniczamy max szerokość, żeby nie rozjeżdżały się przez cały ekran.
   // Pozostałe widoki: kolumny rozciągają się równomiernie do pełnej dostępnej szerokości.
   const gridTemplate =
@@ -538,7 +540,7 @@ export default function PanelPage() {
   const totalPending = items?.filter((i) => i.type === "pending").length ?? 0
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0, height: "100%", minHeight: 0 }}>
       {/* Header */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <div style={{ minWidth: 0 }}>
@@ -621,9 +623,33 @@ export default function PanelPage() {
               borderBottomWidth: 2,
               borderBottomColor: activeTab === tab ? "var(--accent)" : "transparent",
               cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
             }}
           >
             {tab === "kanban" ? "Zlecenia" : tab === "opportunities" ? "Szanse sprzedaży" : "Archiwum"}
+            {tab === "opportunities" && newLeadsCount > 0 && (
+              <span
+                aria-label={`${newLeadsCount} nowych szans sprzedaży`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: 18,
+                  height: 18,
+                  padding: "0 5px",
+                  borderRadius: 9,
+                  background: "#dc2626",
+                  color: "#fff",
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                }}
+              >
+                {newLeadsCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -649,9 +675,9 @@ export default function PanelPage() {
             ref={bottomScrollRef}
             onScroll={() => syncScroll(bottomScrollRef.current)}
             className="no-scrollbar"
-            style={{ overflowX: "auto", paddingBottom: 12, width: "100%" }}
+            style={{ overflow: "auto", paddingBottom: 12, width: "100%", flex: 1, minHeight: 0 }}
           >
-            <div style={{ minWidth: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ minWidth: "100%", minHeight: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
               {/* Wiersz nagłówków */}
               <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8 }}>
                 {visibleColumns.map((col) => {
@@ -692,7 +718,7 @@ export default function PanelPage() {
               </div>
 
               {/* Wiersz treści kolumn */}
-              <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8, flex: 1, minHeight: 0 }}>
                 {visibleColumns.map((col) => {
                   const colItems = (items ?? []).filter((i) => i.status === col.key)
                   const isOver = dragOverCol === col.key
@@ -701,13 +727,11 @@ export default function PanelPage() {
                   const isValid = validTargets.includes(col.key)
                   const isDraggingSameCol = draggingItem?.status === col.key
 
-                  let dropBg = "transparent"
-                  let dropBorder = "1.5px dashed transparent"
+                  let dropBg: string = col.bg
+                  let dropBorder = `1.5px dashed ${col.border}`
                   if (isDraggingOver && isValid) {
-                    dropBg = "rgba(74,187,195,0.06)"
                     dropBorder = "1.5px dashed var(--accent)"
                   } else if (isDraggingOver && !isValid && !isDraggingSameCol) {
-                    dropBg = "rgba(239,68,68,0.04)"
                     dropBorder = "1.5px dashed #fca5a5"
                   }
 
@@ -723,7 +747,7 @@ export default function PanelPage() {
                     >
                       <div style={{
                         display: "flex", flexDirection: "column", gap: 6,
-                        minHeight: 80, padding: 3, borderRadius: 6,
+                        flex: 1, minHeight: 80, padding: 3, borderRadius: 6,
                         background: dropBg, border: dropBorder,
                         transition: "background 0.15s, border 0.15s",
                       }}>
@@ -743,7 +767,7 @@ export default function PanelPage() {
                         {colItems.length === 0 && (
                           <div style={{
                             textAlign: "center", fontSize: 10,
-                            color: "var(--text-mute)", padding: "12px 0", opacity: 0.6,
+                            color: "rgba(255,255,255,0.75)", padding: "12px 0",
                           }}>
                             Brak zleceń
                           </div>
