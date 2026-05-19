@@ -374,6 +374,10 @@ export default defineSchema({
     constructionColor: v.optional(v.array(v.string())),
     sunProtectionType: v.optional(v.array(v.string())),
     projectFiles: v.optional(v.string()),
+    driveProjectFiles: v.optional(v.array(v.object({
+      name: v.string(),
+      url: v.string(),
+    }))),
     comment: v.optional(v.string()),
     submissionId: v.optional(v.string()),
     clientId: v.optional(v.id("clients")),

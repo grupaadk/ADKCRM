@@ -2158,6 +2158,18 @@ export const uploadManualOpportunityFile = action({
           fileId: result.fileId,
           name: result.name,
         });
+        try {
+          await ctx.runMutation(api.salesOpportunities.addDriveProjectFile, {
+            opportunityId: args.opportunityId,
+            name: result.name,
+            url: result.url,
+          });
+        } catch (e) {
+          await log("warn", "Failed to save Drive file link", {
+            name: result.name,
+            error: String(e),
+          });
+        }
         return { uploaded: true, folderId: clientFolderId };
       } else {
         await log("warn", "File upload returned null");
@@ -2293,6 +2305,18 @@ export const uploadSalesOpportunityFiles = action({
               fileId: result.fileId,
               name: result.name,
             });
+            try {
+              await ctx.runMutation(api.salesOpportunities.addDriveProjectFile, {
+                opportunityId: args.opportunityId,
+                name: result.name,
+                url: result.url,
+              });
+            } catch (e) {
+              await log("warn", "Failed to save Drive file link", {
+                name: result.name,
+                error: String(e),
+              });
+            }
           } else {
             failed++;
             await log("warn", "File upload returned null", { url });

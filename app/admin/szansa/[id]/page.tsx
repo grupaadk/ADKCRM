@@ -520,6 +520,32 @@ export default function OpportunityDetailPage({
         </div>
       )}
 
+      {/* Pliki na Google Drive */}
+      {(opp?.driveProjectFiles?.length ?? 0) > 0 && (
+        <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
+            📁 Pliki na Google Drive
+          </h2>
+          <ul style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12.5, margin: 0, paddingLeft: 0, listStyle: "none" }}>
+            {opp.driveProjectFiles.map((file) => (
+              <li key={file.url} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z" />
+                </svg>
+                <a
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "var(--accent)" }}
+                >
+                  {file.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Komentarz */}
       <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
         <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>

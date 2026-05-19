@@ -433,3 +433,24 @@ export const updateClientFolder = internalMutation({
     });
   },
 });
+
+export const addDriveProjectFile = internalMutation({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+    name: v.string(),
+    url: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const opp = await ctx.db.get(args.opportunityId);
+    if (!opp) throw new Error("Szansa sprzedaży nie znaleziona");
+
+    const existing = opp.driveProjectFiles ?? [];
+    const alreadyExists = existing.some((f) => f.url === args.url);
+
+    if (!alreadyExists) {
+      await ctx.db.patch(args.opportunityId, {
+        driveProjectFiles: [...existing, { name: args.name, url: args.url }],
+      });
+    }
+  },
+});
