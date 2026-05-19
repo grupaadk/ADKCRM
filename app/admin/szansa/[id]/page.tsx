@@ -107,9 +107,11 @@ export default function OpportunityDetailPage({
   const unarchive = useMutation(api.salesOpportunities.unarchiveOpportunity);
   const deleteOpp = useMutation(api.salesOpportunities.deleteSalesOpportunity);
   const convert = useMutation(api.salesOpportunities.convertToOrder);
+  const retryFolder = useMutation(api.salesOpportunities.retryCreateFolderAndUploadFiles);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const stage = opp?.stage ?? "lead";
@@ -203,6 +205,21 @@ export default function OpportunityDetailPage({
     }
   }
 
+  async function handleRetryFolder() {
+    setError(null);
+    setRetrying(true);
+    try {
+      await retryFolder({ opportunityId });
+      // Odczekaj chwilę, aby akcja się wykonała
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Przeładuj stronę
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Błąd tworzenia folderu");
+      setRetrying(false);
+    }
+  }
+
   const selectedServices = opp.services ?? [];
   const showColors = (s: string) => selectedServices.includes(s);
 
@@ -248,6 +265,17 @@ export default function OpportunityDetailPage({
             >
               <FolderOpen size={13} /> Drive
             </a>
+          )}
+          {!opp.clientFolderUrl && (
+            <button
+              onClick={handleRetryFolder}
+              disabled={retrying}
+              className="btn"
+              style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+              title="Utwórz folder i wgraj pliki na Google Drive"
+            >
+              <FolderOpen size={13} /> {retrying ? "Tworzę…" : "Google Drive"}
+            </button>
           )}
           <button
             onClick={handleArchive}

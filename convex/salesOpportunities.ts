@@ -454,3 +454,21 @@ export const addDriveProjectFile = internalMutation({
     }
   },
 });
+
+// Retroaktywnie tworzy folder i wgrywa pliki dla istniejącej szansy sprzedaży
+export const retryCreateFolderAndUploadFiles = mutation({
+  args: { opportunityId: v.id("pendingJotformSubmissions") },
+  handler: async (ctx, args) => {
+    const opp = await ctx.db.get(args.opportunityId);
+    if (!opp) throw new Error("Szansa sprzedaży nie znaleziona");
+
+    // Zaplanuj asynchroniczne tworzenie folderu (jeśli nie istnieje)
+    await ctx.scheduler.runAfter(
+      0,
+      api.googleDrive.createClientFolderForOpportunity,
+      { opportunityId: args.opportunityId },
+    );
+
+    return { opportunityId: args.opportunityId, scheduled: true };
+  },
+});
