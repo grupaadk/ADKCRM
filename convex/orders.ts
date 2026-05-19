@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query, mutation, action, internalMutation, MutationCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { STATUS_TRANSITIONS, CLIENT_STATUSES } from "./schema";
+import { requireUser, userIdentifier } from "./lib/auth";
 
 type OrderStatus = (typeof CLIENT_STATUSES)[number];
 
@@ -175,8 +176,8 @@ export const create = mutation({
     investmentCity: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
 
     const { clientId, ...orderData } = args;
     const name = args.name ?? await nextOrderNumber(ctx);
@@ -197,6 +198,13 @@ export const create = mutation({
       (driveConnection.connectionStatus === "connected" ||
         driveConnection.connectionStatus === "token_expiring")
     ) {
+      // Triggeruj tworzenie folderu klienta (idempotentne — pomija jeśli istnieje)
+      await ctx.scheduler.runAfter(
+        0,
+        api.googleDrive.createClientFolder,
+        { clientId },
+      );
+      // Triggeruj tworzenie folderu zlecenia (wewnętrznie sprawdza/tworzy folder klienta)
       await ctx.scheduler.runAfter(
         0,
         api.googleDrive.createOrderFolder,
@@ -236,8 +244,8 @@ export const update = mutation({
     investmentCity: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
 
     const { orderId, ...updates } = args;
     const order = await ctx.db.get(orderId);
@@ -267,8 +275,8 @@ export const changeStatus = mutation({
     newStatus: orderStatusValidator,
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
 
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
@@ -286,6 +294,13 @@ export const changeStatus = mutation({
         (driveConnection.connectionStatus === "connected" ||
           driveConnection.connectionStatus === "token_expiring")
       ) {
+        // Triggeruj tworzenie folderu klienta (idempotentne — pomija jeśli istnieje)
+        await ctx.scheduler.runAfter(
+          0,
+          api.googleDrive.createClientFolder,
+          { clientId: order.clientId },
+        );
+        // Triggeruj tworzenie folderu zlecenia
         await ctx.scheduler.runAfter(
           0,
           api.googleDrive.createOrderFolder,
@@ -324,8 +339,8 @@ export const toggleDocument = mutation({
     templateId: v.optional(v.id("documentTemplates")),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
 
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
@@ -489,8 +504,8 @@ export const generateWarrantyDoc = mutation({
     templateId: v.id("documentTemplates"),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
 
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
@@ -521,8 +536,8 @@ export const removeWarrantyDoc = mutation({
     key: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
 
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
@@ -573,8 +588,7 @@ export const saveInvoicePlan = mutation({
     advancePct: v.number(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Brak autoryzacji");
+    await requireUser(ctx);
     if (args.type === "none") {
       await ctx.db.patch(args.orderId, { invoicePlan: undefined });
       return;
@@ -610,8 +624,8 @@ export const addWarrantyCard = mutation({
     fileUrl: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
 
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
