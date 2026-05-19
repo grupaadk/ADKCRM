@@ -2159,7 +2159,7 @@ export const uploadManualOpportunityFile = action({
           name: result.name,
         });
         try {
-          await ctx.runMutation(api.salesOpportunities.addDriveProjectFile, {
+          await ctx.runMutation(internal.salesOpportunities.addDriveProjectFile, {
             opportunityId: args.opportunityId,
             name: result.name,
             url: result.url,
@@ -2306,7 +2306,7 @@ export const uploadSalesOpportunityFiles = action({
               name: result.name,
             });
             try {
-              await ctx.runMutation(api.salesOpportunities.addDriveProjectFile, {
+              await ctx.runMutation(internal.salesOpportunities.addDriveProjectFile, {
                 opportunityId: args.opportunityId,
                 name: result.name,
                 url: result.url,
