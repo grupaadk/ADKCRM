@@ -2236,6 +2236,7 @@ export const uploadSalesOpportunityFiles = action({
 
       // Czekaj na folder klienta (z retry)
       // Folder może być w szansie (clientFolderId) lub w kliencie (jeśli szansa ma clientId)
+      // Dla szans z Jotforma folder trafia do klienta (createClientFolder), nie do szansy.
       let clientFolderId = opp.clientFolderId;
       let clientId = opp.clientId;
 
@@ -2246,7 +2247,6 @@ export const uploadSalesOpportunityFiles = action({
             maxRetries,
             hasClientId: !!clientId,
           });
-          // Czekaj 2 sekundy przed retry
           await new Promise((resolve) => setTimeout(resolve, 2000));
         }
 
@@ -2255,22 +2255,22 @@ export const uploadSalesOpportunityFiles = action({
           { opportunityId: args.opportunityId },
         );
         clientFolderId = refreshedOpp?.clientFolderId;
-        clientId = refreshedOpp?.clientId;
-        retryCount++;
-      }
+        clientId = refreshedOpp?.clientId ?? clientId;
 
-      // Jeśli szansa nie ma clientFolderId, ale ma clientId, pobierz folder z klienta
-      if (!clientFolderId && clientId) {
-        const client = await ctx.runQuery(api.clients.getById, {
-          clientId,
-        });
-        if (client?.clientFolderId) {
-          clientFolderId = client.clientFolderId;
-          await log("info", "Using client folder", {
-            folderId: clientFolderId,
-            source: "client",
-          });
+        // Przy każdym retry sprawdzaj też folder klienta (Jotform tworzy folder w kliencie)
+        if (!clientFolderId && clientId) {
+          const client = await ctx.runQuery(api.clients.getById, { clientId });
+          if (client?.clientFolderId) {
+            clientFolderId = client.clientFolderId;
+            await log("info", "Using client folder (retry)", {
+              folderId: clientFolderId,
+              retryCount,
+              source: "client",
+            });
+          }
         }
+
+        retryCount++;
       }
 
       if (!clientFolderId) {

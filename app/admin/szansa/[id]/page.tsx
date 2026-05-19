@@ -525,28 +525,6 @@ export default function OpportunityDetailPage({
         </div>
       )}
 
-      {/* Pliki projektowe (read-only z Jotforma) */}
-      {fileLinks.length > 0 && (
-        <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-            Pliki projektowe
-          </h2>
-          <ul style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, margin: 0, paddingLeft: 16 }}>
-            {fileLinks.map((url) => (
-              <li key={url}>
-                <a
-                  href={`/api/jotform/file?url=${encodeURIComponent(url)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: "var(--accent)", wordBreak: "break-all" }}
-                >
-                  {url}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {/* Pliki na Google Drive */}
       {(opp?.driveProjectFiles?.length ?? 0) > 0 && (
