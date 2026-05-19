@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { SERVICES } from "@/convex/schema";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
+import { Upload, X } from "lucide-react";
 
 interface NewOpportunityModalProps {
   onClose: () => void;
@@ -16,6 +17,7 @@ export default function NewOpportunityModal({
   onSuccess,
 }: NewOpportunityModalProps) {
   const create = useMutation(api.salesOpportunities.createManualOpportunity);
+  const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -28,8 +30,11 @@ export default function NewOpportunityModal({
   const [city, setCity] = useState("");
   const [services, setServices] = useState<string[]>([]);
   const [comment, setComment] = useState("");
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; storageId: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function toggleService(s: string) {
     setServices((prev) =>
@@ -42,6 +47,50 @@ export default function NewOpportunityModal({
     if (a.buildingNumber) setBuildingNumber(a.buildingNumber);
     if (a.postalCode) setPostalCode(a.postalCode);
     if (a.city) setCity(a.city);
+  }
+
+  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setError(null);
+    try {
+      // Generuj upload URL
+      const uploadUrl = await generateUploadUrl();
+
+      // Uploaduj plik
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+
+      const { storageId } = await response.json();
+      if (!storageId) {
+        throw new Error("No storageId returned");
+      }
+
+      setUploadedFile({
+        name: file.name,
+        storageId,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Nie udało się wgrać pliku");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }
+
+  function removeFile() {
+    setUploadedFile(null);
   }
 
   async function handleSubmit() {
@@ -64,6 +113,7 @@ export default function NewOpportunityModal({
         city: city.trim() || undefined,
         services: services.length > 0 ? services : undefined,
         comment: comment.trim() || undefined,
+        uploadedFileId: uploadedFile?.storageId as any,
       });
       onSuccess(id);
     } catch (err) {
@@ -222,6 +272,44 @@ export default function NewOpportunityModal({
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                Plik do wgrania
+              </label>
+              {uploadedFile ? (
+                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <span className="text-sm text-slate-700">{uploadedFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={removeFile}
+                    disabled={uploading}
+                    className="text-slate-400 hover:text-slate-600 disabled:opacity-50"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading || submitting}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 px-3 py-6 text-slate-600 transition-colors hover:border-blue-400 hover:bg-blue-50 disabled:opacity-50"
+                >
+                  <Upload size={16} />
+                  <span className="text-sm font-medium">
+                    {uploading ? "Wgrywanie..." : "Kliknij aby wybrać plik"}
+                  </span>
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFileUpload}
+                disabled={uploading || submitting}
+                className="hidden"
+              />
             </div>
 
             <div className="space-y-1.5">

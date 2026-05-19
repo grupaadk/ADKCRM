@@ -2070,6 +2070,106 @@ export const healthCheck = action({
   },
 });
 
+export const uploadManualOpportunityFile = action({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+    storageId: v.id("_storage"),
+    maxRetries: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<{ uploaded: boolean; folderId?: string } | null> => {
+    const maxRetries = args.maxRetries ?? 3;
+    let retryCount = 0;
+
+    const log = async (
+      level: "info" | "warn" | "error",
+      message: string,
+      data?: Record<string, unknown>,
+    ) => {
+      console[level](`[uploadManualOpportunityFile] ${message}`, data ?? "");
+      try {
+        await ctx.runMutation(internal.systemLogs.insert, {
+          level,
+          source: "uploadManualOpportunityFile",
+          message,
+          data: { opportunityId: args.opportunityId, ...data },
+        });
+      } catch (e) {
+        console.error("[uploadManualOpportunityFile] systemLogs.insert failed", e);
+      }
+    };
+
+    try {
+      await log("info", "START");
+
+      const opp = await ctx.runQuery(api.salesOpportunities.getSalesOpportunity, {
+        opportunityId: args.opportunityId,
+      });
+      if (!opp) {
+        await log("error", "Opportunity not found");
+        return null;
+      }
+
+      // Czekaj na folder klienta (z retry)
+      let clientFolderId = opp.clientFolderId;
+      let clientId = opp.clientId;
+
+      while (!clientFolderId && retryCount < maxRetries) {
+        if (retryCount > 0) {
+          await log("warn", "Folder not ready, retrying...", { retryCount, maxRetries });
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+
+        const refreshedOpp = await ctx.runQuery(
+          api.salesOpportunities.getSalesOpportunity,
+          { opportunityId: args.opportunityId },
+        );
+        clientFolderId = refreshedOpp?.clientFolderId;
+        clientId = refreshedOpp?.clientId;
+        retryCount++;
+      }
+
+      if (!clientFolderId && clientId) {
+        const client = await ctx.runQuery(api.clients.getById, { clientId });
+        if (client?.clientFolderId) {
+          clientFolderId = client.clientFolderId;
+        }
+      }
+
+      if (!clientFolderId) {
+        await log("error", "Client folder not found after retries", { retryCount });
+        return null;
+      }
+
+      await log("info", "Client folder ready", { folderId: clientFolderId });
+
+      const connection = await getAuthorizedConnection(ctx);
+
+      // Pobierz plik z storage
+      const fileUrl = await ctx.storage.getUrl(args.storageId);
+      if (!fileUrl) {
+        await log("error", "File URL not found in storage");
+        return null;
+      }
+
+      // Wgraj plik
+      const result = await uploadFileToDrive(ctx, fileUrl, clientFolderId);
+      if (result) {
+        await log("info", "File uploaded successfully", {
+          fileId: result.fileId,
+          name: result.name,
+        });
+        return { uploaded: true, folderId: clientFolderId };
+      } else {
+        await log("warn", "File upload returned null");
+        return null;
+      }
+    } catch (err) {
+      await log("error", "UNEXPECTED ERROR", { error: String(err) });
+      return null;
+    }
+  },
+});
+
 export const uploadSalesOpportunityFiles = action({
   args: {
     opportunityId: v.id("pendingJotformSubmissions"),

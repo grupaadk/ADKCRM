@@ -79,6 +79,7 @@ export const createManualOpportunity = mutation({
     constructionColor: v.optional(v.array(v.string())),
     sunProtectionType: v.optional(v.array(v.string())),
     comment: v.optional(v.string()),
+    uploadedFileId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     if (!args.firstName.trim() || !args.lastName.trim()) {
@@ -97,6 +98,15 @@ export const createManualOpportunity = mutation({
       api.googleDrive.createClientFolderForOpportunity,
       { opportunityId },
     );
+
+    // Jeśli jest uploadowany plik, zaplanuj upload do Google Drive
+    if (args.uploadedFileId) {
+      await ctx.scheduler.runAfter(
+        0,
+        api.googleDrive.uploadManualOpportunityFile,
+        { opportunityId, storageId: args.uploadedFileId },
+      );
+    }
 
     return opportunityId;
   },
