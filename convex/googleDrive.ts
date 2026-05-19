@@ -824,6 +824,13 @@ export const createClientFolderForOpportunity = action({
         clientFolderUrl: folderUrl,
       });
 
+      // Planuj upload plików do nowo stworzonego folderu
+      await ctx.scheduler.runAfter(
+        0,
+        api.googleDrive.uploadSalesOpportunityFiles,
+        { opportunityId: args.opportunityId },
+      );
+
       await log("info", "DONE — folder zapisany w rekordzie szansy", { folderId });
       return { folderId, folderUrl };
     } catch (err) {
@@ -2059,6 +2066,151 @@ export const healthCheck = action({
         status: "error" as const,
         error: error instanceof Error ? error.message : "Unknown error",
       };
+    }
+  },
+});
+
+export const uploadSalesOpportunityFiles = action({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+    maxRetries: v.optional(v.number()),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ uploaded: number; failed: number; folderId?: string } | null> => {
+    const maxRetries = args.maxRetries ?? 3;
+    let retryCount = 0;
+
+    const log = async (
+      level: "info" | "warn" | "error",
+      message: string,
+      data?: Record<string, unknown>,
+    ) => {
+      console[level](`[uploadSalesOpportunityFiles] ${message}`, data ?? "");
+      try {
+        await ctx.runMutation(internal.systemLogs.insert, {
+          level,
+          source: "uploadSalesOpportunityFiles",
+          message,
+          data: { opportunityId: args.opportunityId, ...data },
+        });
+      } catch (e) {
+        console.error("[uploadSalesOpportunityFiles] systemLogs.insert failed", e);
+      }
+    };
+
+    try {
+      await log("info", "START");
+
+      const opp = await ctx.runQuery(api.salesOpportunities.getSalesOpportunity, {
+        opportunityId: args.opportunityId,
+      });
+      if (!opp) {
+        await log("error", "Opportunity not found");
+        return null;
+      }
+
+      // Sprawdź czy są pliki do wgrania
+      const fileUrls = (opp.projectFiles ?? "")
+        .split(/[\n,]+/)
+        .map((u: string) => u.trim())
+        .filter(Boolean);
+
+      if (fileUrls.length === 0) {
+        await log("info", "No files to upload");
+        return { uploaded: 0, failed: 0 };
+      }
+
+      // Czekaj na folder klienta (z retry)
+      // Folder może być w szansie (clientFolderId) lub w kliencie (jeśli szansa ma clientId)
+      let clientFolderId = opp.clientFolderId;
+      let clientId = opp.clientId;
+
+      while (!clientFolderId && retryCount < maxRetries) {
+        if (retryCount > 0) {
+          await log("warn", "Folder not ready, retrying...", {
+            retryCount,
+            maxRetries,
+            hasClientId: !!clientId,
+          });
+          // Czekaj 2 sekundy przed retry
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+
+        const refreshedOpp = await ctx.runQuery(
+          api.salesOpportunities.getSalesOpportunity,
+          { opportunityId: args.opportunityId },
+        );
+        clientFolderId = refreshedOpp?.clientFolderId;
+        clientId = refreshedOpp?.clientId;
+        retryCount++;
+      }
+
+      // Jeśli szansa nie ma clientFolderId, ale ma clientId, pobierz folder z klienta
+      if (!clientFolderId && clientId) {
+        const client = await ctx.runQuery(api.clients.getById, {
+          clientId,
+        });
+        if (client?.clientFolderId) {
+          clientFolderId = client.clientFolderId;
+          await log("info", "Using client folder", {
+            folderId: clientFolderId,
+            source: "client",
+          });
+        }
+      }
+
+      if (!clientFolderId) {
+        await log("error", "Client folder not found after retries", {
+          retryCount,
+          maxRetries,
+          hasClientId: !!clientId,
+        });
+        return null;
+      }
+
+      await log("info", "Client folder ready", {
+        folderId: clientFolderId,
+        fileCount: fileUrls.length,
+      });
+
+      const connection = await getAuthorizedConnection(ctx);
+
+      // Wgraj pliki
+      let uploaded = 0;
+      let failed = 0;
+
+      for (const url of fileUrls) {
+        try {
+          const result = await uploadFileToDrive(ctx, url, clientFolderId, {
+            jotformApiKey: await getJotformApiKeyForActions(ctx),
+          });
+          if (result) {
+            uploaded++;
+            await log("info", "File uploaded", {
+              url: url.substring(0, 50),
+              fileId: result.fileId,
+              name: result.name,
+            });
+          } else {
+            failed++;
+            await log("warn", "File upload returned null", { url });
+          }
+        } catch (error) {
+          failed++;
+          await log("error", "File upload failed", {
+            url: url.substring(0, 50),
+            error: String(error),
+          });
+        }
+      }
+
+      await log("info", "DONE", { uploaded, failed, folderId: clientFolderId });
+      return { uploaded, failed, folderId: clientFolderId };
+    } catch (err) {
+      await log("error", "UNEXPECTED ERROR", { error: String(err) });
+      return null;
     }
   },
 });

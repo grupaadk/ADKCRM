@@ -374,6 +374,15 @@ export const webhook = httpAction(async (ctx, request) => {
     { ...mapped, clientId },
   );
 
+  // Planuj upload plików do folderu klienta (gdy folder będzie gotowy)
+  if (mapped.projectFiles) {
+    await ctx.scheduler.runAfter(
+      0,
+      api.googleDrive.uploadSalesOpportunityFiles,
+      { opportunityId: pendingId },
+    );
+  }
+
   // Wyślij SMS potwierdzający przyjęcie prośby o wycenę
   if (mapped.phone) {
     await ctx.scheduler.runAfter(0, internal.sms.sendQuoteConfirmation, {
@@ -387,6 +396,7 @@ export const webhook = httpAction(async (ctx, request) => {
     pendingId,
     email: mapped.email,
     submissionId: mapped.submissionId,
+    filesCount: mapped.projectFiles ? mapped.projectFiles.split(/[\n,]+/).filter(Boolean).length : 0,
   });
 
   return new Response(
