@@ -960,10 +960,12 @@ export const createOrderFolder = action({
           opportunityId: args.opportunityId,
         });
         const oppFiles = opp?.driveProjectFiles ?? [];
-        if (oppFiles.length > 0 && clientFolderId) {
+        // Pliki są w folderze szansy (opp.clientFolderId), nie w folderze klienta
+        const oppFolderId = opp?.clientFolderId ?? clientFolderId;
+        if (oppFiles.length > 0 && oppFolderId) {
           await log("info", "moving files from opportunity to order folder", {
             count: oppFiles.length,
-            fromFolderId: clientFolderId,
+            fromFolderId: oppFolderId,
             toFolderId: folderId,
           });
           for (const file of oppFiles) {
@@ -973,7 +975,7 @@ export const createOrderFolder = action({
               continue;
             }
             try {
-              await moveFileToDriveFolder(ctx, fileId, clientFolderId, folderId);
+              await moveFileToDriveFolder(ctx, fileId, oppFolderId, folderId);
               driveProjectFiles.push({ fileId, name: file.name, url: file.url });
             } catch (error) {
               await log("error", "file move failed", { fileId, url: file.url, error: String(error) });

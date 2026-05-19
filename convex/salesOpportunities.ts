@@ -359,6 +359,15 @@ export const convertToOrder = mutation({
       }
     }
 
+    // Skopiuj pliki Drive z szansy do zlecenia (wyciągamy fileId z URL)
+    const driveProjectFiles = (opp.driveProjectFiles ?? [])
+      .map((file) => {
+        const match = file.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+        const fileId = match?.[1] ?? null;
+        return fileId ? { fileId, name: file.name, url: file.url } : null;
+      })
+      .filter((f): f is { fileId: string; name: string; url: string } => f !== null);
+
     const orderName = await nextOrderNumber(ctx);
     const orderId = await ctx.db.insert("orders", {
       clientId,
@@ -371,6 +380,7 @@ export const convertToOrder = mutation({
       constructionColor: opp.constructionColor,
       sunProtectionType: opp.sunProtectionType,
       projectFiles: opp.projectFiles,
+      driveProjectFiles: driveProjectFiles.length > 0 ? driveProjectFiles : undefined,
       comment: opp.comment,
       status: "measurement",
       documents: DEFAULT_DOCUMENTS,
