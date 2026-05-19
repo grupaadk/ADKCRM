@@ -1,11 +1,12 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { DEFAULT_DOCUMENTS, nextOrderNumber } from "./orders";
 
 // Zapis nowej szansy sprzedaży (z webhooka Jotform lub ręcznie z panelu).
 // Klient NIE jest tworzony — powstaje dopiero przy konwersji do zlecenia.
+// Folder Google Drive (FirstName_LastName) tworzy się automatycznie.
 export const createSalesOpportunity = mutation({
   args: {
     firstName: v.string(),
@@ -39,16 +40,26 @@ export const createSalesOpportunity = mutation({
       if (existing) return existing._id;
     }
 
-    return await ctx.db.insert("pendingJotformSubmissions", {
+    const opportunityId = await ctx.db.insert("pendingJotformSubmissions", {
       ...args,
       stage: "lead",
       processed: false,
       archived: false,
     });
+
+    // Zaplanuj asynchroniczne tworzenie folderu klienta
+    await ctx.scheduler.runAfter(
+      0,
+      api.googleDrive.createClientFolderForOpportunity,
+      { opportunityId },
+    );
+
+    return opportunityId;
   },
 });
 
 // Ręczne utworzenie szansy sprzedaży z panelu administratora.
+// Folder Google Drive (FirstName_LastName) tworzy się automatycznie.
 export const createManualOpportunity = mutation({
   args: {
     firstName: v.string(),
@@ -73,19 +84,41 @@ export const createManualOpportunity = mutation({
     if (!args.firstName.trim() || !args.lastName.trim()) {
       throw new Error("Imię i nazwisko są wymagane");
     }
-    return await ctx.db.insert("pendingJotformSubmissions", {
+    const opportunityId = await ctx.db.insert("pendingJotformSubmissions", {
       ...args,
       stage: "lead",
       processed: false,
       archived: false,
     });
+
+    // Zaplanuj asynchroniczne tworzenie folderu klienta
+    await ctx.scheduler.runAfter(
+      0,
+      api.googleDrive.createClientFolderForOpportunity,
+      { opportunityId },
+    );
+
+    return opportunityId;
   },
 });
 
 export const getSalesOpportunity = query({
   args: { opportunityId: v.id("pendingJotformSubmissions") },
   handler: async (ctx, args) => {
-    return ctx.db.get(args.opportunityId);
+    const opp = await ctx.db.get(args.opportunityId);
+    if (!opp) return null;
+
+    // Preferuj clientFolderUrl ze szansy; jeśli brak, spróbuj pobrać z klienta
+    if (opp.clientFolderUrl) {
+      return opp;
+    }
+
+    if (opp.clientId) {
+      const client = await ctx.db.get(opp.clientId);
+      return { ...opp, clientFolderUrl: client?.clientFolderUrl };
+    }
+
+    return opp;
   },
 });
 
@@ -259,6 +292,9 @@ export const convertToOrder = mutation({
 
     // Dedupe klienta po email + firstName + lastName
     let clientId: Id<"clients">;
+    let clientFolderId = opp.clientFolderId;
+    let clientFolderUrl = opp.clientFolderUrl;
+
     if (opp.clientId) {
       clientId = opp.clientId;
     } else {
@@ -279,6 +315,11 @@ export const convertToOrder = mutation({
 
       if (existingClient) {
         clientId = existingClient._id;
+        // Jeśli klient istniał, spróbuj pobrać jego folder (jeśli brak, będzie undefined)
+        if (!clientFolderId && existingClient.clientFolderId) {
+          clientFolderId = existingClient.clientFolderId;
+          clientFolderUrl = existingClient.clientFolderUrl;
+        }
       } else {
         clientId = await ctx.db.insert("clients", {
           firstName: opp.firstName,
@@ -292,6 +333,9 @@ export const convertToOrder = mutation({
           city: opp.city,
           source: opp.submissionId ? "jotform" : "manual",
           createdBy: "system",
+          // Jeśli szansa ma folder, powiąż go z nowym klientem
+          clientFolderId,
+          clientFolderUrl,
         });
         await ctx.db.insert("clientEvents", {
           clientId,
@@ -362,5 +406,20 @@ export const convertToOrder = mutation({
     }
 
     return { clientId, orderId };
+  },
+});
+
+export const updateClientFolder = internalMutation({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+    clientFolderId: v.string(),
+    clientFolderUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.opportunityId, {
+      clientFolderId: args.clientFolderId,
+      clientFolderUrl: args.clientFolderUrl,
+      clientFolderCreatedAt: Date.now(),
+    });
   },
 });

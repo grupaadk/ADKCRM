@@ -10,7 +10,7 @@ import { SERVICES } from "@/convex/schema";
 import InlineEdit from "@/app/admin/klient/[id]/InlineEdit";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { useStatusLabel } from "@/components/StatusLabelsContext";
-import { ArrowLeft, Archive, ArchiveRestore, Trash2, Send } from "lucide-react";
+import { ArrowLeft, Archive, ArchiveRestore, Trash2, Send, FolderOpen } from "lucide-react";
 
 const FIELD_LABEL: React.CSSProperties = {
   fontSize: 11,
@@ -237,6 +237,18 @@ export default function OpportunityDetailPage({
         </div>
 
         <div style={{ display: "flex", gap: 6 }}>
+          {opp.clientFolderUrl && (
+            <a
+              href={opp.clientFolderUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="btn"
+              style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+              title="Otwórz folder Google Drive"
+            >
+              <FolderOpen size={13} /> Drive
+            </a>
+          )}
           <button
             onClick={handleArchive}
             className="btn"

@@ -763,6 +763,76 @@ export const listFolders = action({
   },
 });
 
+export const createClientFolderForOpportunity = action({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ folderId: string; folderUrl: string } | null> => {
+    const log = async (
+      level: "info" | "warn" | "error",
+      message: string,
+      data?: Record<string, unknown>,
+    ) => {
+      console[level](`[createClientFolderForOpportunity] ${message}`, data ?? "");
+      try {
+        await ctx.runMutation(internal.systemLogs.insert, {
+          level,
+          source: "createClientFolderForOpportunity",
+          message,
+          data: { opportunityId: args.opportunityId, ...data },
+        });
+      } catch (e) {
+        console.error("[createClientFolderForOpportunity] systemLogs.insert failed", e);
+      }
+    };
+
+    try {
+      await log("info", "START");
+
+      const opp = await ctx.runQuery(api.salesOpportunities.getSalesOpportunity, {
+        opportunityId: args.opportunityId,
+      });
+      if (!opp) {
+        await log("error", "Opportunity not found");
+        return null;
+      }
+
+      if (opp.clientFolderId) {
+        await log("info", "folder already exists — pomijam", { folderId: opp.clientFolderId });
+        return { folderId: opp.clientFolderId, folderUrl: opp.clientFolderUrl ?? "" };
+      }
+
+      const connection = await getAuthorizedConnection(ctx);
+      await log("info", "connection OK", { connectedEmail: connection.connectedEmail });
+
+      // Szukaj lub utwórz folder klienta (Imię_Nazwisko) w shared drive
+      const clientFolderName = `${opp.firstName}_${opp.lastName}`;
+      await log("info", "looking for or creating client folder", { clientFolderName, parentId: CLIENTS_FOLDER_ID });
+      const folderId = await findOrCreateDriveFolder(
+        connection.accessToken,
+        clientFolderName,
+        CLIENTS_FOLDER_ID,
+      );
+      const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
+
+      await ctx.runMutation(internal.salesOpportunities.updateClientFolder, {
+        opportunityId: args.opportunityId,
+        clientFolderId: folderId,
+        clientFolderUrl: folderUrl,
+      });
+
+      await log("info", "DONE — folder zapisany w rekordzie szansy", { folderId });
+      return { folderId, folderUrl };
+    } catch (err) {
+      await log("error", "NIEOCZEKIWANY BŁĄD", { error: String(err) });
+      return null;
+    }
+  },
+});
+
 export const createOrderFolder = action({
   args: {
     orderId: v.id("orders"),
