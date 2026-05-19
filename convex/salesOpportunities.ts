@@ -411,7 +411,7 @@ export const convertToOrder = mutation({
       await ctx.scheduler.runAfter(
         0,
         api.googleDrive.createOrderFolder,
-        { orderId },
+        { orderId, opportunityId: args.opportunityId },
       );
     }
 

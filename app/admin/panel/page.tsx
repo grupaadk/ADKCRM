@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { useStatusLabels } from "@/components/StatusLabelsContext"
 import type { KanbanItem } from "@/convex/kanban"
-import { Plus, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, ChevronDown, ChevronUp, Archive, ArchiveRestore } from "lucide-react"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 import NewOpportunityModal from "@/components/NewOpportunityModal"
 
@@ -105,6 +105,7 @@ function OrderCard({
   onClick,
   onDelete,
   onToggleExpand,
+  onArchive,
 }: {
   item: KanbanItem
   isDragging: boolean
@@ -114,8 +115,10 @@ function OrderCard({
   onClick: () => void
   onDelete: (item: KanbanItem) => void
   onToggleExpand: () => void
+  onArchive?: (item: KanbanItem) => void
 }) {
   const isPending = item.type === "pending"
+
   const fullName = `${item.clientFirstName} ${item.clientLastName}`.trim()
   const didDragRef = useRef(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -199,6 +202,26 @@ function OrderCard({
         >
           {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </button>
+
+        {/* Przycisk archiwizowania (tylko szanse sprzedaży) */}
+        {isPending && onArchive && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onArchive(item) }}
+            style={{
+              width: 18, height: 18, borderRadius: 4,
+              background: "transparent", border: "none",
+              color: "var(--text-mute)", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              opacity: 0.4, flexShrink: 0,
+              transition: "opacity 0.15s, background 0.15s",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; (e.currentTarget as HTMLButtonElement).style.background = "#fef3c7"; (e.currentTarget as HTMLButtonElement).style.color = "#b45309" }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.4"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "var(--text-mute)" }}
+            title="Archiwizuj szansę"
+          >
+            <Archive size={11} />
+          </button>
+        )}
 
         {/* Przycisk usuwania */}
         <button
@@ -292,6 +315,89 @@ function OrderCard({
   )
 }
 
+// ─── Zakładka Archiwum LEAD ─────────────────────────────────────────
+function ArchivedLeadsTab() {
+  const router = useRouter()
+  const archivedLeads = useQuery(api.salesOpportunities.listArchivedOpportunities)
+  const unarchive = useMutation(api.salesOpportunities.unarchiveOpportunity)
+
+  if (!archivedLeads) {
+    return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Ładowanie...</div>
+  }
+
+  if (archivedLeads.length === 0) {
+    return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak zarchiwizowanych szans sprzedaży</div>
+  }
+
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid var(--line)" }}>
+            {["Klient", "Etap", "Usługi", ""].map((h) => (
+              <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--text-mute)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {archivedLeads.map((opp) => (
+            <tr
+              key={opp._id}
+              style={{ borderBottom: "1px solid var(--line)", cursor: "pointer" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel-2)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+              onClick={() => router.push(`/admin/szansa/${opp._id}`)}
+            >
+              <td style={{ padding: "10px 12px", color: "var(--text-strong)", fontWeight: 600 }}>
+                {opp.firstName} {opp.lastName}
+                {opp.email && <div style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 400 }}>{opp.email}</div>}
+              </td>
+              <td style={{ padding: "10px 12px" }}>
+                <span style={{ fontSize: 10, fontWeight: 700, background: opp.stage === "inquiry" ? "#dbeafe" : "#fef3c7", color: opp.stage === "inquiry" ? "#1d4ed8" : "#b45309", borderRadius: 3, padding: "2px 6px" }}>
+                  {opp.stage === "inquiry" ? "Oferta wysłana" : "Oferty"}
+                </span>
+              </td>
+              <td style={{ padding: "10px 12px" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                  {(opp.services ?? []).slice(0, 3).map((s, i) => {
+                    const c = SERVICE_COLORS[i % SERVICE_COLORS.length]
+                    return (
+                      <span key={s} style={{ fontSize: 10, fontWeight: 600, background: c.bg, color: c.text, borderRadius: 3, padding: "2px 6px" }}>{s}</span>
+                    )
+                  })}
+                  {(opp.services ?? []).length > 3 && (
+                    <span style={{ fontSize: 10, fontWeight: 600, background: "#f1f5f9", color: "#64748b", borderRadius: 3, padding: "2px 6px" }}>+{(opp.services ?? []).length - 3}</span>
+                  )}
+                </div>
+              </td>
+              <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void unarchive({ opportunityId: opp._id })
+                  }}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    padding: "4px 10px", borderRadius: 5,
+                    border: "1px solid var(--line)", background: "var(--panel)",
+                    fontSize: 11, fontWeight: 500, color: "var(--text)",
+                    cursor: "pointer",
+                  }}
+                  title="Przywróć z archiwum"
+                >
+                  <ArchiveRestore size={12} /> Przywróć
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // ─── Zakładka Archiwum ──────────────────────────────────────────────
 function ArchivedTab() {
   const statusLabels = useStatusLabels()
@@ -367,7 +473,7 @@ function ArchivedTab() {
 export default function PanelPage() {
   const statusLabels = useStatusLabels()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<"kanban" | "opportunities" | "archived">("kanban")
+  const [activeTab, setActiveTab] = useState<"kanban" | "opportunities" | "archived" | "archived-leads">("kanban")
   const [draggingItem, setDraggingItem] = useState<KanbanItem | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -380,6 +486,7 @@ export default function PanelPage() {
   const updatePendingStage = useMutation(api.jotformInternal.updatePendingStage)
   const deleteOrder = useAction(api.orders.deleteOrder)
   const deletePending = useMutation(api.jotformInternal.deletePending)
+  const archiveOpportunity = useMutation(api.salesOpportunities.archiveOpportunity)
 
   const topScrollRef = useRef<HTMLDivElement>(null)
   const bottomScrollRef = useRef<HTMLDivElement>(null)
@@ -391,6 +498,7 @@ export default function PanelPage() {
 
   useEffect(() => {
     if (activeTab !== "kanban" && activeTab !== "opportunities") return
+
     const el = bottomScrollRef.current
     if (!el) return
     const update = () => {
@@ -454,6 +562,17 @@ export default function PanelPage() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Błąd usuwania"
+      setErrorMsg(msg)
+      setTimeout(() => setErrorMsg(null), 3000)
+    }
+  }
+
+  async function handleArchiveOpportunity(item: KanbanItem) {
+    if (item.type !== "pending") return
+    try {
+      await archiveOpportunity({ opportunityId: item.pendingId })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Błąd archiwizacji"
       setErrorMsg(msg)
       setTimeout(() => setErrorMsg(null), 3000)
     }
@@ -583,7 +702,7 @@ export default function PanelPage() {
               {allExpanded ? "Zwiń wszystkie" : "Rozwiń wszystkie"}
             </button>
           )}
-          {activeTab === "opportunities" ? (
+          {activeTab === "opportunities" || activeTab === "archived-leads" ? (
             <button className="btn primary" onClick={() => setShowNewOpportunityModal(true)}>
               <Plus size={13} /> Nowa szansa sprzedaży
             </button>
@@ -607,7 +726,7 @@ export default function PanelPage() {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 2, borderBottom: "1px solid var(--line)", marginBottom: 4 }}>
-        {(["kanban", "opportunities", "archived"] as const).map((tab) => (
+        {(["kanban", "opportunities", "archived", "archived-leads"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -628,7 +747,10 @@ export default function PanelPage() {
               gap: 6,
             }}
           >
-            {tab === "kanban" ? "Zlecenia" : tab === "opportunities" ? "Szanse sprzedaży" : "Archiwum"}
+            {tab === "kanban" ? "Zlecenia"
+              : tab === "opportunities" ? "Szanse sprzedaży"
+              : tab === "archived" ? "Archiwum"
+              : "Archiwum LEAD"}
             {tab === "opportunities" && newLeadsCount > 0 && (
               <span
                 aria-label={`${newLeadsCount} nowych szans sprzedaży`}
@@ -762,6 +884,7 @@ export default function PanelPage() {
                             onDragEnd={handleDragEnd}
                             onDelete={handleDelete}
                             onClick={() => handleCardClick(item)}
+                            onArchive={handleArchiveOpportunity}
                           />
                         ))}
                         {colItems.length === 0 && (
@@ -782,8 +905,11 @@ export default function PanelPage() {
         </>
       )}
 
-      {/* Zakończone tab */}
+      {/* Archiwum tab (zlecenia) */}
       {activeTab === "archived" && <ArchivedTab />}
+
+      {/* Archiwum LEAD tab (szanse sprzedaży) */}
+      {activeTab === "archived-leads" && <ArchivedLeadsTab />}
 
       {showNewOrderModal && (
         <NewOrderModal

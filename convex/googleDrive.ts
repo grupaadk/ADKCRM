@@ -357,6 +357,24 @@ async function renameDriveItem(
   );
 }
 
+function extractGoogleDriveFileId(url: string): string | null {
+  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : null;
+}
+
+async function moveFileToDriveFolder(
+  ctx: ActionCtx,
+  fileId: string,
+  fromFolderId: string,
+  toFolderId: string,
+): Promise<void> {
+  await driveApiFetchWithRetry(
+    ctx,
+    `/files/${fileId}?addParents=${toFolderId}&removeParents=${fromFolderId}&supportsAllDrives=true`,
+    { method: "PATCH", body: JSON.stringify({}) },
+  );
+}
+
 async function createDriveFolder(
   ctx: ActionCtx,
   name: string,
@@ -843,6 +861,7 @@ export const createClientFolderForOpportunity = action({
 export const createOrderFolder = action({
   args: {
     orderId: v.id("orders"),
+    opportunityId: v.optional(v.id("pendingJotformSubmissions")),
   },
   handler: async (
     ctx,
@@ -932,32 +951,65 @@ export const createOrderFolder = action({
       );
       await log("info", "order folder created", { folderId, folderUrl });
 
-      // Krok 3: Wgraj załączniki z formularza bezpośrednio do folderu zlecenia
-      const attachmentUrls = (order.projectFiles ?? "")
-        .split(/[\n,]+/)
-        .map((u: string) => u.trim())
-        .filter(Boolean);
-
-      const fromJotform =
-        order.source === "jotform" || !!order.jotformSubmissionId;
-      const jotformApiKey = fromJotform
-        ? await getJotformApiKeyForActions(ctx)
-        : null;
-      if (fromJotform && attachmentUrls.length > 0 && !jotformApiKey) {
-        await log("warn", "Jotform order has attachments but no API key configured");
-      }
-
+      // Krok 3: Przenieś pliki szansy sprzedaży LUB wgraj z surowych URL-i
       const driveProjectFiles: Array<{ fileId: string; name: string; url: string }> = [];
-      for (const url of attachmentUrls) {
-        try {
-          const result = await uploadFileToDrive(ctx, url, folderId, { jotformApiKey });
-          if (result) driveProjectFiles.push(result);
-        } catch (error) {
-          await log("error", "attachment upload failed", { url, error: String(error) });
+
+      let filesMovedFromOpportunity = false;
+      if (args.opportunityId) {
+        const opp = await ctx.runQuery(api.salesOpportunities.getSalesOpportunity, {
+          opportunityId: args.opportunityId,
+        });
+        const oppFiles = opp?.driveProjectFiles ?? [];
+        if (oppFiles.length > 0 && clientFolderId) {
+          await log("info", "moving files from opportunity to order folder", {
+            count: oppFiles.length,
+            fromFolderId: clientFolderId,
+            toFolderId: folderId,
+          });
+          for (const file of oppFiles) {
+            const fileId = extractGoogleDriveFileId(file.url);
+            if (!fileId) {
+              await log("warn", "could not extract fileId from URL — skipping", { url: file.url });
+              continue;
+            }
+            try {
+              await moveFileToDriveFolder(ctx, fileId, clientFolderId, folderId);
+              driveProjectFiles.push({ fileId, name: file.name, url: file.url });
+            } catch (error) {
+              await log("error", "file move failed", { fileId, url: file.url, error: String(error) });
+            }
+          }
+          await log("info", "files moved", { moved: driveProjectFiles.length, total: oppFiles.length });
+          filesMovedFromOpportunity = true;
         }
       }
-      if (attachmentUrls.length > 0) {
-        await log("info", "attachments uploaded", { uploaded: driveProjectFiles.length, total: attachmentUrls.length });
+
+      if (!filesMovedFromOpportunity) {
+        const attachmentUrls = (order.projectFiles ?? "")
+          .split(/[\n,]+/)
+          .map((u: string) => u.trim())
+          .filter(Boolean);
+
+        const fromJotform =
+          order.source === "jotform" || !!order.jotformSubmissionId;
+        const jotformApiKey = fromJotform
+          ? await getJotformApiKeyForActions(ctx)
+          : null;
+        if (fromJotform && attachmentUrls.length > 0 && !jotformApiKey) {
+          await log("warn", "Jotform order has attachments but no API key configured");
+        }
+
+        for (const url of attachmentUrls) {
+          try {
+            const result = await uploadFileToDrive(ctx, url, folderId, { jotformApiKey });
+            if (result) driveProjectFiles.push(result);
+          } catch (error) {
+            await log("error", "attachment upload failed", { url, error: String(error) });
+          }
+        }
+        if (attachmentUrls.length > 0) {
+          await log("info", "attachments uploaded", { uploaded: driveProjectFiles.length, total: attachmentUrls.length });
+        }
       }
 
       await ctx.runMutation(api.orders.updateDriveFolder, {

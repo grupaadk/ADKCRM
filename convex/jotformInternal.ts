@@ -258,7 +258,7 @@ export const promoteToMeasurement = mutation({
       await ctx.scheduler.runAfter(
         0,
         api.googleDrive.createOrderFolder,
-        { orderId },
+        { orderId, opportunityId: args.pendingId },
       );
     }
 
@@ -335,7 +335,7 @@ export const repairPendingSubmission = mutation({
       await ctx.scheduler.runAfter(
         0,
         api.googleDrive.createOrderFolder,
-        { orderId },
+        { orderId, opportunityId: args.pendingId },
       );
     }
 
