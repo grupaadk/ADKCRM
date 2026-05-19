@@ -11,7 +11,13 @@ const LEVEL_PILL: Record<string, React.CSSProperties> = {
   error: { color: "var(--bad)", background: "var(--bad-soft)", borderColor: "oklch(0.72 0.18 25 / 0.4)" },
 };
 
-const SOURCES = ["createClientFolder", "createOrderFolder"];
+const SOURCES = [
+  "createClientFolder",
+  "createOrderFolder",
+  "createClientFolderForOpportunity",
+  "uploadSalesOpportunityFiles",
+  "uploadManualOpportunityFile",
+];
 
 export default function LogiPage() {
   const [source, setSource] = useState<string>("");
