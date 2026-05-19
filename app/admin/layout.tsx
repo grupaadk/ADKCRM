@@ -31,7 +31,8 @@ function AccessGuard({ children }: { children: ReactNode }) {
       router.replace("/brak-dostepu")
     }
   }, [me, router])
-  if (me === undefined) {
+
+  if (me === undefined || me === null) {
     return (
       <div
         className="flex items-center justify-center min-h-screen"
@@ -39,7 +40,7 @@ function AccessGuard({ children }: { children: ReactNode }) {
       />
     )
   }
-  if (me === null) return null
+
   return <>{children}</>
 }
 
