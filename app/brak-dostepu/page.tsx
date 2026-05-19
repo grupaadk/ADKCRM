@@ -1,8 +1,17 @@
 "use client";
 
-import { SignOutButton } from "@clerk/nextjs";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useRouter } from "next/navigation";
 
 export default function BrakDostepu() {
+  const { signOut } = useAuthActions();
+  const router = useRouter();
+
+  async function handleSignOut() {
+    await signOut();
+    router.replace("/login");
+  }
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="text-center flex flex-col gap-4 items-center">
@@ -12,14 +21,16 @@ export default function BrakDostepu() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Brak dostępu</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Twoje konto nie ma uprawnień do tego panelu.
+            Twoje konto nie ma uprawnień do tego panelu lub zostało dezaktywowane.
           </p>
         </div>
-        <SignOutButton>
-          <button className="rounded-md bg-gray-800 px-6 py-2.5 text-sm font-medium text-white hover:bg-gray-700 transition-colors">
-            Wyloguj się
-          </button>
-        </SignOutButton>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="rounded-md bg-gray-800 px-6 py-2.5 text-sm font-medium text-white hover:bg-gray-700 transition-colors"
+        >
+          Wyloguj się
+        </button>
       </div>
     </div>
   );

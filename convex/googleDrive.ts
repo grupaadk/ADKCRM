@@ -4,6 +4,17 @@ import type { Doc } from "./_generated/dataModel";
 import { query, mutation, action, internalMutation, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { encrypt, decrypt } from "./lib/crypto";
+import { getAuthUserId } from "@convex-dev/auth/server";
+
+async function requireUserIdentifierInAction(ctx: ActionCtx): Promise<string> {
+  const currentUserId = await getAuthUserId(ctx);
+  if (!currentUserId) throw new Error("Brak autoryzacji");
+  const user = (await ctx.runQuery(internal.users._internalGetUser, {
+    userId: currentUserId,
+  })) as Doc<"users"> | null;
+  if (!user || user.isActive !== true) throw new Error("Brak autoryzacji");
+  return user.email ?? user._id;
+}
 
 const DRIVE_API_BASE = "https://www.googleapis.com/drive/v3";
 const DOCS_API_BASE = "https://docs.googleapis.com/v1";
@@ -994,8 +1005,7 @@ export const uploadUserDocument = action({
     signatureStatus: v.union(v.literal("signed"), v.literal("not_applicable")),
   },
   handler: async (ctx, args): Promise<string> => {
-    const identity = await ctx.auth.getUserIdentity();
-    const performedBy = identity?.subject ?? "anonymous";
+    const performedBy = await requireUserIdentifierInAction(ctx);
 
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) throw new Error("Zlecenie nie znalezione");
@@ -1150,8 +1160,7 @@ export const uploadOrderAttachment = action({
     folderPath: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ fileId: string; name: string; url: string }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    const performedBy = identity?.subject ?? "anonymous";
+    const performedBy = await requireUserIdentifierInAction(ctx);
 
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) throw new Error("Zlecenie nie znalezione");
@@ -1349,8 +1358,7 @@ export const syncOrderAttachments = action({
     ctx,
     args,
   ): Promise<{ added: number; removed: number; updated: number }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    const performedBy = identity?.subject ?? "anonymous";
+    const performedBy = await requireUserIdentifierInAction(ctx);
 
     const order = await ctx.runQuery(api.orders.getById, {
       orderId: args.orderId,

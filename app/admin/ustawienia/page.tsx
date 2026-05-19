@@ -7,7 +7,6 @@ import { DEFAULT_STATUS_LABELS, useStatusLabels } from "@/components/StatusLabel
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import type { Id } from "@/convex/_generated/dataModel";
-import PinGate from "@/components/PinGate";
 
 type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi";
 
@@ -2385,7 +2384,6 @@ export default function UstawieniaPage() {
   const router = useRouter();
 
   return (
-    <PinGate onBack={() => router.back()}>
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">Ustawienia</h1>
@@ -2432,6 +2430,5 @@ export default function UstawieniaPage() {
       </div>
       ── */}
     </div>
-    </PinGate>
   );
 }

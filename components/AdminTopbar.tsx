@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation"
 import { Bell } from "lucide-react"
 import { SidebarTrigger } from "@/components/ui/Sidebar"
+import { UserMenu } from "@/components/UserMenu"
 
 const ROUTE_LABELS: Record<string, string> = {
   "/admin": "Klienci",
@@ -54,6 +55,8 @@ export function AdminTopbar() {
       >
         <Bell size={15} />
       </button>
+
+      <UserMenu />
     </header>
   )
 }

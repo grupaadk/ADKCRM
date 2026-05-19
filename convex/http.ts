@@ -2,8 +2,12 @@ import { httpRouter } from "convex/server";
 import { webhook, fileRedirect } from "./jotform";
 import { initiateOAuth, oauthCallback } from "./googleDriveAuth";
 import { initiateOAuth as gmailInitiateOAuth, oauthCallback as gmailOauthCallback } from "./gmailAuth";
+import { auth } from "./auth";
 
 const http = httpRouter();
+
+// Convex Auth — endpointy /api/auth/signIn, /api/auth/signOut, /api/auth/verifyCode, etc.
+auth.addHttpRoutes(http);
 
 http.route({
   path: "/api/webhooks/jotform",

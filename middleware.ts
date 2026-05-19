@@ -1,40 +1,26 @@
-import { clerkMiddleware, createRouteMatcher, clerkClient } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import {
+  convexAuthNextjsMiddleware,
+  createRouteMatcher,
+  nextjsMiddlewareRedirect,
+} from "@convex-dev/auth/nextjs/server";
 
 const isProtectedRoute = createRouteMatcher(["/admin(.*)"]);
+const isLoginRoute = createRouteMatcher(["/login"]);
 
-const allowedEmails = (process.env.ALLOWED_ADMIN_EMAILS ?? "")
-  .split(/[,\s;]+/)
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
+export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
+  const isAuthed = await convexAuth.isAuthenticated();
 
-export default clerkMiddleware(async (auth, req) => {
-  if (!isProtectedRoute(req)) return;
-
-  const { userId } = await auth();
-
-  if (!userId) {
-    return (await auth()).redirectToSignIn({ returnBackUrl: req.url });
+  if (isProtectedRoute(request) && !isAuthed) {
+    return nextjsMiddlewareRedirect(request, "/login");
   }
-
-  const client = await clerkClient();
-  const user = await client.users.getUser(userId);
-  const userEmails = user.emailAddresses
-    .map((email) => email.emailAddress?.toLowerCase())
-    .filter(Boolean);
-
-  const hasAllowedEmail = userEmails.some((email) => allowedEmails.includes(email));
-
-  if (!hasAllowedEmail) {
-    return NextResponse.redirect(new URL("/brak-dostepu", req.url));
+  if (isLoginRoute(request) && isAuthed) {
+    return nextjsMiddlewareRedirect(request, "/admin");
   }
 });
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
     "/(api|trpc)(.*)",
   ],
 };

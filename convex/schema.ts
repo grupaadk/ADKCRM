@@ -1,5 +1,15 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
+
+// Role użytkowników wewnętrznych
+export const USER_ROLES = ["admin", "sales", "montaz"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+const userRole = v.union(
+  v.literal("admin"),
+  v.literal("sales"),
+  v.literal("montaz"),
+);
 
 // Status workflow wg PRD sekcja 3.1
 export const CLIENT_STATUSES = [
@@ -112,6 +122,28 @@ const fakturowniaOrderLink = v.object({
 });
 
 export default defineSchema({
+  // Convex Auth tables (sessions, accounts, refresh tokens, verification codes, etc.)
+  // Rozszerzamy users o pola wewnętrzne: role, isActive, displayName.
+  // Pole `email` z authTables przechowuje login (username) — Password provider
+  // używa tego pola jako identyfikatora konta.
+  ...authTables,
+  users: defineTable({
+    // Pola z authTables.users:
+    name: v.optional(v.string()),
+    image: v.optional(v.string()),
+    email: v.optional(v.string()), // login (username)
+    emailVerificationTime: v.optional(v.number()),
+    phone: v.optional(v.string()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+    // Pola wewnętrzne:
+    role: v.optional(userRole),
+    isActive: v.optional(v.boolean()),
+    displayName: v.optional(v.string()),
+  })
+    .index("email", ["email"])
+    .index("phone", ["phone"]),
+
   // 3.1 Klient — tylko dane kontaktowe
   clients: defineTable({
     firstName: v.string(),

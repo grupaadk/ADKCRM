@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { getCurrentUser, requireUser } from "./lib/auth";
 
 const viewTypeValidator = v.literal("table");
 
@@ -29,12 +30,11 @@ export const getForUser = query({
     v.null(),
   ),
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject;
-
-    if (!userId) {
+    const user = await getCurrentUser(ctx);
+    if (!user || user.isActive !== true) {
       return null;
     }
+    const userId = user._id;
 
     return await ctx.db
       .query("viewConfig")
@@ -53,12 +53,8 @@ export const save = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject;
-
-    if (!userId) {
-      throw new Error("Brak autoryzacji");
-    }
+    const user = await requireUser(ctx);
+    const userId = user._id;
 
     const existing = await ctx.db
       .query("viewConfig")
@@ -93,12 +89,8 @@ export const updateViewType = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject;
-
-    if (!userId) {
-      throw new Error("Brak autoryzacji");
-    }
+    const user = await requireUser(ctx);
+    const userId = user._id;
 
     const existing = await ctx.db
       .query("viewConfig")
@@ -133,12 +125,8 @@ export const updateColumns = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject;
-
-    if (!userId) {
-      throw new Error("Brak autoryzacji");
-    }
+    const user = await requireUser(ctx);
+    const userId = user._id;
 
     const existing = await ctx.db
       .query("viewConfig")
@@ -165,12 +153,8 @@ export const updateSort = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject;
-
-    if (!userId) {
-      throw new Error("Brak autoryzacji");
-    }
+    const user = await requireUser(ctx);
+    const userId = user._id;
 
     const existing = await ctx.db
       .query("viewConfig")
@@ -205,12 +189,8 @@ export const updateFilters = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject;
-
-    if (!userId) {
-      throw new Error("Brak autoryzacji");
-    }
+    const user = await requireUser(ctx);
+    const userId = user._id;
 
     const existing = await ctx.db
       .query("viewConfig")

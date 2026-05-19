@@ -9,6 +9,7 @@
  */
 
 import type * as attachments from "../attachments.js";
+import type * as auth from "../auth.js";
 import type * as clients from "../clients.js";
 import type * as complaints from "../complaints.js";
 import type * as crmConfig from "../crmConfig.js";
@@ -27,6 +28,7 @@ import type * as jotform from "../jotform.js";
 import type * as jotformAdmin from "../jotformAdmin.js";
 import type * as jotformInternal from "../jotformInternal.js";
 import type * as kanban from "../kanban.js";
+import type * as lib_auth from "../lib/auth.js";
 import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_sentry from "../lib/sentry.js";
 import type * as migrations from "../migrations.js";
@@ -41,6 +43,7 @@ import type * as servicePricing from "../servicePricing.js";
 import type * as sms from "../sms.js";
 import type * as storage from "../storage.js";
 import type * as systemLogs from "../systemLogs.js";
+import type * as users from "../users.js";
 import type * as viewConfig from "../viewConfig.js";
 
 import type {
@@ -51,6 +54,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   attachments: typeof attachments;
+  auth: typeof auth;
   clients: typeof clients;
   complaints: typeof complaints;
   crmConfig: typeof crmConfig;
@@ -69,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   jotformAdmin: typeof jotformAdmin;
   jotformInternal: typeof jotformInternal;
   kanban: typeof kanban;
+  "lib/auth": typeof lib_auth;
   "lib/crypto": typeof lib_crypto;
   "lib/sentry": typeof lib_sentry;
   migrations: typeof migrations;
@@ -83,6 +88,7 @@ declare const fullApi: ApiFromModules<{
   sms: typeof sms;
   storage: typeof storage;
   systemLogs: typeof systemLogs;
+  users: typeof users;
   viewConfig: typeof viewConfig;
 }>;
 

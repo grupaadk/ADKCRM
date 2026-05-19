@@ -12,22 +12,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-Next.js 16 + Convex + Clerk app (bootstrapped from `nextjs-clerk` template).
+Next.js 16 + Convex + Convex Auth (username + password, role-based).
 
 **Frontend (Next.js App Router):**
 - `app/` — Next.js pages using App Router. `page.tsx` is a client component.
-- `components/` — shared React components. `ConvexClientProvider.tsx` wraps the app with `ConvexProviderWithClerk` for auth-aware real-time data.
+- `app/login/page.tsx` — formularz logowania (username + password) używający `useAuthActions` z `@convex-dev/auth/react`.
+- `components/` — shared React components. `ConvexClientProvider.tsx` wraps the app with `ConvexAuthNextjsProvider`.
+- `components/UserMenu.tsx` — avatar z dropdownem (zmień hasło, wyloguj). Zastępuje Clerk `UserButton`.
 - Styling: Tailwind CSS v4 via PostCSS plugin. Fonts: Geist Sans + Geist Mono.
 
 **Backend (Convex):**
-- `convex/schema.ts` — database schema definitions using `defineSchema`/`defineTable`.
+- `convex/schema.ts` — database schema. Spreads `...authTables` from `@convex-dev/auth/server` i rozszerza tabelę `users` o `role` (admin/sales/montaz), `isActive`, `displayName`. Pole `email` w `users` przechowuje **login** (Password provider używa go jako external account id).
 - `convex/_generated/` — auto-generated types and API references. Never edit manually.
-- `convex/auth.config.ts` — Clerk JWT auth provider config (uses `CLERK_JWT_ISSUER_DOMAIN` env var).
+- `convex/auth.config.ts` — provider Convex Auth (domain: `CONVEX_SITE_URL`).
+- `convex/auth.ts` — `convexAuth({ providers: [Password({ profile: ... })] })`. `profile()` blokuje publiczną rejestrację (`flow === "signUp"` rzuca błąd) — konta tworzy wyłącznie admin przez `createAccount` z `@convex-dev/auth/server`.
+- `convex/users.ts` — moduł zarządzania userami: `me`, `list`, `create` (action, admin only), `setRole`, `setActive`, `resetPassword`, `updateProfile`, `changeOwnPassword`, `seedInitialAdmin`.
+- `convex/lib/auth.ts` — helpery `getCurrentUser`, `requireUser`, `requireRole`, `userIdentifier`, `getUserIdentifier` (dla mutacji/query), `requireAuthUserIdInAction` (dla actions).
+- `convex/http.ts` — `auth.addHttpRoutes(http)` montuje endpointy Convex Auth pod `/api/auth/*`.
 
-**Auth (Clerk):**
-- `proxy.ts` — Clerk middleware protecting all `/admin` routes.
-- Clerk wraps the app in `layout.tsx` via `<ClerkProvider dynamic>`.
-- Convex receives auth via `ConvexProviderWithClerk` using Clerk's `useAuth` hook.
+**Auth flow:**
+- `middleware.ts` — `convexAuthNextjsMiddleware()`. Niezalogowany na `/admin/*` → redirect `/login`. Zalogowany na `/login` → redirect `/admin`.
+- `app/admin/layout.tsx` — `AccessGuard` sprawdza `api.users.me`. Jeśli zwraca `null` (konto nieaktywne lub bez roli) → redirect `/brak-dostepu`.
+- `app/layout.tsx` — `<ConvexAuthNextjsServerProvider>` + `<ConvexAuthNextjsProvider>` w client providerze.
+
+**Role i panel:**
+- Trzy role: `admin`, `sales`, `montaz` (`USER_ROLES` w `convex/schema.ts`).
+- `requireRole(ctx, "admin")` w funkcjach Convex; `roles: ["admin"]` w `NavItem` w `AdminSidebar.tsx` ukrywa linki.
+- Panel zarządzania userami: `/admin/ustawienia/uzytkownicy` (admin only).
+- Zmiana własnego hasła: `/admin/ustawienia/konto` (każdy zalogowany).
 
 **Path aliases:** `@/*` maps to project root.
 
@@ -62,10 +74,15 @@ Przy pracy z kodem Convex **zawsze używaj odpowiednich skilli** — zapewniają
 
 ## Environment Variables
 
+**Frontend (.env.local):**
 - `NEXT_PUBLIC_CONVEX_URL` — Convex deployment URL (required)
-- Clerk keys configured via Clerk's standard env vars
-- `CLERK_JWT_ISSUER_DOMAIN` — set on Convex Dashboard for auth integration
-- `JOTFORM_WEBHOOK_SECRET` — shared secret for Jotform webhook validation (set on Convex Dashboard; optional in dev)
+- `NEXT_PUBLIC_CONVEX_SITE_URL` — Convex HTTP actions URL (`.site` domain)
+
+**Convex Dashboard (env vars deployment-side):**
+- `CONVEX_SITE_URL` — używane w `auth.config.ts` jako issuer domain (zwykle ustawiane automatycznie)
+- `JWT_PRIVATE_KEY` + `JWKS` — klucze JWT wygenerowane przez `npx @convex-dev/auth` (nie ruszać ręcznie)
+- `JOTFORM_WEBHOOK_SECRET` — shared secret for Jotform webhook validation (optional in dev)
+- `ENCRYPTION_KEY` — dla `convex/lib/crypto.ts`
 
 <!-- convex-ai-start -->
 This project uses [Convex](https://convex.dev) as its backend.

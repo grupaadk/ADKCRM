@@ -10,6 +10,8 @@ import {
 } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { encrypt, decrypt } from "./lib/crypto";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { requireUser, userIdentifier } from "./lib/auth";
 
 function getEnvApiToken(): string | null {
   const t = process.env.FAKTUROWNIA_API_TOKEN?.trim();
@@ -67,8 +69,8 @@ export const saveConfig = mutation({
     encryptedApiToken: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
     const envToken = getEnvApiToken();
     const existing = await ctx.db.query("fakturowniaConfig").first();
 
@@ -391,8 +393,13 @@ export const pushOrderEstimate = action({
     ctx,
     args,
   ): Promise<{ estimateId: string; estimateNumber?: string; updated: boolean }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const currentUserId = await getAuthUserId(ctx);
+    if (!currentUserId) throw new Error("Brak autoryzacji");
+    const user = (await ctx.runQuery(internal.users._internalGetUser, {
+      userId: currentUserId,
+    })) as Doc<"users"> | null;
+    if (!user || user.isActive !== true) throw new Error("Brak autoryzacji");
+    const userId = user.email ?? user._id;
 
     const token = await getDecryptedToken(ctx);
     const sub = await resolveSubdomain(ctx);
@@ -541,8 +548,7 @@ export const recordOrderInvoice = mutation({
     advancePercent: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Brak autoryzacji");
+    await requireUser(ctx);
 
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");

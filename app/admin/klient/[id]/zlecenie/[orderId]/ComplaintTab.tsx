@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { useUser } from "@clerk/nextjs";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 
@@ -38,7 +37,7 @@ function formatDuration(startTs: number, endTs: number) {
 }
 
 export default function ComplaintTab({ orderId, clientId, complaintStartDate }: ComplaintTabProps) {
-  const { user } = useUser();
+  const me = useQuery(api.users.me);
   const complaint = useQuery(api.complaints.getByOrderId, { orderId });
 
   const createComplaint = useMutation(api.complaints.create);
@@ -73,7 +72,7 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
         orderId,
         clientId,
         startDate: complaintStartDate ?? Date.now(),
-        createdBy: user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "unknown",
+        createdBy: me?.displayName ?? me?.login ?? "unknown",
       });
     } finally {
       setCreating(false);
@@ -93,7 +92,7 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
       await addEntry({
         complaintId: complaint._id,
         text: newText.trim(),
-        createdBy: user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "unknown",
+        createdBy: me?.displayName ?? me?.login ?? "unknown",
         type: entryType,
       });
       setNewText("");

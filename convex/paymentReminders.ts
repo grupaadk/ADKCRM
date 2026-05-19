@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { action, internalMutation, internalQuery, query } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import type { Doc } from "./_generated/dataModel";
 
 const BANK_ACCOUNT = "77 1240 2702 1111 0011 0284 4073";
 
@@ -181,8 +183,13 @@ export const listByOrder = query({
 export const sendReminder = action({
   args: { invoiceId: v.id("fakturowniaInvoicesCache") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const sentBy = identity?.subject ?? "anonymous";
+    const currentUserId = await getAuthUserId(ctx);
+    if (!currentUserId) throw new Error("Brak autoryzacji");
+    const user = (await ctx.runQuery(internal.users._internalGetUser, {
+      userId: currentUserId,
+    })) as Doc<"users"> | null;
+    if (!user || user.isActive !== true) throw new Error("Brak autoryzacji");
+    const sentBy = user.email ?? user._id;
 
     const data = await ctx.runQuery(internal.paymentReminders.getDataForReminder, {
       invoiceId: args.invoiceId,

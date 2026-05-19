@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { requireUser, userIdentifier } from "./lib/auth";
 
 export const listByClient = query({
   args: { clientId: v.id("clients") },
@@ -30,8 +31,8 @@ export const add = mutation({
     content: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
 
     await ctx.db.insert("clientNotes", {
       clientId: args.clientId,
@@ -45,12 +46,12 @@ export const add = mutation({
 export const remove = mutation({
   args: { noteId: v.id("clientNotes") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
 
     const note = await ctx.db.get(args.noteId);
     if (!note) throw new Error("Note not found");
-    if (note.createdBy !== userId && userId !== "anonymous") {
+    if (note.createdBy !== userId && user.role !== "admin") {
       throw new Error("Not authorized to delete this note");
     }
 

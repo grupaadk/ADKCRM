@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { requireUser, userIdentifier } from "./lib/auth";
 
 function calcTotals(items: Array<{ quantity: number; unitPrice: number; vatRate: number; discountPercent?: number }>) {
   let totalNet = 0;
@@ -44,8 +45,7 @@ export const add = mutation({
     discountPercent: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
 
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
@@ -60,7 +60,7 @@ export const add = mutation({
     return ctx.db.insert("orderLineItems", {
       ...args,
       sortOrder,
-      createdBy: userId,
+      createdBy: userIdentifier(user),
     });
   },
 });

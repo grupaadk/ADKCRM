@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { UserButton } from "@clerk/nextjs"
+import { UserMenu } from "@/components/UserMenu"
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +21,7 @@ import {
   LayoutGrid,
   ClipboardList,
   Users,
+  UserCog,
   FileText,
   Settings,
   Receipt,
@@ -36,6 +37,10 @@ type NavItem = {
   icon: React.ElementType
   countKey?: "clients" | "templates"
   alsoActiveFor?: string[]
+  /** Only highlight when pathname equals href exactly */
+  exactMatch?: boolean
+  /** Hide unless current user has one of these roles */
+  roles?: Array<"admin" | "sales" | "montaz">
 }
 
 const mainItems: NavItem[] = [
@@ -46,17 +51,22 @@ const mainItems: NavItem[] = [
 ]
 
 const toolItems: NavItem[] = [
-  { href: "/admin/szablony", label: "Szablony", icon: FileText, countKey: "templates" },
+  { href: "/admin/szablony", label: "Szablony", icon: FileText, countKey: "templates", roles: ["admin"] },
   { href: "/admin/dokumenty", label: "Dokumenty", icon: Upload },
 ]
 
 const adminItems: NavItem[] = [
-  { href: "/admin/ustawienia", label: "Ustawienia", icon: Settings },
-  { href: "/admin/logi", label: "Logi systemu", icon: ScrollText },
+  { href: "/admin/ustawienia", label: "Ustawienia", icon: Settings, exactMatch: true, roles: ["admin"] },
+  { href: "/admin/ustawienia/uzytkownicy", label: "Użytkownicy", icon: UserCog, roles: ["admin"] },
+  { href: "/admin/logi", label: "Logi systemu", icon: ScrollText, roles: ["admin"] },
 ]
 
 function isNavItemActive(item: NavItem, pathname: string): boolean {
-  if (pathname.startsWith(item.href)) return true
+  if (item.exactMatch) {
+    if (pathname === item.href) return true
+  } else if (pathname.startsWith(item.href)) {
+    return true
+  }
   return item.alsoActiveFor?.some((prefix) => pathname.startsWith(prefix)) ?? false
 }
 
@@ -140,8 +150,16 @@ function NavSection({
 export function AdminSidebar() {
   const pathname = usePathname()
   const counts = useQuery(api.dashboard.getCounts)
+  const me = useQuery(api.users.me)
   const { state, toggleSidebar } = useSidebar()
   const collapsed = state === "collapsed"
+
+  const filterByRole = (items: NavItem[]): NavItem[] =>
+    items.filter((it) => !it.roles || (me?.role && it.roles.includes(me.role)))
+
+  const visibleMain = filterByRole(mainItems)
+  const visibleTools = filterByRole(toolItems)
+  const visibleAdmin = filterByRole(adminItems)
 
   return (
     <Sidebar>
@@ -160,21 +178,23 @@ export function AdminSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="py-1">
-        <NavSection label="Główne" items={mainItems} pathname={pathname} counts={counts} collapsed={collapsed} />
-        <NavSection label="Narzędzia" items={toolItems} pathname={pathname} counts={counts} collapsed={collapsed} />
-        <NavSection label="Administracja" items={adminItems} pathname={pathname} counts={counts} collapsed={collapsed} />
+        <NavSection label="Główne" items={visibleMain} pathname={pathname} counts={counts} collapsed={collapsed} />
+        <NavSection label="Narzędzia" items={visibleTools} pathname={pathname} counts={counts} collapsed={collapsed} />
+        {visibleAdmin.length > 0 && (
+          <NavSection label="Administracja" items={visibleAdmin} pathname={pathname} counts={counts} collapsed={collapsed} />
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-gray-200 py-3">
         <div className={cx("flex items-center px-1", collapsed ? "justify-center flex-col gap-3" : "gap-3 justify-between")}>
           {!collapsed && (
             <div className="flex items-center gap-3">
-              <UserButton appearance={{ elements: { avatarBox: "w-8 h-8" } }} />
+              <UserMenu />
               <span className="text-[12px] text-gray-600">Moje konto</span>
             </div>
           )}
           {collapsed && (
-            <UserButton appearance={{ elements: { avatarBox: "w-8 h-8" } }} />
+            <UserMenu compact />
           )}
           <button
             onClick={toggleSidebar}

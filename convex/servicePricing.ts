@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { requireUser, userIdentifier } from "./lib/auth";
 
 export const list = query({
   args: { includeInactive: v.optional(v.boolean()) },
@@ -24,13 +25,12 @@ export const create = mutation({
     vatRate: v.number(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
 
     return ctx.db.insert("servicePricing", {
       ...args,
       isActive: true,
-      createdBy: userId,
+      createdBy: userIdentifier(user),
     });
   },
 });

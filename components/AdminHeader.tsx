@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { UserButton } from "@clerk/nextjs"
+import { UserMenu } from "@/components/UserMenu"
 import { cx, focusRing } from "@/components/ui/utils"
 import {
   ClipboardList,
@@ -94,7 +94,7 @@ export function AdminHeader() {
 
         {/* User */}
         <div className="flex items-center gap-2 shrink-0">
-          <UserButton appearance={{ elements: { avatarBox: "w-8 h-8" } }} />
+          <UserMenu />
         </div>
       </div>
     </header>

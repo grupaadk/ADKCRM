@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation, action, internalMutation } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import { requireUser, userIdentifier } from "./lib/auth";
 
 // Lista klientów z paginacją
 export const list = query({
@@ -58,8 +59,8 @@ export const create = mutation({
     apartmentNumber: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
 
     const clientId = await ctx.db.insert("clients", {
       ...args,
@@ -99,8 +100,8 @@ export const update = mutation({
     apartmentNumber: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity?.subject ?? "anonymous";
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
 
     const { clientId, ...updates } = args;
     const filtered: Record<string, string> = {};
