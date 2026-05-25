@@ -45,6 +45,7 @@ import type * as storage from "../storage.js";
 import type * as systemLogs from "../systemLogs.js";
 import type * as users from "../users.js";
 import type * as viewConfig from "../viewConfig.js";
+import type * as whitelist from "../whitelist.js";
 
 import type {
   ApiFromModules,
@@ -90,6 +91,7 @@ declare const fullApi: ApiFromModules<{
   systemLogs: typeof systemLogs;
   users: typeof users;
   viewConfig: typeof viewConfig;
+  whitelist: typeof whitelist;
 }>;
 
 /**

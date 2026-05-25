@@ -9,7 +9,6 @@ async function createTestOrder(t: TestRuntime) {
   const clientId = await t.mutation(api.clients.create, {
     firstName: "Test",
     lastName: "Klient",
-    gender: "male" as const,
     email: "test@example.pl",
   });
   const orderId = await t.mutation(api.orders.create, { clientId });

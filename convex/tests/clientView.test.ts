@@ -9,7 +9,6 @@ async function createTestClient(t: TestRuntime) {
   return await t.mutation(api.clients.create, {
     firstName: "Test",
     lastName: "Klient",
-    gender: "male" as const,
     email: "test@example.pl",
   });
 }

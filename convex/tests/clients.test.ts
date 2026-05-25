@@ -13,7 +13,6 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
     const clientId = await t.mutation(api.clients.create, {
       firstName: "Tomasz",
       lastName: "Krawczyk",
-      gender: "male",
       email: "tomasz@example.com",
       phone: "+48987654321",
       city: "Kraków",
@@ -38,7 +37,6 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
     const clientId = await t.mutation(api.clients.create, {
       firstName: "Ewa",
       lastName: "Maj",
-      gender: "female",
     });
 
     const client = await t.query(api.clients.getById, { clientId });
@@ -54,7 +52,6 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
     const clientId = await t.mutation(api.clients.create, {
       firstName: "Anna",
       lastName: "Duda",
-      gender: "female",
     });
 
     const events = await t.run(async (ctx) => {
@@ -80,7 +77,6 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
     const clientId = await asUser.mutation(api.clients.create, {
       firstName: "Marek",
       lastName: "Borkowski",
-      gender: "male",
     });
 
     const client = await t.query(api.clients.getById, { clientId });
@@ -105,9 +101,6 @@ describe("US-1.3 — Client Listing & Search", () => {
   test("lists all clients", async () => {
     const t = convexTest(schema);
 
-    await t.mutation(api.clients.create, { firstName: "Klient", lastName: "Pierwszy", gender: "male" });
-    await t.mutation(api.clients.create, { firstName: "Klient", lastName: "Drugi", gender: "male" });
-    await t.mutation(api.clients.create, { firstName: "Klient", lastName: "Trzeci", gender: "male" });
 
     const result = await t.query(api.clients.list, {});
     expect(result.page).toHaveLength(3);
@@ -119,7 +112,6 @@ describe("US-1.3 — Client Listing & Search", () => {
     const clientId = await t.mutation(api.clients.create, {
       firstName: "Zofia",
       lastName: "Kaminska",
-      gender: "female",
       email: "zofia@test.pl",
     });
 
@@ -136,7 +128,6 @@ describe("US-1.3 — Client Listing & Search", () => {
     const clientId = await t.mutation(api.clients.create, {
       firstName: "Temp",
       lastName: "Testowy",
-      gender: "male",
     });
 
     await t.run(async (ctx) => {
@@ -150,9 +141,6 @@ describe("US-1.3 — Client Listing & Search", () => {
   test("searches by lastName", async () => {
     const t = convexTest(schema);
 
-    await t.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski", gender: "male" });
-    await t.mutation(api.clients.create, { firstName: "Anna", lastName: "Nowak", gender: "female" });
-    await t.mutation(api.clients.create, { firstName: "Piotr", lastName: "Kowalczyk", gender: "male" });
 
     const results = await t.query(api.clients.search, { searchTerm: "Kowalski" });
 
@@ -171,7 +159,6 @@ describe("Deduplication", () => {
     await t.mutation(api.clients.create, {
       firstName: "Jan",
       lastName: "Kowalski",
-      gender: "male",
       email: "jan@example.com",
     });
 
@@ -201,7 +188,6 @@ describe("Deduplication", () => {
     const clientId = await t.mutation(api.clients.create, {
       firstName: "Jan",
       lastName: "Kowalski",
-      gender: "male",
       email: "jan@example.com",
     });
 

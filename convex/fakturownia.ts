@@ -324,9 +324,17 @@ function validateNip(nip: string): boolean {
 }
 
 function validateClientForFakturownia(client: Doc<"clients">): void {
-  const buyerName = `${client.firstName} ${client.lastName}`.trim();
-  if (!buyerName) {
-    throw new Error("Klient musi mieć imię lub nazwisko — uzupełnij dane w CRM.");
+  const isBusinessClient = client.clientType === "business";
+
+  if (isBusinessClient) {
+    if (!client.companyName?.trim()) {
+      throw new Error("Klient biznesowy musi mieć podaną nazwę firmy — uzupełnij dane w CRM.");
+    }
+  } else {
+    const buyerName = `${client.firstName} ${client.lastName}`.trim();
+    if (!buyerName) {
+      throw new Error("Klient musi mieć imię lub nazwisko — uzupełnij dane w CRM.");
+    }
   }
 
   if (client.email) {
@@ -423,7 +431,10 @@ export const pushOrderEstimate = action({
 
     const today = new Date().toISOString().slice(0, 10);
     const oid = `adkokna-${args.orderId}`;
-    const buyerName = `${client.firstName} ${client.lastName}`.trim();
+    const isBusinessClient = client.clientType === "business" && !!client.companyName;
+    const buyerName = isBusinessClient
+      ? client.companyName!
+      : `${client.firstName} ${client.lastName}`.trim();
     const street = buyerStreet(client);
 
     const orderLabel = order.name ?? oid;
@@ -456,7 +467,7 @@ export const pushOrderEstimate = action({
       buyer_post_code: client.postalCode ?? "",
       buyer_city: client.city ?? "",
       buyer_country: "PL",
-      buyer_company: client.nip ? "1" : "0",
+      buyer_company: isBusinessClient ? "1" : (client.nip ? "1" : "0"),
       ...(client.nip ? { buyer_tax_no: client.nip } : {}),
       oid,
       ...(order.name ? { number: order.name } : {}),

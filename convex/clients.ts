@@ -46,12 +46,13 @@ export const getById = query({
 // Ręczne dodanie klienta
 export const create = mutation({
   args: {
+    clientType: v.optional(v.union(v.literal("individual"), v.literal("business"))),
     firstName: v.string(),
     lastName: v.string(),
-    gender: v.union(v.literal("male"), v.literal("female")),
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     nip: v.optional(v.string()),
+    companyName: v.optional(v.string()),
     postalCode: v.optional(v.string()),
     city: v.optional(v.string()),
     street: v.optional(v.string()),
@@ -87,12 +88,13 @@ export const create = mutation({
 export const update = mutation({
   args: {
     clientId: v.id("clients"),
+    clientType: v.optional(v.union(v.literal("individual"), v.literal("business"))),
     firstName: v.optional(v.string()),
     lastName: v.optional(v.string()),
-    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     nip: v.optional(v.string()),
+    companyName: v.optional(v.string()),
     postalCode: v.optional(v.string()),
     city: v.optional(v.string()),
     street: v.optional(v.string()),
@@ -104,7 +106,7 @@ export const update = mutation({
     const userId = userIdentifier(user);
 
     const { clientId, ...updates } = args;
-    const filtered: Record<string, string> = {};
+    const filtered: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined) filtered[key] = value;
     }

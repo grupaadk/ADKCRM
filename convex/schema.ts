@@ -146,12 +146,13 @@ export default defineSchema({
 
   // 3.1 Klient — tylko dane kontaktowe
   clients: defineTable({
+    clientType: v.optional(v.union(v.literal("individual"), v.literal("business"))),
     firstName: v.string(),
     lastName: v.string(),
-    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     nip: v.optional(v.string()),
+    companyName: v.optional(v.string()),
     postalCode: v.optional(v.string()),
     city: v.optional(v.string()),
     street: v.optional(v.string()),

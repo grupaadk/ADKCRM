@@ -165,15 +165,27 @@ export default function ClientDetailPage({
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 20, padding: "20px 24px", borderBottom: "1px solid var(--line)" }}>
-          <CrmAvatar name={`${client.firstName} ${client.lastName}`} size={44} />
+          <CrmAvatar name={client.clientType === "business" && client.companyName ? client.companyName : `${client.firstName} ${client.lastName}`} size={44} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-strong)", margin: 0, lineHeight: 1.2 }}>
-              {client.firstName} {client.lastName}
-            </h1>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-strong)", margin: 0, lineHeight: 1.2 }}>
+                {client.clientType === "business" && client.companyName
+                  ? client.companyName
+                  : `${client.firstName} ${client.lastName}`}
+              </h1>
+              {client.clientType === "business" && (
+                <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 999, background: "var(--accent-soft)", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Firma
+                </span>
+              )}
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, fontSize: 12, flexWrap: "wrap" }}>
               {client.city && <span className="chip">{client.city}</span>}
               {client.phone && <span style={{ color: "var(--text-mute)" }}>{client.phone}</span>}
               {client.email && <span style={{ color: "var(--text-dim)" }}>{client.email}</span>}
+              {client.clientType === "business" && client.nip && (
+                <span style={{ color: "var(--text-mute)", fontFamily: "monospace" }}>NIP: {client.nip}</span>
+              )}
             </div>
           </div>
         </div>
@@ -224,37 +236,48 @@ export default function ClientDetailPage({
           gap: "16px 20px",
           padding: "20px 24px",
         }}>
-          <InlineEdit label="Imię" value={client.firstName} onSave={(v) => handleFieldSave("firstName", v)} />
-          <InlineEdit label="Nazwisko" value={client.lastName} onSave={(v) => handleFieldSave("lastName", v)} />
+          {/* Business-specific: company name and NIP */}
+          {client.clientType === "business" && (
+            <>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <span style={{ ...FIELD_LABEL, color: "var(--accent)", marginBottom: 8 }}>Dane firmy</span>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "16px 20px" }}>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <InlineEdit label="Nazwa firmy" value={client.companyName ?? ""} onSave={(v) => handleFieldSave("companyName", v)} placeholder="brak" />
+                  </div>
+                  <InlineEdit label="NIP" value={client.nip ?? ""} onSave={(v) => handleFieldSave("nip", v)} placeholder="brak" />
+                </div>
+              </div>
+              <div style={{ gridColumn: "1 / -1", borderTop: "1px solid var(--line)", paddingTop: 16 }}>
+                <span style={{ ...FIELD_LABEL, marginBottom: 8 }}>Osoba kontaktowa</span>
+              </div>
+            </>
+          )}
+
+          <InlineEdit
+            label={client.clientType === "business" ? "Imię kontaktu" : "Imię"}
+            value={client.firstName}
+            onSave={(v) => handleFieldSave("firstName", v)}
+          />
+          <InlineEdit
+            label={client.clientType === "business" ? "Nazwisko kontaktu" : "Nazwisko"}
+            value={client.lastName}
+            onSave={(v) => handleFieldSave("lastName", v)}
+          />
           <InlineEdit label="Email" value={client.email ?? ""} onSave={(v) => handleFieldSave("email", v)} placeholder="brak" />
           <InlineEdit label="Telefon" value={client.phone ?? ""} onSave={(v) => handleFieldSave("phone", v)} placeholder="brak" />
-          <InlineEdit label="NIP" value={client.nip ?? ""} onSave={(v) => handleFieldSave("nip", v)} placeholder="brak" />
 
-          {/* Gender */}
-          <div>
-            <span style={FIELD_LABEL}>Płeć</span>
-            <div style={{ display: "flex", gap: 4 }}>
-              {([["male", "Mężczyzna"] as const, ["female", "Kobieta"] as const]).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => void updateClient({ clientId, gender: value })}
-                  style={{
-                    flex: 1, padding: "4px 6px", borderRadius: 5, fontSize: 11.5,
-                    fontWeight: 500, cursor: "pointer", border: "1px solid",
-                    borderColor: client.gender === value ? "var(--accent)" : "var(--line)",
-                    background: client.gender === value ? "var(--accent-soft)" : "transparent",
-                    color: client.gender === value ? "var(--accent)" : "var(--text-mute)",
-                    fontFamily: "inherit",
-                    transition: "all 0.12s",
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+          {/* NIP for individual clients only */}
+          {client.clientType !== "business" && (
+            <InlineEdit label="NIP" value={client.nip ?? ""} onSave={(v) => handleFieldSave("nip", v)} placeholder="brak" />
+          )}
+
+          {/* Address section */}
+          <div style={{ gridColumn: "1 / -1", borderTop: "1px solid var(--line)", paddingTop: 16 }}>
+            <span style={{ ...FIELD_LABEL, marginBottom: 8 }}>
+              {client.clientType === "business" ? "Adres firmy" : "Adres"}
+            </span>
           </div>
-
           <InlineEdit label="Ulica" value={client.street ?? ""} onSave={(v) => handleFieldSave("street", v)} placeholder="brak" />
           <InlineEdit label="Nr budynku" value={client.buildingNumber ?? ""} onSave={(v) => handleFieldSave("buildingNumber", v)} placeholder="brak" />
           <InlineEdit label="Nr mieszkania" value={client.apartmentNumber ?? ""} onSave={(v) => handleFieldSave("apartmentNumber", v)} placeholder="brak" />
