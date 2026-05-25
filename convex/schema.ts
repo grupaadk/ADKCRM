@@ -194,6 +194,7 @@ export default defineSchema({
   orders: defineTable({
     clientId: v.id("clients"),
     name: v.optional(v.string()),
+    customText: v.optional(v.string()),
 
     // Dane zlecenia
     services: v.optional(v.array(v.string())),

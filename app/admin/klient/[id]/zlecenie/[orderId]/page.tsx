@@ -455,7 +455,10 @@ export default function OrderDetailPage({
 
         {/* Main heading */}
         <div style={{ padding: "16px 20px" }}>
-          <h1 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 6px", color: "var(--text-strong)" }}>{orderNumber}</h1>
+          <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "6px 10px", marginBottom: 6 }}>
+            <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "var(--text-strong)" }}>{orderNumber}</h1>
+            {order.customText && <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-muted, #64748b)" }}>{order.customText}</span>}
+          </div>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
             {client.city && <span className="chip">{client.city}</span>}
             {servicesSummary && <span className="mute" style={{ fontSize: 12 }}>{servicesSummary}</span>}

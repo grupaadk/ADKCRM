@@ -97,6 +97,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
   const [sunProtectionType, setSunProtectionType] = useState<string[]>([]);
   const [investment, setInvestment] = useState({ street: "", buildingNumber: "", apartmentNumber: "", postalCode: "", city: "" });
   const [comment, setComment] = useState("");
+  const [customText, setCustomText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -283,6 +284,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
         investmentPostalCode: investment.postalCode.trim() || undefined,
         investmentCity: investment.city.trim() || undefined,
         comment: comment.trim() || undefined,
+        customText: customText.trim() || undefined,
       });
       onSuccess(orderId, resolvedClientId);
     } catch (err) {
@@ -967,6 +969,20 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                  Tekst własny
+                </label>
+                <input
+                  type="text"
+                  value={customText}
+                  onChange={(e) => setCustomText(e.target.value)}
+                  placeholder="np. Kowalski – okna salonu"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                />
+                <p className="text-xs text-slate-400">Dodatkowy identyfikator widoczny obok numeru zlecenia</p>
               </div>
 
               <div className="space-y-1.5">
