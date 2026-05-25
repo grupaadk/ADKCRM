@@ -19,7 +19,9 @@ describe("dashboard", () => {
   test("getStats counts orders by status correctly", async () => {
     const t = convexTest(schema);
 
-
+    const id1 = await t.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
+    const id2 = await t.mutation(api.clients.create, { firstName: "Anna", lastName: "Nowak" });
+    const id3 = await t.mutation(api.clients.create, { firstName: "Piotr", lastName: "Zielinski" });
     const orderId1 = await t.mutation(api.orders.create, { clientId: id1 });
     await t.mutation(api.orders.create, { clientId: id2 });
     await t.mutation(api.orders.create, { clientId: id3 });
@@ -35,7 +37,10 @@ describe("dashboard", () => {
   test("getStats counts total clients", async () => {
     const t = convexTest(schema);
 
-
+    await t.mutation(api.clients.create, { firstName: "A", lastName: "Jeden" });
+    await t.mutation(api.clients.create, { firstName: "B", lastName: "Dwa" });
+    await t.mutation(api.clients.create, { firstName: "C", lastName: "Trzy" });
+    await t.mutation(api.clients.create, { firstName: "D", lastName: "Cztery" });
     const stats = await t.query(api.dashboard.getStats, {});
     expect(stats.total).toBe(4);
   });
@@ -43,6 +48,7 @@ describe("dashboard", () => {
   test("getStats counts enabled documents across orders", async () => {
     const t = convexTest(schema);
 
+    const clientId = await t.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
     const orderId = await t.mutation(api.orders.create, { clientId });
 
     await t.mutation(api.orders.toggleDocument, { orderId, documentType: "pomiar", enabled: true });
@@ -62,7 +68,7 @@ describe("dashboard", () => {
   test("getRecentEvents returns events with client names", async () => {
     const t = convexTest(schema);
 
-
+    await t.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
     const events = await t.query(api.dashboard.getRecentEvents, {});
     expect(events.length).toBeGreaterThanOrEqual(1);
     expect(events[0].clientName).toBe("Jan Kowalski");
@@ -72,7 +78,7 @@ describe("dashboard", () => {
   test("getRecentEvents returns events in reverse chronological order", async () => {
     const t = convexTest(schema);
 
-
+    const id1 = await t.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
     const orderId1 = await t.mutation(api.orders.create, { clientId: id1 });
     await t.mutation(api.orders.changeStatus, { orderId: orderId1, newStatus: "inquiry" });
 

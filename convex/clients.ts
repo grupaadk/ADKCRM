@@ -124,22 +124,41 @@ export const update = mutation({
       performedBy: userId,
     });
 
-    // Jeśli zmieniono imię lub nazwisko i klient ma folder w Drive — zaplanuj rename
+    // Jeśli zmieniono dane identyfikujące i klient ma folder w Drive — zaplanuj rename
     if (oldClient?.clientFolderId) {
+      const isBusinessClient = (args.clientType ?? oldClient.clientType) === "business";
       const newFirstName = args.firstName ?? oldClient.firstName;
       const newLastName = args.lastName ?? oldClient.lastName;
-      const nameChanged =
-        newFirstName !== oldClient.firstName || newLastName !== oldClient.lastName;
 
-      if (nameChanged) {
-        await ctx.scheduler.runAfter(0, internal.googleDrive.renameClientAssets, {
-          clientId,
-          oldFirstName: oldClient.firstName,
-          oldLastName: oldClient.lastName,
-          newFirstName,
-          newLastName,
-          clientFolderId: oldClient.clientFolderId,
-        });
+      if (isBusinessClient) {
+        // Dla firmy: rename gdy zmienia się companyName
+        const newCompanyName = args.companyName ?? oldClient.companyName;
+        const companyNameChanged = newCompanyName && newCompanyName !== oldClient.companyName;
+        if (companyNameChanged) {
+          await ctx.scheduler.runAfter(0, internal.googleDrive.renameClientAssets, {
+            clientId,
+            oldFirstName: oldClient.firstName,
+            oldLastName: oldClient.lastName,
+            newFirstName,
+            newLastName,
+            clientFolderId: oldClient.clientFolderId,
+            newFolderName: newCompanyName,
+          });
+        }
+      } else {
+        // Dla klienta indywidualnego: rename gdy zmienia się imię lub nazwisko
+        const nameChanged =
+          newFirstName !== oldClient.firstName || newLastName !== oldClient.lastName;
+        if (nameChanged) {
+          await ctx.scheduler.runAfter(0, internal.googleDrive.renameClientAssets, {
+            clientId,
+            oldFirstName: oldClient.firstName,
+            oldLastName: oldClient.lastName,
+            newFirstName,
+            newLastName,
+            clientFolderId: oldClient.clientFolderId,
+          });
+        }
       }
     }
   },

@@ -197,6 +197,7 @@ describe("US-2.1 -- Status transitions", () => {
 describe("US-2.2 -- Order data update", () => {
   test("17. order stores data (services, colors) correctly", async () => {
     const t = convexTest(schema);
+    const clientId = await t.mutation(api.clients.create, { firstName: "Test", lastName: "User" });
     const orderId = await t.mutation(api.orders.create, {
       clientId,
       services: ["Okna", "Drzwi"],
@@ -213,6 +214,7 @@ describe("US-2.2 -- Order data update", () => {
 
   test("18. after changing to 'measurement', order data is still accessible", async () => {
     const t = convexTest(schema);
+    const clientId = await t.mutation(api.clients.create, { firstName: "Test", lastName: "User" });
     const orderId = await t.mutation(api.orders.create, {
       clientId,
       services: ["Okna", "Drzwi"],

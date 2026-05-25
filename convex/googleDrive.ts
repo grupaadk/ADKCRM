@@ -912,10 +912,12 @@ export const createOrderFolder = action({
       const connection = await getAuthorizedConnection(ctx);
       await log("info", "connection OK", { connectedEmail: connection.connectedEmail });
 
-      // Krok 1: Znajdź lub utwórz folder klienta (Imię_Nazwisko) w shared drive
+      // Krok 1: Znajdź lub utwórz folder klienta w shared drive
       let clientFolderId = client.clientFolderId;
       if (!clientFolderId) {
-        const clientFolderName = `${client.firstName}_${client.lastName}`;
+        const clientFolderName = client.clientType === "business" && client.companyName
+          ? client.companyName
+          : `${client.firstName}_${client.lastName}`;
         await log("info", "creating client folder", { clientFolderName, parentId: CLIENTS_FOLDER_ID });
         const { id, url: clientFolderUrl } = await createDriveFolder(
           ctx,
@@ -1097,7 +1099,9 @@ export const createClientFolder = action({
         return { clientFolderId: client.clientFolderId, clientFolderUrl: client.clientFolderUrl ?? "" };
       }
 
-      const clientFolderName = `${client.firstName}_${client.lastName}`;
+      const clientFolderName = client.clientType === "business" && client.companyName
+        ? client.companyName
+        : `${client.firstName}_${client.lastName}`;
       await log("info", "creating Drive folder", { clientFolderName, parentId: CLIENTS_FOLDER_ID });
 
       const { id, url: clientFolderUrl } = await createDriveFolder(ctx, clientFolderName, CLIENTS_FOLDER_ID);
@@ -2004,12 +2008,13 @@ export const renameClientAssets = internalAction({
     newFirstName: v.string(),
     newLastName: v.string(),
     clientFolderId: v.string(),
+    newFolderName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { oldFirstName, oldLastName, newFirstName, newLastName, clientFolderId, clientId } = args;
 
-    // 1. Przemianuj folder klienta (Imię_Nazwisko)
-    const newFolderName = `${newFirstName}_${newLastName}`;
+    // 1. Przemianuj folder klienta
+    const newFolderName = args.newFolderName ?? `${newFirstName}_${newLastName}`;
     try {
       await renameDriveItem(ctx, clientFolderId, newFolderName);
     } catch (error) {
