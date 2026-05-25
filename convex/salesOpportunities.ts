@@ -62,6 +62,7 @@ export const createSalesOpportunity = mutation({
 // Folder Google Drive (FirstName_LastName) tworzy się automatycznie.
 export const createManualOpportunity = mutation({
   args: {
+    clientId: v.optional(v.id("clients")),
     firstName: v.string(),
     lastName: v.string(),
     email: v.optional(v.string()),
