@@ -119,7 +119,9 @@ function OrderCard({
 }) {
   const isPending = item.type === "pending"
 
-  const fullName = `${item.clientFirstName} ${item.clientLastName}`.trim()
+  const fullName = item.clientType === "business" && item.companyName
+    ? item.companyName
+    : `${item.clientFirstName} ${item.clientLastName}`.trim()
   const didDragRef = useRef(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -183,6 +185,9 @@ function OrderCard({
           <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1, lineHeight: 1.3 }}>
             {fullName || "—"}
           </div>
+          {item.type === "order" && item.customText && (
+            <span className="chip-custom" style={{ marginTop: 3 }}>{item.customText}</span>
+          )}
         </div>
 
         {/* Chevron rozwijania */}
@@ -440,7 +445,9 @@ function ArchivedTab() {
                 </div>
               </td>
               <td style={{ padding: "10px 12px", color: "var(--text-strong)", fontWeight: 600 }}>
-                {order.clientFirstName} {order.clientLastName}
+                {order.clientType === "business" && order.companyName
+                  ? order.companyName
+                  : `${order.clientFirstName} ${order.clientLastName}`}
               </td>
               <td style={{ padding: "10px 12px" }}>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>

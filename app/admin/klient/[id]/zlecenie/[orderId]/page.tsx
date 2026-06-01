@@ -420,7 +420,9 @@ export default function OrderDetailPage({
             <Link href="/admin" style={{ color: "var(--text-mute)", textDecoration: "none" }}>Klienci</Link>
             <span style={{ opacity: 0.5 }}>›</span>
             <Link href={`/admin/klient/${id}`} className="btn" style={{ fontSize: 11, padding: "3px 8px" }}>
-              {client.firstName} {client.lastName}
+              {client.clientType === "business" && client.companyName
+                ? client.companyName
+                : `${client.firstName} ${client.lastName}`}
             </Link>
             <span style={{ opacity: 0.5 }}>›</span>
             <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>{orderNumber}</span>

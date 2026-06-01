@@ -29,8 +29,11 @@ export type KanbanOrderItem = {
   clientId: Id<"clients">;
   clientFirstName: string;
   clientLastName: string;
+  clientType?: "individual" | "business";
+  companyName?: string;
   status: Doc<"orders">["status"];
   orderName: string | undefined;
+  customText: string | undefined;
   grossAmount: number | undefined;
   services: string[];
   docs: Record<string, DocState>;
@@ -43,6 +46,8 @@ export type KanbanPendingItem = {
   clientId: Id<"clients"> | undefined;
   clientFirstName: string;
   clientLastName: string;
+  clientType?: "individual" | "business";
+  companyName?: string;
   status: "lead" | "inquiry";
   services: string[];
 };
@@ -86,8 +91,11 @@ export const list = query({
           clientId: order.clientId,
           clientFirstName: client?.firstName ?? "",
           clientLastName: client?.lastName ?? "",
+          clientType: client?.clientType,
+          companyName: client?.companyName,
           status: order.status,
           orderName: order.name,
+          customText: order.customText,
           grossAmount: lineItems.length > 0 ? Math.round(totalGross * 100) / 100 : undefined,
           services: order.services ?? [],
           docs: orderDocs(order.documents),
@@ -99,11 +107,15 @@ export const list = query({
       pendings.map(async (pending) => {
         let firstName = pending.firstName;
         let lastName = pending.lastName;
+        let clientType: "individual" | "business" | undefined;
+        let companyName: string | undefined;
         if (pending.clientId) {
           const client = await ctx.db.get(pending.clientId);
           if (client) {
             firstName = client.firstName;
             lastName = client.lastName;
+            clientType = client.clientType;
+            companyName = client.companyName;
           }
         }
         return {
@@ -113,6 +125,8 @@ export const list = query({
           clientId: pending.clientId,
           clientFirstName: firstName,
           clientLastName: lastName,
+          clientType,
+          companyName,
           status: pending.stage === "inquiry" ? "inquiry" : "lead",
           services: pending.services ?? [],
         };
@@ -139,6 +153,8 @@ export const listArchived = query({
           ...order,
           clientFirstName: client?.firstName ?? "",
           clientLastName: client?.lastName ?? "",
+          clientType: client?.clientType,
+          companyName: client?.companyName,
         };
       }),
     );
