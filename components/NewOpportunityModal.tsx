@@ -64,7 +64,7 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
   const [city, setCity] = useState("");
   const [services, setServices] = useState<string[]>([]);
   const [comment, setComment] = useState("");
-  const [uploadedFile, setUploadedFile] = useState<{ name: string; storageId: string } | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; storageId: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -204,27 +204,33 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
   }
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
     setUploading(true);
     setError(null);
     try {
-      const uploadUrl = await generateUploadUrl();
-      const response = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        body: file,
-      });
-      if (!response.ok) throw new Error(`Upload failed: ${response.statusText}`);
-      const { storageId } = await response.json();
-      if (!storageId) throw new Error("No storageId returned");
-      setUploadedFile({ name: file.name, storageId });
+      for (const file of files) {
+        const uploadUrl = await generateUploadUrl();
+        const response = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": file.type || "application/octet-stream" },
+          body: file,
+        });
+        if (!response.ok) throw new Error(`Upload failed: ${response.statusText}`);
+        const { storageId } = await response.json();
+        if (!storageId) throw new Error("No storageId returned");
+        setUploadedFiles((prev) => [...prev, { name: file.name, storageId }]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nie udało się wgrać pliku");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  }
+
+  function removeUploadedFile(storageId: string) {
+    setUploadedFiles((prev) => prev.filter((f) => f.storageId !== storageId));
   }
 
   async function handleSubmit() {
@@ -248,7 +254,7 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
         city: city.trim() || undefined,
         services: services.length > 0 ? services : undefined,
         comment: comment.trim() || undefined,
-        uploadedFileId: uploadedFile?.storageId as any,
+        uploadedFileIds: uploadedFiles.length > 0 ? uploadedFiles.map((f) => f.storageId as any) : undefined,
       });
       onSuccess(id);
     } catch (err) {
@@ -656,26 +662,29 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Plik do wgrania</label>
-                {uploadedFile ? (
-                  <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                    <span className="text-sm text-slate-700">{uploadedFile.name}</span>
-                    <button type="button" onClick={() => setUploadedFile(null)} disabled={uploading} className="text-slate-400 hover:text-slate-600 disabled:opacity-50">
-                      <X size={16} />
-                    </button>
+                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Pliki do wgrania</label>
+                {uploadedFiles.length > 0 && (
+                  <div className="space-y-1.5">
+                    {uploadedFiles.map((f) => (
+                      <div key={f.storageId} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                        <span className="truncate text-sm text-slate-700">{f.name}</span>
+                        <button type="button" onClick={() => removeUploadedFile(f.storageId)} disabled={uploading} className="ml-2 shrink-0 text-slate-400 hover:text-slate-600 disabled:opacity-50">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading || submitting}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 px-3 py-6 text-slate-600 transition-colors hover:border-blue-400 hover:bg-blue-50 disabled:opacity-50"
-                  >
-                    <Upload size={16} />
-                    <span className="text-sm font-medium">{uploading ? "Wgrywanie..." : "Kliknij aby wybrać plik"}</span>
-                  </button>
                 )}
-                <input ref={fileInputRef} type="file" onChange={handleFileUpload} disabled={uploading || submitting} className="hidden" />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading || submitting}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 px-3 py-4 text-slate-600 transition-colors hover:border-blue-400 hover:bg-blue-50 disabled:opacity-50"
+                >
+                  <Upload size={16} />
+                  <span className="text-sm font-medium">{uploading ? "Wgrywanie..." : "Kliknij aby dodać pliki"}</span>
+                </button>
+                <input ref={fileInputRef} type="file" multiple onChange={handleFileUpload} disabled={uploading || submitting} className="hidden" />
               </div>
 
               <div className="space-y-1.5">

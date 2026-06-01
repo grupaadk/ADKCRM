@@ -80,14 +80,15 @@ export const createManualOpportunity = mutation({
     constructionColor: v.optional(v.array(v.string())),
     sunProtectionType: v.optional(v.array(v.string())),
     comment: v.optional(v.string()),
-    uploadedFileId: v.optional(v.id("_storage")),
+    uploadedFileIds: v.optional(v.array(v.id("_storage"))),
   },
   handler: async (ctx, args) => {
     if (!args.firstName.trim() || !args.lastName.trim()) {
       throw new Error("Imię i nazwisko są wymagane");
     }
+    const { uploadedFileIds, ...rest } = args;
     const opportunityId = await ctx.db.insert("pendingJotformSubmissions", {
-      ...args,
+      ...rest,
       stage: "lead",
       processed: false,
       archived: false,
@@ -100,12 +101,12 @@ export const createManualOpportunity = mutation({
       { opportunityId },
     );
 
-    // Jeśli jest uploadowany plik, zaplanuj upload do Google Drive
-    if (args.uploadedFileId) {
+    // Dla każdego pliku zaplanuj osobny upload do Google Drive
+    for (const storageId of uploadedFileIds ?? []) {
       await ctx.scheduler.runAfter(
         0,
         api.googleDrive.uploadManualOpportunityFile,
-        { opportunityId, storageId: args.uploadedFileId },
+        { opportunityId, storageId },
       );
     }
 
