@@ -65,10 +65,15 @@ export const list = query({
 
     const activeOrders = allOrders.filter((o) => o.status !== "archived");
 
-    // Pobierz wszystkie nieprzetworzone pending submissions
+    // Pobierz wszystkie nieprzetworzone i niezarchiwizowane pending submissions
     const pendings = await ctx.db
       .query("pendingJotformSubmissions")
-      .filter((q) => q.eq(q.field("processed"), false))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("processed"), false),
+          q.neq(q.field("archived"), true),
+        ),
+      )
       .collect();
 
     const orderItems: KanbanOrderItem[] = await Promise.all(
