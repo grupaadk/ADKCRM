@@ -434,7 +434,10 @@ function ArchivedTab() {
               onClick={() => router.push(`/admin/klient/${order.clientId}/zlecenie/${order._id}`)}
             >
               <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "var(--text-strong)", fontWeight: 600 }}>
-                {order.name ?? "—"}
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
+                  <span>{order.name ?? "—"}</span>
+                  {order.customText && <span className="chip-custom">{order.customText}</span>}
+                </div>
               </td>
               <td style={{ padding: "10px 12px", color: "var(--text-strong)", fontWeight: 600 }}>
                 {order.clientFirstName} {order.clientLastName}

@@ -21,10 +21,25 @@ type Order = {
   status: string
   services?: string[]
   name?: string
-  client: { firstName: string; lastName: string; city?: string } | null
+  customText?: string
+  client: {
+    firstName: string
+    lastName: string
+    city?: string
+    clientType?: "individual" | "business"
+    companyName?: string
+  } | null
   fakturownia?: { invoices?: Array<{ kind: "advance" | "final" | "vat"; number?: string }> }
   documents?: Record<string, { url?: string; signatureStatus?: "signed" | "not_applicable" }>
   totalGross?: number | null
+}
+
+type ClientFilter = "all" | "individual" | "business"
+
+function clientPrimaryName(client: Order["client"]): string {
+  if (!client) return ""
+  if (client.clientType === "business" && client.companyName) return client.companyName
+  return `${client.lastName} ${client.firstName}`
 }
 
 function InvoiceBadge({ invoices }: { invoices?: Array<{ kind: "advance" | "final" | "vat"; number?: string }> }) {
@@ -73,6 +88,7 @@ export default function OrderList() {
   const [sortDir, setSortDir] = useState<SortDirection>("desc")
   const [viewFilter, setViewFilter] = useState<"all" | "active" | "complaint" | "completed">("active")
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  const [clientFilter, setClientFilter] = useState<ClientFilter>("all")
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"))
@@ -102,12 +118,14 @@ export default function OrderList() {
     else if (viewFilter === "complaint") filtered = filtered.filter((o) => o.status === "complaint")
     else if (viewFilter === "completed") filtered = filtered.filter((o) => o.status === "completed")
     if (statusFilter) filtered = filtered.filter((o) => o.status === statusFilter)
+    if (clientFilter === "business") filtered = filtered.filter((o) => o.client?.clientType === "business")
+    else if (clientFilter === "individual") filtered = filtered.filter((o) => o.client?.clientType !== "business")
     return [...filtered].sort((a, b) => {
       let cmp = 0
       switch (sortField) {
         case "client": {
-          const aName = a.client ? `${a.client.lastName} ${a.client.firstName}` : ""
-          const bName = b.client ? `${b.client.lastName} ${b.client.firstName}` : ""
+          const aName = clientPrimaryName(a.client)
+          const bName = clientPrimaryName(b.client)
           cmp = aName.localeCompare(bName, "pl"); break
         }
         case "status": cmp = a.status.localeCompare(b.status, "pl"); break
@@ -118,7 +136,13 @@ export default function OrderList() {
       }
       return sortDir === "asc" ? cmp : -cmp
     })
-  }, [orders, viewFilter, statusFilter, sortField, sortDir])
+  }, [orders, viewFilter, statusFilter, clientFilter, sortField, sortDir])
+
+  const clientFilterLabels: { key: ClientFilter; label: string }[] = [
+    { key: "all", label: "Wszyscy" },
+    { key: "individual", label: "Indywidualni" },
+    { key: "business", label: "Biznesowi" },
+  ]
 
   const viewTabs: { key: "all" | "active" | "complaint" | "completed"; label: string; count: number }[] = [
     { key: "all",       label: "Wszystkie",  count: counts.all },
@@ -176,6 +200,15 @@ export default function OrderList() {
             </FilterBtn>
           ))}
         </div>
+        {/* Row 3: client type filter */}
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+          <span className="mute" style={{ fontSize: 11, marginRight: 2 }}>Klient:</span>
+          {clientFilterLabels.map(({ key, label }) => (
+            <FilterBtn key={key} isActive={clientFilter === key} onClick={() => setClientFilter(key)}>
+              {label}
+            </FilterBtn>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -226,12 +259,22 @@ export default function OrderList() {
               return (
                 <tr key={order._id} style={isCompleted ? { background: "var(--ok-soft)", cursor: "pointer" } : { cursor: "pointer" }} onClick={() => router.push(`/admin/klient/${order.clientId}/zlecenie/${order._id}`)}>
                   <td className="mono" style={{ fontSize: 11, color: "var(--text-mute)" }}>
-                    {order.name ?? <span style={{ color: "var(--panel-3)" }}>—</span>}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
+                      <span>{order.name ?? <span style={{ color: "var(--panel-3)" }}>—</span>}</span>
+                      {order.customText && <span className="chip-custom">{order.customText}</span>}
+                    </div>
                   </td>
                   <td>
-                    <div className="strong" style={{ fontWeight: 500 }}>
-                      {order.client ? `${order.client.lastName} ${order.client.firstName}` : <span className="mute">—</span>}
-                    </div>
+                    {order.client?.clientType === "business" && order.client.companyName ? (
+                      <div>
+                        <div className="strong" style={{ fontWeight: 500 }}>{order.client.companyName}</div>
+                        <div className="mute" style={{ fontSize: 11 }}>{order.client.firstName} {order.client.lastName}</div>
+                      </div>
+                    ) : (
+                      <div className="strong" style={{ fontWeight: 500 }}>
+                        {order.client ? `${order.client.lastName} ${order.client.firstName}` : <span className="mute">—</span>}
+                      </div>
+                    )}
                   </td>
                   <td>
                     {order.client?.city ?? <span className="mute">—</span>}

@@ -135,3 +135,4 @@ export const fixFirstMayOrder = internalMutation({
  */
 // Migracja clearTrelloFields została wykonana — dane są czyste (uruchomiona 2026-05-08).
 // Pola trelloCardId/trelloCardUrl zostały usunięte z bazy danych i schematu.
+

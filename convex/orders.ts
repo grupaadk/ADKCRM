@@ -84,7 +84,13 @@ export const list = query({
         return {
           ...order,
           client: client
-            ? { firstName: client.firstName, lastName: client.lastName, city: client.city }
+            ? {
+                firstName: client.firstName,
+                lastName: client.lastName,
+                city: client.city,
+                clientType: client.clientType,
+                companyName: client.companyName,
+              }
             : null,
           totalGross: lineItems.length > 0 ? Math.round(totalGross * 100) / 100 : null,
         };

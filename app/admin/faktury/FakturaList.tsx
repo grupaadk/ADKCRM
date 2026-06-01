@@ -55,8 +55,15 @@ type OrderItem = {
   _id: string;
   clientId: string;
   name?: string;
+  customText?: string;
   status: string;
-  client: { firstName: string; lastName: string; city?: string } | null;
+  client: {
+    firstName: string;
+    lastName: string;
+    city?: string;
+    clientType?: "individual" | "business";
+    companyName?: string;
+  } | null;
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -138,10 +145,18 @@ function AssignModal({
     if (!q) return orders.slice(0, 30);
     return orders.filter((o) => {
       const clientName = o.client ? `${o.client.lastName} ${o.client.firstName}`.toLowerCase() : "";
+      const company = (o.client?.companyName ?? "").toLowerCase();
       const orderName = (o.name ?? "").toLowerCase();
-      return clientName.includes(q) || orderName.includes(q);
+      const custom = (o.customText ?? "").toLowerCase();
+      return clientName.includes(q) || company.includes(q) || orderName.includes(q) || custom.includes(q);
     }).slice(0, 30);
   }, [orders, search]);
+
+  const displayClient = (c: OrderItem["client"]): string => {
+    if (!c) return "—";
+    if (c.clientType === "business" && c.companyName) return c.companyName;
+    return `${c.lastName} ${c.firstName}`;
+  };
 
   const currentOrder = invoice.orderId ? orders.find((o) => o._id === invoice.orderId) : null;
 
@@ -171,13 +186,16 @@ function AssignModal({
             <div className="flex items-center justify-between rounded-lg bg-blue-50 px-3 py-2.5 ring-1 ring-blue-200">
               <div>
                 <p className="text-sm font-medium text-gray-900">
-                  {currentOrder.client
-                    ? `${currentOrder.client.lastName} ${currentOrder.client.firstName}`
-                    : "—"}
+                  {displayClient(currentOrder.client)}
                 </p>
-                {currentOrder.name && (
-                  <p className="text-xs text-gray-500">{currentOrder.name}</p>
-                )}
+                <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                  {currentOrder.name && (
+                    <span className="text-xs text-gray-500 font-mono">{currentOrder.name}</span>
+                  )}
+                  {currentOrder.customText && (
+                    <span className="chip-custom">{currentOrder.customText}</span>
+                  )}
+                </div>
               </div>
               <button
                 onClick={onUnassign}

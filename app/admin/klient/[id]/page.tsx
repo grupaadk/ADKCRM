@@ -423,12 +423,14 @@ export default function ClientDetailPage({
                         <div className="strong" style={{ fontWeight: 500, fontSize: 12.5 }}>
                           {order.name ?? <span className="mute">Zlecenie z {fmtDate(order._creationTime)}</span>}
                         </div>
-                        {order.customText && (
-                          <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 1 }}>{order.customText}</div>
-                        )}
-                        {hasFinalInvoice && (
-                          <span className="chip" style={{ marginTop: 2 }}>Faktura wystawiona</span>
-                        )}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 3 }}>
+                          {order.customText && (
+                            <span className="chip-custom">{order.customText}</span>
+                          )}
+                          {hasFinalInvoice && (
+                            <span className="chip">Faktura wystawiona</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <StatusPill status={order.status} />
