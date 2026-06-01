@@ -25,16 +25,14 @@ function formatAmount(amount: number | undefined, currency: string | undefined):
 }
 
 function buildEmail(params: {
-  firstName: string;
-  lastName: string;
   invoiceNumber: string;
   issueDate: string;
   paymentTo: string;
   grossAmount: string;
 }): { subject: string; body: string; previewText: string } {
-  const { firstName, lastName, invoiceNumber, issueDate, paymentTo, grossAmount } = params;
+  const { invoiceNumber, issueDate, paymentTo, grossAmount } = params;
 
-  const salutation = `Szanowni Państwo ${firstName} ${lastName},`;
+  const salutation = `Szanowni Państwo,`;
 
   const subject = `Przypomnienie o płatności – faktura ${invoiceNumber}`;
 
@@ -128,8 +126,6 @@ export const previewReminder = query({
     }
 
     const { subject, previewText } = buildEmail({
-      firstName: client.firstName,
-      lastName: client.lastName,
       invoiceNumber,
       issueDate: formatDate(invoice.issueDate),
       paymentTo: formatDate(invoice.paymentTo),
@@ -193,8 +189,6 @@ export const sendReminder = action({
     if (!client.email) throw new Error("Klient nie ma przypisanego adresu email");
 
     const { subject, body } = buildEmail({
-      firstName: client.firstName,
-      lastName: client.lastName,
       invoiceNumber: invoice.number ?? invoice.remoteId,
       issueDate: formatDate(invoice.issueDate),
       paymentTo: formatDate(invoice.paymentTo),
