@@ -80,6 +80,7 @@ export const createManualOpportunity = mutation({
     constructionColor: v.optional(v.array(v.string())),
     sunProtectionType: v.optional(v.array(v.string())),
     comment: v.optional(v.string()),
+    customText: v.optional(v.string()),
     uploadedFileIds: v.optional(v.array(v.id("_storage"))),
   },
   handler: async (ctx, args) => {
@@ -222,6 +223,7 @@ export const updateOpportunity = mutation({
     constructionColor: v.optional(v.array(v.string())),
     sunProtectionType: v.optional(v.array(v.string())),
     comment: v.optional(v.string()),
+    customText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { opportunityId, ...rest } = args;

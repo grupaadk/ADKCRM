@@ -63,6 +63,7 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
   const [services, setServices] = useState<string[]>([]);
+  const [customText, setCustomText] = useState("");
   const [comment, setComment] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<{ name: string; storageId: string }[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -253,6 +254,7 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
         postalCode: postalCode.trim() || undefined,
         city: city.trim() || undefined,
         services: services.length > 0 ? services : undefined,
+        customText: customText.trim() || undefined,
         comment: comment.trim() || undefined,
         uploadedFileIds: uploadedFiles.length > 0 ? uploadedFiles.map((f) => f.storageId as any) : undefined,
       });
@@ -685,6 +687,18 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
                   <span className="text-sm font-medium">{uploading ? "Wgrywanie..." : "Kliknij aby dodać pliki"}</span>
                 </button>
                 <input ref={fileInputRef} type="file" multiple onChange={handleFileUpload} disabled={uploading || submitting} className="hidden" />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase tracking-widest text-slate-400">Tekst własny</label>
+                <input
+                  type="text"
+                  value={customText}
+                  onChange={(e) => setCustomText(e.target.value)}
+                  placeholder="np. Kowalski – okna salonu"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                />
+                <p className="text-xs text-slate-400">Dodatkowy identyfikator widoczny na karcie kanban</p>
               </div>
 
               <div className="space-y-1.5">

@@ -185,7 +185,7 @@ function OrderCard({
           <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1, lineHeight: 1.3 }}>
             {fullName || "—"}
           </div>
-          {item.type === "order" && item.customText && (
+          {item.customText && (
             <span className="chip-custom" style={{ marginTop: 3 }}>{item.customText}</span>
           )}
         </div>

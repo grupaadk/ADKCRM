@@ -381,6 +381,7 @@ export default defineSchema({
       url: v.string(),
     }))),
     comment: v.optional(v.string()),
+    customText: v.optional(v.string()),
     submissionId: v.optional(v.string()),
     clientId: v.optional(v.id("clients")),
     clientFolderId: v.optional(v.string()),

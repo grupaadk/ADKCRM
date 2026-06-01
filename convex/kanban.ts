@@ -49,6 +49,7 @@ export type KanbanPendingItem = {
   clientType?: "individual" | "business";
   companyName?: string;
   status: "lead" | "inquiry";
+  customText: string | undefined;
   services: string[];
 };
 
@@ -133,6 +134,7 @@ export const list = query({
           clientType,
           companyName,
           status: pending.stage === "inquiry" ? "inquiry" : "lead",
+          customText: pending.customText,
           services: pending.services ?? [],
         };
       }),
