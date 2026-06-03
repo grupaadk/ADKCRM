@@ -362,6 +362,53 @@ function extractGoogleDriveFileId(url: string): string | null {
   return match ? match[1] : null;
 }
 
+async function copyFileToDriveFolder(
+  ctx: ActionCtx,
+  fileId: string,
+  destinationFolderId: string,
+): Promise<{ id: string; name: string; url: string }> {
+  const data = await driveApiFetchWithRetry(
+    ctx,
+    `/files/${fileId}/copy?supportsAllDrives=true`,
+    {
+      method: "POST",
+      body: JSON.stringify({ parents: [destinationFolderId] }),
+    },
+  ) as unknown as { id?: string; name?: string };
+
+  if (!data.id || !data.name) {
+    throw new Error(`Drive copy returned no id/name for file ${fileId}`);
+  }
+
+  return {
+    id: data.id,
+    name: data.name,
+    url: `https://drive.google.com/file/d/${data.id}/view`,
+  };
+}
+
+async function listDriveFolderFiles(
+  ctx: ActionCtx,
+  folderId: string,
+): Promise<Array<{ id: string; name: string; mimeType?: string }>> {
+  const params = new URLSearchParams({
+    q: `'${folderId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`,
+    supportsAllDrives: "true",
+    includeItemsFromAllDrives: "true",
+    fields: "files(id,name,mimeType)",
+    pageSize: "200",
+  });
+
+  const data = await driveApiFetchWithRetry(
+    ctx,
+    `/files?${params.toString()}`,
+  ) as unknown as { files?: Array<{ id?: string; name?: string; mimeType?: string }> };
+
+  return (data.files ?? [])
+    .filter((f): f is { id: string; name: string; mimeType?: string } => !!f.id && !!f.name)
+    .map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType }));
+}
+
 async function moveFileToDriveFolder(
   ctx: ActionCtx,
   fileId: string,
@@ -784,6 +831,7 @@ export const listFolders = action({
 export const createClientFolderForOpportunity = action({
   args: {
     opportunityId: v.id("pendingJotformSubmissions"),
+    uploadedFileIds: v.optional(v.array(v.id("_storage"))),
   },
   handler: async (
     ctx,
@@ -818,39 +866,146 @@ export const createClientFolderForOpportunity = action({
         return null;
       }
 
-      if (opp.clientFolderId) {
-        await log("info", "folder already exists — pomijam", { folderId: opp.clientFolderId });
-        return { folderId: opp.clientFolderId, folderUrl: opp.clientFolderUrl ?? "" };
+      // Idempotency: jeśli folder szansy już istnieje — pomijamy
+      if (opp.opportunityFolderId) {
+        await log("info", "opportunity folder already exists — pomijam", { folderId: opp.opportunityFolderId });
+        return { folderId: opp.opportunityFolderId, folderUrl: opp.opportunityFolderUrl ?? "" };
       }
 
       const connection = await getAuthorizedConnection(ctx);
       await log("info", "connection OK", { connectedEmail: connection.connectedEmail });
 
-      // Szukaj lub utwórz folder klienta (Imię_Nazwisko) w shared drive
-      const clientFolderName = `${opp.firstName}_${opp.lastName}`;
-      await log("info", "looking for or creating client folder", { clientFolderName, parentId: CLIENTS_FOLDER_ID });
-      const folderId = await findOrCreateDriveFolder(
-        connection.accessToken,
-        clientFolderName,
-        CLIENTS_FOLDER_ID,
-      );
-      const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
+      // Krok 1: Znajdź lub utwórz folder klienta
+      let clientFolderId = opp.clientFolderId;
 
-      await ctx.runMutation(internal.salesOpportunities.updateClientFolder, {
+      if (!clientFolderId && opp.clientId) {
+        const client = await ctx.runQuery(api.clients.getById, { clientId: opp.clientId });
+        clientFolderId = client?.clientFolderId ?? undefined;
+        if (clientFolderId) {
+          await log("info", "using existing client folder from client record", { clientFolderId });
+        }
+      }
+
+      if (!clientFolderId) {
+        let clientFolderName: string;
+        if (opp.clientId) {
+          const client = await ctx.runQuery(api.clients.getById, { clientId: opp.clientId });
+          clientFolderName = client?.clientType === "business" && client.companyName
+            ? client.companyName
+            : `${opp.firstName}_${opp.lastName}`;
+        } else {
+          clientFolderName = `${opp.firstName}_${opp.lastName}`;
+        }
+
+        await log("info", "creating client folder", { clientFolderName });
+        clientFolderId = await findOrCreateDriveFolder(
+          connection.accessToken,
+          clientFolderName,
+          CLIENTS_FOLDER_ID,
+        );
+        const clientFolderUrl = `https://drive.google.com/drive/folders/${clientFolderId}`;
+
+        await ctx.runMutation(internal.salesOpportunities.updateClientFolder, {
+          opportunityId: args.opportunityId,
+          clientFolderId,
+          clientFolderUrl,
+        });
+
+        if (opp.clientId) {
+          await ctx.runMutation(api.clients.updateClientFolder, {
+            clientId: opp.clientId,
+            clientFolderId,
+            clientFolderUrl,
+          });
+        }
+      }
+
+      // Krok 2: Utwórz/znajdź podfolder "Szanse sprzedaży" w folderze klienta
+      await log("info", "creating Szanse sprzedaży subfolder", { parentId: clientFolderId });
+      const salesOpportunitiesFolderId = await findOrCreateDriveFolder(
+        connection.accessToken,
+        "Szanse sprzedaży",
+        clientFolderId,
+      );
+
+      // Krok 3: Utwórz podfolder szansy — RRRR-MM-DD_TekstWłasny_Miasto_Ulica_Usługa
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      const segments: string[] = [`${yyyy}-${mm}-${dd}`];
+      if (opp.customText) segments.push(opp.customText);
+      if (opp.city) segments.push(opp.city);
+      if (opp.street) segments.push(opp.street);
+      if (opp.services && opp.services.length > 0) segments.push(opp.services.join("-"));
+      const opportunityFolderName = segments.join("_");
+
+      await log("info", "creating opportunity folder", { opportunityFolderName, parentId: salesOpportunitiesFolderId });
+      const opportunityFolderId = await findOrCreateDriveFolder(
+        connection.accessToken,
+        opportunityFolderName,
+        salesOpportunitiesFolderId,
+      );
+      const opportunityFolderUrl = `https://drive.google.com/drive/folders/${opportunityFolderId}`;
+
+      // Krok 4: Utwórz 3 podfoldery wewnątrz folderu szansy
+      await log("info", "creating subfolders inside opportunity folder");
+      const valuationFilesFolderId = await findOrCreateDriveFolder(
+        connection.accessToken,
+        "Pliki do wyceny od klienta - rzuty i przysłane",
+        opportunityFolderId,
+      );
+      const offersReceivedFolderId = await findOrCreateDriveFolder(
+        connection.accessToken,
+        "Oferty otrzymane - koszta",
+        opportunityFolderId,
+      );
+      const offersSentFolderId = await findOrCreateDriveFolder(
+        connection.accessToken,
+        "Oferty wysłane",
+        opportunityFolderId,
+      );
+      const ponzioFilesFolderId = await findOrCreateDriveFolder(
+        connection.accessToken,
+        "Ponzio pliki",
+        opportunityFolderId,
+      );
+      const otherFilesFolderId = await findOrCreateDriveFolder(
+        connection.accessToken,
+        "Inne",
+        opportunityFolderId,
+      );
+
+      // Krok 5: Zapisz wszystkie foldery w rekordzie szansy
+      await ctx.runMutation(internal.salesOpportunities.updateOpportunityFolders, {
         opportunityId: args.opportunityId,
-        clientFolderId: folderId,
-        clientFolderUrl: folderUrl,
+        opportunityFolderId,
+        opportunityFolderUrl,
+        valuationFilesFolderId,
+        offersReceivedFolderId,
+        offersSentFolderId,
+        ponzioFilesFolderId,
+        otherFilesFolderId,
       });
 
-      // Planuj upload plików do nowo stworzonego folderu
+      // Krok 6: Zaplanuj upload plików z Jotform do "Pliki do wyceny od klienta"
       await ctx.scheduler.runAfter(
         0,
         api.googleDrive.uploadSalesOpportunityFiles,
         { opportunityId: args.opportunityId },
       );
 
-      await log("info", "DONE — folder zapisany w rekordzie szansy", { folderId });
-      return { folderId, folderUrl };
+      // Krok 7: Zaplanuj upload ręcznie dołączonych plików do "Inne" (foldery już gotowe)
+      for (const storageId of args.uploadedFileIds ?? []) {
+        await ctx.scheduler.runAfter(
+          0,
+          api.googleDrive.uploadManualOpportunityFile,
+          { opportunityId: args.opportunityId, storageId },
+        );
+      }
+
+      await log("info", "DONE — foldery zapisane w rekordzie szansy", { opportunityFolderId });
+      return { folderId: opportunityFolderId, folderUrl: opportunityFolderUrl };
     } catch (err) {
       await log("error", "NIEOCZEKIWANY BŁĄD", { error: String(err) });
       return null;
@@ -935,7 +1090,15 @@ export const createOrderFolder = action({
         await log("info", "client folder exists — reusing", { clientFolderId });
       }
 
-      // Krok 2: Utwórz podfolder zlecenia wewnątrz folderu klienta
+      // Krok 2: Znajdź lub utwórz podfolder "Zlecenia" w folderze klienta
+      await log("info", "finding or creating Zlecenia subfolder", { parentId: clientFolderId });
+      const zleceniaFolderId = await findOrCreateDriveFolder(
+        connection.accessToken,
+        "Zlecenia",
+        clientFolderId,
+      );
+
+      // Krok 3: Utwórz podfolder zlecenia wewnątrz "Zlecenia"
       // Konwencja: DD.MM.YYYY_Usługa_Miejscowość
       const now = new Date();
       const dd = String(now.getDate()).padStart(2, "0");
@@ -945,50 +1108,74 @@ export const createOrderFolder = action({
       const city = client.city ?? "";
       const orderFolderName = `${dd}.${mm}.${yyyy}_${service}_${city}`;
 
-      await log("info", "creating order folder", { orderFolderName, parentId: clientFolderId });
+      await log("info", "creating order folder", { orderFolderName, parentId: zleceniaFolderId });
       const { id: folderId, url: folderUrl } = await createDriveFolder(
         ctx,
         orderFolderName,
-        clientFolderId,
+        zleceniaFolderId,
       );
       await log("info", "order folder created", { folderId, folderUrl });
 
-      // Krok 3: Przenieś pliki szansy sprzedaży LUB wgraj z surowych URL-i
+      // Krok 4: Skopiuj pliki z podfolderów szansy sprzedaży (oryginały zostają w szansie)
       const driveProjectFiles: Array<{ fileId: string; name: string; url: string }> = [];
 
-      let filesMovedFromOpportunity = false;
+      let filesCopiedFromOpportunity = false;
       if (args.opportunityId) {
         const opp = await ctx.runQuery(api.salesOpportunities.getSalesOpportunity, {
           opportunityId: args.opportunityId,
         });
-        const oppFiles = opp?.driveProjectFiles ?? [];
-        // Pliki są w folderze szansy (opp.clientFolderId), nie w folderze klienta
-        const oppFolderId = opp?.clientFolderId ?? clientFolderId;
-        if (oppFiles.length > 0 && oppFolderId) {
-          await log("info", "moving files from opportunity to order folder", {
-            count: oppFiles.length,
-            fromFolderId: oppFolderId,
-            toFolderId: folderId,
+
+        const subfoldersToCopy = [
+          { id: opp?.valuationFilesFolderId, name: "Pliki do wyceny od klienta - rzuty i przysłane" },
+          { id: opp?.offersReceivedFolderId, name: "Oferty otrzymane - koszta" },
+          { id: opp?.offersSentFolderId, name: "Oferty wysłane" },
+          { id: opp?.ponzioFilesFolderId, name: "Ponzio pliki" },
+          { id: opp?.otherFilesFolderId, name: "Inne" },
+        ].filter((sf): sf is { id: string; name: string } => !!sf.id);
+
+        if (subfoldersToCopy.length > 0) {
+          await log("info", "copying files from opportunity subfolders", { count: subfoldersToCopy.length });
+          for (const subfolder of subfoldersToCopy) {
+            try {
+              const { id: destSubfolderId } = await createDriveFolder(ctx, subfolder.name, folderId);
+              const files = await listDriveFolderFiles(ctx, subfolder.id);
+              for (const file of files) {
+                try {
+                  const copied = await copyFileToDriveFolder(ctx, file.id, destSubfolderId);
+                  driveProjectFiles.push({ fileId: copied.id, name: copied.name, url: copied.url });
+                } catch (error) {
+                  await log("error", "file copy failed", { fileId: file.id, name: file.name, error: String(error) });
+                }
+              }
+            } catch (error) {
+              await log("error", "subfolder copy failed", { subfolder: subfolder.name, error: String(error) });
+            }
+          }
+          filesCopiedFromOpportunity = true;
+          await log("info", "files copied from opportunity subfolders", { count: driveProjectFiles.length });
+        } else if (opp?.driveProjectFiles && opp.driveProjectFiles.length > 0) {
+          // Fallback dla starych szans bez struktury podfolderów
+          await log("info", "copying files from driveProjectFiles (legacy fallback)", {
+            count: opp.driveProjectFiles.length,
           });
-          for (const file of oppFiles) {
+          for (const file of opp.driveProjectFiles) {
             const fileId = extractGoogleDriveFileId(file.url);
             if (!fileId) {
               await log("warn", "could not extract fileId from URL — skipping", { url: file.url });
               continue;
             }
             try {
-              await moveFileToDriveFolder(ctx, fileId, oppFolderId, folderId);
-              driveProjectFiles.push({ fileId, name: file.name, url: file.url });
+              const copied = await copyFileToDriveFolder(ctx, fileId, folderId);
+              driveProjectFiles.push({ fileId: copied.id, name: copied.name, url: copied.url });
             } catch (error) {
-              await log("error", "file move failed", { fileId, url: file.url, error: String(error) });
+              await log("error", "file copy failed (legacy)", { fileId, url: file.url, error: String(error) });
             }
           }
-          await log("info", "files moved", { moved: driveProjectFiles.length, total: oppFiles.length });
-          filesMovedFromOpportunity = true;
+          filesCopiedFromOpportunity = driveProjectFiles.length > 0;
         }
       }
 
-      if (!filesMovedFromOpportunity) {
+      if (!filesCopiedFromOpportunity) {
         const attachmentUrls = (order.projectFiles ?? "")
           .split(/[\n,]+/)
           .map((u: string) => u.trim())
@@ -2129,11 +2316,61 @@ export const healthCheck = action({
   },
 });
 
+export const listOpportunityFolderContents = action({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+    folderId: v.string(),
+  },
+  handler: async (ctx, args): Promise<Array<{
+    id: string;
+    name: string;
+    isFolder: boolean;
+    url?: string;
+    mimeType?: string;
+  }>> => {
+    await requireUserIdentifierInAction(ctx);
+
+    const params = new URLSearchParams({
+      q: `'${args.folderId}' in parents and trashed=false`,
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+      fields: "files(id,name,mimeType,webViewLink)",
+      pageSize: "200",
+      orderBy: "folder,name",
+    });
+
+    const data = await driveApiFetchWithRetry(
+      ctx,
+      `/files?${params.toString()}`,
+    ) as unknown as { files?: Array<{ id?: string; name?: string; mimeType?: string; webViewLink?: string }> };
+
+    const items = (data.files ?? [])
+      .filter((f): f is { id: string; name: string; mimeType?: string; webViewLink?: string } => !!f.id && !!f.name)
+      .map(f => ({
+        id: f.id,
+        name: f.name,
+        isFolder: f.mimeType === "application/vnd.google-apps.folder",
+        url: f.mimeType !== "application/vnd.google-apps.folder"
+          ? (f.webViewLink ?? `https://drive.google.com/file/d/${f.id}/view`)
+          : undefined,
+        mimeType: f.mimeType,
+      }));
+
+    items.sort((a, b) => {
+      if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
+      return a.name.localeCompare(b.name, "pl");
+    });
+
+    return items;
+  },
+});
+
 export const uploadManualOpportunityFile = action({
   args: {
     opportunityId: v.id("pendingJotformSubmissions"),
     storageId: v.id("_storage"),
     maxRetries: v.optional(v.number()),
+    targetFolderId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ uploaded: boolean; folderId?: string } | null> => {
     const maxRetries = args.maxRetries ?? 3;
@@ -2168,38 +2405,35 @@ export const uploadManualOpportunityFile = action({
         return null;
       }
 
-      // Czekaj na folder klienta (z retry)
-      let clientFolderId = opp.clientFolderId;
-      let clientId = opp.clientId;
+      let uploadFolderId: string | undefined = args.targetFolderId;
 
-      while (!clientFolderId && retryCount < maxRetries) {
-        if (retryCount > 0) {
-          await log("warn", "Folder not ready, retrying...", { retryCount, maxRetries });
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (!uploadFolderId) {
+        // Czekaj na folder "Inne" w szansie sprzedaży (z retry)
+        let otherFilesFolderId = opp.otherFilesFolderId;
+
+        while (!otherFilesFolderId && retryCount < maxRetries) {
+          if (retryCount > 0) {
+            await log("warn", "Inne folder not ready, retrying...", { retryCount, maxRetries });
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+
+          const refreshedOpp = await ctx.runQuery(
+            api.salesOpportunities.getSalesOpportunity,
+            { opportunityId: args.opportunityId },
+          );
+          otherFilesFolderId = refreshedOpp?.otherFilesFolderId;
+          retryCount++;
         }
 
-        const refreshedOpp = await ctx.runQuery(
-          api.salesOpportunities.getSalesOpportunity,
-          { opportunityId: args.opportunityId },
-        );
-        clientFolderId = refreshedOpp?.clientFolderId;
-        clientId = refreshedOpp?.clientId;
-        retryCount++;
-      }
-
-      if (!clientFolderId && clientId) {
-        const client = await ctx.runQuery(api.clients.getById, { clientId });
-        if (client?.clientFolderId) {
-          clientFolderId = client.clientFolderId;
+        if (!otherFilesFolderId) {
+          await log("error", "Inne folder not found after retries", { retryCount });
+          return null;
         }
+
+        uploadFolderId = otherFilesFolderId;
       }
 
-      if (!clientFolderId) {
-        await log("error", "Client folder not found after retries", { retryCount });
-        return null;
-      }
-
-      await log("info", "Client folder ready", { folderId: clientFolderId });
+      await log("info", "Upload folder ready", { folderId: uploadFolderId });
 
       const connection = await getAuthorizedConnection(ctx);
 
@@ -2210,12 +2444,13 @@ export const uploadManualOpportunityFile = action({
         return null;
       }
 
-      // Wgraj plik
-      const result = await uploadFileToDrive(ctx, fileUrl, clientFolderId);
+      // Wgraj plik do podfolderu
+      const result = await uploadFileToDrive(ctx, fileUrl, uploadFolderId);
       if (result) {
-        await log("info", "File uploaded successfully", {
+        await log("info", "File uploaded", {
           fileId: result.fileId,
           name: result.name,
+          folderId: uploadFolderId,
         });
         try {
           await ctx.runMutation(internal.salesOpportunities.addDriveProjectFile, {
@@ -2229,7 +2464,7 @@ export const uploadManualOpportunityFile = action({
             error: String(e),
           });
         }
-        return { uploaded: true, folderId: clientFolderId };
+        return { uploaded: true, folderId: uploadFolderId };
       } else {
         await log("warn", "File upload returned null");
         return null;
@@ -2293,18 +2528,14 @@ export const uploadSalesOpportunityFiles = action({
         return { uploaded: 0, failed: 0 };
       }
 
-      // Czekaj na folder klienta (z retry)
-      // Folder może być w szansie (clientFolderId) lub w kliencie (jeśli szansa ma clientId)
-      // Dla szans z Jotforma folder trafia do klienta (createClientFolder), nie do szansy.
-      let clientFolderId = opp.clientFolderId;
-      let clientId = opp.clientId;
+      // Czekaj na folder "Pliki do wyceny od klienta" w szansie sprzedaży (z retry)
+      let valuationFilesFolderId = opp.valuationFilesFolderId;
 
-      while (!clientFolderId && retryCount < maxRetries) {
+      while (!valuationFilesFolderId && retryCount < maxRetries) {
         if (retryCount > 0) {
-          await log("warn", "Folder not ready, retrying...", {
+          await log("warn", "Valuation folder not ready, retrying...", {
             retryCount,
             maxRetries,
-            hasClientId: !!clientId,
           });
           await new Promise((resolve) => setTimeout(resolve, 2000));
         }
@@ -2313,53 +2544,37 @@ export const uploadSalesOpportunityFiles = action({
           api.salesOpportunities.getSalesOpportunity,
           { opportunityId: args.opportunityId },
         );
-        clientFolderId = refreshedOpp?.clientFolderId;
-        clientId = refreshedOpp?.clientId ?? clientId;
-
-        // Przy każdym retry sprawdzaj też folder klienta (Jotform tworzy folder w kliencie)
-        if (!clientFolderId && clientId) {
-          const client = await ctx.runQuery(api.clients.getById, { clientId });
-          if (client?.clientFolderId) {
-            clientFolderId = client.clientFolderId;
-            await log("info", "Using client folder (retry)", {
-              folderId: clientFolderId,
-              retryCount,
-              source: "client",
-            });
-          }
-        }
-
+        valuationFilesFolderId = refreshedOpp?.valuationFilesFolderId;
         retryCount++;
       }
 
-      if (!clientFolderId) {
-        await log("error", "Client folder not found after retries", {
+      if (!valuationFilesFolderId) {
+        await log("error", "Valuation files folder not found after retries", {
           retryCount,
           maxRetries,
-          hasClientId: !!clientId,
         });
         return null;
       }
 
-      await log("info", "Client folder ready", {
-        folderId: clientFolderId,
+      await log("info", "Valuation files folder ready", {
+        folderId: valuationFilesFolderId,
         fileCount: fileUrls.length,
       });
 
       const connection = await getAuthorizedConnection(ctx);
 
-      // Wgraj pliki
+      // Wgraj pliki do "Pliki do wyceny od klienta - rzuty i przysłane"
       let uploaded = 0;
       let failed = 0;
 
       for (const url of fileUrls) {
         try {
-          const result = await uploadFileToDrive(ctx, url, clientFolderId, {
+          const result = await uploadFileToDrive(ctx, url, valuationFilesFolderId, {
             jotformApiKey: await getJotformApiKeyForActions(ctx),
           });
           if (result) {
             uploaded++;
-            await log("info", "File uploaded", {
+            await log("info", "File uploaded to valuation folder", {
               url: url.substring(0, 50),
               fileId: result.fileId,
               name: result.name,
@@ -2389,8 +2604,8 @@ export const uploadSalesOpportunityFiles = action({
         }
       }
 
-      await log("info", "DONE", { uploaded, failed, folderId: clientFolderId });
-      return { uploaded, failed, folderId: clientFolderId };
+      await log("info", "DONE", { uploaded, failed, folderId: valuationFilesFolderId });
+      return { uploaded, failed, folderId: valuationFilesFolderId };
     } catch (err) {
       await log("error", "UNEXPECTED ERROR", { error: String(err) });
       return null;

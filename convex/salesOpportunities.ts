@@ -72,6 +72,11 @@ export const createManualOpportunity = mutation({
     apartmentNumber: v.optional(v.string()),
     postalCode: v.optional(v.string()),
     city: v.optional(v.string()),
+    investmentStreet: v.optional(v.string()),
+    investmentBuildingNumber: v.optional(v.string()),
+    investmentApartmentNumber: v.optional(v.string()),
+    investmentPostalCode: v.optional(v.string()),
+    investmentCity: v.optional(v.string()),
     services: v.optional(v.array(v.string())),
     windowColor: v.optional(v.array(v.string())),
     doorColor: v.optional(v.array(v.string())),
@@ -95,21 +100,12 @@ export const createManualOpportunity = mutation({
       archived: false,
     });
 
-    // Zaplanuj asynchroniczne tworzenie folderu klienta
+    // Zaplanuj asynchroniczne tworzenie folderu klienta + upload plików po jego gotowości
     await ctx.scheduler.runAfter(
       0,
       api.googleDrive.createClientFolderForOpportunity,
-      { opportunityId },
+      { opportunityId, uploadedFileIds: uploadedFileIds ?? [] },
     );
-
-    // Dla każdego pliku zaplanuj osobny upload do Google Drive
-    for (const storageId of uploadedFileIds ?? []) {
-      await ctx.scheduler.runAfter(
-        0,
-        api.googleDrive.uploadManualOpportunityFile,
-        { opportunityId, storageId },
-      );
-    }
 
     return opportunityId;
   },
@@ -215,6 +211,11 @@ export const updateOpportunity = mutation({
     apartmentNumber: v.optional(v.string()),
     postalCode: v.optional(v.string()),
     city: v.optional(v.string()),
+    investmentStreet: v.optional(v.string()),
+    investmentBuildingNumber: v.optional(v.string()),
+    investmentApartmentNumber: v.optional(v.string()),
+    investmentPostalCode: v.optional(v.string()),
+    investmentCity: v.optional(v.string()),
     services: v.optional(v.array(v.string())),
     windowColor: v.optional(v.array(v.string())),
     doorColor: v.optional(v.array(v.string())),
@@ -386,6 +387,12 @@ export const convertToOrder = mutation({
       projectFiles: opp.projectFiles,
       driveProjectFiles: driveProjectFiles.length > 0 ? driveProjectFiles : undefined,
       comment: opp.comment,
+      customText: opp.customText,
+      investmentStreet: opp.investmentStreet,
+      investmentBuildingNumber: opp.investmentBuildingNumber,
+      investmentApartmentNumber: opp.investmentApartmentNumber,
+      investmentPostalCode: opp.investmentPostalCode,
+      investmentCity: opp.investmentCity,
       status: "measurement",
       documents: DEFAULT_DOCUMENTS,
       source: opp.submissionId ? "jotform" : "manual",
@@ -466,6 +473,30 @@ export const addDriveProjectFile = internalMutation({
         driveProjectFiles: [...existing, { name: args.name, url: args.url }],
       });
     }
+  },
+});
+
+export const updateOpportunityFolders = internalMutation({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+    opportunityFolderId: v.string(),
+    opportunityFolderUrl: v.string(),
+    valuationFilesFolderId: v.string(),
+    offersReceivedFolderId: v.string(),
+    offersSentFolderId: v.string(),
+    ponzioFilesFolderId: v.string(),
+    otherFilesFolderId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.opportunityId, {
+      opportunityFolderId: args.opportunityFolderId,
+      opportunityFolderUrl: args.opportunityFolderUrl,
+      valuationFilesFolderId: args.valuationFilesFolderId,
+      offersReceivedFolderId: args.offersReceivedFolderId,
+      offersSentFolderId: args.offersSentFolderId,
+      ponzioFilesFolderId: args.ponzioFilesFolderId,
+      otherFilesFolderId: args.otherFilesFolderId,
+    });
   },
 });
 

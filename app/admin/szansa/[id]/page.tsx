@@ -163,6 +163,17 @@ export default function OpportunityDetailPage({
     }
   }
 
+  function handleInvestmentAddress(a: AddressData) {
+    const patch: Record<string, string> = {};
+    if (a.street) patch.investmentStreet = a.street;
+    if (a.buildingNumber) patch.investmentBuildingNumber = a.buildingNumber;
+    if (a.postalCode) patch.investmentPostalCode = a.postalCode;
+    if (a.city) patch.investmentCity = a.city;
+    if (Object.keys(patch).length > 0) {
+      void updateField({ opportunityId, ...patch });
+    }
+  }
+
   async function handleStageChange(next: "lead" | "inquiry") {
     if (stage === next) return;
     try {
@@ -250,9 +261,9 @@ export default function OpportunityDetailPage({
         </div>
 
         <div style={{ display: "flex", gap: 6 }}>
-          {opp.clientFolderUrl && (
+          {opp.opportunityFolderUrl && (
             <a
-              href={opp.clientFolderUrl}
+              href={opp.opportunityFolderUrl}
               target="_blank"
               rel="noreferrer"
               className="btn"
@@ -262,7 +273,7 @@ export default function OpportunityDetailPage({
               <FolderOpen size={13} /> Drive
             </a>
           )}
-          {!opp.clientFolderUrl && (
+          {!opp.opportunityFolderUrl && (
             <button
               onClick={handleRetryFolder}
               disabled={retrying}
@@ -465,6 +476,51 @@ export default function OpportunityDetailPage({
         </div>
       </div>
 
+      {/* Adres inwestycji */}
+      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+        <div>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
+            Adres inwestycji
+          </h2>
+          <p style={{ fontSize: 12, color: "var(--text-mute)", margin: "4px 0 0" }}>Lokalizacja montażu (jeśli różni się od adresu klienta)</p>
+        </div>
+        <AddressSearch onSelect={handleInvestmentAddress} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <InlineEdit
+            label="Ulica"
+            value={opp.investmentStreet ?? ""}
+            placeholder="—"
+            onSave={(v) => save("investmentStreet", v || undefined)}
+          />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <InlineEdit
+              label="Nr budynku"
+              value={opp.investmentBuildingNumber ?? ""}
+              placeholder="—"
+              onSave={(v) => save("investmentBuildingNumber", v || undefined)}
+            />
+            <InlineEdit
+              label="Nr mieszk."
+              value={opp.investmentApartmentNumber ?? ""}
+              placeholder="—"
+              onSave={(v) => save("investmentApartmentNumber", v || undefined)}
+            />
+          </div>
+          <InlineEdit
+            label="Kod pocztowy"
+            value={opp.investmentPostalCode ?? ""}
+            placeholder="—"
+            onSave={(v) => save("investmentPostalCode", v || undefined)}
+          />
+          <InlineEdit
+            label="Miejscowość"
+            value={opp.investmentCity ?? ""}
+            placeholder="—"
+            onSave={(v) => save("investmentCity", v || undefined)}
+          />
+        </div>
+      </div>
+
       {/* Usługi */}
       <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
         <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
@@ -539,8 +595,7 @@ export default function OpportunityDetailPage({
       {/* Załączniki */}
       <OpportunityAttachmentsSection
         opportunityId={opportunityId}
-        files={opp.driveProjectFiles ?? []}
-        hasDriveFolder={!!opp.clientFolderId}
+        opportunityFolderId={opp.opportunityFolderId}
       />
 
       {/* Komentarz */}

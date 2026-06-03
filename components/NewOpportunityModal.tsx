@@ -57,11 +57,16 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
   const [resolvedContact, setResolvedContact] = useState({ firstName: "", lastName: "", email: "", phone: "" });
 
   // ─── Details state ─────────────────────────────────────────────────────────
-  const [street, setStreet] = useState("");
-  const [buildingNumber, setBuildingNumber] = useState("");
-  const [apartmentNumber, setApartmentNumber] = useState("");
-  const [postalCode, setPostalCode] = useState("");
-  const [city, setCity] = useState("");
+  const [investmentStreet, setInvestmentStreet] = useState("");
+  const [investmentBuildingNumber, setInvestmentBuildingNumber] = useState("");
+  const [investmentApartmentNumber, setInvestmentApartmentNumber] = useState("");
+  const [investmentPostalCode, setInvestmentPostalCode] = useState("");
+  const [investmentCity, setInvestmentCity] = useState("");
+
+  const resolvedClient = useQuery(
+    api.clients.getById,
+    resolvedClientId ? { clientId: resolvedClientId } : "skip",
+  );
   const [services, setServices] = useState<string[]>([]);
   const [customText, setCustomText] = useState("");
   const [comment, setComment] = useState("");
@@ -197,11 +202,11 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
     setServices((prev) => prev.includes(s) ? prev.filter((v) => v !== s) : [...prev, s]);
   }
 
-  function handleAddressSelect(a: AddressData) {
-    if (a.street) setStreet(a.street);
-    if (a.buildingNumber) setBuildingNumber(a.buildingNumber);
-    if (a.postalCode) setPostalCode(a.postalCode);
-    if (a.city) setCity(a.city);
+  function handleInvestmentAddressSelect(a: AddressData) {
+    if (a.street) setInvestmentStreet(a.street);
+    if (a.buildingNumber) setInvestmentBuildingNumber(a.buildingNumber);
+    if (a.postalCode) setInvestmentPostalCode(a.postalCode);
+    if (a.city) setInvestmentCity(a.city);
   }
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
@@ -248,11 +253,11 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
         lastName: resolvedContact.lastName,
         email: resolvedContact.email || undefined,
         phone: resolvedContact.phone || undefined,
-        street: street.trim() || undefined,
-        buildingNumber: buildingNumber.trim() || undefined,
-        apartmentNumber: apartmentNumber.trim() || undefined,
-        postalCode: postalCode.trim() || undefined,
-        city: city.trim() || undefined,
+        investmentStreet: investmentStreet.trim() || undefined,
+        investmentBuildingNumber: investmentBuildingNumber.trim() || undefined,
+        investmentApartmentNumber: investmentApartmentNumber.trim() || undefined,
+        investmentPostalCode: investmentPostalCode.trim() || undefined,
+        investmentCity: investmentCity.trim() || undefined,
         services: services.length > 0 ? services : undefined,
         customText: customText.trim() || undefined,
         comment: comment.trim() || undefined,
@@ -614,30 +619,56 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
           {/* ── Krok: Szczegóły ───────────────────────────────────────────── */}
           {step === "details" && (
             <div className="space-y-5">
+              {/* Adres klienta — read-only */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Adres klienta</p>
+                {resolvedClient === undefined ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                    <Loader2 size={14} className="animate-spin text-slate-400" />
+                    <span className="text-sm text-slate-400">Ładowanie…</span>
+                  </div>
+                ) : resolvedClient && (resolvedClient.street || resolvedClient.city || resolvedClient.postalCode) ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 space-y-0.5">
+                    {resolvedClient.street && (
+                      <p>{resolvedClient.street}{resolvedClient.buildingNumber ? ` ${resolvedClient.buildingNumber}` : ""}{resolvedClient.apartmentNumber ? `/${resolvedClient.apartmentNumber}` : ""}</p>
+                    )}
+                    {(resolvedClient.postalCode || resolvedClient.city) && (
+                      <p>{[resolvedClient.postalCode, resolvedClient.city].filter(Boolean).join(" ")}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-400 italic">Brak adresu klienta</p>
+                )}
+              </div>
+
+              {/* Adres inwestycji */}
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Adres</p>
-                <AddressSearch onSelect={handleAddressSelect} />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Adres inwestycji</p>
+                  <p className="mt-0.5 text-xs text-slate-400">Lokalizacja montażu (opcjonalnie, jeśli różni się od adresu klienta)</p>
+                </div>
+                <AddressSearch onSelect={handleInvestmentAddressSelect} />
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-slate-500">Kod pocztowy</label>
-                    <input type="text" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="00-000" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
+                    <input type="text" value={investmentPostalCode} onChange={(e) => setInvestmentPostalCode(e.target.value)} placeholder="00-000" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-medium text-slate-500">Miejscowość</label>
-                    <input type="text" value={city} onChange={(e) => setCity(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
+                    <input type="text" value={investmentCity} onChange={(e) => setInvestmentCity(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-medium text-slate-500">Ulica</label>
-                    <input type="text" value={street} onChange={(e) => setStreet(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
+                    <input type="text" value={investmentStreet} onChange={(e) => setInvestmentStreet(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="mb-1 block text-xs font-medium text-slate-500">Nr budynku</label>
-                      <input type="text" value={buildingNumber} onChange={(e) => setBuildingNumber(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
+                      <input type="text" value={investmentBuildingNumber} onChange={(e) => setInvestmentBuildingNumber(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-medium text-slate-500">Nr mieszkania</label>
-                      <input type="text" value={apartmentNumber} onChange={(e) => setApartmentNumber(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
+                      <input type="text" value={investmentApartmentNumber} onChange={(e) => setInvestmentApartmentNumber(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
                     </div>
                   </div>
                 </div>
