@@ -578,6 +578,16 @@ export default defineSchema({
     .index("by_invoice", ["invoiceId"])
     .index("by_order", ["orderId"]),
 
+  // 3.20 Zadania do zlecenia (TODO lista)
+  orderTasks: defineTable({
+    orderId: v.id("orders"),
+    title: v.string(),
+    dueDate: v.optional(v.number()),
+    status: v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
+    assignedUserId: v.optional(v.id("users")),
+    createdBy: v.string(),
+  }).index("by_order", ["orderId"]),
+
   // Logi systemowe
   systemLogs: defineTable({
     level: v.union(v.literal("info"), v.literal("warn"), v.literal("error")),

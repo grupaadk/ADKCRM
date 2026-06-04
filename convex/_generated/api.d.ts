@@ -34,6 +34,7 @@ import type * as lib_sentry from "../lib/sentry.js";
 import type * as migrations from "../migrations.js";
 import type * as notes from "../notes.js";
 import type * as orderLineItems from "../orderLineItems.js";
+import type * as orderTasks from "../orderTasks.js";
 import type * as orders from "../orders.js";
 import type * as paymentReminders from "../paymentReminders.js";
 import type * as places from "../places.js";
@@ -80,6 +81,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   notes: typeof notes;
   orderLineItems: typeof orderLineItems;
+  orderTasks: typeof orderTasks;
   orders: typeof orders;
   paymentReminders: typeof paymentReminders;
   places: typeof places;

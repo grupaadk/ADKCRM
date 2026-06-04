@@ -23,7 +23,7 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { getCurrentUser, requireRole } from "./lib/auth";
+import { getCurrentUser, requireUser, requireRole } from "./lib/auth";
 
 const userRoleValidator = v.union(
   v.literal("admin"),
@@ -387,6 +387,27 @@ export const seedInitialAdmin = action({
 export const _listAll = internalQuery({
   args: {},
   handler: async (ctx) => ctx.db.query("users").collect(),
+});
+
+/**
+ * Zwraca listę użytkowników dostępnych do przypisania (role: sales + admin).
+ * Dostępne dla każdego zalogowanego usera (do przypisywania zadań itp.)
+ */
+export const listAssignable = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireUser(ctx);
+    const users = await ctx.db.query("users").collect();
+    return users
+      .filter((u) => (u.role === "sales" || u.role === "admin") && u.isActive !== false)
+      .map((u) => ({
+        _id: u._id,
+        displayName: u.displayName,
+        login: u.email,
+        role: u.role,
+      }))
+      .sort((a, b) => (a.displayName ?? a.login ?? "").localeCompare(b.displayName ?? b.login ?? ""));
+  },
 });
 
 /**

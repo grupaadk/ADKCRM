@@ -1,19 +1,17 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { use, useEffect, useState } from "react";
+import { use, useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import InlineEdit from "../../InlineEdit";
 import DocumentCheckboxes from "../../DocumentCheckboxes";
 import OrderLineItems from "../../OrderLineItems";
-import EventTimeline from "../../EventTimeline";
 import { useStatusLabels } from "@/components/StatusLabelsContext";
 import ComplaintTab from "./ComplaintTab";
-import AttachmentsSection from "./AttachmentsSection";
+import OrderDriveBrowser from "./OrderDriveBrowser";
 import DocumentProgressTiles from "../../DocumentProgressTiles";
 import InvestmentLocation from "../../InvestmentLocation";
 import ReminderModal from "@/app/admin/faktury/ReminderModal";
@@ -79,11 +77,15 @@ type CachedInvoice = {
   orderId?: Id<"orders">;
 };
 
-const STATUS_ORDER = [
-  "lead", "inquiry",
-  "measurement", "contract",
-  "production", "installation", "complaint", "completed",
+const VISIBLE_STATUS_ORDER = [
+  "measurement",
+  "contract",
+  "production",
+  "installation",
+  "completed",
 ] as const;
+
+type VisibleStatus = (typeof VISIBLE_STATUS_ORDER)[number];
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
   lead: ["inquiry", "measurement"],
@@ -97,12 +99,6 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   warranty: [],
 };
 
-const ORDER_VISIBLE_STATUSES = new Set([
-  "lead", "inquiry",
-  "measurement", "offer", "contract", "production",
-  "installation", "completed", "complaint", "archived",
-]);
-
 const COLOR_FIELDS: Array<{ key: string; label: string }> = [
   { key: "windowColor", label: "Okna" },
   { key: "doorColor", label: "Drzwi" },
@@ -111,11 +107,15 @@ const COLOR_FIELDS: Array<{ key: string; label: string }> = [
   { key: "constructionColor", label: "Konstrukcja" },
 ];
 
-type Tab = "zlecenie" | "wycena" | "dokumenty" | "reklamacja";
+
+type Tab = "szczegoly" | "wycena" | "reklamacja";
 
 function getProjectFileLinks(projectFiles: string | undefined) {
   if (!projectFiles) return [];
-  return projectFiles.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+  return projectFiles
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function getFileName(url: string, index: number) {
@@ -127,10 +127,26 @@ function getFileName(url: string, index: number) {
   }
 }
 
-function SectionCard({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
+function SectionCard({
+  title,
+  children,
+  action,
+}: {
+  title: string;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
   return (
     <section className="panel" style={{ overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid var(--line)" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "10px 14px",
+          borderBottom: "1px solid var(--line)",
+        }}
+      >
         <span className="up mute">{title}</span>
         {action}
       </div>
@@ -139,17 +155,642 @@ function SectionCard({ title, children, action }: { title: string; children: Rea
   );
 }
 
-function ColorCard({ label, values }: { label: string; values: string[] }) {
-  if (!values?.length) return null;
+function CollapsibleSection({
+  title,
+  children,
+  badge,
+  defaultOpen = false,
+}: {
+  title: string;
+  children: ReactNode;
+  badge?: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div style={{ borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", padding: "10px 12px" }}>
-      <div className="up mute" style={{ marginBottom: 6 }}>{label}</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-        {values.map((v) => (
-          <span key={v} className="chip">{v}</span>
-        ))}
+    <section className="panel" style={{ overflow: "hidden" }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 16px",
+          width: "100%",
+          borderBottom: open ? "1px solid var(--line)" : "none",
+          background: "none",
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        <span className="up mute">{title}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {badge}
+          <svg
+            style={{
+              transform: open ? "rotate(180deg)" : "none",
+              transition: "transform 0.2s",
+              color: "var(--text-mute)",
+            }}
+            width="14"
+            height="14"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+      {open && <div style={{ padding: 16 }}>{children}</div>}
+    </section>
+  );
+}
+
+
+const KANBAN_COLS = [
+  {
+    key: "todo" as const,
+    label: "Do zrobienia",
+    accent: "#64748b",
+    headerBg: "#f8fafc",
+    colBg: "#f8fafc",
+    border: "#e2e8f0",
+  },
+  {
+    key: "in_progress" as const,
+    label: "W trakcie",
+    accent: "#2563eb",
+    headerBg: "#eff6ff",
+    colBg: "#f5f9ff",
+    border: "#bfdbfe",
+  },
+  {
+    key: "done" as const,
+    label: "Gotowe",
+    accent: "#16a34a",
+    headerBg: "#f0fdf4",
+    colBg: "#f7fdf9",
+    border: "#bbf7d0",
+  },
+];
+
+function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
+  const tasks = useQuery(api.orderTasks.listByOrder, { orderId });
+  const salesUsers = useQuery(api.users.listAssignable) ?? [];
+  const createTask = useMutation(api.orderTasks.create);
+  const updateTask = useMutation(api.orderTasks.update);
+  const removeTask = useMutation(api.orderTasks.remove);
+
+  const [addingToCol, setAddingToCol] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDueDate, setNewDueDate] = useState("");
+  const [newAssigneeId, setNewAssigneeId] = useState("");
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+
+  function startAdding(colKey: string) {
+    setAddingToCol(colKey);
+    setNewTitle("");
+    setNewDueDate("");
+    setNewAssigneeId("");
+  }
+
+  function cancelAdding() {
+    setAddingToCol(null);
+    setNewTitle("");
+  }
+
+  async function handleAddCard(colKey: "todo" | "in_progress" | "done") {
+    if (!newTitle.trim()) return;
+    await createTask({
+      orderId,
+      title: newTitle.trim(),
+      status: colKey,
+      dueDate: newDueDate ? new Date(newDueDate).getTime() : undefined,
+      assignedUserId: newAssigneeId
+        ? (newAssigneeId as Id<"users">)
+        : undefined,
+    });
+    setNewTitle("");
+    setNewDueDate("");
+    setNewAssigneeId("");
+    setAddingToCol(null);
+  }
+
+  async function handleMove(
+    taskId: Id<"orderTasks">,
+    from: string,
+    dir: "prev" | "next",
+  ) {
+    const order = ["todo", "in_progress", "done"];
+    const idx = order.indexOf(from);
+    const next = dir === "next" ? idx + 1 : idx - 1;
+    if (next < 0 || next >= order.length) return;
+    await updateTask({
+      taskId,
+      status: order[next] as "todo" | "in_progress" | "done",
+    });
+  }
+
+  async function handleDrop(
+    targetCol: "todo" | "in_progress" | "done",
+    e: React.DragEvent,
+  ) {
+    e.preventDefault();
+    setDragOverCol(null);
+    const taskId = e.dataTransfer.getData("taskId") as Id<"orderTasks">;
+    const fromCol = e.dataTransfer.getData("fromCol");
+    if (!taskId || fromCol === targetCol) return;
+    await updateTask({ taskId, status: targetCol });
+  }
+
+  const openCount = tasks?.filter((t) => t.status !== "done").length ?? 0;
+
+  return (
+    <section className="panel" style={{ overflow: "hidden" }}>
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "10px 14px",
+          borderBottom: "1px solid var(--line)",
+        }}
+      >
+        <span className="up mute">Lista zadań</span>
+        {openCount > 0 && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              background: "#eff6ff",
+              color: "#1d4ed8",
+              border: "1px solid #bfdbfe",
+              borderRadius: 10,
+              padding: "1px 7px",
+            }}
+          >
+            {openCount}
+          </span>
+        )}
       </div>
-    </div>
+
+      {/* Kanban columns */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr" }}>
+        {KANBAN_COLS.map((col, colIdx) => {
+          const colTasks = (tasks ?? []).filter((t) => t.status === col.key);
+          const isAdding = addingToCol === col.key;
+
+          return (
+            <div
+              key={col.key}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                setDragOverCol(col.key);
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  setDragOverCol(null);
+                }
+              }}
+              onDrop={(e) => void handleDrop(col.key, e)}
+              style={{
+                borderRight:
+                  colIdx < 2 ? "1px solid var(--line)" : "none",
+                display: "flex",
+                flexDirection: "column",
+                background: dragOverCol === col.key ? col.headerBg : col.colBg,
+                minHeight: 120,
+                transition: "background 0.15s",
+                outline: dragOverCol === col.key ? `2px solid ${col.accent}` : "none",
+                outlineOffset: -2,
+              }}
+            >
+              {/* Column header */}
+              <div
+                style={{
+                  padding: "8px 10px",
+                  background: col.headerBg,
+                  borderBottom: `1px solid ${col.border}`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: col.accent,
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: col.accent,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                    flex: 1,
+                  }}
+                >
+                  {col.label}
+                </span>
+                {colTasks.length > 0 && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: col.accent,
+                      opacity: 0.7,
+                    }}
+                  >
+                    {colTasks.length}
+                  </span>
+                )}
+              </div>
+
+              {/* Cards */}
+              <div
+                style={{
+                  padding: "6px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 5,
+                  flex: 1,
+                }}
+              >
+                {colTasks.map((task) => {
+                  const isOverdue =
+                    task.dueDate &&
+                    task.dueDate < Date.now() &&
+                    task.status !== "done";
+                  return (
+                    <div
+                      key={task._id}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("taskId", task._id);
+                        e.dataTransfer.setData("fromCol", col.key);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      style={{
+                        background: "var(--panel)",
+                        borderRadius: 6,
+                        border: "1px solid var(--line)",
+                        padding: "8px 9px",
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                        cursor: "grab",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: 12.5,
+                          fontWeight: 500,
+                          margin: "0 0 6px",
+                          color:
+                            task.status === "done"
+                              ? "var(--text-mute)"
+                              : "var(--text)",
+                          textDecoration:
+                            task.status === "done" ? "line-through" : "none",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {task.title}
+                      </p>
+
+                      {/* Meta + actions row */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {/* Meta */}
+                        {task.dueDate && (
+                          <span
+                            style={{
+                              fontSize: 10.5,
+                              color: isOverdue ? "#dc2626" : "var(--text-mute)",
+                              fontWeight: isOverdue ? 600 : 400,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 2,
+                            }}
+                          >
+                            <svg
+                              width="9"
+                              height="9"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5"
+                              />
+                            </svg>
+                            {new Date(task.dueDate).toLocaleDateString(
+                              "pl-PL",
+                              { day: "2-digit", month: "2-digit" },
+                            )}
+                          </span>
+                        )}
+                        {task.assignedUserName && (
+                          <span
+                            style={{
+                              fontSize: 10.5,
+                              color: "var(--text-mute)",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 2,
+                            }}
+                          >
+                            <svg
+                              width="9"
+                              height="9"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+                              />
+                            </svg>
+                            {task.assignedUserName}
+                          </span>
+                        )}
+
+                        {/* Spacer */}
+                        <div style={{ flex: 1 }} />
+
+                        {/* Move left */}
+                        {colIdx > 0 && (
+                          <button
+                            onClick={() =>
+                              void handleMove(task._id, col.key, "prev")
+                            }
+                            title="Przenieś w lewo"
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              color: "var(--text-mute)",
+                              padding: "1px 3px",
+                              borderRadius: 3,
+                              fontSize: 13,
+                              lineHeight: 1,
+                              opacity: 0.5,
+                            }}
+                          >
+                            ‹
+                          </button>
+                        )}
+                        {/* Move right */}
+                        {colIdx < 2 && (
+                          <button
+                            onClick={() =>
+                              void handleMove(task._id, col.key, "next")
+                            }
+                            title="Przenieś w prawo"
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              color: "var(--text-mute)",
+                              padding: "1px 3px",
+                              borderRadius: 3,
+                              fontSize: 13,
+                              lineHeight: 1,
+                              opacity: 0.5,
+                            }}
+                          >
+                            ›
+                          </button>
+                        )}
+                        {/* Delete */}
+                        <button
+                          onClick={() =>
+                            void removeTask({ taskId: task._id })
+                          }
+                          title="Usuń"
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "var(--text-mute)",
+                            padding: "1px 3px",
+                            borderRadius: 3,
+                            opacity: 0.4,
+                            display: "flex",
+                            alignItems: "center",
+                          }}
+                        >
+                          <svg
+                            width="11"
+                            height="11"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Inline add form */}
+                {isAdding ? (
+                  <div
+                    style={{
+                      background: "var(--panel)",
+                      borderRadius: 6,
+                      border: `1px solid ${col.border}`,
+                      padding: "8px 9px",
+                      boxShadow: "0 0 0 2px " + col.border,
+                    }}
+                  >
+                    <textarea
+                      autoFocus
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void handleAddCard(col.key);
+                        }
+                        if (e.key === "Escape") cancelAdding();
+                      }}
+                      placeholder="Treść zadania…"
+                      rows={2}
+                      style={{
+                        width: "100%",
+                        resize: "none",
+                        border: "none",
+                        background: "transparent",
+                        fontSize: 12.5,
+                        fontFamily: "inherit",
+                        outline: "none",
+                        color: "var(--text)",
+                        lineHeight: 1.4,
+                      }}
+                    />
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 4,
+                        marginTop: 6,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <input
+                        type="date"
+                        value={newDueDate}
+                        onChange={(e) => setNewDueDate(e.target.value)}
+                        style={{
+                          fontSize: 11,
+                          border: "1px solid var(--line)",
+                          borderRadius: 4,
+                          padding: "2px 6px",
+                          background: "var(--panel-2)",
+                          color: "var(--text)",
+                          fontFamily: "inherit",
+                        }}
+                      />
+                      <select
+                        value={newAssigneeId}
+                        onChange={(e) => setNewAssigneeId(e.target.value)}
+                        style={{
+                          fontSize: 11,
+                          border: "1px solid var(--line)",
+                          borderRadius: 4,
+                          padding: "2px 6px",
+                          background: "var(--panel-2)",
+                          color: "var(--text)",
+                          fontFamily: "inherit",
+                          maxWidth: 130,
+                          flex: 1,
+                        }}
+                      >
+                        <option value="">Nie przypisano</option>
+                        {salesUsers.map((u) => (
+                          <option key={u._id} value={u._id}>
+                            {u.displayName ?? u.login}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 5,
+                        marginTop: 7,
+                        alignItems: "center",
+                      }}
+                    >
+                      <button
+                        onClick={() => void handleAddCard(col.key)}
+                        disabled={!newTitle.trim()}
+                        className="btn primary"
+                        style={{ fontSize: 11, padding: "4px 10px" }}
+                      >
+                        Dodaj kartę
+                      </button>
+                      <button
+                        onClick={cancelAdding}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "var(--text-mute)",
+                          padding: "4px 6px",
+                          borderRadius: 4,
+                          display: "flex",
+                          alignItems: "center",
+                          fontFamily: "inherit",
+                        }}
+                        title="Anuluj"
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => startAdding(col.key)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "5px 8px",
+                      fontSize: 12,
+                      color: "var(--text-mute)",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      borderRadius: 5,
+                      width: "100%",
+                      textAlign: "left",
+                      fontFamily: "inherit",
+                      marginTop: 2,
+                    }}
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 4.5v15m7.5-7.5h-15"
+                      />
+                    </svg>
+                    Dodaj kartę
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -165,76 +806,45 @@ export default function OrderDetailPage({
 
   const statusLabels = useStatusLabels();
   const searchParams = useSearchParams();
-  const initialTab = (searchParams.get("tab") as Tab) ?? "dokumenty";
+  const initialTab = (searchParams.get("tab") as Tab) ?? "szczegoly";
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showSmsModal, setShowSmsModal] = useState(false);
-  const [smsSelectedRecipients, setSmsSelectedRecipients] = useState<Set<number>>(new Set());
+  const [smsSelectedRecipients, setSmsSelectedRecipients] = useState<
+    Set<number>
+  >(new Set());
   const [smsCustomPhone, setSmsCustomPhone] = useState("");
   const [sendingAddress, setSendingAddress] = useState(false);
   const [smsError, setSmsError] = useState<string | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState("");
-  const [reminderInvoiceId, setReminderInvoiceId] = useState<Id<"fakturowniaInvoicesCache"> | null>(null);
+  const [reminderInvoiceId, setReminderInvoiceId] =
+    useState<Id<"fakturowniaInvoicesCache"> | null>(null);
 
   const client = useQuery(api.clients.getById, { clientId });
   const order = useQuery(api.orders.getById, { orderId: orderIdTyped });
   const events = useQuery(api.events.listByOrder, { orderId: orderIdTyped });
-  const assignedInvoices = useQuery(api.fakturownia.listCachedInvoicesByOrder, { orderId: orderIdTyped });
-  const allInvoices = useQuery(api.fakturownia.listCachedInvoices) as CachedInvoice[] | undefined;
+  const assignedInvoices = useQuery(api.fakturownia.listCachedInvoicesByOrder, {
+    orderId: orderIdTyped,
+  });
+  const allInvoices = useQuery(
+    api.fakturownia.listCachedInvoices,
+  ) as CachedInvoice[] | undefined;
   const fakturowniaConfig = useQuery(api.fakturownia.getConfig);
-  const existingComplaint = useQuery(api.complaints.getByOrderId, { orderId: orderIdTyped });
+  const existingComplaint = useQuery(api.complaints.getByOrderId, {
+    orderId: orderIdTyped,
+  });
   const changeStatus = useMutation(api.orders.changeStatus);
   const assignInvoice = useMutation(api.fakturownia.assignInvoiceToOrder);
   const unassignInvoice = useMutation(api.fakturownia.unassignInvoiceFromOrder);
-  const paymentReminders = useQuery(api.paymentReminders.listByOrder, { orderId: orderIdTyped });
+  const paymentReminders = useQuery(api.paymentReminders.listByOrder, {
+    orderId: orderIdTyped,
+  });
   const smsConfig = useQuery(api.sms.getConfig);
   const createOrderFolder = useAction(api.googleDrive.createOrderFolder);
   const deleteOrder = useAction(api.orders.deleteOrder);
   const sendOrderAddressSms = useAction(api.sms.sendOrderAddressSms);
-  const listOrderFolderFiles = useAction(api.googleDrive.listOrderFolderFiles);
-
-  const orderFolderId = order?.folderId;
-  const [orderFiles, setOrderFiles] = useState<
-    Array<{
-      fileId: string;
-      name: string;
-      mimeType?: string;
-      size?: number;
-      folderPath: string;
-      webViewLink?: string;
-    }> | null
-  >(null);
-  const [orderFilesLoading, setOrderFilesLoading] = useState(false);
-  const [orderFilesError, setOrderFilesError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!orderFolderId) {
-      setOrderFiles(null);
-      return;
-    }
-    let cancelled = false;
-    setOrderFilesLoading(true);
-    setOrderFilesError(null);
-    listOrderFolderFiles({ orderId: orderIdTyped })
-      .then((files) => {
-        if (!cancelled) setOrderFiles(files);
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setOrderFilesError(
-            error instanceof Error ? error.message : "Nie udało się pobrać plików.",
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setOrderFilesLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [orderFolderId, orderIdTyped, listOrderFolderFiles]);
 
   if (client === undefined || order === undefined) {
     return (
@@ -248,25 +858,43 @@ export default function OrderDetailPage({
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-4">
         <div className="text-sm text-slate-500">Nie znaleziono.</div>
-        <Link href={`/admin/klient/${id}`} className="text-sm text-blue-600 hover:underline">
+        <Link
+          href={`/admin/klient/${id}`}
+          className="text-sm text-blue-600 hover:underline"
+        >
           Wroc do klienta
         </Link>
       </div>
     );
   }
 
-  const allowedTransitions = STATUS_TRANSITIONS[order.status] ?? [];
   const statusLabel = statusLabels[order.status] ?? order.status;
-  const currentStatusIndex = STATUS_ORDER.indexOf(order.status as (typeof STATUS_ORDER)[number]);
-
-  const showOrderDetails = ORDER_VISIBLE_STATUSES.has(order.status);
-  const projectFileLinks = getProjectFileLinks(order.projectFiles);
+  const visibleStatusIndex = VISIBLE_STATUS_ORDER.indexOf(
+    order.status as VisibleStatus,
+  );
+  const isBeforeMeasurement = [
+    "lead",
+    "inquiry",
+    "offer",
+  ].includes(order.status);
+  const isComplaint = order.status === "complaint";
+  const isArchived = order.status === "archived";
 
   async function handleStatusChange(newStatus: string) {
     try {
       await changeStatus({
         orderId: orderIdTyped,
-        newStatus: newStatus as "lead" | "inquiry" | "measurement" | "offer" | "contract" | "production" | "installation" | "completed" | "complaint" | "archived",
+        newStatus: newStatus as
+          | "lead"
+          | "inquiry"
+          | "measurement"
+          | "offer"
+          | "contract"
+          | "production"
+          | "installation"
+          | "completed"
+          | "complaint"
+          | "archived",
       });
     } catch (error) {
       console.error("Status change failed:", error);
@@ -316,7 +944,9 @@ export default function OrderDetailPage({
     if (custom) phones.push(custom);
 
     if (phones.length === 0) {
-      setSmsError("Wybierz co najmniej jednego adresata lub podaj numer telefonu.");
+      setSmsError(
+        "Wybierz co najmniej jednego adresata lub podaj numer telefonu.",
+      );
       return;
     }
 
@@ -327,7 +957,9 @@ export default function OrderDetailPage({
       setShowSmsModal(false);
     } catch (error) {
       console.error("Błąd wysyłki SMS z adresem zlecenia:", error);
-      setSmsError(error instanceof Error ? error.message : "Błąd wysyłki SMS");
+      setSmsError(
+        error instanceof Error ? error.message : "Błąd wysyłki SMS",
+      );
     } finally {
       setSendingAddress(false);
     }
@@ -345,179 +977,476 @@ export default function OrderDetailPage({
     }
   }
 
+  const createdDate = new Date(order._creationTime).toLocaleDateString(
+    "pl-PL",
+    { day: "2-digit", month: "2-digit", year: "numeric" },
+  );
+  const orderNumber = order.name ?? `Zlecenie z ${createdDate}`;
+  const projectFileLinks = getProjectFileLinks(order.projectFiles);
+
   const tabs: Array<{ key: Tab; label: string }> = [
-    { key: "zlecenie", label: "Zlecenie" },
+    { key: "szczegoly", label: "Szczegóły" },
     { key: "wycena", label: "Wycena" },
-    { key: "dokumenty", label: "Dokumenty" },
-    ...(order.status === "complaint" || existingComplaint ? [{ key: "reklamacja" as Tab, label: "Reklamacja" }] : []),
+    ...(order.status === "complaint" || existingComplaint
+      ? [{ key: "reklamacja" as Tab, label: "Reklamacja" }]
+      : []),
   ];
 
-  const createdDate = new Date(order._creationTime).toLocaleDateString("pl-PL", {
-    day: "2-digit", month: "2-digit", year: "numeric"
-  });
-  const orderNumber = order.name ?? `Zlecenie z ${createdDate}`;
-  const completedStatusIndex = STATUS_ORDER.indexOf("completed");
-  const hasReachedCompleted = currentStatusIndex >= completedStatusIndex;
-  const completedEvent = (events ?? []).find(
-    (e) => e.type === "status_changed" && e.details?.to === "completed"
-  );
-  const completedDate = completedEvent
-    ? new Date(completedEvent._creationTime).toLocaleString("pl-PL", {
-        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
-      })
-    : null;
-
-  const measurementStatusIndex = STATUS_ORDER.indexOf("measurement");
-  const hasReachedMeasurement = currentStatusIndex >= measurementStatusIndex;
-  const measurementEvent = (events ?? []).find(
-    (e) => e.type === "status_changed" && e.details?.to === "measurement"
-  );
-  const measurementDate = measurementEvent
-    ? new Date(measurementEvent._creationTime).toLocaleString("pl-PL", {
-        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
-      })
-    : null;
-
-  const warrantyStatusIndex = STATUS_ORDER.indexOf("complaint");
-  const hasReachedWarranty = currentStatusIndex >= warrantyStatusIndex;
   const warrantyEvent = (events ?? []).find(
-    (e) => e.type === "status_changed" && e.details?.to === "complaint"
+    (e) => e.type === "status_changed" && e.details?.to === "complaint",
   );
-  const warrantyDate = warrantyEvent
-    ? new Date(warrantyEvent._creationTime).toLocaleString("pl-PL", {
-        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
-      })
-    : null;
-  const projectStartTs = measurementEvent?._creationTime ?? null;
-  const projectEndTs = completedEvent?._creationTime ?? null;
-  const projectEndDate = completedDate ?? null;
-  const projectIsOngoing = hasReachedMeasurement && !hasReachedCompleted && !hasReachedWarranty;
-  const projectDurationDays = projectStartTs
-    ? Math.round(((projectEndTs ?? Date.now()) - projectStartTs) / (1000 * 60 * 60 * 24))
-    : null;
 
-  const servicesSummary = order.services?.slice(0, 3).join(", ") ?? "";
-  const fkInvoices = order.fakturownia?.invoices ?? [];
-  const fkSummary =
-    fkInvoices.length > 0
-      ? fkInvoices
-          .map((i) =>
-            i.kind === "advance"
-              ? `zaliczka${i.number ? ` ${i.number}` : ""}`
-              : `końcowa${i.number ? ` ${i.number}` : ""}`,
-          )
-          .join(", ")
-      : null;
+  const docCount = order.documents
+    ? Object.values(order.documents).filter((d) => d.enabled).length
+    : 0;
+  const docTotal = order.documents ? Object.keys(order.documents).length : 0;
 
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Header */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* ── Header panel ── */}
       <div className="panel" style={{ overflow: "hidden" }}>
-
         {/* Breadcrumb + actions */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid var(--line)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-mute)" }}>
-            <Link href="/admin" style={{ color: "var(--text-mute)", textDecoration: "none" }}>Klienci</Link>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 16px",
+            borderBottom: "1px solid var(--line)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12,
+              color: "var(--text-mute)",
+            }}
+          >
+            <Link
+              href="/admin"
+              style={{ color: "var(--text-mute)", textDecoration: "none" }}
+            >
+              Klienci
+            </Link>
             <span style={{ opacity: 0.5 }}>›</span>
-            <Link href={`/admin/klient/${id}`} className="btn" style={{ fontSize: 11, padding: "3px 8px" }}>
+            <Link
+              href={`/admin/klient/${id}`}
+              className="btn"
+              style={{ fontSize: 11, padding: "3px 8px" }}
+            >
               {client.clientType === "business" && client.companyName
                 ? client.companyName
                 : `${client.firstName} ${client.lastName}`}
             </Link>
             <span style={{ opacity: 0.5 }}>›</span>
-            <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>{orderNumber}</span>
+            <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>
+              {orderNumber}
+            </span>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <button onClick={openSmsModal} className="btn" style={{ fontSize: 11 }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
+            {/* Drive CTA */}
+            {order.folderUrl ? (
+              <a
+                href={order.folderUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn"
+                style={{
+                  fontSize: 11,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+                title="Otwórz folder Google Drive zlecenia"
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+                </svg>
+                Drive
+              </a>
+            ) : (
+              <button
+                onClick={() => void handleCreateFolder()}
+                className="btn"
+                style={{
+                  fontSize: 11,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+                title="Utwórz folder zlecenia w Google Drive"
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 7a2 2 0 012-2h5l2 2h7a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"
+                  />
+                </svg>
+                Utwórz folder
+              </button>
+            )}
+            <button
+              onClick={openSmsModal}
+              className="btn"
+              style={{ fontSize: 11 }}
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
+                />
+              </svg>
               Wyślij adres
             </button>
             {order.status !== "archived" ? (
-              <button onClick={handleArchive} className="btn" style={{ fontSize: 11 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>
+              <button
+                onClick={() => void handleArchive()}
+                className="btn"
+                style={{ fontSize: 11 }}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
+                  />
+                </svg>
                 Archiwizuj
               </button>
             ) : (
-              <button onClick={handleRestore} className="btn" style={{ fontSize: 11 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992V4.356M2.985 19.644v-4.992h4.992m0 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+              <button
+                onClick={() => void handleRestore()}
+                className="btn"
+                style={{ fontSize: 11 }}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M16.023 9.348h4.992V4.356M2.985 19.644v-4.992h4.992m0 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
+                  />
+                </svg>
                 Przywróć
               </button>
             )}
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="btn"
-              style={{ fontSize: 11, color: "var(--bad)", borderColor: "oklch(0.72 0.18 25 / 0.4)" }}
+              style={{
+                fontSize: 11,
+                color: "var(--bad)",
+                borderColor: "oklch(0.72 0.18 25 / 0.4)",
+              }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                />
+              </svg>
               Usuń
             </button>
           </div>
         </div>
 
-        {/* Main heading */}
-        <div style={{ padding: "16px 20px" }}>
-          <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "6px 10px", marginBottom: 6 }}>
-            <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "var(--text-strong)" }}>{orderNumber}</h1>
-            {order.customText && <span className="chip-custom lg">{order.customText}</span>}
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-            {client.city && <span className="chip">{client.city}</span>}
-            {servicesSummary && <span className="mute" style={{ fontSize: 12 }}>{servicesSummary}</span>}
-            <DocumentProgressTiles documents={order.documents} />
-            <span className="mono mute" style={{ fontSize: 11 }}>Dodano: {createdDate}</span>
-          </div>
-        </div>
+        {/* ── Status pills (nad numerem zlecenia, pod breadcrumb) ── */}
+        <div
+          style={{
+            padding: "10px 20px",
+            background: "var(--panel-2)",
+            borderBottom: "1px solid var(--line)",
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            flexWrap: "wrap",
+          }}
+        >
+          {/* Pre-measurement badge */}
+          {isBeforeMeasurement && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                padding: "4px 10px",
+                borderRadius: 4,
+                background: "#eff6ff",
+                color: "#1d4ed8",
+                border: "1px solid #bfdbfe",
+                marginRight: 6,
+              }}
+            >
+              {statusLabel}
+            </span>
+          )}
 
-        {/* Status timeline */}
-        <div style={{ borderTop: `1px solid ${existingComplaint ? "oklch(0.72 0.18 25 / 0.35)" : "var(--line)"}`, padding: "16px 20px", background: existingComplaint ? "var(--bad-soft)" : "var(--panel-2)" }}>
-          {existingComplaint && (
-            <div className="mb-4 flex items-center">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1 text-[11px] font-semibold text-orange-700 ring-1 ring-orange-300">
-                <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-                Była reklamacja
+          {VISIBLE_STATUS_ORDER.map((status, index) => {
+            const isPast =
+              visibleStatusIndex > index ||
+              isComplaint ||
+              isArchived;
+            const isCurrent =
+              visibleStatusIndex === index && !isBeforeMeasurement && !isArchived;
+            const allowedNext = STATUS_TRANSITIONS[order.status] ?? [];
+            const canClick = allowedNext.includes(status);
+
+            return (
+              <div
+                key={status}
+                style={{ display: "flex", alignItems: "center", gap: 4 }}
+              >
+                {index > 0 && (
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke={isPast ? "#86efac" : "#d1d5db"}
+                    strokeWidth={2.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                )}
+                <button
+                  onClick={
+                    canClick ? () => void handleStatusChange(status) : undefined
+                  }
+                  disabled={!canClick}
+                  title={
+                    canClick
+                      ? `Zmień status na: ${statusLabels[status] ?? status}`
+                      : undefined
+                  }
+                  style={{
+                    padding: "4px 11px",
+                    borderRadius: 4,
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    border: "1px solid",
+                    borderColor: isPast
+                      ? "#86efac"
+                      : isCurrent
+                        ? "#93c5fd"
+                        : canClick
+                          ? "#c7d2fe"
+                          : "#e5e7eb",
+                    background: isPast
+                      ? "#dcfce7"
+                      : isCurrent
+                        ? "#dbeafe"
+                        : canClick
+                          ? "#eef2ff"
+                          : "var(--panel)",
+                    color: isPast
+                      ? "#15803d"
+                      : isCurrent
+                        ? "#1d4ed8"
+                        : canClick
+                          ? "#4f46e5"
+                          : "#9ca3af",
+                    cursor: canClick ? "pointer" : "default",
+                    transition: "all 0.15s",
+                    fontFamily: "inherit",
+                    whiteSpace: "nowrap",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  {isPast && (
+                    <svg
+                      width="10"
+                      height="10"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={3}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  )}
+                  {statusLabels[status] ?? status}
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Complaint badge at the end */}
+          {isComplaint && (
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#fda4af"
+                strokeWidth={2.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+              <span
+                style={{
+                  padding: "4px 11px",
+                  borderRadius: 4,
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  border: "1px solid #fca5a5",
+                  background: "#fff1f2",
+                  color: "#b91c1c",
+                  whiteSpace: "nowrap",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                Reklamacja
               </span>
             </div>
           )}
-          <div className="flex w-full items-start">
-            {STATUS_ORDER.map((status, index) => {
-              const isPast = index < currentStatusIndex;
-              const isCurrent = index === currentStatusIndex;
-              const isLast = index === STATUS_ORDER.length - 1;
-              return (
-                <div key={status} className={`flex items-center ${!isLast ? "flex-1 min-w-0" : ""}`}>
-                  <div className="flex flex-col items-center">
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                      isCurrent && status === "completed"
-                        ? "bg-emerald-500 text-white ring-4 ring-emerald-100 shadow-md"
-                        : isCurrent
-                        ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-md"
-                        : isPast
-                        ? "bg-emerald-500 text-white"
-                        : "bg-white text-slate-400 ring-1 ring-slate-200"
-                    }`}>
-                      {isPast || (isCurrent && status === "completed") ? (
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <span>{index + 1}</span>
-                      )}
-                    </div>
-                    <span className={`mt-1.5 w-14 text-[10px] font-semibold leading-tight text-center ${
-                      isCurrent && status === "completed" ? "text-emerald-600" : isCurrent ? "text-blue-700" : isPast ? "text-emerald-600" : "text-slate-400"
-                    }`}>
-                      {statusLabels[status] ?? status}
-                    </span>
-                  </div>
-                  {!isLast && (
-                    <div className={`mb-5 h-0.5 flex-1 min-w-2 transition-colors ${
-                      isPast ? "bg-emerald-400" : "bg-slate-200"
-                    }`} />
-                  )}
-                </div>
-              );
+        </div>
+
+        {/* Title + meta */}
+        <div style={{ padding: "14px 20px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "6px 10px",
+              marginBottom: 6,
+            }}
+          >
+            <h1
+              style={{
+                fontSize: 18,
+                fontWeight: 700,
+                margin: 0,
+                color: "var(--text-strong)",
+              }}
+            >
+              {orderNumber}
+            </h1>
+            {order.customText && (
+              <span className="chip-custom lg">{order.customText}</span>
+            )}
+            {isArchived && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "2px 8px",
+                  borderRadius: 4,
+                  background: "#f1f5f9",
+                  color: "#64748b",
+                  border: "1px solid #e2e8f0",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Zarchiwizowane
+              </span>
+            )}
+            {order.services?.map((s) => (
+              <span key={s} className="chip">{s}</span>
+            ))}
+            {COLOR_FIELDS.flatMap(({ key, label }) => {
+              const vals = (order[key as keyof typeof order] as string[] | undefined) ?? [];
+              return vals.map((v) => (
+                <span key={`${key}-${v}`} className="chip" style={{ opacity: 0.85 }}>
+                  {label}: {v}
+                </span>
+              ));
             })}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            {client.city && <span className="chip">{client.city}</span>}
+            <DocumentProgressTiles documents={order.documents} />
+            <span className="mono mute" style={{ fontSize: 11 }}>
+              Dodano: {createdDate}
+            </span>
           </div>
         </div>
 
@@ -526,7 +1455,9 @@ export default function OrderDetailPage({
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
             const isComplaintTab = tab.key === "reklamacja";
-            const activeColor = isComplaintTab ? "var(--bad)" : "var(--accent)";
+            const activeColor = isComplaintTab
+              ? "var(--bad)"
+              : "var(--accent)";
             return (
               <button
                 key={tab.key}
@@ -539,7 +1470,9 @@ export default function OrderDetailPage({
                   borderTop: "none",
                   borderLeft: "none",
                   borderRight: "none",
-                  borderBottom: isActive ? `2px solid ${activeColor}` : "2px solid transparent",
+                  borderBottom: isActive
+                    ? `2px solid ${activeColor}`
+                    : "2px solid transparent",
                   marginBottom: -1,
                   background: "none",
                   cursor: "pointer",
@@ -553,209 +1486,134 @@ export default function OrderDetailPage({
         </div>
       </div>
 
-      {/* Tab: Zlecenie */}
-      {activeTab === "zlecenie" && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, gridColumn: "span 2" }}>
-            <SectionCard title="Linki">
-              <div className="space-y-3">
-                {order.folderUrl ? (
-                  <a href={order.folderUrl} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 transition-colors hover:bg-slate-100">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-sm">
-                        <svg className="h-4 w-4 text-slate-600" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
-                        </svg>
-                      </div>
-                      <span className="text-sm font-medium text-slate-700">Google Drive</span>
+      {/* ── InvestmentLocation + Pliki zlecenia ── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 2fr) minmax(0, 3fr)",
+          gap: 16,
+        }}
+      >
+        <div className="panel" style={{ padding: "14px 16px" }}>
+          <InvestmentLocation
+            orderId={orderIdTyped}
+            investmentStreet={order.investmentStreet}
+            investmentBuildingNumber={order.investmentBuildingNumber}
+            investmentApartmentNumber={order.investmentApartmentNumber}
+            investmentPostalCode={order.investmentPostalCode}
+            investmentCity={order.investmentCity}
+          />
+        </div>
+        <OrderDriveBrowser
+          orderId={orderIdTyped}
+          rootFolderId={order.folderId}
+        />
+      </div>
+
+      {/* ── Tab: Szczegóły ── */}
+      {activeTab === "szczegoly" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* TODO list — full width, prominent */}
+          <TodoSection orderId={orderIdTyped} />
+
+          {/* Szczegóły zlecenia (komentarz, ochrona słoneczna, pliki projektu) */}
+          {(order.comment ||
+            (order.sunProtectionType && order.sunProtectionType.length > 0) ||
+            (order.driveProjectFiles && order.driveProjectFiles.length > 0) ||
+            projectFileLinks.length > 0) && (
+            <CollapsibleSection title="Szczegóły zlecenia">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {order.sunProtectionType && order.sunProtectionType.length > 0 && (
+                  <div>
+                    <div className="up mute" style={{ marginBottom: 6 }}>
+                      System przeciwsłoneczny
                     </div>
-                    <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                    </svg>
-                  </a>
-                ) : (
-                  <div style={{ border: "1px dashed var(--line-2)", borderRadius: 6, background: "var(--panel-2)", padding: 14 }}>
-                    <p className="mute" style={{ fontSize: 13, marginBottom: 10 }}>Folder zlecenia nie został jeszcze utworzony.</p>
-                    <button onClick={handleCreateFolder} className="btn primary" style={{ fontSize: 12 }}>
-                      Utwórz folder
-                    </button>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {order.sunProtectionType.map((t) => (
+                        <span key={t} className="chip">{t}</span>
+                      ))}
+                    </div>
                   </div>
                 )}
-
-                {order.folderUrl && (
-                  <div className="pt-1">
-                    <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Pliki w folderze
+                {order.comment && (
+                  <div>
+                    <div className="up mute" style={{ marginBottom: 4 }}>
+                      Komentarz
                     </div>
-                    {orderFilesLoading && orderFiles === null ? (
-                      <div className="text-xs text-slate-400">Ładowanie plików…</div>
-                    ) : orderFilesError ? (
-                      <div className="text-xs text-red-500">{orderFilesError}</div>
-                    ) : orderFiles && orderFiles.length > 0 ? (
-                      <ul className="space-y-1.5">
-                        {orderFiles.map((file) => (
-                          <li key={file.fileId}>
+                    <p
+                      style={{
+                        fontSize: 12,
+                        color: "var(--text)",
+                        margin: 0,
+                        whiteSpace: "pre-wrap",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {order.comment}
+                    </p>
+                  </div>
+                )}
+                {(order.driveProjectFiles?.length ?? projectFileLinks.length) > 0 && (
+                  <div>
+                    <div className="up mute" style={{ marginBottom: 6 }}>
+                      Pliki projektu
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {order.driveProjectFiles?.length
+                        ? order.driveProjectFiles.map((f) => (
                             <a
-                              href={
-                                file.webViewLink ??
-                                `https://drive.google.com/file/d/${file.fileId}/view`
-                              }
+                              key={f.fileId}
+                              href={f.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 transition-colors hover:bg-slate-50"
-                              title={file.folderPath ? `${file.folderPath}/${file.name}` : file.name}
+                              className="chip"
+                              style={{ textDecoration: "none" }}
                             >
-                              <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                              </svg>
-                              <span className="min-w-0 flex-1 truncate text-xs text-slate-700">{file.name}</span>
-                              {file.folderPath && (
-                                <span className="shrink-0 text-[10px] uppercase tracking-wide text-slate-400">
-                                  {file.folderPath}
-                                </span>
-                              )}
+                              {f.name}
                             </a>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="text-xs text-slate-400">Brak plików.</div>
-                    )}
+                          ))
+                        : projectFileLinks.map((url, i) => (
+                            <a
+                              key={i}
+                              href={`${process.env.NEXT_PUBLIC_CONVEX_URL}/api/jotform/file?url=${encodeURIComponent(url)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="chip"
+                              style={{ textDecoration: "none" }}
+                            >
+                              {getFileName(url, i)}
+                            </a>
+                          ))}
+                    </div>
                   </div>
                 )}
-
               </div>
-            </SectionCard>
-          </div>
+            </CollapsibleSection>
+          )}
 
-          <div style={{ gridColumn: "span 3" }}>
-            <SectionCard title="Szczegóły zlecenia">
-              <div className="space-y-6">
-                <InvestmentLocation
-                  orderId={orderIdTyped}
-                  investmentStreet={order.investmentStreet}
-                  investmentBuildingNumber={order.investmentBuildingNumber}
-                  investmentApartmentNumber={order.investmentApartmentNumber}
-                  investmentPostalCode={order.investmentPostalCode}
-                  investmentCity={order.investmentCity}
-                />
-
-              {showOrderDetails ? (
-                <div className="space-y-6">
-                  {order.services && order.services.length > 0 && (
-                    <div>
-                      <div className="up mute" style={{ marginBottom: 8 }}>Usługi</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                        {order.services.map((service) => (
-                          <span key={service} className="chip">{service}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {COLOR_FIELDS.some(({ key }) => (order[key as keyof typeof order] as string[] | undefined)?.length) && (
-                    <div>
-                      <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Kolory</div>
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {COLOR_FIELDS.map(({ key, label }) => (
-                          <ColorCard key={key} label={label} values={(order[key as keyof typeof order] as string[] | undefined) ?? []} />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {order.sunProtectionType && order.sunProtectionType.length > 0 && (
-                    <div>
-                      <div className="up mute" style={{ marginBottom: 8 }}>System przeciwsłoneczny</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                        {order.sunProtectionType.map((type) => (
-                          <span key={type} className="chip">{type}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {(order.driveProjectFiles?.length ?? projectFileLinks.length) > 0 && (
-                    <div>
-                      <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pliki projektu</div>
-                      <div className="space-y-2">
-                        {order.driveProjectFiles?.length ? (
-                          order.driveProjectFiles.map((file) => (
-                            <a key={file.fileId} href={file.url} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 transition-colors hover:bg-slate-100">
-                              <svg className="h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                              </svg>
-                              <span className="text-sm font-medium text-slate-700">{file.name}</span>
-                              <svg className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                              </svg>
-                            </a>
-                          ))
-                        ) : (
-                          projectFileLinks.map((fileUrl, index) => (
-                            <a key={`${fileUrl}-${index}`} href={`${process.env.NEXT_PUBLIC_CONVEX_URL}/api/jotform/file?url=${encodeURIComponent(fileUrl)}`} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 transition-colors hover:bg-slate-100">
-                              <svg className="h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                              </svg>
-                              <span className="text-sm font-medium text-slate-700">{getFileName(fileUrl, index)}</span>
-                              <svg className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                              </svg>
-                            </a>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {order.comment && (
-                    <div>
-                      <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Komentarz</div>
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <p className="whitespace-pre-wrap text-sm text-slate-700">{order.comment}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-                  <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
-                    <svg className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-slate-500">
-                    Szczegoly zlecenia sa dostepne od statusu <strong className="text-slate-700">Pomiar</strong>.
-                  </p>
-                </div>
-              )}
-              </div>
-            </SectionCard>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: Wycena */}
-      {activeTab === "wycena" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <SectionCard title="Pozycje zamówienia">
-            <OrderLineItems orderId={orderIdTyped} fakturownia={order.fakturownia} invoicePlan={order.invoicePlan} />
-          </SectionCard>
-
-        </div>
-      )}
-
-      {/* Tab: Dokumenty */}
-      {activeTab === "dokumenty" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Faktury z Fakturowni */}
           <SectionCard
             title="Faktury z Fakturowni"
             action={
-              <button onClick={() => setShowInvoiceModal(true)} className="btn" style={{ fontSize: 11 }}>
-                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              <button
+                onClick={() => setShowInvoiceModal(true)}
+                className="btn"
+                style={{ fontSize: 11 }}
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4.5v15m7.5-7.5h-15"
+                  />
+                </svg>
                 Przypisz fakturę
               </button>
             }
@@ -768,10 +1626,10 @@ export default function OrderDetailPage({
                       <TableHeaderCell>Numer</TableHeaderCell>
                       <TableHeaderCell>Rodzaj</TableHeaderCell>
                       <TableHeaderCell>Status</TableHeaderCell>
-                      <TableHeaderCell>Nabywca</TableHeaderCell>
-                      <TableHeaderCell>Data wystawienia</TableHeaderCell>
-                      <TableHeaderCell className="text-right">Kwota netto</TableHeaderCell>
-                      <TableHeaderCell className="text-right">Kwota brutto</TableHeaderCell>
+                      <TableHeaderCell>Data</TableHeaderCell>
+                      <TableHeaderCell className="text-right">
+                        Brutto
+                      </TableHeaderCell>
                       <TableHeaderCell />
                       <TableHeaderCell />
                     </TableRow>
@@ -782,42 +1640,74 @@ export default function OrderDetailPage({
                         ? `https://${fakturowniaConfig.subdomain}.fakturownia.pl/invoices/${inv.remoteId}`
                         : null;
                       return (
-                        <TableRow key={inv._id} className="hover:bg-gray-50 transition-colors">
+                        <TableRow
+                          key={inv._id}
+                          className="hover:bg-gray-50 transition-colors"
+                        >
                           <TableCell className="whitespace-nowrap font-mono text-sm text-gray-900">
                             <div className="flex items-center gap-1.5">
-                              {inv.number ?? <span className="text-gray-400">#{inv.remoteId}</span>}
+                              {inv.number ?? (
+                                <span className="text-gray-400">
+                                  #{inv.remoteId}
+                                </span>
+                              )}
                               {invUrl && (
-                                <a href={invUrl} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-blue-500 transition-colors">
-                                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                                <a
+                                  href={invUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-gray-400 hover:text-blue-500 transition-colors"
+                                >
+                                  <svg
+                                    className="h-3.5 w-3.5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                                    />
+                                  </svg>
                                 </a>
                               )}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={(KIND_VARIANTS[inv.kind] ?? "neutral") as Parameters<typeof Badge>[0]["variant"]}>
+                            <Badge
+                              variant={
+                                (KIND_VARIANTS[inv.kind] ??
+                                  "neutral") as Parameters<
+                                  typeof Badge
+                                >[0]["variant"]
+                              }
+                            >
                               {KIND_LABELS[inv.kind] ?? inv.kind}
                             </Badge>
                           </TableCell>
                           <TableCell>
                             {inv.status ? (
-                              <Badge variant={(STATUS_VARIANTS[inv.status] ?? "neutral") as Parameters<typeof Badge>[0]["variant"]}>
+                              <Badge
+                                variant={
+                                  (STATUS_VARIANTS[inv.status] ??
+                                    "neutral") as Parameters<
+                                    typeof Badge
+                                  >[0]["variant"]
+                                }
+                              >
                                 {STATUS_LABELS[inv.status] ?? inv.status}
                               </Badge>
                             ) : (
                               <span className="text-gray-400">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="whitespace-normal min-w-[160px] max-w-[260px] text-sm text-gray-900">
-                            {inv.buyerName ?? <span className="text-gray-400">—</span>}
-                          </TableCell>
                           <TableCell className="whitespace-nowrap text-sm text-gray-600">
                             {inv.issueDate
-                              ? new Date(inv.issueDate).toLocaleDateString("pl-PL")
-                              : <span className="text-gray-400">—</span>}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap text-right tabular-nums text-sm text-gray-600">
-                            {inv.netAmount != null
-                              ? `${inv.netAmount.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${inv.currency ?? "PLN"}`
+                              ? new Date(inv.issueDate).toLocaleDateString(
+                                  "pl-PL",
+                                )
                               : <span className="text-gray-400">—</span>}
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-right tabular-nums text-sm font-semibold text-gray-900">
@@ -828,22 +1718,24 @@ export default function OrderDetailPage({
                           <TableCell className="text-right">
                             {inv.status !== "paid" && (
                               <button
-                                onClick={() => setReminderInvoiceId(inv._id)}
+                                onClick={() =>
+                                  setReminderInvoiceId(inv._id)
+                                }
                                 className="btn"
                                 style={{ fontSize: 11 }}
                                 title="Wyślij przypomnienie o płatności"
                               >
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
                                 Przypomnienie
                               </button>
                             )}
                           </TableCell>
                           <TableCell className="text-right">
                             <button
-                              onClick={() => unassignInvoice({ invoiceId: inv._id })}
+                              onClick={() =>
+                                unassignInvoice({ invoiceId: inv._id })
+                              }
                               className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 ml-auto"
                             >
-                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
                               Odepnij
                             </button>
                           </TableCell>
@@ -852,20 +1744,33 @@ export default function OrderDetailPage({
                     })}
                   </TableBody>
                   {(() => {
-                    const totalNet = assignedInvoices.reduce((s, i) => s + ((i as CachedInvoice).netAmount ?? 0), 0);
-                    const totalGross = assignedInvoices.reduce((s, i) => s + (i.grossAmount ?? 0), 0);
-                    const currency = assignedInvoices.find((i) => i.currency)?.currency ?? "PLN";
+                    const totalGross = assignedInvoices.reduce(
+                      (s, i) => s + (i.grossAmount ?? 0),
+                      0,
+                    );
+                    const currency =
+                      assignedInvoices.find((i) => i.currency)?.currency ??
+                      "PLN";
                     return (
                       <TableFoot>
                         <TableRow className="bg-gray-50 font-semibold">
-                          <TableCell colSpan={5} className="text-xs font-semibold text-gray-500 uppercase tracking-wide" style={{ whiteSpace: "nowrap" }}>
-                            Suma ({assignedInvoices.length} {assignedInvoices.length === 1 ? "faktura" : "faktur"})
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums text-sm text-gray-700 whitespace-nowrap">
-                            {totalNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
+                          <TableCell
+                            colSpan={4}
+                            className="text-xs font-semibold text-gray-500 uppercase tracking-wide"
+                            style={{ whiteSpace: "nowrap" }}
+                          >
+                            Suma ({assignedInvoices.length}{" "}
+                            {assignedInvoices.length === 1
+                              ? "faktura"
+                              : "faktur"}
+                            )
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-sm text-gray-900 whitespace-nowrap font-bold">
-                            {totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
+                            {totalGross.toLocaleString("pl-PL", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            {currency}
                           </TableCell>
                           <TableCell colSpan={2} />
                         </TableRow>
@@ -875,52 +1780,96 @@ export default function OrderDetailPage({
                 </Table>
               </TableRoot>
             ) : (
-              <p className="text-sm italic text-slate-400">Brak przypisanych faktur.</p>
+              <p className="text-sm italic text-slate-400">
+                Brak przypisanych faktur.
+              </p>
             )}
           </SectionCard>
+
+          {/* Umowy i dokumenty handlowe — collapsed */}
+          <CollapsibleSection
+            title="Umowy i dokumenty handlowe"
+            badge={
+              docTotal > 0 ? (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: "var(--text-mute)",
+                    fontWeight: 500,
+                  }}
+                >
+                  {docCount}/{docTotal}
+                </span>
+              ) : undefined
+            }
+          >
+            <DocumentCheckboxes
+              orderId={orderIdTyped}
+              documents={order.documents}
+              warrantyDocs={order.warrantyDocs ?? {}}
+              clientData={client ?? undefined}
+              orderData={order}
+            />
+          </CollapsibleSection>
+
+          {/* Payment reminders history */}
           {paymentReminders && paymentReminders.length > 0 && (
-            <SectionCard title="Historia przypomnień o płatności">
+            <CollapsibleSection title="Historia przypomnień o płatności">
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {paymentReminders.map((r) => (
                   <div
                     key={r._id}
-                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: 6, background: "var(--panel-2)", border: "1px solid var(--line)" }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                      background: "var(--panel-2)",
+                      border: "1px solid var(--line)",
+                    }}
                   >
                     <span style={{ fontSize: 12, color: "var(--text)" }}>
                       {new Date(r.sentAt).toLocaleString("pl-PL")}
                     </span>
                     <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
                       {r.recipientEmail}
-                      {r.invoiceNumber && <span style={{ marginLeft: 8, fontFamily: "monospace" }}>{r.invoiceNumber}</span>}
+                      {r.invoiceNumber && (
+                        <span style={{ marginLeft: 8, fontFamily: "monospace" }}>
+                          {r.invoiceNumber}
+                        </span>
+                      )}
                     </span>
                   </div>
                 ))}
               </div>
-            </SectionCard>
+            </CollapsibleSection>
           )}
-
-          <AttachmentsSection
-            orderId={orderIdTyped}
-            hasDriveFolder={!!order.folderId}
-          />
-          <DocumentCheckboxes
-            orderId={orderIdTyped}
-            documents={order.documents}
-            warrantyDocs={order.warrantyDocs ?? {}}
-            clientData={client ?? undefined}
-            orderData={order}
-          />
         </div>
       )}
 
-      {/* Tab: Reklamacja */}
-      {activeTab === "reklamacja" && (order.status === "complaint" || existingComplaint) && (
-        <ComplaintTab
-          orderId={orderIdTyped}
-          clientId={clientId}
-          complaintStartDate={warrantyEvent?._creationTime ?? null}
-        />
+      {/* ── Tab: Wycena ── */}
+      {activeTab === "wycena" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <SectionCard title="Pozycje zamówienia">
+            <OrderLineItems
+              orderId={orderIdTyped}
+              fakturownia={order.fakturownia}
+              invoicePlan={order.invoicePlan}
+            />
+          </SectionCard>
+        </div>
       )}
+
+      {/* ── Tab: Reklamacja ── */}
+      {activeTab === "reklamacja" &&
+        (order.status === "complaint" || existingComplaint) && (
+          <ComplaintTab
+            orderId={orderIdTyped}
+            clientId={clientId}
+            complaintStartDate={warrantyEvent?._creationTime ?? null}
+          />
+        )}
 
       {/* Payment reminder modal */}
       {reminderInvoiceId && (
@@ -934,7 +1883,10 @@ export default function OrderDetailPage({
       {showInvoiceModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => { setShowInvoiceModal(false); setInvoiceSearch(""); }}
+          onClick={() => {
+            setShowInvoiceModal(false);
+            setInvoiceSearch("");
+          }}
         >
           <div
             className="relative flex h-[80vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl ring-1 ring-gray-200"
@@ -942,20 +1894,49 @@ export default function OrderDetailPage({
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
               <div>
-                <h2 className="text-base font-semibold text-slate-900">Przypisz faktury do zlecenia</h2>
+                <h2 className="text-base font-semibold text-slate-900">
+                  Przypisz faktury do zlecenia
+                </h2>
                 <p className="mt-0.5 text-xs text-slate-500">{orderNumber}</p>
               </div>
               <button
-                onClick={() => { setShowInvoiceModal(false); setInvoiceSearch(""); }}
+                onClick={() => {
+                  setShowInvoiceModal(false);
+                  setInvoiceSearch("");
+                }}
                 className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
               </button>
             </div>
 
             <div className="border-b border-gray-100 px-5 py-3">
               <div className="relative">
-                <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+                <svg
+                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                  />
+                </svg>
                 <input
                   type="text"
                   value={invoiceSearch}
@@ -969,30 +1950,47 @@ export default function OrderDetailPage({
 
             <div className="flex-1 overflow-y-auto px-5 py-3">
               {allInvoices === undefined ? (
-                <div className="py-8 text-center text-sm text-gray-400">Ładowanie…</div>
+                <div className="py-8 text-center text-sm text-gray-400">
+                  Ładowanie…
+                </div>
               ) : (
                 <div className="space-y-1">
                   {allInvoices
                     .filter((inv) => {
                       const q = invoiceSearch.trim().toLowerCase();
                       if (!q) return true;
-                      return (inv.number ?? "").toLowerCase().includes(q) || (inv.buyerName ?? "").toLowerCase().includes(q);
+                      return (
+                        (inv.number ?? "").toLowerCase().includes(q) ||
+                        (inv.buyerName ?? "").toLowerCase().includes(q)
+                      );
                     })
                     .sort((a, b) => {
                       const rank = (inv: CachedInvoice) =>
-                        inv.orderId === orderIdTyped ? 0 : !inv.orderId ? 1 : 2;
+                        inv.orderId === orderIdTyped
+                          ? 0
+                          : !inv.orderId
+                            ? 1
+                            : 2;
                       return rank(a) - rank(b);
                     })
                     .map((inv) => {
                       const isAssignedHere = inv.orderId === orderIdTyped;
-                      const isAssignedElsewhere = !!inv.orderId && inv.orderId !== orderIdTyped;
+                      const isAssignedElsewhere =
+                        !!inv.orderId && inv.orderId !== orderIdTyped;
                       const kindLabel =
-                        inv.kind === "vat" ? "Faktura VAT" :
-                        inv.kind === "advance" ? "Faktura zaliczkowa" :
-                        inv.kind === "final" ? "Faktura końcowa" :
-                        inv.kind === "proforma" ? "Proforma" :
-                        inv.kind === "correction" ? "Korekta" :
-                        inv.kind === "estimate" ? "Wycena" : inv.kind;
+                        inv.kind === "vat"
+                          ? "Faktura VAT"
+                          : inv.kind === "advance"
+                            ? "Faktura zaliczkowa"
+                            : inv.kind === "final"
+                              ? "Faktura końcowa"
+                              : inv.kind === "proforma"
+                                ? "Proforma"
+                                : inv.kind === "correction"
+                                  ? "Korekta"
+                                  : inv.kind === "estimate"
+                                    ? "Wycena"
+                                    : inv.kind;
                       return (
                         <div
                           key={inv._id}
@@ -1000,8 +1998,8 @@ export default function OrderDetailPage({
                             isAssignedHere
                               ? "bg-blue-50 ring-1 ring-blue-200"
                               : isAssignedElsewhere
-                              ? "opacity-50"
-                              : "hover:bg-gray-50"
+                                ? "opacity-50"
+                                : "hover:bg-gray-50"
                           }`}
                         >
                           <div className="min-w-0 flex-1">
@@ -1014,10 +2012,17 @@ export default function OrderDetailPage({
                               </span>
                             </div>
                             <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
-                              {inv.buyerName && <span className="truncate">{inv.buyerName}</span>}
+                              {inv.buyerName && (
+                                <span className="truncate">
+                                  {inv.buyerName}
+                                </span>
+                              )}
                               {inv.grossAmount != null && (
                                 <span className="shrink-0 tabular-nums">
-                                  {inv.grossAmount.toLocaleString("pl-PL", { minimumFractionDigits: 2 })} {inv.currency ?? "PLN"}
+                                  {inv.grossAmount.toLocaleString("pl-PL", {
+                                    minimumFractionDigits: 2,
+                                  })}{" "}
+                                  {inv.currency ?? "PLN"}
                                 </span>
                               )}
                             </div>
@@ -1025,18 +2030,49 @@ export default function OrderDetailPage({
                           <div className="ml-3 shrink-0">
                             {isAssignedHere ? (
                               <button
-                                onClick={() => unassignInvoice({ invoiceId: inv._id })}
+                                onClick={() =>
+                                  unassignInvoice({ invoiceId: inv._id })
+                                }
                                 className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50"
                               >
-                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                <svg
+                                  className="h-3.5 w-3.5"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M6 18L18 6M6 6l12 12"
+                                  />
+                                </svg>
                                 Odepnij
                               </button>
                             ) : (
                               <button
-                                onClick={() => assignInvoice({ invoiceId: inv._id, orderId: orderIdTyped })}
+                                onClick={() =>
+                                  assignInvoice({
+                                    invoiceId: inv._id,
+                                    orderId: orderIdTyped,
+                                  })
+                                }
                                 className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
                               >
-                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                                <svg
+                                  className="h-3.5 w-3.5"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M12 4.5v15m7.5-7.5h-15"
+                                  />
+                                </svg>
                                 Przypisz
                               </button>
                             )}
@@ -1055,7 +2091,9 @@ export default function OrderDetailPage({
       {showSmsModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => { if (!sendingAddress) setShowSmsModal(false); }}
+          onClick={() => {
+            if (!sendingAddress) setShowSmsModal(false);
+          }}
         >
           <div
             className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl ring-1 ring-gray-200"
@@ -1063,7 +2101,9 @@ export default function OrderDetailPage({
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
               <div>
-                <h2 className="text-base font-semibold text-slate-900">Wyślij adres inwestycji SMS</h2>
+                <h2 className="text-base font-semibold text-slate-900">
+                  Wyślij adres inwestycji SMS
+                </h2>
                 <p className="mt-0.5 text-xs text-slate-500">{orderNumber}</p>
               </div>
               <button
@@ -1071,30 +2111,52 @@ export default function OrderDetailPage({
                 disabled={sendingAddress}
                 className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
               </button>
             </div>
 
             <div className="px-5 py-4 space-y-4">
               {(smsConfig?.recipients ?? []).length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-slate-600 mb-2">Adresaci z listy</p>
+                  <p className="text-xs font-medium text-slate-600 mb-2">
+                    Adresaci z listy
+                  </p>
                   <div className="space-y-1.5">
                     {(smsConfig?.recipients ?? []).map((r, i) => (
-                      <label key={i} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 cursor-pointer hover:bg-slate-50 transition-colors">
+                      <label
+                        key={i}
+                        className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 cursor-pointer hover:bg-slate-50 transition-colors"
+                      >
                         <input
                           type="checkbox"
                           checked={smsSelectedRecipients.has(i)}
                           onChange={(e) => {
                             const next = new Set(smsSelectedRecipients);
-                            if (e.target.checked) next.add(i); else next.delete(i);
+                            if (e.target.checked) next.add(i);
+                            else next.delete(i);
                             setSmsSelectedRecipients(next);
                           }}
                           className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                         />
                         <div className="min-w-0">
-                          <span className="text-sm font-medium text-slate-800">{r.name}</span>
-                          <span className="ml-2 font-mono text-xs text-slate-500">{r.phone}</span>
+                          <span className="text-sm font-medium text-slate-800">
+                            {r.name}
+                          </span>
+                          <span className="ml-2 font-mono text-xs text-slate-500">
+                            {r.phone}
+                          </span>
                         </div>
                       </label>
                     ))}
@@ -1103,7 +2165,9 @@ export default function OrderDetailPage({
               )}
 
               <div>
-                <p className="text-xs font-medium text-slate-600 mb-2">Własny numer telefonu</p>
+                <p className="text-xs font-medium text-slate-600 mb-2">
+                  Własny numer telefonu
+                </p>
                 <input
                   type="tel"
                   value={smsCustomPhone}
@@ -1111,7 +2175,10 @@ export default function OrderDetailPage({
                   placeholder="np. 48515453090"
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <p className="mt-1 text-xs text-slate-400">Numer z prefiksem kraju bez &quot;+&quot;, np. <code className="font-mono">48515453090</code></p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Numer z prefiksem kraju bez &quot;+&quot;, np.{" "}
+                  <code className="font-mono">48515453090</code>
+                </p>
               </div>
 
               {smsError && (
@@ -1134,7 +2201,19 @@ export default function OrderDetailPage({
                 disabled={sendingAddress}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
+                  />
+                </svg>
                 {sendingAddress ? "Wysyłanie..." : "Wyślij SMS"}
               </button>
             </div>
@@ -1144,21 +2223,59 @@ export default function OrderDetailPage({
 
       {/* Delete modal */}
       {showDeleteConfirm && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", padding: 16 }}>
-          <div className="panel" style={{ width: "100%", maxWidth: 400, padding: 24 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 8px", color: "var(--text-strong)" }}>Usunąć zlecenie?</h2>
-            <p style={{ fontSize: 13, color: "var(--text-mute)", margin: "0 0 24px" }}>
-              Zostaną usunięte wszystkie dane zlecenia, dokumenty i folder Google Drive.
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.4)",
+            padding: 16,
+          }}
+        >
+          <div
+            className="panel"
+            style={{ width: "100%", maxWidth: 400, padding: 24 }}
+          >
+            <h2
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                margin: "0 0 8px",
+                color: "var(--text-strong)",
+              }}
+            >
+              Usunąć zlecenie?
+            </h2>
+            <p
+              style={{
+                fontSize: 13,
+                color: "var(--text-mute)",
+                margin: "0 0 24px",
+              }}
+            >
+              Zostaną usunięte wszystkie dane zlecenia, dokumenty i folder
+              Google Drive.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button onClick={() => setShowDeleteConfirm(false)} disabled={deleteLoading} className="btn">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleteLoading}
+                className="btn"
+              >
                 Anuluj
               </button>
               <button
-                onClick={handleDelete}
+                onClick={() => void handleDelete()}
                 disabled={deleteLoading}
                 className="btn"
-                style={{ background: "var(--bad)", color: "#fff", borderColor: "transparent" }}
+                style={{
+                  background: "var(--bad)",
+                  color: "#fff",
+                  borderColor: "transparent",
+                }}
               >
                 {deleteLoading ? "Usuwanie…" : "Tak, usuń"}
               </button>
