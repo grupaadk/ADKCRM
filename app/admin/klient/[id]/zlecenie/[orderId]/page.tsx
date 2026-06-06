@@ -87,17 +87,6 @@ const VISIBLE_STATUS_ORDER = [
 
 type VisibleStatus = (typeof VISIBLE_STATUS_ORDER)[number];
 
-const STATUS_TRANSITIONS: Record<string, string[]> = {
-  lead: ["inquiry", "measurement"],
-  inquiry: ["measurement", "offer"],
-  measurement: ["offer", "contract"],
-  offer: ["contract", "lead"],
-  contract: ["production"],
-  production: ["installation"],
-  installation: ["completed"],
-  completed: ["complaint"],
-  warranty: [],
-};
 
 const COLOR_FIELDS: Array<{ key: string; label: string }> = [
   { key: "windowColor", label: "Okna" },
@@ -1237,8 +1226,7 @@ export default function OrderDetailPage({
               isArchived;
             const isCurrent =
               visibleStatusIndex === index && !isBeforeMeasurement && !isArchived;
-            const allowedNext = STATUS_TRANSITIONS[order.status] ?? [];
-            const canClick = allowedNext.includes(status);
+            const canClick = !isCurrent && !isArchived;
 
             return (
               <div
@@ -1280,24 +1268,18 @@ export default function OrderDetailPage({
                     borderColor: isPast
                       ? "#86efac"
                       : isCurrent
-                        ? "#93c5fd"
-                        : canClick
-                          ? "#c7d2fe"
-                          : "#e5e7eb",
+                        ? "#fdba74"
+                        : "#e5e7eb",
                     background: isPast
                       ? "#dcfce7"
                       : isCurrent
-                        ? "#dbeafe"
-                        : canClick
-                          ? "#eef2ff"
-                          : "var(--panel)",
+                        ? "#fff7ed"
+                        : "var(--panel)",
                     color: isPast
                       ? "#15803d"
                       : isCurrent
-                        ? "#1d4ed8"
-                        : canClick
-                          ? "#4f46e5"
-                          : "#9ca3af",
+                        ? "#ea580c"
+                        : "#9ca3af",
                     cursor: canClick ? "pointer" : "default",
                     transition: "all 0.15s",
                     fontFamily: "inherit",
