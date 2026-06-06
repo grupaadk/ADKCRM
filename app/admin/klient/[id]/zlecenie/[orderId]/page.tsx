@@ -12,7 +12,6 @@ import OrderLineItems from "../../OrderLineItems";
 import { useStatusLabels } from "@/components/StatusLabelsContext";
 import ComplaintTab from "./ComplaintTab";
 import OrderDriveBrowser from "./OrderDriveBrowser";
-import DocumentProgressTiles from "../../DocumentProgressTiles";
 import InvestmentLocation from "../../InvestmentLocation";
 import ReminderModal from "@/app/admin/faktury/ReminderModal";
 import {
@@ -985,10 +984,7 @@ export default function OrderDetailPage({
     (e) => e.type === "status_changed" && e.details?.to === "complaint",
   );
 
-  const docCount = order.documents
-    ? Object.values(order.documents).filter((d) => d.enabled).length
-    : 0;
-  const docTotal = order.documents ? Object.keys(order.documents).length : 0;
+
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1036,6 +1032,10 @@ export default function OrderDetailPage({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span className="mono mute" style={{ fontSize: 11 }}>
+              Dodano: {createdDate}
+            </span>
+            <span style={{ width: 1, height: 14, background: "var(--line)", display: "inline-block" }} />
             {/* Drive CTA */}
             {order.folderUrl ? (
               <a
@@ -1416,20 +1416,18 @@ export default function OrderDetailPage({
               ));
             })}
           </div>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            {client.city && <span className="chip">{client.city}</span>}
-            <DocumentProgressTiles documents={order.documents} />
-            <span className="mono mute" style={{ fontSize: 11 }}>
-              Dodano: {createdDate}
-            </span>
-          </div>
+        </div>
+
+        {/* Investment location in header */}
+        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line)" }}>
+          <InvestmentLocation
+            orderId={orderIdTyped}
+            investmentStreet={order.investmentStreet}
+            investmentBuildingNumber={order.investmentBuildingNumber}
+            investmentApartmentNumber={order.investmentApartmentNumber}
+            investmentPostalCode={order.investmentPostalCode}
+            investmentCity={order.investmentCity}
+          />
         </div>
 
         {/* Tabs */}
@@ -1468,7 +1466,7 @@ export default function OrderDetailPage({
         </div>
       </div>
 
-      {/* ── InvestmentLocation + Pliki zlecenia ── */}
+      {/* ── Dokumenty + Pliki zlecenia ── */}
       <div
         style={{
           display: "grid",
@@ -1476,15 +1474,19 @@ export default function OrderDetailPage({
           gap: 16,
         }}
       >
-        <div className="panel" style={{ padding: "14px 16px" }}>
-          <InvestmentLocation
-            orderId={orderIdTyped}
-            investmentStreet={order.investmentStreet}
-            investmentBuildingNumber={order.investmentBuildingNumber}
-            investmentApartmentNumber={order.investmentApartmentNumber}
-            investmentPostalCode={order.investmentPostalCode}
-            investmentCity={order.investmentCity}
-          />
+        <div className="panel" style={{ overflow: "hidden" }}>
+          <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--line)" }}>
+            <span className="up mute">Dokumenty</span>
+          </div>
+          <div style={{ padding: 16 }}>
+            <DocumentCheckboxes
+              orderId={orderIdTyped}
+              documents={order.documents}
+              warrantyDocs={order.warrantyDocs ?? {}}
+              clientData={client ?? undefined}
+              orderData={order}
+            />
+          </div>
         </div>
         <OrderDriveBrowser
           orderId={orderIdTyped}
@@ -1767,32 +1769,6 @@ export default function OrderDetailPage({
               </p>
             )}
           </SectionCard>
-
-          {/* Umowy i dokumenty handlowe — collapsed */}
-          <CollapsibleSection
-            title="Umowy i dokumenty handlowe"
-            badge={
-              docTotal > 0 ? (
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: "var(--text-mute)",
-                    fontWeight: 500,
-                  }}
-                >
-                  {docCount}/{docTotal}
-                </span>
-              ) : undefined
-            }
-          >
-            <DocumentCheckboxes
-              orderId={orderIdTyped}
-              documents={order.documents}
-              warrantyDocs={order.warrantyDocs ?? {}}
-              clientData={client ?? undefined}
-              orderData={order}
-            />
-          </CollapsibleSection>
 
           {/* Payment reminders history */}
           {paymentReminders && paymentReminders.length > 0 && (
