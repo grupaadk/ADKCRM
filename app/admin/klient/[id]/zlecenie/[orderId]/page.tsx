@@ -1534,37 +1534,37 @@ export default function OrderDetailPage({
         </div>
       </div>
 
-      {/* ── Dokumenty + Pliki zlecenia ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 2fr) minmax(0, 3fr)",
-          gap: 16,
-        }}
-      >
-        <div className="panel" style={{ overflow: "hidden" }}>
-          <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--line)" }}>
-            <span className="up mute">Dokumenty</span>
-          </div>
-          <div style={{ padding: 16 }}>
-            <DocumentCheckboxes
-              orderId={orderIdTyped}
-              documents={order.documents}
-              warrantyDocs={order.warrantyDocs ?? {}}
-              clientData={client ?? undefined}
-              orderData={order}
-            />
-          </div>
-        </div>
-        <OrderDriveBrowser
-          orderId={orderIdTyped}
-          rootFolderId={order.folderId}
-        />
-      </div>
-
       {/* ── Tab: Szczegóły ── */}
       {activeTab === "szczegoly" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Dokumenty + Pliki zlecenia */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 2fr) minmax(0, 3fr)",
+              gap: 16,
+            }}
+          >
+            <div className="panel" style={{ overflow: "hidden" }}>
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--line)" }}>
+                <span className="up mute">Dokumenty</span>
+              </div>
+              <div style={{ padding: 16 }}>
+                <DocumentCheckboxes
+                  orderId={orderIdTyped}
+                  documents={order.documents}
+                  warrantyDocs={order.warrantyDocs ?? {}}
+                  clientData={client ?? undefined}
+                  orderData={order}
+                />
+              </div>
+            </div>
+            <OrderDriveBrowser
+              orderId={orderIdTyped}
+              rootFolderId={order.folderId}
+            />
+          </div>
+
           {/* TODO list — full width, prominent */}
           <TodoSection orderId={orderIdTyped} />
 
