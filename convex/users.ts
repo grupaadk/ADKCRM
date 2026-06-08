@@ -67,6 +67,7 @@ export const me = query({
       displayName: user.displayName,
       role: user.role,
       isActive: user.isActive,
+      color: user.color,
     };
   },
 });
@@ -87,6 +88,7 @@ export const list = query({
         displayName: u.displayName,
         role: u.role,
         isActive: u.isActive ?? false,
+        color: u.color,
       }))
       .sort((a, b) => (a.login ?? "").localeCompare(b.login ?? ""));
   },
@@ -390,6 +392,25 @@ export const _listAll = internalQuery({
 });
 
 /**
+ * Ustawia kolor użytkownika. Każdy może ustawić własny kolor;
+ * admin może ustawić kolor dowolnemu użytkownikowi.
+ */
+export const setColor = mutation({
+  args: {
+    userId: v.optional(v.id("users")),
+    color: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await requireUser(ctx);
+    const targetId = args.userId ?? currentUser._id;
+    if (targetId !== currentUser._id) {
+      await requireRole(ctx, "admin");
+    }
+    await ctx.db.patch(targetId, { color: args.color });
+  },
+});
+
+/**
  * Zwraca listę użytkowników dostępnych do przypisania (role: sales + admin).
  * Dostępne dla każdego zalogowanego usera (do przypisywania zadań itp.)
  */
@@ -405,6 +426,7 @@ export const listAssignable = query({
         displayName: u.displayName,
         login: u.email,
         role: u.role,
+        color: u.color,
       }))
       .sort((a, b) => (a.displayName ?? a.login ?? "").localeCompare(b.displayName ?? b.login ?? ""));
   },

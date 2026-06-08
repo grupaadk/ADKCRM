@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { query, mutation, action, internalMutation, MutationCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { STATUS_TRANSITIONS, CLIENT_STATUSES } from "./schema";
@@ -147,6 +147,19 @@ export const getById = query({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
     return ctx.db.get(args.orderId);
+  },
+});
+
+export const assignOrder = mutation({
+  args: {
+    orderId: v.id("orders"),
+    assignedUserId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    await requireUser(ctx);
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new ConvexError("Zlecenie nie istnieje.");
+    await ctx.db.patch(args.orderId, { assignedUserId: args.assignedUserId });
   },
 });
 

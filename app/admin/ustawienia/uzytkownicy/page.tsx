@@ -29,8 +29,10 @@ export default function UsersAdminPage() {
   const setActive = useAction(api.users.setActive);
   const resetPassword = useAction(api.users.resetPassword);
   const updateProfile = useMutation(api.users.updateProfile);
+  const setColor = useMutation(api.users.setColor);
 
   const [showAdd, setShowAdd] = useState(false);
+  const [editingColorId, setEditingColorId] = useState<Id<"users"> | null>(null);
   const [newLogin, setNewLogin] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<Role>("sales");
@@ -216,6 +218,7 @@ export default function UsersAdminPage() {
               <th className="px-3 py-2">Login</th>
               <th className="px-3 py-2">Nazwa</th>
               <th className="px-3 py-2">Rola</th>
+              <th className="px-3 py-2">Kolor</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2 text-right">Akcje</th>
             </tr>
@@ -223,14 +226,14 @@ export default function UsersAdminPage() {
           <tbody>
             {users === undefined && (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-gray-400">
+                <td colSpan={6} className="px-3 py-4 text-gray-400">
                   Ładowanie…
                 </td>
               </tr>
             )}
             {users?.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-gray-400">
+                <td colSpan={6} className="px-3 py-4 text-gray-400">
                   Brak użytkowników.
                 </td>
               </tr>
@@ -267,6 +270,47 @@ export default function UsersAdminPage() {
                       <option value="sales">{ROLE_LABELS.sales}</option>
                       <option value="montaz">{ROLE_LABELS.montaz}</option>
                     </select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        title={u.color ?? "Brak koloru"}
+                        onClick={() => setEditingColorId(editingColorId === u._id ? null : u._id)}
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: "50%",
+                          background: u.color ?? "#e5e7eb",
+                          border: "1px solid rgba(0,0,0,0.12)",
+                          cursor: "pointer",
+                          flexShrink: 0,
+                        }}
+                      />
+                      {editingColorId === u._id && (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="color"
+                            defaultValue={u.color ?? "#50253F"}
+                            onChange={(e) => {
+                              void setColor({ userId: u._id, color: e.target.value });
+                            }}
+                            style={{ width: 32, height: 24, border: "none", padding: 0, cursor: "pointer" }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void setColor({ userId: u._id, color: undefined });
+                              setEditingColorId(null);
+                            }}
+                            className="text-[11px] text-gray-400 hover:text-red-500"
+                            title="Usuń kolor"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-3 py-2">
                     <span

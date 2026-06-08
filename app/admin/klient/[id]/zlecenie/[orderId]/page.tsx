@@ -867,6 +867,8 @@ export default function OrderDetailPage({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showSmsModal, setShowSmsModal] = useState(false);
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const assignDropdownRef = useRef<HTMLDivElement | null>(null);
   const [smsSelectedRecipients, setSmsSelectedRecipients] = useState<
     Set<number>
   >(new Set());
@@ -901,6 +903,20 @@ export default function OrderDetailPage({
   const createOrderFolder = useAction(api.googleDrive.createOrderFolder);
   const deleteOrder = useAction(api.orders.deleteOrder);
   const sendOrderAddressSms = useAction(api.sms.sendOrderAddressSms);
+  const me = useQuery(api.users.me);
+  const assignableUsers = useQuery(api.users.listAssignable) ?? [];
+  const assignOrder = useMutation(api.orders.assignOrder);
+
+  useEffect(() => {
+    if (!showAssignDropdown) return;
+    function handleClick(e: MouseEvent) {
+      if (!assignDropdownRef.current?.contains(e.target as Node)) {
+        setShowAssignDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showAssignDropdown]);
 
   if (client === undefined || order === undefined) {
     return (
@@ -1103,6 +1119,145 @@ export default function OrderDetailPage({
             <span className="mono mute" style={{ fontSize: 11 }}>
               Dodano: {createdDate}
             </span>
+            <span style={{ width: 1, height: 14, background: "var(--line)", display: "inline-block" }} />
+
+            {/* Przypisana osoba */}
+            {(() => {
+              const assignedUser = order.assignedUserId
+                ? assignableUsers.find((u) => u._id === order.assignedUserId)
+                : null;
+              const assignedName = assignedUser
+                ? (assignedUser.displayName ?? assignedUser.login ?? "")
+                : null;
+              return (
+                <div ref={assignDropdownRef} style={{ position: "relative" }}>
+                  <button
+                    onClick={() => setShowAssignDropdown((v) => !v)}
+                    className="btn"
+                    style={{
+                      fontSize: 11,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      ...(assignedUser?.color
+                        ? { borderColor: assignedUser.color + "80", color: assignedUser.color }
+                        : {}),
+                    }}
+                    title={assignedName ? `Przypisany: ${assignedName}` : "Przypisz osobę"}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                    {assignedName ?? "+ Przypisz"}
+                  </button>
+                  {showAssignDropdown && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 4px)",
+                        right: 0,
+                        minWidth: 180,
+                        background: "var(--panel)",
+                        border: "1px solid var(--line)",
+                        borderRadius: 8,
+                        boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                        zIndex: 50,
+                        overflow: "hidden",
+                      }}
+                    >
+                      {/* Przypisz mnie */}
+                      {me && (
+                        <button
+                          onClick={() => {
+                            void assignOrder({ orderId: orderIdTyped, assignedUserId: me._id });
+                            setShowAssignDropdown(false);
+                          }}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "7px 12px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            background: "var(--panel-2)",
+                            border: "none",
+                            borderBottom: "1px solid var(--line)",
+                            cursor: "pointer",
+                            color: "var(--text)",
+                            fontFamily: "inherit",
+                          }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--accent-subtle, #f3e8ff)" }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--panel-2)" }}
+                        >
+                          ✓ Przypisz mnie
+                        </button>
+                      )}
+                      {/* Lista użytkowników */}
+                      {assignableUsers.map((u) => (
+                        <button
+                          key={u._id}
+                          onClick={() => {
+                            void assignOrder({ orderId: orderIdTyped, assignedUserId: u._id });
+                            setShowAssignDropdown(false);
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "6px 12px",
+                            fontSize: 12,
+                            background: order.assignedUserId === u._id ? "var(--panel-2)" : "transparent",
+                            border: "none",
+                            borderBottom: "1px solid var(--line)",
+                            cursor: "pointer",
+                            color: "var(--text)",
+                            fontFamily: "inherit",
+                            fontWeight: order.assignedUserId === u._id ? 600 : 400,
+                          }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--panel-2)" }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = order.assignedUserId === u._id ? "var(--panel-2)" : "transparent" }}
+                        >
+                          {u.color && (
+                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: u.color, flexShrink: 0 }} />
+                          )}
+                          {u.displayName ?? u.login}
+                          {order.assignedUserId === u._id && (
+                            <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--text-mute)" }}>aktualny</span>
+                          )}
+                        </button>
+                      ))}
+                      {/* Usuń przypisanie */}
+                      {order.assignedUserId && (
+                        <button
+                          onClick={() => {
+                            void assignOrder({ orderId: orderIdTyped, assignedUserId: undefined });
+                            setShowAssignDropdown(false);
+                          }}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "6px 12px",
+                            fontSize: 12,
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "var(--bad, #ef4444)",
+                            fontFamily: "inherit",
+                          }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fee2e2" }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent" }}
+                        >
+                          Usuń przypisanie
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <span style={{ width: 1, height: 14, background: "var(--line)", display: "inline-block" }} />
             {/* Drive CTA */}
             {order.folderUrl ? (

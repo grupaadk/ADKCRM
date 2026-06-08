@@ -37,6 +37,7 @@ export type KanbanOrderItem = {
   grossAmount: number | undefined;
   services: string[];
   docs: Record<string, DocState>;
+  assignedUserColor?: string;
 };
 
 export type KanbanPendingItem = {
@@ -90,6 +91,11 @@ export const list = query({
           const net = item.quantity * item.unitPrice * (1 - discount / 100);
           totalGross += net * (1 + item.vatRate / 100);
         }
+        let assignedUserColor: string | undefined;
+        if (order.assignedUserId) {
+          const assignedUser = await ctx.db.get(order.assignedUserId);
+          assignedUserColor = assignedUser?.color ?? undefined;
+        }
         return {
           type: "order" as const,
           id: order._id,
@@ -105,6 +111,7 @@ export const list = query({
           grossAmount: lineItems.length > 0 ? Math.round(totalGross * 100) / 100 : undefined,
           services: order.services ?? [],
           docs: orderDocs(order.documents),
+          assignedUserColor,
         };
       }),
     );

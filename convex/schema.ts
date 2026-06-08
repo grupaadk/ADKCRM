@@ -140,6 +140,7 @@ export default defineSchema({
     role: v.optional(userRole),
     isActive: v.optional(v.boolean()),
     displayName: v.optional(v.string()),
+    color: v.optional(v.string()),
   })
     .index("email", ["email"])
     .index("phone", ["phone"]),
@@ -235,6 +236,9 @@ export default defineSchema({
       url: v.string(),
     }))),
     attachmentsFolderId: v.optional(v.string()),
+
+    // Przypisany użytkownik
+    assignedUserId: v.optional(v.id("users")),
 
     // Metadane
     source: v.union(v.literal("jotform"), v.literal("manual")),

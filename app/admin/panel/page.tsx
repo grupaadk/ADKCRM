@@ -136,6 +136,8 @@ function OrderCard({
       ? { fontSize: 12, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace" }
       : { fontSize: 11.5, fontWeight: 700, color: "#b45309" }
 
+  const userColor = item.type === "order" ? item.assignedUserColor : undefined
+
   return (
     <div
       draggable
@@ -145,6 +147,7 @@ function OrderCard({
       style={{
         background: "var(--panel)",
         border: `1px solid ${isDragging ? "var(--accent)" : isPending ? "#f59e0b55" : "var(--line)"}`,
+        borderLeft: userColor && !isDragging ? `3px solid ${userColor}` : undefined,
         borderRadius: 7,
         padding: expanded ? "7px 8px 9px" : "6px 8px",
         cursor: isDragging ? "grabbing" : "grab",
@@ -163,6 +166,7 @@ function OrderCard({
         if (!isDragging) {
           const el = e.currentTarget as HTMLDivElement
           el.style.borderColor = "var(--accent)"
+          if (userColor) el.style.borderLeftColor = userColor
           el.style.boxShadow = "0 2px 6px rgba(0,0,0,0.1)"
           el.style.transform = "translateY(-2px)"
         }
@@ -171,6 +175,7 @@ function OrderCard({
         if (!isDragging) {
           const el = e.currentTarget as HTMLDivElement
           el.style.borderColor = isPending ? "#f59e0b55" : "var(--line)"
+          if (userColor) el.style.borderLeftColor = userColor
           el.style.boxShadow = "0 1px 2px rgba(0,0,0,0.04)"
           el.style.transform = ""
         }

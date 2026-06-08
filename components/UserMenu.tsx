@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "@/convex/_generated/api";
 
@@ -33,9 +33,11 @@ function roleLabel(role?: string): string {
 
 export function UserMenu({ compact = false }: { compact?: boolean }) {
   const me = useQuery(api.users.me);
+  const setColor = useMutation(api.users.setColor);
   const { signOut } = useAuthActions();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -65,7 +67,7 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
         onClick={() => setOpen((v) => !v)}
         title={me?.login ?? "Konto"}
         className="flex size-8 items-center justify-center rounded-full text-[12px] font-semibold text-white"
-        style={{ background: "var(--accent, #50253F)" }}
+        style={{ background: me?.color ?? "var(--accent, #50253F)" }}
       >
         {initials}
       </button>
@@ -89,6 +91,59 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
           >
             Zmień hasło
           </Link>
+
+          {/* Kolor konta */}
+          <div className="border-t" style={{ borderColor: "var(--line, #e5e5e5)" }}>
+            <button
+              type="button"
+              onClick={() => setShowColorPicker((v) => !v)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-gray-700 hover:bg-gray-100"
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 14,
+                  height: 14,
+                  borderRadius: "50%",
+                  background: me?.color ?? "#ccc",
+                  border: "1px solid rgba(0,0,0,0.12)",
+                  flexShrink: 0,
+                }}
+              />
+              Kolor konta
+            </button>
+            {showColorPicker && (
+              <div className="px-3 pb-3">
+                <input
+                  type="color"
+                  defaultValue={me?.color ?? "#50253F"}
+                  onChange={(e) => {
+                    void setColor({ color: e.target.value });
+                  }}
+                  style={{
+                    width: "100%",
+                    height: 32,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    padding: 0,
+                    background: "none",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    void setColor({ color: undefined });
+                    setShowColorPicker(false);
+                  }}
+                  className="mt-1 w-full text-center text-[11px] text-gray-400 hover:text-gray-600"
+                >
+                  Usuń kolor
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={handleSignOut}
