@@ -32,6 +32,7 @@ type Order = {
   fakturownia?: { invoices?: Array<{ kind: "advance" | "final" | "vat"; number?: string }> }
   documents?: Record<string, { url?: string; signatureStatus?: "signed" | "not_applicable" }>
   totalGross?: number | null
+  assignedUserColor?: string
 }
 
 type ClientFilter = "all" | "individual" | "business"
@@ -258,7 +259,11 @@ export default function OrderList() {
               const isCompleted = order.status === "completed"
               return (
                 <tr key={order._id} style={isCompleted ? { background: "var(--ok-soft)", cursor: "pointer" } : { cursor: "pointer" }} onClick={() => router.push(`/admin/klient/${order.clientId}/zlecenie/${order._id}`)}>
-                  <td className="mono" style={{ fontSize: 11, color: "var(--text-mute)" }}>
+                  <td className="mono" style={{
+                    fontSize: 11,
+                    color: "var(--text-mute)",
+                    borderLeft: order.assignedUserColor ? `3px solid ${order.assignedUserColor}` : undefined,
+                  }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
                       <span>{order.name ?? <span style={{ color: "var(--panel-3)" }}>—</span>}</span>
                       {order.customText && <span className="chip-custom">{order.customText}</span>}

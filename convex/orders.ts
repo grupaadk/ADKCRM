@@ -81,6 +81,11 @@ export const list = query({
           const net = item.quantity * item.unitPrice * (1 - discount / 100);
           totalGross += net * (1 + item.vatRate / 100);
         }
+        let assignedUserColor: string | undefined;
+        if (order.assignedUserId) {
+          const assignedUser = await ctx.db.get(order.assignedUserId);
+          assignedUserColor = assignedUser?.color ?? undefined;
+        }
         return {
           ...order,
           client: client
@@ -93,6 +98,7 @@ export const list = query({
               }
             : null,
           totalGross: lineItems.length > 0 ? Math.round(totalGross * 100) / 100 : null,
+          assignedUserColor,
         };
       }),
     );
