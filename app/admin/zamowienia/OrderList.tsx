@@ -262,7 +262,7 @@ export default function OrderList() {
                   <td className="mono" style={{
                     fontSize: 11,
                     color: "var(--text-mute)",
-                    borderLeft: order.assignedUserColor ? `3px solid ${order.assignedUserColor}` : undefined,
+                    borderLeft: order.assignedUserColor ? `10px solid ${order.assignedUserColor}` : undefined,
                   }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
                       <span>{order.name ?? <span style={{ color: "var(--panel-3)" }}>—</span>}</span>

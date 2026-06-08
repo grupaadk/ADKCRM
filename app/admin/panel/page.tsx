@@ -147,7 +147,7 @@ function OrderCard({
       style={{
         background: "var(--panel)",
         border: `1px solid ${isDragging ? "var(--accent)" : isPending ? "#f59e0b55" : "var(--line)"}`,
-        borderLeft: userColor && !isDragging ? `3px solid ${userColor}` : undefined,
+        borderLeft: userColor && !isDragging ? `10px solid ${userColor}` : undefined,
         borderRadius: 7,
         padding: expanded ? "7px 8px 9px" : "6px 8px",
         cursor: isDragging ? "grabbing" : "grab",
