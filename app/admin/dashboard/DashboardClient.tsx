@@ -377,11 +377,18 @@ function TaskCard({
   dragging: boolean;
 }) {
   const router = useRouter();
-  const orderHref = `/admin/klient/${task.clientId}/zlecenie/${task.orderId}?tab=szczegoly`;
 
   // Typ zadania (źródło) — brak = zlecenie
   const taskType: TaskType = task.source === "opportunity" ? "opportunity" : "order";
   const typeMeta = TASK_TYPE_META[taskType];
+
+  // Link "otwórz" + tytuł kontekstu zależnie od źródła
+  const openHref =
+    taskType === "opportunity"
+      ? `/admin/szansa/${task.opportunityId}`
+      : `/admin/klient/${task.clientId}/zlecenie/${task.orderId}?tab=szczegoly`;
+  const contextTitle =
+    taskType === "opportunity" ? "Szansa sprzedaży" : (task.orderName ?? "Zlecenie");
 
   // Akcent koloru przypisanej osoby (jak kafelki w /admin/panel)
   const userColor = task.assignedUserId
@@ -406,7 +413,7 @@ function TaskCard({
       <div className="mb-1.5 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate text-[11px] font-semibold text-gray-900">
-            {task.orderName ?? "Zlecenie"}
+            {contextTitle}
           </div>
           <div className="truncate text-[10.5px] text-gray-400">{task.clientName}</div>
         </div>
@@ -414,7 +421,7 @@ function TaskCard({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              router.push(orderHref);
+              router.push(openHref);
             }}
             title={typeMeta.openLabel}
             className="rounded p-1 text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-700 group-hover:opacity-100"

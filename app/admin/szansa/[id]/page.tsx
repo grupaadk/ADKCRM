@@ -13,6 +13,7 @@ import { useStatusLabel } from "@/components/StatusLabelsContext";
 import { ArrowLeft, Archive, ArchiveRestore, Trash2, Send } from "lucide-react";
 import DriveFolderButton from "@/components/DriveFolderButton";
 import OpportunityAttachmentsSection from "./OpportunityAttachmentsSection";
+import TaskKanban from "@/components/TaskKanban";
 
 const FIELD_LABEL: React.CSSProperties = {
   fontSize: 11,
@@ -575,6 +576,9 @@ export default function OpportunityDetailPage({
         </div>
       )}
 
+
+      {/* Lista zadań */}
+      <TaskKanban opportunityId={opportunityId} />
 
       {/* Załączniki */}
       <OpportunityAttachmentsSection

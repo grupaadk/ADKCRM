@@ -146,6 +146,25 @@ export const listOpportunities = query({
   },
 });
 
+// Lekka lista aktywnych szans do pickera (np. dodawanie zadania z Dashboardu).
+export const listForPicker = query({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db
+      .query("pendingJotformSubmissions")
+      .order("desc")
+      .take(500);
+    return all
+      .filter((o) => !o.processed && o.archived !== true)
+      .map((o) => ({
+        _id: o._id,
+        clientName: `${o.firstName} ${o.lastName}`.trim() || "—",
+        customText: o.customText ?? null,
+        stage: o.stage ?? "lead",
+      }));
+  },
+});
+
 export const listArchivedOpportunities = query({
   args: {},
   handler: async (ctx) => {

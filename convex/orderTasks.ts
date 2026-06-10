@@ -1,6 +1,18 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { Doc } from "./_generated/dataModel";
 import { requireUser, userIdentifier } from "./lib/auth";
+
+async function withAssignee(ctx: Parameters<typeof requireUser>[0], task: Doc<"orderTasks">) {
+  const assignedUser = task.assignedUserId
+    ? await ctx.db.get(task.assignedUserId)
+    : null;
+  return {
+    ...task,
+    assignedUserName: assignedUser?.displayName ?? assignedUser?.email ?? null,
+    assignedUserColor: assignedUser?.color ?? undefined,
+  };
+}
 
 export const listByOrder = query({
   args: { orderId: v.id("orders") },
@@ -12,24 +24,28 @@ export const listByOrder = query({
       .order("asc")
       .collect();
 
-    return Promise.all(
-      tasks.map(async (task) => {
-        const assignedUser = task.assignedUserId
-          ? await ctx.db.get(task.assignedUserId)
-          : null;
-        return {
-          ...task,
-          assignedUserName:
-            assignedUser?.displayName ?? assignedUser?.email ?? null,
-        };
-      }),
-    );
+    return Promise.all(tasks.map((task) => withAssignee(ctx, task)));
+  },
+});
+
+export const listByOpportunity = query({
+  args: { opportunityId: v.id("pendingJotformSubmissions") },
+  handler: async (ctx, { opportunityId }) => {
+    await requireUser(ctx);
+    const tasks = await ctx.db
+      .query("orderTasks")
+      .withIndex("by_opportunity", (q) => q.eq("opportunityId", opportunityId))
+      .order("asc")
+      .collect();
+
+    return Promise.all(tasks.map((task) => withAssignee(ctx, task)));
   },
 });
 
 export const create = mutation({
   args: {
-    orderId: v.id("orders"),
+    orderId: v.optional(v.id("orders")),
+    opportunityId: v.optional(v.id("pendingJotformSubmissions")),
     title: v.string(),
     status: v.optional(
       v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
@@ -39,8 +55,14 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
+    if ((args.orderId == null) === (args.opportunityId == null)) {
+      throw new ConvexError(
+        "Zadanie musi należeć dokładnie do jednego: zlecenia lub szansy sprzedaży.",
+      );
+    }
     return ctx.db.insert("orderTasks", {
       orderId: args.orderId,
+      opportunityId: args.opportunityId,
       title: args.title,
       dueDate: args.dueDate,
       status: args.status ?? "todo",

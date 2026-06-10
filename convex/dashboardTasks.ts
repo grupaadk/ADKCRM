@@ -8,12 +8,12 @@ export type DashboardTask = {
   title: string;
   status: "todo" | "in_progress" | "done";
   dueDate?: number;
-  // Źródło zadania (typ karty). Brak = "order" (zgodność wstecz —
-  // dziś wszystkie zadania pochodzą ze zleceń; "opportunity" dojdzie z szansami).
-  source?: "order" | "opportunity";
-  // Zlecenie + klient (kontekst karty)
-  orderId: Id<"orders">;
-  clientId: Id<"clients">;
+  // Źródło zadania (typ karty): zlecenie albo szansa sprzedaży.
+  source: "order" | "opportunity";
+  // Kontekst karty. Dla zlecenia ustawione orderId+clientId; dla szansy — opportunityId.
+  orderId?: Id<"orders">;
+  opportunityId?: Id<"pendingJotformSubmissions">;
+  clientId?: Id<"clients">;
   orderName: string | null;
   customText: string | null;
   clientName: string;
@@ -27,6 +27,10 @@ function clientName(client: Doc<"clients"> | null): string {
   if (!client) return "—";
   if (client.clientType === "business" && client.companyName) return client.companyName;
   return `${client.lastName} ${client.firstName}`.trim() || "—";
+}
+
+function opportunityName(opp: Doc<"pendingJotformSubmissions">): string {
+  return `${opp.firstName} ${opp.lastName}`.trim() || "—";
 }
 
 /**
@@ -78,8 +82,50 @@ export const list = query({
     const clientCache = new Map<string, Doc<"clients"> | null>();
     const userCache = new Map<string, Doc<"users"> | null>();
 
+    const oppCache = new Map<string, Doc<"pendingJotformSubmissions"> | null>();
+
     const result = await Promise.all(
       tasks.map(async (task): Promise<DashboardTask | null> => {
+        let assignedUser: Doc<"users"> | null = null;
+        if (task.assignedUserId) {
+          const cached = userCache.get(task.assignedUserId);
+          if (cached === undefined) {
+            assignedUser = await ctx.db.get(task.assignedUserId);
+            userCache.set(task.assignedUserId, assignedUser);
+          } else {
+            assignedUser = cached;
+          }
+        }
+        const assignee = {
+          assignedUserId: task.assignedUserId,
+          assignedUserName: assignedUser?.displayName ?? assignedUser?.email ?? null,
+          assignedUserColor: assignedUser?.color ?? undefined,
+        };
+
+        // Zadanie szansy sprzedaży
+        if (task.opportunityId) {
+          let opp = oppCache.get(task.opportunityId);
+          if (opp === undefined) {
+            opp = await ctx.db.get(task.opportunityId);
+            oppCache.set(task.opportunityId, opp);
+          }
+          if (!opp) return null; // osierocone — pomijamy
+          return {
+            _id: task._id,
+            title: task.title,
+            status: task.status,
+            dueDate: task.dueDate,
+            source: "opportunity",
+            opportunityId: task.opportunityId,
+            orderName: null,
+            customText: opp.customText ?? null,
+            clientName: opportunityName(opp),
+            ...assignee,
+          };
+        }
+
+        // Zadanie zlecenia
+        if (!task.orderId) return null; // brak powiązania — pomijamy
         let order = orderCache.get(task.orderId);
         if (order === undefined) {
           order = await ctx.db.get(task.orderId);
@@ -93,31 +139,18 @@ export const list = query({
           clientCache.set(order.clientId, client);
         }
 
-        let assignedUser: Doc<"users"> | null = null;
-        if (task.assignedUserId) {
-          const cached = userCache.get(task.assignedUserId);
-          if (cached === undefined) {
-            assignedUser = await ctx.db.get(task.assignedUserId);
-            userCache.set(task.assignedUserId, assignedUser);
-          } else {
-            assignedUser = cached;
-          }
-        }
-
         return {
           _id: task._id,
           title: task.title,
           status: task.status,
           dueDate: task.dueDate,
+          source: "order",
           orderId: task.orderId,
           clientId: order.clientId,
           orderName: order.name ?? null,
           customText: order.customText ?? null,
           clientName: clientName(client),
-          assignedUserId: task.assignedUserId,
-          assignedUserName:
-            assignedUser?.displayName ?? assignedUser?.email ?? null,
-          assignedUserColor: assignedUser?.color ?? undefined,
+          ...assignee,
         };
       }),
     );
@@ -138,24 +171,47 @@ export const getOne = query({
     const task = await ctx.db.get(taskId);
     if (!task) return null;
 
+    const assignedUser = task.assignedUserId ? await ctx.db.get(task.assignedUserId) : null;
+    const assignee = {
+      assignedUserId: task.assignedUserId,
+      assignedUserName: assignedUser?.displayName ?? assignedUser?.email ?? null,
+      assignedUserColor: assignedUser?.color ?? undefined,
+    };
+
+    if (task.opportunityId) {
+      const opp = await ctx.db.get(task.opportunityId);
+      if (!opp) return null;
+      return {
+        _id: task._id,
+        title: task.title,
+        status: task.status,
+        dueDate: task.dueDate,
+        source: "opportunity",
+        opportunityId: task.opportunityId,
+        orderName: null,
+        customText: opp.customText ?? null,
+        clientName: opportunityName(opp),
+        ...assignee,
+      };
+    }
+
+    if (!task.orderId) return null;
     const order = await ctx.db.get(task.orderId);
     if (!order) return null;
     const client = await ctx.db.get(order.clientId);
-    const assignedUser = task.assignedUserId ? await ctx.db.get(task.assignedUserId) : null;
 
     return {
       _id: task._id,
       title: task.title,
       status: task.status,
       dueDate: task.dueDate,
+      source: "order",
       orderId: task.orderId,
       clientId: order.clientId,
       orderName: order.name ?? null,
       customText: order.customText ?? null,
       clientName: clientName(client),
-      assignedUserId: task.assignedUserId,
-      assignedUserName: assignedUser?.displayName ?? assignedUser?.email ?? null,
-      assignedUserColor: assignedUser?.color ?? undefined,
+      ...assignee,
     };
   },
 });
@@ -166,7 +222,8 @@ export const getOne = query({
  */
 export const adminCreate = mutation({
   args: {
-    orderId: v.id("orders"),
+    orderId: v.optional(v.id("orders")),
+    opportunityId: v.optional(v.id("pendingJotformSubmissions")),
     title: v.string(),
     status: v.optional(
       v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
@@ -178,10 +235,21 @@ export const adminCreate = mutation({
     const admin = await requireRole(ctx, "admin");
     const trimmed = args.title.trim();
     if (!trimmed) throw new ConvexError("Treść zadania jest wymagana.");
-    const order = await ctx.db.get(args.orderId);
-    if (!order) throw new ConvexError("Zlecenie nie istnieje.");
+    if ((args.orderId == null) === (args.opportunityId == null)) {
+      throw new ConvexError(
+        "Zadanie musi należeć dokładnie do jednego: zlecenia lub szansy sprzedaży.",
+      );
+    }
+    if (args.opportunityId) {
+      const opp = await ctx.db.get(args.opportunityId);
+      if (!opp) throw new ConvexError("Szansa sprzedaży nie istnieje.");
+    } else if (args.orderId) {
+      const order = await ctx.db.get(args.orderId);
+      if (!order) throw new ConvexError("Zlecenie nie istnieje.");
+    }
     return ctx.db.insert("orderTasks", {
       orderId: args.orderId,
+      opportunityId: args.opportunityId,
       title: trimmed,
       status: args.status ?? "todo",
       dueDate: args.dueDate,
