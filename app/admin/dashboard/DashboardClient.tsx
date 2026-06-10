@@ -309,16 +309,15 @@ function DueBadge({ ts, today, tomorrow, done }: { ts: number; today: number; to
   );
 }
 
-/* ── awatar przypisanej osoby ── */
-function Avatar({ task, size = 22 }: { task: DashboardTask; size?: number }) {
+/* ── badge przypisanej osoby ── */
+function AssigneeBadge({ task }: { task: DashboardTask }) {
   if (!task.assignedUserId) {
     return (
       <span
-        className="inline-flex items-center justify-center rounded-full border border-dashed border-gray-300 text-[8px] font-medium text-gray-400"
-        style={{ width: size, height: size }}
+        className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-2 py-0.5 text-[10.5px] font-medium text-gray-400"
         title="Nieprzypisane"
       >
-        —
+        Nieprzypisane
       </span>
     );
   }
@@ -326,11 +325,12 @@ function Avatar({ task, size = 22 }: { task: DashboardTask; size?: number }) {
   const color = task.assignedUserColor ?? uColor(task.assignedUserId);
   return (
     <span
-      className="inline-flex items-center justify-center rounded-full font-bold text-white"
-      style={{ width: size, height: size, background: color, fontSize: size * 0.4 }}
+      className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-semibold"
+      style={{ background: `${color}1f`, color }}
       title={name}
     >
-      {uInitials(name)}
+      <span className="size-1.5 shrink-0 rounded-full" style={{ background: color }} />
+      <span className="truncate">{name}</span>
     </span>
   );
 }
@@ -358,6 +358,11 @@ function TaskCard({
   const router = useRouter();
   const orderHref = `/admin/klient/${task.clientId}/zlecenie/${task.orderId}?tab=szczegoly`;
 
+  // Akcent koloru przypisanej osoby (jak kafelki w /admin/panel)
+  const userColor = task.assignedUserId
+    ? task.assignedUserColor ?? uColor(task.assignedUserId)
+    : null;
+
   return (
     <div
       draggable
@@ -370,6 +375,7 @@ function TaskCard({
       className={`group rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm transition-all duration-150 hover:shadow-md cursor-grab active:cursor-grabbing ${
         dragging ? "rotate-1 scale-[0.97] opacity-50 shadow-md ring-2 ring-gray-300" : ""
       }`}
+      style={userColor ? { borderLeft: `5px solid ${userColor}` } : undefined}
     >
       {/* kontekst zlecenia + CTA do zlecenia */}
       <div className="mb-1.5 flex items-start justify-between gap-2">
@@ -411,7 +417,11 @@ function TaskCard({
               <DueBadge ts={task.dueDate} today={today} tomorrow={tomorrow} done={task.status === "done"} />
             )}
           </div>
-          {showAssignee && <Avatar task={task} size={20} />}
+          {showAssignee && (
+            <div className="min-w-0">
+              <AssigneeBadge task={task} />
+            </div>
+          )}
         </div>
       )}
     </div>
