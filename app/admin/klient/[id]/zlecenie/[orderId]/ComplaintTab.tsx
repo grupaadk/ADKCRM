@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import TaskKanban from "@/components/TaskKanban";
 
 type ComplaintTabProps = {
   orderId: Id<"orders">;
@@ -140,6 +141,9 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
 
   return (
     <div className="space-y-6">
+      {/* Lista zadań — kanban */}
+      <TaskKanban complaintId={complaint._id} />
+
       {/* Status + czas */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">

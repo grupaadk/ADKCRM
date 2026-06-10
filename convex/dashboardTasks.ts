@@ -8,11 +8,12 @@ export type DashboardTask = {
   title: string;
   status: "todo" | "in_progress" | "done";
   dueDate?: number;
-  // Źródło zadania (typ karty): zlecenie albo szansa sprzedaży.
-  source: "order" | "opportunity";
-  // Kontekst karty. Dla zlecenia ustawione orderId+clientId; dla szansy — opportunityId.
+  // Źródło zadania: zlecenie, szansa sprzedaży albo reklamacja.
+  source: "order" | "opportunity" | "complaint";
+  // Kontekst karty.
   orderId?: Id<"orders">;
   opportunityId?: Id<"pendingJotformSubmissions">;
+  complaintId?: Id<"complaints">;
   clientId?: Id<"clients">;
   orderName: string | null;
   customText: string | null;
@@ -77,12 +78,12 @@ export const list = query({
       tasks = await ctx.db.query("orderTasks").collect();
     }
 
-    // Cache na zlecenia / klientów / userów, by uniknąć powtórnych odczytów.
+    // Cache na zlecenia / klientów / userów / reklamacje, by uniknąć powtórnych odczytów.
     const orderCache = new Map<string, Doc<"orders"> | null>();
     const clientCache = new Map<string, Doc<"clients"> | null>();
     const userCache = new Map<string, Doc<"users"> | null>();
-
     const oppCache = new Map<string, Doc<"pendingJotformSubmissions"> | null>();
+    const complaintCache = new Map<string, Doc<"complaints"> | null>();
 
     const result = await Promise.all(
       tasks.map(async (task): Promise<DashboardTask | null> => {
@@ -120,6 +121,44 @@ export const list = query({
             orderName: null,
             customText: opp.customText ?? null,
             clientName: opportunityName(opp),
+            ...assignee,
+          };
+        }
+
+        // Zadanie reklamacji
+        if (task.complaintId) {
+          let complaint = complaintCache.get(task.complaintId);
+          if (complaint === undefined) {
+            complaint = await ctx.db.get(task.complaintId);
+            complaintCache.set(task.complaintId, complaint);
+          }
+          if (!complaint) return null; // osierocone — pomijamy
+
+          let order = orderCache.get(complaint.orderId);
+          if (order === undefined) {
+            order = await ctx.db.get(complaint.orderId);
+            orderCache.set(complaint.orderId, order);
+          }
+          if (!order) return null;
+
+          let client = clientCache.get(order.clientId);
+          if (client === undefined) {
+            client = await ctx.db.get(order.clientId);
+            clientCache.set(order.clientId, client);
+          }
+
+          return {
+            _id: task._id,
+            title: task.title,
+            status: task.status,
+            dueDate: task.dueDate,
+            source: "complaint",
+            complaintId: task.complaintId,
+            orderId: complaint.orderId,
+            clientId: order.clientId,
+            orderName: order.name ?? null,
+            customText: order.customText ?? null,
+            clientName: clientName(client),
             ...assignee,
           };
         }
@@ -191,6 +230,28 @@ export const getOne = query({
         orderName: null,
         customText: opp.customText ?? null,
         clientName: opportunityName(opp),
+        ...assignee,
+      };
+    }
+
+    if (task.complaintId) {
+      const complaint = await ctx.db.get(task.complaintId);
+      if (!complaint) return null;
+      const order = await ctx.db.get(complaint.orderId);
+      if (!order) return null;
+      const client = await ctx.db.get(order.clientId);
+      return {
+        _id: task._id,
+        title: task.title,
+        status: task.status,
+        dueDate: task.dueDate,
+        source: "complaint",
+        complaintId: task.complaintId,
+        orderId: complaint.orderId,
+        clientId: order.clientId,
+        orderName: order.name ?? null,
+        customText: order.customText ?? null,
+        clientName: clientName(client),
         ...assignee,
       };
     }

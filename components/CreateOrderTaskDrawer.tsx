@@ -18,19 +18,21 @@ type StatusKey = (typeof STATUSES)[number]["key"];
 type AssignUser = { _id: Id<"users">; displayName?: string | null; login?: string | null; color?: string };
 
 /**
- * Panel tworzenia zadania w obrębie konkretnego zlecenia LUB szansy sprzedaży.
- * Przekaż dokładnie jedno: `orderId` albo `opportunityId`.
+ * Panel tworzenia zadania w obrębie konkretnego zlecenia, szansy sprzedaży LUB reklamacji.
+ * Przekaż dokładnie jedno: `orderId`, `opportunityId` albo `complaintId`.
  * `initialStatus` ustawia kolumnę, z której panel został otwarty.
  * `open === null` → zamknięty; przekazanie statusu otwiera panel i resetuje formularz.
  */
 export default function CreateOrderTaskDrawer({
   orderId,
   opportunityId,
+  complaintId,
   initialStatus,
   onClose,
 }: {
   orderId?: Id<"orders">;
   opportunityId?: Id<"pendingJotformSubmissions">;
+  complaintId?: Id<"complaints">;
   initialStatus: StatusKey | null;
   onClose: () => void;
 }) {
@@ -73,6 +75,7 @@ export default function CreateOrderTaskDrawer({
       await create({
         orderId,
         opportunityId,
+        complaintId,
         title: title.trim(),
         status,
         dueDate: due ? new Date(due).getTime() : undefined,

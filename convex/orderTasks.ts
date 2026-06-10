@@ -42,10 +42,25 @@ export const listByOpportunity = query({
   },
 });
 
+export const listByComplaint = query({
+  args: { complaintId: v.id("complaints") },
+  handler: async (ctx, { complaintId }) => {
+    await requireUser(ctx);
+    const tasks = await ctx.db
+      .query("orderTasks")
+      .withIndex("by_complaint", (q) => q.eq("complaintId", complaintId))
+      .order("asc")
+      .collect();
+
+    return Promise.all(tasks.map((task) => withAssignee(ctx, task)));
+  },
+});
+
 export const create = mutation({
   args: {
     orderId: v.optional(v.id("orders")),
     opportunityId: v.optional(v.id("pendingJotformSubmissions")),
+    complaintId: v.optional(v.id("complaints")),
     title: v.string(),
     status: v.optional(
       v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
@@ -55,14 +70,16 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
-    if ((args.orderId == null) === (args.opportunityId == null)) {
+    const setCount = [args.orderId, args.opportunityId, args.complaintId].filter(Boolean).length;
+    if (setCount !== 1) {
       throw new ConvexError(
-        "Zadanie musi należeć dokładnie do jednego: zlecenia lub szansy sprzedaży.",
+        "Zadanie musi należeć dokładnie do jednego: zlecenia, szansy sprzedaży lub reklamacji.",
       );
     }
     return ctx.db.insert("orderTasks", {
       orderId: args.orderId,
       opportunityId: args.opportunityId,
+      complaintId: args.complaintId,
       title: args.title,
       dueDate: args.dueDate,
       status: args.status ?? "todo",

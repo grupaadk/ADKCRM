@@ -357,15 +357,17 @@ function TaskCard({
 }
 
 /**
- * Współdzielony kanban "Lista zadań" — dla zlecenia albo szansy sprzedaży.
- * Przekaż dokładnie jedno: `orderId` albo `opportunityId`.
+ * Współdzielony kanban "Lista zadań" — dla zlecenia, szansy sprzedaży albo reklamacji.
+ * Przekaż dokładnie jedno: `orderId`, `opportunityId` albo `complaintId`.
  */
 export default function TaskKanban({
   orderId,
   opportunityId,
+  complaintId,
 }: {
   orderId?: Id<"orders">;
   opportunityId?: Id<"pendingJotformSubmissions">;
+  complaintId?: Id<"complaints">;
 }) {
   const orderTasks = useQuery(
     api.orderTasks.listByOrder,
@@ -375,7 +377,11 @@ export default function TaskKanban({
     api.orderTasks.listByOpportunity,
     opportunityId ? { opportunityId } : "skip",
   );
-  const tasks = orderId ? orderTasks : oppTasks;
+  const complaintTasks = useQuery(
+    api.orderTasks.listByComplaint,
+    complaintId ? { complaintId } : "skip",
+  );
+  const tasks = orderId ? orderTasks : opportunityId ? oppTasks : complaintTasks;
 
   const salesUsers = useQuery(api.users.listAssignable) ?? [];
   const me = useQuery(api.users.me);
@@ -489,6 +495,7 @@ export default function TaskKanban({
       <CreateOrderTaskDrawer
         orderId={orderId}
         opportunityId={opportunityId}
+        complaintId={complaintId}
         initialStatus={createInStatus}
         onClose={() => setCreateInStatus(null)}
       />

@@ -583,11 +583,12 @@ export default defineSchema({
     .index("by_invoice", ["invoiceId"])
     .index("by_order", ["orderId"]),
 
-  // 3.20 Zadania (TODO lista) — należą do zlecenia ALBO do szansy sprzedaży.
-  // Dokładnie jedno z pól orderId / opportunityId jest ustawione.
+  // 3.20 Zadania (TODO lista) — należą do zlecenia, szansy sprzedaży ALBO reklamacji.
+  // Dokładnie jedno z pól orderId / opportunityId / complaintId jest ustawione.
   orderTasks: defineTable({
     orderId: v.optional(v.id("orders")),
     opportunityId: v.optional(v.id("pendingJotformSubmissions")),
+    complaintId: v.optional(v.id("complaints")),
     title: v.string(),
     dueDate: v.optional(v.number()),
     status: v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
@@ -596,6 +597,7 @@ export default defineSchema({
   })
     .index("by_order", ["orderId"])
     .index("by_opportunity", ["opportunityId"])
+    .index("by_complaint", ["complaintId"])
     .index("by_assignee", ["assignedUserId"]),
 
   // 3.21 Komentarze do zadań

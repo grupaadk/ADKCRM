@@ -20,10 +20,11 @@ type StatusKey = (typeof KANBAN_COLS)[number]["key"];
 
 const DONE_LIMIT = 10;
 
-/* ── typ zadania (źródło): zlecenie vs szansa sprzedaży ── */
+/* ── typ zadania (źródło): zlecenie, szansa sprzedaży, reklamacja ── */
 const TASK_TYPE_META = {
-  order:       { label: "Zlecenie", openLabel: "Otwórz zlecenie", color: "#2563eb" },
-  opportunity: { label: "Szansa sprzedaży", openLabel: "Otwórz szansę",   color: "#b45309" },
+  order:       { label: "Zlecenie",         openLabel: "Otwórz zlecenie", color: "#2563eb" },
+  opportunity: { label: "Szansa sprzedaży", openLabel: "Otwórz szansę",  color: "#b45309" },
+  complaint:   { label: "Reklamacja",       openLabel: "Otwórz reklamację", color: "#ea580c" },
 } as const;
 type TaskType = keyof typeof TASK_TYPE_META;
 
@@ -378,17 +379,24 @@ function TaskCard({
 }) {
   const router = useRouter();
 
-  // Typ zadania (źródło) — brak = zlecenie
-  const taskType: TaskType = task.source === "opportunity" ? "opportunity" : "order";
+  // Typ zadania (źródło)
+  const taskType: TaskType =
+    task.source === "opportunity" ? "opportunity" :
+    task.source === "complaint" ? "complaint" :
+    "order";
   const typeMeta = TASK_TYPE_META[taskType];
 
   // Link "otwórz" + tytuł kontekstu zależnie od źródła
   const openHref =
     taskType === "opportunity"
       ? `/admin/szansa/${task.opportunityId}`
-      : `/admin/klient/${task.clientId}/zlecenie/${task.orderId}?tab=szczegoly`;
+      : taskType === "complaint"
+        ? `/admin/klient/${task.clientId}/zlecenie/${task.orderId}?tab=reklamacja`
+        : `/admin/klient/${task.clientId}/zlecenie/${task.orderId}?tab=szczegoly`;
   const contextTitle =
-    taskType === "opportunity" ? "Szansa sprzedaży" : (task.orderName ?? "Zlecenie");
+    taskType === "opportunity" ? "Szansa sprzedaży" :
+    taskType === "complaint" ? (task.orderName ?? "Reklamacja") :
+    (task.orderName ?? "Zlecenie");
 
   // Akcent koloru przypisanej osoby (jak kafelki w /admin/panel)
   const userColor = task.assignedUserId
