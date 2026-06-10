@@ -1203,6 +1203,15 @@ export const createOrderFolder = action({
         }
       }
 
+      // Krok 5: Utwórz stałe podfoldery zlecenia
+      await log("info", "creating order subfolders");
+      await Promise.all([
+        createDriveFolder(ctx, "Faktury", folderId),
+        createDriveFolder(ctx, "Umowy", folderId),
+        createDriveFolder(ctx, "Zdjęcia budowy", folderId),
+        createDriveFolder(ctx, "Rysunki konstrukcji do zamówienia", folderId),
+      ]);
+
       await ctx.runMutation(api.orders.updateDriveFolder, {
         orderId: args.orderId,
         folderId,
