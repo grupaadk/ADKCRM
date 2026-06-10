@@ -34,6 +34,8 @@ type Order = {
   totalGross?: number | null
   assignedUserColor?: string
   assignedUserId?: string
+  productionDate?: number
+  completionDate?: number
 }
 
 type ClientFilter = "all" | "individual" | "business"
@@ -70,15 +72,7 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
     : <ChevronDown className={`${cls} size-3`} style={{ color: "var(--text-strong)" }} />
 }
 
-function relativeTime(ms: number): string {
-  const days = Math.floor((Date.now() - ms) / 86_400_000)
-  if (days === 0) return "dziś"
-  if (days === 1) return "wczoraj"
-  if (days < 7) return `${days} dni temu`
-  const weeks = Math.floor(days / 7)
-  if (weeks < 5) return `${weeks} tyg. temu`
-  return `${Math.floor(days / 30)} mies. temu`
-}
+
 
 export default function OrderList() {
   const router = useRouter()
@@ -166,7 +160,7 @@ export default function OrderList() {
         }
         case "status": cmp = a.status.localeCompare(b.status, "pl"); break
         case "services": cmp = (a.services ?? []).join().localeCompare((b.services ?? []).join(), "pl"); break
-        case "createdAt": cmp = a._creationTime - b._creationTime; break
+        case "createdAt": cmp = (a.productionDate ?? a._creationTime) - (b.productionDate ?? b._creationTime); break
         case "city": cmp = (a.client?.city ?? "").localeCompare(b.client?.city ?? "", "pl"); break
         case "totalGross": cmp = (a.totalGross ?? 0) - (b.totalGross ?? 0); break
       }
@@ -387,8 +381,18 @@ export default function OrderList() {
                   </td>
                   <td>
                     <div className="mono" style={{ fontSize: 11 }}>
-                      <div>{fmtDate(order._creationTime)}</div>
-                      <div className="mute" style={{ fontSize: 10.5, marginTop: 1 }}>{relativeTime(order._creationTime)}</div>
+                      {order.productionDate ? (
+                        <>
+                          <div>{fmtDate(order.productionDate)}</div>
+                          {order.completionDate && (
+                            <div className="mute" style={{ fontSize: 10.5, marginTop: 1 }}>
+                              Zak.: {fmtDate(order.completionDate)}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="mute">—</div>
+                      )}
                     </div>
                   </td>
                   <td className="mono tnum" style={{ textAlign: "right" }}>

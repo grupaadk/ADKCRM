@@ -343,7 +343,10 @@ export const changeStatus = mutation({
       throw new Error("Status jest już ustawiony na tę wartość");
     }
 
-    await ctx.db.patch(args.orderId, { status: args.newStatus });
+    const statusPatch: Record<string, unknown> = { status: args.newStatus };
+    if (args.newStatus === "production") statusPatch.productionDate = Date.now();
+    if (args.newStatus === "completed") statusPatch.completionDate = Date.now();
+    await ctx.db.patch(args.orderId, statusPatch);
 
     if (args.newStatus === "measurement") {
       const driveConnection = await ctx.db.query("driveConnection").first();

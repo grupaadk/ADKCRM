@@ -26,17 +26,6 @@ import NewOrderModal from "./NewOrderModal";
 
 type Tab = "zlecenia" | "notatki";
 
-function relativeTime(ms: number): string {
-  const days = Math.floor((Date.now() - ms) / 86_400_000);
-  if (days === 0) return "dziś";
-  if (days === 1) return "wczoraj";
-  if (days < 7) return `${days} dni temu`;
-  const weeks = Math.floor(days / 7);
-  if (weeks < 5) return `${weeks} tyg. temu`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months} mies. temu`;
-  return `${Math.floor(days / 365)} lat temu`;
-}
 
 const FIELD_LABEL: React.CSSProperties = {
   fontSize: 11,
@@ -447,14 +436,22 @@ export default function ClientDetailPage({
                       </TableCell>
                       <TableCell>
                         <div className="mono" style={{ fontSize: 11 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <CalendarDays size={11} style={{ color: "var(--text-mute)" }} />
-                            {fmtDate(order._creationTime)}
-                          </div>
-                          <div className="mute" style={{ fontSize: 10.5, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
-                            <Clock size={10} />
-                            {relativeTime(order._creationTime)}
-                          </div>
+                          {(order as { productionDate?: number }).productionDate ? (
+                            <>
+                              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                <CalendarDays size={11} style={{ color: "var(--text-mute)" }} />
+                                {fmtDate((order as { productionDate?: number }).productionDate!)}
+                              </div>
+                              {(order as { completionDate?: number }).completionDate && (
+                                <div className="mute" style={{ fontSize: 10.5, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                                  <Clock size={10} />
+                                  Zak.: {fmtDate((order as { completionDate?: number }).completionDate!)}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <span className="mute">—</span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="mono tnum" style={{ textAlign: "right" }}>

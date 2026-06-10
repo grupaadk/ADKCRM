@@ -218,6 +218,8 @@ export default defineSchema({
 
     // Status workflow
     status: clientStatus,
+    productionDate: v.optional(v.number()),
+    completionDate: v.optional(v.number()),
 
     // Dokumenty
     documents: documentSet,
@@ -257,6 +259,8 @@ export default defineSchema({
   })
     .index("by_client", ["clientId"])
     .index("by_status", ["status"])
+    .index("by_production_date", ["productionDate"])
+    .index("by_completion_date", ["completionDate"])
     .index("by_jotform_submission", ["jotformSubmissionId"]),
 
   // 3.1c Liczniki numeracji zleceń (per miesiąc)

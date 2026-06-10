@@ -988,6 +988,8 @@ export default function OrderDetailPage({
     "pl-PL",
     { day: "2-digit", month: "2-digit", year: "numeric" },
   );
+  const fmtLocalDate = (ts: number) =>
+    new Date(ts).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" });
   const orderNumber = order.name ?? `Zlecenie z ${createdDate}`;
   const projectFileLinks = getProjectFileLinks(order.projectFiles);
 
@@ -1050,7 +1052,11 @@ export default function OrderDetailPage({
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className="mono mute" style={{ fontSize: 11 }}>
-              Dodano: {createdDate}
+              {(order as { productionDate?: number }).productionDate
+                ? `Realizowane: ${fmtLocalDate((order as { productionDate?: number }).productionDate!)}`
+                : `Dodano: ${createdDate}`}
+              {(order as { completionDate?: number }).completionDate &&
+                ` · Zak.: ${fmtLocalDate((order as { completionDate?: number }).completionDate!)}`}
             </span>
             <span style={{ width: 1, height: 14, background: "var(--line)", display: "inline-block" }} />
 
