@@ -6,6 +6,7 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
+import DriveFolderButton from "@/components/DriveFolderButton";
 import { useRouter, useSearchParams } from "next/navigation";
 import DocumentCheckboxes from "../../DocumentCheckboxes";
 import OrderLineItems from "../../OrderLineItems";
@@ -796,6 +797,7 @@ export default function OrderDetailPage({
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [creatingFolder, setCreatingFolder] = useState(false);
   const [showSmsModal, setShowSmsModal] = useState(false);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const assignDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -922,10 +924,13 @@ export default function OrderDetailPage({
   }
 
   async function handleCreateFolder() {
+    setCreatingFolder(true);
     try {
       await createOrderFolder({ orderId: orderIdTyped });
     } catch (error) {
       console.error("Folder creation failed:", error);
+    } finally {
+      setCreatingFolder(false);
     }
   }
 
@@ -1193,59 +1198,13 @@ export default function OrderDetailPage({
             })()}
             <span style={{ width: 1, height: 14, background: "var(--line)", display: "inline-block" }} />
             {/* Drive CTA */}
-            {order.folderUrl ? (
-              <a
-                href={order.folderUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn"
-                style={{
-                  fontSize: 11,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-                title="Otwórz folder Google Drive zlecenia"
-              >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
-                </svg>
-                Drive
-              </a>
-            ) : (
-              <button
-                onClick={() => void handleCreateFolder()}
-                className="btn"
-                style={{
-                  fontSize: 11,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-                title="Utwórz folder zlecenia w Google Drive"
-              >
-                <svg
-                  width="13"
-                  height="13"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3 7a2 2 0 012-2h5l2 2h7a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"
-                  />
-                </svg>
-                Utwórz folder
-              </button>
-            )}
+            <DriveFolderButton
+              folderUrl={order.folderUrl}
+              createdAt={order._creationTime}
+              onCreate={() => void handleCreateFolder()}
+              busy={creatingFolder}
+              style={{ fontSize: 11 }}
+            />
             <button
               onClick={openSmsModal}
               className="btn"

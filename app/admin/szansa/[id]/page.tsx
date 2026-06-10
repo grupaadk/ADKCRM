@@ -10,7 +10,8 @@ import { SERVICES } from "@/convex/schema";
 import InlineEdit from "@/app/admin/klient/[id]/InlineEdit";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { useStatusLabel } from "@/components/StatusLabelsContext";
-import { ArrowLeft, Archive, ArchiveRestore, Trash2, Send, FolderOpen } from "lucide-react";
+import { ArrowLeft, Archive, ArchiveRestore, Trash2, Send } from "lucide-react";
+import DriveFolderButton from "@/components/DriveFolderButton";
 import OpportunityAttachmentsSection from "./OpportunityAttachmentsSection";
 
 const FIELD_LABEL: React.CSSProperties = {
@@ -261,29 +262,12 @@ export default function OpportunityDetailPage({
         </div>
 
         <div style={{ display: "flex", gap: 6 }}>
-          {opp.opportunityFolderUrl && (
-            <a
-              href={opp.opportunityFolderUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="btn"
-              style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-              title="Otwórz folder Google Drive"
-            >
-              <FolderOpen size={13} /> Drive
-            </a>
-          )}
-          {!opp.opportunityFolderUrl && (
-            <button
-              onClick={handleRetryFolder}
-              disabled={retrying}
-              className="btn"
-              style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-              title="Utwórz folder i wgraj pliki na Google Drive"
-            >
-              <FolderOpen size={13} /> {retrying ? "Tworzę…" : "Google Drive"}
-            </button>
-          )}
+          <DriveFolderButton
+            folderUrl={opp.opportunityFolderUrl}
+            createdAt={opp._creationTime}
+            onCreate={handleRetryFolder}
+            busy={retrying}
+          />
           <button
             onClick={handleArchive}
             className="btn"
