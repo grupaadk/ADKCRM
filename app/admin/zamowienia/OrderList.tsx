@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useQuery } from "convex/react"
 import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
@@ -33,6 +33,7 @@ type Order = {
   documents?: Record<string, { url?: string; signatureStatus?: "signed" | "not_applicable" }>
   totalGross?: number | null
   assignedUserColor?: string
+  assignedUserId?: string
 }
 
 type ClientFilter = "all" | "individual" | "business"
@@ -83,6 +84,8 @@ export default function OrderList() {
   const router = useRouter()
   const statusLabels = useStatusLabels()
   const orders = useQuery(api.orders.list, {})
+  const currentUser = useQuery(api.users.me)
+  const allUsers = useQuery(api.users.listAllActive)
   const isLoading = orders === undefined
 
   const [sortField, setSortField] = useState<SortField>("createdAt")
@@ -90,6 +93,31 @@ export default function OrderList() {
   const [viewFilter, setViewFilter] = useState<"all" | "active" | "complaint" | "completed">("active")
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [clientFilter, setClientFilter] = useState<ClientFilter>("all")
+  const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!currentUser?._id) return
+    const key = `zamowienia_user_filter_${currentUser._id}`
+    try {
+      const saved = localStorage.getItem(key)
+      if (saved) {
+        const arr = JSON.parse(saved)
+        if (Array.isArray(arr)) setActiveUserFilters(new Set(arr))
+      }
+    } catch {}
+  }, [currentUser?._id])
+
+  const toggleUserFilter = (id: string) => {
+    setActiveUserFilters(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      if (currentUser?._id) {
+        localStorage.setItem(`zamowienia_user_filter_${currentUser._id}`, JSON.stringify([...next]))
+      }
+      return next
+    })
+  }
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"))
@@ -121,6 +149,13 @@ export default function OrderList() {
     if (statusFilter) filtered = filtered.filter((o) => o.status === statusFilter)
     if (clientFilter === "business") filtered = filtered.filter((o) => o.client?.clientType === "business")
     else if (clientFilter === "individual") filtered = filtered.filter((o) => o.client?.clientType !== "business")
+    if (activeUserFilters.size > 0) {
+      filtered = filtered.filter((o) => {
+        const uid = o.assignedUserId
+        if (!uid) return activeUserFilters.has("__none__")
+        return activeUserFilters.has(uid)
+      })
+    }
     return [...filtered].sort((a, b) => {
       let cmp = 0
       switch (sortField) {
@@ -137,7 +172,7 @@ export default function OrderList() {
       }
       return sortDir === "asc" ? cmp : -cmp
     })
-  }, [orders, viewFilter, statusFilter, clientFilter, sortField, sortDir])
+  }, [orders, viewFilter, statusFilter, clientFilter, activeUserFilters, sortField, sortDir])
 
   const clientFilterLabels: { key: ClientFilter; label: string }[] = [
     { key: "all", label: "Wszyscy" },
@@ -210,6 +245,64 @@ export default function OrderList() {
             </FilterBtn>
           ))}
         </div>
+        {/* Row 4: user filter */}
+        {allUsers && (
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+            <span className="mute" style={{ fontSize: 11, marginRight: 2 }}>Przypisany:</span>
+            {[...allUsers]
+              .sort((a, b) => {
+                if (a._id === currentUser?._id) return -1
+                if (b._id === currentUser?._id) return 1
+                return 0
+              })
+              .map(user => {
+                const name = user.displayName ?? user.login ?? "?"
+                const isMe = user._id === currentUser?._id
+                const active = activeUserFilters.has(user._id as string)
+                return (
+                  <button
+                    key={user._id}
+                    onClick={() => toggleUserFilter(user._id as string)}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                      background: active ? `${user.color ?? "#64748b"}22` : "transparent",
+                      color: active ? (user.color ?? "var(--accent)") : "var(--text-mute)",
+                      border: `1.5px solid ${active ? (user.color ?? "var(--accent)") : "transparent"}`,
+                      fontWeight: active ? 600 : 500, cursor: "pointer",
+                      transition: "all 0.12s", fontFamily: "inherit",
+                    }}
+                  >
+                    <span style={{
+                      width: 8, height: 8, borderRadius: "50%",
+                      background: user.color ? (active ? user.color : `${user.color}80`) : (active ? "#64748b" : "#64748b40"),
+                      flexShrink: 0,
+                    }} />
+                    {name}{isMe ? " (Ty)" : ""}
+                  </button>
+                )
+              })
+            }
+            <button
+              onClick={() => toggleUserFilter("__none__")}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                background: activeUserFilters.has("__none__") ? "var(--panel-3)" : "transparent",
+                color: activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)",
+                border: `1.5px solid ${activeUserFilters.has("__none__") ? "var(--text-mute)" : "transparent"}`,
+                fontWeight: activeUserFilters.has("__none__") ? 600 : 500, cursor: "pointer",
+                transition: "all 0.12s", fontFamily: "inherit",
+              }}
+            >
+              <span style={{
+                width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                border: `1.5px dashed ${activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)"}`,
+              }} />
+              Bez przypisania
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Table */}

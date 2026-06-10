@@ -141,6 +141,7 @@ export default defineSchema({
     isActive: v.optional(v.boolean()),
     displayName: v.optional(v.string()),
     color: v.optional(v.string()),
+    showInPickers: v.optional(v.boolean()),
   })
     .index("email", ["email"])
     .index("phone", ["phone"]),

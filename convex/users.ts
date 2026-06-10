@@ -89,6 +89,7 @@ export const list = query({
         role: u.role,
         isActive: u.isActive ?? false,
         color: u.color,
+        showInPickers: u.showInPickers ?? true,
       }))
       .sort((a, b) => (a.login ?? "").localeCompare(b.login ?? ""));
   },
@@ -420,7 +421,7 @@ export const listAssignable = query({
     await requireUser(ctx);
     const users = await ctx.db.query("users").collect();
     return users
-      .filter((u) => (u.role === "sales" || u.role === "admin") && u.isActive !== false)
+      .filter((u) => (u.role === "sales" || u.role === "admin") && u.isActive !== false && u.showInPickers !== false)
       .map((u) => ({
         _id: u._id,
         displayName: u.displayName,
@@ -429,6 +430,44 @@ export const listAssignable = query({
         color: u.color,
       }))
       .sort((a, b) => (a.displayName ?? a.login ?? "").localeCompare(b.displayName ?? b.login ?? ""));
+  },
+});
+
+/**
+ * Wszyscy aktywni użytkownicy — do filtrowania zleceń po przypisanym userze.
+ * Dostępne dla każdego zalogowanego usera.
+ */
+export const listAllActive = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireUser(ctx);
+    const users = await ctx.db.query("users").collect();
+    return users
+      .filter((u) => u.isActive !== false && u.role != null && u.showInPickers !== false)
+      .map((u) => ({
+        _id: u._id,
+        displayName: u.displayName,
+        login: u.email,
+        role: u.role,
+        color: u.color,
+      }))
+      .sort((a, b) => (a.displayName ?? a.login ?? "").localeCompare(b.displayName ?? b.login ?? ""));
+  },
+});
+
+/**
+ * Admin włącza/wyłącza widoczność usera w filtrach i dropdownach.
+ */
+export const setShowInPickers = mutation({
+  args: {
+    userId: v.id("users"),
+    showInPickers: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+    const target = await ctx.db.get(args.userId);
+    if (!target) throw new ConvexError("Użytkownik nie istnieje.");
+    await ctx.db.patch(args.userId, { showInPickers: args.showInPickers });
   },
 });
 

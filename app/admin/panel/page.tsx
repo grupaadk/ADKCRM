@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { useQuery, useMutation, useAction } from "convex/react"
 import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
@@ -496,6 +496,56 @@ export default function PanelPage() {
   const [showNewOpportunityModal, setShowNewOpportunityModal] = useState(false)
 
   const items = useQuery(api.kanban.list)
+  const currentUser = useQuery(api.users.me)
+  const allUsers = useQuery(api.users.listAllActive)
+  const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!currentUser?._id) return
+    const key = `panel_user_filter_${currentUser._id}`
+    try {
+      const saved = localStorage.getItem(key)
+      if (saved) {
+        const arr = JSON.parse(saved)
+        if (Array.isArray(arr)) setActiveUserFilters(new Set(arr))
+      }
+    } catch {}
+  }, [currentUser?._id])
+
+  const toggleUserFilter = (id: string) => {
+    setActiveUserFilters(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      if (currentUser?._id) {
+        localStorage.setItem(`panel_user_filter_${currentUser._id}`, JSON.stringify([...next]))
+      }
+      return next
+    })
+  }
+
+  // color → userId lookup as fallback when assignedUserId isn't yet in kanban items
+  const colorToUserId = useMemo(() => {
+    if (!allUsers) return {} as Record<string, string>
+    const map: Record<string, string> = {}
+    for (const u of allUsers) {
+      if (u.color) map[u.color] = u._id as string
+    }
+    return map
+  }, [allUsers])
+
+  const displayItems = useMemo(() => {
+    const all = items ?? []
+    if (activeUserFilters.size === 0) return all
+    return all.filter(item => {
+      if (item.type === "pending") return true
+      const uid = (item.assignedUserId as string | undefined)
+        ?? (item.assignedUserColor ? colorToUserId[item.assignedUserColor] : undefined)
+      if (!uid) return activeUserFilters.has("__none__")
+      return activeUserFilters.has(uid)
+    })
+  }, [items, activeUserFilters, colorToUserId])
+
   const changeStatus = useMutation(api.orders.changeStatus)
   const promoteToMeasurement = useMutation(api.jotformInternal.promoteToMeasurement)
   const updatePendingStage = useMutation(api.jotformInternal.updatePendingStage)
@@ -561,7 +611,7 @@ export default function PanelPage() {
     })
   }
 
-  const allIds = (items ?? []).map((i) => i.id)
+  const allIds = displayItems.map((i) => i.id)
   const allExpanded = allIds.length > 0 && allIds.every((id) => expandedCards.has(id))
   const toggleAll = () => {
     if (allExpanded) setExpandedCards(new Set())
@@ -687,20 +737,6 @@ export default function PanelPage() {
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "flex-end" }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, fontSize: 10, color: "var(--text-mute)", alignItems: "center" }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 2, background: "#d0d4dc", display: "inline-block" }} />
-              Nie wygenerowany
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 2, background: "#ef4444", display: "inline-block" }} />
-              Nie podpisany
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 2, background: "#22c55e", display: "inline-block" }} />
-              Podpisany
-            </span>
-          </div>
           {(activeTab === "kanban" || activeTab === "opportunities") && (items?.length ?? 0) > 0 && (
             <button
               onClick={toggleAll}
@@ -791,6 +827,64 @@ export default function PanelPage() {
         ))}
       </div>
 
+      {/* User filter chips — only on Zlecenia tab */}
+      {activeTab === "kanban" && allUsers && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {[...allUsers]
+            .sort((a, b) => {
+              if (a._id === currentUser?._id) return -1
+              if (b._id === currentUser?._id) return 1
+              return 0
+            })
+            .map(user => {
+              const name = user.displayName ?? user.login ?? "?"
+              const isMe = user._id === currentUser?._id
+              const active = activeUserFilters.has(user._id as string)
+              return (
+                <button
+                  key={user._id}
+                  onClick={() => toggleUserFilter(user._id as string)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                    background: active ? `${user.color ?? "#64748b"}22` : "var(--panel)",
+                    color: active ? (user.color ?? "var(--accent)") : "var(--text-mute)",
+                    border: `1.5px solid ${active ? (user.color ?? "var(--accent)") : "var(--line)"}`,
+                    fontWeight: active ? 600 : 500, cursor: "pointer",
+                    transition: "all 0.12s", fontFamily: "inherit",
+                  }}
+                >
+                  <span style={{
+                    width: 8, height: 8, borderRadius: "50%",
+                    background: user.color ? (active ? user.color : `${user.color}80`) : (active ? "#64748b" : "#64748b40"),
+                    flexShrink: 0,
+                  }} />
+                  {name}{isMe ? " (Ty)" : ""}
+                </button>
+              )
+            })
+          }
+          <button
+            onClick={() => toggleUserFilter("__none__")}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+              background: activeUserFilters.has("__none__") ? "var(--panel-3)" : "var(--panel)",
+              color: activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)",
+              border: `1.5px solid ${activeUserFilters.has("__none__") ? "var(--text-mute)" : "var(--line)"}`,
+              fontWeight: activeUserFilters.has("__none__") ? 600 : 500, cursor: "pointer",
+              transition: "all 0.12s", fontFamily: "inherit",
+            }}
+          >
+            <span style={{
+              width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+              border: `1.5px dashed ${activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)"}`,
+            }} />
+            Bez przypisania
+          </button>
+        </div>
+      )}
+
       {/* Kanban tab (Zlecenia + Szanse sprzedaży) */}
       {(activeTab === "kanban" || activeTab === "opportunities") && (
         <>
@@ -818,7 +912,7 @@ export default function PanelPage() {
               {/* Wiersz nagłówków */}
               <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8 }}>
                 {visibleColumns.map((col) => {
-                  const colItems = (items ?? []).filter((i) => i.status === col.key)
+                  const colItems = displayItems.filter((i) => i.status === col.key)
                   const validTargets = draggingItem ? getValidTargets(draggingItem) : []
                   const isValid = validTargets.includes(col.key)
                   const isDraggingSameCol = draggingItem?.status === col.key
@@ -857,7 +951,7 @@ export default function PanelPage() {
               {/* Wiersz treści kolumn */}
               <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8, flex: 1, minHeight: 0 }}>
                 {visibleColumns.map((col) => {
-                  const colItems = (items ?? []).filter((i) => i.status === col.key)
+                  const colItems = displayItems.filter((i) => i.status === col.key)
                   const isOver = dragOverCol === col.key
                   const isDraggingOver = draggingItem !== null && isOver
                   const validTargets = draggingItem ? getValidTargets(draggingItem) : []

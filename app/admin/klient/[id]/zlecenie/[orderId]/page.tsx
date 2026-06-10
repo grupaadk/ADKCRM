@@ -242,11 +242,13 @@ function UserPickerDropdown({
   onChange,
   users,
   compact = false,
+  currentUserId,
 }: {
   value: string;
   onChange: (id: string) => void;
   users: AssignableUser[];
   compact?: boolean;
+  currentUserId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -261,7 +263,6 @@ function UserPickerDropdown({
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
 
-  const avatarSize = compact ? 18 : 20;
   const selName = sel ? (sel.displayName ?? sel.login) : null;
 
   return (
@@ -357,6 +358,7 @@ function UserPickerDropdown({
           <div style={{ height: 1, background: "var(--line)", margin: "2px 8px" }} />
           {users.map((u) => {
             const name = u.displayName ?? u.login;
+            const isMe = currentUserId && u._id === currentUserId;
             return (
               <button key={u._id} type="button"
                 onClick={() => { onChange(u._id); setOpen(false); }}
@@ -378,6 +380,9 @@ function UserPickerDropdown({
                   {uInitials(name)}
                 </div>
                 <span style={{ flex: 1 }}>{name}</span>
+                {isMe && (
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "#2563eb", background: "#eff6ff", borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>Ty</span>
+                )}
                 {value === u._id && (
                   <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} style={{ color: "#2563eb", flexShrink: 0 }}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -407,6 +412,7 @@ function TaskCard({
   colIdx,
   users,
   now,
+  currentUserId,
   onMove,
   onRemove,
   onUpdate,
@@ -416,6 +422,7 @@ function TaskCard({
   colIdx: number;
   users: AssignableUser[];
   now: number;
+  currentUserId?: string;
   onMove: (dir: "prev" | "next") => void;
   onRemove: () => void;
   onUpdate: (args: {
@@ -577,6 +584,7 @@ function TaskCard({
           onChange={handleAssigneeChange}
           users={users}
           compact
+          currentUserId={currentUserId}
         />
 
         <div style={{ flex: 1 }} />
@@ -631,6 +639,7 @@ function TaskCard({
 function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
   const tasks = useQuery(api.orderTasks.listByOrder, { orderId });
   const salesUsers = useQuery(api.users.listAssignable) ?? [];
+  const me = useQuery(api.users.me);
   const createTask = useMutation(api.orderTasks.create);
   const updateTask = useMutation(api.orderTasks.update);
   const removeTask = useMutation(api.orderTasks.remove);
@@ -750,6 +759,7 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
                     colIdx={colIdx}
                     users={salesUsers as AssignableUser[]}
                     now={Date.now()}
+                    currentUserId={me?._id}
                     onMove={(dir) => void handleMove(task._id, col.key, dir)}
                     onRemove={() => void removeTask({ taskId: task._id })}
                     onUpdate={(args) => void updateTask({ taskId: task._id, ...args })}
@@ -797,6 +807,7 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
                         value={newAssigneeId}
                         onChange={setNewAssigneeId}
                         users={salesUsers as AssignableUser[]}
+                        currentUserId={me?._id}
                       />
                     </div>
                     <div style={{ display: "flex", gap: 5, marginTop: 8, alignItems: "center" }}>
@@ -1073,7 +1084,7 @@ export default function OrderDetailPage({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* ── Header panel ── */}
-      <div className="panel" style={{ overflow: "hidden" }}>
+      <div className="panel" style={{ overflow: "visible" }}>
         {/* Breadcrumb + actions */}
         <div
           style={{
@@ -1161,7 +1172,7 @@ export default function OrderDetailPage({
                         border: "1px solid var(--line)",
                         borderRadius: 8,
                         boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-                        zIndex: 50,
+                        zIndex: 500,
                         overflow: "hidden",
                       }}
                     >
@@ -1222,9 +1233,12 @@ export default function OrderDetailPage({
                           {u.color && (
                             <span style={{ width: 8, height: 8, borderRadius: "50%", background: u.color, flexShrink: 0 }} />
                           )}
-                          {u.displayName ?? u.login}
+                          <span style={{ flex: 1 }}>{u.displayName ?? u.login}</span>
+                          {me && u._id === me._id && (
+                            <span style={{ fontSize: 10, fontWeight: 600, color: "#2563eb", background: "#eff6ff", borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>Ty</span>
+                          )}
                           {order.assignedUserId === u._id && (
-                            <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--text-mute)" }}>aktualny</span>
+                            <span style={{ fontSize: 10, color: "var(--text-mute)", flexShrink: 0 }}>aktualny</span>
                           )}
                         </button>
                       ))}

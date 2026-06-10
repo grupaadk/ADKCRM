@@ -30,6 +30,7 @@ export default function UsersAdminPage() {
   const resetPassword = useAction(api.users.resetPassword);
   const updateProfile = useMutation(api.users.updateProfile);
   const setColor = useMutation(api.users.setColor);
+  const setShowInPickers = useMutation(api.users.setShowInPickers);
 
   const [showAdd, setShowAdd] = useState(false);
   const [editingColorId, setEditingColorId] = useState<Id<"users"> | null>(null);
@@ -215,6 +216,9 @@ export default function UsersAdminPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-[12px] uppercase tracking-wide text-gray-500">
             <tr>
+              <th className="px-3 py-2 w-12 text-center" title="Widoczny w filtrach i dropdownach">
+                Filtry
+              </th>
               <th className="px-3 py-2">Login</th>
               <th className="px-3 py-2">Nazwa</th>
               <th className="px-3 py-2">Rola</th>
@@ -226,22 +230,32 @@ export default function UsersAdminPage() {
           <tbody>
             {users === undefined && (
               <tr>
-                <td colSpan={6} className="px-3 py-4 text-gray-400">
+                <td colSpan={7} className="px-3 py-4 text-gray-400">
                   Ładowanie…
                 </td>
               </tr>
             )}
             {users?.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-4 text-gray-400">
+                <td colSpan={7} className="px-3 py-4 text-gray-400">
                   Brak użytkowników.
                 </td>
               </tr>
             )}
             {users?.map((u) => {
               const isSelf = u._id === me._id;
+              const inPickers = u.showInPickers;
               return (
                 <tr key={u._id} className="border-t border-gray-100">
+                  <td className="px-3 py-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={inPickers}
+                      onChange={() => void setShowInPickers({ userId: u._id, showInPickers: !inPickers })}
+                      title={inPickers ? "Widoczny w filtrach i dropdownach" : "Ukryty z filtrów i dropdownów"}
+                      style={{ cursor: "pointer", accentColor: u.color ?? "#3b82f6" }}
+                    />
+                  </td>
                   <td className="px-3 py-2 font-mono text-[13px] text-gray-900">
                     {u.login ?? "—"}
                     {isSelf && (

@@ -38,6 +38,7 @@ export type KanbanOrderItem = {
   services: string[];
   docs: Record<string, DocState>;
   assignedUserColor?: string;
+  assignedUserId?: Id<"users">;
 };
 
 export type KanbanPendingItem = {
@@ -112,6 +113,7 @@ export const list = query({
           services: order.services ?? [],
           docs: orderDocs(order.documents),
           assignedUserColor,
+          assignedUserId: order.assignedUserId,
         };
       }),
     );
