@@ -49,7 +49,6 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
 
   const [creating, setCreating] = useState(false);
   const [newText, setNewText] = useState("");
-  const [entryType, setEntryType] = useState<"note" | "todo">("note");
   const [adding, setAdding] = useState(false);
 
   const listEndRef = useRef<HTMLDivElement>(null);
@@ -94,7 +93,7 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
         complaintId: complaint._id,
         text: newText.trim(),
         createdBy: me?.displayName ?? me?.login ?? "unknown",
-        type: entryType,
+        type: "note",
       });
       setNewText("");
     } finally {
@@ -134,10 +133,6 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
   const legacyNotes = complaint.notes ?? [];
   const legacyTodos = complaint.todos ?? [];
   const hasLegacy = legacyNotes.length > 0 || legacyTodos.length > 0 || !!complaint.description;
-
-  const todoEntries = entries.filter((e) => e.type === "todo");
-  const completedCount = todoEntries.filter((e) => e.completed).length;
-  const totalTodos = todoEntries.length;
 
   return (
     <div className="space-y-6">
@@ -190,16 +185,9 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
       {/* Notatki i zadania — unified feed */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-              Notatki i zadania
-            </h2>
-            {totalTodos > 0 && (
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">
-                {completedCount}/{totalTodos} zadań
-              </span>
-            )}
-          </div>
+          <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Notatki
+          </h2>
         </div>
 
         <div className="flex flex-col gap-4 p-6">
@@ -247,7 +235,7 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
           {/* Feed */}
           {entries.length === 0 && !hasLegacy ? (
             <p className="py-6 text-center text-sm text-slate-400">
-              Brak wpisów. Dodaj pierwszą notatkę lub zadanie poniżej.
+              Brak notatek. Dodaj pierwszą notatkę poniżej.
             </p>
           ) : (
             <div className="max-h-[28rem] overflow-y-auto space-y-2 pr-1">
@@ -301,31 +289,7 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
           )}
 
           {/* Input */}
-          <div className="border-t border-slate-100 pt-4 space-y-3">
-            {/* Toggle typ */}
-            <div className="flex gap-1 rounded-xl bg-slate-100 p-1 w-fit">
-              <button
-                onClick={() => setEntryType("note")}
-                className={`rounded-lg px-4 py-1.5 text-xs font-semibold transition-colors ${
-                  entryType === "note"
-                    ? "bg-white text-slate-800 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                Notatka
-              </button>
-              <button
-                onClick={() => setEntryType("todo")}
-                className={`rounded-lg px-4 py-1.5 text-xs font-semibold transition-colors ${
-                  entryType === "todo"
-                    ? "bg-white text-slate-800 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                Zadanie
-              </button>
-            </div>
-
+          <div className="border-t border-slate-100 pt-4">
             <div className="flex gap-2">
               <textarea
                 value={newText}
@@ -336,11 +300,7 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
                     handleAdd();
                   }
                 }}
-                placeholder={
-                  entryType === "note"
-                    ? "Dodaj notatkę... (Enter aby zapisać)"
-                    : "Dodaj zadanie... (Enter aby zapisać)"
-                }
+                placeholder="Dodaj notatkę... (Enter aby zapisać)"
                 rows={2}
                 className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
               />
