@@ -42,6 +42,7 @@ export default function TaskDrawer({
   const users = (useQuery(api.users.listAssignable) ?? []) as AssignUser[];
 
   const updateTask = useMutation(api.orderTasks.update);
+  const removeTask = useMutation(api.orderTasks.remove);
   const addComment = useMutation(api.taskComments.add);
   const removeComment = useMutation(api.taskComments.remove);
 
@@ -92,6 +93,13 @@ export default function TaskDrawer({
     setAssignOpen(false);
   }
 
+  function deleteTask() {
+    if (!shownId) return;
+    if (!window.confirm("Usunąć to zadanie? Tej operacji nie można cofnąć.")) return;
+    void removeTask({ taskId: shownId });
+    onClose();
+  }
+
   function submitComment() {
     const body = newComment.trim();
     if (!body || !shownId) return;
@@ -111,12 +119,21 @@ export default function TaskDrawer({
       width={480}
       footer={
         task ? (
-          <button
-            onClick={() => router.push(orderHref)}
-            className="flex w-full items-center justify-center gap-2 rounded-md bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-800"
-          >
-            <ExternalLink className="size-4" /> Otwórz zlecenie
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push(orderHref)}
+              className="flex flex-1 items-center justify-center gap-2 rounded-md bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              <ExternalLink className="size-4" /> Otwórz zlecenie
+            </button>
+            <button
+              onClick={deleteTask}
+              title="Usuń zadanie"
+              className="flex shrink-0 items-center justify-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+            >
+              <Trash2 className="size-4" /> Usuń
+            </button>
+          </div>
         ) : null
       }
     >

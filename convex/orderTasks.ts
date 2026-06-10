@@ -80,6 +80,12 @@ export const remove = mutation({
   args: { taskId: v.id("orderTasks") },
   handler: async (ctx, { taskId }) => {
     await requireUser(ctx);
+    // Usuń powiązane komentarze, by nie zostały osierocone
+    const comments = await ctx.db
+      .query("taskComments")
+      .withIndex("by_task", (q) => q.eq("taskId", taskId))
+      .collect();
+    await Promise.all(comments.map((c) => ctx.db.delete(c._id)));
     await ctx.db.delete(taskId);
   },
 });
