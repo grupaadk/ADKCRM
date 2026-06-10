@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from "react"
 import { useQuery, useMutation, useAction } from "convex/react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { useStatusLabels } from "@/components/StatusLabelsContext"
 import type { KanbanItem } from "@/convex/kanban"
@@ -488,7 +488,11 @@ function ArchivedTab() {
 export default function PanelPage() {
   const statusLabels = useStatusLabels()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<"kanban" | "opportunities" | "archived" | "archived-leads">("kanban")
+  const searchParams = useSearchParams()
+  const initialTab = searchParams.get("tab") as "kanban" | "opportunities" | "archived" | "archived-leads" | null
+  const [activeTab, setActiveTab] = useState<"kanban" | "opportunities" | "archived" | "archived-leads">(
+    initialTab && ["kanban", "opportunities", "archived", "archived-leads"].includes(initialTab) ? initialTab : "kanban"
+  )
   const [draggingItem, setDraggingItem] = useState<KanbanItem | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)

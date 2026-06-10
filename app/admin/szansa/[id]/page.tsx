@@ -140,7 +140,7 @@ export default function OpportunityDetailPage({
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 256, gap: 16 }}>
         <span className="mute" style={{ fontSize: 13 }}>Szansa sprzedaży nie znaleziona.</span>
-        <Link href="/admin/panel" style={{ fontSize: 13, color: "var(--accent)" }}>Wróć do panelu</Link>
+        <Link href="/admin/panel?tab=opportunities" style={{ fontSize: 13, color: "var(--accent)" }}>Wróć do panelu</Link>
       </div>
     );
   }
@@ -151,7 +151,7 @@ export default function OpportunityDetailPage({
         <span className="mute" style={{ fontSize: 13 }}>
           Ta szansa została już przekonwertowana do zlecenia.
         </span>
-        <Link href="/admin/panel" style={{ fontSize: 13, color: "var(--accent)" }}>
+        <Link href="/admin/panel?tab=opportunities" style={{ fontSize: 13, color: "var(--accent)" }}>
           Wróć do panelu
         </Link>
       </div>
@@ -212,7 +212,7 @@ export default function OpportunityDetailPage({
       } else {
         await archive({ opportunityId });
       }
-      router.push("/admin/panel");
+      router.push("/admin/panel?tab=opportunities");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Błąd archiwizacji");
     }
@@ -221,7 +221,7 @@ export default function OpportunityDetailPage({
   async function handleDelete() {
     try {
       await deleteOpp({ opportunityId });
-      router.push("/admin/panel");
+      router.push("/admin/panel?tab=opportunities");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Błąd usuwania");
     }
@@ -251,7 +251,7 @@ export default function OpportunityDetailPage({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
-            onClick={() => router.push("/admin/panel")}
+            onClick={() => router.push("/admin/panel?tab=opportunities")}
             className="btn"
             style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
             title="Wróć do panelu"
