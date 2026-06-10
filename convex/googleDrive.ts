@@ -1116,10 +1116,32 @@ export const createOrderFolder = action({
       );
       await log("info", "order folder created", { folderId, folderUrl });
 
-      // Krok 4: Skopiuj pliki z podfolderów szansy sprzedaży (oryginały zostają w szansie)
-      const driveProjectFiles: Array<{ fileId: string; name: string; url: string }> = [];
+      // Krok 4: Utwórz wszystkie podfoldery zlecenia (zawsze, niezależnie od szansy)
+      await log("info", "creating order subfolders");
+      const OPPORTUNITY_SUBFOLDERS = [
+        "Pliki do wyceny od klienta - rzuty i przysłane",
+        "Oferty otrzymane - koszta",
+        "Oferty wysłane",
+        "Ponzio pliki",
+        "Inne",
+      ] as const;
+      const ORDER_SUBFOLDERS = [
+        "Faktury",
+        "Umowy",
+        "Zdjęcia budowy",
+        "Rysunki konstrukcji do zamówienia",
+      ] as const;
 
+      const [oppSubfolderIds] = await Promise.all([
+        Promise.all(OPPORTUNITY_SUBFOLDERS.map((name) => createDriveFolder(ctx, name, folderId).then((r) => ({ name, id: r.id })))),
+        Promise.all(ORDER_SUBFOLDERS.map((name) => createDriveFolder(ctx, name, folderId))),
+      ]);
+      const oppSubfolderByName = Object.fromEntries(oppSubfolderIds.map((s) => [s.name, s.id]));
+
+      // Krok 5: Skopiuj pliki z podfolderów szansy sprzedaży do odpowiednich podfolderów zlecenia
+      const driveProjectFiles: Array<{ fileId: string; name: string; url: string }> = [];
       let filesCopiedFromOpportunity = false;
+
       if (args.opportunityId) {
         const opp = await ctx.runQuery(api.salesOpportunities.getSalesOpportunity, {
           opportunityId: args.opportunityId,
@@ -1137,11 +1159,11 @@ export const createOrderFolder = action({
           await log("info", "copying files from opportunity subfolders", { count: subfoldersToCopy.length });
           for (const subfolder of subfoldersToCopy) {
             try {
-              const { id: destSubfolderId } = await createDriveFolder(ctx, subfolder.name, folderId);
+              const destFolderId = oppSubfolderByName[subfolder.name];
               const files = await listDriveFolderFiles(ctx, subfolder.id);
               for (const file of files) {
                 try {
-                  const copied = await copyFileToDriveFolder(ctx, file.id, destSubfolderId);
+                  const copied = await copyFileToDriveFolder(ctx, file.id, destFolderId);
                   driveProjectFiles.push({ fileId: copied.id, name: copied.name, url: copied.url });
                 } catch (error) {
                   await log("error", "file copy failed", { fileId: file.id, name: file.name, error: String(error) });
@@ -1202,15 +1224,6 @@ export const createOrderFolder = action({
           await log("info", "attachments uploaded", { uploaded: driveProjectFiles.length, total: attachmentUrls.length });
         }
       }
-
-      // Krok 5: Utwórz stałe podfoldery zlecenia
-      await log("info", "creating order subfolders");
-      await Promise.all([
-        createDriveFolder(ctx, "Faktury", folderId),
-        createDriveFolder(ctx, "Umowy", folderId),
-        createDriveFolder(ctx, "Zdjęcia budowy", folderId),
-        createDriveFolder(ctx, "Rysunki konstrukcji do zamówienia", folderId),
-      ]);
 
       await ctx.runMutation(api.orders.updateDriveFolder, {
         orderId: args.orderId,
