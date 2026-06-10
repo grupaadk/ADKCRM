@@ -405,6 +405,9 @@ export default function OpportunityDetailPage({
         </div>
       </div>
 
+      {/* Lista zadań */}
+      <TaskKanban opportunityId={opportunityId} />
+
       {/* Tekst własny */}
       <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
         <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
@@ -576,9 +579,6 @@ export default function OpportunityDetailPage({
         </div>
       )}
 
-
-      {/* Lista zadań */}
-      <TaskKanban opportunityId={opportunityId} />
 
       {/* Załączniki */}
       <OpportunityAttachmentsSection

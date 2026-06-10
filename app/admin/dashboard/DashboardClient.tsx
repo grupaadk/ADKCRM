@@ -23,7 +23,7 @@ const DONE_LIMIT = 10;
 /* ── typ zadania (źródło): zlecenie vs szansa sprzedaży ── */
 const TASK_TYPE_META = {
   order:       { label: "Zlecenie", openLabel: "Otwórz zlecenie", color: "#2563eb" },
-  opportunity: { label: "Szansa",   openLabel: "Otwórz szansę",   color: "#b45309" },
+  opportunity: { label: "Szansa sprzedaży", openLabel: "Otwórz szansę",   color: "#b45309" },
 } as const;
 type TaskType = keyof typeof TASK_TYPE_META;
 
