@@ -53,6 +53,7 @@ export default function DashboardClient() {
   const [openTaskId, setOpenTaskId] = useState<Id<"orderTasks"> | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<StatusKey | null>(null);
 
   // Zwykły user dostaje tylko swoje (serwer ignoruje filter); admin filtruje.
   const tasks = useQuery(
@@ -91,7 +92,10 @@ export default function DashboardClient() {
   const greetingName = me?.displayName ?? me?.login ?? "";
   const loading = tasks === undefined || me === undefined;
 
+  const draggedTask = dragId ? (tasks ?? []).find((t) => t._id === dragId) ?? null : null;
+
   function handleDrop(status: StatusKey) {
+    setDragOverCol(null);
     if (!dragId) return;
     const task = (tasks ?? []).find((t) => t._id === dragId);
     setDragId(null);
@@ -184,13 +188,30 @@ export default function DashboardClient() {
             const isDone = col.key === "done";
             const visible = isDone && !showAllDone ? colTasks.slice(0, DONE_LIMIT) : colTasks;
             const hiddenCount = isDone ? colTasks.length - visible.length : 0;
+            // cel upuszczenia: przeciągamy kartę nad tę kolumnę i nie jest to jej obecny status
+            const isDropTarget =
+              draggedTask != null && dragOverCol === col.key && draggedTask.status !== col.key;
             return (
               <div
                 key={col.key}
-                onDragOver={(e) => e.preventDefault()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (dragOverCol !== col.key) setDragOverCol(col.key);
+                }}
+                onDragLeave={(e) => {
+                  // ignoruj przejścia między dziećmi tej samej kolumny
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    setDragOverCol((c) => (c === col.key ? null : c));
+                  }
+                }}
                 onDrop={() => handleDrop(col.key)}
-                className="flex flex-col rounded-xl border"
-                style={{ background: col.colBg, borderColor: col.border }}
+                className="flex flex-col rounded-xl border transition-all duration-150"
+                style={{
+                  background: isDropTarget ? col.headerBg : col.colBg,
+                  borderColor: isDropTarget ? col.accent : col.border,
+                  boxShadow: isDropTarget ? `0 0 0 2px ${col.accent}55` : undefined,
+                }}
               >
                 {/* nagłówek kolumny */}
                 <div
@@ -340,11 +361,14 @@ function TaskCard({
   return (
     <div
       draggable
-      onDragStart={onDragStart}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart();
+      }}
       onDragEnd={onDragEnd}
       onClick={onOpen}
-      className={`group cursor-pointer rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm transition-shadow hover:shadow-md ${
-        dragging ? "opacity-40" : ""
+      className={`group rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm transition-all duration-150 hover:shadow-md cursor-grab active:cursor-grabbing ${
+        dragging ? "rotate-1 scale-[0.97] opacity-50 shadow-md ring-2 ring-gray-300" : ""
       }`}
     >
       {/* kontekst zlecenia + CTA do zlecenia */}

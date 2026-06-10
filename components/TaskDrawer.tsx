@@ -53,11 +53,14 @@ export default function TaskDrawer({
   const [newComment, setNewComment] = useState("");
   const [assignOpen, setAssignOpen] = useState(false);
   const assignRef = useRef<HTMLDivElement>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Reset edytowanego tytułu przy zmianie zadania (setState w renderze — dozwolone).
+  // Reset edytowanego tytułu i potwierdzenia usuwania przy zmianie zadania
+  // (setState w renderze — dozwolony wzorzec).
   if (task && task._id !== titleForId) {
     setTitleForId(task._id);
     setTitle(task.title);
+    setConfirmDelete(false);
   }
 
   useEffect(() => {
@@ -95,8 +98,8 @@ export default function TaskDrawer({
 
   function deleteTask() {
     if (!shownId) return;
-    if (!window.confirm("Usunąć to zadanie? Tej operacji nie można cofnąć.")) return;
     void removeTask({ taskId: shownId });
+    setConfirmDelete(false);
     onClose();
   }
 
@@ -119,21 +122,41 @@ export default function TaskDrawer({
       width={480}
       footer={
         task ? (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => router.push(orderHref)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-md bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-800"
-            >
-              <ExternalLink className="size-4" /> Otwórz zlecenie
-            </button>
-            <button
-              onClick={deleteTask}
-              title="Usuń zadanie"
-              className="flex shrink-0 items-center justify-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-            >
-              <Trash2 className="size-4" /> Usuń
-            </button>
-          </div>
+          confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="flex-1 text-sm font-medium text-gray-700">
+                Usunąć zadanie? Tej operacji nie można cofnąć.
+              </span>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="shrink-0 rounded-md border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={deleteTask}
+                className="flex shrink-0 items-center justify-center gap-1.5 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                <Trash2 className="size-4" /> Usuń
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => router.push(orderHref)}
+                className="flex flex-1 items-center justify-center gap-2 rounded-md bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-800"
+              >
+                <ExternalLink className="size-4" /> Otwórz zlecenie
+              </button>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                title="Usuń zadanie"
+                className="flex shrink-0 items-center justify-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="size-4" /> Usuń
+              </button>
+            </div>
+          )
         ) : null
       }
     >
