@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -116,6 +116,14 @@ export default function OpportunityDetailPage({
   const [converting, setConverting] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const commentRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = commentRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, [opp?.comment]);
 
   const stage = opp?.stage ?? "lead";
   const stageLabel = useStatusLabel(stage);
@@ -592,18 +600,25 @@ export default function OpportunityDetailPage({
           Komentarz klienta
         </h2>
         <textarea
+          ref={commentRef}
           defaultValue={opp.comment ?? ""}
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = el.scrollHeight + "px";
+          }}
           onBlur={(e) => {
             const next = e.target.value.trim();
             if (next !== (opp.comment ?? "")) {
               save("comment", next || undefined);
             }
           }}
-          rows={4}
+          rows={1}
           placeholder="Dodatkowe uwagi…"
           style={{
             width: "100%",
-            resize: "vertical",
+            resize: "none",
+            overflow: "hidden",
             border: "1px solid var(--line)",
             borderRadius: 6,
             padding: "8px 10px",
