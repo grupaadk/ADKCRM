@@ -994,9 +994,7 @@ export default function OrderDetailPage({
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "szczegoly", label: "Szczegóły" },
     { key: "wycena", label: "Wycena" },
-    ...(order.status === "complaint" || existingComplaint
-      ? [{ key: "reklamacja" as Tab, label: "Reklamacja" }]
-      : []),
+    { key: "reklamacja", label: "Reklamacja" },
   ];
 
   const warrantyEvent = (events ?? []).find(
@@ -1935,14 +1933,13 @@ export default function OrderDetailPage({
       )}
 
       {/* ── Tab: Reklamacja ── */}
-      {activeTab === "reklamacja" &&
-        (order.status === "complaint" || existingComplaint) && (
-          <ComplaintTab
-            orderId={orderIdTyped}
-            clientId={clientId}
-            complaintStartDate={warrantyEvent?._creationTime ?? null}
-          />
-        )}
+      {activeTab === "reklamacja" && (
+        <ComplaintTab
+          orderId={orderIdTyped}
+          clientId={clientId}
+          complaintStartDate={warrantyEvent?._creationTime ?? null}
+        />
+      )}
 
       {/* Payment reminder modal */}
       {reminderInvoiceId && (
