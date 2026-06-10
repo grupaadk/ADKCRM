@@ -12,6 +12,8 @@ import OrderLineItems from "../../OrderLineItems";
 import { useStatusLabels } from "@/components/StatusLabelsContext";
 import ComplaintTab from "./ComplaintTab";
 import OrderDriveBrowser from "./OrderDriveBrowser";
+import TaskDrawer from "@/components/TaskDrawer";
+import CreateOrderTaskDrawer from "@/components/CreateOrderTaskDrawer";
 import InvestmentLocation from "../../InvestmentLocation";
 import ReminderModal from "@/app/admin/faktury/ReminderModal";
 import {
@@ -416,6 +418,7 @@ function TaskCard({
   onMove,
   onRemove,
   onUpdate,
+  onOpenDrawer,
 }: {
   task: KanbanTask;
   colKey: "todo" | "in_progress" | "done";
@@ -432,6 +435,7 @@ function TaskCard({
     dueDate?: number;
     clearDueDate?: boolean;
   }) => void;
+  onOpenDrawer: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -467,13 +471,17 @@ function TaskCard({
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={() => {
+        if (editingTitle || editingDate) return;
+        onOpenDrawer();
+      }}
       style={{
         background: "var(--panel)",
         borderRadius: 7,
         border: "1px solid var(--line)",
         padding: "9px 10px 8px",
         boxShadow: hovered && !editingTitle ? "0 2px 8px rgba(0,0,0,0.08)" : "0 1px 2px rgba(0,0,0,0.04)",
-        cursor: editingTitle ? "default" : "grab",
+        cursor: editingTitle ? "default" : "pointer",
         transition: "box-shadow 0.12s",
         userSelect: "none",
       }}
@@ -500,8 +508,8 @@ function TaskCard({
         />
       ) : (
         <p
-          onClick={() => { setEditTitle(task.title); setEditingTitle(true); }}
-          title="Kliknij aby edytować"
+          onClick={(e) => { e.stopPropagation(); setEditTitle(task.title); setEditingTitle(true); }}
+          title="Kliknij aby edytować tytuł"
           style={{
             fontSize: 12.5, fontWeight: 500, margin: "0 0 7px",
             color: task.status === "done" ? "var(--text-mute)" : "var(--text)",
@@ -541,7 +549,7 @@ function TaskCard({
         ) : task.dueDate ? (
           <button
             type="button"
-            onClick={() => setEditingDate(true)}
+            onClick={(e) => { e.stopPropagation(); setEditingDate(true); }}
             title="Kliknij aby zmienić datę"
             style={{
               display: "flex", alignItems: "center", gap: 3,
@@ -561,7 +569,7 @@ function TaskCard({
         ) : hovered ? (
           <button
             type="button"
-            onClick={() => setEditingDate(true)}
+            onClick={(e) => { e.stopPropagation(); setEditingDate(true); }}
             title="Dodaj termin"
             style={{
               display: "flex", alignItems: "center", gap: 2,
@@ -579,13 +587,15 @@ function TaskCard({
         ) : null}
 
         {/* Assignee picker (compact avatar) */}
-        <UserPickerDropdown
-          value={task.assignedUserId ?? ""}
-          onChange={handleAssigneeChange}
-          users={users}
-          compact
-          currentUserId={currentUserId}
-        />
+        <span onClick={(e) => e.stopPropagation()} style={{ display: "inline-flex" }}>
+          <UserPickerDropdown
+            value={task.assignedUserId ?? ""}
+            onChange={handleAssigneeChange}
+            users={users}
+            compact
+            currentUserId={currentUserId}
+          />
+        </span>
 
         <div style={{ flex: 1 }} />
 
@@ -640,42 +650,14 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
   const tasks = useQuery(api.orderTasks.listByOrder, { orderId });
   const salesUsers = useQuery(api.users.listAssignable) ?? [];
   const me = useQuery(api.users.me);
-  const createTask = useMutation(api.orderTasks.create);
   const updateTask = useMutation(api.orderTasks.update);
   const removeTask = useMutation(api.orderTasks.remove);
 
-  const [addingToCol, setAddingToCol] = useState<string | null>(null);
-  const [newTitle, setNewTitle] = useState("");
-  const [newDueDate, setNewDueDate] = useState("");
-  const [newAssigneeId, setNewAssigneeId] = useState("");
+  const [createInStatus, setCreateInStatus] = useState<
+    "todo" | "in_progress" | "done" | null
+  >(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
-
-  function startAdding(colKey: string) {
-    setAddingToCol(colKey);
-    setNewTitle("");
-    setNewDueDate("");
-    setNewAssigneeId("");
-  }
-
-  function cancelAdding() {
-    setAddingToCol(null);
-    setNewTitle("");
-  }
-
-  async function handleAddCard(colKey: "todo" | "in_progress" | "done") {
-    if (!newTitle.trim()) return;
-    await createTask({
-      orderId,
-      title: newTitle.trim(),
-      status: colKey,
-      dueDate: newDueDate ? new Date(newDueDate).getTime() : undefined,
-      assignedUserId: newAssigneeId ? (newAssigneeId as Id<"users">) : undefined,
-    });
-    setNewTitle("");
-    setNewDueDate("");
-    setNewAssigneeId("");
-    setAddingToCol(null);
-  }
+  const [openTaskId, setOpenTaskId] = useState<Id<"orderTasks"> | null>(null);
 
   async function handleMove(taskId: Id<"orderTasks">, from: string, dir: "prev" | "next") {
     const order = ["todo", "in_progress", "done"];
@@ -716,7 +698,6 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr" }}>
         {KANBAN_COLS.map((col, colIdx) => {
           const colTasks = (tasks ?? []).filter((t) => t.status === col.key);
-          const isAdding = addingToCol === col.key;
 
           return (
             <div
@@ -763,100 +744,38 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
                     onMove={(dir) => void handleMove(task._id, col.key, dir)}
                     onRemove={() => void removeTask({ taskId: task._id })}
                     onUpdate={(args) => void updateTask({ taskId: task._id, ...args })}
+                    onOpenDrawer={() => setOpenTaskId(task._id)}
                   />
                 ))}
 
-                {/* Inline add form */}
-                {isAdding ? (
-                  <div style={{
-                    background: "var(--panel)", borderRadius: 7,
-                    border: `1px solid ${col.border}`,
-                    padding: "9px 10px",
-                    boxShadow: `0 0 0 2px ${col.border}`,
-                  }}>
-                    <textarea
-                      autoFocus
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleAddCard(col.key); }
-                        if (e.key === "Escape") cancelAdding();
-                      }}
-                      placeholder="Treść zadania…"
-                      rows={2}
-                      style={{
-                        width: "100%", resize: "none",
-                        border: "none", background: "transparent",
-                        fontSize: 12.5, fontFamily: "inherit",
-                        outline: "none", color: "var(--text)", lineHeight: 1.4,
-                      }}
-                    />
-                    <div style={{ display: "flex", gap: 5, marginTop: 7, alignItems: "center", flexWrap: "wrap" }}>
-                      <input
-                        type="date"
-                        value={newDueDate}
-                        onChange={(e) => setNewDueDate(e.target.value)}
-                        style={{
-                          fontSize: 11, border: "1px solid var(--line)",
-                          borderRadius: 5, padding: "3px 7px",
-                          background: "var(--panel-2)", color: "var(--text)",
-                          fontFamily: "inherit",
-                        }}
-                      />
-                      <UserPickerDropdown
-                        value={newAssigneeId}
-                        onChange={setNewAssigneeId}
-                        users={salesUsers as AssignableUser[]}
-                        currentUserId={me?._id}
-                      />
-                    </div>
-                    <div style={{ display: "flex", gap: 5, marginTop: 8, alignItems: "center" }}>
-                      <button
-                        onClick={() => void handleAddCard(col.key)}
-                        disabled={!newTitle.trim()}
-                        className="btn primary"
-                        style={{ fontSize: 11, padding: "4px 10px" }}
-                      >
-                        Dodaj kartę
-                      </button>
-                      <button
-                        onClick={cancelAdding}
-                        style={{
-                          background: "none", border: "none", cursor: "pointer",
-                          color: "var(--text-mute)", padding: "4px 6px",
-                          borderRadius: 4, display: "flex", alignItems: "center",
-                          fontFamily: "inherit",
-                        }}
-                        title="Anuluj"
-                      >
-                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => startAdding(col.key)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 4,
-                      padding: "5px 8px", fontSize: 12,
-                      color: "var(--text-mute)", background: "none", border: "none",
-                      cursor: "pointer", borderRadius: 5, width: "100%",
-                      textAlign: "left", fontFamily: "inherit", marginTop: 2,
-                    }}
-                  >
-                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Dodaj kartę
-                  </button>
-                )}
+                {/* Otwórz panel szczegółów nowego zadania */}
+                <button
+                  onClick={() => setCreateInStatus(col.key)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 4,
+                    padding: "5px 8px", fontSize: 12,
+                    color: "var(--text-mute)", background: "none", border: "none",
+                    cursor: "pointer", borderRadius: 5, width: "100%",
+                    textAlign: "left", fontFamily: "inherit", marginTop: 2,
+                  }}
+                >
+                  <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Dodaj kartę
+                </button>
               </div>
             </div>
           );
         })}
       </div>
+
+      <TaskDrawer taskId={openTaskId} onClose={() => setOpenTaskId(null)} />
+      <CreateOrderTaskDrawer
+        orderId={orderId}
+        initialStatus={createInStatus}
+        onClose={() => setCreateInStatus(null)}
+      />
     </section>
   );
 }
@@ -1706,6 +1625,9 @@ export default function OrderDetailPage({
       {/* ── Tab: Szczegóły ── */}
       {activeTab === "szczegoly" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Lista zadań — nad Dokumentami/Plikami */}
+          <TodoSection orderId={orderIdTyped} />
+
           {/* Dokumenty + Pliki zlecenia */}
           <div
             style={{
@@ -1733,9 +1655,6 @@ export default function OrderDetailPage({
               rootFolderId={order.folderId}
             />
           </div>
-
-          {/* TODO list — full width, prominent */}
-          <TodoSection orderId={orderIdTyped} />
 
           {/* Szczegóły zlecenia (komentarz, ochrona słoneczna, pliki projektu) */}
           {(order.comment ||

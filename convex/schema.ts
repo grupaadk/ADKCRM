@@ -591,7 +591,16 @@ export default defineSchema({
     status: v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
     assignedUserId: v.optional(v.id("users")),
     createdBy: v.string(),
-  }).index("by_order", ["orderId"]),
+  })
+    .index("by_order", ["orderId"])
+    .index("by_assignee", ["assignedUserId"]),
+
+  // 3.21 Komentarze do zadań
+  taskComments: defineTable({
+    taskId: v.id("orderTasks"),
+    body: v.string(),
+    authorId: v.id("users"),
+  }).index("by_task", ["taskId"]),
 
   // Logi systemowe
   systemLogs: defineTable({

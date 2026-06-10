@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/Sidebar"
 import { cx, focusRing } from "@/components/ui/utils"
 import {
+  LayoutDashboard,
   LayoutGrid,
   ClipboardList,
   Users,
@@ -44,6 +45,7 @@ type NavItem = {
 }
 
 const mainItems: NavItem[] = [
+  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, exactMatch: true },
   { href: "/admin/panel", label: "Panel", icon: LayoutGrid },
   { href: "/admin/zamowienia", label: "Zlecenia", icon: ClipboardList },
   { href: "/admin/klienci", label: "Klienci", icon: Users, countKey: "clients", alsoActiveFor: ["/admin/klient/"] },
