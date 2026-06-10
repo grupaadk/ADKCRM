@@ -359,14 +359,6 @@ export const webhook = httpAction(async (ctx, request) => {
     },
   );
 
-  // Triggeruj tworzenie folderu klienta na Google Drive
-  const driveConnection = await ctx.runQuery(api.googleDrive.getConnectionStatus);
-  if (driveConnection?.connectionStatus === "connected" || driveConnection?.connectionStatus === "token_expiring") {
-    await ctx.scheduler.runAfter(0, api.googleDrive.createClientFolder, {
-      clientId,
-    });
-  }
-
   // Zapisz zgłoszenie jako oczekujące — zlecenie tworzone jest dopiero
   // gdy admin przesunie kartę na Kanbanie do "Do pomiarów".
   const pendingId = await ctx.runMutation(
@@ -374,13 +366,13 @@ export const webhook = httpAction(async (ctx, request) => {
     { ...mapped, clientId },
   );
 
-  // Planuj upload plików do folderu klienta (gdy folder będzie gotowy)
-  if (mapped.projectFiles) {
-    await ctx.scheduler.runAfter(
-      0,
-      api.googleDrive.uploadSalesOpportunityFiles,
-      { opportunityId: pendingId },
-    );
+  // Triggeruj tworzenie pełnej struktury folderów szansy na Google Drive:
+  // folder klienta → Szanse sprzedaży → folder szansy (+ 5 podfolderów) + upload plików
+  const driveConnection = await ctx.runQuery(api.googleDrive.getConnectionStatus);
+  if (driveConnection?.connectionStatus === "connected" || driveConnection?.connectionStatus === "token_expiring") {
+    await ctx.scheduler.runAfter(0, api.googleDrive.createClientFolderForOpportunity, {
+      opportunityId: pendingId,
+    });
   }
 
   // Wyślij SMS potwierdzający przyjęcie prośby o wycenę
