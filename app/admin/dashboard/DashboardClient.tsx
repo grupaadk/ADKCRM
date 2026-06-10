@@ -20,6 +20,27 @@ type StatusKey = (typeof KANBAN_COLS)[number]["key"];
 
 const DONE_LIMIT = 10;
 
+/* ── typ zadania (źródło): zlecenie vs szansa sprzedaży ── */
+const TASK_TYPE_META = {
+  order:       { label: "Zlecenie", openLabel: "Otwórz zlecenie", color: "#2563eb" },
+  opportunity: { label: "Szansa",   openLabel: "Otwórz szansę",   color: "#b45309" },
+} as const;
+type TaskType = keyof typeof TASK_TYPE_META;
+
+function TypeBadge({ type }: { type: TaskType }) {
+  const meta = TASK_TYPE_META[type];
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+      style={{ background: `${meta.color}14`, color: meta.color }}
+      title={meta.label}
+    >
+      <span className="size-1.5 shrink-0 rounded-full" style={{ background: meta.color }} />
+      {meta.label}
+    </span>
+  );
+}
+
 /* ── kolory / inicjały userów ── */
 const U_COLORS = ["#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#ef4444", "#06b6d4", "#84cc16"];
 function uColor(id: string) {
@@ -358,6 +379,10 @@ function TaskCard({
   const router = useRouter();
   const orderHref = `/admin/klient/${task.clientId}/zlecenie/${task.orderId}?tab=szczegoly`;
 
+  // Typ zadania (źródło) — brak = zlecenie
+  const taskType: TaskType = task.source === "opportunity" ? "opportunity" : "order";
+  const typeMeta = TASK_TYPE_META[taskType];
+
   // Akcent koloru przypisanej osoby (jak kafelki w /admin/panel)
   const userColor = task.assignedUserId
     ? task.assignedUserColor ?? uColor(task.assignedUserId)
@@ -385,16 +410,19 @@ function TaskCard({
           </div>
           <div className="truncate text-[10.5px] text-gray-400">{task.clientName}</div>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            router.push(orderHref);
-          }}
-          title="Otwórz zlecenie"
-          className="shrink-0 rounded p-1 text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-700 group-hover:opacity-100"
-        >
-          <ExternalLink className="size-3.5" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(orderHref);
+            }}
+            title={typeMeta.openLabel}
+            className="rounded p-1 text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-700 group-hover:opacity-100"
+          >
+            <ExternalLink className="size-3.5" />
+          </button>
+          <TypeBadge type={taskType} />
+        </div>
       </div>
 
       {/* tekst własny zlecenia */}

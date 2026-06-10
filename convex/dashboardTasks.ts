@@ -8,6 +8,9 @@ export type DashboardTask = {
   title: string;
   status: "todo" | "in_progress" | "done";
   dueDate?: number;
+  // Źródło zadania (typ karty). Brak = "order" (zgodność wstecz —
+  // dziś wszystkie zadania pochodzą ze zleceń; "opportunity" dojdzie z szansami).
+  source?: "order" | "opportunity";
   // Zlecenie + klient (kontekst karty)
   orderId: Id<"orders">;
   clientId: Id<"clients">;
