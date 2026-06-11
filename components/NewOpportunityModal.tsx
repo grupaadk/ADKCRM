@@ -79,10 +79,10 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
   // ─── Queries ───────────────────────────────────────────────────────────────
   const searchResults = useQuery(
     api.clients.search,
-    searchQuery.trim().length >= 2 ? { searchTerm: searchQuery.trim() } : "skip",
+    searchQuery.trim().length >= 1 ? { searchTerm: searchQuery.trim() } : "skip",
   );
-  const recentClients = useQuery(api.clients.list, searchQuery.trim().length < 2 ? {} : "skip");
-  const searchItems = searchQuery.trim().length >= 2 ? searchResults : recentClients?.page;
+  const recentClients = useQuery(api.clients.list, searchQuery.trim().length < 1 ? {} : "skip");
+  const searchItems = searchQuery.trim().length >= 1 ? searchResults : recentClients?.page;
 
   const allSteps: Step[] = ["client", "details"];
   const stepIndex = allSteps.indexOf(step);
