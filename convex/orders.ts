@@ -75,10 +75,12 @@ export const list = query({
           .query("orderLineItems")
           .withIndex("by_order_sort", (q) => q.eq("orderId", order._id))
           .collect();
+        let totalNet = 0;
         let totalGross = 0;
         for (const item of lineItems) {
           const discount = item.discountPercent ?? 0;
           const net = item.quantity * item.unitPrice * (1 - discount / 100);
+          totalNet += net;
           totalGross += net * (1 + item.vatRate / 100);
         }
         let assignedUserColor: string | undefined;
@@ -97,6 +99,7 @@ export const list = query({
                 companyName: client.companyName,
               }
             : null,
+          totalNet: lineItems.length > 0 ? Math.round(totalNet * 100) / 100 : null,
           totalGross: lineItems.length > 0 ? Math.round(totalGross * 100) / 100 : null,
           assignedUserColor,
         };

@@ -31,6 +31,7 @@ type Order = {
   } | null
   fakturownia?: { invoices?: Array<{ kind: "advance" | "final" | "vat"; number?: string }> }
   documents?: Record<string, { url?: string; signatureStatus?: "signed" | "not_applicable" }>
+  totalNet?: number | null
   totalGross?: number | null
   assignedUserColor?: string
   assignedUserId?: string
@@ -323,7 +324,7 @@ export default function OrderList() {
                 Data <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
               </th>
               <th style={{ cursor: "pointer", width: 120, textAlign: "right" }} onClick={() => handleSort("totalGross")}>
-                Kwota brutto <SortIcon field="totalGross" sortField={sortField} sortDir={sortDir} />
+                Kwota netto <SortIcon field="totalGross" sortField={sortField} sortDir={sortDir} />
               </th>
             </tr>
           </thead>
@@ -396,8 +397,8 @@ export default function OrderList() {
                     </div>
                   </td>
                   <td className="mono tnum" style={{ textAlign: "right" }}>
-                    {order.totalGross != null
-                      ? `${order.totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
+                    {order.totalNet != null
+                      ? `${order.totalNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
                       : <span className="mute">—</span>}
                   </td>
                 </tr>
