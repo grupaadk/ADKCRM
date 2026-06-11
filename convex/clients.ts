@@ -27,7 +27,7 @@ export const search = query({
   },
   handler: async (ctx, args) => {
     const term = args.searchTerm.toLowerCase().trim();
-    const clients = await ctx.db.query("clients").order("desc").take(500);
+    const clients = await ctx.db.query("clients").collect();
     return clients
       .filter(
         (c) =>
