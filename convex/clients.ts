@@ -20,35 +20,22 @@ export const list = query({
   },
 });
 
-// Wyszukiwanie klientów po nazwisku lub nazwie firmy
+// Wyszukiwanie klientów po nazwisku, imieniu lub nazwie firmy
 export const search = query({
   args: {
     searchTerm: v.string(),
   },
   handler: async (ctx, args) => {
-    const [byLastName, byCompany] = await Promise.all([
-      ctx.db
-        .query("clients")
-        .withSearchIndex("search_clients", (s) =>
-          s.search("lastName", args.searchTerm),
-        )
-        .take(20),
-      ctx.db
-        .query("clients")
-        .withSearchIndex("search_clients_company", (s) =>
-          s.search("companyName", args.searchTerm),
-        )
-        .take(20),
-    ]);
-    const seen = new Set<string>();
-    const results = [];
-    for (const c of [...byLastName, ...byCompany]) {
-      if (!seen.has(c._id)) {
-        seen.add(c._id);
-        results.push(c);
-      }
-    }
-    return results.slice(0, 20);
+    const term = args.searchTerm.toLowerCase().trim();
+    const clients = await ctx.db.query("clients").order("desc").take(500);
+    return clients
+      .filter(
+        (c) =>
+          (c.lastName ?? "").toLowerCase().includes(term) ||
+          (c.firstName ?? "").toLowerCase().includes(term) ||
+          (c.companyName ?? "").toLowerCase().includes(term),
+      )
+      .slice(0, 20);
   },
 });
 
