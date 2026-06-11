@@ -93,7 +93,8 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
     setResolvedClientId(c._id);
     const name = c.companyName ?? `${c.firstName} ${c.lastName}`;
     setResolvedClientName(name);
-    setResolvedContact({ firstName: c.firstName, lastName: c.lastName, email: c.email ?? "", phone: c.phone ?? "" });
+    const lastName = c.lastName || c.companyName || "";
+    setResolvedContact({ firstName: c.firstName, lastName, email: c.email ?? "", phone: c.phone ?? "" });
     setError(null);
     setStep("details");
   }
@@ -240,7 +241,7 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
   }
 
   async function handleSubmit() {
-    if (!resolvedContact.firstName || !resolvedContact.lastName) {
+    if (!resolvedContact.firstName && !resolvedContact.lastName) {
       setError("Brak danych klienta.");
       return;
     }

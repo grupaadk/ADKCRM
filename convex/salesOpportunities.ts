@@ -89,7 +89,7 @@ export const createManualOpportunity = mutation({
     uploadedFileIds: v.optional(v.array(v.id("_storage"))),
   },
   handler: async (ctx, args) => {
-    if (!args.firstName.trim() || !args.lastName.trim()) {
+    if (!args.firstName.trim() && !args.lastName.trim()) {
       throw new Error("Imię i nazwisko są wymagane");
     }
     const { uploadedFileIds, ...rest } = args;

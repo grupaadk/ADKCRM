@@ -190,6 +190,9 @@ export default defineSchema({
     .searchIndex("search_clients", {
       searchField: "lastName",
       filterFields: ["city"],
+    })
+    .searchIndex("search_clients_company", {
+      searchField: "companyName",
     }),
 
   // 3.1b Zlecenie — dane zlecenia powiązane z klientem
