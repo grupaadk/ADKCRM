@@ -44,6 +44,19 @@ export const create = mutation({
   },
 });
 
+export const requestComplaintFolderCreation = mutation({
+  args: {
+    complaintId: v.id("complaints"),
+    orderId: v.id("orders"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.scheduler.runAfter(0, internal.googleDrive.createComplaintFolder, {
+      complaintId: args.complaintId,
+      orderId: args.orderId,
+    });
+  },
+});
+
 export const setFolderId = internalMutation({
   args: {
     complaintId: v.id("complaints"),

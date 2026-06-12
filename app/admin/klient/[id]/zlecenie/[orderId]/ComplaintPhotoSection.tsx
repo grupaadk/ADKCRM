@@ -22,15 +22,22 @@ type UploadItem = {
 
 export default function ComplaintPhotoSection({
   orderId,
+  complaintId,
   complaintFolderId,
 }: {
   orderId: Id<"orders">;
+  complaintId: Id<"complaints">;
   complaintFolderId: string | undefined;
 }) {
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadFile = useAction(api.googleDrive.uploadManualOrderFile);
   const listFolderContents = useAction(api.googleDrive.listOrderFolderContents);
   const deleteFile = useAction(api.googleDrive.deleteFile);
+  const requestComplaintFolderCreation = useMutation(api.complaints.requestComplaintFolderCreation);
+
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [createFolderError, setCreateFolderError] = useState<string | null>(null);
+  const [folderCreated, setFolderCreated] = useState(false);
 
   const [items, setItems] = useState<DriveItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -188,9 +195,44 @@ export default function ComplaintPhotoSection({
       />
 
       {!complaintFolderId ? (
-        <p style={{ fontSize: 12, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "8px 12px", margin: 0 }}>
-          Folder reklamacji jest jeszcze tworzony. Odśwież za chwilę.
-        </p>
+        <div style={{ fontSize: 12, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "8px 12px", margin: 0 }}>
+          <p style={{ margin: "0 0 8px" }}>Folder reklamacji nie istnieje w Drive.</p>
+          <button
+            onClick={async () => {
+              setCreatingFolder(true);
+              setCreateFolderError(null);
+              try {
+                await requestComplaintFolderCreation({ complaintId, orderId });
+                setFolderCreated(true);
+                setTimeout(() => setFolderCreated(false), 6000);
+              } catch (err) {
+                setCreateFolderError(err instanceof Error ? err.message : "Błąd");
+                setTimeout(() => setCreateFolderError(null), 4000);
+              } finally {
+                setCreatingFolder(false);
+              }
+            }}
+            disabled={creatingFolder}
+            style={{
+              background: creatingFolder ? "#fcd34d" : "#f59e0b",
+              color: "#fff",
+              border: "none",
+              borderRadius: 6,
+              padding: "6px 14px",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: creatingFolder ? "default" : "pointer",
+            }}
+          >
+            {creatingFolder ? "Tworzenie..." : "Utwórz folder"}
+          </button>
+          {createFolderError && (
+            <p style={{ margin: "8px 0 0", color: "#dc2626" }}>{createFolderError}</p>
+          )}
+          {folderCreated && (
+            <p style={{ margin: "8px 0 0", color: "#15803d" }}>Folder został utworzony. Odśwież stronę aby zobaczyć zmiany.</p>
+          )}
+        </div>
       ) : (
         <>
           {deleteErrorMsg && (

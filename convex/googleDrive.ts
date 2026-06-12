@@ -2801,14 +2801,12 @@ export const createOpportunityFolder = action({
   },
 });
 
-export const createComplaintFolder = action({
+export const createComplaintFolder = internalAction({
   args: {
     complaintId: v.id("complaints"),
     orderId: v.id("orders"),
   },
   handler: async (ctx, args): Promise<{ id: string; url: string }> => {
-    const performedBy = await requireUserIdentifierInAction(ctx);
-
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) throw new Error("Zlecenie nie znalezione");
     if (!order.folderId) throw new Error("To zlecenie nie ma folderu w Google Drive.");
