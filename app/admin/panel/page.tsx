@@ -136,7 +136,7 @@ function OrderCard({
       ? { fontSize: 12, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace" }
       : { fontSize: 11.5, fontWeight: 700, color: "#b45309" }
 
-  const userColor = item.type === "order" ? item.assignedUserColor : undefined
+  const userColor = item.assignedUserColor
 
   return (
     <div
@@ -542,7 +542,11 @@ export default function PanelPage() {
     const all = items ?? []
     if (activeUserFilters.size === 0) return all
     return all.filter(item => {
-      if (item.type === "pending") return true
+      if (item.type === "pending") {
+        const uid = (item.assignedUserId as string | undefined)
+        if (!uid) return activeUserFilters.has("__none__")
+        return activeUserFilters.has(uid)
+      }
       const uid = (item.assignedUserId as string | undefined)
         ?? (item.assignedUserColor ? colorToUserId[item.assignedUserColor] : undefined)
       if (!uid) return activeUserFilters.has("__none__")
@@ -831,8 +835,8 @@ export default function PanelPage() {
         ))}
       </div>
 
-      {/* User filter chips — only on Zlecenia tab */}
-      {activeTab === "kanban" && allUsers && (
+      {/* User filter chips — Zlecenia + Szanse */}
+      {(activeTab === "kanban" || activeTab === "opportunities") && allUsers && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
           {[...allUsers]
             .sort((a, b) => {
