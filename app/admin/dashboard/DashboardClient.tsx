@@ -112,7 +112,7 @@ export default function DashboardClient() {
   }, [tasks, today, tomorrow]);
 
   const greetingName = me?.displayName ?? me?.login ?? "";
-  const loading = tasks === undefined || me === undefined;
+  const loading = me === undefined;
 
   const draggedTask = dragId ? (tasks ?? []).find((t) => t._id === dragId) ?? null : null;
 
