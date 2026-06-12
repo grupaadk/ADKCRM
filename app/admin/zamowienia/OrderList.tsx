@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { useQuery } from "convex/react"
 import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
-import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
+import { ChevronUp, ChevronDown, ChevronsUpDown, Search, X } from "lucide-react"
 import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
 import { CrmEmptyState, fmtDate } from "@/components/crm-ui"
 import { useStatusLabels } from "@/components/StatusLabelsContext"
@@ -22,6 +22,9 @@ type Order = {
   services?: string[]
   name?: string
   customText?: string
+  investmentCity?: string
+  investmentStreet?: string
+  comment?: string
   client: {
     firstName: string
     lastName: string
@@ -89,6 +92,23 @@ export default function OrderList() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [clientFilter, setClientFilter] = useState<ClientFilter>("all")
   const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set())
+  const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchTerm(value)
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      setDebouncedSearch(value.toLowerCase().trim())
+    }, 300)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (!currentUser?._id) return
@@ -151,6 +171,27 @@ export default function OrderList() {
         return activeUserFilters.has(uid)
       })
     }
+    if (debouncedSearch) {
+      const q = debouncedSearch
+      filtered = filtered.filter((o) => {
+        const client = o.client
+        const clientName = client
+          ? client.clientType === "business" && client.companyName
+            ? `${client.companyName} ${client.firstName} ${client.lastName}`
+            : `${client.lastName} ${client.firstName}`
+          : ""
+        const fields = [
+          o.name ?? "",
+          o.customText ?? "",
+          o.investmentCity ?? "",
+          o.investmentStreet ?? "",
+          o.comment ?? "",
+          clientName,
+          client?.city ?? "",
+        ]
+        return fields.some((f) => f.toLowerCase().includes(q))
+      })
+    }
     return [...filtered].sort((a, b) => {
       let cmp = 0
       switch (sortField) {
@@ -167,7 +208,7 @@ export default function OrderList() {
       }
       return sortDir === "asc" ? cmp : -cmp
     })
-  }, [orders, viewFilter, statusFilter, clientFilter, activeUserFilters, sortField, sortDir])
+  }, [orders, viewFilter, statusFilter, clientFilter, activeUserFilters, sortField, sortDir, debouncedSearch])
 
   const clientFilterLabels: { key: ClientFilter; label: string }[] = [
     { key: "all", label: "Wszyscy" },
@@ -214,6 +255,65 @@ export default function OrderList() {
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Toolbar */}
       <div className="panel" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+        {/* Row 0: search */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, maxWidth: 520 }}>
+          <span style={{
+            fontSize: 12, fontWeight: 600, color: "var(--text-strong)",
+            whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5,
+          }}>
+            <Search style={{ width: 15, height: 15 }} />
+            Szukaj
+          </span>
+          <div style={{ position: "relative", flex: 1 }}>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Wyszukaj"
+              style={{
+                width: "100%",
+                padding: "10px 34px 10px 12px",
+                borderRadius: 8,
+                border: "2px solid var(--accent-line)",
+                background: "var(--bg)",
+                fontSize: 14,
+                fontWeight: 500,
+                fontFamily: "inherit",
+                color: "var(--text-strong)",
+                outline: "none",
+                transition: "border-color 0.15s, box-shadow 0.15s",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent-line)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            />
+            {searchTerm && (
+              <button
+                onClick={() => { setSearchTerm(""); setDebouncedSearch(""); }}
+                style={{
+                  position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                  background: "var(--panel-3)", border: "none", borderRadius: "50%",
+                  cursor: "pointer", color: "var(--text-mute)", width: 22, height: 22,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <X style={{ width: 13, height: 13 }} />
+              </button>
+            )}
+          </div>
+          {debouncedSearch && displayOrders && (
+            <span style={{
+              fontSize: 12, fontWeight: 600, color: "var(--accent)", whiteSpace: "nowrap",
+            }}>
+              {displayOrders.length} wyników
+            </span>
+          )}
+        </div>
         {/* Row 1: view filter */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
           {viewTabs.map(({ key, label, count }) => (
