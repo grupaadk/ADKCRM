@@ -570,61 +570,94 @@ export default function OrderDriveBrowser({
 
                 {/* Folders */}
                 {folders.map((folder) => (
-                  <button
+                  <div
                     key={folder.id}
-                    onClick={() => navigateInto(folder)}
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: 8,
-                      padding: "6px 10px",
+                      gap: 0,
                       borderRadius: 6,
                       border: "1px solid var(--line)",
                       background: "var(--panel-2)",
                       fontSize: 12.5,
-                      color: "var(--text)",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      width: "100%",
-                      fontFamily: "inherit",
-                      transition: "border-color 0.1s, background 0.1s",
+                      transition: "border-color 0.1s",
                     }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = "#fbbf24";
-                      (e.currentTarget as HTMLButtonElement).style.background = "#fefce8";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--line)";
-                      (e.currentTarget as HTMLButtonElement).style.background = "var(--panel-2)";
-                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#fbbf24"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--line)"; }}
                   >
-                    <FolderIcon />
-                    <span
+                    <button
+                      onClick={() => navigateInto(folder)}
                       style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "6px 10px",
                         flex: 1,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        color: "var(--text)",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        background: "none",
+                        border: "none",
+                        fontSize: "inherit",
+                        fontFamily: "inherit",
                       }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fefce8"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
                     >
-                      {folder.name}
-                    </span>
-                    <svg
-                      width="10"
-                      height="10"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      style={{ color: "var(--text-mute)", flexShrink: 0 }}
+                      <FolderIcon />
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {folder.name}
+                      </span>
+                      <svg
+                        width="10"
+                        height="10"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        style={{ color: "var(--text-mute)", flexShrink: 0 }}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M8.25 4.5l7.5 7.5-7.5 7.5"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteFile(folder.id, folder.name)}
+                      disabled={deletingFileId === folder.id}
+                      title="Usuń folder"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        borderLeft: "1px solid var(--line)",
+                        cursor: "pointer",
+                        color: "#94a3b8",
+                        padding: "6px 10px",
+                        display: "flex",
+                        alignItems: "center",
+                        transition: "color 0.15s",
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; (e.currentTarget as HTMLButtonElement).style.background = "#fef2f2"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M8.25 4.5l7.5 7.5-7.5 7.5"
-                      />
-                    </svg>
-                  </button>
+                      {deletingFileId === folder.id ? (
+                        <svg
+                          style={{ width: 13, height: 13, color: "#3b82f6", animation: "spin 1s linear infinite" }}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : (
+                        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 ))}
 
                 {/* Files */}
