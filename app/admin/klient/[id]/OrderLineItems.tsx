@@ -134,6 +134,7 @@ function LineItemRow({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EditState>({});
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   function startEdit() {
     setDraft({
@@ -159,8 +160,8 @@ function LineItemRow({
   }
 
   async function del() {
-    if (!confirm(`Usunąć pozycję "${item.name}"?`)) return;
     setBusy(true);
+    setConfirmDelete(false);
     try {
       await onDelete(item._id);
     } finally {
@@ -269,7 +270,7 @@ function LineItemRow({
   }
 
   return (
-    <tr className="group border-b border-slate-100 hover:bg-slate-50">
+    <tr className="border-b border-slate-100 hover:bg-slate-50">
       <td className="px-3 py-2.5 text-sm font-medium text-slate-800">
         {item.name}
         {item.description && (
@@ -286,20 +287,43 @@ function LineItemRow({
         {fmt(itemGross(item))} zł
       </td>
       <td className="px-3 py-2.5 text-right">
-        <div className="invisible flex justify-end gap-1 group-hover:visible">
-          <button
-            onClick={startEdit}
-            className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200"
-          >
-            Edytuj
-          </button>
-          <button
-            onClick={del}
-            disabled={busy}
-            className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50"
-          >
-            Usuń
-          </button>
+        <div className="flex justify-end gap-1">
+          {confirmDelete ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11 }}>
+              <span style={{ color: "#dc2626", whiteSpace: "nowrap" }}>Usunąć?</span>
+              <button
+                onClick={del}
+                disabled={busy}
+                className="rounded px-2 py-0.5 text-xs font-semibold text-white"
+                style={{ background: "#dc2626", border: "none", cursor: "pointer" }}
+              >
+                Tak
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="rounded px-2 py-0.5 text-xs font-semibold"
+                style={{ background: "#e2e8f0", border: "none", cursor: "pointer", color: "#475569" }}
+              >
+                Nie
+              </button>
+            </span>
+          ) : (
+            <>
+              <button
+                onClick={startEdit}
+                className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200"
+              >
+                Edytuj
+              </button>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                disabled={busy}
+                className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50"
+              >
+                Usuń
+              </button>
+            </>
+          )}
         </div>
       </td>
     </tr>
