@@ -203,7 +203,7 @@ export default function OrderList() {
         case "status": cmp = a.status.localeCompare(b.status, "pl"); break
         case "services": cmp = (a.services ?? []).join().localeCompare((b.services ?? []).join(), "pl"); break
         case "createdAt": cmp = (a.productionDate ?? a._creationTime) - (b.productionDate ?? b._creationTime); break
-        case "city": cmp = (a.client?.city ?? "").localeCompare(b.client?.city ?? "", "pl"); break
+        case "city": cmp = (a.investmentCity ?? a.client?.city ?? "").localeCompare(b.investmentCity ?? b.client?.city ?? "", "pl"); break
         case "totalGross": cmp = (a.totalGross ?? 0) - (b.totalGross ?? 0); break
       }
       return sortDir === "asc" ? cmp : -cmp
@@ -410,7 +410,7 @@ export default function OrderList() {
                 Klient <SortIcon field="client" sortField={sortField} sortDir={sortDir} />
               </th>
               <th style={{ cursor: "pointer", width: 110 }} onClick={() => handleSort("city")}>
-                Miasto <SortIcon field="city" sortField={sortField} sortDir={sortDir} />
+                Lokalizacja <SortIcon field="city" sortField={sortField} sortDir={sortDir} />
               </th>
               <th style={{ cursor: "pointer", width: 150 }} onClick={() => handleSort("status")}>
                 Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
@@ -470,7 +470,7 @@ export default function OrderList() {
                     )}
                   </td>
                   <td>
-                    {order.client?.city ?? <span className="mute">—</span>}
+                    {order.investmentCity ?? order.client?.city ?? <span className="mute">—</span>}
                   </td>
                   <td style={{ fontSize: 12 }}>{statusLabels[order.status] ?? order.status}</td>
                   <td><DocumentProgressTiles documents={order.documents} /></td>
