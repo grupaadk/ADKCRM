@@ -81,6 +81,8 @@ export default function OpportunityAttachmentsSection({
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [folderError, setFolderError] = useState<string | null>(null);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [deleteErrorMsg, setDeleteErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderNameInputRef = useRef<HTMLInputElement>(null);
 
@@ -216,14 +218,17 @@ export default function OpportunityAttachmentsSection({
     }
   }, [folderName, currentFolderId, createFolder, opportunityId]);
 
-  const handleDeleteFile = useCallback(async (fileId: string, fileName: string) => {
-    if (!confirm(`Usunąć plik "${fileName}"?`)) return;
+  const handleDeleteFile = useCallback(async (fileId: string) => {
+    setConfirmingDeleteId(null);
     setDeletingFileId(fileId);
+    setDeleteErrorMsg(null);
     try {
       await deleteFile({ fileId });
       setRefreshCounter((prev) => prev + 1);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Błąd usuwania pliku");
+      const msg = err instanceof Error ? err.message : "Błąd usuwania";
+      setDeleteErrorMsg(msg);
+      setTimeout(() => setDeleteErrorMsg(null), 4000);
     } finally {
       setDeletingFileId(null);
     }
@@ -491,6 +496,23 @@ export default function OpportunityAttachmentsSection({
                 </>
               )}
 
+              {/* Delete error toast */}
+              {deleteErrorMsg && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "#dc2626",
+                    background: "#fef2f2",
+                    border: "1px solid #fca5a5",
+                    borderRadius: 6,
+                    padding: "6px 10px",
+                    marginBottom: 4,
+                  }}
+                >
+                  {deleteErrorMsg}
+                </div>
+              )}
+
               {/* Folders */}
               {folders.map((folder) => (
                 <div
@@ -532,36 +554,78 @@ export default function OpportunityAttachmentsSection({
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                     </svg>
                   </button>
-                  <button
-                    onClick={() => handleDeleteFile(folder.id, folder.name)}
-                    disabled={deletingFileId === folder.id}
-                    title="Usuń folder"
+                  <span
                     style={{
-                      background: "none",
-                      border: "none",
-                      borderLeft: "1px solid var(--line)",
-                      cursor: "pointer",
-                      color: "#94a3b8",
-                      padding: "6px 10px",
-                      display: "flex",
-                      alignItems: "center",
-                      transition: "color 0.15s",
+                      width: 1,
+                      height: 24,
+                      background: "var(--line)",
+                      flexShrink: 0,
                     }}
-                    className="hover:!text-red-500"
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "#fef2f2"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
-                  >
-                    {deletingFileId === folder.id ? (
-                      <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  />
+                  {deletingFileId === folder.id ? (
+                    <span style={{ padding: "6px 10px", display: "flex", alignItems: "center" }}>
+                      <svg style={{ width: 14, height: 14, color: "#3b82f6", animation: "spin 1s linear infinite" }} fill="none" viewBox="0 0 24 24">
+                        <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
-                    ) : (
+                    </span>
+                  ) : confirmingDeleteId === folder.id ? (
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px", fontSize: 11 }}>
+                      <span style={{ color: "#dc2626", whiteSpace: "nowrap" }}>Usunąć?</span>
+                      <button
+                        onClick={() => handleDeleteFile(folder.id)}
+                        style={{
+                          background: "#dc2626",
+                          border: "none",
+                          borderRadius: 4,
+                          color: "#fff",
+                          cursor: "pointer",
+                          padding: "2px 6px",
+                          fontSize: 11,
+                          fontWeight: 600,
+                        }}
+                      >
+                        Tak
+                      </button>
+                      <button
+                        onClick={() => setConfirmingDeleteId(null)}
+                        style={{
+                          background: "#e2e8f0",
+                          border: "none",
+                          borderRadius: 4,
+                          color: "#475569",
+                          cursor: "pointer",
+                          padding: "2px 6px",
+                          fontSize: 11,
+                          fontWeight: 600,
+                        }}
+                      >
+                        Nie
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmingDeleteId(folder.id)}
+                      title="Usuń folder"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "#94a3b8",
+                        padding: "6px 10px",
+                        display: "flex",
+                        alignItems: "center",
+                        transition: "color 0.15s",
+                      }}
+                      className="hover:!text-red-500"
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "#fef2f2"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+                    >
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                       </svg>
-                    )}
-                  </button>
+                    </button>
+                  )}
                 </div>
               ))}
 
@@ -603,7 +667,7 @@ export default function OpportunityAttachmentsSection({
                   </a>
                   <button
                     onClick={() => handleDeleteFile(file.id, file.name)}
-                    disabled={deletingFileId === file.id}
+                    disabled={confirmingDeleteId === file.id || deletingFileId === file.id}
                     title="Usuń plik"
                     style={{
                       background: "none",
@@ -612,7 +676,6 @@ export default function OpportunityAttachmentsSection({
                       color: "#94a3b8",
                       padding: 0,
                       display: "flex",
-                      opacity: 0,
                       transition: "opacity 0.15s, color 0.15s",
                     }}
                     className="group-hover:opacity-100 hover:!text-red-500"
@@ -623,6 +686,42 @@ export default function OpportunityAttachmentsSection({
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
+                    ) : confirmingDeleteId === file.id ? (
+                      <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
+                        <span style={{ color: "#dc2626", whiteSpace: "nowrap" }}>Usunąć?</span>
+                        <span style={{ display: "flex", gap: 3 }}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteFile(file.id); }}
+                            style={{
+                              background: "#dc2626",
+                              border: "none",
+                              borderRadius: 4,
+                              color: "#fff",
+                              cursor: "pointer",
+                              padding: "2px 6px",
+                              fontSize: 11,
+                              fontWeight: 600,
+                            }}
+                          >
+                            Tak
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConfirmingDeleteId(null); }}
+                            style={{
+                              background: "#e2e8f0",
+                              border: "none",
+                              borderRadius: 4,
+                              color: "#475569",
+                              cursor: "pointer",
+                              padding: "2px 6px",
+                              fontSize: 11,
+                              fontWeight: 600,
+                            }}
+                          >
+                            Nie
+                          </button>
+                        </span>
+                      </span>
                     ) : (
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
