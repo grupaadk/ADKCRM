@@ -557,6 +557,8 @@ export default defineSchema({
     startDate: v.number(),
     endDate: v.optional(v.number()),
     createdBy: v.string(),
+    complaintFolderId: v.optional(v.string()),
+    complaintFolderUrl: v.optional(v.string()),
   })
     .index("by_order", ["orderId"])
     .index("by_client", ["clientId"]),

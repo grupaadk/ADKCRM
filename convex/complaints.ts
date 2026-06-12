@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 export const getByOrderId = query({
   args: { orderId: v.id("orders") },
@@ -25,7 +26,7 @@ export const create = mutation({
       .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
       .first();
     if (existing) return existing._id;
-    return await ctx.db.insert("complaints", {
+    const complaintId = await ctx.db.insert("complaints", {
       orderId: args.orderId,
       clientId: args.clientId,
       status: "w_toku",
@@ -34,6 +35,25 @@ export const create = mutation({
       startDate: args.startDate,
       todos: [],
       createdBy: args.createdBy,
+    });
+    await ctx.scheduler.runAfter(0, internal.googleDrive.createComplaintFolder, {
+      complaintId,
+      orderId: args.orderId,
+    });
+    return complaintId;
+  },
+});
+
+export const setFolderId = internalMutation({
+  args: {
+    complaintId: v.id("complaints"),
+    folderId: v.string(),
+    folderUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.complaintId, {
+      complaintFolderId: args.folderId,
+      complaintFolderUrl: args.folderUrl,
     });
   },
 });

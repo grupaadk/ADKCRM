@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import TaskKanban from "@/components/TaskKanban";
+import ComplaintPhotoSection from "./ComplaintPhotoSection";
 
 type ComplaintTabProps = {
   orderId: Id<"orders">;
@@ -315,6 +316,12 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
           </div>
         </div>
       </div>
+
+      {/* Zdjęcia */}
+      <ComplaintPhotoSection
+        orderId={orderId}
+        complaintFolderId={complaint.complaintFolderId}
+      />
     </div>
   );
 }

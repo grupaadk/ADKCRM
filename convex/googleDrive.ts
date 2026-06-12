@@ -2801,6 +2801,54 @@ export const createOpportunityFolder = action({
   },
 });
 
+export const createComplaintFolder = action({
+  args: {
+    complaintId: v.id("complaints"),
+    orderId: v.id("orders"),
+  },
+  handler: async (ctx, args): Promise<{ id: string; url: string }> => {
+    const performedBy = await requireUserIdentifierInAction(ctx);
+
+    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+    if (!order) throw new Error("Zlecenie nie znalezione");
+    if (!order.folderId) throw new Error("To zlecenie nie ma folderu w Google Drive.");
+
+    const connection = await getAuthorizedConnection(ctx);
+    const accessToken = connection.accessToken;
+
+    const createRes = await fetch(`${DRIVE_API_BASE}/files?supportsAllDrives=true`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Reklamacja",
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [order.folderId],
+      }),
+    });
+
+    if (!createRes.ok) {
+      const errorBody = await createRes.text();
+      throw new Error(`Nie udało się utworzyć folderu Reklamacja: ${createRes.status} - ${errorBody}`);
+    }
+
+    const folder = await createRes.json() as { id?: string };
+    if (!folder.id) throw new Error("Drive nie zwróciło ID folderu");
+
+    const url = `https://drive.google.com/drive/folders/${folder.id}`;
+
+    await ctx.runMutation(internal.complaints.setFolderId, {
+      complaintId: args.complaintId,
+      folderId: folder.id,
+      folderUrl: url,
+    });
+
+    return { id: folder.id, url };
+  },
+});
+
 export const createOrderFolderInDrive = action({
   args: {
     orderId: v.id("orders"),
