@@ -1099,14 +1099,15 @@ export const createOrderFolder = action({
       );
 
       // Krok 3: Utwórz podfolder zlecenia wewnątrz "Zlecenia"
-      // Konwencja: DD.MM.YYYY_Usługa_Miejscowość
+      // Konwencja: DD.MM.YYYY_Usługa_TekstWłasny
       const now = new Date();
       const dd = String(now.getDate()).padStart(2, "0");
       const mm = String(now.getMonth() + 1).padStart(2, "0");
       const yyyy = now.getFullYear();
       const service = (order.services ?? []).join("-") || "Zlecenie";
-      const city = client.city ?? "";
-      const orderFolderName = `${dd}.${mm}.${yyyy}_${service}_${city}`;
+      const segments: string[] = [`${dd}.${mm}.${yyyy}`, service];
+      if (order.customText) segments.push(order.customText);
+      const orderFolderName = segments.join("_");
 
       await log("info", "creating order folder", { orderFolderName, parentId: zleceniaFolderId });
       const { id: folderId, url: folderUrl } = await createDriveFolder(
