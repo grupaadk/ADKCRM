@@ -2755,3 +2755,38 @@ export const uploadManualOrderFile = action({
     };
   },
 });
+
+export const createOpportunityFolder = action({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+    parentFolderId: v.string(),
+    name: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ id: string; url: string }> => {
+    await requireUserIdentifierInAction(ctx);
+
+    const opp = await ctx.runQuery(api.salesOpportunities.getSalesOpportunity, {
+      opportunityId: args.opportunityId,
+    });
+    if (!opp) throw new Error("Szansa sprzedaży nie znaleziona");
+
+    return await createDriveFolder(ctx, args.name, args.parentFolderId);
+  },
+});
+
+export const createOrderFolderInDrive = action({
+  args: {
+    orderId: v.id("orders"),
+    parentFolderId: v.string(),
+    name: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ id: string; url: string }> => {
+    await requireUserIdentifierInAction(ctx);
+
+    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+    if (!order) throw new Error("Zlecenie nie znalezione");
+    if (!order.folderId) throw new Error("To zlecenie nie ma folderu w Google Drive.");
+
+    return await createDriveFolder(ctx, args.name, args.parentFolderId);
+  },
+});

@@ -62,6 +62,7 @@ export default function OpportunityAttachmentsSection({
 }) {
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadFile = useAction(api.googleDrive.uploadManualOpportunityFile);
+  const createFolder = useAction(api.googleDrive.createOpportunityFolder);
   const listFolderContents = useAction(api.googleDrive.listOpportunityFolderContents);
 
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbEntry[]>(
@@ -74,7 +75,12 @@ export default function OpportunityAttachmentsSection({
 
   const [isDragging, setIsDragging] = useState(false);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const [showNewFolderInput, setShowNewFolderInput] = useState(false);
+  const [folderName, setFolderName] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [folderError, setFolderError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderNameInputRef = useRef<HTMLInputElement>(null);
 
   const currentFolderId = breadcrumb[breadcrumb.length - 1]?.id;
 
@@ -115,6 +121,13 @@ export default function OpportunityAttachmentsSection({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFolderId, refreshCounter, opportunityFolderId]);
+
+  // Auto-focus folder name input when it appears
+  useEffect(() => {
+    if (showNewFolderInput) {
+      folderNameInputRef.current?.focus();
+    }
+  }, [showNewFolderInput]);
 
   function navigateInto(folder: DriveItem) {
     setBreadcrumb((prev) => [...prev, { id: folder.id, name: folder.name }]);
@@ -184,6 +197,23 @@ export default function OpportunityAttachmentsSection({
     [handleFile],
   );
 
+  const handleCreateFolder = useCallback(async () => {
+    const name = folderName.trim();
+    if (!name || !currentFolderId) return;
+    setCreatingFolder(true);
+    setFolderError(null);
+    try {
+      await createFolder({ opportunityId, parentFolderId: currentFolderId, name });
+      setShowNewFolderInput(false);
+      setFolderName("");
+      setRefreshCounter((prev) => prev + 1);
+    } catch (err) {
+      setFolderError(err instanceof Error ? err.message : "Błąd tworzenia folderu");
+    } finally {
+      setCreatingFolder(false);
+    }
+  }, [folderName, currentFolderId, createFolder, opportunityId]);
+
   const folders = items.filter((i) => i.isFolder);
   const files = items.filter((i) => !i.isFolder);
   const isEmpty = folders.length === 0 && files.length === 0 && uploads.length === 0;
@@ -207,16 +237,30 @@ export default function OpportunityAttachmentsSection({
           Załączniki
         </h2>
         {opportunityFolderId && (
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="btn"
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12 }}
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Dodaj pliki
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {!showNewFolderInput && (
+              <button
+                onClick={() => setShowNewFolderInput(true)}
+                className="btn"
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12 }}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h5l2 2h7a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                </svg>
+                Dodaj folder
+              </button>
+            )}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="btn"
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12 }}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Dodaj pliki
+            </button>
+          </div>
         )}
       </div>
 
@@ -227,6 +271,69 @@ export default function OpportunityAttachmentsSection({
         className="hidden"
         onChange={handleFileChange}
       />
+
+      {/* Inline folder creation */}
+      {showNewFolderInput && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 10px",
+            borderRadius: 6,
+            border: "1px solid var(--line)",
+            background: "var(--bg)",
+          }}
+        >
+          <input
+            ref={folderNameInputRef}
+            type="text"
+            placeholder="Nazwa folderu"
+            value={folderName}
+            onChange={(e) => setFolderName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleCreateFolder();
+              if (e.key === "Escape") { setShowNewFolderInput(false); setFolderName(""); setFolderError(null); }
+            }}
+            style={{
+              flex: 1,
+              border: "none",
+              outline: "none",
+              fontSize: 12.5,
+              background: "transparent",
+              color: "var(--text)",
+              fontFamily: "inherit",
+            }}
+          />
+          <button
+            onClick={() => { setShowNewFolderInput(false); setFolderName(""); setFolderError(null); }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--text-mute)",
+              padding: 0,
+              fontSize: 12,
+              fontFamily: "inherit",
+            }}
+          >
+            Anuluj
+          </button>
+          <button
+            onClick={handleCreateFolder}
+            disabled={creatingFolder || !folderName.trim()}
+            className="btn"
+            style={{ fontSize: 12, padding: "3px 10px" }}
+          >
+            {creatingFolder ? "Tworzenie…" : "Utwórz"}
+          </button>
+        </div>
+      )}
+      {folderError && (
+        <p style={{ fontSize: 12, color: "#dc2626", margin: 0 }}>
+          {folderError}
+        </p>
+      )}
 
       {opportunityFolderId && (
         <>
