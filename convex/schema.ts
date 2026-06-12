@@ -412,9 +412,11 @@ export default defineSchema({
     offersSentFolderId: v.optional(v.string()),
     ponzioFilesFolderId: v.optional(v.string()),
     otherFilesFolderId: v.optional(v.string()),
+    assignedUserId: v.optional(v.id("users")),
   })
     .index("by_client", ["clientId"])
-    .index("by_submission", ["submissionId"]),
+    .index("by_submission", ["submissionId"])
+    .index("by_assignee", ["assignedUserId"]),
 
   // 3.9 Konfiguracja Gmail (multi-account: main / secondary)
   gmailConnection: defineTable({

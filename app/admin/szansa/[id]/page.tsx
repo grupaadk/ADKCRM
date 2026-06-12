@@ -116,7 +116,12 @@ export default function OpportunityDetailPage({
   const [converting, setConverting] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const assignDropdownRef = useRef<HTMLDivElement>(null);
   const commentRef = useRef<HTMLTextAreaElement>(null);
+
+  const assignOpportunity = useMutation(api.salesOpportunities.assignOpportunity);
+  const assignableUsers = useQuery(api.users.listAllActive) ?? [];
 
   useEffect(() => {
     const el = commentRef.current;
@@ -124,6 +129,16 @@ export default function OpportunityDetailPage({
     el.style.height = "auto";
     el.style.height = el.scrollHeight + "px";
   }, [opp?.comment]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (assignDropdownRef.current && !assignDropdownRef.current.contains(e.target as Node)) {
+        setShowAssignDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const stage = opp?.stage ?? "lead";
   const stageLabel = useStatusLabel(stage);
@@ -270,7 +285,115 @@ export default function OpportunityDetailPage({
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {/* Przypisana osoba */}
+          {(() => {
+            const assignedUser = opp.assignedUserId
+              ? assignableUsers.find((u) => u._id === opp.assignedUserId)
+              : null;
+            const assignedName = assignedUser
+              ? (assignedUser.displayName ?? assignedUser.login ?? "")
+              : null;
+            return (
+              <div ref={assignDropdownRef} style={{ position: "relative" }}>
+                <button
+                  onClick={() => setShowAssignDropdown((v) => !v)}
+                  className="btn"
+                  style={{
+                    fontSize: 11,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    ...(assignedUser?.color
+                      ? { borderColor: assignedUser.color + "80", color: assignedUser.color }
+                      : {}),
+                  }}
+                  title={assignedName ? `Przypisany: ${assignedName}` : "Przypisz osobę"}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                  </svg>
+                  {assignedName ?? "+ Przypisz"}
+                </button>
+                {showAssignDropdown && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 4px)",
+                      right: 0,
+                      minWidth: 180,
+                      background: "var(--panel)",
+                      border: "1px solid var(--line)",
+                      borderRadius: 8,
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                      zIndex: 500,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {assignableUsers.map((u) => (
+                      <button
+                        key={u._id}
+                        onClick={() => {
+                          void assignOpportunity({ opportunityId, assignedUserId: u._id });
+                          setShowAssignDropdown(false);
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "6px 12px",
+                          fontSize: 12,
+                          background: opp.assignedUserId === u._id ? "var(--panel-2)" : "transparent",
+                          border: "none",
+                          borderBottom: "1px solid var(--line)",
+                          cursor: "pointer",
+                          color: "var(--text)",
+                          fontFamily: "inherit",
+                          fontWeight: opp.assignedUserId === u._id ? 600 : 400,
+                        }}
+                      >
+                        {u.color && (
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: u.color, flexShrink: 0 }} />
+                        )}
+                        <span style={{ flex: 1 }}>{u.displayName ?? u.login}</span>
+                        {opp.assignedUserId === u._id && (
+                          <span style={{ fontSize: 10, color: "var(--text-mute)", flexShrink: 0 }}>aktualny</span>
+                        )}
+                      </button>
+                    ))}
+                    {/* Usuń przypisanie */}
+                    {opp.assignedUserId && (
+                      <button
+                        onClick={() => {
+                          void assignOpportunity({ opportunityId, assignedUserId: undefined });
+                          setShowAssignDropdown(false);
+                        }}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "6px 12px",
+                          fontSize: 12,
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "var(--bad, #ef4444)",
+                          fontFamily: "inherit",
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fee2e2" }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent" }}
+                      >
+                        Usuń przypisanie
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           <DriveFolderButton
             folderUrl={opp.opportunityFolderUrl}
             createdAt={opp._creationTime}

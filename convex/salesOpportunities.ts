@@ -3,6 +3,7 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { DEFAULT_DOCUMENTS, nextOrderNumber } from "./orders";
+import { requireUser } from "./lib/auth";
 
 // Zapis nowej szansy sprzedaży (z webhooka Jotform lub ręcznie z panelu).
 // Klient NIE jest tworzony — powstaje dopiero przy konwersji do zlecenia.
@@ -138,11 +139,21 @@ export const listOpportunities = query({
       .query("pendingJotformSubmissions")
       .order("desc")
       .collect();
-    return all.filter((o) => {
+    const filtered = all.filter((o) => {
       if (o.processed) return false;
       if (!args.includeArchived && o.archived === true) return false;
       return true;
     });
+    return Promise.all(
+      filtered.map(async (opp) => {
+        let assignedUserColor: string | undefined;
+        if (opp.assignedUserId) {
+          const user = await ctx.db.get(opp.assignedUserId);
+          assignedUserColor = user?.color ?? undefined;
+        }
+        return { ...opp, assignedUserColor };
+      }),
+    );
   },
 });
 
@@ -214,6 +225,23 @@ export const updateOpportunityStage = mutation({
     }
 
     await ctx.db.patch(args.opportunityId, patch);
+  },
+});
+
+// Przypisanie usera do szansy sprzedaży.
+export const assignOpportunity = mutation({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+    assignedUserId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    await requireUser(ctx);
+    const opp = await ctx.db.get(args.opportunityId);
+    if (!opp) throw new Error("Szansa sprzedaży nie znaleziona");
+    if (opp.processed) throw new Error("Szansa została już przekonwertowana");
+    await ctx.db.patch(args.opportunityId, {
+      assignedUserId: args.assignedUserId,
+    });
   },
 });
 
@@ -417,6 +445,7 @@ export const convertToOrder = mutation({
       source: opp.submissionId ? "jotform" : "manual",
       jotformSubmissionId: opp.submissionId,
       createdBy: "system",
+      assignedUserId: opp.assignedUserId,
     });
 
     await ctx.db.insert("clientEvents", {

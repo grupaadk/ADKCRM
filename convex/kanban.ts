@@ -53,6 +53,8 @@ export type KanbanPendingItem = {
   status: "lead" | "inquiry";
   customText: string | undefined;
   services: string[];
+  assignedUserColor?: string;
+  assignedUserId?: Id<"users">;
 };
 
 export type KanbanItem = KanbanOrderItem | KanbanPendingItem;
@@ -133,6 +135,11 @@ export const list = query({
             companyName = client.companyName;
           }
         }
+        let assignedUserColor: string | undefined;
+        if (pending.assignedUserId) {
+          const user = await ctx.db.get(pending.assignedUserId);
+          assignedUserColor = user?.color ?? undefined;
+        }
         return {
           type: "pending" as const,
           id: pending._id,
@@ -145,6 +152,8 @@ export const list = query({
           status: pending.stage === "inquiry" ? "inquiry" : "lead",
           customText: pending.customText,
           services: pending.services ?? [],
+          assignedUserColor,
+          assignedUserId: pending.assignedUserId,
         };
       }),
     );
