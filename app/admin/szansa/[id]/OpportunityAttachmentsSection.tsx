@@ -63,6 +63,7 @@ export default function OpportunityAttachmentsSection({
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadFile = useAction(api.googleDrive.uploadManualOpportunityFile);
   const createFolder = useAction(api.googleDrive.createOpportunityFolder);
+  const deleteFile = useAction(api.googleDrive.deleteFile);
   const listFolderContents = useAction(api.googleDrive.listOpportunityFolderContents);
 
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbEntry[]>(
@@ -79,6 +80,7 @@ export default function OpportunityAttachmentsSection({
   const [folderName, setFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [folderError, setFolderError] = useState<string | null>(null);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderNameInputRef = useRef<HTMLInputElement>(null);
 
@@ -213,6 +215,19 @@ export default function OpportunityAttachmentsSection({
       setCreatingFolder(false);
     }
   }, [folderName, currentFolderId, createFolder, opportunityId]);
+
+  const handleDeleteFile = useCallback(async (fileId: string, fileName: string) => {
+    if (!confirm(`Usunąć plik "${fileName}"?`)) return;
+    setDeletingFileId(fileId);
+    try {
+      await deleteFile({ fileId });
+      setRefreshCounter((prev) => prev + 1);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Błąd usuwania pliku");
+    } finally {
+      setDeletingFileId(null);
+    }
+  }, [deleteFile]);
 
   const folders = items.filter((i) => i.isFolder);
   const files = items.filter((i) => !i.isFolder);
@@ -509,11 +524,8 @@ export default function OpportunityAttachmentsSection({
 
               {/* Files */}
               {files.map((file) => (
-                <a
+                <div
                   key={file.id}
-                  href={file.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -523,19 +535,58 @@ export default function OpportunityAttachmentsSection({
                     border: "1px solid var(--line)",
                     background: "var(--bg)",
                     fontSize: 12.5,
-                    color: "var(--text)",
-                    textDecoration: "none",
                   }}
-                  className="hover:border-blue-300 hover:text-blue-600 transition-colors"
+                  className="group hover:border-blue-300 transition-colors"
                 >
-                  <FileTypeIcon name={file.name} />
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {file.name}
-                  </span>
-                  <svg className="h-3 w-3 flex-shrink-0 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                  </svg>
-                </a>
+                  <a
+                    href={file.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flex: 1,
+                      overflow: "hidden",
+                      color: "var(--text)",
+                      textDecoration: "none",
+                    }}
+                    className="hover:text-blue-600"
+                  >
+                    <FileTypeIcon name={file.name} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {file.name}
+                    </span>
+                  </a>
+                  <button
+                    onClick={() => handleDeleteFile(file.id, file.name)}
+                    disabled={deletingFileId === file.id}
+                    title="Usuń plik"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#94a3b8",
+                      padding: 0,
+                      display: "flex",
+                      opacity: 0,
+                      transition: "opacity 0.15s, color 0.15s",
+                    }}
+                    className="group-hover:opacity-100 hover:!text-red-500"
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+                  >
+                    {deletingFileId === file.id ? (
+                      <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               ))}
 
               {/* Empty state */}
