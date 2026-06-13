@@ -1852,18 +1852,20 @@ export default function OrderDetailPage({
                 border: "1px solid var(--line)",
                 fontSize: 13,
               }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   <span style={{ fontWeight: 600, minWidth: 100, color: "var(--text-strong)" }}>{svcName}</span>
                   <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
                   <span style={{ fontWeight: supplier ? 600 : 400, color: supplier ? "var(--text-strong)" : "var(--text-muted)", minWidth: 80 }}>
                     {supplier?.name ?? "—"}
                   </span>
                   <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
-                  <span style={{ fontWeight: d?.orderDate ? 600 : 400, color: d?.orderDate ? "var(--text-strong)" : "var(--text-muted)", minWidth: 90 }}>
+                  <span style={{ fontSize: 11, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5 }}>Zam:</span>
+                  <span style={{ fontWeight: d?.orderDate ? 600 : 400, color: d?.orderDate ? "var(--text-strong)" : "var(--text-muted)", minWidth: 70 }}>
                     {d?.orderDate ? fmtLocalDate(d.orderDate) : "—"}
                   </span>
-                  <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
-                  <span style={{ fontWeight: d?.deliveryDate ? 600 : 400, color: d?.deliveryDate ? "var(--text-strong)" : "var(--text-muted)", minWidth: 90 }}>
+                  <span style={{ color: "var(--text-muted)", fontSize: 16, marginLeft: 4, marginRight: 4 }}>|</span>
+                  <span style={{ fontSize: 11, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5 }}>Dost:</span>
+                  <span style={{ fontWeight: d?.deliveryDate ? 600 : 400, color: d?.deliveryDate ? "var(--text-strong)" : "var(--text-muted)", minWidth: 70 }}>
                     {d?.deliveryDate ? fmtLocalDate(d.deliveryDate) : "—"}
                   </span>
                 </div>

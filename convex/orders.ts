@@ -374,7 +374,8 @@ export const changeStatus = mutation({
 
     const statusPatch: Record<string, unknown> = { status: args.newStatus };
 
-    if (args.newStatus === "production") {
+    // Start realizacji: "Zamówienie" (production) lub "Realizowane" (installation)
+    if (args.newStatus === "production" || args.newStatus === "installation") {
       if (!order.realizationStartDate) {
         statusPatch.realizationStartDate = Date.now();
       }
