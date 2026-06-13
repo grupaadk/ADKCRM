@@ -874,6 +874,10 @@ export default function OrderDetailPage({
   const updateOrder = useMutation(api.orders.update);
   const [editingServices, setEditingServices] = useState(false);
   const [draftServices, setDraftServices] = useState<string[]>([]);
+  const [editingDeliverySvc, setEditingDeliverySvc] = useState<string | null>(null);
+  const [draftDelivery, setDraftDelivery] = useState<NonNullable<typeof order.serviceDeliveries>[number] | null>(null);
+  const [editingCompletionDate, setEditingCompletionDate] = useState(false);
+  const [draftCompletionDate, setDraftCompletionDate] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     if (!showAssignDropdown) return;
@@ -1044,6 +1048,47 @@ export default function OrderDetailPage({
     });
     setEditingServices(false);
     setDraftServices([]);
+  }
+
+  function startEditDelivery(svcName: string) {
+    const existing = (order.serviceDeliveries ?? []).find((x) => x.serviceName === svcName);
+    setDraftDelivery(existing ?? { serviceName: svcName, supplierId: "" as Id<"suppliers">, orderDate: undefined, deliveryDate: undefined });
+    setEditingDeliverySvc(svcName);
+  }
+
+  function cancelEditDelivery() {
+    setEditingDeliverySvc(null);
+    setDraftDelivery(null);
+  }
+
+  function updateDraftDelivery(patch: Partial<{ supplierId: Id<"suppliers">; orderDate: number; deliveryDate: number }>) {
+    setDraftDelivery((prev) => prev ? { ...prev, ...patch } : prev);
+  }
+
+  async function saveDelivery() {
+    if (!draftDelivery) return;
+    const existing = order.serviceDeliveries ?? [];
+    const idx = existing.findIndex((x) => x.serviceName === draftDelivery.serviceName);
+    const next = idx >= 0 ? existing.map((x, i) => (i === idx ? draftDelivery : x)) : [...existing, draftDelivery];
+    await updateOrder({ orderId: orderIdTyped, serviceDeliveries: next });
+    setEditingDeliverySvc(null);
+    setDraftDelivery(null);
+  }
+
+  function startEditCompletionDate() {
+    setDraftCompletionDate(order.completionDate);
+    setEditingCompletionDate(true);
+  }
+
+  function cancelEditCompletionDate() {
+    setEditingCompletionDate(false);
+    setDraftCompletionDate(undefined);
+  }
+
+  async function saveCompletionDate() {
+    await updateOrder({ orderId: orderIdTyped, completionDate: draftCompletionDate });
+    setEditingCompletionDate(false);
+    setDraftCompletionDate(undefined);
   }
 
   const createdDate = new Date(order._creationTime).toLocaleDateString(
@@ -1643,17 +1688,12 @@ export default function OrderDetailPage({
                   <button
                     type="button"
                     onClick={startEditServices}
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      padding: "2px 8px",
-                      borderRadius: 4,
-                      border: "1px solid var(--line)",
-                      background: "transparent",
-                      color: "var(--text-mute)",
-                      cursor: "pointer",
-                    }}
+                    className="btn"
+                    style={{ fontSize: 10, padding: "2px 7px", flexShrink: 0 }}
                   >
+                    <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                    </svg>
                     Edytuj
                   </button>
                 </div>
@@ -1663,71 +1703,205 @@ export default function OrderDetailPage({
         </div>
 
         {/* Zamówienia u dostawców */}
-        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
-          {(order.services ?? []).length > 0 && (
-            <>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5 }}>Zamówienia u dostawców</div>
-              {(order.services ?? []).map((svcName) => {
-                const svc = servicesList.find((s) => s.name === svcName);
-                const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
-                const delivery = (order.serviceDeliveries ?? []).find((d) => d.serviceName === svcName);
-                const upsertDelivery = (patch: Partial<{ supplierId: Id<"suppliers">; orderDate: number; deliveryDate: number }>) => {
-                  const existing = order.serviceDeliveries ?? [];
-                  const idx = existing.findIndex((d) => d.serviceName === svcName);
-                  const base = idx >= 0 ? existing[idx] : { serviceName: svcName };
-                  const merged = { ...base, ...patch };
-                  const next = idx >= 0
-                    ? existing.map((d, i) => (i === idx ? merged : d))
-                    : [...existing, merged];
-                  updateOrder({ orderId: orderIdTyped, serviceDeliveries: next as typeof order.serviceDeliveries });
-                };
-                return (
-                  <div key={svcName} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 13, fontWeight: 500, minWidth: 80 }}>{svcName}</span>
-                    <select
-                      value={delivery?.supplierId ?? ""}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        upsertDelivery(v ? { supplierId: v as Id<"suppliers"> } : { supplierId: "" as Id<"suppliers"> });
-                      }}
-                      style={{ fontSize: 13, padding: "4px 8px", borderRadius: 4, border: "1px solid var(--line)", background: "var(--card)" }}
-                    >
-                      <option value="">—</option>
-                      {availableSuppliers.map((s) => (
-                        <option key={s._id} value={s._id}>{s.name}</option>
-                      ))}
-                    </select>
-                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-mute)" }}>
-                      Zamówienie:
-                      <DateInput
-                        value={delivery?.orderDate}
-                        onChange={(ts) => upsertDelivery({ orderDate: ts! })}
-                      />
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-mute)" }}>
-                      Dostawa:
-                      <DateInput
-                        value={delivery?.deliveryDate}
-                        onChange={(ts) => {
-                          if (ts) upsertDelivery({ deliveryDate: ts });
-                          else upsertDelivery({ deliveryDate: undefined! });
-                        }}
-                      />
-                    </label>
+        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5 }}>Zamówienia u dostawców</div>
+
+          {(order.services ?? []).map((svcName) => {
+            const svc = servicesList.find((s) => s.name === svcName);
+            const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
+            const d = (order.serviceDeliveries ?? []).find((x) => x.serviceName === svcName);
+            const supplier = d?.supplierId ? allSuppliers.find((s) => s._id === d.supplierId) : undefined;
+            const isEditing = editingDeliverySvc === svcName;
+
+            if (isEditing && draftDelivery) {
+              return (
+                <div key={svcName} style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  background: "var(--panel)",
+                  border: "1px solid var(--line)",
+                  fontSize: 13,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontWeight: 600, minWidth: 100, color: "var(--text-strong)" }}>{svcName}</span>
+                  <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
+                  <select
+                    value={draftDelivery.supplierId ?? ""}
+                    onChange={(e) => updateDraftDelivery({ supplierId: e.target.value as Id<"suppliers"> })}
+                    style={{
+                      fontSize: 13,
+                      padding: "4px 8px",
+                      borderRadius: 6,
+                      border: "1px solid var(--line)",
+                      background: "var(--card)",
+                      color: draftDelivery.supplierId ? "var(--text-strong)" : "var(--text-muted)",
+                      fontWeight: draftDelivery.supplierId ? 600 : 400,
+                      fontFamily: "inherit",
+                      minWidth: 100,
+                    }}
+                  >
+                    <option value="">Dostawca</option>
+                    {availableSuppliers.map((s) => (
+                      <option key={s._id} value={s._id}>{s.name}</option>
+                    ))}
+                  </select>
+                  <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Zam.</span>
+                  <input
+                    type="date"
+                    value={tsToDateStr(draftDelivery.orderDate)}
+                    onChange={(e) => {
+                      const ts = dateStrToTs(e.target.value);
+                      updateDraftDelivery(ts ? { orderDate: ts } : {});
+                    }}
+                    style={{
+                      fontSize: 13,
+                      padding: "4px 8px",
+                      borderRadius: 6,
+                      border: "1px solid var(--line)",
+                      background: "var(--card)",
+                      color: draftDelivery.orderDate ? "var(--text-strong)" : "var(--text-muted)",
+                      fontWeight: draftDelivery.orderDate ? 600 : 400,
+                      fontFamily: "inherit",
+                      width: 140,
+                    }}
+                  />
+                  <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Dost.</span>
+                  <input
+                    type="date"
+                    value={tsToDateStr(draftDelivery.deliveryDate)}
+                    onChange={(e) => {
+                      const ts = dateStrToTs(e.target.value);
+                      updateDraftDelivery(ts ? { deliveryDate: ts } : {});
+                    }}
+                    style={{
+                      fontSize: 13,
+                      padding: "4px 8px",
+                      borderRadius: 6,
+                      border: "1px solid var(--line)",
+                      background: "var(--card)",
+                      color: draftDelivery.deliveryDate ? "var(--text-strong)" : "var(--text-muted)",
+                      fontWeight: draftDelivery.deliveryDate ? 600 : 400,
+                      fontFamily: "inherit",
+                      width: 140,
+                    }}
+                  />
+                </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={saveDelivery} className="btn primary btn-xs">Zapisz</button>
+                    <button onClick={cancelEditDelivery} className="btn btn-xs">Anuluj</button>
                   </div>
-                );
-              })}
-            </>
-          )}
+                </div>
+              );
+            }
+
+            return (
+              <div key={svcName} style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "8px 12px",
+                borderRadius: 8,
+                background: "var(--panel)",
+                border: "1px solid var(--line)",
+                fontSize: 13,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontWeight: 600, minWidth: 100, color: "var(--text-strong)" }}>{svcName}</span>
+                  <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
+                  <span style={{ fontWeight: supplier ? 600 : 400, color: supplier ? "var(--text-strong)" : "var(--text-muted)", minWidth: 80 }}>
+                    {supplier?.name ?? "—"}
+                  </span>
+                  <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
+                  <span style={{ fontWeight: d?.orderDate ? 600 : 400, color: d?.orderDate ? "var(--text-strong)" : "var(--text-muted)", minWidth: 90 }}>
+                    {d?.orderDate ? fmtLocalDate(d.orderDate) : "—"}
+                  </span>
+                  <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
+                  <span style={{ fontWeight: d?.deliveryDate ? 600 : 400, color: d?.deliveryDate ? "var(--text-strong)" : "var(--text-muted)", minWidth: 90 }}>
+                    {d?.deliveryDate ? fmtLocalDate(d.deliveryDate) : "—"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => startEditDelivery(svcName)}
+                  className="btn"
+                  style={{ fontSize: 10, padding: "2px 7px", flexShrink: 0 }}
+                >
+                  <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                  </svg>
+                  Edytuj
+                </button>
+              </div>
+            );
+          })}
         </div>
 
         {/* Termin montażu */}
-        <div style={{ padding: "10px 20px", borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Termin montażu:</span>
-          <DateInput
-            value={order.completionDate ?? undefined}
-            onChange={(ts) => updateOrder({ orderId: orderIdTyped, completionDate: ts ?? undefined })}
-          />
+        <div style={{
+          padding: "12px 20px",
+          borderTop: "1px solid var(--line)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "var(--accent-soft)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: "var(--accent)",
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+            }}>
+              Termin montażu
+            </span>
+            {editingCompletionDate ? (
+              <>
+                <input
+                  type="date"
+                  value={tsToDateStr(draftCompletionDate)}
+                  onChange={(e) => setDraftCompletionDate(dateStrToTs(e.target.value))}
+                  style={{
+                    fontSize: 13,
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid var(--line)",
+                    background: "var(--card)",
+                    color: "var(--text-strong)",
+                    fontFamily: "inherit",
+                  }}
+                />
+                <button onClick={saveCompletionDate} className="btn primary btn-xs">Zapisz</button>
+                <button onClick={cancelEditCompletionDate} className="btn btn-xs">Anuluj</button>
+              </>
+            ) : (
+              <span style={{
+                fontSize: 14,
+                fontWeight: order.completionDate ? 600 : 400,
+                color: order.completionDate ? "var(--text-strong)" : "var(--text-muted)",
+              }}>
+                {order.completionDate ? fmtLocalDate(order.completionDate) : "(nie ustawiono)"}
+              </span>
+            )}
+          </div>
+          {!editingCompletionDate && (
+            <button
+              type="button"
+              onClick={startEditCompletionDate}
+              className="btn"
+              style={{ fontSize: 10, padding: "2px 7px", flexShrink: 0 }}
+            >
+              <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+              </svg>
+              Edytuj
+            </button>
+          )}
         </div>
 
         {/* Investment location in header */}

@@ -222,6 +222,7 @@ export default defineSchema({
     status: clientStatus,
     productionDate: v.optional(v.number()),
     completionDate: v.optional(v.number()),
+    orderDate: v.optional(v.number()), // legacy — przeniesione do serviceDeliveries
     serviceDeliveries: v.optional(v.array(v.object({
       serviceName: v.string(),
       supplierId: v.id("suppliers"),
