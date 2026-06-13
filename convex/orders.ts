@@ -373,8 +373,20 @@ export const changeStatus = mutation({
     }
 
     const statusPatch: Record<string, unknown> = { status: args.newStatus };
-    if (args.newStatus === "production") statusPatch.productionDate = Date.now();
-    if (args.newStatus === "completed") statusPatch.completionDate = Date.now();
+
+    if (args.newStatus === "production") {
+      if (!order.realizationStartDate) {
+        statusPatch.realizationStartDate = Date.now();
+      }
+    }
+
+    if (args.newStatus === "completed") {
+      statusPatch.realizationEndDate = Date.now();
+    } else if (order.status === "completed" && args.newStatus !== "archived") {
+      // Jeśli cofamy status ze Zrealizowane (i nie archiwizujemy), czyścimy datę końca
+      statusPatch.realizationEndDate = undefined;
+    }
+
     await ctx.db.patch(args.orderId, statusPatch);
 
     if (args.newStatus === "measurement") {

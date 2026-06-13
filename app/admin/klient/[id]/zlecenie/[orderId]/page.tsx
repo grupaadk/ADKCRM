@@ -1116,7 +1116,20 @@ export default function OrderDetailPage({
     { day: "2-digit", month: "2-digit", year: "numeric" },
   );
   const fmtLocalDate = (ts: number) =>
-    new Date(ts).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" });
+    new Date(ts).toLocaleDateString("pl-PL", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+
+  const fmtDateTime = (ts: number) =>
+    new Date(ts).toLocaleString("pl-PL", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   const minsToHour = (mins: number | undefined) => {
     if (mins == null) return undefined;
     return Math.floor(mins / 60);
@@ -1994,6 +2007,24 @@ export default function OrderDetailPage({
             investmentCity={order.investmentCity}
           />
         </div>
+
+        {/* Czas realizacji */}
+        {((order as any).realizationStartDate || (order as any).realizationEndDate) && (
+          <div style={{ padding: "12px 20px", borderTop: "1px solid var(--line)", display: "flex", flexWrap: "wrap", gap: 32, background: "var(--panel)" }}>
+            {(order as any).realizationStartDate && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Początek realizacji</div>
+                <div style={{ fontSize: 13, color: "var(--text-strong)", fontWeight: 500 }}>{fmtDateTime((order as any).realizationStartDate)}</div>
+              </div>
+            )}
+            {(order as any).realizationEndDate && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Koniec realizacji</div>
+                <div style={{ fontSize: 13, color: "var(--text-strong)", fontWeight: 500 }}>{fmtDateTime((order as any).realizationEndDate)}</div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Tabs */}
         <div style={{ display: "flex", borderTop: "1px solid var(--line)", gap: 2 }}>

@@ -222,6 +222,8 @@ export default defineSchema({
     status: clientStatus,
     productionDate: v.optional(v.number()),
     completionDate: v.optional(v.number()),
+    realizationStartDate: v.optional(v.number()),
+    realizationEndDate: v.optional(v.number()),
     installationStart: v.optional(v.number()),
     installationEnd: v.optional(v.number()),
     orderDate: v.optional(v.number()), // legacy — przeniesione do serviceDeliveries
