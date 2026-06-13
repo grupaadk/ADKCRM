@@ -292,6 +292,8 @@ export const update = mutation({
     investmentPostalCode: v.optional(v.string()),
     investmentCity: v.optional(v.string()),
     completionDate: v.optional(v.number()),
+    installationStart: v.optional(v.number()),
+    installationEnd: v.optional(v.number()),
     serviceDeliveries: v.optional(v.array(v.object({
       serviceName: v.string(),
       supplierId: v.id("suppliers"),
@@ -840,5 +842,43 @@ export const attachUploadedDocument = internalMutation({
       details: { documentType: args.documentType, driveUrl: args.driveFileUrl, signatureStatus: args.signatureStatus },
       performedBy: args.performedBy,
     });
+  },
+});
+
+export const listByCompletionDateRange = query({
+  args: { startDate: v.number(), endDate: v.number() },
+  handler: async (ctx, args) => {
+    const orders = await ctx.db
+      .query("orders")
+      .withIndex("by_completion_date", (q) =>
+        q.gte("completionDate", args.startDate).lte("completionDate", args.endDate),
+      )
+      .collect();
+
+    return await Promise.all(
+      orders.map(async (order) => {
+        let clientName = "";
+        if (order.clientId) {
+          const client = await ctx.db.get(order.clientId);
+          if (client) {
+            clientName =
+              client.clientType === "business" && client.companyName
+                ? client.companyName
+                : `${client.firstName} ${client.lastName}`.trim();
+          }
+        }
+        return {
+          _id: order._id,
+          completionDate: order.completionDate!,
+          status: order.status,
+          clientId: order.clientId,
+          clientName,
+          services: order.services ?? [],
+          name: order.name,
+          installationStart: order.installationStart,
+          installationEnd: order.installationEnd,
+        };
+      }),
+    );
   },
 });

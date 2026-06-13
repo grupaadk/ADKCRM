@@ -9,6 +9,7 @@ import type { KanbanItem } from "@/convex/kanban"
 import { Plus, ChevronDown, ChevronUp, Archive, ArchiveRestore } from "lucide-react"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 import NewOpportunityModal from "@/components/NewOpportunityModal"
+import InstallationCalendar from "./InstallationCalendar"
 
 const KANBAN_COLUMNS = [
   { key: "lead",         bg: "#50253F", border: "#3C1C2F" },
@@ -489,9 +490,9 @@ export default function PanelPage() {
   const statusLabels = useStatusLabels()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const initialTab = searchParams.get("tab") as "kanban" | "opportunities" | "archived" | "archived-leads" | null
-  const [activeTab, setActiveTab] = useState<"kanban" | "opportunities" | "archived" | "archived-leads">(
-    initialTab && ["kanban", "opportunities", "archived", "archived-leads"].includes(initialTab) ? initialTab : "kanban"
+  const initialTab = searchParams.get("tab") as "kanban" | "opportunities" | "archived" | "archived-leads" | "montaz" | null
+  const [activeTab, setActiveTab] = useState<"kanban" | "opportunities" | "archived" | "archived-leads" | "montaz">(
+    initialTab && ["kanban", "opportunities", "archived", "archived-leads", "montaz"].includes(initialTab) ? initialTab : "kanban"
   )
   const [draggingItem, setDraggingItem] = useState<KanbanItem | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
@@ -785,7 +786,7 @@ export default function PanelPage() {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 2, borderBottom: "1px solid var(--line)", marginBottom: 4 }}>
-        {(["kanban", "opportunities", "archived", "archived-leads"] as const).map((tab) => (
+        {(["kanban", "opportunities", "montaz", "archived", "archived-leads"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -808,6 +809,7 @@ export default function PanelPage() {
           >
             {tab === "kanban" ? "Zlecenia"
               : tab === "opportunities" ? "Szanse sprzedaży"
+              : tab === "montaz" ? "Montaż"
               : tab === "archived" ? "Archiwum"
               : "Archiwum LEAD"}
             {tab === "opportunities" && newLeadsCount > 0 && (
@@ -890,6 +892,13 @@ export default function PanelPage() {
             }} />
             Bez przypisania
           </button>
+        </div>
+      )}
+
+      {/* Montaż tab — kalendarz */}
+      {activeTab === "montaz" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <InstallationCalendar />
         </div>
       )}
 

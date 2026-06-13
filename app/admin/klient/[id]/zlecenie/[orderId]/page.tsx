@@ -879,6 +879,8 @@ export default function OrderDetailPage({
   const [draftDelivery, setDraftDelivery] = useState<NonNullable<typeof order.serviceDeliveries>[number] | null>(null);
   const [editingCompletionDate, setEditingCompletionDate] = useState(false);
   const [draftCompletionDate, setDraftCompletionDate] = useState<number | undefined>(undefined);
+  const [draftInstallationStart, setDraftInstallationStart] = useState<number | undefined>(undefined);
+  const [draftInstallationEnd, setDraftInstallationEnd] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     if (!showAssignDropdown) return;
@@ -1078,18 +1080,29 @@ export default function OrderDetailPage({
 
   function startEditCompletionDate() {
     setDraftCompletionDate(order.completionDate);
+    setDraftInstallationStart(order.installationStart);
+    setDraftInstallationEnd(order.installationEnd);
     setEditingCompletionDate(true);
   }
 
   function cancelEditCompletionDate() {
     setEditingCompletionDate(false);
     setDraftCompletionDate(undefined);
+    setDraftInstallationStart(undefined);
+    setDraftInstallationEnd(undefined);
   }
 
   async function saveCompletionDate() {
-    await updateOrder({ orderId: orderIdTyped, completionDate: draftCompletionDate });
+    await updateOrder({
+      orderId: orderIdTyped,
+      completionDate: draftCompletionDate,
+      installationStart: draftInstallationStart,
+      installationEnd: draftInstallationEnd,
+    });
     setEditingCompletionDate(false);
     setDraftCompletionDate(undefined);
+    setDraftInstallationStart(undefined);
+    setDraftInstallationEnd(undefined);
   }
 
   const createdDate = new Date(order._creationTime).toLocaleDateString(
@@ -1098,6 +1111,18 @@ export default function OrderDetailPage({
   );
   const fmtLocalDate = (ts: number) =>
     new Date(ts).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const minsToTimeStr = (mins: number | undefined) => {
+    if (mins == null) return "";
+    const h = Math.floor(mins / 60).toString().padStart(2, "0");
+    const m = (mins % 60).toString().padStart(2, "0");
+    return `${h}:${m}`;
+  };
+  const timeStrToMins = (str: string) => {
+    if (!str) return undefined;
+    const [h, m] = str.split(":").map(Number);
+    if (isNaN(h) || isNaN(m)) return undefined;
+    return h * 60 + m;
+  };
   const orderNumber = order.name ?? `Zlecenie z ${createdDate}`;
   const projectFileLinks = getProjectFileLinks(order.projectFiles);
 
@@ -1863,7 +1888,7 @@ export default function OrderDetailPage({
               Termin montażu
             </span>
             {editingCompletionDate ? (
-              <>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <input
                   type="date"
                   value={tsToDateStr(draftCompletionDate)}
@@ -1878,16 +1903,53 @@ export default function OrderDetailPage({
                     fontFamily: "inherit",
                   }}
                 />
+                <input
+                  type="time"
+                  value={minsToTimeStr(draftInstallationStart)}
+                  onChange={(e) => setDraftInstallationStart(timeStrToMins(e.target.value))}
+                  style={{
+                    fontSize: 13,
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid var(--line)",
+                    background: "var(--card)",
+                    color: "var(--text-strong)",
+                    fontFamily: "inherit",
+                    width: 100,
+                  }}
+                />
+                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>–</span>
+                <input
+                  type="time"
+                  value={minsToTimeStr(draftInstallationEnd)}
+                  onChange={(e) => setDraftInstallationEnd(timeStrToMins(e.target.value))}
+                  style={{
+                    fontSize: 13,
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid var(--line)",
+                    background: "var(--card)",
+                    color: "var(--text-strong)",
+                    fontFamily: "inherit",
+                    width: 100,
+                  }}
+                />
                 <button onClick={saveCompletionDate} className="btn primary btn-xs">Zapisz</button>
                 <button onClick={cancelEditCompletionDate} className="btn btn-xs">Anuluj</button>
-              </>
+              </div>
             ) : (
               <span style={{
                 fontSize: 14,
                 fontWeight: order.completionDate ? 600 : 400,
                 color: order.completionDate ? "var(--text-strong)" : "var(--text-muted)",
               }}>
-                {order.completionDate ? fmtLocalDate(order.completionDate) : "(nie ustawiono)"}
+                {order.completionDate
+                  ? fmtLocalDate(order.completionDate) +
+                    (order.installationStart != null
+                      ? ` ${minsToTimeStr(order.installationStart)}` +
+                        (order.installationEnd != null ? `–${minsToTimeStr(order.installationEnd)}` : "")
+                      : "")
+                  : "(nie ustawiono)"}
               </span>
             )}
           </div>
