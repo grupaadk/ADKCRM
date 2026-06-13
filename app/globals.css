@@ -342,6 +342,10 @@ h1, h2, h3, h4, h5, h6 { color: var(--text-strong); }
   font-weight: 500;
 }
 
+.fc .fc-event-resizer {
+  display: none !important;
+}
+
 .fc table {
   border-color: var(--line);
 }

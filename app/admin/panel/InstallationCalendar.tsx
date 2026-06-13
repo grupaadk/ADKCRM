@@ -234,52 +234,76 @@ export default function InstallationCalendar() {
           flex: 1,
           overflow: "hidden",
         }}>
-          {/* Wiersz: godzina + nr zlecenia */}
+          {/* Wiersz: godzina + nr zlecenia + customText */}
           <div style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-start",
             gap: 5,
             minWidth: 0,
+            flexWrap: "nowrap",
           }}>
             {timeStr && (
               <span style={{
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 800,
                 color: "#fff",
                 background: accentColor,
                 borderRadius: 4,
-                padding: "1px 6px",
+                padding: "2px 6px",
                 flexShrink: 0,
                 letterSpacing: "0.02em",
                 lineHeight: 1.4,
+                marginTop: 1,
               }}>
                 {timeStr}
               </span>
             )}
             <div style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: "var(--text-strong)",
-              fontFamily: "monospace",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              lineHeight: 1.25,
-              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: 3,
               minWidth: 0,
+              flexShrink: 1,
             }}>
-              {orderName ?? "—"}
+              <div style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "var(--text-strong)",
+                fontFamily: "monospace",
+                lineHeight: 1.25,
+                wordBreak: "break-word",
+              }}>
+                {orderName ?? "—"}
+              </div>
+              {customText && (
+                <div style={{ display: "flex" }}>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: "var(--text-mute)",
+                    background: "var(--panel-2)",
+                    border: "1px solid var(--line)",
+                    borderRadius: 4,
+                    padding: "1px 5px",
+                    lineHeight: 1.4,
+                    wordBreak: "break-word",
+                  }}>
+                    {customText}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Klient */}
           <div style={{
-            fontSize: 10,
+            fontSize: 11,
             color: "var(--text-mute)",
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
             lineHeight: 1.3,
+            marginTop: 1,
           }}>
             {clientName}
           </div>
@@ -287,51 +311,34 @@ export default function InstallationCalendar() {
           {/* Miasto */}
           {investmentCity && (
             <div style={{
-              fontSize: 10,
+              fontSize: 11,
               color: "var(--text-mute)",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
               lineHeight: 1.3,
-              opacity: 0.75,
+              opacity: 0.85,
             }}>
               📍 {investmentCity}
             </div>
           )}
 
-          {/* Chipa: pracownik + customText */}
-          {(assignedUserName || customText) && (
+          {/* Chipa: pracownik */}
+          {assignedUserName && (
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
-              {assignedUserName && (
-                <span style={{
-                  fontSize: 9,
-                  fontWeight: 600,
-                  color: accentColor,
-                  background: `${accentColor}22`,
-                  border: `1px solid ${accentColor}44`,
-                  borderRadius: 3,
-                  padding: "1px 5px",
-                  whiteSpace: "nowrap",
-                  lineHeight: 1.5,
-                }}>
-                  {assignedUserName}
-                </span>
-              )}
-              {customText && (
-                <span style={{
-                  fontSize: 9,
-                  fontWeight: 500,
-                  color: "var(--text-mute)",
-                  background: "var(--panel-2)",
-                  border: "1px solid var(--line)",
-                  borderRadius: 3,
-                  padding: "1px 5px",
-                  whiteSpace: "nowrap",
-                  lineHeight: 1.5,
-                }}>
-                  {customText}
-                </span>
-              )}
+              <span style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: accentColor,
+                background: `${accentColor}22`,
+                border: `1px solid ${accentColor}44`,
+                borderRadius: 4,
+                padding: "1px 6px",
+                whiteSpace: "nowrap",
+                lineHeight: 1.4,
+              }}>
+                {assignedUserName}
+              </span>
             </div>
           )}
         </div>
@@ -449,6 +456,7 @@ export default function InstallationCalendar() {
           headerToolbar={false}
           events={events}
           editable={true}
+          eventDurationEditable={false}
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
           dateClick={handleDateClick}
