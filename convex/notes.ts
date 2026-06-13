@@ -39,6 +39,7 @@ export const add = mutation({
       orderId: args.orderId,
       content: args.content.trim(),
       createdBy: userId,
+      createdByColor: user.color,
     });
   },
 });

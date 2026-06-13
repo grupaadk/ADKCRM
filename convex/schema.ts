@@ -371,6 +371,7 @@ export default defineSchema({
     orderId: v.optional(v.id("orders")),
     content: v.string(),
     createdBy: v.string(),
+    createdByColor: v.optional(v.string()),
   })
     .index("by_client", ["clientId"])
     .index("by_order", ["orderId"]),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -8,6 +8,26 @@ import { Id } from "@/convex/_generated/dataModel";
 interface NotesProps {
   clientId: Id<"clients">;
   orderId?: Id<"orders">;
+}
+
+function stringToColor(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  let h = hash % 360;
+  if (h < 0) h += 360;
+  return `hsl(${h}, 50%, 45%)`;
+}
+
+function userNameColor(user?: { displayName?: string | null; color?: string | null; login?: string | null }) {
+  if (user?.color) return user.color;
+  const base = user?.displayName ?? user?.login ?? "?";
+  return stringToColor(base);
+}
+
+function userName(user?: { displayName?: string | null; login?: string | null }) {
+  return user?.displayName ?? user?.login ?? "Nieznany";
 }
 
 export default function Notes({ clientId, orderId }: NotesProps) {
@@ -20,8 +40,19 @@ export default function Notes({ clientId, orderId }: NotesProps) {
     orderId ? { orderId } : "skip",
   );
   const notes = orderId ? notesByOrder : notesByClient;
+  const allUsers = useQuery(api.users.listForNotes);
   const addNote = useMutation(api.notes.add);
   const removeNote = useMutation(api.notes.remove);
+
+  const userMap = useMemo(() => {
+    if (!allUsers) return {};
+    const map: Record<string, (typeof allUsers)[number]> = {};
+    for (const u of allUsers) {
+      if (u.login) map[u.login] = u;
+      map[u._id] = u;
+    }
+    return map;
+  }, [allUsers]);
 
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
@@ -131,34 +162,57 @@ export default function Notes({ clientId, orderId }: NotesProps) {
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {notes.map((note) => (
-              <div key={note._id} className="group px-6 py-5">
-                <div className="flex items-start justify-between gap-4">
-                  <p className="flex-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
-                    {note.content}
-                  </p>
-                  <button
-                    onClick={() => handleDelete(note._id)}
-                    disabled={deletingId === note._id}
-                    className="mt-0.5 shrink-0 rounded-lg p-1.5 text-slate-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 disabled:opacity-50"
-                    title="Usun notatke"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                    </svg>
-                  </button>
+            {notes.map((note) => {
+              const u = userMap[note.createdBy];
+              return (
+                <div key={note._id} className="group px-6 py-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <p className="flex-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
+                      {note.content}
+                    </p>
+                    <button
+                      onClick={() => handleDelete(note._id)}
+                      disabled={deletingId === note._id}
+                      className="mt-0.5 shrink-0 rounded-lg p-1.5 text-slate-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 disabled:opacity-50"
+                      title="Usun notatke"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="mt-2 flex items-center gap-3">
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        padding: "1px 8px",
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "#fff",
+                        background: note.createdByColor ?? userNameColor(u),
+                      }}
+                    >
+                      <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                      </svg>
+                      {userName(u)}
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      {new Date(note._creationTime).toLocaleString("pl-PL", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-2 text-[11px] text-slate-400">
-                  {new Date(note._creationTime).toLocaleString("pl-PL", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

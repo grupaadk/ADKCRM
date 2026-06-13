@@ -456,8 +456,23 @@ export const listAllActive = query({
 });
 
 /**
- * Admin włącza/wyłącza widoczność usera w filtrach i dropdownach.
+ * Podstawowe info wszystkich userów — do wyświetlania autora notatek.
+ * Dostępne dla każdego zalogowanego, bez filtrowania (również nieaktywni).
  */
+export const listForNotes = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireUser(ctx);
+    const users = await ctx.db.query("users").collect();
+    return users.map((u) => ({
+      _id: u._id,
+      login: u.email,
+      displayName: u.displayName,
+      color: u.color,
+    }));
+  },
+});
+
 export const setShowInPickers = mutation({
   args: {
     userId: v.id("users"),

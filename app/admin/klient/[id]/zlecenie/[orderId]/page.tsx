@@ -16,6 +16,7 @@ import OrderDriveBrowser from "./OrderDriveBrowser";
 import TaskDrawer from "@/components/TaskDrawer";
 import CreateOrderTaskDrawer from "@/components/CreateOrderTaskDrawer";
 import InvestmentLocation from "../../InvestmentLocation";
+import Notes from "../../Notes";
 import ReminderModal from "@/app/admin/faktury/ReminderModal";
 import {
   Table,
@@ -90,7 +91,7 @@ const VISIBLE_STATUS_ORDER = [
 type VisibleStatus = (typeof VISIBLE_STATUS_ORDER)[number];
 
 
-type Tab = "szczegoly" | "wycena" | "reklamacja";
+type Tab = "szczegoly" | "wycena" | "reklamacja" | "notatki";
 
 function getProjectFileLinks(projectFiles: string | undefined) {
   if (!projectFiles) return [];
@@ -1103,6 +1104,7 @@ export default function OrderDetailPage({
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "szczegoly", label: "Szczegóły" },
     { key: "wycena", label: "Wycena" },
+    { key: "notatki", label: "Notatki" },
     { key: "reklamacja", label: "Reklamacja" },
   ];
 
@@ -2290,6 +2292,17 @@ export default function OrderDetailPage({
               fakturownia={order.fakturownia}
               invoicePlan={order.invoicePlan}
             />
+          </SectionCard>
+        </div>
+      )}
+
+      {/* ── Tab: Notatki ── */}
+      {activeTab === "notatki" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <SectionCard title="Notatki">
+            <div style={{ padding: 16 }}>
+              <Notes clientId={clientId} orderId={orderIdTyped} />
+            </div>
           </SectionCard>
         </div>
       )}
