@@ -897,9 +897,11 @@ export const listByCompletionDateRange = query({
           }
         }
         let assignedUserColor: string | undefined;
+        let assignedUserName: string | undefined;
         if (order.assignedUserId) {
           const assignedUser = await ctx.db.get(order.assignedUserId);
           assignedUserColor = assignedUser?.color ?? undefined;
+          assignedUserName = assignedUser?.displayName ?? assignedUser?.email ?? undefined;
         }
         return {
           _id: order._id,
@@ -912,6 +914,8 @@ export const listByCompletionDateRange = query({
           installationStart: order.installationStart,
           customText: order.customText,
           assignedUserColor,
+          assignedUserName,
+          investmentCity: order.investmentCity,
         };
       }),
     );
