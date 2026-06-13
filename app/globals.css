@@ -248,6 +248,11 @@ h1, h2, h3, h4, h5, h6 { color: var(--text-strong); }
   font-size: 13px;
 }
 
+.fc .fc-view-harness {
+  flex: 1;
+  min-height: 0;
+}
+
 .fc .fc-toolbar-title {
   font-size: 18px !important;
   font-weight: 700;
@@ -345,6 +350,16 @@ h1, h2, h3, h4, h5, h6 { color: var(--text-strong); }
 
 .fc .fc-scrollgrid {
   border-color: var(--line);
+}
+
+.fc .fc-scrollgrid thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.fc .fc-scrollgrid thead th {
+  background: var(--card);
 }
 
 .fc .fc-timegrid-slot {

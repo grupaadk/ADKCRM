@@ -223,6 +223,7 @@ export default defineSchema({
     productionDate: v.optional(v.number()),
     completionDate: v.optional(v.number()),
     installationStart: v.optional(v.number()),
+    installationEnd: v.optional(v.number()),
     orderDate: v.optional(v.number()), // legacy — przeniesione do serviceDeliveries
     serviceDeliveries: v.optional(v.array(v.object({
       serviceName: v.string(),

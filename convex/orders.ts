@@ -326,6 +326,36 @@ export const update = mutation({
   },
 });
 
+export const clearInstallationDate = mutation({
+  args: {
+    orderId: v.id("orders"),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie znalezione");
+
+    if (!order.completionDate && !order.installationStart) {
+      return;
+    }
+
+    await ctx.db.patch(args.orderId, {
+      completionDate: undefined,
+      installationStart: undefined,
+    });
+
+    await ctx.db.insert("clientEvents", {
+      clientId: order.clientId,
+      orderId: args.orderId,
+      type: "data_updated",
+      details: { fields: ["completionDate", "installationStart"], action: "clear" },
+      performedBy: userId,
+    });
+  },
+});
+
 export const changeStatus = mutation({
   args: {
     orderId: v.id("orders"),
@@ -866,6 +896,11 @@ export const listByCompletionDateRange = query({
                 : `${client.firstName} ${client.lastName}`.trim();
           }
         }
+        let assignedUserColor: string | undefined;
+        if (order.assignedUserId) {
+          const assignedUser = await ctx.db.get(order.assignedUserId);
+          assignedUserColor = assignedUser?.color ?? undefined;
+        }
         return {
           _id: order._id,
           completionDate: order.completionDate!,
@@ -876,6 +911,7 @@ export const listByCompletionDateRange = query({
           name: order.name,
           installationStart: order.installationStart,
           customText: order.customText,
+          assignedUserColor,
         };
       }),
     );

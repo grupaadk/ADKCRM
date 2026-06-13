@@ -873,6 +873,7 @@ export default function OrderDetailPage({
   const servicesList = useQuery(api.services.listActive) ?? [];
   const allSuppliers = useQuery(api.suppliers.listActive) ?? [];
   const updateOrder = useMutation(api.orders.update);
+  const clearInstallationDate = useMutation(api.orders.clearInstallationDate);
   const [editingServices, setEditingServices] = useState(false);
   const [draftServices, setDraftServices] = useState<string[]>([]);
   const [editingDeliverySvc, setEditingDeliverySvc] = useState<string | null>(null);
@@ -880,6 +881,7 @@ export default function OrderDetailPage({
   const [editingCompletionDate, setEditingCompletionDate] = useState(false);
   const [draftCompletionDate, setDraftCompletionDate] = useState<number | undefined>(undefined);
   const [draftInstallationStart, setDraftInstallationStart] = useState<number | undefined>(undefined);
+  const [confirmDeleteDate, setConfirmDeleteDate] = useState(false);
 
   useEffect(() => {
     if (!showAssignDropdown) return;
@@ -1098,6 +1100,15 @@ export default function OrderDetailPage({
     setEditingCompletionDate(false);
     setDraftCompletionDate(undefined);
     setDraftInstallationStart(undefined);
+  }
+
+  async function deleteCompletionDate() {
+    try {
+      await clearInstallationDate({ orderId: orderIdTyped });
+    } catch (e) {
+      console.error("Błąd usuwania terminu montażu:", e);
+    }
+    setConfirmDeleteDate(false);
   }
 
   const createdDate = new Date(order._creationTime).toLocaleDateString(
@@ -1935,17 +1946,38 @@ export default function OrderDetailPage({
             )}
           </div>
           {!editingCompletionDate && (
-            <button
-              type="button"
-              onClick={startEditCompletionDate}
-              className="btn"
-              style={{ fontSize: 10, padding: "2px 7px", flexShrink: 0 }}
-            >
-              <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-              </svg>
-              Edytuj
-            </button>
+            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={startEditCompletionDate}
+                className="btn"
+                style={{ fontSize: 10, padding: "2px 7px" }}
+              >
+                <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                </svg>
+                Edytuj
+              </button>
+              {order.completionDate && !confirmDeleteDate && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteDate(true)}
+                  className="btn"
+                  style={{ fontSize: 10, padding: "2px 7px", color: "var(--bad)" }}
+                >
+                  <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
+          {confirmDeleteDate && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+              <span style={{ fontSize: 11, color: "var(--bad)", fontWeight: 600 }}>Usunąć termin?</span>
+              <button type="button" onClick={deleteCompletionDate} className="btn primary btn-xs" style={{ fontSize: 10, padding: "2px 7px", background: "var(--bad)", color: "#fff" }}>Tak</button>
+              <button type="button" onClick={() => setConfirmDeleteDate(false)} className="btn btn-xs" style={{ fontSize: 10, padding: "2px 7px" }}>Nie</button>
+            </div>
           )}
         </div>
 

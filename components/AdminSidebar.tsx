@@ -30,6 +30,7 @@ import {
   Upload,
   PanelLeftClose,
   PanelLeftOpen,
+  Calendar,
 } from "lucide-react"
 
 type NavItem = {
@@ -47,6 +48,7 @@ type NavItem = {
 const mainItems: NavItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, exactMatch: true },
   { href: "/admin/panel", label: "Panel", icon: LayoutGrid },
+  { href: "/admin/montaz", label: "Montaż", icon: Calendar },
   { href: "/admin/zamowienia", label: "Zlecenia", icon: ClipboardList },
   { href: "/admin/klienci", label: "Klienci", icon: Users, countKey: "clients", alsoActiveFor: ["/admin/klient/"] },
   { href: "/admin/faktury", label: "Faktury", icon: Receipt },
