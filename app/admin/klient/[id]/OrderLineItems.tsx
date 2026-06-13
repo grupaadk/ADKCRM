@@ -369,6 +369,7 @@ export default function OrderLineItems({
   const removeItem = useMutation(api.orderLineItems.remove);
   const pushEstimate = useAction(api.fakturownia.pushOrderEstimate);
   const saveInvoicePlan = useMutation(api.orders.saveInvoicePlan);
+  const servicesList = useQuery(api.services.listActive) ?? [];
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<AddFormState>(EMPTY_FORM);
@@ -568,6 +569,34 @@ export default function OrderLineItems({
 
           {/* Rest of form — locked when vatRate === 0 */}
           <div className={form.vatRate === 0 ? "pointer-events-none select-none opacity-40" : ""}>
+            {/* Wybór usługi z cennika */}
+            {servicesList.length > 0 && (
+              <div className="mb-4" style={form.vatRate === 0 ? { pointerEvents: "auto" } : undefined}>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  Wybierz z cennika
+                </label>
+                <select
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  value=""
+                  onChange={(e) => {
+                    const svc = servicesList.find((s) => s._id === e.target.value);
+                    if (svc) {
+                      setForm((f) => ({
+                        ...f,
+                        name: svc.name,
+                      }));
+                    }
+                  }}
+                >
+                  <option value="">-- Wybierz usługę --</option>
+                  {servicesList.map((s) => (
+                    <option key={s._id} value={s._id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="col-span-2 sm:col-span-4">
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>

@@ -176,6 +176,7 @@ export default defineSchema({
     folderUrl: v.optional(v.string()),
     jotformSubmissionId: v.optional(v.string()),
     services: v.optional(v.array(v.string())),
+    // Legacy color fields (exist in old documents, not used by UI/mutations)
     windowColor: v.optional(v.array(v.string())),
     doorColor: v.optional(v.array(v.string())),
     gateColor: v.optional(v.array(v.string())),
@@ -200,6 +201,7 @@ export default defineSchema({
 
     // Dane zlecenia
     services: v.optional(v.array(v.string())),
+    // Legacy color fields (exist in old documents, not used by UI/mutations)
     windowColor: v.optional(v.array(v.string())),
     doorColor: v.optional(v.array(v.string())),
     gateColor: v.optional(v.array(v.string())),
@@ -220,6 +222,12 @@ export default defineSchema({
     status: clientStatus,
     productionDate: v.optional(v.number()),
     completionDate: v.optional(v.number()),
+    serviceDeliveries: v.optional(v.array(v.object({
+      serviceName: v.string(),
+      supplierId: v.id("suppliers"),
+      orderDate: v.optional(v.number()),
+      deliveryDate: v.optional(v.number()),
+    }))),
 
     // Dokumenty
     documents: documentSet,
@@ -383,6 +391,7 @@ export default defineSchema({
     investmentPostalCode: v.optional(v.string()),
     investmentCity: v.optional(v.string()),
     services: v.optional(v.array(v.string())),
+    // Legacy color fields (exist in old documents, not used by UI/mutations)
     windowColor: v.optional(v.array(v.string())),
     doorColor: v.optional(v.array(v.string())),
     gateColor: v.optional(v.array(v.string())),
@@ -449,7 +458,31 @@ export default defineSchema({
     classifiedAt: v.number(),
   }).index("by_thread_id", ["gmailThreadId"]),
 
-  // 3.12 Cennik usług
+  // 3.12 Usługi — dynamiczna lista kategorii (zastępuje SERVICES)
+  services: defineTable({
+    name: v.string(),
+    isActive: v.boolean(),
+    sortOrder: v.number(),
+    description: v.optional(v.string()),
+    supplierIds: v.optional(v.array(v.id("suppliers"))),
+    // Pola legacy — do usunięcia po migracji
+    unit: v.optional(v.string()),
+    unitPrice: v.optional(v.number()),
+    vatRate: v.optional(v.number()),
+    requiresColor: v.optional(v.boolean()),
+    createdBy: v.string(),
+  })
+    .index("by_active_sort", ["isActive", "sortOrder"]),
+
+  // 3.12a Dostawcy
+  suppliers: defineTable({
+    name: v.string(),
+    isActive: v.boolean(),
+    createdBy: v.string(),
+  })
+    .index("by_active", ["isActive"]),
+
+  // 3.12b Cennik usług (legacy — pozycje do wyceny)
   servicePricing: defineTable({
     name: v.string(),
     description: v.optional(v.string()),

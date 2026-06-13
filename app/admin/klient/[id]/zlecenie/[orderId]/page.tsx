@@ -90,15 +90,6 @@ const VISIBLE_STATUS_ORDER = [
 type VisibleStatus = (typeof VISIBLE_STATUS_ORDER)[number];
 
 
-const COLOR_FIELDS: Array<{ key: string; label: string }> = [
-  { key: "windowColor", label: "Okna" },
-  { key: "doorColor", label: "Drzwi" },
-  { key: "gateColor", label: "Brama" },
-  { key: "terraceColor", label: "Zabudowa tarasu" },
-  { key: "constructionColor", label: "Konstrukcja" },
-];
-
-
 type Tab = "szczegoly" | "wycena" | "reklamacja";
 
 function getProjectFileLinks(projectFiles: string | undefined) {
@@ -781,6 +772,46 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
   );
 }
 
+const tsToDateStr = (ts: number | undefined | null) => {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+const dateStrToTs = (str: string) => {
+  if (!str) return undefined;
+  const [y, m, d] = str.split("-").map(Number);
+  return new Date(y, m - 1, d).getTime();
+};
+
+function DateInput({
+  value,
+  onChange,
+}: {
+  value: number | undefined;
+  onChange: (ts: number | undefined) => void;
+}) {
+  return (
+    <input
+      type="date"
+      value={tsToDateStr(value)}
+      onChange={(e) => onChange(dateStrToTs(e.target.value))}
+      style={{
+        fontSize: 13,
+        padding: "4px 8px",
+        borderRadius: 4,
+        border: "1px solid var(--line)",
+        background: "var(--card)",
+        color: "var(--text)",
+        fontFamily: "inherit",
+      }}
+    />
+  );
+}
+
 export default function OrderDetailPage({
   params,
 }: {
@@ -838,6 +869,11 @@ export default function OrderDetailPage({
   const me = useQuery(api.users.me);
   const assignableUsers = useQuery(api.users.listAssignable) ?? [];
   const assignOrder = useMutation(api.orders.assignOrder);
+  const servicesList = useQuery(api.services.listActive) ?? [];
+  const allSuppliers = useQuery(api.suppliers.listActive) ?? [];
+  const updateOrder = useMutation(api.orders.update);
+  const [editingServices, setEditingServices] = useState(false);
+  const [draftServices, setDraftServices] = useState<string[]>([]);
 
   useEffect(() => {
     if (!showAssignDropdown) return;
@@ -982,6 +1018,32 @@ export default function OrderDetailPage({
       setDeleteLoading(false);
       setShowDeleteConfirm(false);
     }
+  }
+
+  function startEditServices() {
+    setDraftServices(order?.services ?? []);
+    setEditingServices(true);
+  }
+
+  function cancelEditServices() {
+    setEditingServices(false);
+    setDraftServices([]);
+  }
+
+  function toggleDraftService(name: string) {
+    setDraftServices((prev) =>
+      prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name],
+    );
+  }
+
+  async function saveServices() {
+    if (!order) return;
+    await updateOrder({
+      orderId: orderIdTyped,
+      services: draftServices.length > 0 ? draftServices : undefined,
+    });
+    setEditingServices(false);
+    setDraftServices([]);
   }
 
   const createdDate = new Date(order._creationTime).toLocaleDateString(
@@ -1523,19 +1585,152 @@ export default function OrderDetailPage({
                 Zarchiwizowane
               </span>
             )}
-            {order.services?.map((s) => (
-              <span key={s} className="chip">{s}</span>
-            ))}
-            {COLOR_FIELDS.flatMap(({ key, label }) => {
-              const vals = (order[key as keyof typeof order] as string[] | undefined) ?? [];
-              return vals.map((v) => (
-                <span key={`${key}-${v}`} className="chip" style={{ opacity: 0.85 }}>
-                  {label}: {v}
-                </span>
-              ));
-            })}
+            {/* Usługi — inline edit */}
+            {servicesList.length > 0 && (
+              editingServices ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "8px 0" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {servicesList.map((svc) => {
+                      const active = draftServices.includes(svc.name);
+                      return (
+                        <button
+                          key={svc._id}
+                          type="button"
+                          onClick={() => toggleDraftService(svc.name)}
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            padding: "3px 10px",
+                            borderRadius: 6,
+                            border: active
+                              ? "1px solid #1d4ed8"
+                              : "1px solid var(--line)",
+                            background: active
+                              ? "#2563eb"
+                              : "transparent",
+                            color: active
+                              ? "#fff"
+                              : "var(--text)",
+                            cursor: "pointer",
+                            transition: "background 0.1s, border-color 0.1s",
+                          }}
+                        >
+                          {svc.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      onClick={saveServices}
+                      className="btn primary btn-xs"
+                    >
+                      Zapisz
+                    </button>
+                    <button
+                      onClick={cancelEditServices}
+                      className="btn btn-xs"
+                    >
+                      Anuluj
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                  {(order.services ?? []).map((s) => (
+                    <span key={s} className="chip">{s}</span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={startEditServices}
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: 4,
+                      border: "1px solid var(--line)",
+                      background: "transparent",
+                      color: "var(--text-mute)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Edytuj
+                  </button>
+                </div>
+              )
+            )}
           </div>
         </div>
+
+        {/* Zamówienia u dostawców */}
+        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
+          {(order.services ?? []).length > 0 && (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5 }}>Zamówienia u dostawców</div>
+              {(order.services ?? []).map((svcName) => {
+                const svc = servicesList.find((s) => s.name === svcName);
+                const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
+                const delivery = (order.serviceDeliveries ?? []).find((d) => d.serviceName === svcName);
+                const upsertDelivery = (patch: Partial<{ supplierId: Id<"suppliers">; orderDate: number; deliveryDate: number }>) => {
+                  const existing = order.serviceDeliveries ?? [];
+                  const idx = existing.findIndex((d) => d.serviceName === svcName);
+                  const base = idx >= 0 ? existing[idx] : { serviceName: svcName };
+                  const merged = { ...base, ...patch };
+                  const next = idx >= 0
+                    ? existing.map((d, i) => (i === idx ? merged : d))
+                    : [...existing, merged];
+                  updateOrder({ orderId: orderIdTyped, serviceDeliveries: next as typeof order.serviceDeliveries });
+                };
+                return (
+                  <div key={svcName} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 13, fontWeight: 500, minWidth: 80 }}>{svcName}</span>
+                    <select
+                      value={delivery?.supplierId ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        upsertDelivery(v ? { supplierId: v as Id<"suppliers"> } : { supplierId: "" as Id<"suppliers"> });
+                      }}
+                      style={{ fontSize: 13, padding: "4px 8px", borderRadius: 4, border: "1px solid var(--line)", background: "var(--card)" }}
+                    >
+                      <option value="">—</option>
+                      {availableSuppliers.map((s) => (
+                        <option key={s._id} value={s._id}>{s.name}</option>
+                      ))}
+                    </select>
+                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-mute)" }}>
+                      Zamówienie:
+                      <DateInput
+                        value={delivery?.orderDate}
+                        onChange={(ts) => upsertDelivery({ orderDate: ts! })}
+                      />
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-mute)" }}>
+                      Dostawa:
+                      <DateInput
+                        value={delivery?.deliveryDate}
+                        onChange={(ts) => {
+                          if (ts) upsertDelivery({ deliveryDate: ts });
+                          else upsertDelivery({ deliveryDate: undefined! });
+                        }}
+                      />
+                    </label>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+
+        {/* Termin montażu */}
+        <div style={{ padding: "10px 20px", borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Termin montażu:</span>
+          <DateInput
+            value={order.completionDate ?? undefined}
+            onChange={(ts) => updateOrder({ orderId: orderIdTyped, completionDate: ts ?? undefined })}
+          />
+        </div>
+
+        {/* Investment location in header */}
 
         {/* Investment location in header */}
         <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line)" }}>
@@ -1619,25 +1814,12 @@ export default function OrderDetailPage({
             />
           </div>
 
-          {/* Szczegóły zlecenia (komentarz, ochrona słoneczna, pliki projektu) */}
+          {/* Szczegóły zlecenia (komentarz, pliki projektu) */}
           {(order.comment ||
-            (order.sunProtectionType && order.sunProtectionType.length > 0) ||
             (order.driveProjectFiles && order.driveProjectFiles.length > 0) ||
             projectFileLinks.length > 0) && (
             <CollapsibleSection title="Szczegóły zlecenia">
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {order.sunProtectionType && order.sunProtectionType.length > 0 && (
-                  <div>
-                    <div className="up mute" style={{ marginBottom: 6 }}>
-                      System przeciwsłoneczny
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {order.sunProtectionType.map((t) => (
-                        <span key={t} className="chip">{t}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 {order.comment && (
                   <div>
                     <div className="up mute" style={{ marginBottom: 4 }}>

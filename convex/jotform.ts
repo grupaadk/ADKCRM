@@ -207,30 +207,6 @@ export function mapJotformPayload(rawData: JotformPayload) {
       parseArray(rawData.q33_jakaUsluge33).length > 0
         ? parseArray(rawData.q33_jakaUsluge33)
         : parseArray(rawData.q7_q7_checkbox5),
-    windowColor:
-      parseArray(rawData.q26_wybierzKolor).length > 0
-        ? parseArray(rawData.q26_wybierzKolor)
-        : parseArray(rawData.q8_q8_dropdown6),
-    doorColor:
-      parseArray(rawData.q28_wybierzKolor28).length > 0
-        ? parseArray(rawData.q28_wybierzKolor28)
-        : parseArray(rawData.q9_q9_dropdown7),
-    gateColor:
-      parseArray(rawData.q29_wybierzKolor29).length > 0
-        ? parseArray(rawData.q29_wybierzKolor29)
-        : parseArray(rawData.q10_q10_dropdown8),
-    terraceColor:
-      parseArray(rawData.q30_wybierzKolor30).length > 0
-        ? parseArray(rawData.q30_wybierzKolor30)
-        : parseArray(rawData.q11_q11_dropdown9),
-    constructionColor:
-      parseArray(rawData.q31_wybierzKolor31).length > 0
-        ? parseArray(rawData.q31_wybierzKolor31)
-        : parseArray(rawData.q12_q12_dropdown10),
-    sunProtectionType:
-      parseArray(rawData.q32_wybierzTyp).length > 0
-        ? parseArray(rawData.q32_wybierzTyp)
-        : parseArray(rawData.q13_q13_radio11),
     projectFiles:
       parseUrlList(rawData.q27_przeslijPliki).join("\n") ||
       parseUrlList(rawData.przeslijPliki).join("\n") ||

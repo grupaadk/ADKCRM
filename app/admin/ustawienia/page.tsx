@@ -8,7 +8,7 @@ import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import type { Id } from "@/convex/_generated/dataModel";
 
-type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -2254,6 +2254,571 @@ function CennikTab() {
   );
 }
 
+// --- Usługi Tab ---
+
+function ServicesTab() {
+  const services = useQuery(api.services.list, { includeInactive: true });
+  const allSuppliersRaw = useQuery(api.suppliers.list, {});
+  const allSuppliers = useMemo(() => allSuppliersRaw ?? [], [allSuppliersRaw]);
+  const createService = useMutation(api.services.create);
+  const updateService = useMutation(api.services.update);
+  const toggleActive = useMutation(api.services.toggleActive);
+  const removeService = useMutation(api.services.remove);
+  const reorderService = useMutation(api.services.reorder);
+  const assignSuppliers = useMutation(api.services.assignSuppliers);
+  const seedServices = useMutation(api.services.seed);
+
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: "", description: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const supplierMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of allSuppliers) m.set(s._id, s.name);
+    return m;
+  }, [allSuppliers]);
+
+  useEffect(() => {
+    if (services !== undefined && services.length === 0) {
+      seedServices().catch(() => {});
+    }
+  }, [services, seedServices]);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await createService({ name: form.name, description: form.description || undefined });
+      setForm({ name: "", description: "" });
+      setShowForm(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Błąd zapisu");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSave(id: Id<"services">, data: { name?: string; description?: string }) {
+    await updateService({ id, ...data });
+  }
+
+  async function handleToggle(id: Id<"services">) {
+    await toggleActive({ id });
+  }
+
+  async function handleDelete(id: Id<"services">) {
+    await removeService({ id });
+  }
+
+  async function handleMoveUp(id: Id<"services">, currentSort: number) {
+    if (!services) return;
+    const sorted = [...services].sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = sorted.findIndex((s) => s._id === id);
+    if (idx <= 0) return;
+    const prev = sorted[idx - 1];
+    await reorderService({ id: prev._id, sortOrder: currentSort });
+    await reorderService({ id, sortOrder: prev.sortOrder });
+  }
+
+  async function handleMoveDown(id: Id<"services">, currentSort: number) {
+    if (!services) return;
+    const sorted = [...services].sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = sorted.findIndex((s) => s._id === id);
+    if (idx === -1 || idx >= sorted.length - 1) return;
+    const next = sorted[idx + 1];
+    await reorderService({ id: next._id, sortOrder: currentSort });
+    await reorderService({ id, sortOrder: next.sortOrder });
+  }
+
+  async function handleAssignSuppliers(id: Id<"services">, supplierIds: Id<"suppliers">[]) {
+    await assignSuppliers({ serviceId: id, supplierIds });
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Usługi</h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Lista usług oferowanych przez firmę. Zarządzaj nazwami i przypisanymi dostawcami.
+          </p>
+        </div>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700"
+          >
+            + Dodaj usługę
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+          <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">Nowa usługa</h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="col-span-2">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>
+              <input
+                required
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="np. Okna"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Opis</label>
+              <input
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="opcjonalny opis"
+              />
+            </div>
+          </div>
+          {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+          <div className="mt-4 flex gap-2">
+            <button type="submit" disabled={busy}
+              className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
+              Dodaj
+            </button>
+            <button type="button" onClick={() => { setShowForm(false); setForm({ name: "", description: "" }); setError(null); }}
+              className="rounded-lg border border-slate-300 px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+              Anuluj
+            </button>
+          </div>
+        </form>
+      )}
+
+      {services === undefined ? (
+        <p className="text-sm text-slate-400">Ładowanie...</p>
+      ) : services.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 py-12 text-center">
+          <p className="text-sm text-slate-400">Brak usług — dodaj pierwszą usługę</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-slate-100">
+                <th className="w-8 px-2 py-3" />
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Usługa</th>
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Dostawcy</th>
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
+                <th className="w-32" />
+              </tr>
+            </thead>
+            <tbody>
+              {[...services]
+                .sort((a, b) => a.sortOrder - b.sortOrder)
+                .map((svc) => (
+                  <ServicesRow
+                    key={svc._id}
+                    service={svc}
+                    supplierMap={supplierMap}
+                    allSuppliers={allSuppliers}
+                    onSave={handleSave}
+                    onToggle={handleToggle}
+                    onDelete={handleDelete}
+                    onAssignSuppliers={handleAssignSuppliers}
+                    onMoveUp={handleMoveUp}
+                    onMoveDown={handleMoveDown}
+                  />
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ServicesRow({
+  service,
+  supplierMap,
+  allSuppliers,
+  onSave,
+  onToggle,
+  onDelete,
+  onAssignSuppliers,
+  onMoveUp,
+  onMoveDown,
+}: {
+  service: {
+    _id: Id<"services">;
+    name: string;
+    description?: string;
+    supplierIds?: Id<"suppliers">[];
+    isActive: boolean;
+    sortOrder: number;
+  };
+  supplierMap: Map<string, string>;
+  allSuppliers: { _id: Id<"suppliers">; name: string }[];
+  onSave: (id: Id<"services">, data: { name?: string; description?: string }) => Promise<void>;
+  onToggle: (id: Id<"services">) => Promise<void>;
+  onDelete: (id: Id<"services">) => Promise<void>;
+  onAssignSuppliers: (id: Id<"services">, supplierIds: Id<"suppliers">[]) => Promise<void>;
+  onMoveUp: (id: Id<"services">, sortOrder: number) => Promise<void>;
+  onMoveDown: (id: Id<"services">, sortOrder: number) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({
+    name: service.name,
+    description: service.description ?? "",
+    supplierIds: service.supplierIds ?? [] as Id<"suppliers">[],
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    try {
+      await onSave(service._id, { name: draft.name, description: draft.description || undefined });
+      await onAssignSuppliers(service._id, draft.supplierIds);
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Błąd zapisu");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggleSupplier(id: Id<"suppliers">) {
+    setDraft((d) => ({
+      ...d,
+      supplierIds: d.supplierIds.includes(id)
+        ? d.supplierIds.filter((s) => s !== id)
+        : [...d.supplierIds, id],
+    }));
+  }
+
+  const assignedNames = (service.supplierIds ?? [])
+    .map((id) => supplierMap.get(id))
+    .filter(Boolean) as string[];
+
+  if (editing) {
+    return (
+      <tr className="bg-blue-50">
+        <td className="px-4 py-3" colSpan={5}>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa</label>
+                <input
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                  value={draft.name}
+                  onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Opis</label>
+                <input
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                  value={draft.description}
+                  onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Dostawcy</label>
+              {allSuppliers.length === 0 ? (
+                <p className="text-xs text-slate-400">Brak dostawców — dodaj ich w zakładce Dostawcy.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {allSuppliers.map((s) => {
+                    const active = draft.supplierIds.includes(s._id);
+                    return (
+                      <button
+                        key={s._id}
+                        type="button"
+                        onClick={() => toggleSupplier(s._id)}
+                        className={`rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                          active
+                            ? "border-slate-800 bg-slate-900 text-white"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-100"
+                        }`}
+                      >
+                        {s.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            {error && <p className="text-xs text-red-600">{error}</p>}
+            <div className="flex gap-2">
+              <button onClick={save} disabled={busy || !draft.name}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
+                Zapisz
+              </button>
+              <button onClick={() => setEditing(false)}
+                className="rounded-lg border border-slate-300 px-4 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                Anuluj
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className={`group border-b border-slate-100 hover:bg-slate-50 ${!service.isActive ? "opacity-50" : ""}`}>
+      <td className="px-2 py-3">
+        <div className="flex flex-col items-center gap-0.5">
+          <button
+            onClick={() => onMoveUp(service._id, service.sortOrder)}
+            className="text-slate-300 hover:text-slate-600"
+            title="Przesuń w górę"
+          >
+            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            </svg>
+          </button>
+          <button
+            onClick={() => onMoveDown(service._id, service.sortOrder)}
+            className="text-slate-300 hover:text-slate-600"
+            title="Przesuń w dół"
+          >
+            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-sm font-medium text-slate-800">
+        {service.name}
+        {service.description && <span className="ml-1.5 text-xs text-slate-400">{service.description}</span>}
+      </td>
+      <td className="px-4 py-3">
+        {assignedNames.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {assignedNames.map((name) => (
+              <span key={name} className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                {name}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${service.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
+          {service.isActive ? "Aktywna" : "Nieaktywna"}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <div className="invisible flex justify-end gap-1 group-hover:visible">
+          <button onClick={() => setEditing(true)}
+            className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200">Edytuj</button>
+          <button onClick={() => onToggle(service._id)} disabled={busy}
+            className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200">
+            {service.isActive ? "Dezaktywuj" : "Aktywuj"}
+          </button>
+          <button onClick={() => onDelete(service._id)} disabled={busy}
+            className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">Usuń</button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+// --- Dostawcy Tab ---
+
+function SuppliersTab() {
+  const suppliers = useQuery(api.suppliers.list, { includeInactive: true });
+  const createSupplier = useMutation(api.suppliers.create);
+  const updateSupplier = useMutation(api.suppliers.update);
+  const toggleActive = useMutation(api.suppliers.toggleActive);
+  const removeSupplier = useMutation(api.suppliers.remove);
+
+  const [showForm, setShowForm] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await createSupplier({ name: formName.trim() });
+      setFormName("");
+      setShowForm(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Błąd zapisu");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (suppliers === undefined) {
+    return <p className="text-sm text-slate-400">Ładowanie...</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Dostawcy</h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Zarządzaj dostawcami przypisywanymi do usług.
+          </p>
+        </div>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700"
+          >
+            + Dodaj dostawcę
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+          <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">Nowy dostawca</h3>
+          <div className="flex gap-3 items-end">
+            <div className="flex-1">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>
+              <input
+                required
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="np. Alco"
+              />
+            </div>
+          </div>
+          {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+          <div className="mt-4 flex gap-2">
+            <button type="submit" disabled={busy || !formName.trim()}
+              className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
+              Dodaj
+            </button>
+            <button type="button" onClick={() => { setShowForm(false); setFormName(""); setError(null); }}
+              className="rounded-lg border border-slate-300 px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+              Anuluj
+            </button>
+          </div>
+        </form>
+      )}
+
+      {suppliers.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 py-12 text-center">
+          <p className="text-sm text-slate-400">Brak dostawców — dodaj pierwszego dostawcę</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-slate-100">
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Dostawca</th>
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
+                <th className="w-32" />
+              </tr>
+            </thead>
+            <tbody>
+              {[...suppliers].map((s) => (
+                <SupplierRow
+                  key={s._id}
+                  supplier={s}
+                  onSave={(id, data) => updateSupplier({ id, ...data })}
+                  onToggle={(id) => toggleActive({ id })}
+                  onDelete={(id) => removeSupplier({ id })}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SupplierRow({
+  supplier,
+  onSave,
+  onToggle,
+  onDelete,
+}: {
+  supplier: { _id: Id<"suppliers">; name: string; isActive: boolean };
+  onSave: (id: Id<"suppliers">, data: { name?: string }) => Promise<unknown>;
+  onToggle: (id: Id<"suppliers">) => Promise<unknown>;
+  onDelete: (id: Id<"suppliers">) => Promise<unknown>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(supplier.name);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    try {
+      await onSave(supplier._id, { name: draftName });
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Błąd zapisu");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <tr className="bg-blue-50">
+        <td className="px-4 py-3" colSpan={3}>
+          <div className="flex items-center gap-2">
+            <input
+              className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+            />
+            <button onClick={save} disabled={busy || !draftName.trim()}
+              className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
+              Zapisz
+            </button>
+            <button onClick={() => setEditing(false)}
+              className="rounded-lg border border-slate-300 px-4 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+              Anuluj
+            </button>
+          </div>
+          {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className={`group border-b border-slate-100 hover:bg-slate-50 ${!supplier.isActive ? "opacity-50" : ""}`}>
+      <td className="px-4 py-3 text-sm font-medium text-slate-800">{supplier.name}</td>
+      <td className="px-4 py-3">
+        <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${supplier.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
+          {supplier.isActive ? "Aktywny" : "Nieaktywny"}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <div className="invisible flex justify-end gap-1 group-hover:visible">
+          <button onClick={() => setEditing(true)}
+            className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200">Edytuj</button>
+          <button onClick={() => onToggle(supplier._id)} disabled={busy}
+            className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200">
+            {supplier.isActive ? "Dezaktywuj" : "Aktywuj"}
+          </button>
+          <button onClick={() => onDelete(supplier._id)} disabled={busy}
+            className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">Usuń</button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 // --- CRM Tab ---
 
 const CRM_STATUS_KEYS = [
@@ -2374,6 +2939,8 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "sms", label: "SMS" },
   { key: "szablony", label: "Szablony" },
   { key: "crm", label: "CRM" },
+  { key: "uslugi", label: "Usługi" },
+  { key: "dostawcy", label: "Dostawcy" },
   { key: "logi", label: "Logi" },
 ];
 
@@ -2416,6 +2983,8 @@ export default function UstawieniaPage() {
       {activeTab === "sms" && <SmsTab />}
       {activeTab === "szablony" && <SzablonyTab />}
       {activeTab === "crm" && <CrmTab />}
+      {activeTab === "uslugi" && <ServicesTab />}
+      {activeTab === "dostawcy" && <SuppliersTab />}
       {activeTab === "logi" && <LogiTab />}
 
       {/* ── TEST SENTRY — odkomentuj żeby sprawdzić czy błędy docierają do Sentry ──

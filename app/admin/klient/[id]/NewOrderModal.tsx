@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { SERVICES } from "@/convex/schema";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { Loader2, Search } from "lucide-react";
 
@@ -14,15 +13,9 @@ interface NewOrderModalProps {
   onSuccess: (orderId: Id<"orders">, clientId: Id<"clients">) => void;
 }
 
-type Step = "client" | "services" | "colors" | "location";
+type Step = "client" | "services" | "location";
 type ClientMode = "search" | "create";
 type ClientType = "individual" | "business";
-
-const WINDOW_COLORS = ["Złoty dąb", "Orzech", "Winchester", "Antracyt", "Biały", "Woodec Oak", "Niestandardowy"];
-const TERRACE_COLORS = ["Antracyt", "Brąz jasny", "Niestandardowy"];
-const CONSTRUCTION_COLORS = ["Biały", "Antracyt", "Brązowy", "Niestandardowy"];
-const SUN_TYPES = ["Rolety", "Żaluzje"];
-const COLOR_SERVICES = new Set(["Okna", "Drzwi", "Brama", "Zabudowa tarasu", "Konstrukcja aluminiowa", "System przeciwsłoneczny"]);
 
 const EMPTY_CLIENT_FORM = {
   clientType: "individual" as ClientType,
@@ -42,46 +35,8 @@ const EMPTY_CLIENT_FORM = {
 const STEP_LABELS: Record<Step, string> = {
   client: "Klient",
   services: "Usługi",
-  colors: "Kolory",
   location: "Lokalizacja",
 };
-
-function ColorSection({
-  title,
-  options,
-  selected,
-  onChange,
-}: {
-  title: string;
-  options: string[];
-  selected: string[];
-  onChange: (val: string[]) => void;
-}) {
-  function toggle(opt: string) {
-    onChange(selected.includes(opt) ? selected.filter((v) => v !== opt) : [...selected, opt]);
-  }
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{title}</p>
-      <div className="flex flex-wrap gap-1.5">
-        {options.map((opt) => (
-          <button
-            key={opt}
-            type="button"
-            onClick={() => toggle(opt)}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-              selected.includes(opt)
-                ? "border-blue-500 bg-blue-600 text-white"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            {opt}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default function NewOrderModal({ clientId: initialClientId, onClose, onSuccess }: NewOrderModalProps) {
   // ─── Order state ───────────────────────────────────────────────────────────
@@ -89,12 +44,6 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
   const [resolvedClientName, setResolvedClientName] = useState<string>("");
   const [step, setStep] = useState<Step>(initialClientId ? "services" : "client");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
-  const [windowColor, setWindowColor] = useState<string[]>([]);
-  const [doorColor, setDoorColor] = useState<string[]>([]);
-  const [gateColor, setGateColor] = useState<string[]>([]);
-  const [terraceColor, setTerraceColor] = useState<string[]>([]);
-  const [constructionColor, setConstructionColor] = useState<string[]>([]);
-  const [sunProtectionType, setSunProtectionType] = useState<string[]>([]);
   const [investment, setInvestment] = useState({ street: "", buildingNumber: "", apartmentNumber: "", postalCode: "", city: "" });
   const [comment, setComment] = useState("");
   const [customText, setCustomText] = useState("");
@@ -117,14 +66,13 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
   );
   const recentClients = useQuery(api.clients.list, searchQuery.trim().length < 2 ? {} : "skip");
   const searchItems = searchQuery.trim().length >= 2 ? searchResults : recentClients?.page;
-
+  const servicesList = useQuery(api.services.listActive) ?? [];
   const createOrder = useMutation(api.orders.create);
   const createClient = useMutation(api.clients.create);
   const lookupNip = useAction(api.whitelist.lookupNip);
 
   // ─── Step logic ────────────────────────────────────────────────────────────
-  const hasColorStep = selectedServices.some((s) => COLOR_SERVICES.has(s));
-  const baseSteps: Step[] = hasColorStep ? ["services", "colors", "location"] : ["services", "location"];
+  const baseSteps: Step[] = ["services", "location"];
   const allSteps: Step[] = initialClientId ? baseSteps : ["client", ...baseSteps];
   const stepIndex = allSteps.indexOf(step);
 
@@ -250,17 +198,13 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
     if (step === "services") {
       if (selectedServices.length === 0) { setError("Wybierz co najmniej jedną usługę."); return; }
       setError(null);
-      setStep(hasColorStep ? "colors" : "location");
-    } else if (step === "colors") {
-      setError(null);
       setStep("location");
     }
   }
 
   function handleBack() {
     setError(null);
-    if (step === "location") setStep(hasColorStep ? "colors" : "services");
-    else if (step === "colors") setStep("services");
+    if (step === "location") setStep("services");
     else if (step === "services" && !initialClientId) setStep("client");
   }
 
@@ -272,12 +216,6 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
       const orderId = await createOrder({
         clientId: resolvedClientId,
         services: selectedServices.length > 0 ? selectedServices : undefined,
-        windowColor: windowColor.length > 0 ? windowColor : undefined,
-        doorColor: doorColor.length > 0 ? doorColor : undefined,
-        gateColor: gateColor.length > 0 ? gateColor : undefined,
-        terraceColor: terraceColor.length > 0 ? terraceColor : undefined,
-        constructionColor: constructionColor.length > 0 ? constructionColor : undefined,
-        sunProtectionType: sunProtectionType.length > 0 ? sunProtectionType : undefined,
         investmentStreet: investment.street.trim() || undefined,
         investmentBuildingNumber: investment.buildingNumber.trim() || undefined,
         investmentApartmentNumber: investment.apartmentNumber.trim() || undefined,
@@ -827,79 +765,22 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
             <div className="space-y-4">
               <p className="text-sm text-slate-500">Wybierz usługi dla tego zlecenia.</p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {SERVICES.map((service) => (
+                {servicesList.map((svc) => (
                   <button
-                    key={service}
+                    key={svc._id}
                     type="button"
-                    onClick={() => toggleService(service)}
+                    onClick={() => toggleService(svc.name)}
                     className={`rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors ${
-                      selectedServices.includes(service)
+                      selectedServices.includes(svc.name)
                         ? "border-blue-500 bg-blue-600 text-white shadow-sm"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                     }`}
                   >
-                    {service}
+                    {svc.name}
                   </button>
                 ))}
               </div>
               {error && <p className="text-xs font-medium text-red-600">{error}</p>}
-            </div>
-          )}
-
-          {/* ── Krok: Kolory ─────────────────────────────────────────────── */}
-          {step === "colors" && (
-            <div className="space-y-5">
-              <p className="text-sm text-slate-500">
-                Wybierz kolory dla wybranych usług. Możesz wybrać kilka.
-              </p>
-              {selectedServices.includes("Okna") && (
-                <ColorSection
-                  title="Kolor okien"
-                  options={WINDOW_COLORS}
-                  selected={windowColor}
-                  onChange={setWindowColor}
-                />
-              )}
-              {selectedServices.includes("Drzwi") && (
-                <ColorSection
-                  title="Kolor drzwi"
-                  options={WINDOW_COLORS}
-                  selected={doorColor}
-                  onChange={setDoorColor}
-                />
-              )}
-              {selectedServices.includes("Brama") && (
-                <ColorSection
-                  title="Kolor bramy"
-                  options={WINDOW_COLORS}
-                  selected={gateColor}
-                  onChange={setGateColor}
-                />
-              )}
-              {selectedServices.includes("Zabudowa tarasu") && (
-                <ColorSection
-                  title="Kolor tarasu"
-                  options={TERRACE_COLORS}
-                  selected={terraceColor}
-                  onChange={setTerraceColor}
-                />
-              )}
-              {selectedServices.includes("Konstrukcja aluminiowa") && (
-                <ColorSection
-                  title="Kolor konstrukcji"
-                  options={CONSTRUCTION_COLORS}
-                  selected={constructionColor}
-                  onChange={setConstructionColor}
-                />
-              )}
-              {selectedServices.includes("System przeciwsłoneczny") && (
-                <ColorSection
-                  title="Typ systemu"
-                  options={SUN_TYPES}
-                  selected={sunProtectionType}
-                  onChange={setSunProtectionType}
-                />
-              )}
             </div>
           )}
 

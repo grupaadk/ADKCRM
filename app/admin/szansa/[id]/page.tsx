@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { SERVICES } from "@/convex/schema";
 import InlineEdit from "@/app/admin/klient/[id]/InlineEdit";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { useStatusLabel } from "@/components/StatusLabelsContext";
@@ -18,25 +17,12 @@ import TaskKanban from "@/components/TaskKanban";
 const FIELD_LABEL: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: "var(--text-mute)",
   textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  display: "block",
+  letterSpacing: 0.5,
+  color: "var(--text-mute)",
+  margin: 0,
   marginBottom: 4,
 };
-
-const WINDOW_COLORS = [
-  "Złoty dąb",
-  "Orzech",
-  "Winchester",
-  "Antracyt",
-  "Biały",
-  "Woodec Oak",
-  "Niestandardowy",
-];
-const TERRACE_COLORS = ["Antracyt", "Brąz jasny", "Niestandardowy"];
-const CONSTRUCTION_COLORS = ["Biały", "Antracyt", "Brązowy", "Niestandardowy"];
-const SUN_TYPES = ["Rolety", "Żaluzje"];
 
 function ToggleGroup({
   title,
@@ -85,14 +71,7 @@ function ToggleGroup({
   );
 }
 
-const COLOR_SERVICES = new Set([
-  "Okna",
-  "Drzwi",
-  "Brama",
-  "Zabudowa tarasu",
-  "Konstrukcja aluminiowa",
-  "System przeciwsłoneczny",
-]);
+
 
 export default function OpportunityDetailPage({
   params,
@@ -122,6 +101,8 @@ export default function OpportunityDetailPage({
 
   const assignOpportunity = useMutation(api.salesOpportunities.assignOpportunity);
   const assignableUsers = useQuery(api.users.listAllActive) ?? [];
+  const servicesList = useQuery(api.services.listActive) ?? [];
+  const serviceNames = servicesList.map((s) => s.name);
 
   useEffect(() => {
     const el = commentRef.current;
@@ -258,7 +239,6 @@ export default function OpportunityDetailPage({
   }
 
   const selectedServices = opp.services ?? [];
-  const showColors = (s: string) => selectedServices.includes(s);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -647,69 +627,11 @@ export default function OpportunityDetailPage({
         </h2>
         <ToggleGroup
           title="Wybrane usługi"
-          options={SERVICES}
+          options={serviceNames}
           selected={selectedServices}
           onChange={(next) => save("services", next.length > 0 ? next : undefined)}
         />
       </div>
-
-      {/* Kolory */}
-      {selectedServices.some((s) => COLOR_SERVICES.has(s)) && (
-        <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-            Kolory i warianty
-          </h2>
-          {showColors("Okna") && (
-            <ToggleGroup
-              title="Kolor okien"
-              options={WINDOW_COLORS}
-              selected={opp.windowColor ?? []}
-              onChange={(next) => save("windowColor", next.length > 0 ? next : undefined)}
-            />
-          )}
-          {showColors("Drzwi") && (
-            <ToggleGroup
-              title="Kolor drzwi"
-              options={WINDOW_COLORS}
-              selected={opp.doorColor ?? []}
-              onChange={(next) => save("doorColor", next.length > 0 ? next : undefined)}
-            />
-          )}
-          {showColors("Brama") && (
-            <ToggleGroup
-              title="Kolor bramy"
-              options={WINDOW_COLORS}
-              selected={opp.gateColor ?? []}
-              onChange={(next) => save("gateColor", next.length > 0 ? next : undefined)}
-            />
-          )}
-          {showColors("Zabudowa tarasu") && (
-            <ToggleGroup
-              title="Kolor tarasu"
-              options={TERRACE_COLORS}
-              selected={opp.terraceColor ?? []}
-              onChange={(next) => save("terraceColor", next.length > 0 ? next : undefined)}
-            />
-          )}
-          {showColors("Konstrukcja aluminiowa") && (
-            <ToggleGroup
-              title="Kolor konstrukcji"
-              options={CONSTRUCTION_COLORS}
-              selected={opp.constructionColor ?? []}
-              onChange={(next) => save("constructionColor", next.length > 0 ? next : undefined)}
-            />
-          )}
-          {showColors("System przeciwsłoneczny") && (
-            <ToggleGroup
-              title="Typ systemu"
-              options={SUN_TYPES}
-              selected={opp.sunProtectionType ?? []}
-              onChange={(next) => save("sunProtectionType", next.length > 0 ? next : undefined)}
-            />
-          )}
-        </div>
-      )}
-
 
       {/* Załączniki */}
       <OpportunityAttachmentsSection

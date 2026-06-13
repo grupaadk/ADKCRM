@@ -201,14 +201,12 @@ describe("US-2.2 -- Order data update", () => {
     const orderId = await t.mutation(api.orders.create, {
       clientId,
       services: ["Okna", "Drzwi"],
-      windowColor: ["Bialy"],
       comment: "Pilne zamowienie",
     });
 
     const order = await t.query(api.orders.getById, { orderId });
     expect(order?.status).toBe("lead");
     expect(order?.services).toEqual(["Okna", "Drzwi"]);
-    expect(order?.windowColor).toEqual(["Bialy"]);
     expect(order?.comment).toBe("Pilne zamowienie");
   });
 
@@ -218,7 +216,6 @@ describe("US-2.2 -- Order data update", () => {
     const orderId = await t.mutation(api.orders.create, {
       clientId,
       services: ["Okna", "Drzwi"],
-      windowColor: ["Bialy"],
       comment: "Pilne zamowienie",
     });
 
@@ -228,7 +225,6 @@ describe("US-2.2 -- Order data update", () => {
     const order = await t.query(api.orders.getById, { orderId });
     expect(order?.status).toBe("measurement");
     expect(order?.services).toEqual(["Okna", "Drzwi"]);
-    expect(order?.windowColor).toEqual(["Bialy"]);
     expect(order?.comment).toBe("Pilne zamowienie");
   });
 });

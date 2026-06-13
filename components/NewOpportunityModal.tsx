@@ -4,7 +4,6 @@ import { useState, useRef } from "react";
 import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { SERVICES } from "@/convex/schema";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { Upload, X, Loader2, Search } from "lucide-react";
 
@@ -83,6 +82,7 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
   );
   const recentClients = useQuery(api.clients.list, searchQuery.trim().length < 1 ? {} : "skip");
   const searchItems = searchQuery.trim().length >= 1 ? searchResults : recentClients?.page;
+  const servicesList = useQuery(api.services.listActive) ?? [];
 
   const allSteps: Step[] = ["client", "details"];
   const stepIndex = allSteps.indexOf(step);
@@ -678,18 +678,18 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Usługi (opcjonalnie)</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {SERVICES.map((s) => (
+                  {servicesList.map((svc) => (
                     <button
-                      key={s}
+                      key={svc._id}
                       type="button"
-                      onClick={() => toggleService(s)}
+                      onClick={() => toggleService(svc.name)}
                       className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        services.includes(s)
+                        services.includes(svc.name)
                           ? "border-blue-500 bg-blue-600 text-white"
                           : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                       }`}
                     >
-                      {s}
+                      {svc.name}
                     </button>
                   ))}
                 </div>
