@@ -293,7 +293,6 @@ export const update = mutation({
     investmentCity: v.optional(v.string()),
     completionDate: v.optional(v.number()),
     installationStart: v.optional(v.number()),
-    installationEnd: v.optional(v.number()),
     serviceDeliveries: v.optional(v.array(v.object({
       serviceName: v.string(),
       supplierId: v.id("suppliers"),
@@ -876,7 +875,7 @@ export const listByCompletionDateRange = query({
           services: order.services ?? [],
           name: order.name,
           installationStart: order.installationStart,
-          installationEnd: order.installationEnd,
+          customText: order.customText,
         };
       }),
     );
