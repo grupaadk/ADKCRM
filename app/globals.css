@@ -248,6 +248,123 @@ h1, h2, h3, h4, h5, h6 { color: var(--text-strong); }
   font-size: 13px;
 }
 
+/* MultiMonth view - show all events, hide "more" button */
+.fc .fc-multimonth .fc-daygrid-more-link {
+  display: none !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-event-harness {
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-day-events {
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+/* MultiMonth compact - 4 months on screen */
+.fc .fc-multimonth {
+  font-size: 11px !important;
+}
+
+.fc .fc-multimonth-month {
+  padding: 2px !important;
+}
+
+.fc .fc-multimonth-header .fc-col-header-cell {
+  padding: 4px 2px !important;
+  font-size: 10px !important;
+}
+
+.fc .fc-multimonth-day-number {
+  font-size: 10px !important;
+  padding: 1px 3px !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-day-frame {
+  padding: 1px 2px !important;
+  min-height: 0 !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-day-events {
+  margin-top: 1px !important;
+}
+
+.fc .fc-multimonth-month:first-child,
+.fc .fc-multimonth-month:nth-child(2) {
+  margin-bottom: 0 !important;
+}
+
+.fc .fc-multimonth-month:nth-child(2),
+.fc .fc-multimonth-month:nth-child(4) {
+  border-left: 1px solid var(--fc-border-color) !important;
+}
+
+/* MultiMonth event cards - more compact */
+.fc .fc-multimonth .fc-daygrid-block-event {
+  margin: 1px 0 !important;
+  border-radius: 3px !important;
+  font-size: 9px !important;
+  padding: 0 !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-block-event .fc-event-main {
+  padding: 2px 4px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Calendar event card hover effects */
+.calendar-event-card:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+/* Calendar view switcher buttons */
+.calendar-view-btn:hover:not(.active) {
+  background: var(--panel-3) !important;
+}
+
+/* MultiMonth compact - 4 months on screen */
+.fc .fc-multimonth {
+  font-size: 11px !important;
+}
+
+.fc .fc-multimonth-month {
+  padding: 2px !important;
+}
+
+.fc .fc-multimonth-header .fc-col-header-cell {
+  padding: 4px 2px !important;
+  font-size: 10px !important;
+}
+
+.fc .fc-multimonth-day-number {
+  font-size: 10px !important;
+  padding: 1px 3px !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-day-frame {
+  padding: 1px 2px !important;
+  min-height: 0 !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-day-events {
+  margin-top: 1px !important;
+}
+
+.fc .fc-multimonth-month:first-child,
+.fc .fc-multimonth-month:nth-child(2) {
+  margin-bottom: 0 !important;
+}
+
+.fc .fc-multimonth-month:nth-child(2),
+.fc .fc-multimonth-month:nth-child(4) {
+  border-left: 1px solid var(--fc-border-color) !important;
+}
+
 .fc .fc-view-harness {
   flex: 1;
   min-height: 0;

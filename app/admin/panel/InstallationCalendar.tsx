@@ -72,6 +72,13 @@ export default function InstallationCalendar() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [orderSearch, setOrderSearch] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    title: string;
+    content: React.ReactNode;
+  }>({ visible: false, x: 0, y: 0, title: "", content: null });
 
   const allOrders = useQuery(api.orders.listForPicker);
 
@@ -202,19 +209,91 @@ export default function InstallationCalendar() {
       ? `${eventStart.getHours().toString().padStart(2, "0")}:${eventStart.getMinutes().toString().padStart(2, "0")}`
       : null;
 
+    const isQuarterView = arg.view.type === "multiMonth4";
+
+    if (isQuarterView) {
+      const tooltipContent = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {timeStr && (
+              <span style={{
+                fontSize: 11,
+                fontWeight: 800,
+                color: "#fff",
+                background: accentColor,
+                borderRadius: 4,
+                padding: "2px 6px",
+              }}>
+                {timeStr}
+              </span>
+            )}
+            <span style={{ fontWeight: 700 }}>{orderName ?? clientName}</span>
+          </div>
+          {customText && (
+            <span style={{ fontSize: 11, color: "var(--text-mute)" }}>{customText}</span>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "var(--text-mute)" }}>
+            {investmentCity && <span>{investmentCity}</span>}
+            {investmentCity && assignedUserName && <span>•</span>}
+            {assignedUserName && (
+              <span style={{ display: "flex", alignItems: "center", gap: 4, color: accentColor, fontWeight: 600 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: accentColor }} />
+                {assignedUserName}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+
+      return (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            borderRadius: 2,
+            background: accentColor,
+            padding: "0px 3px",
+            fontSize: 8,
+            fontWeight: 600,
+            color: "#fff",
+            overflow: "hidden",
+            whiteSpace: "nowrap",
+            cursor: "pointer",
+            lineHeight: 1.4,
+          }}
+          onMouseEnter={(e) => setTooltip({
+            visible: true,
+            x: e.clientX,
+            y: e.clientY,
+            title: orderName ?? clientName,
+            content: tooltipContent,
+          })}
+          onMouseMove={(e) => setTooltip((t) => ({ ...t, x: e.clientX, y: e.clientY }))}
+          onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
+        >
+          {timeStr && <span style={{ fontWeight: 700 }}>{timeStr}</span>}
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{orderName ?? clientName}</span>
+        </div>
+      );
+    }
+
     return (
-      <div style={{
-        display: "flex",
-        flexDirection: "row",
-        // Bez overflow:hidden — pozwala lewy pasek być w pełni widoczny
-        borderRadius: 6,
-        background: "var(--panel)",
-        border: "1px solid var(--line)",
-        boxShadow: "none",
-        minWidth: 0,
-        width: "100%",
-        cursor: "pointer",
-      }}>
+      <div
+        className="calendar-event-card"
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          borderRadius: 8,
+          background: "var(--panel)",
+          border: "1px solid var(--line)",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+          minWidth: 0,
+          width: "100%",
+          cursor: "pointer",
+          transition: "all 0.15s ease",
+        }}
+      >
         {/* Lewy pasek koloru użytkownika / statusu */}
         <div style={{
           width: 5,
@@ -374,7 +453,7 @@ export default function InstallationCalendar() {
         zIndex: 10,
         flexShrink: 0,
         flexWrap: "wrap",
-        gap: 8,
+        gap: 12,
       }}>
         {/* Nawigacja miesiąca/tygodnia */}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -406,12 +485,13 @@ export default function InstallationCalendar() {
         </div>
 
         {/* Przełącznik widoku + Dzisiaj */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{
             display: "flex",
             background: "var(--panel-2)",
-            borderRadius: 6,
-            padding: 2,
+            borderRadius: 8,
+            padding: 3,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
           }}>
             {(["dayGridMonth", "multiMonth4", "timeGridWeek"] as const).map((v) => (
               <button
@@ -420,26 +500,26 @@ export default function InstallationCalendar() {
                   setView(v);
                   setTimeout(() => calendarRef.current?.getApi().changeView(v), 0);
                 }}
-                className="btn btn-xs"
+                className={`btn btn-xs calendar-view-btn ${view === v ? "active" : ""}`}
                 style={{
                   fontSize: 12,
-                  padding: "5px 12px",
-                  borderRadius: 4,
+                  padding: "6px 14px",
+                  borderRadius: 5,
                   background: view === v ? "var(--accent)" : "transparent",
                   color: view === v ? "#fff" : "var(--text)",
                   border: "none",
-                  fontWeight: view === v ? 600 : 400,
-                  transition: "background 0.15s, color 0.15s",
-                }}
-              >
-                {v === "dayGridMonth" ? "Miesiąc" : v === "multiMonth4" ? "Kwartał" : "Tydzień"}
+                  fontWeight: view === v ? 600 : 500,
+                  transition: "all 0.15s ease",
+                  margin: "0 1px",
+                }}>
+                  {v === "dayGridMonth" ? "Miesiąc" : v === "multiMonth4" ? "Kwartał" : "Tydzień"}
               </button>
             ))}
           </div>
           <button
             onClick={() => calendarRef.current?.getApi().today()}
             className="btn btn-xs"
-            style={{ fontSize: 12, padding: "5px 14px" }}
+            style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6 }}
           >
             Dzisiaj
           </button>
@@ -458,6 +538,8 @@ export default function InstallationCalendar() {
               type: "multiMonth",
               duration: { months: 4 },
               multiMonthMaxColumns: 2,
+              dayMaxEvents: 99,
+              dayMaxEventRows: 99,
             },
           }}
           locale={plLocale}
@@ -472,7 +554,7 @@ export default function InstallationCalendar() {
           eventContent={renderEventContent}
           height="100%"
           expandRows={true}
-          dayMaxEvents={3}
+          dayMaxEvents={view === "multiMonth4" ? 99 : 3}
           eventTimeFormat={{
             hour: "2-digit",
             minute: "2-digit",
@@ -500,6 +582,28 @@ export default function InstallationCalendar() {
           </div>
         )}
       </div>
+
+      {/* Tooltip dla widoku kwartalnego */}
+      {tooltip.visible && createPortal(
+        <div style={{
+          position: "fixed",
+          left: tooltip.x + 12,
+          top: tooltip.y + 12,
+          zIndex: 100,
+          background: "var(--panel)",
+          border: "1px solid var(--line)",
+          borderRadius: 8,
+          padding: "10px 12px",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+          fontSize: 12,
+          color: "var(--text)",
+          maxWidth: 260,
+          pointerEvents: "none",
+        }}>
+          {tooltip.content}
+        </div>,
+        document.body
+      )}
 
       {/* Modal: przypisz zlecenie do daty */}
       {dateModalOpen && selectedDate && createPortal(
