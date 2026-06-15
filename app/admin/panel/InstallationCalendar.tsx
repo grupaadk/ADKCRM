@@ -668,6 +668,7 @@ export default function InstallationCalendar() {
               multiMonthMaxColumns: 2,
               dayMaxEvents: 99,
               dayMaxEventRows: 99,
+              fixedWeekCount: true,
             },
           }}
           locale={plLocale}
@@ -867,6 +868,7 @@ export default function InstallationCalendar() {
                   multiMonthMaxColumns: 2,
                   dayMaxEvents: 99,
                   dayMaxEventRows: 99,
+                  fixedWeekCount: true,
                 },
               }}
               locale={plLocale}

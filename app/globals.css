@@ -404,13 +404,25 @@ h1, h2, h3, h4, h5, h6 { color: var(--text-strong); }
 
 .fc .fc-multimonth .fc-daygrid-body {
   flex: 1 !important;
-  display: flex !important;
-  flex-direction: column !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-body table {
+  height: 100% !important;
+  table-layout: fixed !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-body tr {
+  height: 16.66% !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-body td {
+  width: 14.28% !important;
+  vertical-align: top !important;
 }
 
 .fc .fc-multimonth .fc-daygrid-day {
-  flex: 1 !important;
   min-height: 0 !important;
+  width: 100% !important;
 }
 
 .fc .fc-multimonth .fc-multimonth-title {
@@ -432,6 +444,7 @@ h1, h2, h3, h4, h5, h6 { color: var(--text-strong); }
 .fc .fc-multimonth .fc-daygrid-day-frame {
   min-height: 0 !important;
   padding: 0px 1px !important;
+  height: 100% !important;
 }
 
 .fc .fc-multimonth .fc-daygrid-day-events {
