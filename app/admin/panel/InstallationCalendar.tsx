@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
+import multiMonthPlugin from "@fullcalendar/multimonth";
 import interactionPlugin from "@fullcalendar/interaction";
 import plLocale from "@fullcalendar/core/locales/pl";
 import type { EventClickArg, EventDropArg, EventContentArg, DatesSetArg } from "@fullcalendar/core";
@@ -60,7 +61,7 @@ export default function InstallationCalendar() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [weekRange, setWeekRange] = useState<{ start: Date; end: Date } | null>(null);
-  const [view, setView] = useState<"dayGridMonth" | "timeGridWeek">("dayGridMonth");
+  const [view, setView] = useState<"dayGridMonth" | "timeGridWeek" | "multiMonth4">("dayGridMonth");
   const [visibleRange, setVisibleRange] = useState<{ start: Date; end: Date }>({
     start: new Date(year, month, 1),
     end: new Date(year, month + 1, 0),
@@ -412,7 +413,7 @@ export default function InstallationCalendar() {
             borderRadius: 6,
             padding: 2,
           }}>
-            {(["dayGridMonth", "timeGridWeek"] as const).map((v) => (
+            {(["dayGridMonth", "multiMonth4", "timeGridWeek"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => {
@@ -431,7 +432,7 @@ export default function InstallationCalendar() {
                   transition: "background 0.15s, color 0.15s",
                 }}
               >
-                {v === "dayGridMonth" ? "Miesiąc" : "Tydzień"}
+                {v === "dayGridMonth" ? "Miesiąc" : v === "multiMonth4" ? "Kwartał" : "Tydzień"}
               </button>
             ))}
           </div>
@@ -450,8 +451,15 @@ export default function InstallationCalendar() {
         <FullCalendar
           ref={calendarRef}
           key={view}
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          plugins={[dayGridPlugin, timeGridPlugin, multiMonthPlugin, interactionPlugin]}
           initialView={view}
+          views={{
+            multiMonth4: {
+              type: "multiMonth",
+              duration: { months: 4 },
+              multiMonthMaxColumns: 2,
+            },
+          }}
           locale={plLocale}
           headerToolbar={false}
           events={events}
