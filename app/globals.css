@@ -316,6 +316,19 @@ h1, h2, h3, h4, h5, h6 { color: var(--text-strong); }
   text-overflow: ellipsis !important;
 }
 
+/* FullCalendar cell backgrounds */
+.fc .fc-daygrid-day,
+.fc .fc-timegrid-col,
+.fc .fc-multimonth-month {
+  background: var(--panel) !important;
+}
+
+.fc .fc-daygrid-day.fc-day-today,
+.fc .fc-timegrid-col.fc-day-today,
+.fc .fc-multimonth-day.fc-day-today {
+  background: var(--fc-today-bg-color) !important;
+}
+
 /* Calendar event card hover effects */
 .calendar-event-card:hover {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
@@ -363,6 +376,122 @@ h1, h2, h3, h4, h5, h6 { color: var(--text-strong); }
 .fc .fc-multimonth-month:nth-child(2),
 .fc .fc-multimonth-month:nth-child(4) {
   border-left: 1px solid var(--fc-border-color) !important;
+}
+
+/* Force multiMonth to fit container - compact but full months */
+.fc .fc-multimonth {
+  height: 100% !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-content: stretch !important;
+  gap: 0 !important;
+}
+
+.fc .fc-multimonth-month {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 50% !important;
+  max-width: 50% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.fc .fc-multimonth .fc-daygrid {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-body {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-day {
+  flex: 1 !important;
+  min-height: 0 !important;
+}
+
+.fc .fc-multimonth .fc-multimonth-title {
+  font-size: clamp(9px, 1vw, 12px) !important;
+  padding: clamp(1px, 0.3vw, 4px) clamp(3px, 0.6vw, 8px) !important;
+  font-weight: 600 !important;
+}
+
+.fc .fc-multimonth .fc-col-header-cell-cushion {
+  padding: 0px 2px !important;
+  font-size: clamp(7px, 0.8vw, 9px) !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-day-number {
+  line-height: 1 !important;
+  font-size: clamp(7px, 0.8vw, 9px) !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-day-frame {
+  min-height: 0 !important;
+  padding: 0px 1px !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-day-events {
+  margin-top: 0 !important;
+}
+
+.fc .fc-multimonth .fc-daygrid-event-harness {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* Responsive multiMonth */
+@media (max-width: 900px) {
+  .fc .fc-multimonth {
+    font-size: 8px !important;
+  }
+  .fc .fc-multimonth-month {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+    border-left: none !important;
+    border-top: 1px solid var(--fc-border-color) !important;
+  }
+  .fc .fc-multimonth-month:first-child {
+    border-top: none !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1400px) {
+  .fc .fc-multimonth {
+    font-size: 9px !important;
+  }
+}
+
+@media (min-width: 1401px) {
+  .fc .fc-multimonth {
+    font-size: 10px !important;
+  }
+}
+
+/* Full screen quarterly view - larger fonts */
+body > .fc-fullscreen-calendar .fc .fc-multimonth {
+  font-size: 14px !important;
+}
+
+body > .fc-fullscreen-calendar .fc .fc-multimonth-title {
+  font-size: 18px !important;
+  padding: 8px 12px !important;
+}
+
+body > .fc-fullscreen-calendar .fc .fc-col-header-cell-cushion {
+  padding: 4px 6px !important;
+  font-size: 11px !important;
+}
+
+body > .fc-fullscreen-calendar .fc .fc-daygrid-day-number {
+  font-size: 11px !important;
+}
+
+body > .fc-fullscreen-calendar .fc .fc-daygrid-day-frame {
+  padding: 2px 4px !important;
 }
 
 .fc .fc-view-harness {

@@ -926,6 +926,7 @@ export const listByCompletionDateRange = query({
           name: order.name,
           installationStart: order.installationStart,
           customText: order.customText,
+          assignedUserId: order.assignedUserId,
           assignedUserColor,
           assignedUserName,
           investmentCity: order.investmentCity,

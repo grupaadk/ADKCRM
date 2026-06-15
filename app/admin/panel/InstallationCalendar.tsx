@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -61,7 +61,7 @@ export default function InstallationCalendar() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [weekRange, setWeekRange] = useState<{ start: Date; end: Date } | null>(null);
-  const [view, setView] = useState<"dayGridMonth" | "timeGridWeek" | "multiMonth4">("dayGridMonth");
+  const [view, setView] = useState<"multiMonth4" | "dayGridMonth" | "timeGridWeek">("multiMonth4");
   const [visibleRange, setVisibleRange] = useState<{ start: Date; end: Date }>({
     start: new Date(year, month, 1),
     end: new Date(year, month + 1, 0),
@@ -72,6 +72,7 @@ export default function InstallationCalendar() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [orderSearch, setOrderSearch] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [fullScreenOpen, setFullScreenOpen] = useState(false);
   const [tooltip, setTooltip] = useState<{
     visible: boolean;
     x: number;
@@ -81,6 +82,33 @@ export default function InstallationCalendar() {
   }>({ visible: false, x: 0, y: 0, title: "", content: null });
 
   const allOrders = useQuery(api.orders.listForPicker);
+  const currentUser = useQuery(api.users.me);
+  const allUsers = useQuery(api.users.listAllActive);
+  const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!currentUser?._id) return;
+    const key = `montaz_user_filter_${currentUser._id}`;
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr)) setActiveUserFilters(new Set(arr));
+      }
+    } catch {}
+  }, [currentUser?._id]);
+
+  const toggleUserFilter = (id: string) => {
+    setActiveUserFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      if (currentUser?._id) {
+        localStorage.setItem(`montaz_user_filter_${currentUser._id}`, JSON.stringify([...next]));
+      }
+      return next;
+    });
+  };
 
   const orders = useQuery(api.orders.listByCompletionDateRange, {
     startDate: visibleRange.start.getTime(),
@@ -89,7 +117,14 @@ export default function InstallationCalendar() {
 
   const events = useMemo(() => {
     if (!orders) return [];
-    return orders.map((o) => {
+    const filtered = activeUserFilters.size === 0
+      ? orders
+      : orders.filter((o) => {
+          const uid = o.assignedUserId as string | undefined;
+          if (!uid) return activeUserFilters.has("__none__");
+          return activeUserFilters.has(uid);
+        });
+    return filtered.map((o) => {
       const startMins = o.installationStart ?? DEFAULT_START_HOUR * 60;
       const start = minsToDate(o.completionDate, startMins);
       const end = minsToDate(o.completionDate, startMins + EVENT_DURATION_HOURS * 60);
@@ -110,12 +145,13 @@ export default function InstallationCalendar() {
           orderName: o.name,
           customText: o.customText,
           investmentCity: o.investmentCity,
+          assignedUserId: o.assignedUserId,
           assignedUserName: o.assignedUserName,
           assignedUserColor: o.assignedUserColor,
         },
       };
     });
-  }, [orders]);
+  }, [orders, activeUserFilters]);
 
   // BUG FIX: zapisuje zarówno nową datę dnia (completionDate) jak i godzinę (installationStart)
   // dzięki temu drag & drop między dniami w widoku tygodniowym działa poprawnie.
@@ -250,17 +286,18 @@ export default function InstallationCalendar() {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 2,
+            gap: 1,
             borderRadius: 2,
             background: accentColor,
-            padding: "0px 3px",
-            fontSize: 8,
+            padding: "0px 2px",
+            fontSize: 7,
             fontWeight: 600,
             color: "#fff",
             overflow: "hidden",
             whiteSpace: "nowrap",
             cursor: "pointer",
-            lineHeight: 1.4,
+            lineHeight: 1.2,
+            maxHeight: "14px",
           }}
           onMouseEnter={(e) => setTooltip({
             visible: true,
@@ -493,7 +530,7 @@ export default function InstallationCalendar() {
             padding: 3,
             boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
           }}>
-            {(["dayGridMonth", "multiMonth4", "timeGridWeek"] as const).map((v) => (
+            {(["multiMonth4", "dayGridMonth", "timeGridWeek"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => {
@@ -512,7 +549,7 @@ export default function InstallationCalendar() {
                   transition: "all 0.15s ease",
                   margin: "0 1px",
                 }}>
-                  {v === "dayGridMonth" ? "Miesiąc" : v === "multiMonth4" ? "Kwartał" : "Tydzień"}
+                  {v === "multiMonth4" ? "Kwartał" : v === "dayGridMonth" ? "Miesiąc" : "Tydzień"}
               </button>
             ))}
           </div>
@@ -523,8 +560,99 @@ export default function InstallationCalendar() {
           >
             Dzisiaj
           </button>
+          {view === "multiMonth4" && (
+            <button
+              onClick={() => setFullScreenOpen(true)}
+              className="btn btn-xs"
+              style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6 }}
+              title="Pełny ekran"
+            >
+              ⛶
+            </button>
+          )}
         </div>
       </div>
+
+      {/* User filter chips */}
+      {allUsers && (
+        <div style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 4,
+          padding: "8px 20px",
+          borderBottom: "1px solid var(--line)",
+          background: "var(--card)",
+        }}>
+          {[...allUsers]
+            .sort((a, b) => {
+              if (a._id === currentUser?._id) return -1;
+              if (b._id === currentUser?._id) return 1;
+              return 0;
+            })
+            .map((user) => {
+              const name = user.displayName ?? user.login ?? "?";
+              const isMe = user._id === currentUser?._id;
+              const active = activeUserFilters.has(user._id as string);
+              return (
+                <button
+                  key={user._id}
+                  onClick={() => toggleUserFilter(user._id as string)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "4px 10px",
+                    borderRadius: 20,
+                    fontSize: 11.5,
+                    background: active ? `${user.color ?? "#64748b"}22` : "var(--panel)",
+                    color: active ? (user.color ?? "var(--accent)") : "var(--text-mute)",
+                    border: `1.5px solid ${active ? (user.color ?? "var(--accent)") : "var(--line)"}`,
+                    fontWeight: active ? 600 : 500,
+                    cursor: "pointer",
+                    transition: "all 0.12s",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <span style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: user.color ? (active ? user.color : `${user.color}80`) : (active ? "#64748b" : "#64748b40"),
+                    flexShrink: 0,
+                  }} />
+                  {name}{isMe ? " (Ty)" : ""}
+                </button>
+              );
+            })}
+          <button
+            onClick={() => toggleUserFilter("__none__")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "4px 10px",
+              borderRadius: 20,
+              fontSize: 11.5,
+              background: activeUserFilters.has("__none__") ? "var(--panel-3)" : "var(--panel)",
+              color: activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)",
+              border: `1.5px solid ${activeUserFilters.has("__none__") ? "var(--text-mute)" : "var(--line)"}`,
+              fontWeight: activeUserFilters.has("__none__") ? 600 : 500,
+              cursor: "pointer",
+              transition: "all 0.12s",
+              fontFamily: "inherit",
+            }}
+          >
+            <span style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              flexShrink: 0,
+              border: `1.5px dashed ${activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)"}`,
+            }} />
+            Bez przypisania
+          </button>
+        </div>
+      )}
 
       {/* Kalendarz — FullCalendar ZAWSZE zamontowany, żeby nawigacja nie resetowała widoku */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
@@ -601,6 +729,170 @@ export default function InstallationCalendar() {
           pointerEvents: "none",
         }}>
           {tooltip.content}
+        </div>,
+        document.body
+      )}
+
+      {/* Full screen kwartalny widok */}
+      {fullScreenOpen && createPortal(
+        <div className="fc-fullscreen-calendar" style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 60,
+          display: "flex",
+          flexDirection: "column",
+          background: "var(--background)",
+        }}>
+          {/* Toolbar */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 20px",
+            borderBottom: "1px solid var(--line)",
+            background: "var(--card)",
+            flexShrink: 0,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{
+                fontSize: 17,
+                fontWeight: 700,
+                color: "var(--text-strong)",
+              }}>
+                Widok kwartalny — pełny ekran
+              </span>
+            </div>
+            <button
+              onClick={() => setFullScreenOpen(false)}
+              className="btn btn-xs"
+              style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6 }}
+            >
+              ✕ Zamknij
+            </button>
+          </div>
+
+          {/* User filter chips */}
+          {allUsers && (
+            <div style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 4,
+              padding: "8px 20px",
+              borderBottom: "1px solid var(--line)",
+              background: "var(--card)",
+              flexShrink: 0,
+            }}>
+              {[...allUsers]
+                .sort((a, b) => {
+                  if (a._id === currentUser?._id) return -1;
+                  if (b._id === currentUser?._id) return 1;
+                  return 0;
+                })
+                .map((user) => {
+                  const name = user.displayName ?? user.login ?? "?";
+                  const isMe = user._id === currentUser?._id;
+                  const active = activeUserFilters.has(user._id as string);
+                  return (
+                    <button
+                      key={user._id}
+                      onClick={() => toggleUserFilter(user._id as string)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        padding: "4px 10px",
+                        borderRadius: 20,
+                        fontSize: 11.5,
+                        background: active ? `${user.color ?? "#64748b"}22` : "var(--panel)",
+                        color: active ? (user.color ?? "var(--accent)") : "var(--text-mute)",
+                        border: `1.5px solid ${active ? (user.color ?? "var(--accent)") : "var(--line)"}`,
+                        fontWeight: active ? 600 : 500,
+                        cursor: "pointer",
+                        transition: "all 0.12s",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      <span style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: user.color ? (active ? user.color : `${user.color}80`) : (active ? "#64748b" : "#64748b40"),
+                        flexShrink: 0,
+                      }} />
+                      {name}{isMe ? " (Ty)" : ""}
+                    </button>
+                  );
+                })}
+              <button
+                onClick={() => toggleUserFilter("__none__")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "4px 10px",
+                  borderRadius: 20,
+                  fontSize: 11.5,
+                  background: activeUserFilters.has("__none__") ? "var(--panel-3)" : "var(--panel)",
+                  color: activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)",
+                  border: `1.5px solid ${activeUserFilters.has("__none__") ? "var(--text-mute)" : "var(--line)"}`,
+                  fontWeight: activeUserFilters.has("__none__") ? 600 : 500,
+                  cursor: "pointer",
+                  transition: "all 0.12s",
+                  fontFamily: "inherit",
+                }}
+              >
+                <span style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  flexShrink: 0,
+                  border: `1.5px dashed ${activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)"}`,
+                }} />
+                Bez przypisania
+              </button>
+            </div>
+          )}
+
+          {/* Kalendarz full screen */}
+          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <FullCalendar
+              ref={calendarRef}
+              key="fullscreen"
+              plugins={[dayGridPlugin, timeGridPlugin, multiMonthPlugin, interactionPlugin]}
+              initialView="multiMonth4"
+              views={{
+                multiMonth4: {
+                  type: "multiMonth",
+                  duration: { months: 4 },
+                  multiMonthMaxColumns: 2,
+                  dayMaxEvents: 99,
+                  dayMaxEventRows: 99,
+                },
+              }}
+              locale={plLocale}
+              headerToolbar={false}
+              events={events}
+              editable={true}
+              eventDurationEditable={false}
+              eventClick={handleEventClick}
+              eventDrop={handleEventDrop}
+              dateClick={handleDateClick}
+              datesSet={handleDatesSet}
+              eventContent={renderEventContent}
+              height="100%"
+              expandRows={true}
+              dayMaxEvents={99}
+              eventTimeFormat={{
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              }}
+              allDaySlot={false}
+              nowIndicator={true}
+              eventDisplay="block"
+              eventClassNames={["fc-event-custom"]}
+            />
+          </div>
         </div>,
         document.body
       )}
