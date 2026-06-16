@@ -935,3 +935,59 @@ export const listByCompletionDateRange = query({
     );
   },
 });
+
+export const listSupplierOrders = query({
+  args: {},
+  handler: async (ctx) => {
+    const orders = await ctx.db
+      .query("orders")
+      .filter((q) => q.neq(q.field("serviceDeliveries"), undefined))
+      .order("desc")
+      .collect();
+
+    const supplierCache = new Map<string, string>();
+
+    return await Promise.all(
+      orders
+        .filter((o) => o.serviceDeliveries && o.serviceDeliveries.length > 0)
+        .map(async (order) => {
+          let clientName = "";
+          if (order.clientId) {
+            const client = await ctx.db.get(order.clientId);
+            if (client) {
+              clientName =
+                client.clientType === "business" && client.companyName
+                  ? client.companyName
+                  : `${client.firstName} ${client.lastName}`.trim();
+            }
+          }
+
+          const deliveries = await Promise.all(
+            (order.serviceDeliveries ?? []).map(async (d) => {
+              let supplierName = supplierCache.get(d.supplierId as string);
+              if (!supplierName) {
+                const supplier = await ctx.db.get(d.supplierId);
+                supplierName = supplier?.name ?? "Nieznany";
+                supplierCache.set(d.supplierId as string, supplierName);
+              }
+              return {
+                serviceName: d.serviceName,
+                supplierName,
+                orderDate: d.orderDate,
+                deliveryDate: d.deliveryDate,
+              };
+            }),
+          );
+
+          return {
+            _id: order._id,
+            clientId: order.clientId,
+            name: order.name,
+            clientName,
+            status: order.status,
+            deliveries,
+          };
+        }),
+    );
+  },
+});

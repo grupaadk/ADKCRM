@@ -31,6 +31,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Calendar,
+  Package,
 } from "lucide-react"
 
 type NavItem = {
@@ -50,6 +51,7 @@ const mainItems: NavItem[] = [
   { href: "/admin/panel", label: "Panel", icon: LayoutGrid },
   { href: "/admin/montaz", label: "Montaż", icon: Calendar },
   { href: "/admin/zamowienia", label: "Zlecenia", icon: ClipboardList },
+  { href: "/admin/zamowienia-dostawcy", label: "Zamówienia od dostawcy", icon: Package },
   { href: "/admin/klienci", label: "Klienci", icon: Users, countKey: "clients", alsoActiveFor: ["/admin/klient/"] },
   { href: "/admin/faktury", label: "Faktury", icon: Receipt },
 ]

@@ -26,9 +26,10 @@ const STATUS_LABELS: Record<string, string> = {
   offer: "Oferta",
   contract: "Umowa",
   production: "Produkcja",
-  installation: "Montaz",
-  completed: "Zakonczone",
+  installation: "Montaż",
+  completed: "Zakończone",
   complaint: "Reklamacja",
+  archived: "Archiwum",
 };
 
 type DocumentType =

@@ -32,3 +32,13 @@ export const saveStatusLabels = mutation({
     }
   },
 });
+
+export const resetStatusLabels = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const existing = await ctx.db.query("crmConfig").first();
+    if (existing) {
+      await ctx.db.patch(existing._id, { statusLabels: {} });
+    }
+  },
+});

@@ -80,6 +80,14 @@ type CachedInvoice = {
   orderId?: Id<"orders">;
 };
 
+const STATUS_COLORS: Record<string, { bg: string; border: string; text: string }> = {
+  measurement: { bg: "#dcfce7", border: "#86efac", text: "#15803d" },
+  contract: { bg: "#dbeafe", border: "#93c5fd", text: "#1d4ed8" },
+  production: { bg: "#fef3c7", border: "#fcd34d", text: "#b45309" },
+  installation: { bg: "#e0e7ff", border: "#a5b4fc", text: "#4338ca" },
+  completed: { bg: "#dcfce7", border: "#86efac", text: "#15803d" },
+};
+
 const VISIBLE_STATUS_ORDER = [
   "measurement",
   "contract",
@@ -1495,6 +1503,8 @@ export default function OrderDetailPage({
             const isCurrent =
               visibleStatusIndex === index && !isBeforeMeasurement && !isArchived;
             const canClick = !isCurrent && !isArchived;
+            const prevStatus = index > 0 ? VISIBLE_STATUS_ORDER[index - 1] : null;
+            const prevIsPast = prevStatus ? (visibleStatusIndex > VISIBLE_STATUS_ORDER.indexOf(prevStatus) || isComplaint || isArchived) : false;
 
             return (
               <div
@@ -1507,7 +1517,7 @@ export default function OrderDetailPage({
                     height="10"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke={isPast ? "#86efac" : "#d1d5db"}
+                    stroke={prevIsPast ? STATUS_COLORS[prevStatus ?? ""]?.text ?? "#86efac" : "#d1d5db"}
                     strokeWidth={2.5}
                   >
                     <path
@@ -1534,17 +1544,17 @@ export default function OrderDetailPage({
                     fontWeight: 600,
                     border: "1px solid",
                     borderColor: isPast
-                      ? "#86efac"
+                      ? STATUS_COLORS[status]?.border ?? "#86efac"
                       : isCurrent
                         ? "#fdba74"
                         : "#e5e7eb",
                     background: isPast
-                      ? "#dcfce7"
+                      ? STATUS_COLORS[status]?.bg ?? "#dcfce7"
                       : isCurrent
                         ? "#fff7ed"
                         : "var(--panel)",
                     color: isPast
-                      ? "#15803d"
+                      ? STATUS_COLORS[status]?.text ?? "#15803d"
                       : isCurrent
                         ? "#ea580c"
                         : "#9ca3af",
