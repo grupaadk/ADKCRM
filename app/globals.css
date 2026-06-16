@@ -298,7 +298,12 @@ h1, h2, h3, h4, h5, h6 { color: var(--text-strong); }
 
 .fc .fc-multimonth-month:nth-child(2),
 .fc .fc-multimonth-month:nth-child(4) {
-  border-left: 1px solid var(--fc-border-color) !important;
+  border-left: 3px solid #64748b !important;
+}
+
+.fc .fc-multimonth-month:nth-child(3),
+.fc .fc-multimonth-month:nth-child(4) {
+  border-top: 3px solid #64748b !important;
 }
 
 /* MultiMonth event cards - more compact */
@@ -375,7 +380,12 @@ h1, h2, h3, h4, h5, h6 { color: var(--text-strong); }
 
 .fc .fc-multimonth-month:nth-child(2),
 .fc .fc-multimonth-month:nth-child(4) {
-  border-left: 1px solid var(--fc-border-color) !important;
+  border-left: 3px solid #64748b !important;
+}
+
+.fc .fc-multimonth-month:nth-child(3),
+.fc .fc-multimonth-month:nth-child(4) {
+  border-top: 3px solid #64748b !important;
 }
 
 /* Force multiMonth to fit container - compact but full months */
