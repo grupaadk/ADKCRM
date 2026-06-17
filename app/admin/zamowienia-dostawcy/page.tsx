@@ -4,8 +4,7 @@ import { useState, useMemo } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { useRouter } from "next/navigation"
-import { ChevronUp, ChevronDown, ChevronsUpDown, Search, X, ExternalLink } from "lucide-react"
+import { ChevronUp, ChevronDown, ChevronsUpDown, Search, X } from "lucide-react"
 import { CrmPageHeader, CrmEmptyState, fmtDate } from "@/components/crm-ui"
 
 type SortField =
@@ -165,7 +164,6 @@ function deliveryCellDecor(
 }
 
 export default function SupplierOrdersPage() {
-  const router = useRouter()
   const orders = useQuery(api.orders.listSupplierOrders)
   const isLoading = orders === undefined
 
@@ -313,6 +311,13 @@ export default function SupplierOrdersPage() {
   const clearReceived = (row: Row) =>
     updateDeliveryDate({ orderId: row.orderId, deliveryIndex: row.deliveryIndex, field: "receivedDate", value: null })
 
+  // Klik w wiersz otwiera szczegóły zlecenia w nowej karcie — ignoruj kliknięcia
+  // w interaktywne elementy (pola dat, przyciski odbioru)
+  const openOrder = (row: Row, e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("input, button")) return
+    window.open(`/admin/klient/${row.clientId}/zlecenie/${row.orderId}`, "_blank")
+  }
+
   const isFiltering = !!search.trim() || supplierFilter.size > 0 || statusFilter.size > 0
 
   return (
@@ -435,13 +440,12 @@ export default function SupplierOrdersPage() {
                 <th style={{ cursor: "pointer", width: 150 }} onClick={() => handleSort("status")}>
                   Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
                 </th>
-                <th style={{ width: 50 }} />
               </tr>
             </thead>
             <tbody>
               {isLoading && Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 9 }).map((_, j) => (
+                  {Array.from({ length: 8 }).map((_, j) => (
                     <td key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} /></td>
                   ))}
                 </tr>
@@ -449,7 +453,7 @@ export default function SupplierOrdersPage() {
 
               {!isLoading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={8}>
                     <CrmEmptyState message={isFiltering ? "Brak wyników dla wybranych filtrów." : "Brak zamówień od dostawców."} />
                   </td>
                 </tr>
@@ -459,7 +463,7 @@ export default function SupplierOrdersPage() {
                 const status = rowStatus(r, todayStart)
                 const delivery = deliveryCellDecor(r, status, todayStart)
                 return (
-                  <tr key={r.key}>
+                  <tr key={r.key} onClick={(e) => openOrder(r, e)} style={{ cursor: "pointer" }} title="Otwórz zlecenie w nowej karcie">
                     <td className="mono" style={{ fontSize: 11, color: "var(--text-mute)" }}>
                       {r.orderName ?? <span style={{ color: "var(--panel-3)" }}>—</span>}
                     </td>
@@ -522,19 +526,6 @@ export default function SupplierOrdersPage() {
                       )}
                     </td>
                     <td><StatusBadge status={status} /></td>
-                    <td style={{ textAlign: "right" }}>
-                      <button
-                        onClick={() => router.push(`/admin/klient/${r.clientId}/zlecenie/${r.orderId}`)}
-                        title="Otwórz zlecenie"
-                        style={{
-                          display: "inline-flex", alignItems: "center", justifyContent: "center",
-                          background: "transparent", border: "none", cursor: "pointer",
-                          color: "var(--text-mute)", padding: 4, borderRadius: 4,
-                        }}
-                      >
-                        <ExternalLink style={{ width: 14, height: 14 }} />
-                      </button>
-                    </td>
                   </tr>
                 )
               })}
