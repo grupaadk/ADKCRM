@@ -323,10 +323,9 @@ export default function ComplaintPhotoSection({
                       right: 4,
                       display: "flex",
                       gap: 2,
-                      opacity: 0,
+                      opacity: 1,
                       transition: "opacity 0.15s",
                     }}
-                    className="group-hover:opacity-100"
                   >
                     {confirmingDeleteId === img.id ? (
                       <span style={{ display: "flex", alignItems: "center", gap: 3, background: "rgba(0,0,0,0.75)", borderRadius: 4, padding: "2px 6px" }}>
