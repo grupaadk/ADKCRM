@@ -1,46 +1,62 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { DEFAULT_STATUSES, type StatusDef } from "@/lib/statuses";
 
-export const DEFAULT_STATUS_LABELS: Record<string, string> = {
-  lead: "Lead",
-  inquiry: "Zapytanie",
-  measurement: "Pomiar",
-  offer: "Oferta",
-  contract: "Umowa",
-  production: "Produkcja",
-  installation: "Montaż",
-  completed: "Zakończone",
-  complaint: "Reklamacja",
-  archived: "Archiwum",
-};
+/** @deprecated — używaj rejestru (useStatuses/useStatusDef). Zachowane dla zgodności. */
+export const DEFAULT_STATUS_LABELS: Record<string, string> = Object.fromEntries(
+  DEFAULT_STATUSES.map((s) => [s.key, s.label]),
+);
 
-const StatusLabelsContext = createContext<Record<string, string>>(DEFAULT_STATUS_LABELS);
+interface RegistryValue {
+  statuses: StatusDef[];
+  byKey: Record<string, StatusDef>;
+  labels: Record<string, string>;
+}
+
+function buildValue(statuses: StatusDef[]): RegistryValue {
+  const byKey: Record<string, StatusDef> = {};
+  const labels: Record<string, string> = {};
+  for (const s of statuses) {
+    byKey[s.key] = s;
+    labels[s.key] = s.label;
+  }
+  return { statuses, byKey, labels };
+}
+
+const StatusRegistryContext = createContext<RegistryValue>(buildValue(DEFAULT_STATUSES));
 
 export function StatusLabelsProvider({ children }: { children: ReactNode }) {
-  const config = useQuery(api.crmConfig.getConfig);
-
-  const labels: Record<string, string> = { ...DEFAULT_STATUS_LABELS };
-  if (config?.statusLabels) {
-    for (const [key, value] of Object.entries(config.statusLabels)) {
-      if (value) labels[key] = value;
-    }
-  }
-
+  const data = useQuery(api.crmConfig.listStatuses);
+  const value = useMemo(
+    () => buildValue((data as StatusDef[] | undefined) ?? DEFAULT_STATUSES),
+    [data],
+  );
   return (
-    <StatusLabelsContext.Provider value={labels}>
+    <StatusRegistryContext.Provider value={value}>
       {children}
-    </StatusLabelsContext.Provider>
+    </StatusRegistryContext.Provider>
   );
 }
 
-export function useStatusLabels(): Record<string, string> {
-  return useContext(StatusLabelsContext);
+/** Pełny rejestr statusów (posortowany wg sortOrder). */
+export function useStatuses(): StatusDef[] {
+  return useContext(StatusRegistryContext).statuses;
 }
 
+/** Definicja pojedynczego statusu (lub undefined dla nieznanego/osieroconego klucza). */
+export function useStatusDef(key: string): StatusDef | undefined {
+  return useContext(StatusRegistryContext).byKey[key];
+}
+
+/** Mapa klucz→nazwa (zgodność wsteczna). */
+export function useStatusLabels(): Record<string, string> {
+  return useContext(StatusRegistryContext).labels;
+}
+
+/** Nazwa pojedynczego statusu (fallback: surowy klucz). */
 export function useStatusLabel(status: string): string {
-  const labels = useContext(StatusLabelsContext);
-  return labels[status] ?? status;
+  return useContext(StatusRegistryContext).labels[status] ?? status;
 }

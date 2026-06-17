@@ -64,18 +64,9 @@ export const SERVICES = [
   "Inne",
 ] as const;
 
-const clientStatus = v.union(
-  v.literal("lead"),
-  v.literal("inquiry"),
-  v.literal("measurement"),
-  v.literal("offer"),
-  v.literal("contract"),
-  v.literal("production"),
-  v.literal("installation"),
-  v.literal("completed"),
-  v.literal("complaint"),
-  v.literal("archived"),
-);
+// Statusy są teraz dynamiczne (rejestr w crmConfig.statuses) — walidator to
+// v.string(), a poprawność klucza sprawdzamy w runtime wobec rejestru.
+// Listę bazową trzyma lib/statuses.ts (CLIENT_STATUSES poniżej dla zgodności wstecznej).
 
 const documentEntry = v.object({
   enabled: v.boolean(),
@@ -169,7 +160,7 @@ export default defineSchema({
 
     // Pola legacy (zachowane dla danych istniejących, nieużywane przez nowy kod)
     address: v.optional(v.string()),
-    status: v.optional(clientStatus),
+    status: v.optional(v.string()),
     documents: v.optional(documentSet),
     warrantyCards: v.optional(v.array(warrantyCard)),
     folderId: v.optional(v.string()),
@@ -218,8 +209,8 @@ export default defineSchema({
     investmentPostalCode: v.optional(v.string()),
     investmentCity: v.optional(v.string()),
 
-    // Status workflow
-    status: clientStatus,
+    // Status workflow — dynamiczny klucz z rejestru (crmConfig.statuses)
+    status: v.string(),
     productionDate: v.optional(v.number()),
     completionDate: v.optional(v.number()),
     realizationStartDate: v.optional(v.number()),
@@ -526,8 +517,24 @@ export default defineSchema({
     recipients: v.optional(v.array(v.object({ name: v.string(), phone: v.string() }))),
   }),
 
-  // 3.15 Konfiguracja CRM (singleton) — m.in. niestandardowe nazwy statusów
+  // 3.15 Konfiguracja CRM (singleton) — rejestr statusów + legacy nazwy
   crmConfig: defineTable({
+    // Dynamiczny rejestr statusów zleceń (źródło prawdy). Gdy puste → fallback
+    // do lib/statuses.ts (DEFAULT_STATUSES) + migracja statusLabels.
+    statuses: v.optional(
+      v.array(
+        v.object({
+          key: v.string(),
+          label: v.string(),
+          color: v.string(),
+          sortOrder: v.number(),
+          hidden: v.boolean(),
+          isCore: v.boolean(),
+          kind: v.union(v.literal("opportunity"), v.literal("order")),
+        }),
+      ),
+    ),
+    // @deprecated — stare niestandardowe nazwy (zachowane do migracji).
     statusLabels: v.optional(
       v.object({
         lead: v.optional(v.string()),

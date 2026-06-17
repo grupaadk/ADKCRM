@@ -1,23 +1,8 @@
 import { v, ConvexError } from "convex/values";
 import { query, mutation, action, internalMutation, MutationCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
-import { STATUS_TRANSITIONS, CLIENT_STATUSES } from "./schema";
 import { requireUser, userIdentifier } from "./lib/auth";
-
-type OrderStatus = (typeof CLIENT_STATUSES)[number];
-
-const orderStatusValidator = v.union(
-  v.literal("lead"),
-  v.literal("inquiry"),
-  v.literal("measurement"),
-  v.literal("offer"),
-  v.literal("contract"),
-  v.literal("production"),
-  v.literal("installation"),
-  v.literal("completed"),
-  v.literal("complaint"),
-  v.literal("archived"),
-);
+import { resolveStatuses, type StatusDef } from "../lib/statuses";
 
 export async function nextOrderNumber(ctx: MutationCtx): Promise<string> {
   const now = new Date();
@@ -360,11 +345,25 @@ export const clearInstallationDate = mutation({
 export const changeStatus = mutation({
   args: {
     orderId: v.id("orders"),
-    newStatus: orderStatusValidator,
+    newStatus: v.string(),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
     const userId = userIdentifier(user);
+
+    // Walidacja celu wobec dynamicznego rejestru statusów.
+    const config = await ctx.db.query("crmConfig").first();
+    const registry = resolveStatuses(
+      config?.statuses as StatusDef[] | undefined,
+      config?.statusLabels,
+    );
+    const target = registry.find((s) => s.key === args.newStatus);
+    if (!target) {
+      throw new ConvexError("Nieznany status");
+    }
+    if (target.kind !== "order") {
+      throw new ConvexError("Nie można ustawić zlecenia na status szansy sprzedaży");
+    }
 
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");

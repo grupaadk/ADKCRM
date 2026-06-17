@@ -1,4 +1,8 @@
+"use client"
+
 import React, { ReactNode, CSSProperties } from "react"
+import { useStatusDef } from "@/components/StatusLabelsContext"
+import { deriveStatusStyle } from "@/lib/statuses"
 
 // ── CrmPageHeader ──────────────────────────────────────────────────
 type Tab = { key: string; label: string; count?: number }
@@ -154,22 +158,20 @@ export function Pill({ variant = "default", dot = true, children }: PillProps) {
   )
 }
 
-// ── Status-to-pill mapping for ADK order statuses ──────────────────
-const STATUS_MAP: Record<string, { label: string; variant: PillVariant }> = {
-  lead:         { label: "Lead",               variant: "acc" },
-  inquiry:      { label: "Oferta wysłana",     variant: "violet" },
-  measurement:  { label: "Do pomiarów",        variant: "warn" },
-  offer:        { label: "Oferta po pomiarze", variant: "warn" },
-  contract:     { label: "Umowa",              variant: "ok" },
-  production:   { label: "Produkcja",          variant: "acc" },
-  installation: { label: "Montaż",             variant: "acc" },
-  completed:    { label: "Zakończone",         variant: "ok" },
-  complaint:    { label: "Reklamacja",          variant: "bad" },
-}
-
+// ── StatusPill — nazwa i kolor z dynamicznego rejestru ─────────────
 export function StatusPill({ status }: { status: string }) {
-  const cfg = STATUS_MAP[status] ?? { label: status, variant: "default" as PillVariant }
-  return <Pill variant={cfg.variant}>{cfg.label}</Pill>
+  const def = useStatusDef(status)
+  const label = def?.label ?? status
+  const style = deriveStatusStyle(def?.color ?? "#6b7280")
+  return (
+    <span
+      className="pill"
+      style={{ background: style.bg, color: style.text, border: `1px solid ${style.border}` }}
+    >
+      <span className="dot" style={{ background: style.dot }} />
+      {label}
+    </span>
+  )
 }
 
 // ── Avatar initials ────────────────────────────────────────────────

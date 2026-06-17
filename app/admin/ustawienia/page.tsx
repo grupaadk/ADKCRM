@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useAction } from "convex/react";
-import { DEFAULT_STATUS_LABELS, useStatusLabels } from "@/components/StatusLabelsContext";
+import { deriveStatusStyle, makeCustomStatusKey, type StatusDef } from "@/lib/statuses";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -2819,81 +2819,215 @@ function SupplierRow({
   );
 }
 
-// --- CRM Tab ---
+// --- CRM Tab: menedżer statusów ---
 
-const CRM_STATUS_KEYS = [
-  "lead", "inquiry", "measurement", "offer", "contract",
-  "production", "installation", "completed", "complaint", "archived",
-] as const;
+const KIND_LABEL: Record<string, string> = {
+  opportunity: "szansa sprzedaży",
+  order: "zlecenie",
+};
 
 function CrmTab() {
-  const config = useQuery(api.crmConfig.getConfig);
-  const saveStatusLabels = useMutation(api.crmConfig.saveStatusLabels);
+  const registry = useQuery(api.crmConfig.listStatuses);
+  const usage = useQuery(api.crmConfig.statusUsageCounts);
+  const saveStatuses = useMutation(api.crmConfig.saveStatuses);
 
-  const [labels, setLabels] = useState<Record<string, string>>({});
+  const [draft, setDraft] = useState<StatusDef[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
 
   useEffect(() => {
-    if (config !== undefined) {
-      const merged: Record<string, string> = {};
-      for (const key of CRM_STATUS_KEYS) {
-        merged[key] = config?.statusLabels?.[key] ?? DEFAULT_STATUS_LABELS[key] ?? key;
-      }
-      setLabels(merged);
+    if (registry) setDraft(registry.map((s) => ({ ...s })));
+  }, [registry]);
+
+  if (!draft) {
+    return <div className="text-sm text-slate-400">Ładowanie...</div>;
+  }
+
+  const update = (idx: number, patch: Partial<StatusDef>) =>
+    setDraft((d) => d!.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+
+  const reorder = (from: number, to: number) =>
+    setDraft((d) => {
+      if (!d || to < 0 || to >= d.length || from === to) return d;
+      const next = [...d];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+
+  const addCustom = () => {
+    setDraft((d) => {
+      const list = d ?? [];
+      const key = makeCustomStatusKey("nowy status", list.map((s) => s.key), Date.now());
+      return [
+        ...list,
+        {
+          key,
+          label: "Nowy status",
+          color: "#3b82f6",
+          sortOrder: list.length,
+          hidden: false,
+          isCore: false,
+          kind: "order" as const,
+        },
+      ];
+    });
+  };
+
+  const remove = (idx: number) => {
+    setError(null);
+    const s = draft[idx];
+    if (s.isCore) return;
+    const count = usage?.[s.key] ?? 0;
+    if (count > 0) {
+      setError(`Status „${s.label}" jest używany przez ${count} ${count === 1 ? "zlecenie" : "zleceń"} — najpierw przenieś je do innego statusu.`);
+      return;
     }
-  }, [config]);
+    setDraft((d) => d!.filter((_, i) => i !== idx));
+  };
 
   async function handleSave() {
+    setError(null);
+    if (!draft) return;
+    for (const s of draft) {
+      if (!s.label.trim()) {
+        setError("Nazwa statusu nie może być pusta.");
+        return;
+      }
+    }
     setSaving(true);
     try {
-      const payload: Record<string, string | undefined> = {};
-      for (const key of CRM_STATUS_KEYS) {
-        const val = labels[key]?.trim();
-        payload[key] = val && val !== DEFAULT_STATUS_LABELS[key] ? val : undefined;
-      }
-      await saveStatusLabels({
-        statusLabels: payload as Parameters<typeof saveStatusLabels>[0]["statusLabels"],
-      });
+      const payload = draft.map((s, i) => ({ ...s, sortOrder: i }));
+      await saveStatuses({ statuses: payload });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      const msg =
+        (err as { data?: string })?.data ??
+        (err as Error)?.message ??
+        "Błąd zapisu";
+      setError(msg);
     } finally {
       setSaving(false);
     }
   }
 
-  if (config === undefined) {
-    return <div className="text-sm text-slate-400">Ladowanie...</div>;
-  }
-
   return (
-    <div className="max-w-lg space-y-6">
+    <div className="max-w-2xl space-y-5">
       <div>
-        <h2 className="text-base font-semibold text-slate-900">Nazwy statusów</h2>
+        <h2 className="text-base font-semibold text-slate-900">Statusy zleceń</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Zmień wyświetlane nazwy statusów w całym CRM. Zostaw puste, aby użyć domyślnej nazwy.
+          Zarządzaj nazwami, kolorami i kolejnością statusów w całym CRM. Przeciągnij, aby zmienić
+          kolejność. Możesz dodać własne statusy. Statusów bazowych nie można usunąć.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3">
-        {CRM_STATUS_KEYS.map((key) => (
-          <div key={key} className="flex items-center gap-3">
-            <span className="w-28 shrink-0 text-xs text-slate-400">
-              {DEFAULT_STATUS_LABELS[key]}
-            </span>
-            <input
-              value={labels[key] ?? ""}
-              onChange={(e) =>
-                setLabels((prev) => ({ ...prev, [key]: e.target.value }))
-              }
-              placeholder={DEFAULT_STATUS_LABELS[key]}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-        ))}
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {draft.map((s, idx) => {
+          const style = deriveStatusStyle(s.color);
+          const count = usage?.[s.key] ?? 0;
+          return (
+            <div
+              key={s.key}
+              draggable
+              onDragStart={() => setDragIdx(idx)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => {
+                if (dragIdx !== null) reorder(dragIdx, idx);
+                setDragIdx(null);
+              }}
+              onDragEnd={() => setDragIdx(null)}
+              className={`flex items-center gap-2 rounded-md border bg-white px-2.5 py-2 ${
+                dragIdx === idx ? "border-blue-400 opacity-60" : "border-slate-200"
+              }`}
+            >
+              <span className="cursor-grab select-none text-slate-300" title="Przeciągnij">⠿</span>
+
+              <div className="flex shrink-0 flex-col">
+                <button
+                  type="button"
+                  onClick={() => reorder(idx, idx - 1)}
+                  disabled={idx === 0}
+                  className="px-1 text-[10px] leading-none text-slate-400 hover:text-slate-700 disabled:opacity-30"
+                  title="W górę"
+                >▲</button>
+                <button
+                  type="button"
+                  onClick={() => reorder(idx, idx + 1)}
+                  disabled={idx === draft.length - 1}
+                  className="px-1 text-[10px] leading-none text-slate-400 hover:text-slate-700 disabled:opacity-30"
+                  title="W dół"
+                >▼</button>
+              </div>
+
+              <input
+                type="color"
+                value={s.color}
+                onChange={(e) => update(idx, { color: e.target.value })}
+                className="h-7 w-9 shrink-0 cursor-pointer rounded border border-slate-200 bg-white p-0.5"
+                title="Kolor"
+              />
+
+              <input
+                value={s.label}
+                onChange={(e) => update(idx, { label: e.target.value })}
+                className="min-w-0 flex-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+
+              <span
+                className="hidden shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium sm:inline-flex"
+                style={{ background: style.bg, color: style.text, boxShadow: `inset 0 0 0 1px ${style.border}` }}
+                title="Podgląd"
+              >
+                <span className="size-1.5 rounded-full" style={{ background: style.dot }} />
+                {s.label || "—"}
+              </span>
+
+              <label className="flex shrink-0 items-center gap-1 text-xs text-slate-500" title="Ukryj kolumnę na tablicy">
+                <input
+                  type="checkbox"
+                  checked={s.hidden}
+                  onChange={(e) => update(idx, { hidden: e.target.checked })}
+                />
+                ukryj
+              </label>
+
+              <span className="w-24 shrink-0 text-right text-[11px] text-slate-400">
+                {s.isCore ? KIND_LABEL[s.kind] : `${count} zleceń`}
+              </span>
+
+              {s.isCore ? (
+                <span className="w-7 shrink-0 text-center text-[11px] text-slate-300" title="Status bazowy — nie można usunąć">🔒</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => remove(idx)}
+                  className="w-7 shrink-0 text-center text-slate-400 hover:text-red-600"
+                  title="Usuń status"
+                >✕</button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      <div className="flex items-center gap-3">
+      <button
+        type="button"
+        onClick={addCustom}
+        className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+      >
+        + Dodaj status
+      </button>
+
+      <div className="flex items-center gap-3 border-t border-slate-200 pt-4">
         <button
           onClick={handleSave}
           disabled={saving}
@@ -2901,9 +3035,7 @@ function CrmTab() {
         >
           {saving ? "Zapisywanie..." : "Zapisz"}
         </button>
-        {saved && (
-          <span className="text-sm text-emerald-600">Zapisano.</span>
-        )}
+        {saved && <span className="text-sm text-emerald-600">Zapisano.</span>}
       </div>
     </div>
   );

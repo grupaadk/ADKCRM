@@ -1,5 +1,5 @@
 import { query } from "./_generated/server";
-import { CLIENT_STATUSES } from "./schema";
+import { resolveStatuses, type StatusDef } from "../lib/statuses";
 
 // Dashboard stats: count orders by status, total clients, documents enabled
 export const getStats = query({
@@ -10,10 +10,15 @@ export const getStats = query({
 
     const allOrders = await ctx.db.query("orders").collect();
 
-    // Count orders by status
+    // Count orders by status (klucze z dynamicznego rejestru)
+    const config = await ctx.db.query("crmConfig").first();
+    const registry = resolveStatuses(
+      config?.statuses as StatusDef[] | undefined,
+      config?.statusLabels,
+    );
     const byStatus: Record<string, number> = {};
-    for (const status of CLIENT_STATUSES) {
-      byStatus[status] = 0;
+    for (const s of registry) {
+      byStatus[s.key] = 0;
     }
     for (const order of allOrders) {
       byStatus[order.status] = (byStatus[order.status] ?? 0) + 1;

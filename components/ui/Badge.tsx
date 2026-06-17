@@ -3,7 +3,8 @@
 import React from "react"
 import { tv, type VariantProps } from "tailwind-variants"
 import { cx } from "./utils"
-import { useStatusLabels, DEFAULT_STATUS_LABELS } from "@/components/StatusLabelsContext"
+import { useStatusDef } from "@/components/StatusLabelsContext"
+import { deriveStatusStyle } from "@/lib/statuses"
 
 const badgeVariants = tv({
   base: cx(
@@ -46,46 +47,24 @@ Badge.displayName = "Badge"
 
 export { Badge, badgeVariants, type BadgeProps }
 
-// ADK Status mapping
-const STATUS_BADGE_MAP: Record<string, { label: string; variant: BadgeProps["variant"] }> = {
-  lead:         { label: "Lead",               variant: "default" },
-  inquiry:      { label: "Oferta wysłana",     variant: "purple" },
-  measurement:  { label: "Do pomiarów",        variant: "amber" },
-  offer:        { label: "Oferta po pomiarze", variant: "orange" },
-  contract:     { label: "Umowa",              variant: "success" },
-  production:   { label: "Produkcja",          variant: "violet" },
-  installation: { label: "Montaż",             variant: "teal" },
-  completed:    { label: "Zakończone",         variant: "success" },
-  complaint:    { label: "Reklamacja",          variant: "cyan" },
-}
-
+// ADK Status badge — nazwa i kolor z dynamicznego rejestru
 export function StatusBadge({ status }: { status: string }) {
-  const labels = useStatusLabels()
-  const config = STATUS_BADGE_MAP[status] ?? { label: status, variant: "neutral" as const }
-  const label = labels[status] ?? config.label
+  const def = useStatusDef(status)
+  const label = def?.label ?? status
+  const style = deriveStatusStyle(def?.color ?? "#6b7280")
   return (
-    <Badge variant={config.variant}>
+    <span
+      className={cx(
+        "inline-flex items-center gap-x-1 whitespace-nowrap rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset",
+      )}
+      style={{ background: style.bg, color: style.text, boxShadow: `inset 0 0 0 1px ${style.border}` }}
+    >
       <span
-        className={cx(
-          "size-1.5 shrink-0 rounded-full",
-          status === "lead"         && "bg-blue-500",
-          status === "inquiry"      && "bg-purple-500",
-          status === "measurement"  && "bg-amber-500",
-          status === "offer"        && "bg-orange-500",
-          status === "contract"     && "bg-emerald-600",
-          status === "production"   && "bg-violet-500",
-          status === "installation" && "bg-teal-500",
-          status === "completed"    && "bg-emerald-600",
-          status === "complaint"    && "bg-cyan-500",
-          !STATUS_BADGE_MAP[status] && "bg-gray-500",
-        )}
+        className="size-1.5 shrink-0 rounded-full"
+        style={{ background: style.dot }}
         aria-hidden="true"
       />
       {label}
-    </Badge>
+    </span>
   )
-}
-
-export function getStatusLabel(status: string): string {
-  return DEFAULT_STATUS_LABELS[status] ?? STATUS_BADGE_MAP[status]?.label ?? status
 }

@@ -7,9 +7,7 @@ import { api } from "@/convex/_generated/api"
 import { ChevronUp, ChevronDown, ChevronsUpDown, Search, X } from "lucide-react"
 import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
 import { CrmEmptyState, fmtDate } from "@/components/crm-ui"
-import { useStatusLabels } from "@/components/StatusLabelsContext"
-
-const STATUS_ORDER = ["lead", "inquiry", "measurement", "offer", "contract", "production", "installation", "complaint", "completed", "archived"]
+import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
 
 type SortField = "client" | "city" | "status" | "services" | "createdAt" | "totalGross"
 type SortDirection = "asc" | "desc"
@@ -81,6 +79,7 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
 export default function OrderList() {
   const router = useRouter()
   const statusLabels = useStatusLabels()
+  const statuses = useStatuses()
   const orders = useQuery(api.orders.list, {})
   const currentUser = useQuery(api.users.me)
   const allUsers = useQuery(api.users.listAllActive)
@@ -325,7 +324,7 @@ export default function OrderList() {
         {/* Row 2: status filter */}
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
           <span className="mute" style={{ fontSize: 11, marginRight: 2 }}>Status:</span>
-          {STATUS_ORDER.filter((s) => (statusCounts[s] ?? 0) > 0).map((s) => (
+          {statuses.map((st) => st.key).filter((s) => (statusCounts[s] ?? 0) > 0).map((s) => (
             <FilterBtn key={s} isActive={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? null : s)}>
               {statusLabels[s] ?? s} <CountBadge count={statusCounts[s] ?? 0} active={statusFilter === s} />
             </FilterBtn>

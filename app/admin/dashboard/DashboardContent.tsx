@@ -2,10 +2,9 @@
 
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useStatusLabels } from "@/components/StatusLabelsContext";
+import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext";
 import { StatusBadge } from "@/components/ui/Badge";
 import Link from "next/link";
-import { CLIENT_STATUSES } from "@/convex/schema";
 import { Users, UserPlus, ClipboardList, CheckCircle } from "lucide-react";
 
 function relativeTime(ts: number): string {
@@ -82,6 +81,7 @@ export default function DashboardContent() {
   const stats = useQuery(api.dashboard.getStats);
   const events = useQuery(api.dashboard.getRecentEvents);
   const labels = useStatusLabels();
+  const statuses = useStatuses();
 
   if (!stats || !events) {
     return (
@@ -150,16 +150,16 @@ export default function DashboardContent() {
           Pipeline zleceń
         </h2>
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-          {CLIENT_STATUSES.map((status) => (
+          {statuses.map((s) => (
             <div
-              key={status}
+              key={s.key}
               className="rounded-lg border border-gray-200 bg-white p-3 text-center"
             >
               <p className="text-2xl font-bold text-gray-900">
-                {stats.byStatus[status] ?? 0}
+                {stats.byStatus[s.key] ?? 0}
               </p>
               <div className="mt-2 flex justify-center">
-                <StatusBadge status={status} />
+                <StatusBadge status={s.key} />
               </div>
             </div>
           ))}

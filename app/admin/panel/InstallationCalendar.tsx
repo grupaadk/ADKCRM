@@ -13,18 +13,7 @@ import plLocale from "@fullcalendar/core/locales/pl";
 import type { EventClickArg, EventDropArg, EventContentArg, DatesSetArg } from "@fullcalendar/core";
 import type { DateClickArg } from "@fullcalendar/interaction";
 import type { Id } from "@/convex/_generated/dataModel";
-
-const STATUS_COLORS: Record<string, string> = {
-  lead: "#50253F",
-  inquiry: "#50253F",
-  measurement: "#3E5224",
-  offer: "#50253F",
-  contract: "#50253F",
-  production: "#164555",
-  installation: "#533F04",
-  complaint: "#533F04",
-  completed: "#37471F",
-};
+import { useStatuses } from "@/components/StatusLabelsContext";
 
 const MONTH_NAMES = [
   "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
@@ -89,6 +78,13 @@ export default function InstallationCalendar() {
     title: string;
     content: React.ReactNode;
   }>({ visible: false, x: 0, y: 0, title: "", content: null });
+
+  const statuses = useStatuses();
+  const statusColorByKey = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const s of statuses) m[s.key] = s.color;
+    return m;
+  }, [statuses]);
 
   const allOrders = useQuery(api.orders.listForPicker);
   const currentUser = useQuery(api.users.me);
@@ -254,7 +250,7 @@ export default function InstallationCalendar() {
       assignedUserColor?: string;
     };
 
-    const accentColor = assignedUserColor ?? STATUS_COLORS[status] ?? "#64748b";
+    const accentColor = assignedUserColor ?? statusColorByKey[status] ?? "#64748b";
 
     const eventStart = arg.event.start;
     const timeStr = eventStart

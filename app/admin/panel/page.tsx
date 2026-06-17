@@ -4,27 +4,13 @@ import { useState, useRef, useEffect, useMemo } from "react"
 import { useQuery, useMutation, useAction } from "convex/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { api } from "@/convex/_generated/api"
-import { useStatusLabels } from "@/components/StatusLabelsContext"
+import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
+import { deriveStatusStyle } from "@/lib/statuses"
 import type { KanbanItem } from "@/convex/kanban"
 import { Plus, ChevronDown, ChevronUp, Archive, ArchiveRestore } from "lucide-react"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 import NewOpportunityModal from "@/components/NewOpportunityModal"
 
-const KANBAN_COLUMNS = [
-  { key: "lead",         bg: "#50253F", border: "#3C1C2F" },
-  { key: "inquiry",      bg: "#50253F", border: "#3C1C2F" },
-  { key: "measurement",  bg: "#3E5224", border: "#2E3E1B" },
-  { key: "offer",        bg: "#50253F", border: "#3C1C2F" },
-  { key: "contract",     bg: "#50253F", border: "#3C1C2F" },
-  { key: "production",   bg: "#164555", border: "#0E3340" },
-  { key: "installation", bg: "#533F04", border: "#3F2F03" },
-  { key: "complaint",    bg: "#533F04", border: "#3F2F03" },
-  { key: "completed",    bg: "#37471F", border: "#283517" },
-] as const
-
-const OPPORTUNITY_KEYS: ReadonlyArray<string> = ["lead", "inquiry"]
-
-type ColumnKey = (typeof KANBAN_COLUMNS)[number]["key"]
 type DocState = "gray" | "red" | "green"
 
 const DOC_COLORS: Record<DocState, string> = {
@@ -487,6 +473,7 @@ function ArchivedTab() {
 // ─── Główny komponent ────────────────────────────────────────────────
 export default function PanelPage() {
   const statusLabels = useStatusLabels()
+  const statuses = useStatuses()
   const router = useRouter()
   const searchParams = useSearchParams()
   const initialTab = searchParams.get("tab") as "kanban" | "opportunities" | "archived" | "archived-leads" | null
@@ -585,10 +572,12 @@ export default function PanelPage() {
     return () => ro.disconnect()
   }, [activeTab, items, expandedCards])
 
-  const visibleColumns = KANBAN_COLUMNS.filter((c) =>
-    activeTab === "opportunities"
-      ? OPPORTUNITY_KEYS.includes(c.key)
-      : !OPPORTUNITY_KEYS.includes(c.key),
+  const visibleColumns = statuses.filter((s) =>
+    s.hidden
+      ? false
+      : activeTab === "opportunities"
+        ? s.kind === "opportunity"
+        : s.kind === "order",
   )
 
   const newLeadsCount = (items ?? []).filter((i) => i.status === "lead").length
@@ -655,7 +644,11 @@ export default function PanelPage() {
     if (item.type === "pending") {
       return ["lead", "inquiry", "measurement"].filter((k) => k !== item.status)
     }
-    return KANBAN_COLUMNS.map((c) => c.key).filter((k) => k !== item.status)
+    // Zlecenia: dowolny status order-side (any→any), poza bieżącym.
+    return statuses
+      .filter((s) => s.kind === "order")
+      .map((s) => s.key)
+      .filter((k) => k !== item.status)
   }
 
   const handleDragStart = (e: React.DragEvent, item: KanbanItem) => {
@@ -925,6 +918,8 @@ export default function PanelPage() {
                   const isValid = validTargets.includes(col.key)
                   const isDraggingSameCol = draggingItem?.status === col.key
                   const colOpacity = draggingItem && !isDraggingSameCol && !isValid ? 0.45 : 1
+                  const st = deriveStatusStyle(col.color)
+                  const onSolid = st.solidText === "#ffffff" ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.12)"
 
                   return (
                     <div
@@ -936,15 +931,15 @@ export default function PanelPage() {
                     >
                       <div style={{
                         padding: "7px 10px", borderRadius: 7,
-                        background: col.bg, border: `1px solid ${col.border}`,
+                        background: st.solidBg, border: `1px solid ${st.solidBorder}`,
                         display: "flex", alignItems: "center", justifyContent: "space-between",
-                        fontSize: 11.5, fontWeight: 700, color: "white",
+                        fontSize: 11.5, fontWeight: 700, color: st.solidText,
                       }}>
                         <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {statusLabels[col.key] ?? col.key}
+                          {col.label}
                         </span>
                         <span style={{
-                          background: "rgba(255,255,255,0.25)",
+                          background: onSolid,
                           borderRadius: 4, padding: "1px 6px",
                           fontSize: 10.5, fontWeight: 700, flexShrink: 0, marginLeft: 4,
                         }}>
@@ -966,8 +961,8 @@ export default function PanelPage() {
                   const isValid = validTargets.includes(col.key)
                   const isDraggingSameCol = draggingItem?.status === col.key
 
-                  let dropBg: string = "transparent"
-                  let dropBorder = `1.5px dashed ${col.border}`
+                  const dropBg: string = "transparent"
+                  let dropBorder = `1.5px dashed ${deriveStatusStyle(col.color).solidBorder}`
                   if (isDraggingOver && isValid) {
                     dropBorder = "1.5px dashed var(--accent)"
                   } else if (isDraggingOver && !isValid && !isDraggingSameCol) {

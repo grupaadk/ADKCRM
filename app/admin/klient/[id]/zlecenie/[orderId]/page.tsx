@@ -10,7 +10,8 @@ import DriveFolderButton from "@/components/DriveFolderButton";
 import { useRouter, useSearchParams } from "next/navigation";
 import DocumentCheckboxes from "../../DocumentCheckboxes";
 import OrderLineItems from "../../OrderLineItems";
-import { useStatusLabels } from "@/components/StatusLabelsContext";
+import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext";
+import { deriveStatusStyle } from "@/lib/statuses";
 import ComplaintTab from "./ComplaintTab";
 import OrderDriveBrowser from "./OrderDriveBrowser";
 import TaskDrawer from "@/components/TaskDrawer";
@@ -80,23 +81,6 @@ type CachedInvoice = {
   orderId?: Id<"orders">;
 };
 
-const STATUS_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  measurement: { bg: "#dcfce7", border: "#86efac", text: "#15803d" },
-  contract: { bg: "#dbeafe", border: "#93c5fd", text: "#1d4ed8" },
-  production: { bg: "#fef3c7", border: "#fcd34d", text: "#b45309" },
-  installation: { bg: "#e0e7ff", border: "#a5b4fc", text: "#4338ca" },
-  completed: { bg: "#dcfce7", border: "#86efac", text: "#15803d" },
-};
-
-const VISIBLE_STATUS_ORDER = [
-  "measurement",
-  "contract",
-  "production",
-  "installation",
-  "completed",
-] as const;
-
-type VisibleStatus = (typeof VISIBLE_STATUS_ORDER)[number];
 
 
 type Tab = "szczegoly" | "wycena" | "reklamacja" | "notatki";
@@ -1088,6 +1072,11 @@ export default function OrderDetailPage({
   const router = useRouter();
 
   const statusLabels = useStatusLabels();
+  const statuses = useStatuses();
+  // Stepper realizacji: statusy order-side (poza reklamacją/ukrytymi), wg kolejności rejestru.
+  const visibleStatusOrder = statuses.filter(
+    (s) => s.kind === "order" && !s.hidden && s.key !== "complaint",
+  );
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as Tab) ?? "szczegoly";
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
@@ -1183,33 +1172,18 @@ export default function OrderDetailPage({
   }
 
   const statusLabel = statusLabels[order.status] ?? order.status;
-  const visibleStatusIndex = VISIBLE_STATUS_ORDER.indexOf(
-    order.status as VisibleStatus,
+  const visibleStatusIndex = visibleStatusOrder.findIndex(
+    (s) => s.key === order.status,
   );
-  const isBeforeMeasurement = [
-    "lead",
-    "inquiry",
-    "offer",
-  ].includes(order.status);
   const isComplaint = order.status === "complaint";
   const isArchived = order.status === "archived";
+  // Status nie należący do stepu (np. ukryty status własny) — pokazujemy osobny badge.
+  const isStatusOutsideTimeline =
+    visibleStatusIndex === -1 && !isComplaint && !isArchived;
 
   async function handleStatusChange(newStatus: string) {
     try {
-      await changeStatus({
-        orderId: orderIdTyped,
-        newStatus: newStatus as
-          | "lead"
-          | "inquiry"
-          | "measurement"
-          | "offer"
-          | "contract"
-          | "production"
-          | "installation"
-          | "completed"
-          | "complaint"
-          | "archived",
-      });
+      await changeStatus({ orderId: orderIdTyped, newStatus });
     } catch (error) {
       console.error("Status change failed:", error);
     }
@@ -1777,8 +1751,8 @@ export default function OrderDetailPage({
             flexWrap: "wrap",
           }}
         >
-          {/* Pre-measurement badge */}
-          {isBeforeMeasurement && (
+          {/* Badge statusu spoza stepu */}
+          {isStatusOutsideTimeline && (
             <span
               style={{
                 fontSize: 11,
@@ -1795,16 +1769,18 @@ export default function OrderDetailPage({
             </span>
           )}
 
-          {VISIBLE_STATUS_ORDER.map((status, index) => {
+          {visibleStatusOrder.map((step, index) => {
+            const status = step.key;
+            const style = deriveStatusStyle(step.color);
             const isPast =
               visibleStatusIndex > index ||
               isComplaint ||
               isArchived;
             const isCurrent =
-              visibleStatusIndex === index && !isBeforeMeasurement && !isArchived;
+              visibleStatusIndex === index && !isArchived;
             const canClick = !isCurrent && !isArchived;
-            const prevStatus = index > 0 ? VISIBLE_STATUS_ORDER[index - 1] : null;
-            const prevIsPast = prevStatus ? (visibleStatusIndex > VISIBLE_STATUS_ORDER.indexOf(prevStatus) || isComplaint || isArchived) : false;
+            const prevStep = index > 0 ? visibleStatusOrder[index - 1] : null;
+            const prevIsPast = prevStep ? (visibleStatusIndex > index - 1 || isComplaint || isArchived) : false;
 
             return (
               <div
@@ -1817,7 +1793,7 @@ export default function OrderDetailPage({
                     height="10"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke={prevIsPast ? STATUS_COLORS[prevStatus ?? ""]?.text ?? "#86efac" : "#d1d5db"}
+                    stroke={prevIsPast && prevStep ? deriveStatusStyle(prevStep.color).text : "#d1d5db"}
                     strokeWidth={2.5}
                   >
                     <path
@@ -1834,7 +1810,7 @@ export default function OrderDetailPage({
                   disabled={!canClick}
                   title={
                     canClick
-                      ? `Zmień status na: ${statusLabels[status] ?? status}`
+                      ? `Zmień status na: ${step.label}`
                       : undefined
                   }
                   style={{
@@ -1844,17 +1820,17 @@ export default function OrderDetailPage({
                     fontWeight: 600,
                     border: "1px solid",
                     borderColor: isPast
-                      ? STATUS_COLORS[status]?.border ?? "#86efac"
+                      ? style.border
                       : isCurrent
                         ? "#fdba74"
                         : "#e5e7eb",
                     background: isPast
-                      ? STATUS_COLORS[status]?.bg ?? "#dcfce7"
+                      ? style.bg
                       : isCurrent
                         ? "#fff7ed"
                         : "var(--panel)",
                     color: isPast
-                      ? STATUS_COLORS[status]?.text ?? "#15803d"
+                      ? style.text
                       : isCurrent
                         ? "#ea580c"
                         : "#9ca3af",
@@ -1883,7 +1859,7 @@ export default function OrderDetailPage({
                       />
                     </svg>
                   )}
-                  {statusLabels[status] ?? status}
+                  {step.label}
                 </button>
               </div>
             );
