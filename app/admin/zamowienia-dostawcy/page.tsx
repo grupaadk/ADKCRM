@@ -517,7 +517,7 @@ export default function SupplierOrdersPage() {
                           title="Oznacz jako odebrane (dzisiejsza data)"
                           style={{ padding: "3px 10px", fontSize: 11.5, color: "var(--ok, #16a34a)" }}
                         >
-                          Odebrano
+                          Potwierdź odbiór
                         </button>
                       )}
                     </td>

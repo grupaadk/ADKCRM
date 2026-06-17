@@ -118,6 +118,46 @@ function getFileName(url: string, index: number) {
   }
 }
 
+// Ikona usługi dobierana po nazwie (okna/drzwi/brama/...). Domyślnie — tag.
+function ServiceIcon({ name, size = 15 }: { name: string; size?: number }) {
+  const n = name.toLowerCase();
+  let path: string;
+  if (n.includes("okn")) {
+    path = "M4 4h16v16H4zM12 4v16M4 12h16";
+  } else if (n.includes("drzw")) {
+    path = "M6 21V4a1 1 0 011-1h8a1 1 0 011 1v17M5 21h14M13.5 12h.01";
+  } else if (n.includes("bram")) {
+    path = "M4 21V6a2 2 0 012-2h12a2 2 0 012 2v15M4 21h16M4 9.5h16M4 13.5h16M4 17.5h16";
+  } else if (n.includes("taras") || n.includes("zabud")) {
+    path = "M3 21h18M5 21V10l7-5 7 5v11M9.5 21v-5h5v5";
+  } else if (n.includes("alumin") || n.includes("konstr")) {
+    path = "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z";
+  } else if (n.includes("ogrodz")) {
+    path = "M3 13h18M3 17h18M6 21V7l1.5-2L9 7v14M15 21V7l1.5-2L18 7v14";
+  } else if (
+    n.includes("słoneczn") || n.includes("sloneczn") ||
+    n.includes("rolet") || n.includes("przeciw")
+  ) {
+    path = "M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4M12 8a4 4 0 100 8 4 4 0 000-8z";
+  } else {
+    path = "M9.6 3.6 3.6 9.6a2 2 0 0 0 0 2.8l8 8a2 2 0 0 0 2.8 0l6-6a2 2 0 0 0 0-2.8l-8-8A2 2 0 0 0 11 3H5a2 2 0 0 0-2 2v6M7.5 7.5h.01";
+  }
+  return (
+    <svg
+      width={size}
+      height={size}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={path} />
+    </svg>
+  );
+}
+
 function SectionCard({
   title,
   children,
@@ -842,7 +882,7 @@ function deliveryStatusBadge(d: { orderDate?: number; deliveryDate?: number; rec
   return { label: "Oczekuje", bg: "var(--panel-2)", fg: "var(--text-mute)", border: "var(--line)" };
 }
 
-// Kafelek kamienia milowego (widok) — etykieta + data, kolor zależny od ustawienia.
+// Chip kamienia milowego (widok) — kropka + etykieta + data w jednej linii.
 function MilestonePill({
   label,
   tone,
@@ -860,37 +900,106 @@ function MilestonePill({
 }) {
   const set = date != null;
   return (
-    <div
+    <span
       style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 2,
-        padding: "5px 10px",
-        borderRadius: 7,
-        minWidth: 104,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "3px 9px",
+        borderRadius: 999,
         background: set ? soft : "var(--panel-2)",
         border: `1px solid ${set ? border : "var(--line)"}`,
+        whiteSpace: "nowrap",
       }}
     >
-      <span
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 5,
-          fontSize: 9.5,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: 0.6,
-          color: set ? tone : "var(--text-mute)",
-        }}
-      >
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: set ? tone : "var(--line)", flexShrink: 0 }} />
-        {label}
-      </span>
-      <span style={{ fontSize: 12.5, fontWeight: set ? 600 : 400, color: set ? "var(--text-strong)" : "var(--text-mute)" }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: set ? tone : "var(--line)", flexShrink: 0 }} />
+      <span style={{ fontSize: 10, fontWeight: 700, color: set ? tone : "var(--text-mute)" }}>{label}</span>
+      <span style={{ fontSize: 11.5, fontWeight: set ? 600 : 400, color: set ? "var(--text-strong)" : "var(--text-mute)" }}>
         {set ? fmt(date) : "—"}
       </span>
-    </div>
+    </span>
+  );
+}
+
+// Kafelek odbioru (widok) — interaktywny, logika jak w /admin/zamowienia-dostawcy:
+// brak daty → przycisk „Odebrano” (ustawia dzisiejszą datę); jest data → data + „×”.
+function OdbiorMilestone({
+  tone,
+  soft,
+  border,
+  date,
+  fmt,
+  onMark,
+  onClear,
+}: {
+  tone: string;
+  soft: string;
+  border: string;
+  date: number | undefined;
+  fmt: (ts: number) => string;
+  onMark: () => void;
+  onClear: () => void;
+}) {
+  const set = date != null;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "3px 9px",
+        borderRadius: 999,
+        background: set ? soft : "var(--panel-2)",
+        border: `1px solid ${set ? border : "var(--line)"}`,
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: set ? tone : "var(--line)", flexShrink: 0 }} />
+      <span style={{ fontSize: 10, fontWeight: 700, color: set ? tone : "var(--text-mute)" }}>Odbiór</span>
+      {set ? (
+        <>
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-strong)" }}>{fmt(date)}</span>
+          <button
+            type="button"
+            onClick={onClear}
+            title="Usuń datę odbioru"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--text-mute)",
+              padding: 0,
+              borderRadius: 4,
+            }}
+          >
+            <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={onMark}
+          title="Oznacz jako odebrane (dzisiejsza data)"
+          style={{
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+            fontSize: 11.5,
+            fontWeight: 600,
+            color: tone,
+            fontFamily: "inherit",
+          }}
+        >
+          Potwierdź odbiór
+        </button>
+      )}
+    </span>
   );
 }
 
@@ -1028,6 +1137,7 @@ export default function OrderDetailPage({
   const servicesList = useQuery(api.services.listActive) ?? [];
   const allSuppliers = useQuery(api.suppliers.listActive) ?? [];
   const updateOrder = useMutation(api.orders.update);
+  const updateDeliveryDate = useMutation(api.orders.updateServiceDeliveryDate);
   const clearInstallationDate = useMutation(api.orders.clearInstallationDate);
   const [editingServices, setEditingServices] = useState(false);
   const [draftServices, setDraftServices] = useState<string[]>([]);
@@ -1264,6 +1374,17 @@ export default function OrderDetailPage({
     await updateOrder({ orderId: orderIdTyped, serviceDeliveries: next });
     setEditingDeliverySvc(null);
     setDraftDeliveries(null);
+  }
+
+  // Szybki odbiór (jak w /admin/zamowienia-dostawcy): oznacz/wyczyść datę odbioru
+  // bezpośrednio z widoku, bez wchodzenia w tryb edycji.
+  function markReceived(deliveryIndex: number) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return updateDeliveryDate({ orderId: orderIdTyped, deliveryIndex, field: "receivedDate", value: d.getTime() });
+  }
+  function clearReceived(deliveryIndex: number) {
+    return updateDeliveryDate({ orderId: orderIdTyped, deliveryIndex, field: "receivedDate", value: null });
   }
 
   function startEditCompletionDate() {
@@ -1831,19 +1952,80 @@ export default function OrderDetailPage({
               marginBottom: 6,
             }}
           >
-            <h1
+            <div
               style={{
-                fontSize: 18,
-                fontWeight: 700,
-                margin: 0,
-                color: "var(--text-strong)",
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: 16,
+                flexWrap: "wrap",
+                flexBasis: "100%",
               }}
             >
-              {orderNumber}
-            </h1>
-            {order.customText && (
-              <span className="chip-custom lg">{order.customText}</span>
-            )}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <h1
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 700,
+                    margin: 0,
+                    color: "var(--text-strong)",
+                  }}
+                >
+                  {orderNumber}
+                </h1>
+                {order.customText && (
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      borderLeft: "3px solid var(--accent)",
+                      background: "var(--accent-soft)",
+                    }}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.9}
+                      style={{ color: "var(--accent)", flexShrink: 0 }}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"
+                      />
+                    </svg>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: "var(--text-strong)",
+                        whiteSpace: "nowrap",
+                        maxWidth: 300,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                      title={order.customText}
+                    >
+                      {order.customText}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <InvestmentLocation
+                orderId={orderIdTyped}
+                investmentStreet={order.investmentStreet}
+                investmentBuildingNumber={order.investmentBuildingNumber}
+                investmentApartmentNumber={order.investmentApartmentNumber}
+                investmentPostalCode={order.investmentPostalCode}
+                investmentCity={order.investmentCity}
+              />
+            </div>
             {isArchived && (
               <span
                 style={{
@@ -1861,268 +2043,140 @@ export default function OrderDetailPage({
                 Zarchiwizowane
               </span>
             )}
-            {/* Usługi — inline edit */}
-            {servicesList.length > 0 && (
-              editingServices ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "8px 0" }}>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {servicesList.map((svc) => {
-                      const active = draftServices.includes(svc.name);
-                      return (
-                        <button
-                          key={svc._id}
-                          type="button"
-                          onClick={() => toggleDraftService(svc.name)}
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            padding: "3px 10px",
-                            borderRadius: 6,
-                            border: active
-                              ? "1px solid #1d4ed8"
-                              : "1px solid var(--line)",
-                            background: active
-                              ? "#2563eb"
-                              : "transparent",
-                            color: active
-                              ? "#fff"
-                              : "var(--text)",
-                            cursor: "pointer",
-                            transition: "background 0.1s, border-color 0.1s",
-                          }}
-                        >
-                          {svc.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button
-                      onClick={saveServices}
-                      className="btn primary btn-xs"
-                    >
-                      Zapisz
-                    </button>
-                    <button
-                      onClick={cancelEditServices}
-                      className="btn btn-xs"
-                    >
-                      Anuluj
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                  {(order.services ?? []).map((s) => (
-                    <span key={s} className="chip">{s}</span>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={startEditServices}
-                    className="btn"
-                    style={{ fontSize: 10, padding: "2px 7px", flexShrink: 0 }}
+            {/* Usługi — widok (chip-y), edycja w panelu poniżej */}
+            {servicesList.length > 0 && !editingServices && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                {(order.services ?? []).map((s) => (
+                  <span
+                    key={s}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 7,
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      lineHeight: 1.2,
+                      padding: "5px 11px 5px 6px",
+                      borderRadius: 9,
+                      background: "var(--card)",
+                      color: "var(--text-strong)",
+                      border: "1px solid var(--line)",
+                      whiteSpace: "nowrap",
+                    }}
                   >
-                    <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-                    </svg>
-                    Edytuj
-                  </button>
-                </div>
-              )
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 24,
+                        height: 24,
+                        borderRadius: 6,
+                        background: "var(--accent-soft)",
+                        color: "var(--accent)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <ServiceIcon name={s} />
+                    </span>
+                    {s}
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={startEditServices}
+                  title={(order.services ?? []).length > 0 ? "Edytuj usługi" : "Dodaj usługi"}
+                  className="btn"
+                  style={{ fontSize: 11, padding: "3px 9px", flexShrink: 0 }}
+                >
+                  <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                  </svg>
+                  {(order.services ?? []).length > 0 ? "Edytuj" : "Dodaj usługi"}
+                </button>
+              </div>
             )}
           </div>
-        </div>
 
-        {/* Zamówienia u dostawców */}
-        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--text-mute)" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
-            </svg>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
-              Zamówienia u dostawców
-            </span>
-          </div>
-
-          {(order.services ?? []).length === 0 ? (
-            <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "10px 12px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
-              Brak usług w zleceniu — dodaj usługi powyżej, aby przypisać dostawców.
-            </div>
-          ) : (
-            (order.services ?? []).map((svcName) => {
-              const svc = servicesList.find((s) => s.name === svcName);
-              const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
-              const assigned = (order.serviceDeliveries ?? []).filter((x) => x.serviceName === svcName);
-              const isEditing = editingDeliverySvc === svcName;
-
-              // ── Tryb edycji ──
-              if (isEditing && draftDeliveries) {
-                return (
-                  <div key={svcName} style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    borderRadius: 10,
-                    background: "var(--card)",
-                    border: "1px solid var(--accent-line)",
-                    overflow: "hidden",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-                  }}>
-                    <div style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "9px 12px", background: "var(--accent-soft)", borderBottom: "1px solid var(--line)",
-                    }}>
-                      <span style={{ fontWeight: 700, fontSize: 13, color: "var(--text-strong)" }}>{svcName}</span>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button onClick={saveDelivery} className="btn primary btn-xs">Zapisz</button>
-                        <button onClick={cancelEditDelivery} className="btn btn-xs">Anuluj</button>
-                      </div>
-                    </div>
-
-                    <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-                      {availableSuppliers.length === 0 ? (
-                        <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
-                          Brak dostawców skonfigurowanych dla tej usługi.
-                        </span>
-                      ) : (
-                        availableSuppliers.map((s) => {
-                          const entry = draftDeliveries.find((x) => x.supplierId === s._id);
-                          const checked = !!entry;
-                          const hasAnyDate = !!(entry && (entry.orderDate || entry.deliveryDate || entry.receivedDate));
-                          return (
-                            <div key={s._id} style={{
-                              borderRadius: 8,
-                              border: `1px solid ${checked ? "var(--line)" : "transparent"}`,
-                              background: checked ? "var(--panel-2)" : "transparent",
-                              padding: checked ? "8px 10px" : "2px 0",
-                            }}>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={(e) => toggleDraftSupplier(svcName, s._id, e.target.checked)}
-                                  />
-                                  <span style={{ fontSize: 13, fontWeight: checked ? 600 : 400, color: checked ? "var(--text-strong)" : "var(--text-mute)" }}>
-                                    {s.name}
-                                  </span>
-                                </label>
-                                {checked && hasAnyDate && (
-                                  <button
-                                    type="button"
-                                    onClick={() => clearDraftSupplierDates(s._id)}
-                                    className="btn btn-xs"
-                                    style={{ fontSize: 10, padding: "2px 8px", color: "var(--bad)" }}
-                                    title="Wyczyść wszystkie terminy tego dostawcy"
-                                  >
-                                    Wyczyść terminy
-                                  </button>
-                                )}
-                              </div>
-                              {checked && entry && (
-                                <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", paddingLeft: 24, marginTop: 8 }}>
-                                  {DELIVERY_MILESTONES.map((m) => (
-                                    <EditDateField
-                                      key={m.key}
-                                      label={m.label}
-                                      tone={m.tone}
-                                      value={entry[m.key]}
-                                      onChange={(ts) => updateDraftSupplierDate(s._id, m.key, ts)}
-                                    />
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                );
-              }
-
-              // ── Tryb widoku ──
-              return (
-                <div key={svcName} style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  borderRadius: 10,
-                  background: "var(--card)",
-                  border: "1px solid var(--line)",
-                  overflow: "hidden",
-                }}>
-                  <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                    padding: "9px 12px", borderBottom: assigned.length > 0 ? "1px solid var(--line)" : "none",
-                  }}>
-                    <span style={{ fontWeight: 700, fontSize: 13, color: "var(--text-strong)" }}>{svcName}</span>
+          {/* Usługi — panel edycji */}
+          {servicesList.length > 0 && editingServices && (
+            <div
+              style={{
+                marginTop: 4,
+                padding: 14,
+                borderRadius: 10,
+                border: "1px solid var(--line)",
+                background: "var(--panel-2)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.7,
+                  color: "var(--text-mute)",
+                }}
+              >
+                Usługi zlecenia
+              </span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {servicesList.map((svc) => {
+                  const active = draftServices.includes(svc.name);
+                  return (
                     <button
+                      key={svc._id}
                       type="button"
-                      onClick={() => startEditDelivery(svcName)}
-                      className="btn"
-                      style={{ fontSize: 10, padding: "2px 8px", flexShrink: 0 }}
+                      onClick={() => toggleDraftService(svc.name)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 7,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        padding: "5px 12px 5px 6px",
+                        borderRadius: 9,
+                        border: active
+                          ? "1px solid var(--accent)"
+                          : "1px solid var(--line)",
+                        background: active ? "var(--accent-soft)" : "var(--card)",
+                        color: active ? "var(--accent)" : "var(--text)",
+                        cursor: "pointer",
+                        transition: "background 0.1s, border-color 0.1s, color 0.1s",
+                      }}
                     >
-                      <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-                      </svg>
-                      Edytuj
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 24,
+                          height: 24,
+                          borderRadius: 6,
+                          background: active ? "var(--accent)" : "var(--panel-2)",
+                          color: active ? "#fff" : "var(--text-mute)",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <ServiceIcon name={svc.name} />
+                      </span>
+                      {svc.name}
                     </button>
-                  </div>
-
-                  {assigned.length === 0 ? (
-                    <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--text-mute)" }}>
-                      Brak przypisanych dostawców.
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      {assigned.map((d, i) => {
-                        const supplier = allSuppliers.find((s) => s._id === d.supplierId);
-                        const status = deliveryStatusBadge(d);
-                        return (
-                          <div
-                            key={`${d.supplierId}:${i}`}
-                            style={{
-                              display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-                              padding: "10px 12px",
-                              borderTop: i > 0 ? "1px solid var(--line)" : "none",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 150, flex: "0 0 auto" }}>
-                              <span style={{
-                                fontSize: 12.5, fontWeight: 600,
-                                color: supplier ? "var(--text-strong)" : "var(--text-mute)",
-                              }}>
-                                {supplier?.name ?? "— nieznany dostawca"}
-                              </span>
-                              <span style={{
-                                fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
-                                padding: "2px 7px", borderRadius: 999,
-                                background: status.bg, color: status.fg, border: `1px solid ${status.border}`,
-                                whiteSpace: "nowrap",
-                              }}>
-                                {status.label}
-                              </span>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              {DELIVERY_MILESTONES.map((m) => (
-                                <MilestonePill
-                                  key={m.key}
-                                  label={m.label}
-                                  tone={m.tone}
-                                  soft={m.soft}
-                                  border={m.border}
-                                  date={d[m.key]}
-                                  fmt={fmtLocalDate}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={saveServices} className="btn primary btn-xs">
+                  Zapisz
+                </button>
+                <button onClick={cancelEditServices} className="btn btn-xs">
+                  Anuluj
+                </button>
+              </div>
+            </div>
           )}
         </div>
 
@@ -2259,18 +2313,218 @@ export default function OrderDetailPage({
           )}
         </div>
 
-        {/* Investment location in header */}
+        {/* Zamówienia u dostawców */}
+        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--text-mute)" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+            </svg>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+              Zamówienia u dostawców
+            </span>
+          </div>
 
-        {/* Investment location in header */}
-        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line)" }}>
-          <InvestmentLocation
-            orderId={orderIdTyped}
-            investmentStreet={order.investmentStreet}
-            investmentBuildingNumber={order.investmentBuildingNumber}
-            investmentApartmentNumber={order.investmentApartmentNumber}
-            investmentPostalCode={order.investmentPostalCode}
-            investmentCity={order.investmentCity}
-          />
+          {(order.services ?? []).length === 0 ? (
+            <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "10px 12px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
+              Brak usług w zleceniu — dodaj usługi powyżej, aby przypisać dostawców.
+            </div>
+          ) : (
+            (order.services ?? []).map((svcName) => {
+              const svc = servicesList.find((s) => s.name === svcName);
+              const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
+              const assigned = (order.serviceDeliveries ?? []).filter((x) => x.serviceName === svcName);
+              const isEditing = editingDeliverySvc === svcName;
+
+              // ── Tryb edycji ──
+              if (isEditing && draftDeliveries) {
+                return (
+                  <div key={svcName} style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    borderRadius: 10,
+                    background: "var(--card)",
+                    border: "1px solid var(--accent-line)",
+                    overflow: "hidden",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "10px 12px", background: "var(--accent-soft)", borderBottom: "1px solid var(--line)",
+                    }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                        <span style={{ width: 4, height: 16, borderRadius: 2, background: "var(--accent)", flexShrink: 0 }} />
+                        <span style={{ fontWeight: 700, fontSize: 13.5, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.4 }}>{svcName}</span>
+                      </span>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button onClick={saveDelivery} className="btn primary btn-xs">Zapisz</button>
+                        <button onClick={cancelEditDelivery} className="btn btn-xs">Anuluj</button>
+                      </div>
+                    </div>
+
+                    <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+                      {availableSuppliers.length === 0 ? (
+                        <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
+                          Brak dostawców skonfigurowanych dla tej usługi.
+                        </span>
+                      ) : (
+                        availableSuppliers.map((s) => {
+                          const entry = draftDeliveries.find((x) => x.supplierId === s._id);
+                          const checked = !!entry;
+                          const hasAnyDate = !!(entry && (entry.orderDate || entry.deliveryDate || entry.receivedDate));
+                          return (
+                            <div key={s._id} style={{
+                              borderRadius: 8,
+                              border: `1px solid ${checked ? "var(--line)" : "transparent"}`,
+                              background: checked ? "var(--panel-2)" : "transparent",
+                              padding: checked ? "8px 10px" : "2px 0",
+                            }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => toggleDraftSupplier(svcName, s._id, e.target.checked)}
+                                  />
+                                  <span style={{ fontSize: 13, fontWeight: checked ? 600 : 400, color: checked ? "var(--text-strong)" : "var(--text-mute)" }}>
+                                    {s.name}
+                                  </span>
+                                </label>
+                                {checked && hasAnyDate && (
+                                  <button
+                                    type="button"
+                                    onClick={() => clearDraftSupplierDates(s._id)}
+                                    className="btn btn-xs"
+                                    style={{ fontSize: 10, padding: "2px 8px", color: "var(--bad)" }}
+                                    title="Wyczyść wszystkie terminy tego dostawcy"
+                                  >
+                                    Wyczyść terminy
+                                  </button>
+                                )}
+                              </div>
+                              {checked && entry && (
+                                <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", paddingLeft: 24, marginTop: 8 }}>
+                                  {DELIVERY_MILESTONES.map((m) => (
+                                    <EditDateField
+                                      key={m.key}
+                                      label={m.label}
+                                      tone={m.tone}
+                                      value={entry[m.key]}
+                                      onChange={(ts) => updateDraftSupplierDate(s._id, m.key, ts)}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // ── Tryb widoku ──
+              return (
+                <div key={svcName} style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  borderRadius: 10,
+                  background: "var(--card)",
+                  border: "1px solid var(--line)",
+                  overflow: "hidden",
+                }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                    padding: "10px 12px", borderBottom: "1px solid var(--line)",
+                    background: "var(--panel-2)",
+                  }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <span style={{ width: 4, height: 16, borderRadius: 2, background: "var(--accent)", flexShrink: 0 }} />
+                      <span style={{ fontWeight: 700, fontSize: 13.5, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.4 }}>{svcName}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => startEditDelivery(svcName)}
+                      className="btn"
+                      style={{ fontSize: 10, padding: "2px 8px", flexShrink: 0 }}
+                    >
+                      <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                      </svg>
+                      Edytuj
+                    </button>
+                  </div>
+
+                  {assigned.length === 0 ? (
+                    <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--text-mute)" }}>
+                      Brak przypisanych dostawców.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      {assigned.map((d, i) => {
+                        const supplier = allSuppliers.find((s) => s._id === d.supplierId);
+                        const status = deliveryStatusBadge(d);
+                        const deliveryIndex = (order.serviceDeliveries ?? []).findIndex((x) => x === d);
+                        return (
+                          <div
+                            key={`${d.supplierId}:${i}`}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+                              padding: "10px 12px",
+                              borderTop: i > 0 ? "1px solid var(--line)" : "none",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 150, flex: "0 0 auto" }}>
+                              <span style={{
+                                fontSize: 12.5, fontWeight: 600,
+                                color: supplier ? "var(--text-strong)" : "var(--text-mute)",
+                              }}>
+                                {supplier?.name ?? "— nieznany dostawca"}
+                              </span>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
+                                padding: "2px 7px", borderRadius: 999,
+                                background: status.bg, color: status.fg, border: `1px solid ${status.border}`,
+                                whiteSpace: "nowrap",
+                              }}>
+                                {status.label}
+                              </span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              {DELIVERY_MILESTONES.map((m) =>
+                                m.key === "receivedDate" ? (
+                                  <OdbiorMilestone
+                                    key={m.key}
+                                    tone={m.tone}
+                                    soft={m.soft}
+                                    border={m.border}
+                                    date={d[m.key]}
+                                    fmt={fmtLocalDate}
+                                    onMark={() => markReceived(deliveryIndex)}
+                                    onClear={() => clearReceived(deliveryIndex)}
+                                  />
+                                ) : (
+                                  <MilestonePill
+                                    key={m.key}
+                                    label={m.label}
+                                    tone={m.tone}
+                                    soft={m.soft}
+                                    border={m.border}
+                                    date={d[m.key]}
+                                    fmt={fmtLocalDate}
+                                  />
+                                )
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Czas realizacji */}
