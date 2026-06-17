@@ -298,6 +298,7 @@ export const update = mutation({
       supplierId: v.id("suppliers"),
       orderDate: v.optional(v.number()),
       deliveryDate: v.optional(v.number()),
+      receivedDate: v.optional(v.number()),
     }))),
   },
   handler: async (ctx, args) => {
@@ -963,7 +964,7 @@ export const listSupplierOrders = query({
           }
 
           const deliveries = await Promise.all(
-            (order.serviceDeliveries ?? []).map(async (d) => {
+            (order.serviceDeliveries ?? []).map(async (d, index) => {
               let supplierName = supplierCache.get(d.supplierId as string);
               if (!supplierName) {
                 const supplier = await ctx.db.get(d.supplierId);
@@ -971,10 +972,12 @@ export const listSupplierOrders = query({
                 supplierCache.set(d.supplierId as string, supplierName);
               }
               return {
+                index, // pozycja w order.serviceDeliveries — identyfikator do edycji inline
                 serviceName: d.serviceName,
                 supplierName,
                 orderDate: d.orderDate,
                 deliveryDate: d.deliveryDate,
+                receivedDate: d.receivedDate,
               };
             }),
           );
@@ -989,5 +992,49 @@ export const listSupplierOrders = query({
           };
         }),
     );
+  },
+});
+
+// Edycja inline pojedynczej daty (zamówienia/dostawy) w linii serviceDeliveries.
+// Read-modify-write po stronie serwera — bezpieczniejsze niż przesyłanie całej tablicy.
+export const updateServiceDeliveryDate = mutation({
+  args: {
+    orderId: v.id("orders"),
+    deliveryIndex: v.number(),
+    field: v.union(v.literal("orderDate"), v.literal("deliveryDate"), v.literal("receivedDate")),
+    value: v.union(v.number(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new ConvexError("Zlecenie nie istnieje.");
+
+    const deliveries = order.serviceDeliveries ?? [];
+    if (args.deliveryIndex < 0 || args.deliveryIndex >= deliveries.length) {
+      throw new ConvexError("Nieprawidłowa pozycja dostawy.");
+    }
+
+    const next = deliveries.map((d, i) => {
+      if (i !== args.deliveryIndex) return d;
+      const updated = { ...d };
+      if (args.value === null) {
+        delete updated[args.field];
+      } else {
+        updated[args.field] = args.value;
+      }
+      return updated;
+    });
+
+    await ctx.db.patch(args.orderId, { serviceDeliveries: next });
+
+    await ctx.db.insert("clientEvents", {
+      clientId: order.clientId,
+      orderId: args.orderId,
+      type: "data_updated",
+      details: { fields: [`serviceDeliveries.${args.deliveryIndex}.${args.field}`] },
+      performedBy: userId,
+    });
   },
 });

@@ -48,6 +48,15 @@ function localMidnight(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0).getTime();
 }
 
+// Polska odmiana: 1 montaż, 2–4 montaże, 5+ montaży
+function montazLabel(n: number): string {
+  if (n === 1) return "montaż";
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "montaże";
+  return "montaży";
+}
+
 function fmtWeekRange(start: Date, end: Date): string {
   if (start.getMonth() === end.getMonth()) {
     return `${start.getDate()} – ${end.getDate()} ${MONTH_NAMES[start.getMonth()]} ${end.getFullYear()}`;
@@ -202,6 +211,13 @@ export default function InstallationCalendar() {
       (o.customText ?? "").toLowerCase().includes(term)
     ).slice(0, 20);
   }, [allOrders, orderSearch]);
+
+  // Ile montaży jest już zaplanowanych na wybrany dzień (z widocznego zakresu)
+  const dayMontazCount = useMemo(() => {
+    if (!selectedDate || !orders) return 0;
+    const dayStart = localMidnight(selectedDate);
+    return orders.filter((o) => localMidnight(new Date(o.completionDate)) === dayStart).length;
+  }, [selectedDate, orders]);
 
   const handleAssignDate = async () => {
     if (!selectedOrderId || !selectedDate) return;
@@ -519,6 +535,23 @@ export default function InstallationCalendar() {
           >
             ›
           </button>
+          {orders !== undefined && (
+            <span
+              title="Liczba montaży widocznych po uwzględnieniu filtrów"
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--text-mute)",
+                background: "var(--panel-2)",
+                border: "1px solid var(--line)",
+                borderRadius: 20,
+                padding: "3px 10px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {events.length} {montazLabel(events.length)}
+            </span>
+          )}
         </div>
 
         {/* Przełącznik widoku + Dzisiaj */}
@@ -948,6 +981,23 @@ export default function InstallationCalendar() {
                 <div style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 2 }}>
                   {fmtDateTime(selectedDate)}
                 </div>
+                {dayMontazCount > 0 && (
+                  <div style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    marginTop: 6,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "#92600a",
+                    background: "#fbe7c2",
+                    border: "1px solid #f0cd8a",
+                    borderRadius: 6,
+                    padding: "3px 8px",
+                  }}>
+                    ⚠ Na ten dzień {dayMontazCount === 1 ? "jest już" : "są już"} {dayMontazCount} {montazLabel(dayMontazCount)}
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setDateModalOpen(false)}

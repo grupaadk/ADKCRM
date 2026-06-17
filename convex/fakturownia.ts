@@ -668,6 +668,20 @@ export const listCachedInvoicesByOrder = query({
   },
 });
 
+export const searchInvoicesByBuyerName = query({
+  args: { name: v.string() },
+  handler: async (ctx, args) => {
+    const all = await ctx.db.query("fakturowniaInvoicesCache").order("desc").take(1000);
+    const term = args.name.toLowerCase();
+    return all.filter(
+      (inv) =>
+        inv.kind !== "estimate" &&
+        inv.buyerName &&
+        inv.buyerName.toLowerCase().includes(term),
+    );
+  },
+});
+
 export const upsertManyInvoices = internalMutation({
   args: {
     invoices: v.array(cachedInvoiceFields),

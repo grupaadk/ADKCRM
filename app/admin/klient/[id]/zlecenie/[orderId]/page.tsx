@@ -821,6 +821,153 @@ function DateInput({
   );
 }
 
+// ── Zamówienia u dostawców — model kamieni milowych ──
+type DeliveryField = "orderDate" | "deliveryDate" | "receivedDate";
+
+const DELIVERY_MILESTONES: Array<{
+  key: DeliveryField;
+  label: string;
+  tone: string;
+  soft: string;
+  border: string;
+}> = [
+  { key: "orderDate", label: "Zamówienie", tone: "#2563eb", soft: "#eff6ff", border: "#bfdbfe" },
+  { key: "deliveryDate", label: "Dostawa", tone: "#b45309", soft: "#fffbeb", border: "#fde68a" },
+  { key: "receivedDate", label: "Odbiór", tone: "#15803d", soft: "#f0fdf4", border: "#bbf7d0" },
+];
+
+function deliveryStatusBadge(d: { orderDate?: number; deliveryDate?: number; receivedDate?: number }) {
+  if (d.receivedDate) return { label: "Odebrane", bg: "#f0fdf4", fg: "#15803d", border: "#bbf7d0" };
+  if (d.orderDate) return { label: "Zamówione", bg: "#eff6ff", fg: "#1d4ed8", border: "#bfdbfe" };
+  return { label: "Oczekuje", bg: "var(--panel-2)", fg: "var(--text-mute)", border: "var(--line)" };
+}
+
+// Kafelek kamienia milowego (widok) — etykieta + data, kolor zależny od ustawienia.
+function MilestonePill({
+  label,
+  tone,
+  soft,
+  border,
+  date,
+  fmt,
+}: {
+  label: string;
+  tone: string;
+  soft: string;
+  border: string;
+  date: number | undefined;
+  fmt: (ts: number) => string;
+}) {
+  const set = date != null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        padding: "5px 10px",
+        borderRadius: 7,
+        minWidth: 104,
+        background: set ? soft : "var(--panel-2)",
+        border: `1px solid ${set ? border : "var(--line)"}`,
+      }}
+    >
+      <span
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          fontSize: 9.5,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: 0.6,
+          color: set ? tone : "var(--text-mute)",
+        }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: set ? tone : "var(--line)", flexShrink: 0 }} />
+        {label}
+      </span>
+      <span style={{ fontSize: 12.5, fontWeight: set ? 600 : 400, color: set ? "var(--text-strong)" : "var(--text-mute)" }}>
+        {set ? fmt(date) : "—"}
+      </span>
+    </div>
+  );
+}
+
+// Pole daty w trybie edycji z przyciskiem czyszczenia (×).
+function EditDateField({
+  label,
+  tone,
+  value,
+  onChange,
+}: {
+  label: string;
+  tone: string;
+  value: number | undefined;
+  onChange: (ts: number | undefined) => void;
+}) {
+  const set = value != null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <span
+        style={{
+          fontSize: 9.5,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+          color: set ? tone : "var(--text-mute)",
+        }}
+      >
+        {label}
+      </span>
+      <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+        <input
+          type="date"
+          value={tsToDateStr(value)}
+          onChange={(e) => onChange(dateStrToTs(e.target.value))}
+          style={{
+            fontSize: 12.5,
+            padding: "4px 26px 4px 8px",
+            borderRadius: 6,
+            border: `1px solid ${set ? tone + "66" : "var(--line)"}`,
+            background: "var(--card)",
+            color: set ? "var(--text-strong)" : "var(--text-mute)",
+            fontWeight: set ? 600 : 400,
+            fontFamily: "inherit",
+            width: 138,
+          }}
+        />
+        {set && (
+          <button
+            type="button"
+            onClick={() => onChange(undefined)}
+            title="Wyczyść datę"
+            style={{
+              position: "absolute",
+              right: 4,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 17,
+              height: 17,
+              borderRadius: 4,
+              border: "none",
+              background: "var(--panel-2)",
+              color: "var(--text-mute)",
+              cursor: "pointer",
+              padding: 0,
+            }}
+          >
+            <svg width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function OrderDetailPage({
   params,
 }: {
@@ -885,7 +1032,8 @@ export default function OrderDetailPage({
   const [editingServices, setEditingServices] = useState(false);
   const [draftServices, setDraftServices] = useState<string[]>([]);
   const [editingDeliverySvc, setEditingDeliverySvc] = useState<string | null>(null);
-  const [draftDelivery, setDraftDelivery] = useState<NonNullable<typeof order.serviceDeliveries>[number] | null>(null);
+  // Edycja jednej usługi = lista wpisów (po jednym na zaznaczonego dostawcę).
+  const [draftDeliveries, setDraftDeliveries] = useState<NonNullable<typeof order.serviceDeliveries> | null>(null);
   const [editingCompletionDate, setEditingCompletionDate] = useState(false);
   const [draftCompletionDate, setDraftCompletionDate] = useState<number | undefined>(undefined);
   const [draftInstallationStart, setDraftInstallationStart] = useState<number | undefined>(undefined);
@@ -1063,28 +1211,59 @@ export default function OrderDetailPage({
   }
 
   function startEditDelivery(svcName: string) {
-    const existing = (order.serviceDeliveries ?? []).find((x) => x.serviceName === svcName);
-    setDraftDelivery(existing ?? { serviceName: svcName, supplierId: "" as Id<"suppliers">, orderDate: undefined, deliveryDate: undefined });
+    const existing = (order.serviceDeliveries ?? []).filter((x) => x.serviceName === svcName);
+    setDraftDeliveries(existing.map((e) => ({ ...e })));
     setEditingDeliverySvc(svcName);
   }
 
   function cancelEditDelivery() {
     setEditingDeliverySvc(null);
-    setDraftDelivery(null);
+    setDraftDeliveries(null);
   }
 
-  function updateDraftDelivery(patch: Partial<{ supplierId: Id<"suppliers">; orderDate: number; deliveryDate: number }>) {
-    setDraftDelivery((prev) => prev ? { ...prev, ...patch } : prev);
+  // Zaznaczenie/odznaczenie dostawcy dla edytowanej usługi.
+  function toggleDraftSupplier(svcName: string, supplierId: Id<"suppliers">, checked: boolean) {
+    setDraftDeliveries((prev) => {
+      if (!prev) return prev;
+      if (checked) {
+        if (prev.some((x) => x.supplierId === supplierId)) return prev;
+        return [...prev, { serviceName: svcName, supplierId, orderDate: undefined, deliveryDate: undefined, receivedDate: undefined }];
+      }
+      return prev.filter((x) => x.supplierId !== supplierId);
+    });
+  }
+
+  function updateDraftSupplierDate(
+    supplierId: Id<"suppliers">,
+    field: "orderDate" | "deliveryDate" | "receivedDate",
+    ts: number | undefined,
+  ) {
+    setDraftDeliveries((prev) =>
+      prev ? prev.map((x) => (x.supplierId === supplierId ? { ...x, [field]: ts } : x)) : prev,
+    );
+  }
+
+  // Wyczyść wszystkie trzy terminy danego dostawcy (zachowując przypisanie).
+  function clearDraftSupplierDates(supplierId: Id<"suppliers">) {
+    setDraftDeliveries((prev) =>
+      prev
+        ? prev.map((x) =>
+            x.supplierId === supplierId
+              ? { ...x, orderDate: undefined, deliveryDate: undefined, receivedDate: undefined }
+              : x,
+          )
+        : prev,
+    );
   }
 
   async function saveDelivery() {
-    if (!draftDelivery) return;
-    const existing = order.serviceDeliveries ?? [];
-    const idx = existing.findIndex((x) => x.serviceName === draftDelivery.serviceName);
-    const next = idx >= 0 ? existing.map((x, i) => (i === idx ? draftDelivery : x)) : [...existing, draftDelivery];
+    if (!editingDeliverySvc || !draftDeliveries) return;
+    // Zachowaj wpisy pozostałych usług; zastąp wpisy edytowanej usługi draftem.
+    const others = (order.serviceDeliveries ?? []).filter((x) => x.serviceName !== editingDeliverySvc);
+    const next = [...others, ...draftDeliveries];
     await updateOrder({ orderId: orderIdTyped, serviceDeliveries: next });
     setEditingDeliverySvc(null);
-    setDraftDelivery(null);
+    setDraftDeliveries(null);
   }
 
   function startEditCompletionDate() {
@@ -1755,253 +1934,327 @@ export default function OrderDetailPage({
         </div>
 
         {/* Zamówienia u dostawców */}
-        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5 }}>Zamówienia u dostawców</div>
+        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--text-mute)" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+            </svg>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+              Zamówienia u dostawców
+            </span>
+          </div>
 
-          {(order.services ?? []).map((svcName) => {
-            const svc = servicesList.find((s) => s.name === svcName);
-            const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
-            const d = (order.serviceDeliveries ?? []).find((x) => x.serviceName === svcName);
-            const supplier = d?.supplierId ? allSuppliers.find((s) => s._id === d.supplierId) : undefined;
-            const isEditing = editingDeliverySvc === svcName;
+          {(order.services ?? []).length === 0 ? (
+            <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "10px 12px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
+              Brak usług w zleceniu — dodaj usługi powyżej, aby przypisać dostawców.
+            </div>
+          ) : (
+            (order.services ?? []).map((svcName) => {
+              const svc = servicesList.find((s) => s.name === svcName);
+              const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
+              const assigned = (order.serviceDeliveries ?? []).filter((x) => x.serviceName === svcName);
+              const isEditing = editingDeliverySvc === svcName;
 
-            if (isEditing && draftDelivery) {
+              // ── Tryb edycji ──
+              if (isEditing && draftDeliveries) {
+                return (
+                  <div key={svcName} style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    borderRadius: 10,
+                    background: "var(--card)",
+                    border: "1px solid var(--accent-line)",
+                    overflow: "hidden",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "9px 12px", background: "var(--accent-soft)", borderBottom: "1px solid var(--line)",
+                    }}>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: "var(--text-strong)" }}>{svcName}</span>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button onClick={saveDelivery} className="btn primary btn-xs">Zapisz</button>
+                        <button onClick={cancelEditDelivery} className="btn btn-xs">Anuluj</button>
+                      </div>
+                    </div>
+
+                    <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+                      {availableSuppliers.length === 0 ? (
+                        <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
+                          Brak dostawców skonfigurowanych dla tej usługi.
+                        </span>
+                      ) : (
+                        availableSuppliers.map((s) => {
+                          const entry = draftDeliveries.find((x) => x.supplierId === s._id);
+                          const checked = !!entry;
+                          const hasAnyDate = !!(entry && (entry.orderDate || entry.deliveryDate || entry.receivedDate));
+                          return (
+                            <div key={s._id} style={{
+                              borderRadius: 8,
+                              border: `1px solid ${checked ? "var(--line)" : "transparent"}`,
+                              background: checked ? "var(--panel-2)" : "transparent",
+                              padding: checked ? "8px 10px" : "2px 0",
+                            }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => toggleDraftSupplier(svcName, s._id, e.target.checked)}
+                                  />
+                                  <span style={{ fontSize: 13, fontWeight: checked ? 600 : 400, color: checked ? "var(--text-strong)" : "var(--text-mute)" }}>
+                                    {s.name}
+                                  </span>
+                                </label>
+                                {checked && hasAnyDate && (
+                                  <button
+                                    type="button"
+                                    onClick={() => clearDraftSupplierDates(s._id)}
+                                    className="btn btn-xs"
+                                    style={{ fontSize: 10, padding: "2px 8px", color: "var(--bad)" }}
+                                    title="Wyczyść wszystkie terminy tego dostawcy"
+                                  >
+                                    Wyczyść terminy
+                                  </button>
+                                )}
+                              </div>
+                              {checked && entry && (
+                                <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", paddingLeft: 24, marginTop: 8 }}>
+                                  {DELIVERY_MILESTONES.map((m) => (
+                                    <EditDateField
+                                      key={m.key}
+                                      label={m.label}
+                                      tone={m.tone}
+                                      value={entry[m.key]}
+                                      onChange={(ts) => updateDraftSupplierDate(s._id, m.key, ts)}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // ── Tryb widoku ──
               return (
                 <div key={svcName} style={{
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  background: "var(--panel)",
+                  flexDirection: "column",
+                  borderRadius: 10,
+                  background: "var(--card)",
                   border: "1px solid var(--line)",
-                  fontSize: 13,
+                  overflow: "hidden",
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontWeight: 600, minWidth: 100, color: "var(--text-strong)" }}>{svcName}</span>
-                  <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
-                  <select
-                    value={draftDelivery.supplierId ?? ""}
-                    onChange={(e) => updateDraftDelivery({ supplierId: e.target.value as Id<"suppliers"> })}
-                    style={{
-                      fontSize: 13,
-                      padding: "4px 8px",
-                      borderRadius: 6,
-                      border: "1px solid var(--line)",
-                      background: "var(--card)",
-                      color: draftDelivery.supplierId ? "var(--text-strong)" : "var(--text-muted)",
-                      fontWeight: draftDelivery.supplierId ? 600 : 400,
-                      fontFamily: "inherit",
-                      minWidth: 100,
-                    }}
-                  >
-                    <option value="">Dostawca</option>
-                    {availableSuppliers.map((s) => (
-                      <option key={s._id} value={s._id}>{s.name}</option>
-                    ))}
-                  </select>
-                  <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
-                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Zam.</span>
-                  <input
-                    type="date"
-                    value={tsToDateStr(draftDelivery.orderDate)}
-                    onChange={(e) => {
-                      const ts = dateStrToTs(e.target.value);
-                      updateDraftDelivery(ts ? { orderDate: ts } : {});
-                    }}
-                    style={{
-                      fontSize: 13,
-                      padding: "4px 8px",
-                      borderRadius: 6,
-                      border: "1px solid var(--line)",
-                      background: "var(--card)",
-                      color: draftDelivery.orderDate ? "var(--text-strong)" : "var(--text-muted)",
-                      fontWeight: draftDelivery.orderDate ? 600 : 400,
-                      fontFamily: "inherit",
-                      width: 140,
-                    }}
-                  />
-                  <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
-                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Dost.</span>
-                  <input
-                    type="date"
-                    value={tsToDateStr(draftDelivery.deliveryDate)}
-                    onChange={(e) => {
-                      const ts = dateStrToTs(e.target.value);
-                      updateDraftDelivery(ts ? { deliveryDate: ts } : {});
-                    }}
-                    style={{
-                      fontSize: 13,
-                      padding: "4px 8px",
-                      borderRadius: 6,
-                      border: "1px solid var(--line)",
-                      background: "var(--card)",
-                      color: draftDelivery.deliveryDate ? "var(--text-strong)" : "var(--text-muted)",
-                      fontWeight: draftDelivery.deliveryDate ? 600 : 400,
-                      fontFamily: "inherit",
-                      width: 140,
-                    }}
-                  />
-                </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={saveDelivery} className="btn primary btn-xs">Zapisz</button>
-                    <button onClick={cancelEditDelivery} className="btn btn-xs">Anuluj</button>
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                    padding: "9px 12px", borderBottom: assigned.length > 0 ? "1px solid var(--line)" : "none",
+                  }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: "var(--text-strong)" }}>{svcName}</span>
+                    <button
+                      type="button"
+                      onClick={() => startEditDelivery(svcName)}
+                      className="btn"
+                      style={{ fontSize: 10, padding: "2px 8px", flexShrink: 0 }}
+                    >
+                      <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                      </svg>
+                      Edytuj
+                    </button>
                   </div>
+
+                  {assigned.length === 0 ? (
+                    <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--text-mute)" }}>
+                      Brak przypisanych dostawców.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      {assigned.map((d, i) => {
+                        const supplier = allSuppliers.find((s) => s._id === d.supplierId);
+                        const status = deliveryStatusBadge(d);
+                        return (
+                          <div
+                            key={`${d.supplierId}:${i}`}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+                              padding: "10px 12px",
+                              borderTop: i > 0 ? "1px solid var(--line)" : "none",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 150, flex: "0 0 auto" }}>
+                              <span style={{
+                                fontSize: 12.5, fontWeight: 600,
+                                color: supplier ? "var(--text-strong)" : "var(--text-mute)",
+                              }}>
+                                {supplier?.name ?? "— nieznany dostawca"}
+                              </span>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
+                                padding: "2px 7px", borderRadius: 999,
+                                background: status.bg, color: status.fg, border: `1px solid ${status.border}`,
+                                whiteSpace: "nowrap",
+                              }}>
+                                {status.label}
+                              </span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              {DELIVERY_MILESTONES.map((m) => (
+                                <MilestonePill
+                                  key={m.key}
+                                  label={m.label}
+                                  tone={m.tone}
+                                  soft={m.soft}
+                                  border={m.border}
+                                  date={d[m.key]}
+                                  fmt={fmtLocalDate}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
-            }
-
-            return (
-              <div key={svcName} style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "8px 12px",
-                borderRadius: 8,
-                background: "var(--panel)",
-                border: "1px solid var(--line)",
-                fontSize: 13,
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  <span style={{ fontWeight: 600, minWidth: 100, color: "var(--text-strong)" }}>{svcName}</span>
-                  <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
-                  <span style={{ fontWeight: supplier ? 600 : 400, color: supplier ? "var(--text-strong)" : "var(--text-muted)", minWidth: 80 }}>
-                    {supplier?.name ?? "—"}
-                  </span>
-                  <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>
-                  <span style={{ fontSize: 11, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5 }}>Zam:</span>
-                  <span style={{ fontWeight: d?.orderDate ? 600 : 400, color: d?.orderDate ? "var(--text-strong)" : "var(--text-muted)", minWidth: 70 }}>
-                    {d?.orderDate ? fmtLocalDate(d.orderDate) : "—"}
-                  </span>
-                  <span style={{ color: "var(--text-muted)", fontSize: 16, marginLeft: 4, marginRight: 4 }}>|</span>
-                  <span style={{ fontSize: 11, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5 }}>Dost:</span>
-                  <span style={{ fontWeight: d?.deliveryDate ? 600 : 400, color: d?.deliveryDate ? "var(--text-strong)" : "var(--text-muted)", minWidth: 70 }}>
-                    {d?.deliveryDate ? fmtLocalDate(d.deliveryDate) : "—"}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => startEditDelivery(svcName)}
-                  className="btn"
-                  style={{ fontSize: 10, padding: "2px 7px", flexShrink: 0 }}
-                >
-                  <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-                  </svg>
-                  Edytuj
-                </button>
-              </div>
-            );
-          })}
+            })
+          )}
         </div>
 
         {/* Termin montażu */}
         <div style={{
-          padding: "12px 20px",
+          padding: "14px 20px",
           borderTop: "1px solid var(--line)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: "var(--accent-soft)",
+          gap: 12,
+          flexWrap: "wrap",
+          background: order.completionDate ? "var(--accent-soft)" : "var(--panel-2)",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: "var(--accent)",
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+            {/* Ikona w okręgu */}
+            <div style={{
+              width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: order.completionDate ? "var(--accent)" : "var(--card)",
+              border: order.completionDate ? "none" : "1px solid var(--line)",
+              color: order.completionDate ? "#fff" : "var(--text-mute)",
             }}>
-              Termin montażu
-            </span>
-            {editingCompletionDate ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="date"
-                  value={tsToDateStr(draftCompletionDate)}
-                  onChange={(e) => setDraftCompletionDate(dateStrToTs(e.target.value))}
-                  style={{
-                    fontSize: 13,
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid var(--line)",
-                    background: "var(--card)",
-                    color: "var(--text-strong)",
-                    fontFamily: "inherit",
-                  }}
-                />
-                <select
-                  value={minsToHour(draftInstallationStart) ?? ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setDraftInstallationStart(val !== "" ? parseInt(val) * 60 : undefined);
-                  }}
-                  style={{
-                    fontSize: 13,
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid var(--line)",
-                    background: "var(--card)",
-                    color: "var(--text-strong)",
-                    fontFamily: "inherit",
-                    width: 100,
-                  }}
-                >
-                  <option value="">—</option>
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
-                  ))}
-                </select>
-                <button onClick={saveCompletionDate} className="btn primary btn-xs">Zapisz</button>
-                <button onClick={cancelEditCompletionDate} className="btn btn-xs">Anuluj</button>
-              </div>
-            ) : (
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" />
+              </svg>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
               <span style={{
-                fontSize: 14,
-                fontWeight: order.completionDate ? 600 : 400,
-                color: order.completionDate ? "var(--text-strong)" : "var(--text-muted)",
+                fontSize: 10.5, fontWeight: 700, color: "var(--accent)",
+                textTransform: "uppercase", letterSpacing: 0.7,
               }}>
-                {order.completionDate
-                  ? fmtLocalDate(order.completionDate) +
-                    (order.installationStart != null
-                      ? ` ${hourStr(order.installationStart)}`
-                      : "")
-                  : "(nie ustawiono)"}
+                Termin montażu
               </span>
-            )}
+
+              {editingCompletionDate ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 3 }}>
+                  <input
+                    type="date"
+                    value={tsToDateStr(draftCompletionDate)}
+                    onChange={(e) => setDraftCompletionDate(dateStrToTs(e.target.value))}
+                    style={{
+                      fontSize: 13, padding: "5px 8px", borderRadius: 6,
+                      border: "1px solid var(--line)", background: "var(--card)",
+                      color: "var(--text-strong)", fontFamily: "inherit", fontWeight: 600,
+                    }}
+                  />
+                  <select
+                    value={minsToHour(draftInstallationStart) ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDraftInstallationStart(val !== "" ? parseInt(val) * 60 : undefined);
+                    }}
+                    style={{
+                      fontSize: 13, padding: "5px 8px", borderRadius: 6,
+                      border: "1px solid var(--line)", background: "var(--card)",
+                      color: "var(--text-strong)", fontFamily: "inherit", width: 100,
+                    }}
+                  >
+                    <option value="">— godz.</option>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
+                    ))}
+                  </select>
+                  <button onClick={saveCompletionDate} className="btn primary btn-xs">Zapisz</button>
+                  <button onClick={cancelEditCompletionDate} className="btn btn-xs">Anuluj</button>
+                </div>
+              ) : order.completionDate ? (
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text-strong)" }}>
+                    {fmtLocalDate(order.completionDate)}
+                  </span>
+                  <span style={{ fontSize: 12.5, color: "var(--text-mute)", textTransform: "capitalize" }}>
+                    {new Date(order.completionDate).toLocaleDateString("pl-PL", { weekday: "long" })}
+                  </span>
+                  {order.installationStart != null && (
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                      fontSize: 12, fontWeight: 700, color: "var(--accent)",
+                      background: "var(--card)", border: "1px solid var(--accent-line)",
+                      borderRadius: 999, padding: "2px 9px",
+                    }}>
+                      <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {hourStr(order.installationStart)}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-mute)" }}>
+                  Nie ustawiono
+                </span>
+              )}
+            </div>
           </div>
-          {!editingCompletionDate && (
-            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+
+          {!editingCompletionDate && !confirmDeleteDate && (
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
               <button
                 type="button"
                 onClick={startEditCompletionDate}
                 className="btn"
-                style={{ fontSize: 10, padding: "2px 7px" }}
+                style={{ fontSize: 11, padding: "4px 10px" }}
               >
-                <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
                 </svg>
-                Edytuj
+                {order.completionDate ? "Edytuj" : "Ustaw termin"}
               </button>
-              {order.completionDate && !confirmDeleteDate && (
+              {order.completionDate && (
                 <button
                   type="button"
                   onClick={() => setConfirmDeleteDate(true)}
                   className="btn"
-                  style={{ fontSize: 10, padding: "2px 7px", color: "var(--bad)" }}
+                  style={{ fontSize: 11, padding: "4px 10px", color: "var(--bad)", borderColor: "oklch(0.72 0.18 25 / 0.4)" }}
+                  title="Usuń termin montażu"
                 >
-                  <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                   </svg>
+                  Usuń
                 </button>
               )}
             </div>
           )}
           {confirmDeleteDate && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              <span style={{ fontSize: 11, color: "var(--bad)", fontWeight: 600 }}>Usunąć termin?</span>
-              <button type="button" onClick={deleteCompletionDate} className="btn primary btn-xs" style={{ fontSize: 10, padding: "2px 7px", background: "var(--bad)", color: "#fff" }}>Tak</button>
-              <button type="button" onClick={() => setConfirmDeleteDate(false)} className="btn btn-xs" style={{ fontSize: 10, padding: "2px 7px" }}>Nie</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              <span style={{ fontSize: 12, color: "var(--bad)", fontWeight: 600 }}>Usunąć termin montażu?</span>
+              <button type="button" onClick={deleteCompletionDate} className="btn btn-xs" style={{ fontSize: 11, padding: "3px 10px", background: "var(--bad)", color: "#fff", borderColor: "var(--bad)" }}>Tak, usuń</button>
+              <button type="button" onClick={() => setConfirmDeleteDate(false)} className="btn btn-xs" style={{ fontSize: 11, padding: "3px 10px" }}>Anuluj</button>
             </div>
           )}
         </div>

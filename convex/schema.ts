@@ -230,8 +230,9 @@ export default defineSchema({
     serviceDeliveries: v.optional(v.array(v.object({
       serviceName: v.string(),
       supplierId: v.id("suppliers"),
-      orderDate: v.optional(v.number()),
-      deliveryDate: v.optional(v.number()),
+      orderDate: v.optional(v.number()),     // data zamówienia u dostawcy
+      deliveryDate: v.optional(v.number()),  // planowana data dostawy
+      receivedDate: v.optional(v.number()),  // faktyczna data odbioru (fizycznie dostarczone)
     }))),
 
     // Dokumenty

@@ -1,255 +1,546 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { useQuery } from "convex/react"
+import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import Link from "next/link"
-import { Package, Truck, Calendar, ChevronRight, Search } from "lucide-react"
+import type { Id } from "@/convex/_generated/dataModel"
+import { useRouter } from "next/navigation"
+import { ChevronUp, ChevronDown, ChevronsUpDown, Search, X, ExternalLink } from "lucide-react"
+import { CrmPageHeader, CrmEmptyState, fmtDate } from "@/components/crm-ui"
 
-const STATUS_LABELS: Record<string, string> = {
-  lead: "Lead",
-  inquiry: "Zapytanie",
-  measurement: "Pomiar",
-  offer: "Oferta",
-  contract: "Umowa",
-  production: "Produkcja",
-  installation: "Montaż",
-  complaint: "Reklamacja",
-  completed: "Zakończone",
-  archived: "Archiwum",
+type SortField =
+  | "orderName"
+  | "clientName"
+  | "serviceName"
+  | "supplierName"
+  | "orderDate"
+  | "deliveryDate"
+  | "receivedDate"
+  | "status"
+type SortDirection = "asc" | "desc"
+type DeliveryStatus = "pending" | "overdue" | "delivered"
+
+type Row = {
+  key: string
+  orderId: Id<"orders">
+  clientId: string
+  orderName: string | null
+  clientName: string
+  deliveryIndex: number
+  serviceName: string
+  supplierName: string
+  orderDate?: number
+  deliveryDate?: number
+  receivedDate?: number
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  lead: "#50253F",
-  inquiry: "#50253F",
-  measurement: "#3E5224",
-  offer: "#50253F",
-  contract: "#50253F",
-  production: "#164555",
-  installation: "#533F04",
-  complaint: "#533F04",
-  completed: "#37471F",
-  archived: "#475569",
-}
-
-function formatDate(ts?: number): string {
-  if (!ts) return "—"
+function tsToInputValue(ts?: number): string {
+  if (!ts) return ""
   const d = new Date(ts)
-  return d.toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" })
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
 }
 
-function isOverdue(ts?: number): boolean {
-  if (!ts) return false
-  return ts < Date.now()
+function inputValueToTs(value: string): number | null {
+  if (!value) return null
+  const [y, m, d] = value.split("-").map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d).getTime()
+}
+
+// Status linii dostawy:
+// - dostarczone  → data faktycznego odbioru (receivedDate), która już nadeszła
+//   (data w przyszłości to błąd wprowadzania — nie da się odebrać towaru w przyszłości)
+// - przeterminowane → minęła planowana data dostawy, a towar nie został odebrany
+// - oczekuje     → pozostałe
+function rowStatus(r: Row, todayStart: number): DeliveryStatus {
+  if (r.receivedDate != null && r.receivedDate <= todayStart) return "delivered"
+  if (r.deliveryDate != null && r.deliveryDate < todayStart) return "overdue"
+  return "pending"
+}
+
+const STATUS_META: Record<DeliveryStatus, { label: string; color: string }> = {
+  pending: { label: "Oczekuje", color: "var(--warn, #d97706)" },
+  overdue: { label: "Przeterminowane", color: "var(--err, #dc2626)" },
+  delivered: { label: "Dostarczone", color: "var(--ok, #16a34a)" },
+}
+
+function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDirection }) {
+  const cls = "ml-1 inline"
+  if (sortField !== field) return <ChevronsUpDown className={`${cls} size-3`} style={{ color: "var(--text-mute)", opacity: 0.5 }} />
+  return sortDir === "asc"
+    ? <ChevronUp className={`${cls} size-3`} style={{ color: "var(--text-strong)" }} />
+    : <ChevronDown className={`${cls} size-3`} style={{ color: "var(--text-strong)" }} />
+}
+
+function FilterBtn({ isActive, onClick, children }: { isActive: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "4px 10px", borderRadius: 4, fontSize: 11.5,
+        background: isActive ? "var(--accent-soft)" : "transparent",
+        color: isActive ? "var(--accent)" : "var(--text-mute)",
+        border: "1px solid", borderColor: isActive ? "var(--accent-line)" : "transparent",
+        fontWeight: isActive ? 600 : 500, cursor: "pointer", fontFamily: "inherit",
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function CountBadge({ count, active }: { count: number; active: boolean }) {
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 600, padding: "0 5px", borderRadius: 999,
+      background: active ? "var(--accent)" : "var(--panel-3)",
+      color: active ? "#fff" : "var(--text-mute)",
+    }}>{count}</span>
+  )
+}
+
+function StatusBadge({ status }: { status: DeliveryStatus }) {
+  const { label, color } = STATUS_META[status]
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 500, color }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: color }} />
+      {label}
+    </span>
+  )
+}
+
+const dateInputStyle: React.CSSProperties = {
+  fontFamily: "inherit",
+  fontSize: 12,
+  color: "var(--text-strong)",
+  background: "var(--panel)",
+  border: "1px solid var(--line)",
+  borderRadius: 6,
+  padding: "4px 6px",
+  outline: "none",
+}
+
+const DAY_MS = 86_400_000
+const UPCOMING_DAYS = 3 // planowana dostawa "bliska", gdy zostało ≤ tylu dni
+
+function localMidnight(ts: number): number {
+  const d = new Date(ts)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+// Wyróżnienie komórki "Planowana dostawa":
+// - przeterminowane → czerwona ramka (status liczony osobno, bez etykiety)
+// - bliska dostawa (nieodebrane, ≤ UPCOMING_DAYS dni): żółto (2–3 dni) lub pomarańczowo (dziś/jutro) + etykieta
+function deliveryCellDecor(
+  r: Row,
+  status: DeliveryStatus,
+  todayStart: number,
+): { style: React.CSSProperties; label: string | null; labelColor: string } {
+  if (status === "overdue") {
+    return {
+      style: { ...dateInputStyle, borderColor: "var(--err, #dc2626)", color: "var(--err, #dc2626)" },
+      label: null,
+      labelColor: "var(--err, #dc2626)",
+    }
+  }
+  if (status === "pending" && r.deliveryDate != null) {
+    const days = Math.round((localMidnight(r.deliveryDate) - todayStart) / DAY_MS)
+    if (days >= 0 && days <= UPCOMING_DAYS) {
+      const strong = days <= 1 // dziś lub jutro
+      return {
+        style: strong
+          ? { ...dateInputStyle, background: "#fff1e6", borderColor: "#fb923c", color: "#9a3412", fontWeight: 600 }
+          : { ...dateInputStyle, background: "#fefce8", borderColor: "#f0c000", color: "#854d0e", fontWeight: 600 },
+        label: days === 0 ? "dziś" : days === 1 ? "jutro" : `za ${days} dni`,
+        labelColor: strong ? "#c2410c" : "#a16207",
+      }
+    }
+  }
+  return { style: dateInputStyle, label: null, labelColor: "var(--text-mute)" }
 }
 
 export default function SupplierOrdersPage() {
+  const router = useRouter()
   const orders = useQuery(api.orders.listSupplierOrders)
+  const isLoading = orders === undefined
+
+  // Północ dzisiaj — granica dla wykrywania przeterminowanych planowanych dostaw
+  const todayStart = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d.getTime()
+  }, [])
+
+  const updateDeliveryDate = useMutation(
+    api.orders.updateServiceDeliveryDate,
+  ).withOptimisticUpdate((localStore, args) => {
+    const cur = localStore.getQuery(api.orders.listSupplierOrders, {})
+    if (!cur) return
+    const next = cur.map((o) =>
+      o._id === args.orderId
+        ? {
+            ...o,
+            deliveries: o.deliveries.map((d) =>
+              d.index === args.deliveryIndex
+                ? { ...d, [args.field]: args.value ?? undefined }
+                : d,
+            ),
+          }
+        : o,
+    )
+    localStore.setQuery(api.orders.listSupplierOrders, {}, next)
+  })
+
   const [search, setSearch] = useState("")
+  const [supplierFilter, setSupplierFilter] = useState<Set<string>>(new Set())
+  const [statusFilter, setStatusFilter] = useState<Set<DeliveryStatus>>(new Set())
+  const [sortField, setSortField] = useState<SortField>("deliveryDate")
+  const [sortDir, setSortDir] = useState<SortDirection>("asc")
 
-  const filteredOrders = useMemo(() => {
+  // Spłaszczenie: 1 wiersz = 1 zamówienie u dostawcy (linia serviceDeliveries)
+  const allRows = useMemo<Row[]>(() => {
     if (!orders) return []
-    if (!search.trim()) return orders
-    const term = search.toLowerCase()
-    return orders.filter(
-      (o) =>
-        (o.name ?? "").toLowerCase().includes(term) ||
-        o.clientName.toLowerCase().includes(term) ||
-        o.deliveries.some(
-          (d) =>
-            d.serviceName.toLowerCase().includes(term) ||
-            d.supplierName.toLowerCase().includes(term),
-        ),
-    )
-  }, [orders, search])
-
-  const totalDeliveries = useMemo(() => {
-    if (!orders) return 0
-    return orders.reduce((sum, o) => sum + o.deliveries.length, 0)
-  }, [orders])
-
-  const pendingDeliveries = useMemo(() => {
-    if (!orders) return 0
-    return orders.reduce(
-      (sum, o) => sum + o.deliveries.filter((d) => !d.deliveryDate).length,
-      0,
+    return orders.flatMap((o) =>
+      o.deliveries.map((d) => ({
+        key: `${o._id}:${d.index}`,
+        orderId: o._id,
+        clientId: o.clientId as string,
+        orderName: o.name ?? null,
+        clientName: o.clientName,
+        deliveryIndex: d.index,
+        serviceName: d.serviceName,
+        supplierName: d.supplierName,
+        orderDate: d.orderDate,
+        deliveryDate: d.deliveryDate,
+        receivedDate: d.receivedDate,
+      })),
     )
   }, [orders])
 
-  if (!orders) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="flex items-center gap-3 text-gray-500">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
-          Ładowanie zamówień...
-        </div>
-      </div>
-    )
+  const suppliers = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const r of allRows) counts.set(r.supplierName, (counts.get(r.supplierName) ?? 0) + 1)
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0], "pl"))
+  }, [allRows])
+
+  const statusCounts = useMemo(() => {
+    const c: Record<DeliveryStatus, number> = { pending: 0, overdue: 0, delivered: 0 }
+    for (const r of allRows) c[rowStatus(r, todayStart)]++
+    return c
+  }, [allRows, todayStart])
+
+  const rows = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    const filtered = allRows.filter((r) => {
+      if (term) {
+        const hit =
+          (r.orderName ?? "").toLowerCase().includes(term) ||
+          r.clientName.toLowerCase().includes(term) ||
+          r.serviceName.toLowerCase().includes(term) ||
+          r.supplierName.toLowerCase().includes(term)
+        if (!hit) return false
+      }
+      if (supplierFilter.size > 0 && !supplierFilter.has(r.supplierName)) return false
+      if (statusFilter.size > 0 && !statusFilter.has(rowStatus(r, todayStart))) return false
+      return true
+    })
+
+    const mul = sortDir === "asc" ? 1 : -1
+    return [...filtered].sort((a, b) => {
+      if (sortField === "orderDate" || sortField === "deliveryDate" || sortField === "receivedDate") {
+        const av = a[sortField]
+        const bv = b[sortField]
+        if (av == null && bv == null) return 0
+        if (av == null) return 1 // brak daty zawsze na końcu
+        if (bv == null) return -1
+        return (av - bv) * mul
+      }
+      if (sortField === "status") {
+        const rank: Record<DeliveryStatus, number> = { overdue: 0, pending: 1, delivered: 2 }
+        return (rank[rowStatus(a, todayStart)] - rank[rowStatus(b, todayStart)]) * mul
+      }
+      const av = String(a[sortField] ?? "").toLowerCase()
+      const bv = String(b[sortField] ?? "").toLowerCase()
+      return av.localeCompare(bv, "pl") * mul
+    })
+  }, [allRows, search, supplierFilter, statusFilter, sortField, sortDir, todayStart])
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    else { setSortField(field); setSortDir("asc") }
   }
 
+  const toggleSupplier = (name: string) => {
+    setSupplierFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  const toggleStatus = (s: DeliveryStatus) => {
+    setStatusFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(s)) next.delete(s)
+      else next.add(s)
+      return next
+    })
+  }
+
+  const handleDateChange = (
+    row: Row,
+    field: "orderDate" | "deliveryDate" | "receivedDate",
+    value: string,
+  ) => {
+    updateDeliveryDate({
+      orderId: row.orderId,
+      deliveryIndex: row.deliveryIndex,
+      field,
+      value: inputValueToTs(value),
+    })
+  }
+
+  // Odbiór: przycisk ustawia dzisiejszą datę, krzyżyk ją usuwa
+  const markReceived = (row: Row) =>
+    updateDeliveryDate({ orderId: row.orderId, deliveryIndex: row.deliveryIndex, field: "receivedDate", value: todayStart })
+
+  const clearReceived = (row: Row) =>
+    updateDeliveryDate({ orderId: row.orderId, deliveryIndex: row.deliveryIndex, field: "receivedDate", value: null })
+
+  const isFiltering = !!search.trim() || supplierFilter.size > 0 || statusFilter.size > 0
+
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">Zamówienia od dostawcy</h1>
-            <p className="mt-0.5 text-xs text-gray-500">
-              {orders.length} zleceń · {totalDeliveries} zamówień · {pendingDeliveries} oczekuje na dostawę
-            </p>
-          </div>
-        </div>
+    <div>
+      <CrmPageHeader
+        title="Zamówienia od dostawcy"
+        sub={`${allRows.length} zamówień · ${statusCounts.pending} oczekuje · ${statusCounts.overdue} przeterminowanych`}
+      />
 
-        {/* Search */}
-        <div className="mt-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Szukaj po numerze zlecenia, kliencie, usłudze lub dostawcy..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {filteredOrders.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <Package className="h-12 w-12 text-gray-300" />
-            <p className="mt-4 text-sm font-medium text-gray-500">
-              {search ? "Brak wyników wyszukiwania" : "Brak zamówień od dostawców"}
-            </p>
-            {!search && (
-              <p className="mt-1 text-xs text-gray-400">
-                Dodaj zamówienia do zleceń, aby je zobaczyć tutaj
-              </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Toolbar */}
+        <div className="panel" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* Search */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, maxWidth: 520 }}>
+            <span style={{
+              fontSize: 12, fontWeight: 600, color: "var(--text-strong)",
+              whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5,
+            }}>
+              <Search style={{ width: 15, height: 15 }} />
+              Szukaj
+            </span>
+            <div style={{ position: "relative", flex: 1 }}>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Numer zlecenia, klient, usługa lub dostawca"
+                style={{
+                  width: "100%",
+                  padding: "10px 34px 10px 12px",
+                  borderRadius: 8,
+                  border: "2px solid var(--accent-line)",
+                  background: "var(--bg)",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  fontFamily: "inherit",
+                  color: "var(--text-strong)",
+                  outline: "none",
+                  transition: "border-color 0.15s, box-shadow 0.15s",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--accent)"
+                  e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)"
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "var(--accent-line)"
+                  e.currentTarget.style.boxShadow = "none"
+                }}
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  style={{
+                    position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                    background: "var(--panel-3)", border: "none", borderRadius: "50%",
+                    cursor: "pointer", color: "var(--text-mute)", width: 22, height: 22,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  <X style={{ width: 13, height: 13 }} />
+                </button>
+              )}
+            </div>
+            {isFiltering && (
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", whiteSpace: "nowrap" }}>
+                {rows.length} wyników
+              </span>
             )}
           </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredOrders.map((order) => (
-              <div
-                key={order._id}
-                className="overflow-hidden rounded-xl border border-gray-200 bg-white"
-              >
-                {/* Order header */}
-                <Link
-                  href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
-                  className="flex items-center justify-between border-b border-gray-100 px-5 py-3 transition-colors hover:bg-gray-50"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-md bg-gray-100 px-2.5 py-1 font-mono text-sm font-semibold text-gray-800">
-                        {order.name ?? "—"}
-                      </span>
-                      <span
-                        className="rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
-                        style={{ background: STATUS_COLORS[order.status] ?? "#64748b" }}
-                      >
-                        {STATUS_LABELS[order.status] ?? order.status}
-                      </span>
-                    </div>
-                    <span className="text-sm text-gray-600">{order.clientName}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-400">
-                    <span>Zobacz zlecenie</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </div>
-                </Link>
 
-                {/* Deliveries table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-100 bg-gray-50/50">
-                        <th className="px-5 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-gray-500">
-                          Usługa
-                        </th>
-                        <th className="px-5 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-gray-500">
-                          Dostawca
-                        </th>
-                        <th className="px-5 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-gray-500">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="h-3 w-3" />
-                            Data zamówienia
-                          </div>
-                        </th>
-                        <th className="px-5 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-gray-500">
-                          <div className="flex items-center gap-1.5">
-                            <Truck className="h-3 w-3" />
-                            Data dostawy
-                          </div>
-                        </th>
-                        <th className="px-5 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-gray-500">
-                          Status
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {order.deliveries.map((delivery, idx) => {
-                        const isDeliveryPending = !delivery.deliveryDate
-                        const isOrderOverdue = isOverdue(delivery.deliveryDate)
-
-                        return (
-                          <tr
-                            key={idx}
-                            className={`border-b border-gray-50 transition-colors hover:bg-gray-50/50 ${
-                              idx === order.deliveries.length - 1 ? "border-b-0" : ""
-                            }`}
-                          >
-                            <td className="px-5 py-3">
-                              <span className="font-medium text-gray-800">
-                                {delivery.serviceName}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3">
-                              <span className="text-gray-600">{delivery.supplierName}</span>
-                            </td>
-                            <td className="px-5 py-3">
-                              <span className="text-gray-600">
-                                {formatDate(delivery.orderDate)}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3">
-                              <span
-                                className={
-                                  isDeliveryPending
-                                    ? "text-gray-400"
-                                    : isOrderOverdue
-                                      ? "font-medium text-red-600"
-                                      : "text-gray-600"
-                                }
-                              >
-                                {formatDate(delivery.deliveryDate)}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3">
-                              {delivery.deliveryDate ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                                  Dostarczono
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                                  Oczekuje
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+          {/* Status filter */}
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+            <span className="mute" style={{ fontSize: 11, marginRight: 2 }}>Status:</span>
+            {(["pending", "overdue", "delivered"] as const).map((s) => (
+              <FilterBtn key={s} isActive={statusFilter.has(s)} onClick={() => toggleStatus(s)}>
+                {STATUS_META[s].label} <CountBadge count={statusCounts[s]} active={statusFilter.has(s)} />
+              </FilterBtn>
             ))}
           </div>
-        )}
+
+          {/* Supplier filter */}
+          {suppliers.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+              <span className="mute" style={{ fontSize: 11, marginRight: 2 }}>Dostawca:</span>
+              {suppliers.map(([name, count]) => (
+                <FilterBtn key={name} isActive={supplierFilter.has(name)} onClick={() => toggleSupplier(name)}>
+                  {name} <CountBadge count={count} active={supplierFilter.has(name)} />
+                </FilterBtn>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Table */}
+        <div className="panel" style={{ overflow: "hidden" }}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th style={{ cursor: "pointer", width: 130 }} onClick={() => handleSort("orderName")}>
+                  Nr zlecenia <SortIcon field="orderName" sortField={sortField} sortDir={sortDir} />
+                </th>
+                <th style={{ cursor: "pointer" }} onClick={() => handleSort("clientName")}>
+                  Klient <SortIcon field="clientName" sortField={sortField} sortDir={sortDir} />
+                </th>
+                <th style={{ cursor: "pointer" }} onClick={() => handleSort("serviceName")}>
+                  Usługa <SortIcon field="serviceName" sortField={sortField} sortDir={sortDir} />
+                </th>
+                <th style={{ cursor: "pointer" }} onClick={() => handleSort("supplierName")}>
+                  Dostawca <SortIcon field="supplierName" sortField={sortField} sortDir={sortDir} />
+                </th>
+                <th style={{ cursor: "pointer", width: 140 }} onClick={() => handleSort("orderDate")}>
+                  Data zamówienia <SortIcon field="orderDate" sortField={sortField} sortDir={sortDir} />
+                </th>
+                <th style={{ cursor: "pointer", width: 140 }} onClick={() => handleSort("deliveryDate")}>
+                  Planowana dostawa <SortIcon field="deliveryDate" sortField={sortField} sortDir={sortDir} />
+                </th>
+                <th style={{ cursor: "pointer", width: 140 }} onClick={() => handleSort("receivedDate")}>
+                  Odebrano <SortIcon field="receivedDate" sortField={sortField} sortDir={sortDir} />
+                </th>
+                <th style={{ cursor: "pointer", width: 150 }} onClick={() => handleSort("status")}>
+                  Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
+                </th>
+                <th style={{ width: 50 }} />
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading && Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i}>
+                  {Array.from({ length: 9 }).map((_, j) => (
+                    <td key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} /></td>
+                  ))}
+                </tr>
+              ))}
+
+              {!isLoading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={9}>
+                    <CrmEmptyState message={isFiltering ? "Brak wyników dla wybranych filtrów." : "Brak zamówień od dostawców."} />
+                  </td>
+                </tr>
+              )}
+
+              {!isLoading && rows.map((r) => {
+                const status = rowStatus(r, todayStart)
+                const delivery = deliveryCellDecor(r, status, todayStart)
+                return (
+                  <tr key={r.key}>
+                    <td className="mono" style={{ fontSize: 11, color: "var(--text-mute)" }}>
+                      {r.orderName ?? <span style={{ color: "var(--panel-3)" }}>—</span>}
+                    </td>
+                    <td className="strong" style={{ fontWeight: 500 }}>{r.clientName}</td>
+                    <td style={{ fontSize: 12 }}>{r.serviceName}</td>
+                    <td style={{ fontSize: 12 }}>{r.supplierName}</td>
+                    <td>
+                      <input
+                        type="date"
+                        value={tsToInputValue(r.orderDate)}
+                        onChange={(e) => handleDateChange(r, "orderDate", e.target.value)}
+                        style={dateInputStyle}
+                      />
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start" }}>
+                        <input
+                          type="date"
+                          value={tsToInputValue(r.deliveryDate)}
+                          onChange={(e) => handleDateChange(r, "deliveryDate", e.target.value)}
+                          style={delivery.style}
+                        />
+                        {delivery.label && (
+                          <span style={{ fontSize: 10.5, fontWeight: 700, color: delivery.labelColor }}>
+                            {delivery.label}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      {r.receivedDate ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <span className="mono" style={{
+                            fontSize: 12, fontWeight: 600,
+                            color: status === "delivered" ? "var(--ok, #16a34a)" : "var(--text-strong)",
+                          }}>
+                            {fmtDate(r.receivedDate)}
+                          </span>
+                          <button
+                            onClick={() => clearReceived(r)}
+                            title="Usuń datę odbioru"
+                            style={{
+                              display: "inline-flex", alignItems: "center", justifyContent: "center",
+                              background: "transparent", border: "none", cursor: "pointer",
+                              color: "var(--text-mute)", padding: 2, borderRadius: 4,
+                            }}
+                          >
+                            <X style={{ width: 13, height: 13 }} />
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          className="btn"
+                          onClick={() => markReceived(r)}
+                          title="Oznacz jako odebrane (dzisiejsza data)"
+                          style={{ padding: "3px 10px", fontSize: 11.5, color: "var(--ok, #16a34a)" }}
+                        >
+                          Odebrano
+                        </button>
+                      )}
+                    </td>
+                    <td><StatusBadge status={status} /></td>
+                    <td style={{ textAlign: "right" }}>
+                      <button
+                        onClick={() => router.push(`/admin/klient/${r.clientId}/zlecenie/${r.orderId}`)}
+                        title="Otwórz zlecenie"
+                        style={{
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          background: "transparent", border: "none", cursor: "pointer",
+                          color: "var(--text-mute)", padding: 4, borderRadius: 4,
+                        }}
+                      >
+                        <ExternalLink style={{ width: 14, height: 14 }} />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
