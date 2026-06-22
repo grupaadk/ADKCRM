@@ -474,14 +474,15 @@ export default function SupplierOrdersPage() {
                         <span>{r.clientName}</span>
                         {r.customText && (
                           <span style={{
-                            display: "inline-block",
-                            fontSize: 10.5,
-                            fontWeight: 600,
-                            padding: "1px 6px",
-                            borderRadius: 4,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            padding: "4px 6px 4px 10px",
+                            borderRadius: 8,
+                            borderLeft: "3px solid var(--accent)",
                             background: "var(--accent-soft)",
-                            color: "var(--accent)",
-                            border: "1px solid var(--accent-line)",
+                            fontSize: 12,
+                            fontWeight: 500,
+                            color: "var(--text-strong)",
                             maxWidth: 200,
                             overflow: "hidden",
                             textOverflow: "ellipsis",
