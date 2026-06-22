@@ -242,7 +242,8 @@ export default function SupplierOrdersPage() {
           (r.orderName ?? "").toLowerCase().includes(term) ||
           r.clientName.toLowerCase().includes(term) ||
           r.serviceName.toLowerCase().includes(term) ||
-          r.supplierName.toLowerCase().includes(term)
+          r.supplierName.toLowerCase().includes(term) ||
+          (r.customText ?? "").toLowerCase().includes(term)
         if (!hit) return false
       }
       if (supplierFilter.size > 0 && !supplierFilter.has(r.supplierName)) return false
@@ -346,7 +347,7 @@ export default function SupplierOrdersPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Numer zlecenia, klient, usługa lub dostawca"
+                placeholder="Numer zlecenia, klient, tekst własny, usługa lub dostawca"
                 style={{
                   width: "100%",
                   padding: "10px 34px 10px 12px",
