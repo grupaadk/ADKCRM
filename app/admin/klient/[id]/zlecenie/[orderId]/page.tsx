@@ -1126,8 +1126,11 @@ export default function OrderDetailPage({
   const servicesList = useQuery(api.services.listActive) ?? [];
   const allSuppliers = useQuery(api.suppliers.listActive) ?? [];
   const updateOrder = useMutation(api.orders.update);
+  const setCustomText = useMutation(api.orders.setCustomText);
   const updateDeliveryDate = useMutation(api.orders.updateServiceDeliveryDate);
   const clearInstallationDate = useMutation(api.orders.clearInstallationDate);
+  const [editingCustomText, setEditingCustomText] = useState(false);
+  const [customTextDraft, setCustomTextDraft] = useState("");
   const [editingServices, setEditingServices] = useState(false);
   const [draftServices, setDraftServices] = useState<string[]>([]);
   const [editingDeliverySvc, setEditingDeliverySvc] = useState<string | null>(null);
@@ -1949,33 +1952,57 @@ export default function OrderDetailPage({
                 >
                   {orderNumber}
                 </h1>
-                {order.customText && (
+                {editingCustomText ? (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={customTextDraft}
+                      onChange={(e) => setCustomTextDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const val = customTextDraft.trim();
+                          setCustomText({ orderId: orderIdTyped, customText: val || null });
+                          setEditingCustomText(false);
+                        }
+                        if (e.key === "Escape") setEditingCustomText(false);
+                      }}
+                      onBlur={() => {
+                        const val = customTextDraft.trim();
+                        setCustomText({ orderId: orderIdTyped, customText: val || null });
+                        setEditingCustomText(false);
+                      }}
+                      placeholder="Tekst własny zlecenia…"
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 500,
+                        fontFamily: "inherit",
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: "1px solid var(--accent)",
+                        background: "var(--panel)",
+                        color: "var(--text-strong)",
+                        outline: "none",
+                        boxShadow: "0 0 0 3px var(--accent-soft)",
+                        width: 260,
+                      }}
+                    />
+                  </div>
+                ) : order.customText ? (
                   <div
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
                       gap: 8,
-                      padding: "6px 10px",
+                      padding: "4px 6px 4px 10px",
                       borderRadius: 8,
                       borderLeft: "3px solid var(--accent)",
                       background: "var(--accent-soft)",
+                      cursor: "pointer",
                     }}
+                    title="Kliknij, aby edytować"
+                    onClick={() => { setCustomTextDraft(order.customText ?? ""); setEditingCustomText(true); }}
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.9}
-                      style={{ color: "var(--accent)", flexShrink: 0 }}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"
-                      />
-                    </svg>
                     <span
                       style={{
                         fontSize: 12,
@@ -1986,11 +2013,42 @@ export default function OrderDetailPage({
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                       }}
-                      title={order.customText}
                     >
                       {order.customText}
                     </span>
+                    <button
+                      title="Usuń tekst własny"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCustomText({ orderId: orderIdTyped, customText: null });
+                      }}
+                      style={{
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        background: "transparent", border: "none", cursor: "pointer",
+                        color: "var(--text-mute)", padding: 2, borderRadius: 4,
+                        lineHeight: 1,
+                      }}
+                    >
+                      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                   </div>
+                ) : (
+                  <button
+                    onClick={() => { setCustomTextDraft(""); setEditingCustomText(true); }}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                      fontSize: 11.5, fontWeight: 500, color: "var(--text-mute)",
+                      background: "transparent", border: "1px dashed var(--line-2)",
+                      borderRadius: 6, padding: "3px 8px", cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-line)"; e.currentTarget.style.color = "var(--accent)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--line-2)"; e.currentTarget.style.color = "var(--text-mute)"; }}
+                  >
+                    + Dodaj tekst własny
+                  </button>
                 )}
               </div>
               <InvestmentLocation

@@ -312,6 +312,32 @@ export const update = mutation({
   },
 });
 
+export const setCustomText = mutation({
+  args: {
+    orderId: v.id("orders"),
+    customText: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie znalezione");
+
+    await ctx.db.patch(args.orderId, {
+      customText: args.customText ?? undefined,
+    });
+
+    await ctx.db.insert("clientEvents", {
+      clientId: order.clientId,
+      orderId: args.orderId,
+      type: "data_updated",
+      details: { fields: ["customText"] },
+      performedBy: userId,
+    });
+  },
+});
+
 export const clearInstallationDate = mutation({
   args: {
     orderId: v.id("orders"),
@@ -985,6 +1011,7 @@ export const listSupplierOrders = query({
             _id: order._id,
             clientId: order.clientId,
             name: order.name,
+            customText: order.customText,
             clientName,
             status: order.status,
             deliveries,

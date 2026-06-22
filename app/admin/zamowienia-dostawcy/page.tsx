@@ -25,6 +25,7 @@ type Row = {
   clientId: string
   orderName: string | null
   clientName: string
+  customText: string | null
   deliveryIndex: number
   serviceName: string
   supplierName: string
@@ -210,6 +211,7 @@ export default function SupplierOrdersPage() {
         clientId: o.clientId as string,
         orderName: o.name ?? null,
         clientName: o.clientName,
+        customText: o.customText ?? null,
         deliveryIndex: d.index,
         serviceName: d.serviceName,
         supplierName: d.supplierName,
@@ -467,7 +469,29 @@ export default function SupplierOrdersPage() {
                     <td className="mono" style={{ fontSize: 11, color: "var(--text-mute)" }}>
                       {r.orderName ?? <span style={{ color: "var(--panel-3)" }}>—</span>}
                     </td>
-                    <td className="strong" style={{ fontWeight: 500 }}>{r.clientName}</td>
+                    <td className="strong" style={{ fontWeight: 500 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        <span>{r.clientName}</span>
+                        {r.customText && (
+                          <span style={{
+                            display: "inline-block",
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                            padding: "1px 6px",
+                            borderRadius: 4,
+                            background: "var(--accent-soft)",
+                            color: "var(--accent)",
+                            border: "1px solid var(--accent-line)",
+                            maxWidth: 200,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }} title={r.customText}>
+                            {r.customText}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td style={{ fontSize: 12 }}>{r.serviceName}</td>
                     <td style={{ fontSize: 12 }}>{r.supplierName}</td>
                     <td>
