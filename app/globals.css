@@ -113,7 +113,7 @@ body {
   padding: 2px 8px; border-radius: 4px; font-size: 11px;
   font-weight: 600; line-height: 1.4;
   background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-line);
-  white-space: nowrap;
+  white-space: normal; word-break: break-word; max-width: 100%;
 }
 .chip-custom.lg { padding: 3px 10px; font-size: 12px; border-radius: 6px; }
 
