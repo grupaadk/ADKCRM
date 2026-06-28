@@ -1367,7 +1367,14 @@ export const uploadUserDocument = action({
 
     const connection = await getAuthorizedConnection(ctx);
 
-    const metadata = JSON.stringify({ name: args.fileName, parents: [order.folderId] });
+    let targetFolderId = order.folderId;
+    if (args.documentType === "umowa") {
+      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Umowy", order.folderId);
+    } else if (args.documentType === "faktura") {
+      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Faktury", order.folderId);
+    }
+
+    const metadata = JSON.stringify({ name: args.fileName, parents: [targetFolderId] });
     const boundary = `drive_upload_${Date.now()}`;
     const encoder = new TextEncoder();
     const preamble = encoder.encode(
@@ -1895,6 +1902,13 @@ export const copyTemplate = action({
 
       const connection = await getAuthorizedConnection(ctx);
 
+      let targetFolderId = order.folderId;
+      if (args.templateKey === "umowa") {
+        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Umowy", order.folderId);
+      } else if (args.templateKey === "faktura") {
+        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Faktury", order.folderId);
+      }
+
       // Get template — by specific ID if provided, otherwise first by key
       const template = args.templateId
         ? await ctx.runQuery(api.documentTemplates.getById, { id: args.templateId })
@@ -1916,7 +1930,6 @@ export const copyTemplate = action({
         new Date().toISOString().slice(0, 10),
       );
 
-      // Copy file via Drive API
       const copyData = await driveApiFetchWithRetry(
         ctx,
         `/files/${template.googleDriveFileId}/copy?supportsAllDrives=true`,
@@ -1924,7 +1937,7 @@ export const copyTemplate = action({
           method: "POST",
           body: JSON.stringify({
             name: fileName,
-            parents: [order.folderId],
+            parents: [targetFolderId],
           }),
         },
       );
