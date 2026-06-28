@@ -76,6 +76,7 @@ export const create = mutation({
 export const updateById = mutation({
   args: {
     id: v.id("documentTemplates"),
+    key: v.optional(v.string()),
     name: v.string(),
     googleDriveFileId: v.optional(v.string()),
     fileNamePattern: v.string(),
@@ -91,6 +92,7 @@ export const updateById = mutation({
     const existing = await ctx.db.get(args.id);
     if (!existing) throw new Error("Szablon nie istnieje");
     await ctx.db.patch(args.id, {
+      ...(args.key !== undefined && args.key !== existing.key ? { key: args.key } : {}),
       name: args.name,
       googleDriveFileId: args.googleDriveFileId,
       fileNamePattern: args.fileNamePattern,

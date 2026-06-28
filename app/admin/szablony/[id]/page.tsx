@@ -117,6 +117,7 @@ export default function TemplateEditorPage() {
   );
 
   const [name, setName] = useState("");
+  const [key, setKey] = useState("");
   const [fileNamePattern, setFileNamePattern] = useState("");
   const [googleDriveFileId, setGoogleDriveFileId] = useState("");
   const [isActive, setIsActive] = useState(true);
@@ -138,6 +139,7 @@ export default function TemplateEditorPage() {
   useEffect(() => {
     if (template && !initialized) {
       setName(template.name);
+      setKey(template.key);
       setFileNamePattern(template.fileNamePattern);
       setGoogleDriveFileId(template.googleDriveFileId ?? "");
       setIsActive(template.isActive);
@@ -224,12 +226,13 @@ export default function TemplateEditorPage() {
   };
 
   const handleSave = async () => {
-    if (!name.trim() || !fileNamePattern.trim()) return;
+    if (!name.trim() || !fileNamePattern.trim() || !key.trim()) return;
     setSaving(true);
     setNotice(null);
     try {
       await updateTemplate({
         id,
+        key: key.trim(),
         name: name.trim(),
         googleDriveFileId: googleDriveFileId.trim() || undefined,
         fileNamePattern: fileNamePattern.trim(),
@@ -362,13 +365,13 @@ export default function TemplateEditorPage() {
           </h1>
           <p className="mt-2 text-sm text-slate-500">
             Klucz{" "}
-            <span className="font-mono text-xs text-slate-700">{template.key}</span> ·
+            <span className="font-mono text-xs text-slate-700">{key || template.key}</span> ·
             wersja v{template.version}
           </p>
         </div>
         <button
           onClick={() => void handleSave()}
-          disabled={saving || !name.trim() || !fileNamePattern.trim()}
+          disabled={saving || !name.trim() || !fileNamePattern.trim() || !key.trim()}
           className="inline-flex items-center rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
           {saving ? "Zapisywanie..." : "Zapisz szablon"}
@@ -433,6 +436,21 @@ export default function TemplateEditorPage() {
                   />
                   Szablon aktywny
                 </label>
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Klucz szablonu
+                </label>
+                <input
+                  type="text"
+                  value={key}
+                  onChange={(e) => setKey(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))}
+                  placeholder="np. gwarancja_ks_system"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Tylko małe litery, cyfry i podkreślenia. Klucze wbudowane (pomiar, umowa, gwarancja_alco, rekojmia_adk, odbior_inwestor, protokol_montaz, faktura, reklamacja) używają stałego slotu w dokumencie. Pozostałe klucze zaczynające się od <span className="font-mono">gwarancja_</span> tworzą osobne dokumenty gwarancyjne.
+                </p>
               </div>
               <div className="md:col-span-2">
                 <label className="mb-1 block text-sm font-medium text-slate-700">
