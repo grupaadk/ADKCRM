@@ -666,7 +666,7 @@ export default function OpportunityAttachmentsSection({
                     </span>
                   </a>
                   <button
-                    onClick={() => handleDeleteFile(file.id, file.name)}
+                    onClick={() => handleDeleteFile(file.id)}
                     disabled={confirmingDeleteId === file.id || deletingFileId === file.id}
                     title="Usuń plik"
                     style={{

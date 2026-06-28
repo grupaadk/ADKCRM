@@ -1135,7 +1135,7 @@ export default function OrderDetailPage({
   const [draftServices, setDraftServices] = useState<string[]>([]);
   const [editingDeliverySvc, setEditingDeliverySvc] = useState<string | null>(null);
   // Edycja jednej usługi = lista wpisów (po jednym na zaznaczonego dostawcę).
-  const [draftDeliveries, setDraftDeliveries] = useState<NonNullable<typeof order.serviceDeliveries> | null>(null);
+  const [draftDeliveries, setDraftDeliveries] = useState<NonNullable<NonNullable<typeof order>["serviceDeliveries"]> | null>(null);
   const [editingCompletionDate, setEditingCompletionDate] = useState(false);
   const [draftCompletionDate, setDraftCompletionDate] = useState<number | undefined>(undefined);
   const [draftInstallationStart, setDraftInstallationStart] = useState<number | undefined>(undefined);
@@ -1298,7 +1298,7 @@ export default function OrderDetailPage({
   }
 
   function startEditDelivery(svcName: string) {
-    const existing = (order.serviceDeliveries ?? []).filter((x) => x.serviceName === svcName);
+    const existing = (order?.serviceDeliveries ?? []).filter((x) => x.serviceName === svcName);
     setDraftDeliveries(existing.map((e) => ({ ...e })));
     setEditingDeliverySvc(svcName);
   }
@@ -1346,7 +1346,7 @@ export default function OrderDetailPage({
   async function saveDelivery() {
     if (!editingDeliverySvc || !draftDeliveries) return;
     // Zachowaj wpisy pozostałych usług; zastąp wpisy edytowanej usługi draftem.
-    const others = (order.serviceDeliveries ?? []).filter((x) => x.serviceName !== editingDeliverySvc);
+    const others = (order?.serviceDeliveries ?? []).filter((x) => x.serviceName !== editingDeliverySvc);
     const next = [...others, ...draftDeliveries];
     await updateOrder({ orderId: orderIdTyped, serviceDeliveries: next });
     setEditingDeliverySvc(null);
@@ -1365,8 +1365,8 @@ export default function OrderDetailPage({
   }
 
   function startEditCompletionDate() {
-    setDraftCompletionDate(order.completionDate);
-    setDraftInstallationStart(order.installationStart);
+    setDraftCompletionDate(order?.completionDate);
+    setDraftInstallationStart(order?.installationStart);
     setEditingCompletionDate(true);
   }
 
