@@ -491,49 +491,18 @@ export const toggleDocument = mutation({
         : documents[args.documentType].generatedAt,
     };
 
-    const rekUrlToDelete = !args.enabled ? documents.rekojmia_adk.url : undefined;
-    if (args.documentType === "gwarancja_alco") {
-      documents.rekojmia_adk = {
-        enabled: args.enabled,
-        url: args.enabled ? documents.rekojmia_adk.url : undefined,
-        generatedAt: args.enabled
-          ? Date.now()
-          : documents.rekojmia_adk.generatedAt,
-      };
-    }
-
     await ctx.db.patch(args.orderId, { documents });
 
     if (args.enabled) {
-      if (args.documentType === "gwarancja_alco") {
-        await ctx.scheduler.runAfter(0, api.googleDrive.copyTemplate, {
-          orderId: args.orderId,
-          templateKey: "gwarancja_alco",
-          templateId: args.templateId,
-        });
-        await ctx.scheduler.runAfter(0, api.googleDrive.copyTemplate, {
-          orderId: args.orderId,
-          templateKey: "rekojmia_adk",
-        });
-      } else {
-        await ctx.scheduler.runAfter(0, api.googleDrive.copyTemplate, {
-          orderId: args.orderId,
-          templateKey: args.documentType,
-          templateId: args.templateId,
-        });
-      }
+      await ctx.scheduler.runAfter(0, api.googleDrive.copyTemplate, {
+        orderId: args.orderId,
+        templateKey: args.documentType,
+        templateId: args.templateId,
+      });
     } else {
       const fileId = existingUrl ? extractDriveFileId(existingUrl) : null;
       if (fileId) {
         await ctx.scheduler.runAfter(0, api.googleDrive.deleteFile, { fileId });
-      }
-      if (args.documentType === "gwarancja_alco" && rekUrlToDelete) {
-        const rekFileId = extractDriveFileId(rekUrlToDelete);
-        if (rekFileId) {
-          await ctx.scheduler.runAfter(0, api.googleDrive.deleteFile, {
-            fileId: rekFileId,
-          });
-        }
       }
     }
 
