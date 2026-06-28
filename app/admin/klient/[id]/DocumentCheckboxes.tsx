@@ -603,14 +603,27 @@ export default function DocumentCheckboxes({
                         </button>
                       </div>
                     ) : hasTemplate ? (
-                      <button
-                        onClick={() => handleGenerateRow()}
-                        disabled={isGenerating}
-                        className="btn"
-                        style={{ fontSize: 10, padding: "2px 7px", flexShrink: 0, opacity: isGenerating ? 0.5 : 1 }}
-                      >
-                        {hasError ? "Ponów" : "Generuj"}
-                      </button>
+                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                        <button
+                          onClick={() => handleGenerateRow()}
+                          disabled={isGenerating}
+                          className="btn"
+                          style={{ fontSize: 10, padding: "2px 7px", opacity: isGenerating ? 0.5 : 1 }}
+                        >
+                          {hasError ? "Ponów" : "Generuj"}
+                        </button>
+                        {hasError && (
+                          <button
+                            onClick={() => void handleRemove(docKey)}
+                            disabled={isGenerating}
+                            className="btn"
+                            style={{ fontSize: 10, padding: "2px 6px", color: "var(--bad)", opacity: isGenerating ? 0.5 : 1 }}
+                            title="Usuń dokument / anuluj błąd"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
                     ) : null}
                   </div>
                 );
