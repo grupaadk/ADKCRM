@@ -30,8 +30,10 @@ export default function CityDistance({ city }: { city: string }) {
 
   useEffect(() => {
     if (!city.trim()) return;
-    setStatus("loading");
-    setKm(null);
+    setTimeout(() => {
+      setStatus("loading");
+      setKm(null);
+    }, 0);
 
     let cancelled = false;
 

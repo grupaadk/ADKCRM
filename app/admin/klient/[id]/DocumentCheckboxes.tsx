@@ -243,7 +243,8 @@ export default function DocumentCheckboxes({
 
   // Clear generating state when Convex confirms doc is done (url or error set)
   useEffect(() => {
-    setGenerating((prev) => {
+    setTimeout(() => {
+      setGenerating((prev) => {
       const next = { ...prev };
       let changed = false;
       for (const key of Object.keys(prev)) {
@@ -256,6 +257,7 @@ export default function DocumentCheckboxes({
       }
       return changed ? next : prev;
     });
+    }, 0);
   }, [documents, warrantyDocs]);
 
   async function doGenerate(docType: string, templateId?: Id<"documentTemplates">) {

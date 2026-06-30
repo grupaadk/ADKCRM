@@ -262,6 +262,7 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
         services: services.length > 0 ? services : undefined,
         customText: customText.trim() || undefined,
         comment: comment.trim() || undefined,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         uploadedFileIds: uploadedFiles.length > 0 ? uploadedFiles.map((f) => f.storageId as any) : undefined,
       });
       onSuccess(id);

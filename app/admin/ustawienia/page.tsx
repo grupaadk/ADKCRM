@@ -1146,7 +1146,7 @@ function FakturowniaTab() {
     <div className="space-y-6 max-w-xl">
       <p className="text-sm text-slate-600">
         Integracja wysyła wycenę jako{" "}
-        <strong>zamówienie</strong> (typ dokumentu „estimate" w API Fakturowni).
+        <strong>zamówienie</strong> (typ dokumentu &quot;estimate&quot; w API Fakturowni).
       </p>
 
       <form onSubmit={handleSave} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
