@@ -32,7 +32,10 @@ export default function AddressSearch({ onSelect, className }: AddressSearchProp
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSelectRef = useRef(onSelect);
-  onSelectRef.current = onSelect;
+
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
 
   const handleInput = useCallback(
     (value: string) => {

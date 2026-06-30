@@ -116,7 +116,9 @@ export default function OrderList() {
       const saved = localStorage.getItem(key)
       if (saved) {
         const arr = JSON.parse(saved)
-        if (Array.isArray(arr)) setActiveUserFilters(new Set(arr))
+        if (Array.isArray(arr)) {
+          setTimeout(() => setActiveUserFilters(new Set(arr)), 0)
+        }
       }
     } catch {}
   }, [currentUser?._id])
