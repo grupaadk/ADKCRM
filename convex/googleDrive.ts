@@ -1933,6 +1933,8 @@ export const copyTemplate = action({
         new Date().toISOString().slice(0, 10),
       );
 
+      console.log(`[copyTemplate] templateKey=${args.templateKey}, targetFolderId=${targetFolderId}, orderFolderId=${order.folderId}`);
+
       const copyData = await driveApiFetchWithRetry(
         ctx,
         `/files/${template.googleDriveFileId}/copy?supportsAllDrives=true`,
@@ -1947,6 +1949,39 @@ export const copyTemplate = action({
 
       if (!copyData.id) {
         throw new Error("Google Drive copy returned no file id");
+      }
+
+      // Ensure the file actually ended up in the target folder
+      // (Google Drive may ignore `parents` when copying from Shared Drives)
+      if (targetFolderId !== order.folderId) {
+        try {
+          const fileMetaRes = await fetch(
+            `${DRIVE_API_BASE}/files/${copyData.id}?fields=parents&supportsAllDrives=true`,
+            { headers: { Authorization: `Bearer ${connection.accessToken}` } },
+          );
+          if (fileMetaRes.ok) {
+            const fileMeta = await fileMetaRes.json() as { parents?: string[] };
+            const actualParents = fileMeta.parents ?? [];
+            console.log(`[copyTemplate] File ${copyData.id} parents=${JSON.stringify(actualParents)}, expected=${targetFolderId}`);
+            if (!actualParents.includes(targetFolderId)) {
+              const currentParent = actualParents[0] ?? order.folderId;
+              await fetch(
+                `${DRIVE_API_BASE}/files/${copyData.id}?addParents=${targetFolderId}&removeParents=${currentParent}&supportsAllDrives=true`,
+                {
+                  method: "PATCH",
+                  headers: {
+                    Authorization: `Bearer ${connection.accessToken}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({}),
+                },
+              );
+              console.log(`[copyTemplate] Moved file ${copyData.id} from ${currentParent} to ${targetFolderId}`);
+            }
+          }
+        } catch (moveErr) {
+          console.error(`[copyTemplate] Failed to verify/move file to target folder:`, moveErr);
+        }
       }
 
       const fileUrl = `https://docs.google.com/document/d/${copyData.id}/edit`;
@@ -2045,6 +2080,8 @@ export const copyWarrantyTemplate = action({
       const connection = await getAuthorizedConnection(ctx);
       const targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Gwarancja", order.folderId);
 
+      console.log(`[copyWarrantyTemplate] key=${args.key}, targetFolderId=${targetFolderId}, orderFolderId=${order.folderId}`);
+
       const copyData = await driveApiFetchWithRetry(
         ctx,
         `/files/${template.googleDriveFileId}/copy?supportsAllDrives=true`,
@@ -2054,6 +2091,39 @@ export const copyWarrantyTemplate = action({
         },
       );
       if (!copyData.id) throw new Error("Google Drive copy returned no file id");
+
+      // Ensure the file actually ended up in the target folder
+      // (Google Drive may ignore `parents` when copying from Shared Drives)
+      if (targetFolderId !== order.folderId) {
+        try {
+          const fileMetaRes = await fetch(
+            `${DRIVE_API_BASE}/files/${copyData.id}?fields=parents&supportsAllDrives=true`,
+            { headers: { Authorization: `Bearer ${connection.accessToken}` } },
+          );
+          if (fileMetaRes.ok) {
+            const fileMeta = await fileMetaRes.json() as { parents?: string[] };
+            const actualParents = fileMeta.parents ?? [];
+            console.log(`[copyWarrantyTemplate] File ${copyData.id} parents=${JSON.stringify(actualParents)}, expected=${targetFolderId}`);
+            if (!actualParents.includes(targetFolderId)) {
+              const currentParent = actualParents[0] ?? order.folderId;
+              await fetch(
+                `${DRIVE_API_BASE}/files/${copyData.id}?addParents=${targetFolderId}&removeParents=${currentParent}&supportsAllDrives=true`,
+                {
+                  method: "PATCH",
+                  headers: {
+                    Authorization: `Bearer ${connection.accessToken}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({}),
+                },
+              );
+              console.log(`[copyWarrantyTemplate] Moved file ${copyData.id} from ${currentParent} to ${targetFolderId}`);
+            }
+          }
+        } catch (moveErr) {
+          console.error(`[copyWarrantyTemplate] Failed to verify/move file to target folder:`, moveErr);
+        }
+      }
 
       const fileUrl = `https://docs.google.com/document/d/${copyData.id}/edit`;
 
