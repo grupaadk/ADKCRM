@@ -54,12 +54,6 @@ const TEMPLATE_TYPES = [
     "Gwarancja_{{firstName}}_{{lastName}}_{{city}}",
   ],
   [
-    "rekojmia_adk",
-    "rekojmia_adk",
-    "Rekojmia ADK",
-    "ADK_rekojmia_{{firstName}}_{{lastName}}_{{city}}",
-  ],
-  [
     "odbior_inwestor",
     "odbior_inwestor",
     "Odbior inwestor",
@@ -528,7 +522,7 @@ export default function TemplateEditorPage() {
                   disabled={type !== "custom" && type !== "gwarancja"}
                 />
                 <p className="mt-1 text-xs text-slate-500">
-                  Tylko małe litery, cyfry i podkreślenia. Klucze wbudowane (pomiar, umowa, gwarancja_alco, rekojmia_adk, odbior_inwestor, protokol_montaz, faktura, reklamacja) używają stałego slotu w dokumencie. Pozostałe klucze zaczynające się od <span className="font-mono">gwarancja_</span> tworzą osobne dokumenty gwarancyjne.
+                  Tylko małe litery, cyfry i podkreślenia. Klucze wbudowane (pomiar, umowa, gwarancja_alco, odbior_inwestor, protokol_montaz, faktura, reklamacja) używają stałego slotu w dokumencie. Pozostałe klucze zaczynające się od <span className="font-mono">gwarancja_</span> tworzą osobne dokumenty gwarancyjne.
                 </p>
               </div>
               <div className="md:col-span-2">

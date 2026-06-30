@@ -10,7 +10,6 @@ const DOCUMENT_LABELS: Record<string, string> = {
   pomiar: "Pomiar",
   umowa: "Umowa",
   gwarancja_alco: "Gwarancja ALCO",
-  rekojmia_adk: "Rekojmia ADK",
   odbior_inwestor: "Odbior inwestorski",
   protokol_montaz: "Protokol montazu",
   faktura: "Faktura",
@@ -36,7 +35,6 @@ type DocumentType =
   | "pomiar"
   | "umowa"
   | "gwarancja_alco"
-  | "rekojmia_adk"
   | "odbior_inwestor"
   | "protokol_montaz"
   | "faktura"

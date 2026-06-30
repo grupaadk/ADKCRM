@@ -1129,6 +1129,7 @@ export const createOrderFolder = action({
       const ORDER_SUBFOLDERS = [
         "Faktury",
         "Umowy",
+        "Gwarancja",
         "Zdjęcia budowy",
         "Rysunki konstrukcji do zamówienia",
       ] as const;
@@ -1907,6 +1908,8 @@ export const copyTemplate = action({
         targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Umowy", order.folderId);
       } else if (args.templateKey === "faktura") {
         targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Faktury", order.folderId);
+      } else if (args.templateKey.startsWith("gwarancja_")) {
+        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Gwarancja", order.folderId);
       }
 
       // Get template — by specific ID if provided, otherwise first by key
@@ -2039,12 +2042,15 @@ export const copyWarrantyTemplate = action({
       fileName = fileName.replace("{{city}}", client.city ?? "");
       fileName = fileName.replace("{{date}}", new Date().toISOString().slice(0, 10));
 
+      const connection = await getAuthorizedConnection(ctx);
+      const targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Gwarancja", order.folderId);
+
       const copyData = await driveApiFetchWithRetry(
         ctx,
         `/files/${template.googleDriveFileId}/copy?supportsAllDrives=true`,
         {
           method: "POST",
-          body: JSON.stringify({ name: fileName, parents: [order.folderId] }),
+          body: JSON.stringify({ name: fileName, parents: [targetFolderId] }),
         },
       );
       if (!copyData.id) throw new Error("Google Drive copy returned no file id");

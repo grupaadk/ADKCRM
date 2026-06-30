@@ -19,7 +19,7 @@ const DOC_COLORS: Record<DocState, string> = {
   green: "#22c55e",
 }
 
-const DOC_KEYS = ["pomiar", "umowa", "gwarancja_alco", "rekojmia_adk", "odbior_inwestor", "protokol_montaz", "faktura", "reklamacja"]
+const DOC_KEYS = ["pomiar", "umowa", "gwarancja_alco", "odbior_inwestor", "protokol_montaz", "faktura", "reklamacja"]
 
 const SERVICE_COLORS = [
   { bg: "#ede9fe", text: "#6d28d9" },

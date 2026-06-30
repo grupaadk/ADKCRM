@@ -3,7 +3,6 @@
 const DOC_KEYS: Array<{ key: string; label: string }> = [
   { key: "pomiar", label: "Pomiar" },
   { key: "umowa", label: "Umowa" },
-  { key: "rekojmia_adk", label: "Rękojmia ADK" },
   { key: "odbior_inwestor", label: "Odbiór inwestorski" },
   { key: "protokol_montaz", label: "Protokół montażu" },
   { key: "gwarancja_alco", label: "Gwarancja ALCO" },

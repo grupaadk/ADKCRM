@@ -28,12 +28,6 @@ const TEMPLATE_TYPES = [
     "Gwarancja_{{firstName}}_{{lastName}}_{{city}}",
   ],
   [
-    "rekojmia_adk",
-    "rekojmia_adk",
-    "Rekojmia ADK",
-    "ADK_rekojmia_{{firstName}}_{{lastName}}_{{city}}",
-  ],
-  [
     "odbior_inwestor",
     "odbior_inwestor",
     "Odbior inwestor",

@@ -11,7 +11,6 @@ const DOCUMENT_LABELS: Record<string, string> = {
   pomiar: "Pomiar",
   umowa: "Umowa",
   gwarancja_alco: "Gwarancja ALCO",
-  rekojmia_adk: "Rekojmia ADK",
   odbior_inwestor: "Odbior inwestorski",
   protokol_montaz: "Protokol montazu",
   reklamacja: "Reklamacja",
@@ -20,7 +19,7 @@ const DOCUMENT_LABELS: Record<string, string> = {
 const DOCUMENT_GROUPS: Array<{ title: string; keys: string[] }> = [
   {
     title: "Umowy i dokumenty handlowe",
-    keys: ["pomiar", "umowa", "rekojmia_adk"],
+    keys: ["pomiar", "umowa"],
   },
   {
     title: "Protokoly odbioru",
@@ -40,7 +39,6 @@ type DocumentType =
   | "pomiar"
   | "umowa"
   | "gwarancja_alco"
-  | "rekojmia_adk"
   | "odbior_inwestor"
   | "protokol_montaz"
   | "reklamacja";
@@ -209,7 +207,7 @@ function getMissingFieldGroups(
 
 // Keys that use the legacy fixed `documents` field; all others use `warrantyDocs`
 const LEGACY_DOCUMENT_KEYS = new Set([
-  "pomiar", "umowa", "gwarancja_alco", "rekojmia_adk",
+  "pomiar", "umowa", "gwarancja_alco",
   "odbior_inwestor", "protokol_montaz", "faktura", "reklamacja",
 ]);
 
