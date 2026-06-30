@@ -44,6 +44,48 @@ const CLIENT_FIELDS = [
   { value: "__empty", label: "Puste pole" },
 ] as const;
 
+const TEMPLATE_TYPES = [
+  ["pomiar", "pomiar", "Pomiar", "Pomiar_{{firstName}}_{{lastName}}_{{city}}"],
+  ["umowa", "umowa", "Umowa", "Umowa_{{firstName}}_{{lastName}}_{{city}}"],
+  [
+    "gwarancja",
+    "gwarancja_",
+    "Gwarancja",
+    "Gwarancja_{{firstName}}_{{lastName}}_{{city}}",
+  ],
+  [
+    "rekojmia_adk",
+    "rekojmia_adk",
+    "Rekojmia ADK",
+    "ADK_rekojmia_{{firstName}}_{{lastName}}_{{city}}",
+  ],
+  [
+    "odbior_inwestor",
+    "odbior_inwestor",
+    "Odbior inwestor",
+    "Odbior_{{firstName}}_{{lastName}}_{{city}}",
+  ],
+  [
+    "protokol_montaz",
+    "protokol_montaz",
+    "Protokol montazu",
+    "OdMontazysty_{{firstName}}_{{lastName}}_{{city}}",
+  ],
+  [
+    "faktura",
+    "faktura",
+    "Faktura",
+    "Faktura_{{firstName}}_{{lastName}}_{{city}}",
+  ],
+  [
+    "reklamacja",
+    "reklamacja",
+    "Reklamacja",
+    "Reklamacja_{{firstName}}_{{lastName}}_{{city}}",
+  ],
+  ["custom", "", "Inny / wlasny", ""],
+] as const;
+
 const SAMPLE_DATA: Record<string, string> = {
   firstName: "Jan",
   lastName: "Kowalski",
@@ -121,6 +163,7 @@ export default function TemplateEditorPage() {
   const [fileNamePattern, setFileNamePattern] = useState("");
   const [googleDriveFileId, setGoogleDriveFileId] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [type, setType] = useState("custom");
   const [mappings, setMappings] = useState<Mapping[]>([]);
   const [saving, setSaving] = useState(false);
   const [detectingPlaceholders, setDetectingPlaceholders] = useState(false);
@@ -144,6 +187,16 @@ export default function TemplateEditorPage() {
       setGoogleDriveFileId(template.googleDriveFileId ?? "");
       setIsActive(template.isActive);
       setMappings(template.fieldMappings.map((mapping) => ({ ...mapping })));
+      
+      let initialType = "custom";
+      const exactMatch = TEMPLATE_TYPES.find(t => t[1] === template.key && t[0] !== "gwarancja" && t[0] !== "custom");
+      if (exactMatch) {
+        initialType = exactMatch[0];
+      } else if (template.key.startsWith("gwarancja_")) {
+        initialType = "gwarancja";
+      }
+      setType(initialType);
+      
       setInitialized(true);
     }
   }, [template, initialized]);
@@ -180,6 +233,15 @@ export default function TemplateEditorPage() {
       });
     } finally {
       setFilesLoading(false);
+    }
+  };
+
+  const handleTypeChange = (newType: string) => {
+    const selectedType = TEMPLATE_TYPES.find((item) => item[0] === newType);
+    if (!selectedType) return;
+    setType(newType);
+    if (selectedType[1] && !key.startsWith(selectedType[1])) {
+      setKey(selectedType[1]);
     }
   };
 
@@ -417,14 +479,19 @@ export default function TemplateEditorPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Nazwa
+                  Typ dokumentu
                 </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                <select
+                  value={type}
+                  onChange={(e) => handleTypeChange(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                />
+                >
+                  {TEMPLATE_TYPES.map((t) => (
+                    <option key={t[0]} value={t[0]}>
+                      {t[2]}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex items-end">
                 <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
@@ -439,6 +506,17 @@ export default function TemplateEditorPage() {
               </div>
               <div className="md:col-span-2">
                 <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Nazwa
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-slate-700">
                   Klucz szablonu
                 </label>
                 <input
@@ -446,7 +524,8 @@ export default function TemplateEditorPage() {
                   value={key}
                   onChange={(e) => setKey(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))}
                   placeholder="np. gwarancja_ks_system"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono disabled:opacity-50 disabled:bg-slate-50"
+                  disabled={type !== "custom" && type !== "gwarancja"}
                 />
                 <p className="mt-1 text-xs text-slate-500">
                   Tylko małe litery, cyfry i podkreślenia. Klucze wbudowane (pomiar, umowa, gwarancja_alco, rekojmia_adk, odbior_inwestor, protokol_montaz, faktura, reklamacja) używają stałego slotu w dokumencie. Pozostałe klucze zaczynające się od <span className="font-mono">gwarancja_</span> tworzą osobne dokumenty gwarancyjne.
