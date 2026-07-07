@@ -1486,13 +1486,11 @@ export default function OrderDetailPage({
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className="mono mute" style={{ fontSize: 11 }}>
-              {(order as { projectStartDate?: number }).projectStartDate
-                ? `Start: ${fmtLocalDate((order as { projectStartDate?: number }).projectStartDate!)}`
-                : `Dodano: ${createdDate}`}
-              {(order as { installationStartDate?: number }).installationStartDate &&
-                ` · Montaż: ${fmtLocalDate((order as { installationStartDate?: number }).installationStartDate!)}`}
-              {(order as { projectEndDate?: number }).projectEndDate &&
-                ` · Koniec: ${fmtLocalDate((order as { projectEndDate?: number }).projectEndDate!)}`}
+              {[
+                order.projectStartDate ? `Start: ${fmtLocalDate(order.projectStartDate)}` : null,
+                order.installationStartDate ? `Montaż: ${fmtLocalDate(order.installationStartDate)}` : null,
+                order.projectEndDate ? `Koniec: ${fmtLocalDate(order.projectEndDate)}` : null
+              ].filter(Boolean).join(" · ")}
             </span>
             <span style={{ width: 1, height: 14, background: "var(--line)", display: "inline-block" }} />
 
