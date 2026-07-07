@@ -1495,13 +1495,6 @@ export default function OrderDetailPage({
               </div>
               <div style={{ width: 1, height: 10, background: "var(--line)" }} />
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: order.installationStartDate ? "#f59e0b" : "#d1d5db", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: order.installationStartDate ? "var(--text-strong)" : "var(--text-mute)", fontWeight: order.installationStartDate ? 600 : 500, whiteSpace: "nowrap" }}>
-                  {order.installationStartDate ? `Montaż: ${fmtLocalDate(order.installationStartDate)}` : "Montaż: wkrótce"}
-                </span>
-              </div>
-              <div style={{ width: 1, height: 10, background: "var(--line)" }} />
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: order.projectEndDate ? "#10b981" : "#d1d5db", flexShrink: 0 }} />
                 <span style={{ fontSize: 11, color: order.projectEndDate ? "var(--text-strong)" : "var(--text-mute)", fontWeight: order.projectEndDate ? 600 : 500, whiteSpace: "nowrap" }}>
                   {order.projectEndDate ? `Koniec: ${fmtLocalDate(order.projectEndDate)}` : "Koniec: w trakcie"}

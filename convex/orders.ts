@@ -409,12 +409,7 @@ export const changeStatus = mutation({
       }
     }
     
-    // Status 'custom_nowy_status' w tym systemie oznacza "Montaż"
-    if (args.newStatus === "custom_nowy_status") {
-      if (!order.installationStartDate) {
-        statusPatch.installationStartDate = Date.now();
-      }
-    }
+
 
     if (args.newStatus === "completed") {
       statusPatch.projectEndDate = Date.now();
