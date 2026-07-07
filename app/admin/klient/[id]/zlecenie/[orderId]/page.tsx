@@ -2325,28 +2325,7 @@ export default function OrderDetailPage({
                     {new Date(order.installationStartDate).toLocaleTimeString("pl-PL", { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-              ) : order.projectEndDate ? (
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text-strong)" }}>
-                    {fmtLocalDate(order.projectEndDate)}
-                  </span>
-                  <span style={{ fontSize: 12.5, color: "var(--text-mute)", textTransform: "capitalize" }}>
-                    {new Date(order.projectEndDate).toLocaleDateString("pl-PL", { weekday: "long" })}
-                  </span>
-                  {order.installationStartDate != null && (
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", gap: 4,
-                      fontSize: 12, fontWeight: 700, color: "var(--accent)",
-                      background: "var(--card)", border: "1px solid var(--accent-line)",
-                      borderRadius: 999, padding: "2px 9px",
-                    }}>
-                      <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {hourStr(order.installationStartDate)}
-                    </span>
-                  )}
-                </div>
+
               ) : (
                 <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-mute)" }}>
                   Nie ustawiono
