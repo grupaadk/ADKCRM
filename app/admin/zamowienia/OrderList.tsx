@@ -77,7 +77,7 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
 
 
 
-export default function OrderList() {
+export default function OrderList({ searchTerm = "" }: { searchTerm?: string }) {
   const router = useRouter()
   const statusLabels = useStatusLabels()
   const statuses = useStatuses()
@@ -92,24 +92,14 @@ export default function OrderList() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [clientFilter, setClientFilter] = useState<ClientFilter>("all")
   const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set())
-  const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchTerm(value)
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-    searchTimerRef.current = setTimeout(() => {
-      setDebouncedSearch(value.toLowerCase().trim())
-    }, 300)
-  }, [])
 
   useEffect(() => {
-    return () => {
-      if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-    }
-  }, [])
-
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm.toLowerCase().trim())
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
   useEffect(() => {
     if (!currentUser?._id) return
     const key = `zamowienia_user_filter_${currentUser._id}`
@@ -257,57 +247,8 @@ export default function OrderList() {
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Toolbar */}
       <div className="panel" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-        {/* Row 0: search */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, maxWidth: 520 }}>
-          <span style={{
-            fontSize: 12, fontWeight: 600, color: "var(--text-strong)",
-            whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5,
-          }}>
-            <Search style={{ width: 15, height: 15 }} />
-            Szukaj
-          </span>
-          <div style={{ position: "relative", flex: 1 }}>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Wyszukaj"
-              style={{
-                width: "100%",
-                padding: "10px 34px 10px 12px",
-                borderRadius: 8,
-                border: "2px solid var(--accent-line)",
-                background: "var(--bg)",
-                fontSize: 14,
-                fontWeight: 500,
-                fontFamily: "inherit",
-                color: "var(--text-strong)",
-                outline: "none",
-                transition: "border-color 0.15s, box-shadow 0.15s",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent)";
-                e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent-line)";
-                e.currentTarget.style.boxShadow = "none";
-              }}
-            />
-            {searchTerm && (
-              <button
-                onClick={() => { setSearchTerm(""); setDebouncedSearch(""); }}
-                style={{
-                  position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
-                  background: "var(--panel-3)", border: "none", borderRadius: "50%",
-                  cursor: "pointer", color: "var(--text-mute)", width: 22, height: 22,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}
-              >
-                <X style={{ width: 13, height: 13 }} />
-              </button>
-            )}
-          </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 20 }}>
           {debouncedSearch && displayOrders && (
             <span style={{
               fontSize: 12, fontWeight: 600, color: "var(--accent)", whiteSpace: "nowrap",

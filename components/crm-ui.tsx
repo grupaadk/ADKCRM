@@ -11,12 +11,13 @@ interface PageHeaderProps {
   title: string
   sub?: string
   actions?: ReactNode
+  center?: ReactNode
   tabs?: Tab[]
   activeTab?: string
   onTab?: (key: string) => void
 }
 
-export function CrmPageHeader({ title, sub, actions, tabs, activeTab, onTab }: PageHeaderProps) {
+export function CrmPageHeader({ title, sub, actions, center, tabs, activeTab, onTab }: PageHeaderProps) {
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 14, marginBottom: tabs ? 12 : 0 }}>
@@ -28,6 +29,11 @@ export function CrmPageHeader({ title, sub, actions, tabs, activeTab, onTab }: P
             <p style={{ fontSize: 12.5, color: "var(--text-dim)", marginTop: 3, marginBottom: 0 }}>{sub}</p>
           )}
         </div>
+        {center && (
+          <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", paddingBottom: 2 }}>
+            {center}
+          </div>
+        )}
         {actions && (
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>{actions}</div>
         )}
