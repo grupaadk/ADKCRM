@@ -222,28 +222,33 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
               </span>
             </div>
             {/* Status selector */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11.5, color: "var(--text-mute)", width: 120, flexShrink: 0 }}>Status</span>
-              <select
-                value={complaint.status}
-                onChange={(e) =>
-                  updateStatus({ complaintId, status: e.target.value as Status })
-                }
-                style={{
-                  fontSize: 12,
-                  padding: "3px 8px",
-                  borderRadius: 6,
-                  border: "1px solid var(--line)",
-                  background: "var(--panel-2)",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {(Object.keys(STATUS_LABELS) as Status[]).map((s) => (
-                  <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                ))}
-              </select>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {(Object.keys(STATUS_LABELS) as Status[]).map((s) => {
+                  const isActive = complaint.status === s;
+                  const colors = STATUS_COLORS[s];
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => updateStatus({ complaintId, status: s })}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: "4px 10px",
+                        borderRadius: 20,
+                        border: `1px solid ${isActive ? colors.border : "var(--line)"}`,
+                        background: isActive ? colors.bg : "var(--panel-2)",
+                        color: isActive ? colors.color : "var(--text-mute)",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {STATUS_LABELS[s]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             {/* Assigned to */}
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
