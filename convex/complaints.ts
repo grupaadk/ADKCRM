@@ -89,12 +89,11 @@ export const create = mutation({
       todos: [],
       createdBy: args.createdBy,
     });
-    if (args.orderId) {
-      await ctx.scheduler.runAfter(0, internal.googleDrive.createComplaintFolder, {
-        complaintId,
-        orderId: args.orderId,
-      });
-    }
+    await ctx.scheduler.runAfter(0, internal.googleDrive.createComplaintFolder, {
+      complaintId,
+      orderId: args.orderId,
+      clientId: args.clientId,
+    });
     return complaintId;
   },
 });
@@ -118,15 +117,25 @@ export const updateDetails = mutation({
   },
 });
 
+export const deleteComplaint = mutation({
+  args: { complaintId: v.id("complaints") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.complaintId);
+  },
+});
+
 export const requestComplaintFolderCreation = mutation({
   args: {
     complaintId: v.id("complaints"),
-    orderId: v.id("orders"),
+    orderId: v.optional(v.id("orders")),
+    clientId: v.id("clients"),
   },
   handler: async (ctx, args) => {
+    // Odpalamy akcję wewnętrzną by pobrać ID i od razu zaktualizować complaint
     await ctx.scheduler.runAfter(0, internal.googleDrive.createComplaintFolder, {
       complaintId: args.complaintId,
       orderId: args.orderId,
+      clientId: args.clientId,
     });
   },
 });
@@ -153,6 +162,7 @@ export const updateStatus = mutation({
       v.literal("w_toku"),
       v.literal("rozwiazana"),
       v.literal("zamknieta"),
+      v.literal("zakonczona"),
     ),
   },
   handler: async (ctx, args) => {

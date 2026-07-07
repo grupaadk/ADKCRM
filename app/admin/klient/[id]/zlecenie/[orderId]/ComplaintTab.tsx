@@ -322,6 +322,7 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
 
       {/* Zdjęcia */}
       <ComplaintPhotoSection
+        clientId={complaint.clientId}
         orderId={orderId}
         complaintId={complaint._id}
         complaintFolderId={complaint.complaintFolderId}

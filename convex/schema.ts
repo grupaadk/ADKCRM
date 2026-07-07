@@ -583,6 +583,7 @@ export default defineSchema({
       v.literal("w_toku"),
       v.literal("rozwiazana"),
       v.literal("zamknieta"),
+      v.literal("zakonczona"), // legacy — stare rekordy
     ),
     description: v.optional(v.string()),
     clientDescription: v.optional(v.string()),

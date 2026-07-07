@@ -22,6 +22,13 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [newClientType, setNewClientType] = useState<"individual" | "business">("individual");
+  const [newClientFirstName, setNewClientFirstName] = useState("");
+  const [newClientLastName, setNewClientLastName] = useState("");
+  const [newClientCompanyName, setNewClientCompanyName] = useState("");
+  const [creatingClient, setCreatingClient] = useState(false);
+
   const me = useQuery(api.users.me);
   const users = useQuery(api.users.listAllActive);
   const searchResults = useQuery(
@@ -35,6 +42,7 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
   );
 
   const createComplaint = useMutation(api.complaints.create);
+  const createClient = useMutation(api.clients.create);
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setVisible(true));
@@ -239,11 +247,109 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
                   </div>
                 )}
                 {clientSearch.trim().length >= 2 && searchResults?.length === 0 && (
-                  <p style={{ fontSize: 11, color: "var(--text-mute)", margin: "4px 0 0" }}>Nie znaleziono klienta.</p>
+                  <div style={{ marginTop: 8 }}>
+                    <p style={{ fontSize: 11, color: "var(--text-mute)", marginBottom: 8 }}>Nie znaleziono klienta.</p>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingClient(true)}
+                      style={{
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        padding: "6px 12px",
+                        borderRadius: 6,
+                        border: "1px solid var(--accent)",
+                        color: "var(--accent)",
+                        background: "var(--accent-soft)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Dodaj nowego klienta
+                    </button>
+                  </div>
                 )}
               </div>
             )}
           </div>
+
+          {/* Formularz tworzenia nowego klienta */}
+          {isCreatingClient && !selectedClientId && (
+            <div style={{ padding: "12px 14px", border: "1px solid var(--line)", borderRadius: 8, background: "var(--panel-2)", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>Nowy klient</span>
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingClient(false)}
+                  style={{ background: "none", border: "none", fontSize: 11, color: "var(--text-mute)", cursor: "pointer" }}
+                >
+                  Anuluj
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <label style={{ fontSize: 11.5, display: "flex", alignItems: "center", gap: 4 }}>
+                  <input type="radio" checked={newClientType === "individual"} onChange={() => setNewClientType("individual")} />
+                  Osoba fizyczna
+                </label>
+                <label style={{ fontSize: 11.5, display: "flex", alignItems: "center", gap: 4 }}>
+                  <input type="radio" checked={newClientType === "business"} onChange={() => setNewClientType("business")} />
+                  Firma
+                </label>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <input
+                  type="text"
+                  placeholder="Imię"
+                  value={newClientFirstName}
+                  onChange={(e) => setNewClientFirstName(e.target.value)}
+                  style={{ flex: 1, padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)", outline: "none" }}
+                />
+                <input
+                  type="text"
+                  placeholder="Nazwisko"
+                  value={newClientLastName}
+                  onChange={(e) => setNewClientLastName(e.target.value)}
+                  style={{ flex: 1, padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)", outline: "none" }}
+                />
+              </div>
+              {newClientType === "business" && (
+                <input
+                  type="text"
+                  placeholder="Nazwa firmy"
+                  value={newClientCompanyName}
+                  onChange={(e) => setNewClientCompanyName(e.target.value)}
+                  style={{ width: "100%", padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)", outline: "none" }}
+                />
+              )}
+              <button
+                type="button"
+                disabled={creatingClient || (!newClientFirstName && !newClientLastName && !newClientCompanyName)}
+                onClick={async () => {
+                  setCreatingClient(true);
+                  setError(null);
+                  try {
+                    const clientId = await createClient({
+                      clientType: newClientType,
+                      firstName: newClientFirstName.trim(),
+                      lastName: newClientLastName.trim(),
+                      companyName: newClientType === "business" ? newClientCompanyName.trim() : undefined,
+                    });
+                    const name = [newClientFirstName, newClientLastName].filter(Boolean).join(" ") || newClientCompanyName;
+                    setSelectedClientId(clientId);
+                    setSelectedClientName(name);
+                    setIsCreatingClient(false);
+                    setClientSearch("");
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "Błąd tworzenia klienta");
+                  } finally {
+                    setCreatingClient(false);
+                  }
+                }}
+                className="btn"
+                style={{ fontSize: 12, padding: "8px", marginTop: 4, width: "100%" }}
+              >
+                {creatingClient ? "Tworzenie..." : "Zapisz i wybierz"}
+              </button>
+            </div>
+          )}
 
           {/* Zlecenie (opcjonalne) */}
           {selectedClientId && (

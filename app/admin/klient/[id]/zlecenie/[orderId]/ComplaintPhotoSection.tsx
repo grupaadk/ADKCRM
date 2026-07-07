@@ -21,11 +21,13 @@ type UploadItem = {
 };
 
 export default function ComplaintPhotoSection({
+  clientId,
   orderId,
   complaintId,
   complaintFolderId,
 }: {
-  orderId: Id<"orders">;
+  clientId: Id<"clients">;
+  orderId?: Id<"orders">;
   complaintId: Id<"complaints">;
   complaintFolderId: string | undefined;
 }) {
@@ -56,7 +58,7 @@ export default function ComplaintPhotoSection({
     if (!complaintFolderId) return;
     let cancelled = false;
     setLoading(true);
-    listFolderContents({ orderId, folderId: complaintFolderId })
+    listFolderContents({ orderId, clientId, folderId: complaintFolderId })
       .then((result) => {
         if (!cancelled) {
           setItems(result.filter((i) => !i.isFolder));
@@ -67,7 +69,7 @@ export default function ComplaintPhotoSection({
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [complaintFolderId, refreshCounter, listFolderContents, orderId]);
+  }, [complaintFolderId, refreshCounter, listFolderContents, orderId, clientId]);
 
   const handleFile = useCallback(async (file: File) => {
     if (!complaintFolderId) return;
@@ -84,6 +86,7 @@ export default function ComplaintPhotoSection({
       const { storageId } = (await res.json()) as { storageId: string };
       await uploadFile({
         orderId,
+        clientId,
         storageId: storageId as Id<"_storage">,
         fileName: file.name,
         mimeType: file.type || undefined,
@@ -100,7 +103,7 @@ export default function ComplaintPhotoSection({
         ),
       );
     }
-  }, [generateUploadUrl, uploadFile, orderId, complaintFolderId]);
+  }, [generateUploadUrl, uploadFile, orderId, clientId, complaintFolderId]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -202,17 +205,15 @@ export default function ComplaintPhotoSection({
               setCreatingFolder(true);
               setCreateFolderError(null);
               try {
-                await requestComplaintFolderCreation({ complaintId, orderId });
+                await requestComplaintFolderCreation({ complaintId, orderId, clientId });
                 setFolderCreated(true);
-                setTimeout(() => setFolderCreated(false), 6000);
               } catch (err) {
                 setCreateFolderError(err instanceof Error ? err.message : "Błąd");
-                setTimeout(() => setCreateFolderError(null), 4000);
               } finally {
                 setCreatingFolder(false);
               }
             }}
-            disabled={creatingFolder}
+            disabled={creatingFolder || folderCreated}
             style={{
               background: creatingFolder ? "#fcd34d" : "#f59e0b",
               color: "#fff",

@@ -298,7 +298,7 @@ export default function ReklamacjePage() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--line)" }}>
-                  {["Data", "Klient", "Status", "Opis", "Przypisany do", ""].map((h) => (
+                  {["Data", "Klient", "Zlecenie", "Status", "Opis", "Przypisany do", ""].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -352,6 +352,11 @@ export default function ReklamacjePage() {
                         {c.client?.companyName && clientName !== c.client.companyName && (
                           <div style={{ fontSize: 11, color: "var(--text-mute)" }}>{c.client.companyName}</div>
                         )}
+                      </td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <span style={{ fontSize: 12.5, color: "var(--text)" }}>
+                          {c.order?.name ?? "—"}
+                        </span>
                       </td>
                       <td style={{ padding: "10px 14px" }}>
                         <StatusBadge status={c.status} />

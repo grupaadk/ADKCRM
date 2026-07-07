@@ -59,7 +59,8 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
 
   const updateStatus = useMutation(api.complaints.updateStatus);
   const updateDetails = useMutation(api.complaints.updateDetails);
-  const addNote = useMutation(api.complaints.addNote);
+  const deleteComplaint = useMutation(api.complaints.deleteComplaint);
+  const addNote = useMutation(api.complaints.addEntry);
   const deleteNote = useMutation(api.complaints.deleteNote);
 
   useEffect(() => {
@@ -98,6 +99,7 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
       await addNote({
         complaintId,
         text,
+        type: "note",
         createdBy: me?.displayName ?? me?.login ?? "Nieznany",
       });
       setNewNote("");
@@ -121,6 +123,13 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
     boxShadow: "-8px 0 40px rgba(0,0,0,0.15)",
     transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
     transform: visible ? "translateX(0)" : "translateX(100%)",
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm("Czy na pewno chcesz usunąć tę reklamację? Tej operacji nie można cofnąć.")) {
+      await deleteComplaint({ complaintId });
+      onClose();
+    }
   };
 
   if (complaint === undefined) {
@@ -297,15 +306,14 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
           </ComplaintSection>
 
           {/* Zdjęcia */}
-          {complaint.orderId && (
-            <ComplaintSection title="Zdjęcia">
-              <ComplaintPhotoSection
-                orderId={complaint.orderId}
-                complaintId={complaintId}
-                complaintFolderId={complaint.complaintFolderId}
-              />
-            </ComplaintSection>
-          )}
+          <ComplaintSection title="Zdjęcia">
+            <ComplaintPhotoSection
+              clientId={complaint.clientId}
+              orderId={complaint.orderId}
+              complaintId={complaintId}
+              complaintFolderId={complaint.complaintFolderId}
+            />
+          </ComplaintSection>
 
           {/* Notatki wewnętrzne */}
           <ComplaintSection title="Notatki wewnętrzne">
@@ -394,6 +402,28 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
               <p style={{ margin: 0, fontSize: 10.5, color: "var(--text-mute)" }}>Ctrl+Enter aby zapisać</p>
             </div>
           </ComplaintSection>
+          
+          <div style={{ padding: "16px", marginTop: "auto" }}>
+            <button
+              onClick={handleDelete}
+              style={{
+                width: "100%",
+                padding: "10px",
+                backgroundColor: "#fee2e2",
+                color: "#dc2626",
+                border: "1px solid #fecaca",
+                borderRadius: "8px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "background-color 0.2s",
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#fecaca")}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#fee2e2")}
+            >
+              Usuń reklamację
+            </button>
+          </div>
         </div>
       </div>
     </>,

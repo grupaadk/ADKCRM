@@ -2729,7 +2729,8 @@ export const uploadSalesOpportunityFiles = action({
 
 export const listOrderFolderContents = action({
   args: {
-    orderId: v.id("orders"),
+    orderId: v.optional(v.id("orders")),
+    clientId: v.optional(v.id("clients")),
     folderId: v.string(),
   },
   handler: async (ctx, args): Promise<Array<{
@@ -2778,7 +2779,8 @@ export const listOrderFolderContents = action({
 
 export const uploadManualOrderFile = action({
   args: {
-    orderId: v.id("orders"),
+    orderId: v.optional(v.id("orders")),
+    clientId: v.optional(v.id("clients")),
     storageId: v.id("_storage"),
     fileName: v.string(),
     mimeType: v.optional(v.string()),
@@ -2787,9 +2789,15 @@ export const uploadManualOrderFile = action({
   handler: async (ctx, args): Promise<{ fileId: string; name: string; url: string }> => {
     await requireUserIdentifierInAction(ctx);
 
-    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
-    if (!order) throw new Error("Zlecenie nie znalezione");
-    if (!order.folderId) throw new Error("To zlecenie nie ma folderu w Google Drive.");
+    if (args.orderId) {
+      const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+      if (!order) throw new Error("Zlecenie nie znalezione");
+    } else if (args.clientId) {
+      const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
+      if (!client) throw new Error("Klient nie znaleziony");
+    } else {
+      throw new Error("Wymagane jest podanie orderId lub clientId");
+    }
 
     const connection = await getAuthorizedConnection(ctx);
     const { accessToken } = connection;
@@ -2893,12 +2901,23 @@ export const createOpportunityFolder = action({
 export const createComplaintFolder = internalAction({
   args: {
     complaintId: v.id("complaints"),
-    orderId: v.id("orders"),
+    orderId: v.optional(v.id("orders")),
+    clientId: v.id("clients"),
   },
   handler: async (ctx, args): Promise<{ id: string; url: string }> => {
-    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
-    if (!order) throw new Error("Zlecenie nie znalezione");
-    if (!order.folderId) throw new Error("To zlecenie nie ma folderu w Google Drive.");
+    let parentFolderId: string | null = null;
+
+    if (args.orderId) {
+      const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+      if (!order) throw new Error("Zlecenie nie znalezione");
+      if (!order.folderId) throw new Error("To zlecenie nie ma folderu w Google Drive.");
+      parentFolderId = order.folderId;
+    } else {
+      const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
+      if (!client) throw new Error("Klient nie znaleziony");
+      if (!client.clientFolderId) throw new Error("Ten klient nie ma folderu w Google Drive.");
+      parentFolderId = client.clientFolderId;
+    }
 
     const connection = await getAuthorizedConnection(ctx);
     const accessToken = connection.accessToken;
@@ -2912,7 +2931,7 @@ export const createComplaintFolder = internalAction({
       body: JSON.stringify({
         name: "Reklamacja",
         mimeType: "application/vnd.google-apps.folder",
-        parents: [order.folderId],
+        parents: [parentFolderId],
       }),
     });
 
