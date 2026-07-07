@@ -40,6 +40,7 @@ import type * as orders from "../orders.js";
 import type * as paymentReminders from "../paymentReminders.js";
 import type * as places from "../places.js";
 import type * as salesOpportunities from "../salesOpportunities.js";
+import type * as scratch from "../scratch.js";
 import type * as seed from "../seed.js";
 import type * as servicePricing from "../servicePricing.js";
 import type * as services from "../services.js";
@@ -91,6 +92,7 @@ declare const fullApi: ApiFromModules<{
   paymentReminders: typeof paymentReminders;
   places: typeof places;
   salesOpportunities: typeof salesOpportunities;
+  scratch: typeof scratch;
   seed: typeof seed;
   servicePricing: typeof servicePricing;
   services: typeof services;

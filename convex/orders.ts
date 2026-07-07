@@ -402,13 +402,15 @@ export const changeStatus = mutation({
     const statusPatch: Record<string, unknown> = { status: args.newStatus };
 
     // Automatyczne przypisywanie dat zlecenia
-    if (args.newStatus === "production") {
+    // Status 'installation' w tym systemie oznacza "Realizowane" (Start projektu)
+    if (args.newStatus === "installation") {
       if (!order.projectStartDate) {
         statusPatch.projectStartDate = Date.now();
       }
     }
     
-    if (args.newStatus === "installation") {
+    // Status 'custom_nowy_status' w tym systemie oznacza "Montaż"
+    if (args.newStatus === "custom_nowy_status") {
       if (!order.installationStartDate) {
         statusPatch.installationStartDate = Date.now();
       }
