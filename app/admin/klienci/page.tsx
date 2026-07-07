@@ -8,6 +8,7 @@ import { Plus, Search, Loader2 } from "lucide-react";
 import ClientList from "./ClientList";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { CrmPageHeader } from "@/components/crm-ui";
+import ModalPortal from "@/components/ModalPortal";
 
 type ClientType = "individual" | "business";
 
@@ -185,6 +186,7 @@ export default function KlienciPage() {
       />
 
       {showModal && (
+        <ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
@@ -576,6 +578,7 @@ export default function KlienciPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

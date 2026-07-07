@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -41,6 +41,8 @@ export default function InvestmentLocation({
   const [postal, setPostal] = useState(investmentPostalCode ?? "");
   const [city, setCity] = useState(investmentCity ?? "");
 
+  const popoverRef = useRef<HTMLDivElement>(null);
+
   function handleEdit() {
     setStreet(investmentStreet ?? "");
     setBuilding(investmentBuildingNumber ?? "");
@@ -73,6 +75,18 @@ export default function InvestmentLocation({
     if (address.city) setCity(address.city);
   }
 
+  // Close popover on click outside
+  useEffect(() => {
+    if (!editing) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setEditing(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [editing]);
+
   const hasAddress = Boolean(investmentStreet || investmentCity);
 
   const primaryLine = [
@@ -89,41 +103,74 @@ export default function InvestmentLocation({
   const fullAddress = [primaryLine, secondaryLine].filter(Boolean).join(", ");
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
 
-  // ── Tryb edycji ──
-  if (editing) {
+  // ── Brak adresu: przycisk dodania ──
+  if (!hasAddress && !editing) {
     return (
+      <div style={{ position: "relative", display: "inline-flex" }}>
+        <button
+          onClick={handleEdit}
+          title="Dodaj adres inwestycji"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            padding: "6px 12px",
+            borderRadius: 999,
+            border: "1px dashed var(--line)",
+            background: "transparent",
+            color: "var(--text-mute)",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontSize: 12,
+            fontWeight: 500,
+          }}
+        >
+          <PinIcon size={13} />
+          Dodaj adres inwestycji
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
+  // ── Widok adresu (pigułka) + popover edycji ──
+  return (
+    <div style={{ position: "relative", display: "inline-flex" }}>
+      {/* Pill view — always visible */}
       <div
         style={{
-          display: "flex",
-          flexDirection: "column",
+          display: "inline-flex",
+          alignItems: "center",
           gap: 10,
-          padding: 14,
+          padding: "6px 8px 6px 6px",
           borderRadius: 12,
-          border: "1px solid var(--line)",
-          background: "var(--panel-2)",
-          width: "100%",
-          maxWidth: 420,
+          border: editing ? "1px solid var(--accent-line)" : "1px solid var(--line)",
+          background: "var(--card)",
+          maxWidth: "100%",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 32,
+            height: 32,
+            borderRadius: 9,
+            background: "var(--accent-soft)",
+            color: "var(--accent)",
+            flexShrink: 0,
+          }}
+        >
+          <PinIcon size={17} />
+        </span>
+
+        <div style={{ display: "flex", flexDirection: "column", minWidth: 0, lineHeight: 1.25 }}>
           <span
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 24,
-              height: 24,
-              borderRadius: 7,
-              background: "var(--accent-soft)",
-              color: "var(--accent)",
-              flexShrink: 0,
-            }}
-          >
-            <PinIcon />
-          </span>
-          <span
-            style={{
-              fontSize: 10.5,
+              fontSize: 9,
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: 0.7,
@@ -132,175 +179,175 @@ export default function InvestmentLocation({
           >
             Lokalizacja inwestycji
           </span>
-        </div>
-
-        <AddressSearch onSelect={handleAddressSelect} />
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 70px", gap: 6 }}>
-          <input value={street} onChange={(e) => setStreet(e.target.value)} placeholder="Ulica" style={inputStyle} />
-          <input value={building} onChange={(e) => setBuilding(e.target.value)} placeholder="Nr domu" style={inputStyle} />
-          <input value={apartment} onChange={(e) => setApartment(e.target.value)} placeholder="Nr lok." style={inputStyle} />
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 6 }}>
-          <input value={postal} onChange={(e) => setPostal(e.target.value)} placeholder="00-000" style={inputStyle} />
-          <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Miejscowość" style={inputStyle} />
-        </div>
-
-        <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={() => void handleSave()} className="btn primary" style={{ fontSize: 11, padding: "5px 14px" }}>
-            Zapisz
-          </button>
-          <button onClick={handleCancel} className="btn" style={{ fontSize: 11, padding: "5px 12px" }}>
-            Anuluj
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Brak adresu: przycisk dodania ──
-  if (!hasAddress) {
-    return (
-      <button
-        onClick={handleEdit}
-        title="Dodaj adres inwestycji"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 7,
-          padding: "6px 12px",
-          borderRadius: 999,
-          border: "1px dashed var(--line)",
-          background: "transparent",
-          color: "var(--text-mute)",
-          cursor: "pointer",
-          fontFamily: "inherit",
-          fontSize: 12,
-          fontWeight: 500,
-        }}
-      >
-        <PinIcon size={13} />
-        Dodaj adres inwestycji
-        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-      </button>
-    );
-  }
-
-  // ── Widok adresu (pigułka z ikoną, mapą i edycją) ──
-  return (
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "6px 8px 6px 6px",
-        borderRadius: 12,
-        border: "1px solid var(--line)",
-        background: "var(--card)",
-        maxWidth: "100%",
-      }}
-    >
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 32,
-          height: 32,
-          borderRadius: 9,
-          background: "var(--accent-soft)",
-          color: "var(--accent)",
-          flexShrink: 0,
-        }}
-      >
-        <PinIcon size={17} />
-      </span>
-
-      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, lineHeight: 1.25 }}>
-        <span
-          style={{
-            fontSize: 9,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: 0.7,
-            color: "var(--text-mute)",
-          }}
-        >
-          Lokalizacja inwestycji
-        </span>
-        <span
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: "var(--text-strong)",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-          title={fullAddress}
-        >
-          {primaryLine || secondaryLine}
-        </span>
-        {primaryLine && secondaryLine && (
           <span
             style={{
-              fontSize: 11.5,
-              color: "var(--text-mute)",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--text-strong)",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
             }}
+            title={fullAddress}
           >
-            {secondaryLine}
+            {primaryLine || secondaryLine || "—"}
           </span>
-        )}
+          {primaryLine && secondaryLine && (
+            <span
+              style={{
+                fontSize: 11.5,
+                color: "var(--text-mute)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {secondaryLine}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0, marginLeft: 2 }}>
+          {hasAddress && (
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Otwórz w Google Maps"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                color: "var(--text-mute)",
+                textDecoration: "none",
+              }}
+            >
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
+              </svg>
+            </a>
+          )}
+          <button
+            onClick={editing ? handleCancel : handleEdit}
+            title="Edytuj adres inwestycji"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              border: "none",
+              background: "transparent",
+              color: editing ? "var(--accent)" : "var(--text-mute)",
+              cursor: "pointer",
+            }}
+          >
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0, marginLeft: 2 }}>
-        <a
-          href={mapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Otwórz w Google Maps"
+      {/* Popover edit form — floats above/below the pill */}
+      {editing && (
+        <div
+          ref={popoverRef}
           style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 28,
-            height: 28,
-            borderRadius: 8,
-            color: "var(--text-mute)",
-            textDecoration: "none",
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            right: 0,
+            zIndex: 50,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            padding: 16,
+            borderRadius: 14,
+            border: "1px solid #e2e8f0",
+            background: "#ffffff",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)",
+            width: 380,
+            minWidth: 300,
           }}
         >
-          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
-          </svg>
-        </a>
-        <button
-          onClick={handleEdit}
-          title="Edytuj adres inwestycji"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 28,
-            height: 28,
-            borderRadius: 8,
-            border: "none",
-            background: "transparent",
-            color: "var(--text-mute)",
-            cursor: "pointer",
-          }}
-        >
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-          </svg>
-        </button>
-      </div>
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 24,
+                  height: 24,
+                  borderRadius: 7,
+                  background: "var(--accent-soft)",
+                  color: "var(--accent)",
+                  flexShrink: 0,
+                }}
+              >
+                <PinIcon />
+              </span>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.7,
+                  color: "var(--text-mute)",
+                }}
+              >
+                Edytuj lokalizację
+              </span>
+            </div>
+            <button
+              onClick={handleCancel}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 24,
+                height: 24,
+                borderRadius: 6,
+                border: "none",
+                background: "transparent",
+                color: "var(--text-mute)",
+                cursor: "pointer",
+              }}
+            >
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <AddressSearch onSelect={handleAddressSelect} />
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 70px", gap: 6 }}>
+            <input value={street} onChange={(e) => setStreet(e.target.value)} placeholder="Ulica" style={inputStyle} />
+            <input value={building} onChange={(e) => setBuilding(e.target.value)} placeholder="Nr domu" style={inputStyle} />
+            <input value={apartment} onChange={(e) => setApartment(e.target.value)} placeholder="Nr lok." style={inputStyle} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 6 }}>
+            <input value={postal} onChange={(e) => setPostal(e.target.value)} placeholder="00-000" style={inputStyle} />
+            <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Miejscowość" style={inputStyle} />
+          </div>
+
+          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+            <button onClick={handleCancel} className="btn" style={{ fontSize: 11, padding: "5px 12px" }}>
+              Anuluj
+            </button>
+            <button onClick={() => void handleSave()} className="btn primary" style={{ fontSize: 11, padding: "5px 14px" }}>
+              Zapisz
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

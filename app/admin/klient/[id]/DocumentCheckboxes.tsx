@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import ModalPortal from "@/components/ModalPortal";
 
 // Legacy clientId prop kept for backward compat but orderId is preferred
 
@@ -95,6 +96,7 @@ function MissingDataModal({
   onCancel: () => void;
 }) {
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -168,6 +170,7 @@ function MissingDataModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -335,6 +338,7 @@ export default function DocumentCheckboxes({
   return (
     <>
       {blockingError && (
+        <ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -374,6 +378,7 @@ export default function DocumentCheckboxes({
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
       {pendingTemplateDocType && templatesByKey[pendingTemplateDocType] && (
         <TemplatePickerModal
@@ -648,8 +653,9 @@ function TemplatePickerModal({
   onCancel: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+    <ModalPortal>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onCancel}>
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-base font-bold text-slate-900">Wybierz szablon</h2>
         <p className="mt-1 text-sm text-slate-500">
           Dla dokumentu <span className="font-mono font-medium text-slate-700">{docType}</span> dostępnych jest kilka szablonów.
@@ -673,5 +679,6 @@ function TemplatePickerModal({
         </button>
       </div>
     </div>
+    </ModalPortal>
   );
 }

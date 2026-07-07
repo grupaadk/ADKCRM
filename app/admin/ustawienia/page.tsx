@@ -7,6 +7,7 @@ import { deriveStatusStyle, makeCustomStatusKey, type StatusDef } from "@/lib/st
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import type { Id } from "@/convex/_generated/dataModel";
+import ModalPortal from "@/components/ModalPortal";
 
 type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy";
 
@@ -1700,6 +1701,7 @@ function SzablonyTab() {
       </div>
 
       {showModal && (
+        <ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
@@ -1879,6 +1881,7 @@ function SzablonyTab() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

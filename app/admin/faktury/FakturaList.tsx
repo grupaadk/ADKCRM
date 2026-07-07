@@ -29,6 +29,7 @@ import {
   Bell,
 } from "lucide-react";
 import ReminderModal from "./ReminderModal";
+import ModalPortal from "@/components/ModalPortal";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -161,6 +162,7 @@ function AssignModal({
   const currentOrder = invoice.orderId ? orders.find((o) => o._id === invoice.orderId) : null;
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
         className="relative w-full max-w-lg rounded-xl bg-white shadow-2xl ring-1 ring-gray-200"
@@ -266,6 +268,7 @@ function AssignModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 

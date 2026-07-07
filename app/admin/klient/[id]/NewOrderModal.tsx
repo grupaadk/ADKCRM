@@ -5,6 +5,7 @@ import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
+import ModalPortal from "@/components/ModalPortal";
 import { Loader2, Search } from "lucide-react";
 
 interface NewOrderModalProps {
@@ -245,6 +246,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
     "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400";
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       {/* Backdrop */}
       <div
@@ -925,5 +927,6 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 }

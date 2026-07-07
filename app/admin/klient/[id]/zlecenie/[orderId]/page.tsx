@@ -224,32 +224,7 @@ function CollapsibleSection({
 }
 
 
-const KANBAN_COLS = [
-  {
-    key: "todo" as const,
-    label: "Do zrobienia",
-    accent: "#64748b",
-    headerBg: "#f8fafc",
-    colBg: "#f8fafc",
-    border: "#e2e8f0",
-  },
-  {
-    key: "in_progress" as const,
-    label: "W trakcie",
-    accent: "#2563eb",
-    headerBg: "#eff6ff",
-    colBg: "#f5f9ff",
-    border: "#bfdbfe",
-  },
-  {
-    key: "done" as const,
-    label: "Gotowe",
-    accent: "#16a34a",
-    headerBg: "#f0fdf4",
-    colBg: "#f7fdf9",
-    border: "#bbf7d0",
-  },
-];
+
 
 const U_COLORS = ["#3b82f6","#8b5cf6","#ec4899","#f59e0b","#10b981","#ef4444","#06b6d4","#84cc16"];
 function uColor(id: string) {
@@ -433,25 +408,19 @@ type KanbanTask = {
   assignedUserName?: string | null;
 };
 
-function TaskCard({
+function TodoTaskRow({
   task,
-  colKey,
-  colIdx,
   users,
   now,
   currentUserId,
-  onMove,
   onRemove,
   onUpdate,
   onOpenDrawer,
 }: {
   task: KanbanTask;
-  colKey: "todo" | "in_progress" | "done";
-  colIdx: number;
   users: AssignableUser[];
   now: number;
   currentUserId?: string;
-  onMove: (dir: "prev" | "next") => void;
   onRemove: () => void;
   onUpdate: (args: {
     title?: string;
@@ -459,6 +428,7 @@ function TaskCard({
     clearAssignee?: boolean;
     dueDate?: number;
     clearDueDate?: boolean;
+    status?: "todo" | "in_progress" | "done";
   }) => void;
   onOpenDrawer: () => void;
 }) {
@@ -468,6 +438,7 @@ function TaskCard({
   const [editingDate, setEditingDate] = useState(false);
 
   const isOverdue = task.dueDate && task.dueDate < now && task.status !== "done";
+  const isDone = task.status === "done";
 
   function saveTitle() {
     const trimmed = editTitle.trim();
@@ -485,70 +456,142 @@ function TaskCard({
     ? new Date(task.dueDate).toISOString().slice(0, 10)
     : "";
 
+  const toggleDone = () => {
+    onUpdate({ status: isDone ? "todo" : "done" });
+  };
+
+  const cycleStatus = () => {
+    if (isDone) {
+      onUpdate({ status: "todo" });
+    } else {
+      onUpdate({ status: task.status === "todo" ? "in_progress" : "todo" });
+    }
+  };
+
   return (
     <div
-      draggable={!editingTitle && !editingDate}
-      onDragStart={(e) => {
-        if (editingTitle || editingDate) { e.preventDefault(); return; }
-        e.dataTransfer.setData("taskId", task._id);
-        e.dataTransfer.setData("fromCol", colKey);
-        e.dataTransfer.effectAllowed = "move";
-      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={() => {
-        if (editingTitle || editingDate) return;
-        onOpenDrawer();
-      }}
       style={{
-        background: "var(--panel)",
-        borderRadius: 7,
-        border: "1px solid var(--line)",
-        padding: "9px 10px 8px",
-        boxShadow: hovered && !editingTitle ? "0 2px 8px rgba(0,0,0,0.08)" : "0 1px 2px rgba(0,0,0,0.04)",
-        cursor: editingTitle ? "default" : "pointer",
-        transition: "box-shadow 0.12s",
-        userSelect: "none",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        padding: "8px 10px",
+        borderRadius: 8,
+        background: isDone ? "var(--panel-2)" : "#fff",
+        border: isDone ? "1px solid var(--line)" : "1px solid var(--line)",
+        boxShadow: hovered ? "0 1px 3px rgba(0,0,0,0.04)" : "none",
+        transition: "all 0.12s",
       }}
     >
-      {/* Title */}
-      {editingTitle ? (
-        <textarea
-          autoFocus
-          value={editTitle}
-          onChange={(e) => setEditTitle(e.target.value)}
-          onBlur={saveTitle}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveTitle(); }
-            if (e.key === "Escape") { setEditTitle(task.title); setEditingTitle(false); }
-          }}
-          rows={2}
+      {/* Lewa strona: Checkbox + Tytuł */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+        {/* Okrągły checkbox */}
+        <button
+          type="button"
+          onClick={toggleDone}
           style={{
-            width: "100%", resize: "none",
-            border: "none", background: "transparent",
-            fontSize: 12.5, fontFamily: "inherit", outline: "none",
-            color: "var(--text)", lineHeight: 1.4, padding: 0,
-            marginBottom: 6, cursor: "text", userSelect: "text",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 18,
+            height: 18,
+            borderRadius: "50%",
+            border: isDone ? "1.5px solid #16a34a" : "1.5px solid var(--text-mute)",
+            background: isDone ? "#16a34a" : "transparent",
+            cursor: "pointer",
+            flexShrink: 0,
+            padding: 0,
+            color: "#fff",
+            transition: "all 0.1s",
           }}
-        />
-      ) : (
-        <p
-          onClick={(e) => { e.stopPropagation(); setEditTitle(task.title); setEditingTitle(true); }}
-          title="Kliknij aby edytować tytuł"
-          style={{
-            fontSize: 12.5, fontWeight: 500, margin: "0 0 7px",
-            color: task.status === "done" ? "var(--text-mute)" : "var(--text)",
-            textDecoration: task.status === "done" ? "line-through" : "none",
-            lineHeight: 1.4, cursor: "text",
-          }}
+          title={isDone ? "Oznacz jako niewykonane" : "Oznacz jako wykonane"}
         >
-          {task.title}
-        </p>
-      )}
+          {isDone && (
+            <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </button>
 
-      {/* Footer: meta + actions */}
-      <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", minHeight: 22 }}>
-        {/* Date badge / editor */}
+        {/* Tytuł zadania (edycja inline) */}
+        {editingTitle ? (
+          <input
+            autoFocus
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            onBlur={saveTitle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveTitle();
+              if (e.key === "Escape") { setEditTitle(task.title); setEditingTitle(false); }
+            }}
+            style={{
+              flex: 1,
+              border: "none",
+              background: "transparent",
+              fontSize: 12.5,
+              fontFamily: "inherit",
+              outline: "none",
+              color: "var(--text-strong)",
+              padding: 0,
+              cursor: "text",
+            }}
+          />
+        ) : (
+          <span
+            onClick={() => { setEditTitle(task.title); setEditingTitle(true); }}
+            title="Kliknij, aby edytować tytuł"
+            style={{
+              fontSize: 12.5,
+              fontWeight: 500,
+              color: isDone ? "var(--text-mute)" : "var(--text-strong)",
+              textDecoration: isDone ? "line-through" : "none",
+              cursor: "text",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1,
+            }}
+          >
+            {task.title}
+          </span>
+        )}
+      </div>
+
+      {/* Prawa strona: Badges + Akcje */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        {/* Badge statusu - klikalny (rotuje status) */}
+        <button
+          type="button"
+          onClick={cycleStatus}
+          style={{
+            fontSize: 9.5,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+            padding: "2px 6px",
+            borderRadius: 6,
+            cursor: "pointer",
+            border: "none",
+            background: isDone
+              ? "var(--panel)"
+              : task.status === "in_progress"
+              ? "#ffedd5"
+              : "#f1f5f9",
+            color: isDone
+              ? "var(--text-mute)"
+              : task.status === "in_progress"
+              ? "#b45309"
+              : "#475569",
+            transition: "all 0.15s",
+          }}
+          title="Kliknij, aby zmienić status zadania"
+        >
+          {isDone ? "Gotowe" : task.status === "in_progress" ? "W toku" : "Do zrobienia"}
+        </button>
+
+        {/* Termin */}
         {editingDate ? (
           <input
             type="date"
@@ -565,24 +608,32 @@ function TaskCard({
               if (e.key === "Escape") setEditingDate(false);
             }}
             style={{
-              fontSize: 11, border: "1px solid var(--line)",
-              borderRadius: 4, padding: "1px 5px",
-              background: "var(--panel-2)", color: "var(--text)",
+              fontSize: 11,
+              border: "1px solid var(--line)",
+              borderRadius: 4,
+              padding: "1px 5px",
+              background: "var(--panel-2)",
+              color: "var(--text)",
               fontFamily: "inherit",
             }}
           />
         ) : task.dueDate ? (
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); setEditingDate(true); }}
-            title="Kliknij aby zmienić datę"
+            onClick={() => setEditingDate(true)}
+            title="Zmień termin"
             style={{
-              display: "flex", alignItems: "center", gap: 3,
-              fontSize: 10.5, fontWeight: isOverdue ? 600 : 400,
+              display: "flex",
+              alignItems: "center",
+              gap: 3,
+              fontSize: 10.5,
+              fontWeight: isOverdue ? 600 : 400,
               color: isOverdue ? "#dc2626" : "var(--text-mute)",
               background: isOverdue ? "#fef2f2" : "var(--panel-2)",
               border: `1px solid ${isOverdue ? "#fecaca" : "var(--line)"}`,
-              padding: "1px 6px", borderRadius: 4, cursor: "pointer",
+              padding: "1px 6px",
+              borderRadius: 4,
+              cursor: "pointer",
               fontFamily: "inherit",
             }}
           >
@@ -591,28 +642,33 @@ function TaskCard({
             </svg>
             {new Date(task.dueDate).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" })}
           </button>
-        ) : hovered ? (
+        ) : (
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); setEditingDate(true); }}
+            onClick={() => setEditingDate(true)}
             title="Dodaj termin"
             style={{
-              display: "flex", alignItems: "center", gap: 2,
-              fontSize: 10.5, color: "var(--text-mute)",
-              background: "none", border: "1px dashed var(--line)",
-              padding: "1px 6px", borderRadius: 4, cursor: "pointer",
-              fontFamily: "inherit", opacity: 0.6,
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              fontSize: 10.5,
+              color: "var(--text-mute)",
+              background: "none",
+              border: "1px dashed var(--line)",
+              padding: "1px 6px",
+              borderRadius: 4,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              opacity: hovered ? 0.7 : 0,
+              transition: "opacity 0.15s",
             }}
           >
-            <svg width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" />
-            </svg>
             Termin
           </button>
-        ) : null}
+        )}
 
-        {/* Assignee picker (compact avatar) */}
-        <span onClick={(e) => e.stopPropagation()} style={{ display: "inline-flex" }}>
+        {/* Przypisana osoba */}
+        <span style={{ display: "inline-flex" }}>
           <UserPickerDropdown
             value={task.assignedUserId ?? ""}
             onChange={handleAssigneeChange}
@@ -622,50 +678,51 @@ function TaskCard({
           />
         </span>
 
-        <div style={{ flex: 1 }} />
+        {/* Komentarze / szczegóły */}
+        <button
+          type="button"
+          onClick={onOpenDrawer}
+          title="Komentarze i szczegóły zadania"
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--text-mute)",
+            padding: "2px",
+            borderRadius: 4,
+            display: "flex",
+            alignItems: "center",
+            opacity: hovered ? 0.8 : 0.4,
+            transition: "opacity 0.15s",
+          }}
+        >
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m-9.75 0h.008v.008H2.25V12zm.008-3.75h.008v.008H2.258v-.008zM14 6H4a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V8a2 2 0 00-2-2z" />
+          </svg>
+        </button>
 
-        {/* Move / delete – show on hover */}
-        {hovered && (
-          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-            {colIdx > 0 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onMove("prev"); }}
-                title="Przenieś w lewo"
-                style={{
-                  background: "var(--panel-2)", border: "1px solid var(--line)",
-                  cursor: "pointer", color: "var(--text-mute)",
-                  padding: "1px 5px", borderRadius: 4, fontSize: 14, lineHeight: 1,
-                  fontFamily: "inherit",
-                }}
-              >‹</button>
-            )}
-            {colIdx < 2 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onMove("next"); }}
-                title="Przenieś w prawo"
-                style={{
-                  background: "var(--panel-2)", border: "1px solid var(--line)",
-                  cursor: "pointer", color: "var(--text-mute)",
-                  padding: "1px 5px", borderRadius: 4, fontSize: 14, lineHeight: 1,
-                  fontFamily: "inherit",
-                }}
-              >›</button>
-            )}
-            <button
-              onClick={(e) => { e.stopPropagation(); onRemove(); }}
-              title="Usuń zadanie"
-              style={{
-                background: "none", border: "none", cursor: "pointer",
-                color: "var(--text-mute)", padding: "2px 3px", borderRadius: 4,
-                display: "flex", alignItems: "center", opacity: 0.5,
-              }}
-            >
-              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        )}
+        {/* Usuń zadanie */}
+        <button
+          type="button"
+          onClick={onRemove}
+          title="Usuń zadanie"
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--bad)",
+            padding: "2px",
+            borderRadius: 4,
+            display: "flex",
+            alignItems: "center",
+            opacity: hovered ? 0.8 : 0,
+            transition: "opacity 0.15s",
+          }}
+        >
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     </div>
   );
@@ -681,118 +738,81 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
   const [createInStatus, setCreateInStatus] = useState<
     "todo" | "in_progress" | "done" | null
   >(null);
-  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<Id<"orderTasks"> | null>(null);
 
-  async function handleMove(taskId: Id<"orderTasks">, from: string, dir: "prev" | "next") {
-    const order = ["todo", "in_progress", "done"];
-    const idx = order.indexOf(from);
-    const next = dir === "next" ? idx + 1 : idx - 1;
-    if (next < 0 || next >= order.length) return;
-    await updateTask({ taskId, status: order[next] as "todo" | "in_progress" | "done" });
-  }
-
-  async function handleDrop(targetCol: "todo" | "in_progress" | "done", e: React.DragEvent) {
-    e.preventDefault();
-    setDragOverCol(null);
-    const taskId = e.dataTransfer.getData("taskId") as Id<"orderTasks">;
-    const fromCol = e.dataTransfer.getData("fromCol");
-    if (!taskId || fromCol === targetCol) return;
-    await updateTask({ taskId, status: targetCol });
-  }
-
   const openCount = tasks?.filter((t) => t.status !== "done").length ?? 0;
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setNow(Date.now());
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const sortedTasks = [...(tasks ?? [])].sort((a, b) => {
+    const aDone = a.status === "done" ? 1 : 0;
+    const bDone = b.status === "done" ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
+    return (a.dueDate ?? Infinity) - (b.dueDate ?? Infinity);
+  });
 
   return (
-    <section className="panel" style={{ overflow: "visible" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid var(--line)" }}>
-        <span className="up mute">Lista zadań</span>
-        {openCount > 0 && (
-          <span style={{
-            fontSize: 10, fontWeight: 700,
-            background: "#eff6ff", color: "#1d4ed8",
-            border: "1px solid #bfdbfe", borderRadius: 10, padding: "1px 7px",
-          }}>
-            {openCount}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ width: 4, height: 20, borderRadius: 3, background: "#3b82f6", flexShrink: 0 }} />
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#3b82f6" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+            Lista zadań
           </span>
-        )}
+          {openCount > 0 && (
+            <span style={{
+              fontSize: 10, fontWeight: 700,
+              background: "#eff6ff", color: "#1d4ed8",
+              border: "1px solid #bfdbfe", borderRadius: 10, padding: "1px 7px",
+            }}>
+              {openCount}
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setCreateInStatus("todo")}
+          className="btn btn-xs"
+          style={{ fontSize: 11, padding: "3px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}
+        >
+          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Dodaj zadanie
+        </button>
       </div>
 
-      {/* Kanban columns */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr" }}>
-        {KANBAN_COLS.map((col, colIdx) => {
-          const colTasks = (tasks ?? []).filter((t) => t.status === col.key);
-
-          return (
-            <div
-              key={col.key}
-              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverCol(col.key); }}
-              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null); }}
-              onDrop={(e) => void handleDrop(col.key, e)}
-              style={{
-                borderRight: colIdx < 2 ? "1px solid var(--line)" : "none",
-                display: "flex", flexDirection: "column",
-                background: dragOverCol === col.key ? col.headerBg : col.colBg,
-                minHeight: 120,
-                transition: "background 0.15s",
-                outline: dragOverCol === col.key ? `2px solid ${col.accent}` : "none",
-                outlineOffset: -2,
-              }}
-            >
-              {/* Column header */}
-              <div style={{
-                padding: "8px 10px", background: col.headerBg,
-                borderBottom: `1px solid ${col.border}`,
-                display: "flex", alignItems: "center", gap: 6,
-              }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: col.accent, flexShrink: 0 }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: col.accent, textTransform: "uppercase", letterSpacing: "0.07em", flex: 1 }}>
-                  {col.label}
-                </span>
-                {colTasks.length > 0 && (
-                  <span style={{ fontSize: 10, fontWeight: 600, color: col.accent, opacity: 0.7 }}>{colTasks.length}</span>
-                )}
-              </div>
-
-              {/* Cards */}
-              <div style={{ padding: "6px", display: "flex", flexDirection: "column", gap: 5, flex: 1 }}>
-                {colTasks.map((task) => (
-                  <TaskCard
-                    key={task._id}
-                    task={task as KanbanTask}
-                    colKey={col.key}
-                    colIdx={colIdx}
-                    users={salesUsers as AssignableUser[]}
-                    now={Date.now()}
-                    currentUserId={me?._id}
-                    onMove={(dir) => void handleMove(task._id, col.key, dir)}
-                    onRemove={() => void removeTask({ taskId: task._id })}
-                    onUpdate={(args) => void updateTask({ taskId: task._id, ...args })}
-                    onOpenDrawer={() => setOpenTaskId(task._id)}
-                  />
-                ))}
-
-                {/* Otwórz panel szczegółów nowego zadania */}
-                <button
-                  onClick={() => setCreateInStatus(col.key)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 4,
-                    padding: "5px 8px", fontSize: 12,
-                    color: "var(--text-mute)", background: "none", border: "none",
-                    cursor: "pointer", borderRadius: 5, width: "100%",
-                    textAlign: "left", fontFamily: "inherit", marginTop: 2,
-                  }}
-                >
-                  <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                  </svg>
-                  Dodaj kartę
-                </button>
-              </div>
-            </div>
-          );
-        })}
+      {/* Lista zadań */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+        {tasks === undefined ? (
+          <div style={{ fontSize: 12.5, color: "var(--text-mute)" }}>Ładowanie...</div>
+        ) : sortedTasks.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "12px 14px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
+            Brak zadań w tym zleceniu. Kliknij „Dodaj zadanie”, aby dodać pierwsze zadanie.
+          </div>
+        ) : (
+          sortedTasks.map((task) => (
+            <TodoTaskRow
+              key={task._id}
+              task={task as KanbanTask}
+              users={salesUsers as AssignableUser[]}
+              now={now}
+              currentUserId={me?._id}
+              onRemove={() => void removeTask({ taskId: task._id })}
+              onUpdate={(args) => void updateTask({ taskId: task._id, ...args })}
+              onOpenDrawer={() => setOpenTaskId(task._id)}
+            />
+          ))
+        )}
       </div>
 
       <TaskDrawer taskId={openTaskId} onClose={() => setOpenTaskId(null)} />
@@ -801,7 +821,7 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
         initialStatus={createInStatus}
         onClose={() => setCreateInStatus(null)}
       />
-    </section>
+    </div>
   );
 }
 
@@ -820,30 +840,7 @@ const dateStrToTs = (str: string) => {
   return new Date(y, m - 1, d).getTime();
 };
 
-function DateInput({
-  value,
-  onChange,
-}: {
-  value: number | undefined;
-  onChange: (ts: number | undefined) => void;
-}) {
-  return (
-    <input
-      type="date"
-      value={tsToDateStr(value)}
-      onChange={(e) => onChange(dateStrToTs(e.target.value))}
-      style={{
-        fontSize: 13,
-        padding: "4px 8px",
-        borderRadius: 4,
-        border: "1px solid var(--line)",
-        background: "var(--card)",
-        color: "var(--text)",
-        fontFamily: "inherit",
-      }}
-    />
-  );
-}
+
 
 // ── Zamówienia u dostawców — model kamieni milowych ──
 type DeliveryField = "orderDate" | "deliveryDate" | "receivedDate";
@@ -1132,6 +1129,7 @@ export default function OrderDetailPage({
   const [editingCustomText, setEditingCustomText] = useState(false);
   const [customTextDraft, setCustomTextDraft] = useState("");
   const [editingServices, setEditingServices] = useState(false);
+  const [showFinances, setShowFinances] = useState(false);
   const [draftServices, setDraftServices] = useState<string[]>([]);
   const [editingDeliverySvc, setEditingDeliverySvc] = useState<string | null>(null);
   // Edycja jednej usługi = lista wpisów (po jednym na zaznaczonego dostawcę).
@@ -1475,7 +1473,7 @@ export default function OrderDetailPage({
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "szczegoly", label: "Szczegóły" },
     { key: "wycena", label: "Wycena" },
-    { key: "notatki", label: "Notatki" },
+
     { key: "reklamacja", label: "Reklamacja" },
   ];
 
@@ -1496,7 +1494,8 @@ export default function OrderDetailPage({
             alignItems: "center",
             justifyContent: "space-between",
             padding: "10px 16px",
-            borderBottom: "1px solid var(--line)",
+            background: "#4abbc3",
+            borderBottom: "1px solid rgba(11, 18, 32, 0.15)",
           }}
         >
           <div
@@ -1505,49 +1504,67 @@ export default function OrderDetailPage({
               alignItems: "center",
               gap: 6,
               fontSize: 12,
-              color: "var(--text-mute)",
+              color: "#000000",
             }}
           >
             <Link
               href="/admin"
-              style={{ color: "var(--text-mute)", textDecoration: "none" }}
+              style={{ color: "#000000", fontWeight: 600, textDecoration: "none" }}
+              onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline" }}
+              onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none" }}
             >
               Klienci
             </Link>
-            <span style={{ opacity: 0.5 }}>›</span>
+            <span style={{ color: "#000000", opacity: 0.7, fontWeight: 700 }}>›</span>
             <Link
               href={`/admin/klient/${id}`}
-              className="btn"
-              style={{ fontSize: 11, padding: "3px 8px" }}
+              style={{
+                color: "#000000",
+                fontWeight: 600,
+                textDecoration: "none",
+                fontSize: 12,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline" }}
+              onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none" }}
             >
               {client.clientType === "business" && client.companyName
                 ? client.companyName
                 : `${client.firstName} ${client.lastName}`}
             </Link>
-            <span style={{ opacity: 0.5 }}>›</span>
-            <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>
+            <span style={{ color: "#000000", opacity: 0.7, fontWeight: 700 }}>›</span>
+            <span style={{ color: "#000000", fontWeight: 700 }}>
               {orderNumber}
             </span>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {/* Oś czasu - mini */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--panel)", padding: "4px 10px", borderRadius: 8, border: "1px solid var(--line)" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                background: "rgba(255, 255, 255, 0.35)",
+                padding: "4px 10px",
+                borderRadius: 8,
+                border: "1px solid rgba(0, 0, 0, 0.1)",
+              }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: order.projectStartDate ? "#3b82f6" : "#d1d5db", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: order.projectStartDate ? "var(--text-strong)" : "var(--text-mute)", fontWeight: order.projectStartDate ? 600 : 500, whiteSpace: "nowrap" }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: order.projectStartDate ? "#2563eb" : "#4b5563", flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: "#000000", fontWeight: 600, whiteSpace: "nowrap" }}>
                   {order.projectStartDate ? `Start: ${fmtLocalDate(order.projectStartDate)}` : "Start: oczekuje"}
                 </span>
               </div>
-              <div style={{ width: 1, height: 10, background: "var(--line)" }} />
+              <div style={{ width: 1, height: 10, background: "rgba(0, 0, 0, 0.15)" }} />
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: order.projectEndDate ? "#10b981" : "#d1d5db", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: order.projectEndDate ? "var(--text-strong)" : "var(--text-mute)", fontWeight: order.projectEndDate ? 600 : 500, whiteSpace: "nowrap" }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: order.projectEndDate ? "#059669" : "#4b5563", flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: "#000000", fontWeight: 600, whiteSpace: "nowrap" }}>
                   {order.projectEndDate ? `Koniec: ${fmtLocalDate(order.projectEndDate)}` : "Koniec: w trakcie"}
                 </span>
               </div>
             </div>
-            <span style={{ width: 1, height: 14, background: "var(--line)", display: "inline-block" }} />
+            <span style={{ width: 1, height: 14, background: "rgba(0, 0, 0, 0.15)", display: "inline-block" }} />
 
             {/* Przypisana osoba */}
             {(() => {
@@ -1567,9 +1584,10 @@ export default function OrderDetailPage({
                       display: "inline-flex",
                       alignItems: "center",
                       gap: 4,
-                      ...(assignedUser?.color
-                        ? { borderColor: assignedUser.color + "80", color: assignedUser.color }
-                        : {}),
+                      background: "#ffffff",
+                      color: "#000000",
+                      border: "1px solid rgba(0, 0, 0, 0.15)",
+                      fontWeight: 600,
                     }}
                     title={assignedName ? `Przypisany: ${assignedName}` : "Przypisz osobę"}
                   >
@@ -1689,19 +1707,31 @@ export default function OrderDetailPage({
                 </div>
               );
             })()}
-            <span style={{ width: 1, height: 14, background: "var(--line)", display: "inline-block" }} />
+            <span style={{ width: 1, height: 14, background: "rgba(0, 0, 0, 0.15)", display: "inline-block" }} />
             {/* Drive CTA */}
             <DriveFolderButton
               folderUrl={order.folderUrl}
               createdAt={order._creationTime}
               onCreate={() => void handleCreateFolder()}
               busy={creatingFolder}
-              style={{ fontSize: 11 }}
+              style={{
+                fontSize: 11,
+                background: "#ffffff",
+                color: "#000000",
+                border: "1px solid rgba(0, 0, 0, 0.15)",
+                fontWeight: 600,
+              }}
             />
             <button
               onClick={openSmsModal}
               className="btn"
-              style={{ fontSize: 11 }}
+              style={{
+                fontSize: 11,
+                background: "#ffffff",
+                color: "#000000",
+                border: "1px solid rgba(0, 0, 0, 0.15)",
+                fontWeight: 600,
+              }}
             >
               <svg
                 width="13"
@@ -1728,7 +1758,13 @@ export default function OrderDetailPage({
               <button
                 onClick={() => void handleArchive()}
                 className="btn"
-                style={{ fontSize: 11 }}
+                style={{
+                  fontSize: 11,
+                  background: "#ffffff",
+                  color: "#000000",
+                  border: "1px solid rgba(0, 0, 0, 0.15)",
+                  fontWeight: 600,
+                }}
               >
                 <svg
                   width="13"
@@ -1750,7 +1786,13 @@ export default function OrderDetailPage({
               <button
                 onClick={() => void handleRestore()}
                 className="btn"
-                style={{ fontSize: 11 }}
+                style={{
+                  fontSize: 11,
+                  background: "#ffffff",
+                  color: "#000000",
+                  border: "1px solid rgba(0, 0, 0, 0.15)",
+                  fontWeight: 600,
+                }}
               >
                 <svg
                   width="13"
@@ -1774,8 +1816,10 @@ export default function OrderDetailPage({
               className="btn"
               style={{
                 fontSize: 11,
+                background: "#ffffff",
                 color: "var(--bad)",
-                borderColor: "oklch(0.72 0.18 25 / 0.4)",
+                border: "1px solid oklch(0.72 0.18 25 / 0.4)",
+                fontWeight: 600,
               }}
             >
               <svg
@@ -2107,14 +2151,314 @@ export default function OrderDetailPage({
                   </button>
                 )}
               </div>
-              <InvestmentLocation
-                orderId={orderIdTyped}
-                investmentStreet={order.investmentStreet}
-                investmentBuildingNumber={order.investmentBuildingNumber}
-                investmentApartmentNumber={order.investmentApartmentNumber}
-                investmentPostalCode={order.investmentPostalCode}
-                investmentCity={order.investmentCity}
-              />
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                {/* Podsumowanie finansowe (pigułka w rzędzie z Lokalizacją i Terminem montażu) */}
+                {(() => {
+                  const assignedSvcs = order.services ?? [];
+                  if (assignedSvcs.length === 0) return null;
+                  const finances = order.serviceFinances ?? [];
+                  let totalEarnings = 0;
+                  let totalDays = 0;
+                  for (const svc of assignedSvcs) {
+                    const f = finances.find((x) => x.serviceName === svc);
+                    if (f?.earningsAmount) totalEarnings += f.earningsAmount;
+                    if (f?.workDays) totalDays += f.workDays;
+                  }
+                  const avgDailyRate = totalDays > 0 ? totalEarnings / totalDays : 0;
+                  return (
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "0 14px",
+                        height: 54,
+                        boxSizing: "border-box",
+                        borderRadius: 12,
+                        border: "1px solid var(--line)",
+                        background: "var(--card)",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                      }}
+                    >
+                      <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: "var(--text-mute)" }}>
+                          SUMA ZAROBKU
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ok)", fontFamily: "monospace" }}>
+                          {totalEarnings > 0 ? `${totalEarnings.toLocaleString("pl-PL")} zł` : "—"}
+                        </span>
+                      </div>
+                      <div style={{ width: 1, height: 32, background: "var(--line)" }} />
+                      <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: "var(--text-mute)" }}>
+                          SUMA DNI
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace" }}>
+                          {totalDays > 0 ? `${totalDays} dni` : "—"}
+                        </span>
+                      </div>
+                      <div style={{ width: 1, height: 32, background: "var(--line)" }} />
+                      <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: "var(--text-mute)" }}>
+                          ŚREDNIA DNIÓWKA
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", fontFamily: "monospace" }}>
+                          {avgDailyRate > 0 ? `${Math.round(avgDailyRate).toLocaleString("pl-PL")} zł/dzień` : "—"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <InvestmentLocation
+                  orderId={orderIdTyped}
+                  investmentStreet={order.investmentStreet}
+                  investmentBuildingNumber={order.investmentBuildingNumber}
+                  investmentApartmentNumber={order.investmentApartmentNumber}
+                  investmentPostalCode={order.investmentPostalCode}
+                  investmentCity={order.investmentCity}
+                />
+
+                {/* Termin montażu — popover approach to avoid layout disruption */}
+                <div style={{ position: "relative", display: "inline-flex" }}>
+                  {/* Pill view or "add" button — always in flow */}
+                  {confirmDeleteDate ? (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 12, background: "var(--panel-2)", border: "1px solid var(--line)" }}>
+                      <span style={{ fontSize: 12, color: "var(--bad)", fontWeight: 600 }}>Usunąć termin montażu?</span>
+                      <button type="button" onClick={() => void deleteCompletionDate()} className="btn btn-xs" style={{ fontSize: 11, padding: "3px 10px", background: "var(--bad)", color: "#fff", borderColor: "var(--bad)" }}>Tak, usuń</button>
+                      <button type="button" onClick={() => setConfirmDeleteDate(false)} className="btn btn-xs" style={{ fontSize: 11, padding: "3px 10px" }}>Anuluj</button>
+                    </div>
+                  ) : (order.installationStartDate && order.installationStartDate > 10000000) ? (
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "6px 8px 6px 6px",
+                        borderRadius: 12,
+                        border: editingCompletionDate ? "1px solid var(--accent-line)" : "1px solid var(--line)",
+                        background: "var(--card)",
+                        maxWidth: "100%",
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 32,
+                          height: 32,
+                          borderRadius: 9,
+                          background: "var(--accent-soft)",
+                          color: "var(--accent)",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" />
+                        </svg>
+                      </span>
+
+                      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, lineHeight: 1.25 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7, color: "var(--text-mute)" }}>
+                          Termin montażu
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {fmtLocalDate(order.installationStartDate)}
+                        </span>
+                        <span style={{ fontSize: 11.5, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {new Date(order.installationStartDate).toLocaleDateString("pl-PL", { weekday: "short" })}, godz. {new Date(order.installationStartDate).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0, marginLeft: 2 }}>
+                        <button
+                          type="button"
+                          onClick={editingCompletionDate ? cancelEditCompletionDate : startEditCompletionDate}
+                          title="Edytuj termin montażu"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 28,
+                            height: 28,
+                            borderRadius: 8,
+                            color: editingCompletionDate ? "var(--accent)" : "var(--text-mute)",
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.background = "var(--panel)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = editingCompletionDate ? "var(--accent)" : "var(--text-mute)"; e.currentTarget.style.background = "transparent"; }}
+                        >
+                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteDate(true)}
+                          title="Usuń termin montażu"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 28,
+                            height: 28,
+                            borderRadius: 8,
+                            color: "var(--text-mute)",
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--bad)"; e.currentTarget.style.background = "var(--panel)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-mute)"; e.currentTarget.style.background = "transparent"; }}
+                        >
+                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startEditCompletionDate}
+                      title="Ustaw termin montażu"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 7,
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        border: "1px dashed var(--line)",
+                        background: "transparent",
+                        color: "var(--text-mute)",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        fontSize: 12,
+                        fontWeight: 500,
+                      }}
+                    >
+                      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" />
+                      </svg>
+                      Ustaw termin montażu
+                      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                    </button>
+                  )}
+
+                  {/* Popover edit form — floats below pill */}
+                  {editingCompletionDate && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 6px)",
+                        right: 0,
+                        zIndex: 50,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 10,
+                        padding: 16,
+                        borderRadius: 14,
+                        border: "1px solid #e2e8f0",
+                        background: "#ffffff",
+                        boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)",
+                        width: 320,
+                        minWidth: 280,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: 24,
+                              height: 24,
+                              borderRadius: 7,
+                              background: "var(--accent-soft)",
+                              color: "var(--accent)",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" />
+                            </svg>
+                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7, color: "var(--text-mute)" }}>
+                            Edytuj termin
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={cancelEditCompletionDate}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 24,
+                            height: 24,
+                            borderRadius: 6,
+                            border: "none",
+                            background: "transparent",
+                            color: "var(--text-mute)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <input
+                          type="date"
+                          value={tsToDateStr(draftCompletionDate)}
+                          onChange={(e) => setDraftCompletionDate(dateStrToTs(e.target.value))}
+                          style={{
+                            fontSize: 13, padding: "6px 10px", borderRadius: 8,
+                            border: "1px solid var(--line)", background: "var(--panel-2)",
+                            color: "var(--text-strong)", fontFamily: "inherit", fontWeight: 600, flex: 1,
+                          }}
+                        />
+                        <select
+                          value={minsToHour(draftInstallationStart) ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setDraftInstallationStart(val !== "" ? parseInt(val) * 60 : undefined);
+                          }}
+                          style={{
+                            fontSize: 13, padding: "6px 10px", borderRadius: 8,
+                            border: "1px solid var(--line)", background: "var(--panel-2)",
+                            color: "var(--text-strong)", fontFamily: "inherit", width: 100,
+                          }}
+                        >
+                          <option value="">— godz.</option>
+                          {Array.from({ length: 24 }, (_, i) => (
+                            <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                        <button type="button" onClick={cancelEditCompletionDate} className="btn" style={{ fontSize: 11, padding: "5px 12px" }}>
+                          Anuluj
+                        </button>
+                        <button type="button" onClick={() => void saveCompletionDate()} className="btn primary" style={{ fontSize: 11, padding: "5px 14px" }}>
+                          Zapisz
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+
+              </div>
             </div>
             {isArchived && (
               <span
@@ -2133,658 +2477,575 @@ export default function OrderDetailPage({
                 Zarchiwizowane
               </span>
             )}
-            {/* Usługi — widok (chip-y), edycja w panelu poniżej */}
-            {servicesList.length > 0 && !editingServices && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-                {(order.services ?? []).map((s) => (
-                  <span
-                    key={s}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 7,
-                      fontSize: 12.5,
-                      fontWeight: 600,
-                      lineHeight: 1.2,
-                      padding: "5px 11px 5px 6px",
-                      borderRadius: 9,
-                      background: "var(--card)",
-                      color: "var(--text-strong)",
-                      border: "1px solid var(--line)",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: 24,
-                        height: 24,
-                        borderRadius: 6,
-                        background: "var(--accent-soft)",
-                        color: "var(--accent)",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <ServiceIcon name={s} />
-                    </span>
-                    {s}
-                  </span>
-                ))}
-                <button
-                  type="button"
-                  onClick={startEditServices}
-                  title={(order.services ?? []).length > 0 ? "Edytuj usługi" : "Dodaj usługi"}
-                  className="btn"
-                  style={{ fontSize: 11, padding: "3px 9px", flexShrink: 0 }}
-                >
-                  <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-                  </svg>
-                  {(order.services ?? []).length > 0 ? "Edytuj" : "Dodaj usługi"}
-                </button>
-              </div>
-            )}
           </div>
+        </div>
 
-          {/* Usługi — panel edycji */}
-          {servicesList.length > 0 && editingServices && (
-            <div
-              style={{
-                marginTop: 4,
-                padding: 14,
-                borderRadius: 10,
-                border: "1px solid var(--line)",
-                background: "var(--panel-2)",
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.7,
-                  color: "var(--text-mute)",
-                }}
-              >
-                Usługi zlecenia
-              </span>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {Array.from(new Set([
-                  ...servicesList.map((s) => s.name),
-                  ...(order.services ?? [])
-                ])).map((svcName) => {
-                  const active = draftServices.includes(svcName);
-                  return (
+            {/* Zintegrowana sekcja "Usługi i wycena" */}
+            <div style={{ margin: "0 16px 0", padding: "16px 20px", borderRadius: 12, background: "var(--accent-soft)", display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ width: 4, height: 20, borderRadius: 3, background: "var(--accent)", flexShrink: 0 }} />
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.527-.639.856-1.434.938-2.275L15.23 4.28a2.25 2.25 0 00-2.25-2.25H4.28a2.25 2.25 0 00-2.25 2.25v8.702c0 .841.329 1.636.938 2.275l3.03 2.496c.639.527 1.434.856 2.275.938L11.42 15.17z" />
+                  </svg>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+                    Usługi i wycena zlecenia
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={startEditServices}
+                    title="Dodaj lub zarządzaj listą usług w zleceniu"
+                    className="btn"
+                    style={{ fontSize: 11.5, padding: "5px 12px", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600 }}
+                  >
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    {(order.services ?? []).length > 0 ? "Zarządzaj usługami" : "Dodaj usługi"}
+                  </button>
+
+                  {(order.services ?? []).length > 0 && (
                     <button
-                      key={svcName}
                       type="button"
-                      onClick={() => toggleDraftService(svcName)}
+                      onClick={() => setShowFinances(!showFinances)}
+                      className="btn"
                       style={{
+                        fontSize: 11.5,
+                        padding: "5px 12px",
                         display: "inline-flex",
                         alignItems: "center",
-                        gap: 7,
-                        fontSize: 12.5,
+                        gap: 6,
                         fontWeight: 600,
-                        padding: "5px 12px 5px 6px",
-                        borderRadius: 9,
-                        border: active
-                          ? "1px solid var(--accent)"
-                          : "1px solid var(--line)",
-                        background: active ? "var(--accent-soft)" : "var(--card)",
-                        color: active ? "var(--accent)" : "var(--text)",
+                        background: showFinances ? "var(--accent-soft)" : "transparent",
+                        color: showFinances ? "var(--accent)" : "var(--text-mute)",
+                        border: showFinances ? "1px solid var(--accent-line)" : "1px solid var(--line)",
                         cursor: "pointer",
-                        transition: "background 0.1s, border-color 0.1s, color 0.1s",
                       }}
                     >
-                      <span
+                      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-1.97-.659-1.171-.879-1.171-2.303 0-3.182 1.172-.879 3.07-.879 4.242 0L15 9M8 12h8" />
+                      </svg>
+                      {showFinances ? "Ukryj finanse" : "Zarządzaj finansami"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Panel wyboru usług z listy */}
+              {servicesList.length > 0 && editingServices && (
+                <div
+                  style={{
+                    padding: 14,
+                    borderRadius: 12,
+                    border: "1px solid var(--accent-line)",
+                    background: "var(--accent-soft)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 12,
+                  }}
+                >
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7, color: "var(--accent)" }}>
+                    Wybierz usługi przypisane do tego zlecenia
+                  </span>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {Array.from(new Set([
+                      ...servicesList.map((s) => s.name),
+                      ...(order.services ?? [])
+                    ])).map((svcName) => {
+                      const active = draftServices.includes(svcName);
+                      return (
+                        <button
+                          key={svcName}
+                          type="button"
+                          onClick={() => toggleDraftService(svcName)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 7,
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            padding: "6px 12px 6px 8px",
+                            borderRadius: 10,
+                            border: active ? "1px solid var(--accent)" : "1px solid var(--line)",
+                            background: active ? "var(--accent)" : "var(--card)",
+                            color: active ? "#fff" : "var(--text-strong)",
+                            cursor: "pointer",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: 24,
+                              height: 24,
+                              borderRadius: 6,
+                              background: active ? "rgba(255,255,255,0.2)" : "var(--panel-2)",
+                              color: active ? "#fff" : "var(--text-mute)",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <ServiceIcon name={svcName} />
+                          </span>
+                          {svcName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button onClick={saveServices} className="btn primary btn-xs" style={{ padding: "5px 14px", fontSize: 11.5 }}>
+                      Zapisz usługi
+                    </button>
+                    <button onClick={cancelEditServices} className="btn btn-xs" style={{ padding: "5px 12px", fontSize: 11.5 }}>
+                      Anuluj
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Kafelki usług i edycja inline (bez modalu) */}
+              {(order.services ?? []).length === 0 ? (
+                <div style={{ fontSize: 13, color: "var(--text-mute)", padding: "16px", borderRadius: 10, background: "var(--panel-2)", border: "1px dashed var(--line)", textAlign: "center" }}>
+                  Brak przypisanych usług w zleceniu — kliknij przycisk <strong>„Dodaj usługi”</strong> powyżej, aby dodać zakres prac i wprowadzić ich wycenę.
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: showFinances ? "repeat(auto-fill, minmax(290px, 1fr))" : "repeat(auto-fill, minmax(210px, 1fr))", gap: 14 }}>
+                  {(order.services ?? []).map((svcName) => {
+                    const f = (order.serviceFinances ?? []).find((x) => x.serviceName === svcName);
+                    const earnings = f?.earningsAmount;
+                    const days = f?.workDays;
+                    const dailyRate = earnings && days && days > 0 ? earnings / days : null;
+                    const isEditingThis = editingFinanceSvc === svcName;
+                    const displayFinanceInfo = showFinances || isEditingThis;
+
+                    return (
+                      <div
+                        key={svcName}
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          width: 24,
-                          height: 24,
-                          borderRadius: 6,
-                          background: active ? "var(--accent)" : "var(--panel-2)",
-                          color: active ? "#fff" : "var(--text-mute)",
-                          flexShrink: 0,
+                          display: "flex",
+                          flexDirection: "column",
+                          padding: displayFinanceInfo ? "16px" : "10px 14px",
+                          borderRadius: displayFinanceInfo ? 14 : 10,
+                          background: "#fff",
+                          border: isEditingThis ? "1px solid var(--accent)" : "1px solid var(--line)",
+                          boxShadow: isEditingThis ? "0 4px 16px rgba(0,0,0,0.06)" : "0 1px 3px rgba(0,0,0,0.02)",
+                          transition: "all 0.15s ease",
+                          maxWidth: displayFinanceInfo ? 380 : 260,
                         }}
                       >
-                        <ServiceIcon name={svcName} />
-                      </span>
-                      {svcName}
-                    </button>
-                  );
-                })}
-              </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={saveServices} className="btn primary btn-xs">
-                  Zapisz
-                </button>
-                <button onClick={cancelEditServices} className="btn btn-xs">
-                  Anuluj
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 700, fontSize: displayFinanceInfo ? 14 : 13, color: "var(--text-strong)", minWidth: 0 }}>
+                            <span style={{
+                              display: "inline-flex", alignItems: "center", justifyContent: "center",
+                              width: displayFinanceInfo ? 30 : 24,
+                              height: displayFinanceInfo ? 30 : 24,
+                              borderRadius: 8,
+                              background: "var(--accent-soft)",
+                              color: "var(--accent)",
+                              flexShrink: 0,
+                            }}>
+                              <ServiceIcon name={svcName} />
+                            </span>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={svcName}>
+                              {svcName}
+                            </span>
+                          </span>
 
+                          {displayFinanceInfo && !isEditingThis && (
+                            <button
+                              type="button"
+                              onClick={() => startEditFinance(svcName)}
+                              style={{
+                                fontSize: 11, color: "var(--accent)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4,
+                                background: "var(--panel)", padding: "4px 10px", borderRadius: 999, border: "1px solid var(--accent-line)",
+                                cursor: "pointer", transition: "all 0.15s",
+                                whiteSpace: "nowrap", flexShrink: 0,
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--accent)"; e.currentTarget.style.color = "#fff"; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = "var(--panel)"; e.currentTarget.style.color = "var(--accent)"; }}
+                            >
+                              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                              Edytuj stawki
+                            </button>
+                          )}
+                        </div>
 
+                        {displayFinanceInfo && (
+                          <>
+                            {isEditingThis ? (
+                              /* Formularz edycji inline */
+                              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+                                <div>
+                                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+                                    Kwota zarobku (przychód) [PLN]
+                                  </label>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    placeholder="np. 12500"
+                                    value={draftEarnings}
+                                    onChange={(e) => setDraftEarnings(e.target.value)}
+                                    style={{
+                                      width: "100%", fontSize: 13.5, padding: "7px 10px", borderRadius: 8,
+                                      border: "1px solid var(--accent)", background: "var(--panel)", color: "var(--text-strong)",
+                                      fontFamily: "monospace", fontWeight: 700,
+                                    }}
+                                    autoFocus
+                                  />
+                                </div>
 
-        {/* Termin montażu */}
-        <div style={{
-          padding: "14px 20px",
-          borderTop: "1px solid var(--line)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-          background: order.projectEndDate ? "var(--accent-soft)" : "var(--panel-2)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-            {/* Ikona w okręgu */}
-            <div style={{
-              width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              background: order.projectEndDate ? "var(--accent)" : "var(--card)",
-              border: order.projectEndDate ? "none" : "1px solid var(--line)",
-              color: order.projectEndDate ? "#fff" : "var(--text-mute)",
-            }}>
-              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" />
-              </svg>
-            </div>
+                                <div>
+                                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+                                    Ilość dni pracy [dni]
+                                  </label>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    placeholder="np. 3 lub 1.5"
+                                    value={draftWorkDays}
+                                    onChange={(e) => setDraftWorkDays(e.target.value)}
+                                    style={{
+                                      width: "100%", fontSize: 13.5, padding: "7px 10px", borderRadius: 8,
+                                      border: "1px solid var(--accent)", background: "var(--panel)", color: "var(--text-strong)",
+                                      fontFamily: "monospace", fontWeight: 700,
+                                    }}
+                                  />
+                                </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-              <span style={{
-                fontSize: 10.5, fontWeight: 700, color: "var(--accent)",
-                textTransform: "uppercase", letterSpacing: 0.7,
-              }}>
-                Termin montażu
-              </span>
+                                {/* Wyliczona dniówka na żywo */}
+                                {(() => {
+                                  const eVal = draftEarnings.trim() !== "" ? parseFloat(draftEarnings.replace(",", ".")) : NaN;
+                                  const dVal = draftWorkDays.trim() !== "" ? parseFloat(draftWorkDays.replace(",", ".")) : NaN;
+                                  const rate = !isNaN(eVal) && !isNaN(dVal) && dVal > 0 ? eVal / dVal : null;
+                                  return (
+                                    <div style={{ background: "var(--accent-soft)", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--accent-line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                      <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-strong)" }}>Wyliczona dniówka:</span>
+                                      <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--accent)", fontFamily: "monospace" }}>
+                                        {rate !== null ? `${Math.round(rate).toLocaleString("pl-PL")} zł/dzień` : "—"}
+                                      </span>
+                                    </div>
+                                  );
+                                })()}
 
-              {editingCompletionDate ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 3 }}>
-                  <input
-                    type="date"
-                    value={tsToDateStr(draftCompletionDate)}
-                    onChange={(e) => setDraftCompletionDate(dateStrToTs(e.target.value))}
-                    style={{
-                      fontSize: 13, padding: "5px 8px", borderRadius: 6,
-                      border: "1px solid var(--line)", background: "var(--card)",
-                      color: "var(--text-strong)", fontFamily: "inherit", fontWeight: 600,
-                    }}
-                  />
-                  <select
-                    value={minsToHour(draftInstallationStart) ?? ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setDraftInstallationStart(val !== "" ? parseInt(val) * 60 : undefined);
-                    }}
-                    style={{
-                      fontSize: 13, padding: "5px 8px", borderRadius: 6,
-                      border: "1px solid var(--line)", background: "var(--card)",
-                      color: "var(--text-strong)", fontFamily: "inherit", width: 100,
-                    }}
-                  >
-                    <option value="">— godz.</option>
-                    {Array.from({ length: 24 }, (_, i) => (
-                      <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
-                    ))}
-                  </select>
-                  <button onClick={saveCompletionDate} className="btn primary btn-xs">Zapisz</button>
-                  <button onClick={cancelEditCompletionDate} className="btn btn-xs">Anuluj</button>
+                                <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 4 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => void saveFinance()}
+                                    className="btn primary btn-xs"
+                                    style={{ padding: "5px 14px", fontSize: 11.5 }}
+                                  >
+                                    Zapisz
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={cancelEditFinance}
+                                    className="btn btn-xs"
+                                    style={{ padding: "5px 12px", fontSize: 11.5 }}
+                                  >
+                                    Anuluj
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              /* Widok zapisanych stawek */
+                              <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 10, marginBottom: 10 }}>
+                                  <div>
+                                    <div style={{ fontSize: 9.5, color: "var(--text-mute)", fontWeight: 700, letterSpacing: 0.5 }}>KWOTA ZAROBKU</div>
+                                    <div style={{ fontSize: 13.5, fontWeight: 700, color: earnings ? "var(--ok)" : "var(--text-mute)", fontFamily: "monospace", marginTop: 3 }}>
+                                      {earnings ? `${earnings.toLocaleString("pl-PL")} zł` : "—"}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 9.5, color: "var(--text-mute)", fontWeight: 700, letterSpacing: 0.5 }}>DNI PRACY</div>
+                                    <div style={{ fontSize: 13.5, fontWeight: 700, color: days ? "var(--text-strong)" : "var(--text-mute)", fontFamily: "monospace", marginTop: 3 }}>
+                                      {days ? `${days} dni` : "—"}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px dashed var(--line)", paddingTop: 10 }}>
+                                  <span style={{ fontSize: 11.5, color: "var(--text-mute)", fontWeight: 600 }}>Wyliczona dniówka:</span>
+                                  <span style={{ fontSize: 13.5, fontWeight: 700, color: dailyRate ? "var(--accent)" : "var(--text-mute)", fontFamily: "monospace" }}>
+                                    {dailyRate ? `${Math.round(dailyRate).toLocaleString("pl-PL")} zł/dzień` : "—"}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              ) : (order.installationStartDate && order.installationStartDate > 10000000) ? (
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text-strong)" }}>
-                    {fmtLocalDate(order.installationStartDate)}
-                  </span>
-                  <span style={{ fontSize: 12.5, color: "var(--text-mute)", textTransform: "capitalize" }}>
-                    {new Date(order.installationStartDate).toLocaleDateString("pl-PL", { weekday: "long" })}
-                  </span>
-                  <span style={{
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                    fontSize: 12, fontWeight: 700, color: "var(--accent)",
-                    background: "var(--card)", border: "1px solid var(--accent-line)",
-                    borderRadius: 999, padding: "2px 9px",
-                  }}>
-                    <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {new Date(order.installationStartDate).toLocaleTimeString("pl-PL", { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-
-              ) : (
-                <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-mute)" }}>
-                  Nie ustawiono
-                </span>
               )}
             </div>
-          </div>
 
-          {!editingCompletionDate && !confirmDeleteDate && (
-            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-              <button
-                type="button"
-                onClick={startEditCompletionDate}
-                className="btn"
-                style={{ fontSize: 11, padding: "4px 10px" }}
-              >
-                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-                </svg>
-                {order.projectEndDate ? "Edytuj" : "Ustaw termin"}
-              </button>
-              {order.projectEndDate && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmDeleteDate(true)}
-                  className="btn"
-                  style={{ fontSize: 11, padding: "4px 10px", color: "var(--bad)", borderColor: "oklch(0.72 0.18 25 / 0.4)" }}
-                  title="Usuń termin montażu"
-                >
-                  <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                  </svg>
-                  Usuń
-                </button>
-              )}
-            </div>
-          )}
-          {confirmDeleteDate && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              <span style={{ fontSize: 12, color: "var(--bad)", fontWeight: 600 }}>Usunąć termin montażu?</span>
-              <button type="button" onClick={deleteCompletionDate} className="btn btn-xs" style={{ fontSize: 11, padding: "3px 10px", background: "var(--bad)", color: "#fff", borderColor: "var(--bad)" }}>Tak, usuń</button>
-              <button type="button" onClick={() => setConfirmDeleteDate(false)} className="btn btn-xs" style={{ fontSize: 11, padding: "3px 10px" }}>Anuluj</button>
-            </div>
-          )}
-        </div>
-
-        {/* Finanse usług (Przychód i czas pracy) */}
-        <div style={{
-          padding: "16px 20px",
-          borderTop: "1px solid var(--line)",
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-          background: "var(--panel)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        {/* Zamówienia u dostawców oraz Lista zadań */}
+        <div className="grid grid-cols-3 gap-4" style={{ padding: "16px 20px" }}>
+          {/* Lewa kolumna: Zamówienia u dostawców */}
+          <div style={{ background: "var(--accent-soft)", borderRadius: 12, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ width: 4, height: 20, borderRadius: 3, background: "#f59e0b", flexShrink: 0 }} />
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#f59e0b" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
               </svg>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
-                Finanse usług (Przychód i czas pracy)
+              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+                Zamówienia u dostawców
               </span>
             </div>
-            {/* Podsumowanie (sumy ze wszystkich usług) */}
-            {(() => {
-              const assignedSvcs = order.services ?? [];
-              if (assignedSvcs.length === 0) return null;
-              const finances = order.serviceFinances ?? [];
-              let totalEarnings = 0;
-              let totalDays = 0;
-              for (const svc of assignedSvcs) {
-                const f = finances.find((x) => x.serviceName === svc);
-                if (f?.earningsAmount) totalEarnings += f.earningsAmount;
-                if (f?.workDays) totalDays += f.workDays;
-              }
-              const avgDailyRate = totalDays > 0 ? totalEarnings / totalDays : 0;
-              return (
-                <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", background: "var(--card)", padding: "8px 16px", borderRadius: 10, border: "1px solid var(--line)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 700, letterSpacing: 0.5 }}>SUMA ZAROBKU</span>
-                    <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ok)", fontFamily: "monospace", marginTop: 2 }}>
-                      {totalEarnings > 0 ? `${totalEarnings.toLocaleString("pl-PL")} zł` : "—"}
-                    </span>
-                  </div>
-                  <div style={{ width: 1, height: 26, background: "var(--line)" }} />
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 700, letterSpacing: 0.5 }}>SUMA DNI</span>
-                    <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace", marginTop: 2 }}>
-                      {totalDays > 0 ? `${totalDays} dni` : "—"}
-                    </span>
-                  </div>
-                  <div style={{ width: 1, height: 26, background: "var(--line)" }} />
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 700, letterSpacing: 0.5 }}>ŚREDNIA DNIÓWKA</span>
-                    <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--accent)", fontFamily: "monospace", marginTop: 2 }}>
-                      {avgDailyRate > 0 ? `${Math.round(avgDailyRate).toLocaleString("pl-PL")} zł/dzień` : "—"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
 
-          {(order.services ?? []).length === 0 ? (
-            <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "12px 14px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
-              Brak przypisanych usług w zleceniu — dodaj usługi w górnym panelu, aby wprowadzić wycenę i czas pracy.
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
-              {(order.services ?? []).map((svcName) => {
-                const f = (order.serviceFinances ?? []).find((x) => x.serviceName === svcName);
-                const earnings = f?.earningsAmount;
-                const days = f?.workDays;
-                const dailyRate = earnings && days && days > 0 ? earnings / days : null;
+            {(order.services ?? []).length === 0 ? (
+              <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "10px 12px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
+                Brak usług w zleceniu — dodaj usługi powyżej, aby przypisać dostawców.
+              </div>
+            ) : (
+              (order.services ?? []).map((svcName) => {
+                const svc = servicesList.find((s) => s.name === svcName);
+                const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
+                const assigned = (order.serviceDeliveries ?? []).filter((x) => x.serviceName === svcName);
+                const isEditing = editingDeliverySvc === svcName;
 
-                return (
-                  <div
-                    key={svcName}
-                    onClick={() => startEditFinance(svcName)}
-                    style={{
+                // ── Tryb edycji ──
+                if (isEditing && draftDeliveries) {
+                  return (
+                    <div key={svcName} style={{
                       display: "flex",
                       flexDirection: "column",
-                      padding: "14px 16px",
-                      borderRadius: 12,
-                      background: "var(--card)",
-                      border: "1px solid var(--line)",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                      position: "relative",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "var(--accent)";
-                      e.currentTarget.style.transform = "translateY(-2px)";
-                      e.currentTarget.style.boxShadow = "0 6px 14px rgba(0,0,0,0.07)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--line)";
-                      e.currentTarget.style.transform = "none";
-                      e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.03)";
-                    }}
-                    title="Kliknij, aby edytować kwotę zarobku i ilość dni pracy"
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13.5, color: "var(--text-strong)" }}>
-                        <span style={{
-                          display: "inline-flex", alignItems: "center", justifyContent: "center",
-                          width: 26, height: 26, borderRadius: 7, background: "var(--accent-soft)", color: "var(--accent)",
-                        }}>
-                          <ServiceIcon name={svcName} />
+                      borderRadius: 10,
+                      background: "#fff",
+                      border: "1px solid var(--accent-line)",
+                      overflow: "hidden",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                    }}>
+                      <div style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "10px 12px", background: "var(--accent-soft)", borderBottom: "1px solid var(--line)",
+                      }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                          <span style={{ width: 4, height: 16, borderRadius: 2, background: "var(--accent)", flexShrink: 0 }} />
+                          <span style={{ fontWeight: 700, fontSize: 13.5, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.4 }}>{svcName}</span>
                         </span>
-                        {svcName}
-                      </span>
-                      <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 600, display: "flex", alignItems: "center", gap: 4, background: "var(--panel)", padding: "3px 8px", borderRadius: 12 }}>
-                        Edytuj
-                        <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                      </span>
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, marginBottom: 10 }}>
-                      <div>
-                        <div style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 700, letterSpacing: 0.3 }}>KWOTA ZAROBKU</div>
-                        <div style={{ fontSize: 13.5, fontWeight: 700, color: earnings ? "var(--ok)" : "var(--text-mute)", fontFamily: "monospace", marginTop: 3 }}>
-                          {earnings ? `${earnings.toLocaleString("pl-PL")} zł` : "—"}
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button onClick={saveDelivery} className="btn primary btn-xs">Zapisz</button>
+                          <button onClick={cancelEditDelivery} className="btn btn-xs">Anuluj</button>
                         </div>
                       </div>
-                      <div>
-                        <div style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 700, letterSpacing: 0.3 }}>DNI PRACY</div>
-                        <div style={{ fontSize: 13.5, fontWeight: 700, color: days ? "var(--text-strong)" : "var(--text-mute)", fontFamily: "monospace", marginTop: 3 }}>
-                          {days ? `${days} dni` : "—"}
-                        </div>
+
+                      <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+                        {availableSuppliers.length === 0 ? (
+                          <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
+                            Brak dostawców skonfigurowanych dla tej usługi.
+                          </span>
+                        ) : (
+                          availableSuppliers.map((s) => {
+                            const entry = draftDeliveries.find((x) => x.supplierId === s._id);
+                            const checked = !!entry;
+                            const hasAnyDate = !!(entry && (entry.orderDate || entry.deliveryDate || entry.receivedDate));
+                            return (
+                              <div key={s._id} style={{
+                                borderRadius: 8,
+                                border: `1px solid ${checked ? "var(--line)" : "transparent"}`,
+                                background: checked ? "var(--panel-2)" : "transparent",
+                                padding: checked ? "8px 10px" : "2px 0",
+                              }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={(e) => toggleDraftSupplier(svcName, s._id, e.target.checked)}
+                                    />
+                                    <span style={{ fontSize: 13, fontWeight: checked ? 600 : 400, color: checked ? "var(--text-strong)" : "var(--text-mute)" }}>
+                                      {s.name}
+                                    </span>
+                                  </label>
+                                  {checked && hasAnyDate && (
+                                    <button
+                                      type="button"
+                                      onClick={() => clearDraftSupplierDates(s._id)}
+                                      className="btn btn-xs"
+                                      style={{ fontSize: 10, padding: "2px 8px", color: "var(--bad)" }}
+                                      title="Wyczyść wszystkie terminy tego dostawcy"
+                                    >
+                                      Wyczyść terminy
+                                    </button>
+                                  )}
+                                </div>
+                                {checked && entry && (
+                                  <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", paddingLeft: 24, marginTop: 8 }}>
+                                    {DELIVERY_MILESTONES.map((m) => (
+                                      <EditDateField
+                                        key={m.key}
+                                        label={m.label}
+                                        tone={m.tone}
+                                        value={entry[m.key]}
+                                        onChange={(ts) => updateDraftSupplierDate(s._id, m.key, ts)}
+                                      />
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
                       </div>
                     </div>
+                  );
+                }
 
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px dashed var(--line)", paddingTop: 8 }}>
-                      <span style={{ fontSize: 11, color: "var(--text-mute)", fontWeight: 600 }}>Wyliczona dniówka:</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: dailyRate ? "var(--accent)" : "var(--text-mute)", fontFamily: "monospace" }}>
-                        {dailyRate ? `${Math.round(dailyRate).toLocaleString("pl-PL")} zł/dzień` : "—"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Zamówienia u dostawców */}
-        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--text-mute)" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
-            </svg>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
-              Zamówienia u dostawców
-            </span>
-          </div>
-
-          {(order.services ?? []).length === 0 ? (
-            <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "10px 12px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
-              Brak usług w zleceniu — dodaj usługi powyżej, aby przypisać dostawców.
-            </div>
-          ) : (
-            (order.services ?? []).map((svcName) => {
-              const svc = servicesList.find((s) => s.name === svcName);
-              const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
-              const assigned = (order.serviceDeliveries ?? []).filter((x) => x.serviceName === svcName);
-              const isEditing = editingDeliverySvc === svcName;
-
-              // ── Tryb edycji ──
-              if (isEditing && draftDeliveries) {
+                // ── Tryb widoku ──
                 return (
                   <div key={svcName} style={{
                     display: "flex",
                     flexDirection: "column",
                     borderRadius: 10,
-                    background: "var(--card)",
-                    border: "1px solid var(--accent-line)",
+                    background: "#fff",
+                    border: "1px solid var(--line)",
                     overflow: "hidden",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                   }}>
                     <div style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "10px 12px", background: "var(--accent-soft)", borderBottom: "1px solid var(--line)",
+                      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                      padding: "10px 12px", borderBottom: "1px solid var(--line)",
+                      background: "var(--panel-2)",
                     }}>
                       <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                         <span style={{ width: 4, height: 16, borderRadius: 2, background: "var(--accent)", flexShrink: 0 }} />
                         <span style={{ fontWeight: 700, fontSize: 13.5, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.4 }}>{svcName}</span>
                       </span>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button onClick={saveDelivery} className="btn primary btn-xs">Zapisz</button>
-                        <button onClick={cancelEditDelivery} className="btn btn-xs">Anuluj</button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => startEditDelivery(svcName)}
+                        className="btn"
+                        style={{ fontSize: 10, padding: "2px 8px", flexShrink: 0 }}
+                      >
+                        <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                        </svg>
+                        Edytuj
+                      </button>
                     </div>
 
-                    <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-                      {availableSuppliers.length === 0 ? (
-                        <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
-                          Brak dostawców skonfigurowanych dla tej usługi.
-                        </span>
-                      ) : (
-                        availableSuppliers.map((s) => {
-                          const entry = draftDeliveries.find((x) => x.supplierId === s._id);
-                          const checked = !!entry;
-                          const hasAnyDate = !!(entry && (entry.orderDate || entry.deliveryDate || entry.receivedDate));
+                    {assigned.length === 0 ? (
+                      <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--text-mute)" }}>
+                        Brak przypisanych dostawców.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        {assigned.map((d, i) => {
+                          const supplier = allSuppliers.find((s) => s._id === d.supplierId);
+                          const status = deliveryStatusBadge(d);
+                          const deliveryIndex = (order.serviceDeliveries ?? []).findIndex((x) => x === d);
                           return (
-                            <div key={s._id} style={{
-                              borderRadius: 8,
-                              border: `1px solid ${checked ? "var(--line)" : "transparent"}`,
-                              background: checked ? "var(--panel-2)" : "transparent",
-                              padding: checked ? "8px 10px" : "2px 0",
-                            }}>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={(e) => toggleDraftSupplier(svcName, s._id, e.target.checked)}
-                                  />
-                                  <span style={{ fontSize: 13, fontWeight: checked ? 600 : 400, color: checked ? "var(--text-strong)" : "var(--text-mute)" }}>
-                                    {s.name}
-                                  </span>
-                                </label>
-                                {checked && hasAnyDate && (
-                                  <button
-                                    type="button"
-                                    onClick={() => clearDraftSupplierDates(s._id)}
-                                    className="btn btn-xs"
-                                    style={{ fontSize: 10, padding: "2px 8px", color: "var(--bad)" }}
-                                    title="Wyczyść wszystkie terminy tego dostawcy"
-                                  >
-                                    Wyczyść terminy
-                                  </button>
-                                )}
+                            <div
+                              key={`${d.supplierId}:${i}`}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+                                padding: "10px 12px",
+                                borderTop: i > 0 ? "1px solid var(--line)" : "none",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 150, flex: "0 0 auto" }}>
+                                <span style={{
+                                  fontSize: 12.5, fontWeight: 600,
+                                  color: supplier ? "var(--text-strong)" : "var(--text-mute)",
+                                }}>
+                                  {supplier?.name ?? "— nieznany dostawca"}
+                                </span>
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
+                                  padding: "2px 7px", borderRadius: 999,
+                                  background: status.bg, color: status.fg, border: `1px solid ${status.border}`,
+                                  whiteSpace: "nowrap",
+                                }}>
+                                  {status.label}
+                                </span>
                               </div>
-                              {checked && entry && (
-                                <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", paddingLeft: 24, marginTop: 8 }}>
-                                  {DELIVERY_MILESTONES.map((m) => (
-                                    <EditDateField
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                {DELIVERY_MILESTONES.map((m) =>
+                                  m.key === "receivedDate" ? (
+                                    <OdbiorMilestone
+                                      key={m.key}
+                                      tone={m.tone}
+                                      soft={m.soft}
+                                      border={m.border}
+                                      date={d[m.key]}
+                                      fmt={fmtLocalDate}
+                                      onMark={() => markReceived(deliveryIndex)}
+                                      onClear={() => clearReceived(deliveryIndex)}
+                                    />
+                                  ) : (
+                                    <MilestonePill
                                       key={m.key}
                                       label={m.label}
                                       tone={m.tone}
-                                      value={entry[m.key]}
-                                      onChange={(ts) => updateDraftSupplierDate(s._id, m.key, ts)}
+                                      soft={m.soft}
+                                      border={m.border}
+                                      date={d[m.key]}
+                                      fmt={fmtLocalDate}
                                     />
-                                  ))}
-                                </div>
-                              )}
+                                  )
+                                )}
+                              </div>
                             </div>
                           );
-                        })
-                      )}
-                    </div>
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
-              }
+              })
+            )}
+          </div>
 
-              // ── Tryb widoku ──
-              return (
-                <div key={svcName} style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  borderRadius: 10,
-                  background: "var(--card)",
-                  border: "1px solid var(--line)",
-                  overflow: "hidden",
-                }}>
-                  <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                    padding: "10px 12px", borderBottom: "1px solid var(--line)",
-                    background: "var(--panel-2)",
-                  }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                      <span style={{ width: 4, height: 16, borderRadius: 2, background: "var(--accent)", flexShrink: 0 }} />
-                      <span style={{ fontWeight: 700, fontSize: 13.5, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.4 }}>{svcName}</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => startEditDelivery(svcName)}
-                      className="btn"
-                      style={{ fontSize: 10, padding: "2px 8px", flexShrink: 0 }}
-                    >
-                      <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-                      </svg>
-                      Edytuj
-                    </button>
-                  </div>
+          {/* Środkowa kolumna: Lista zadań */}
+          <div style={{ background: "var(--accent-soft)", borderRadius: 12, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <TodoSection orderId={orderIdTyped} />
+          </div>
 
-                  {assigned.length === 0 ? (
-                    <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--text-mute)" }}>
-                      Brak przypisanych dostawców.
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      {assigned.map((d, i) => {
-                        const supplier = allSuppliers.find((s) => s._id === d.supplierId);
-                        const status = deliveryStatusBadge(d);
-                        const deliveryIndex = (order.serviceDeliveries ?? []).findIndex((x) => x === d);
-                        return (
-                          <div
-                            key={`${d.supplierId}:${i}`}
-                            style={{
-                              display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-                              padding: "10px 12px",
-                              borderTop: i > 0 ? "1px solid var(--line)" : "none",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 150, flex: "0 0 auto" }}>
-                              <span style={{
-                                fontSize: 12.5, fontWeight: 600,
-                                color: supplier ? "var(--text-strong)" : "var(--text-mute)",
-                              }}>
-                                {supplier?.name ?? "— nieznany dostawca"}
-                              </span>
-                              <span style={{
-                                fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
-                                padding: "2px 7px", borderRadius: 999,
-                                background: status.bg, color: status.fg, border: `1px solid ${status.border}`,
-                                whiteSpace: "nowrap",
-                              }}>
-                                {status.label}
-                              </span>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              {DELIVERY_MILESTONES.map((m) =>
-                                m.key === "receivedDate" ? (
-                                  <OdbiorMilestone
-                                    key={m.key}
-                                    tone={m.tone}
-                                    soft={m.soft}
-                                    border={m.border}
-                                    date={d[m.key]}
-                                    fmt={fmtLocalDate}
-                                    onMark={() => markReceived(deliveryIndex)}
-                                    onClear={() => clearReceived(deliveryIndex)}
-                                  />
-                                ) : (
-                                  <MilestonePill
-                                    key={m.key}
-                                    label={m.label}
-                                    tone={m.tone}
-                                    soft={m.soft}
-                                    border={m.border}
-                                    date={d[m.key]}
-                                    fmt={fmtLocalDate}
-                                  />
-                                )
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
+          {/* Prawa kolumna: Notatki */}
+          <div style={{ background: "var(--accent-soft)", borderRadius: 12, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <span style={{ width: 4, height: 20, borderRadius: 3, background: "#8b5cf6", flexShrink: 0 }} />
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#8b5cf6" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+              </svg>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+                Notatki
+              </span>
+            </div>
+            <Notes clientId={clientId} orderId={orderIdTyped} />
+          </div>
         </div>
 
         {/* Czas realizacji */}
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        {((order as any).realizationStartDate || (order as any).realizationEndDate) && (
-          <div style={{ padding: "12px 20px", borderTop: "1px solid var(--line)", display: "flex", flexWrap: "wrap", gap: 32, background: "var(--panel)" }}>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {(order as any).realizationStartDate && (
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Początek realizacji</div>
-                <div style={{ fontSize: 13, color: "var(--text-strong)", fontWeight: 500 }}>{fmtDateTime((order as any).realizationStartDate)}</div>
-              </div>
-            )}
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {(order as any).realizationEndDate && (
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Koniec realizacji</div>
-                <div style={{ fontSize: 13, color: "var(--text-strong)", fontWeight: 500 }}>{fmtDateTime((order as any).realizationEndDate)}</div>
-              </div>
-            )}
-          </div>
-        )}
+        {(() => {
+          /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+          const ord = order as any;
+          if (!ord.realizationStartDate && !ord.realizationEndDate) return null;
+          return (
+            <div style={{ margin: "0 16px", padding: "14px 20px", borderRadius: 12, background: "var(--panel)", display: "flex", flexWrap: "wrap", gap: 32 }}>
+              {ord.realizationStartDate && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Początek realizacji</div>
+                  <div style={{ fontSize: 13, color: "var(--text-strong)", fontWeight: 500 }}>{fmtDateTime(ord.realizationStartDate)}</div>
+                </div>
+              )}
+              {ord.realizationEndDate && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Koniec realizacji</div>
+                  <div style={{ fontSize: 13, color: "var(--text-strong)", fontWeight: 500 }}>{fmtDateTime(ord.realizationEndDate)}</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Tabs */}
         <div style={{ display: "flex", borderTop: "1px solid var(--line)", gap: 2 }}>
@@ -2825,8 +3086,7 @@ export default function OrderDetailPage({
       {/* ── Tab: Szczegóły ── */}
       {activeTab === "szczegoly" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Lista zadań — nad Dokumentami/Plikami */}
-          <TodoSection orderId={orderIdTyped} />
+
 
           {/* Dokumenty + Pliki zlecenia */}
           <div
@@ -3162,16 +3422,7 @@ export default function OrderDetailPage({
         </div>
       )}
 
-      {/* ── Tab: Notatki ── */}
-      {activeTab === "notatki" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <SectionCard title="Notatki">
-            <div style={{ padding: 16 }}>
-              <Notes clientId={clientId} orderId={orderIdTyped} />
-            </div>
-          </SectionCard>
-        </div>
-      )}
+
 
       {/* ── Tab: Reklamacja ── */}
       {activeTab === "reklamacja" && (
@@ -3595,95 +3846,6 @@ export default function OrderDetailPage({
         </div>
       )}
 
-      {/* Modal edycji finansów usługi */}
-      {editingFinanceSvc && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={cancelEditFinance}
-        >
-          <div
-            className="relative flex w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl ring-1 ring-gray-200 p-6"
-            onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--card)" }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--line)", paddingBottom: 12, marginBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8, background: "var(--accent-soft)", color: "var(--accent)" }}>
-                  <ServiceIcon name={editingFinanceSvc} />
-                </span>
-                <div>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-                    Wycena usługi: {editingFinanceSvc}
-                  </h3>
-                  <p style={{ fontSize: 11.5, color: "var(--text-mute)", margin: 0 }}>Wprowadź przychód oraz przewidywany czas pracy</p>
-                </div>
-              </div>
-              <button type="button" onClick={cancelEditFinance} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-mute)", padding: 4 }}>
-                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 6 }}>
-                  Kwota zarobku (przychód z usługi) [PLN]
-                </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="np. 12500"
-                  value={draftEarnings}
-                  onChange={(e) => setDraftEarnings(e.target.value)}
-                  className="form-input"
-                  style={{ width: "100%", fontSize: 14, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)" }}
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 6 }}>
-                  Ilość dni pracy [dni]
-                </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="np. 3 lub 1.5"
-                  value={draftWorkDays}
-                  onChange={(e) => setDraftWorkDays(e.target.value)}
-                  className="form-input"
-                  style={{ width: "100%", fontSize: 14, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)" }}
-                />
-              </div>
-
-              {/* Dynamiczny podgląd wyliczonej dniówki */}
-              {(() => {
-                const eVal = draftEarnings.trim() !== "" ? parseFloat(draftEarnings.replace(",", ".")) : NaN;
-                const dVal = draftWorkDays.trim() !== "" ? parseFloat(draftWorkDays.replace(",", ".")) : NaN;
-                const rate = !isNaN(eVal) && !isNaN(dVal) && dVal > 0 ? eVal / dVal : null;
-                return (
-                  <div style={{ background: "var(--accent-soft)", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--accent-line)", display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-strong)" }}>Wyliczona dniówka:</span>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: "var(--accent)", fontFamily: "monospace" }}>
-                      {rate !== null ? `${Math.round(rate).toLocaleString("pl-PL")} zł / dzień` : "—"}
-                    </span>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
-              <button type="button" onClick={cancelEditFinance} className="btn" style={{ padding: "6px 14px", fontSize: 13 }}>
-                Anuluj
-              </button>
-              <button type="button" onClick={() => void saveFinance()} className="btn primary" style={{ padding: "6px 16px", fontSize: 13 }}>
-                Zapisz wycenę
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

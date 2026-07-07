@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { Upload, X, Loader2, Search } from "lucide-react";
+import ModalPortal from "@/components/ModalPortal";
 
 interface NewOpportunityModalProps {
   onClose: () => void;
@@ -280,6 +281,7 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
         }`;
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div
         className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
@@ -776,5 +778,6 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 }

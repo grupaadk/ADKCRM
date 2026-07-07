@@ -5,6 +5,7 @@ import { useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { X, Send, Mail, AlertTriangle, CheckCircle } from "lucide-react";
+import ModalPortal from "@/components/ModalPortal";
 
 export default function ReminderModal({
   invoiceId,
@@ -35,6 +36,7 @@ export default function ReminderModal({
   }
 
   return (
+    <ModalPortal>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={onClose}
@@ -183,5 +185,6 @@ export default function ReminderModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
