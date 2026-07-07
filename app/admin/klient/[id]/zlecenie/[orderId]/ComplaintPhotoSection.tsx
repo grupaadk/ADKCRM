@@ -267,10 +267,22 @@ export default function ComplaintPhotoSection({
           )}
 
           {loading && items.length === 0 && (
-            <div className="grid grid-cols-3 gap-2">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} style={{ aspectRatio: "1", borderRadius: 6, background: "var(--bg)", opacity: 0.5 }} />
-              ))}
+            <div
+              style={{
+                borderRadius: 8,
+                border: "2px dashed var(--line)",
+                background: "transparent",
+                padding: "32px 16px",
+                textAlign: "center",
+              }}
+            >
+              <svg className="h-6 w-6 animate-spin" style={{ color: "var(--text-mute)", margin: "0 auto 8px" }} fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-mute)", margin: 0 }}>
+                Ładowanie zdjęć...
+              </p>
             </div>
           )}
 
