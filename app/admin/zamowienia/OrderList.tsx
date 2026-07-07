@@ -414,7 +414,7 @@ export default function OrderList({ searchTerm = "", showFilters = false }: { se
               <th style={{ cursor: "pointer", width: 120 }} onClick={() => handleSort("status")}>
                 Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
               </th>
-              <th style={{ cursor: "pointer" }} onClick={() => handleSort("services")}>
+              <th style={{ cursor: "pointer", width: 150 }} onClick={() => handleSort("services")}>
                 Usługi <SortIcon field="services" sortField={sortField} sortDir={sortDir} />
               </th>
               <th style={{ width: 100 }}>Dokumenty</th>
@@ -487,10 +487,34 @@ export default function OrderList({ searchTerm = "", showFilters = false }: { se
                     {order.investmentCity ?? order.client?.city ?? <span className="mute">—</span>}
                   </td>
                   <td style={{ fontSize: 12 }}>{statusLabels[order.status] ?? order.status}</td>
-                  <td style={{ fontSize: 11.5 }}>
-                    {order.services && order.services.length > 0
-                      ? order.services.join(", ")
-                      : <span className="mute">—</span>}
+                  <td>
+                    {order.services && order.services.length > 0 ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                        {order.services.map((svc, i) => (
+                          <span
+                            key={i}
+                            title={svc}
+                            style={{
+                              display: "inline-block",
+                              fontSize: 10,
+                              fontWeight: 600,
+                              padding: "2px 7px",
+                              borderRadius: 4,
+                              background: "var(--accent-soft)",
+                              color: "var(--accent)",
+                              whiteSpace: "nowrap",
+                              maxWidth: 90,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {svc}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="mute">—</span>
+                    )}
                   </td>
                   <td><DocumentProgressTiles documents={order.documents} /></td>
                   <td><InvoiceBadge fakturownia={order.fakturownia} /></td>
