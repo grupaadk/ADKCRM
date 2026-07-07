@@ -222,6 +222,11 @@ export default defineSchema({
       deliveryDate: v.optional(v.number()),  // planowana data dostawy
       receivedDate: v.optional(v.number()),  // faktyczna data odbioru (fizycznie dostarczone)
     }))),
+    serviceFinances: v.optional(v.array(v.object({
+      serviceName: v.string(),
+      earningsAmount: v.optional(v.number()), // kwota zarobku (przychód z usługi)
+      workDays: v.optional(v.number()),       // ilość dni pracy
+    }))),
 
     // Dokumenty
     documents: documentSet,

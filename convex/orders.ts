@@ -286,6 +286,11 @@ export const update = mutation({
       deliveryDate: v.optional(v.number()),
       receivedDate: v.optional(v.number()),
     }))),
+    serviceFinances: v.optional(v.array(v.object({
+      serviceName: v.string(),
+      earningsAmount: v.optional(v.number()),
+      workDays: v.optional(v.number()),
+    }))),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);

@@ -1140,6 +1140,9 @@ export default function OrderDetailPage({
   const [draftCompletionDate, setDraftCompletionDate] = useState<number | undefined>(undefined);
   const [draftInstallationStart, setDraftInstallationStart] = useState<number | undefined>(undefined);
   const [confirmDeleteDate, setConfirmDeleteDate] = useState(false);
+  const [editingFinanceSvc, setEditingFinanceSvc] = useState<string | null>(null);
+  const [draftEarnings, setDraftEarnings] = useState<string>("");
+  const [draftWorkDays, setDraftWorkDays] = useState<string>("");
 
   useEffect(() => {
     if (!showAssignDropdown) return;
@@ -1362,6 +1365,35 @@ export default function OrderDetailPage({
   }
   function clearReceived(deliveryIndex: number) {
     return updateDeliveryDate({ orderId: orderIdTyped, deliveryIndex, field: "receivedDate", value: null });
+  }
+
+  function startEditFinance(svcName: string) {
+    const existing = (order?.serviceFinances ?? []).find((f) => f.serviceName === svcName);
+    setDraftEarnings(existing?.earningsAmount !== undefined ? String(existing.earningsAmount) : "");
+    setDraftWorkDays(existing?.workDays !== undefined ? String(existing.workDays) : "");
+    setEditingFinanceSvc(svcName);
+  }
+
+  function cancelEditFinance() {
+    setEditingFinanceSvc(null);
+    setDraftEarnings("");
+    setDraftWorkDays("");
+  }
+
+  async function saveFinance() {
+    if (!editingFinanceSvc || !order) return;
+    const others = (order.serviceFinances ?? []).filter((f) => f.serviceName !== editingFinanceSvc);
+    const earnings = draftEarnings.trim() !== "" ? parseFloat(draftEarnings.replace(",", ".")) : undefined;
+    const days = draftWorkDays.trim() !== "" ? parseFloat(draftWorkDays.replace(",", ".")) : undefined;
+    const next = [...others, {
+      serviceName: editingFinanceSvc,
+      earningsAmount: !isNaN(earnings as number) ? earnings : undefined,
+      workDays: !isNaN(days as number) ? days : undefined,
+    }];
+    await updateOrder({ orderId: orderIdTyped, serviceFinances: next });
+    setEditingFinanceSvc(null);
+    setDraftEarnings("");
+    setDraftWorkDays("");
   }
 
   function startEditCompletionDate() {
@@ -2371,6 +2403,150 @@ export default function OrderDetailPage({
               <span style={{ fontSize: 12, color: "var(--bad)", fontWeight: 600 }}>Usunąć termin montażu?</span>
               <button type="button" onClick={deleteCompletionDate} className="btn btn-xs" style={{ fontSize: 11, padding: "3px 10px", background: "var(--bad)", color: "#fff", borderColor: "var(--bad)" }}>Tak, usuń</button>
               <button type="button" onClick={() => setConfirmDeleteDate(false)} className="btn btn-xs" style={{ fontSize: 11, padding: "3px 10px" }}>Anuluj</button>
+            </div>
+          )}
+        </div>
+
+        {/* Finanse usług (Przychód i czas pracy) */}
+        <div style={{
+          padding: "16px 20px",
+          borderTop: "1px solid var(--line)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 14,
+          background: "var(--panel)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+                Finanse usług (Przychód i czas pracy)
+              </span>
+            </div>
+            {/* Podsumowanie (sumy ze wszystkich usług) */}
+            {(() => {
+              const assignedSvcs = order.services ?? [];
+              if (assignedSvcs.length === 0) return null;
+              const finances = order.serviceFinances ?? [];
+              let totalEarnings = 0;
+              let totalDays = 0;
+              for (const svc of assignedSvcs) {
+                const f = finances.find((x) => x.serviceName === svc);
+                if (f?.earningsAmount) totalEarnings += f.earningsAmount;
+                if (f?.workDays) totalDays += f.workDays;
+              }
+              const avgDailyRate = totalDays > 0 ? totalEarnings / totalDays : 0;
+              return (
+                <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", background: "var(--card)", padding: "8px 16px", borderRadius: 10, border: "1px solid var(--line)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 700, letterSpacing: 0.5 }}>SUMA ZAROBKU</span>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ok)", fontFamily: "monospace", marginTop: 2 }}>
+                      {totalEarnings > 0 ? `${totalEarnings.toLocaleString("pl-PL")} zł` : "—"}
+                    </span>
+                  </div>
+                  <div style={{ width: 1, height: 26, background: "var(--line)" }} />
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 700, letterSpacing: 0.5 }}>SUMA DNI</span>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace", marginTop: 2 }}>
+                      {totalDays > 0 ? `${totalDays} dni` : "—"}
+                    </span>
+                  </div>
+                  <div style={{ width: 1, height: 26, background: "var(--line)" }} />
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 700, letterSpacing: 0.5 }}>ŚREDNIA DNIÓWKA</span>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--accent)", fontFamily: "monospace", marginTop: 2 }}>
+                      {avgDailyRate > 0 ? `${Math.round(avgDailyRate).toLocaleString("pl-PL")} zł/dzień` : "—"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {(order.services ?? []).length === 0 ? (
+            <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "12px 14px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
+              Brak przypisanych usług w zleceniu — dodaj usługi w górnym panelu, aby wprowadzić wycenę i czas pracy.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+              {(order.services ?? []).map((svcName) => {
+                const f = (order.serviceFinances ?? []).find((x) => x.serviceName === svcName);
+                const earnings = f?.earningsAmount;
+                const days = f?.workDays;
+                const dailyRate = earnings && days && days > 0 ? earnings / days : null;
+
+                return (
+                  <div
+                    key={svcName}
+                    onClick={() => startEditFinance(svcName)}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      padding: "14px 16px",
+                      borderRadius: 12,
+                      background: "var(--card)",
+                      border: "1px solid var(--line)",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                      position: "relative",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = "var(--accent)";
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow = "0 6px 14px rgba(0,0,0,0.07)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "var(--line)";
+                      e.currentTarget.style.transform = "none";
+                      e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.03)";
+                    }}
+                    title="Kliknij, aby edytować kwotę zarobku i ilość dni pracy"
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13.5, color: "var(--text-strong)" }}>
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          width: 26, height: 26, borderRadius: 7, background: "var(--accent-soft)", color: "var(--accent)",
+                        }}>
+                          <ServiceIcon name={svcName} />
+                        </span>
+                        {svcName}
+                      </span>
+                      <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 600, display: "flex", alignItems: "center", gap: 4, background: "var(--panel)", padding: "3px 8px", borderRadius: 12 }}>
+                        Edytuj
+                        <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </span>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, marginBottom: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 700, letterSpacing: 0.3 }}>KWOTA ZAROBKU</div>
+                        <div style={{ fontSize: 13.5, fontWeight: 700, color: earnings ? "var(--ok)" : "var(--text-mute)", fontFamily: "monospace", marginTop: 3 }}>
+                          {earnings ? `${earnings.toLocaleString("pl-PL")} zł` : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 700, letterSpacing: 0.3 }}>DNI PRACY</div>
+                        <div style={{ fontSize: 13.5, fontWeight: 700, color: days ? "var(--text-strong)" : "var(--text-mute)", fontFamily: "monospace", marginTop: 3 }}>
+                          {days ? `${days} dni` : "—"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px dashed var(--line)", paddingTop: 8 }}>
+                      <span style={{ fontSize: 11, color: "var(--text-mute)", fontWeight: 600 }}>Wyliczona dniówka:</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: dailyRate ? "var(--accent)" : "var(--text-mute)", fontFamily: "monospace" }}>
+                        {dailyRate ? `${Math.round(dailyRate).toLocaleString("pl-PL")} zł/dzień` : "—"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -3418,6 +3594,97 @@ export default function OrderDetailPage({
           </div>
         </div>
       )}
+
+      {/* Modal edycji finansów usługi */}
+      {editingFinanceSvc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={cancelEditFinance}
+        >
+          <div
+            className="relative flex w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl ring-1 ring-gray-200 p-6"
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--card)" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--line)", paddingBottom: 12, marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8, background: "var(--accent-soft)", color: "var(--accent)" }}>
+                  <ServiceIcon name={editingFinanceSvc} />
+                </span>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
+                    Wycena usługi: {editingFinanceSvc}
+                  </h3>
+                  <p style={{ fontSize: 11.5, color: "var(--text-mute)", margin: 0 }}>Wprowadź przychód oraz przewidywany czas pracy</p>
+                </div>
+              </div>
+              <button type="button" onClick={cancelEditFinance} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-mute)", padding: 4 }}>
+                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 6 }}>
+                  Kwota zarobku (przychód z usługi) [PLN]
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="np. 12500"
+                  value={draftEarnings}
+                  onChange={(e) => setDraftEarnings(e.target.value)}
+                  className="form-input"
+                  style={{ width: "100%", fontSize: 14, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)" }}
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 6 }}>
+                  Ilość dni pracy [dni]
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="np. 3 lub 1.5"
+                  value={draftWorkDays}
+                  onChange={(e) => setDraftWorkDays(e.target.value)}
+                  className="form-input"
+                  style={{ width: "100%", fontSize: 14, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)" }}
+                />
+              </div>
+
+              {/* Dynamiczny podgląd wyliczonej dniówki */}
+              {(() => {
+                const eVal = draftEarnings.trim() !== "" ? parseFloat(draftEarnings.replace(",", ".")) : NaN;
+                const dVal = draftWorkDays.trim() !== "" ? parseFloat(draftWorkDays.replace(",", ".")) : NaN;
+                const rate = !isNaN(eVal) && !isNaN(dVal) && dVal > 0 ? eVal / dVal : null;
+                return (
+                  <div style={{ background: "var(--accent-soft)", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--accent-line)", display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-strong)" }}>Wyliczona dniówka:</span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: "var(--accent)", fontFamily: "monospace" }}>
+                      {rate !== null ? `${Math.round(rate).toLocaleString("pl-PL")} zł / dzień` : "—"}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+              <button type="button" onClick={cancelEditFinance} className="btn" style={{ padding: "6px 14px", fontSize: 13 }}>
+                Anuluj
+              </button>
+              <button type="button" onClick={() => void saveFinance()} className="btn primary" style={{ padding: "6px 16px", fontSize: 13 }}>
+                Zapisz wycenę
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
