@@ -1365,8 +1365,16 @@ export default function OrderDetailPage({
   }
 
   function startEditCompletionDate() {
-    setDraftCompletionDate(order?.projectEndDate);
-    setDraftInstallationStart(order?.installationStartDate);
+    if (order?.installationStartDate && order.installationStartDate > 10000000) {
+      const d = new Date(order.installationStartDate);
+      const dateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      const minutes = d.getHours() * 60 + d.getMinutes();
+      setDraftCompletionDate(dateOnly);
+      setDraftInstallationStart(minutes);
+    } else {
+      setDraftCompletionDate(order?.projectEndDate);
+      setDraftInstallationStart(order?.installationStartDate);
+    }
     setEditingCompletionDate(true);
   }
 
@@ -1377,10 +1385,16 @@ export default function OrderDetailPage({
   }
 
   async function saveCompletionDate() {
+    let combined: number | undefined = undefined;
+    if (draftCompletionDate) {
+      combined = draftCompletionDate;
+      if (draftInstallationStart !== undefined) {
+        combined += draftInstallationStart * 60 * 1000;
+      }
+    }
     await updateOrder({
       orderId: orderIdTyped,
-      projectEndDate: draftCompletionDate,
-      installationStartDate: draftInstallationStart,
+      installationStartDate: combined,
     });
     setEditingCompletionDate(false);
     setDraftCompletionDate(undefined);
@@ -2290,6 +2304,26 @@ export default function OrderDetailPage({
                   </select>
                   <button onClick={saveCompletionDate} className="btn primary btn-xs">Zapisz</button>
                   <button onClick={cancelEditCompletionDate} className="btn btn-xs">Anuluj</button>
+                </div>
+              ) : (order.installationStartDate && order.installationStartDate > 10000000) ? (
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text-strong)" }}>
+                    {fmtLocalDate(order.installationStartDate)}
+                  </span>
+                  <span style={{ fontSize: 12.5, color: "var(--text-mute)", textTransform: "capitalize" }}>
+                    {new Date(order.installationStartDate).toLocaleDateString("pl-PL", { weekday: "long" })}
+                  </span>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    fontSize: 12, fontWeight: 700, color: "var(--accent)",
+                    background: "var(--card)", border: "1px solid var(--accent-line)",
+                    borderRadius: 999, padding: "2px 9px",
+                  }}>
+                    <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {new Date(order.installationStartDate).toLocaleTimeString("pl-PL", { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
               ) : order.projectEndDate ? (
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
