@@ -49,13 +49,24 @@ function clientPrimaryName(client: Order["client"]): string {
   return `${client.lastName} ${client.firstName}`
 }
 
-function InvoiceBadge({ fakturownia }: { fakturownia?: { estimateNumber?: string; invoices?: Array<{ kind: "advance" | "final" | "vat"; number?: string }> } }) {
+function InvoiceBadge({ fakturownia, subdomain }: { fakturownia?: { estimateId?: string; estimateNumber?: string; invoices?: Array<{ kind: "advance" | "final" | "vat"; remoteId?: string; number?: string }> }; subdomain?: string }) {
   const invoices = fakturownia?.invoices ?? []
   const issued = invoices.filter((i) => i.number)
+  const baseUrl = subdomain ? `https://${subdomain}.fakturownia.pl/invoices` : null
   if (issued.length === 0) {
-    // Show estimate number if exists
     if (fakturownia?.estimateNumber) {
-      return (
+      const estimateUrl = baseUrl && fakturownia.estimateId ? `${baseUrl}/${fakturownia.estimateId}` : null
+      return estimateUrl ? (
+        <a
+          href={estimateUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={{ fontSize: 11, fontWeight: 500, color: "var(--text-mute)", whiteSpace: "nowrap", textDecoration: "none" }}
+        >
+          Oferta {fakturownia.estimateNumber}
+        </a>
+      ) : (
         <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-mute)", whiteSpace: "nowrap" }}>
           Oferta {fakturownia.estimateNumber}
         </span>
@@ -68,7 +79,19 @@ function InvoiceBadge({ fakturownia }: { fakturownia?: { estimateNumber?: string
       {issued.map((inv, i) => {
         const label = inv.kind === "advance" ? "Zaliczka" : inv.kind === "final" ? "Końcowa" : "VAT"
         const color = inv.kind === "final" ? "var(--ok)" : inv.kind === "advance" ? "var(--warn)" : "var(--info, #6366f1)"
-        return (
+        const url = baseUrl && inv.remoteId ? `${baseUrl}/${inv.remoteId}` : null
+        return url ? (
+          <a
+            key={i}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            style={{ fontSize: 11, fontWeight: 500, color, whiteSpace: "nowrap", textDecoration: "none" }}
+          >
+            {label} ↗
+          </a>
+        ) : (
           <span key={i} style={{ fontSize: 11, fontWeight: 500, color, whiteSpace: "nowrap" }}>
             {label}
           </span>
@@ -93,6 +116,7 @@ export default function OrderList({ searchTerm = "", showFilters = false }: { se
   const statusLabels = useStatusLabels()
   const statuses = useStatuses()
   const orders = useQuery(api.orders.list, {})
+  const fakturowniaConfig = useQuery(api.fakturownia.getConfig, {})
   const currentUser = useQuery(api.users.me)
   const allUsers = useQuery(api.users.listAllActive)
   const isLoading = orders === undefined
@@ -517,7 +541,7 @@ export default function OrderList({ searchTerm = "", showFilters = false }: { se
                     )}
                   </td>
                   <td><DocumentProgressTiles documents={order.documents} /></td>
-                  <td><InvoiceBadge fakturownia={order.fakturownia} /></td>
+                  <td><InvoiceBadge fakturownia={order.fakturownia} subdomain={fakturowniaConfig?.subdomain} /></td>
                   <td className="mono" style={{ fontSize: 11 }}>
                     {order.projectStartDate ? fmtDate(order.projectStartDate) : <span className="mute">—</span>}
                   </td>
