@@ -59,6 +59,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
   const [nipFetched, setNipFetched] = useState(false);
   const [creatingClient, setCreatingClient] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sameAsClient, setSameAsClient] = useState(false);
 
   // ─── Convex queries/mutations ──────────────────────────────────────────────
   const searchResults = useQuery(
@@ -68,6 +69,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
   const recentClients = useQuery(api.clients.list, searchQuery.trim().length < 2 ? {} : "skip");
   const searchItems = searchQuery.trim().length >= 2 ? searchResults : recentClients?.page;
   const servicesList = useQuery(api.services.listActive) ?? [];
+  const selectedClient = useQuery(api.clients.getById, resolvedClientId ? { clientId: resolvedClientId } : "skip");
   const createOrder = useMutation(api.orders.create);
   const createClient = useMutation(api.clients.create);
   const lookupNip = useAction(api.whitelist.lookupNip);
@@ -790,10 +792,37 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
           {step === "location" && (
             <div className="space-y-5">
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-                  Lokalizacja inwestycji
-                </p>
-                <AddressSearch onSelect={handleInvestmentAddressSelect} />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                    Lokalizacja inwestycji
+                  </p>
+                  {selectedClient && (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={sameAsClient}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setSameAsClient(checked);
+                          if (checked) {
+                            setInvestment({
+                              street: selectedClient.street ?? "",
+                              buildingNumber: selectedClient.buildingNumber ?? "",
+                              apartmentNumber: selectedClient.apartmentNumber ?? "",
+                              postalCode: selectedClient.postalCode ?? "",
+                              city: selectedClient.city ?? "",
+                            });
+                          }
+                        }}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-xs font-medium text-slate-600">
+                        Taki sam jak adres klienta
+                      </span>
+                    </label>
+                  )}
+                </div>
+                {!sameAsClient && <AddressSearch onSelect={handleInvestmentAddressSelect} />}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-slate-500">Kod pocztowy</label>
@@ -803,6 +832,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                       onChange={(e) => setInvestment((prev) => ({ ...prev, postalCode: e.target.value }))}
                       placeholder="00-000"
                       className={orderFieldCls}
+                      disabled={sameAsClient}
                     />
                   </div>
                   <div>
@@ -813,6 +843,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                       onChange={(e) => setInvestment((prev) => ({ ...prev, city: e.target.value }))}
                       placeholder="np. Kraków"
                       className={orderFieldCls}
+                      disabled={sameAsClient}
                     />
                   </div>
                   <div>
@@ -823,6 +854,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                       onChange={(e) => setInvestment((prev) => ({ ...prev, street: e.target.value }))}
                       placeholder="np. ul. Lipowa"
                       className={orderFieldCls}
+                      disabled={sameAsClient}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -836,6 +868,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                         }
                         placeholder="12"
                         className={orderFieldCls}
+                        disabled={sameAsClient}
                       />
                     </div>
                     <div>
@@ -848,6 +881,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                         }
                         placeholder="4"
                         className={orderFieldCls}
+                        disabled={sameAsClient}
                       />
                     </div>
                   </div>
