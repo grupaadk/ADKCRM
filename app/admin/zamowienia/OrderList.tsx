@@ -247,11 +247,18 @@ export default function OrderList({ searchTerm = "", showFilters = false }: { se
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Filters Area */}
       {showFilters && (
-        <div className="panel" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 24 }}>
-            {/* View filter */}
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Widok</div>
+        <div className="panel" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Top row: Widok + Status */}
+          <div style={{ display: "flex", gap: 16 }}>
+            {/* Widok */}
+            <div style={{
+              flex: "0 0 auto",
+              background: "var(--panel-2)",
+              borderRadius: 10,
+              padding: "12px 16px",
+              border: "1px solid var(--line)",
+            }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.6 }}>Widok</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {viewTabs.map(({ key, label, count }) => (
                   <FilterBtn key={key} isActive={viewFilter === key} onClick={() => setViewFilter(key)}>
@@ -260,10 +267,16 @@ export default function OrderList({ searchTerm = "", showFilters = false }: { se
                 ))}
               </div>
             </div>
-            
-            {/* Status filter */}
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Status zlecenia</div>
+
+            {/* Status */}
+            <div style={{
+              flex: 1,
+              background: "var(--panel-2)",
+              borderRadius: 10,
+              padding: "12px 16px",
+              border: "1px solid var(--line)",
+            }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.6 }}>Status zlecenia</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {statuses.map((st) => st.key).filter((s) => (statusCounts[s] ?? 0) > 0).map((s) => (
                   <FilterBtn key={s} isActive={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? null : s)}>
@@ -272,10 +285,19 @@ export default function OrderList({ searchTerm = "", showFilters = false }: { se
                 ))}
               </div>
             </div>
-            
-            {/* Client type filter */}
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Typ klienta</div>
+          </div>
+
+          {/* Bottom row: Typ klienta + Przypisany */}
+          <div style={{ display: "flex", gap: 16 }}>
+            {/* Typ klienta */}
+            <div style={{
+              flex: "0 0 auto",
+              background: "var(--panel-2)",
+              borderRadius: 10,
+              padding: "12px 16px",
+              border: "1px solid var(--line)",
+            }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.6 }}>Typ klienta</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {clientFilterLabels.map(({ key, label }) => (
                   <FilterBtn key={key} isActive={clientFilter === key} onClick={() => setClientFilter(key)}>
@@ -284,11 +306,17 @@ export default function OrderList({ searchTerm = "", showFilters = false }: { se
                 ))}
               </div>
             </div>
-            
-            {/* User filter */}
+
+            {/* Przypisany */}
             {allUsers && (
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Przypisany</div>
+              <div style={{
+                flex: 1,
+                background: "var(--panel-2)",
+                borderRadius: 10,
+                padding: "12px 16px",
+                border: "1px solid var(--line)",
+              }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.6 }}>Przypisany</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {[...allUsers]
                     .sort((a, b) => {
