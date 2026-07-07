@@ -1485,14 +1485,7 @@ export default function OrderDetailPage({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span className="mono mute" style={{ fontSize: 11 }}>
-              {[
-                order.projectStartDate ? `Start: ${fmtLocalDate(order.projectStartDate)}` : null,
-                order.installationStartDate ? `Montaż: ${fmtLocalDate(order.installationStartDate)}` : null,
-                order.projectEndDate ? `Koniec: ${fmtLocalDate(order.projectEndDate)}` : null
-              ].filter(Boolean).join(" · ")}
-            </span>
-            <span style={{ width: 1, height: 14, background: "var(--line)", display: "inline-block" }} />
+
 
             {/* Przypisana osoba */}
             {(() => {
@@ -1918,6 +1911,77 @@ export default function OrderDetailPage({
               </span>
             </div>
           )}
+        </div>
+
+        {/* ── Automatyczne daty cyklu życia zlecenia ── */}
+        <div style={{
+          padding: "12px 20px",
+          background: "var(--panel)",
+          borderBottom: "1px solid var(--line)",
+          display: "flex",
+          gap: 20,
+          flexWrap: "wrap",
+        }}>
+          {/* Start projektu */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 200 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: order.projectStartDate ? "#eff6ff" : "var(--panel-2)",
+              color: order.projectStartDate ? "#2563eb" : "var(--text-mute)",
+              display: "flex", alignItems: "center", justifyContent: "center"
+            }}>
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5 }}>Start projektu</span>
+              <span style={{ fontSize: 13, fontWeight: order.projectStartDate ? 600 : 400, color: order.projectStartDate ? "var(--text-strong)" : "var(--text-dim)" }}>
+                {order.projectStartDate ? fmtLocalDate(order.projectStartDate) : "Oczekuje na realizację"}
+              </span>
+            </div>
+          </div>
+
+          {/* Montaż */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 200 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: order.installationStartDate ? "#fef3c7" : "var(--panel-2)",
+              color: order.installationStartDate ? "#d97706" : "var(--text-mute)",
+              display: "flex", alignItems: "center", justifyContent: "center"
+            }}>
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5 }}>Termin montażu</span>
+              <span style={{ fontSize: 13, fontWeight: order.installationStartDate ? 600 : 400, color: order.installationStartDate ? "var(--text-strong)" : "var(--text-dim)" }}>
+                {order.installationStartDate ? fmtLocalDate(order.installationStartDate) : "Oczekuje na montaż"}
+              </span>
+            </div>
+          </div>
+
+          {/* Koniec */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 200 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: order.projectEndDate ? "#dcfce7" : "var(--panel-2)",
+              color: order.projectEndDate ? "#16a34a" : "var(--text-mute)",
+              display: "flex", alignItems: "center", justifyContent: "center"
+            }}>
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5 }}>Zakończenie</span>
+              <span style={{ fontSize: 13, fontWeight: order.projectEndDate ? 600 : 400, color: order.projectEndDate ? "var(--text-strong)" : "var(--text-dim)" }}>
+                {order.projectEndDate ? fmtLocalDate(order.projectEndDate) : "W trakcie"}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Title + meta */}
