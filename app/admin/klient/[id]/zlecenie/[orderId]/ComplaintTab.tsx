@@ -82,7 +82,10 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
 
   async function handleStatusToggle() {
     if (!complaint) return;
-    const newStatus = complaint.status === "w_toku" ? "zakonczona" : "w_toku";
+    const newStatus =
+      complaint.status === "zamknieta" || complaint.status === "rozwiazana"
+        ? "w_toku"
+        : "zamknieta";
     await updateStatus({ complaintId: complaint._id, status: newStatus });
   }
 
@@ -125,7 +128,7 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
     );
   }
 
-  const isCompleted = complaint.status === "zakonczona";
+  const isCompleted = complaint.status === "zamknieta" || complaint.status === "rozwiazana";
   const now = Date.now();
   const durationDays = formatDuration(complaint.startDate, isCompleted ? (complaint.endDate ?? now) : now);
   const entries = complaint.entries ?? [];
@@ -163,7 +166,7 @@ export default function ComplaintTab({ orderId, clientId, complaintStartDate }: 
                 isCompleted ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
               }`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${isCompleted ? "bg-green-500" : "bg-orange-500"}`} />
-                {isCompleted ? "Zakończono" : "W toku"}
+                {isCompleted ? "Zakończono" : complaint.status === "nowa" ? "Nowa" : "W toku"}
               </span>
             </div>
           </div>

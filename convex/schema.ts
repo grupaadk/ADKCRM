@@ -576,10 +576,17 @@ export default defineSchema({
 
   // 3.17 Reklamacje
   complaints: defineTable({
-    orderId: v.id("orders"),
+    orderId: v.optional(v.id("orders")),
     clientId: v.id("clients"),
-    status: v.union(v.literal("w_toku"), v.literal("zakonczona")),
+    status: v.union(
+      v.literal("nowa"),
+      v.literal("w_toku"),
+      v.literal("rozwiazana"),
+      v.literal("zamknieta"),
+    ),
     description: v.optional(v.string()),
+    clientDescription: v.optional(v.string()),
+    assignedTo: v.optional(v.string()),
     notes: v.optional(v.array(
       v.object({
         id: v.string(),
@@ -612,7 +619,9 @@ export default defineSchema({
     complaintFolderUrl: v.optional(v.string()),
   })
     .index("by_order", ["orderId"])
-    .index("by_client", ["clientId"]),
+    .index("by_client", ["clientId"])
+    .index("by_status", ["status"])
+    .index("by_startDate", ["startDate"]),
 
   // 3.18 Załączniki do zleceń (pliki w folderze "Załączniki" w Google Drive)
   orderAttachments: defineTable({

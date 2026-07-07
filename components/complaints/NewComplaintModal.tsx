@@ -1,0 +1,401 @@
+"use client";
+
+import { useState, useCallback, useEffect } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+
+type Props = {
+  onClose: () => void;
+  onCreated?: (id: Id<"complaints">) => void;
+};
+
+export default function NewComplaintModal({ onClose, onCreated }: Props) {
+  const [visible, setVisible] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState<Id<"clients"> | null>(null);
+  const [selectedClientName, setSelectedClientName] = useState("");
+  const [selectedOrderId, setSelectedOrderId] = useState<Id<"orders"> | null>(null);
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [clientDescription, setClientDescription] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const me = useQuery(api.users.me);
+  const users = useQuery(api.users.listAllActive);
+  const searchResults = useQuery(
+    api.clients.search,
+    clientSearch.trim().length >= 2 ? { searchTerm: clientSearch } : "skip",
+  );
+  // Orders for selected client
+  const clientOrders = useQuery(
+    api.orders.listByClient,
+    selectedClientId ? { clientId: selectedClientId } : "skip",
+  );
+
+  const createComplaint = useMutation(api.complaints.create);
+
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  const selectClient = useCallback((client: { _id: Id<"clients">; firstName?: string; lastName?: string; companyName?: string }) => {
+    setSelectedClientId(client._id);
+    setSelectedClientName(
+      [client.firstName, client.lastName].filter(Boolean).join(" ") || client.companyName || String(client._id),
+    );
+    setClientSearch("");
+    setSelectedOrderId(null);
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!selectedClientId) { setError("Wybierz klienta."); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      const id = await createComplaint({
+        clientId: selectedClientId,
+        orderId: selectedOrderId ?? undefined,
+        startDate: new Date(startDate).getTime(),
+        clientDescription: clientDescription.trim() || undefined,
+        assignedTo: assignedTo || undefined,
+        createdBy: me?.displayName ?? me?.login ?? "Nieznany",
+      });
+      onCreated?.(id);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Błąd zapisu.");
+    } finally {
+      setSaving(false);
+    }
+  }, [selectedClientId, selectedOrderId, startDate, clientDescription, assignedTo, me, createComplaint, onCreated, onClose]);
+
+  const overlayStyle: React.CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    zIndex: 700,
+    background: "rgba(0,0,0,0.35)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: visible ? 1 : 0,
+    transition: "opacity 0.2s",
+  };
+
+  const modalStyle: React.CSSProperties = {
+    background: "var(--panel, #fff)",
+    borderRadius: 12,
+    border: "1px solid var(--line)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.22)",
+    width: 480,
+    maxWidth: "calc(100vw - 32px)",
+    display: "flex",
+    flexDirection: "column",
+    transform: visible ? "scale(1) translateY(0)" : "scale(0.96) translateY(8px)",
+    transition: "transform 0.22s cubic-bezier(0.4, 0, 0.2, 1)",
+    maxHeight: "90vh",
+    overflow: "hidden",
+  };
+
+  return (
+    <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={modalStyle}>
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "14px 18px",
+            borderBottom: "1px solid var(--line)",
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)" }}>
+            Nowa reklamacja
+          </span>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--text-mute)",
+              padding: 4,
+              display: "flex",
+              borderRadius: 4,
+            }}
+          >
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: "16px 18px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Klient */}
+          <div>
+            <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+              Klient <span style={{ color: "#ef4444" }}>*</span>
+            </label>
+            {selectedClientId ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "7px 10px",
+                  borderRadius: 7,
+                  border: "1px solid var(--line)",
+                  background: "var(--panel-2)",
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }}>{selectedClientName}</span>
+                <button
+                  onClick={() => { setSelectedClientId(null); setSelectedClientName(""); setSelectedOrderId(null); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", fontSize: 11 }}
+                >
+                  Zmień
+                </button>
+              </div>
+            ) : (
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  placeholder="Wpisz nazwisko lub firmę klienta…"
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  style={{
+                    width: "100%",
+                    fontSize: 12.5,
+                    padding: "7px 10px",
+                    borderRadius: 7,
+                    border: "1px solid var(--line)",
+                    background: "var(--panel-2)",
+                    color: "var(--text)",
+                    fontFamily: "inherit",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+                {searchResults && searchResults.length > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      zIndex: 10,
+                      background: "var(--panel, #fff)",
+                      border: "1px solid var(--line)",
+                      borderRadius: 7,
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                      marginTop: 3,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {searchResults.map((client) => {
+                      const name = [client.firstName, client.lastName].filter(Boolean).join(" ") || client.companyName || String(client._id);
+                      return (
+                        <button
+                          key={client._id}
+                          onClick={() => selectClient(client)}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "8px 12px",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: 12.5,
+                            color: "var(--text)",
+                            fontFamily: "inherit",
+                            borderBottom: "1px solid var(--line)",
+                          }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--panel-2)"; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                        >
+                          {name}
+                          {client.companyName && [client.firstName, client.lastName].filter(Boolean).length > 0 && (
+                            <span style={{ marginLeft: 6, fontSize: 11, color: "var(--text-mute)" }}>
+                              ({client.companyName})
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {clientSearch.trim().length >= 2 && searchResults?.length === 0 && (
+                  <p style={{ fontSize: 11, color: "var(--text-mute)", margin: "4px 0 0" }}>Nie znaleziono klienta.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Zlecenie (opcjonalne) */}
+          {selectedClientId && (
+            <div>
+              <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+                Zlecenie <span style={{ fontSize: 10.5, fontWeight: 400 }}>(opcjonalne)</span>
+              </label>
+              <select
+                value={selectedOrderId ?? ""}
+                onChange={(e) => setSelectedOrderId(e.target.value ? (e.target.value as Id<"orders">) : null)}
+                style={{
+                  width: "100%",
+                  fontSize: 12.5,
+                  padding: "7px 10px",
+                  borderRadius: 7,
+                  border: "1px solid var(--line)",
+                  background: "var(--panel-2)",
+                  color: "var(--text)",
+                  fontFamily: "inherit",
+                  boxSizing: "border-box",
+                }}
+              >
+                <option value="">— Bez zlecenia —</option>
+                {clientOrders?.map((order) => (
+                  <option key={order._id} value={order._id}>
+                    {order.name ?? new Date(order._creationTime).toLocaleDateString("pl-PL")}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Data reklamacji */}
+          <div>
+            <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+              Data reklamacji <span style={{ color: "#ef4444" }}>*</span>
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={{
+                fontSize: 12.5,
+                padding: "7px 10px",
+                borderRadius: 7,
+                border: "1px solid var(--line)",
+                background: "var(--panel-2)",
+                color: "var(--text)",
+                fontFamily: "inherit",
+                outline: "none",
+              }}
+            />
+          </div>
+
+          {/* Uwagi klienta */}
+          <div>
+            <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+              Uwagi klienta
+            </label>
+            <textarea
+              rows={3}
+              placeholder="Co klient zgłasza?"
+              value={clientDescription}
+              onChange={(e) => setClientDescription(e.target.value)}
+              style={{
+                width: "100%",
+                fontSize: 12.5,
+                padding: "7px 10px",
+                borderRadius: 7,
+                border: "1px solid var(--line)",
+                background: "var(--panel-2)",
+                color: "var(--text)",
+                fontFamily: "inherit",
+                resize: "vertical",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {/* Przypisany do */}
+          <div>
+            <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+              Przypisany do
+            </label>
+            <select
+              value={assignedTo}
+              onChange={(e) => setAssignedTo(e.target.value)}
+              style={{
+                width: "100%",
+                fontSize: 12.5,
+                padding: "7px 10px",
+                borderRadius: 7,
+                border: "1px solid var(--line)",
+                background: "var(--panel-2)",
+                color: "var(--text)",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+            >
+              <option value="">— Nieprzypisany —</option>
+              {users?.map((u) => (
+                <option key={u._id} value={u.displayName ?? u.login ?? ""}>
+                  {u.displayName ?? u.login}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {error && (
+            <p style={{ margin: 0, fontSize: 12, color: "#dc2626", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, padding: "6px 10px" }}>
+              {error}
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            padding: "12px 18px",
+            borderTop: "1px solid var(--line)",
+            flexShrink: 0,
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "1px solid var(--line)",
+              borderRadius: 7,
+              cursor: "pointer",
+              fontSize: 12.5,
+              padding: "7px 16px",
+              color: "var(--text-mute)",
+              fontFamily: "inherit",
+            }}
+          >
+            Anuluj
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !selectedClientId}
+            className="btn"
+            style={{ fontSize: 12.5, padding: "7px 18px" }}
+          >
+            {saving ? "Zapisywanie…" : "Dodaj reklamację"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

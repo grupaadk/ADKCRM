@@ -134,17 +134,28 @@ export const list = query({
           }
           if (!complaint) return null; // osierocone — pomijamy
 
-          let order = orderCache.get(complaint.orderId);
-          if (order === undefined) {
+          let order = complaint.orderId ? orderCache.get(complaint.orderId) : undefined;
+          if (complaint.orderId && order === undefined) {
             order = await ctx.db.get(complaint.orderId);
             orderCache.set(complaint.orderId, order);
           }
-          if (!order) return null;
+          const client = order
+            ? (() => {
+                let c = clientCache.get(order.clientId);
+                if (c === undefined) return undefined; // will be fetched below
+                return c;
+              })()
+            : undefined;
 
-          let client = clientCache.get(order.clientId);
-          if (client === undefined) {
-            client = await ctx.db.get(order.clientId);
-            clientCache.set(order.clientId, client);
+          // Fetch client: prefer via order, fallback via complaint.clientId
+          let resolvedClient = client;
+          if (!resolvedClient) {
+            const cid = order?.clientId ?? complaint.clientId;
+            resolvedClient = clientCache.get(cid);
+            if (resolvedClient === undefined) {
+              resolvedClient = await ctx.db.get(cid);
+              if (resolvedClient) clientCache.set(cid, resolvedClient);
+            }
           }
 
           return {
@@ -155,10 +166,10 @@ export const list = query({
             source: "complaint",
             complaintId: task.complaintId,
             orderId: complaint.orderId,
-            clientId: order.clientId,
-            orderName: order.name ?? null,
-            customText: order.customText ?? null,
-            clientName: clientName(client),
+            clientId: order?.clientId ?? complaint.clientId,
+            orderName: order?.name ?? null,
+            customText: order?.customText ?? null,
+            clientName: clientName(resolvedClient ?? null),
             ...assignee,
           };
         }
@@ -237,9 +248,9 @@ export const getOne = query({
     if (task.complaintId) {
       const complaint = await ctx.db.get(task.complaintId);
       if (!complaint) return null;
-      const order = await ctx.db.get(complaint.orderId);
-      if (!order) return null;
-      const client = await ctx.db.get(order.clientId);
+      const order = complaint.orderId ? await ctx.db.get(complaint.orderId) : null;
+      const clientId = order?.clientId ?? complaint.clientId;
+      const client = await ctx.db.get(clientId);
       return {
         _id: task._id,
         title: task.title,
@@ -248,9 +259,9 @@ export const getOne = query({
         source: "complaint",
         complaintId: task.complaintId,
         orderId: complaint.orderId,
-        clientId: order.clientId,
-        orderName: order.name ?? null,
-        customText: order.customText ?? null,
+        clientId,
+        orderName: order?.name ?? null,
+        customText: order?.customText ?? null,
         clientName: clientName(client),
         ...assignee,
       };

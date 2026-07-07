@@ -2,6 +2,13 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 
+export const COMPLAINT_STATUS_LABELS: Record<string, string> = {
+  nowa: "Nowa",
+  w_toku: "W toku",
+  rozwiazana: "Rozwiązana",
+  zamknieta: "Zamknięta",
+};
+
 export const getByOrderId = query({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
@@ -12,35 +19,102 @@ export const getByOrderId = query({
   },
 });
 
+export const getById = query({
+  args: { complaintId: v.id("complaints") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.complaintId);
+  },
+});
+
+/** Global list — all complaints with client and order info joined */
+export const getAll = query({
+  args: {
+    status: v.optional(v.string()),
+    assignedTo: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    let complaints = await ctx.db
+      .query("complaints")
+      .order("desc")
+      .take(500);
+
+    if (args.status) {
+      complaints = complaints.filter((c) => c.status === args.status);
+    }
+    if (args.assignedTo) {
+      complaints = complaints.filter((c) => c.assignedTo === args.assignedTo);
+    }
+
+    // Join with clients
+    const results = await Promise.all(
+      complaints.map(async (c) => {
+        const client = await ctx.db.get(c.clientId);
+        const order = c.orderId ? await ctx.db.get(c.orderId) : null;
+        return { ...c, client, order };
+      }),
+    );
+
+    return results;
+  },
+});
+
 export const create = mutation({
   args: {
-    orderId: v.id("orders"),
+    orderId: v.optional(v.id("orders")),
     clientId: v.id("clients"),
     startDate: v.number(),
     description: v.optional(v.string()),
+    clientDescription: v.optional(v.string()),
+    assignedTo: v.optional(v.string()),
     createdBy: v.string(),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("complaints")
-      .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
-      .first();
-    if (existing) return existing._id;
+    // If tied to an order, only one complaint per order
+    if (args.orderId) {
+      const existing = await ctx.db
+        .query("complaints")
+        .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
+        .first();
+      if (existing) return existing._id;
+    }
     const complaintId = await ctx.db.insert("complaints", {
       orderId: args.orderId,
       clientId: args.clientId,
-      status: "w_toku",
+      status: "nowa",
       description: args.description,
+      clientDescription: args.clientDescription,
+      assignedTo: args.assignedTo,
       notes: [],
       startDate: args.startDate,
       todos: [],
       createdBy: args.createdBy,
     });
-    await ctx.scheduler.runAfter(0, internal.googleDrive.createComplaintFolder, {
-      complaintId,
-      orderId: args.orderId,
-    });
+    if (args.orderId) {
+      await ctx.scheduler.runAfter(0, internal.googleDrive.createComplaintFolder, {
+        complaintId,
+        orderId: args.orderId,
+      });
+    }
     return complaintId;
+  },
+});
+
+export const updateDetails = mutation({
+  args: {
+    complaintId: v.id("complaints"),
+    description: v.optional(v.string()),
+    clientDescription: v.optional(v.string()),
+    assignedTo: v.optional(v.string()),
+    startDate: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { complaintId, ...fields } = args;
+    const patch: Record<string, unknown> = {};
+    if (fields.description !== undefined) patch.description = fields.description;
+    if (fields.clientDescription !== undefined) patch.clientDescription = fields.clientDescription;
+    if (fields.assignedTo !== undefined) patch.assignedTo = fields.assignedTo;
+    if (fields.startDate !== undefined) patch.startDate = fields.startDate;
+    await ctx.db.patch(complaintId, patch);
   },
 });
 
@@ -74,14 +148,19 @@ export const setFolderId = internalMutation({
 export const updateStatus = mutation({
   args: {
     complaintId: v.id("complaints"),
-    status: v.union(v.literal("w_toku"), v.literal("zakonczona")),
+    status: v.union(
+      v.literal("nowa"),
+      v.literal("w_toku"),
+      v.literal("rozwiazana"),
+      v.literal("zamknieta"),
+    ),
   },
   handler: async (ctx, args) => {
-    if (args.status === "zakonczona") {
-      await ctx.db.patch(args.complaintId, { status: args.status, endDate: Date.now() });
-    } else {
-      await ctx.db.patch(args.complaintId, { status: args.status, endDate: undefined });
-    }
+    const finished = args.status === "zamknieta" || args.status === "rozwiazana";
+    await ctx.db.patch(args.complaintId, {
+      status: args.status,
+      endDate: finished ? Date.now() : undefined,
+    });
   },
 });
 

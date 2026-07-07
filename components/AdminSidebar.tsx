@@ -32,6 +32,7 @@ import {
   PanelLeftOpen,
   Calendar,
   Package,
+  AlertTriangle,
 } from "lucide-react"
 
 type NavItem = {
@@ -54,6 +55,7 @@ const mainItems: NavItem[] = [
   { href: "/admin/zamowienia-dostawcy", label: "Zamówienia od dostawcy", icon: Package, exactMatch: true },
   { href: "/admin/klienci", label: "Klienci", icon: Users, countKey: "clients", alsoActiveFor: ["/admin/klient/"] },
   { href: "/admin/faktury", label: "Faktury", icon: Receipt },
+  { href: "/admin/reklamacje", label: "Reklamacje", icon: AlertTriangle },
 ]
 
 const toolItems: NavItem[] = [
