@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useQuery } from "convex/react"
 import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
-import { ChevronUp, ChevronDown, ChevronsUpDown, Search, X } from "lucide-react"
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
 import { CrmEmptyState, fmtDate } from "@/components/crm-ui"
 import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
@@ -49,9 +49,20 @@ function clientPrimaryName(client: Order["client"]): string {
   return `${client.lastName} ${client.firstName}`
 }
 
-function InvoiceBadge({ invoices }: { invoices?: Array<{ kind: "advance" | "final" | "vat"; number?: string }> }) {
-  const issued = (invoices ?? []).filter((i) => i.number)
-  if (issued.length === 0) return <span className="mute">—</span>
+function InvoiceBadge({ fakturownia }: { fakturownia?: { estimateNumber?: string; invoices?: Array<{ kind: "advance" | "final" | "vat"; number?: string }> } }) {
+  const invoices = fakturownia?.invoices ?? []
+  const issued = invoices.filter((i) => i.number)
+  if (issued.length === 0) {
+    // Show estimate number if exists
+    if (fakturownia?.estimateNumber) {
+      return (
+        <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-mute)", whiteSpace: "nowrap" }}>
+          Oferta {fakturownia.estimateNumber}
+        </span>
+      )
+    }
+    return <span className="mute">—</span>
+  }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
       {issued.map((inv, i) => {
@@ -393,33 +404,34 @@ export default function OrderList({ searchTerm = "", showFilters = false }: { se
         <table className="tbl">
           <thead>
             <tr>
-              <th style={{ width: 130 }}>ID Zlecenia</th>
-              <th style={{ cursor: "pointer" }} onClick={() => handleSort("client")}>
+              <th style={{ width: 110 }}>Zlecenie</th>
+              <th style={{ cursor: "pointer", width: 140 }} onClick={() => handleSort("client")}>
                 Klient <SortIcon field="client" sortField={sortField} sortDir={sortDir} />
               </th>
-              <th style={{ cursor: "pointer", width: 110 }} onClick={() => handleSort("city")}>
-                Lokalizacja <SortIcon field="city" sortField={sortField} sortDir={sortDir} />
+              <th style={{ cursor: "pointer", width: 100 }} onClick={() => handleSort("city")}>
+                Miasto <SortIcon field="city" sortField={sortField} sortDir={sortDir} />
               </th>
-              <th style={{ cursor: "pointer", width: 150 }} onClick={() => handleSort("status")}>
+              <th style={{ cursor: "pointer", width: 120 }} onClick={() => handleSort("status")}>
                 Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
               </th>
-              <th style={{ width: 130 }}>Dokumenty</th>
-              <th style={{ width: 90 }}>Faktura</th>
               <th style={{ cursor: "pointer" }} onClick={() => handleSort("services")}>
                 Usługi <SortIcon field="services" sortField={sortField} sortDir={sortDir} />
               </th>
-              <th style={{ cursor: "pointer", width: 120 }} onClick={() => handleSort("createdAt")}>
-                Data <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
+              <th style={{ width: 100 }}>Dokumenty</th>
+              <th style={{ width: 100 }}>Faktura</th>
+              <th style={{ cursor: "pointer", width: 95 }} onClick={() => handleSort("createdAt")}>
+                Start <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
               </th>
-              <th style={{ cursor: "pointer", width: 120, textAlign: "right" }} onClick={() => handleSort("totalGross")}>
-                Kwota netto <SortIcon field="totalGross" sortField={sortField} sortDir={sortDir} />
+              <th style={{ width: 95 }}>Koniec</th>
+              <th style={{ cursor: "pointer", width: 110, textAlign: "right" }} onClick={() => handleSort("totalGross")}>
+                Netto <SortIcon field="totalGross" sortField={sortField} sortDir={sortDir} />
               </th>
             </tr>
           </thead>
           <tbody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
               <tr key={i}>
-                {Array.from({ length: 9 }).map((_, j) => (
+                {Array.from({ length: 10 }).map((_, j) => (
                   <td key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} /></td>
                 ))}
               </tr>
@@ -427,67 +439,66 @@ export default function OrderList({ searchTerm = "", showFilters = false }: { se
 
             {!isLoading && displayOrders?.length === 0 && (
               <tr>
-                <td colSpan={9}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
+                <td colSpan={10}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
               </tr>
             )}
 
             {displayOrders?.map((order) => {
               const isCompleted = order.status === "completed"
+              const clientName = order.client
+                ? order.client.clientType === "business" && order.client.companyName
+                  ? order.client.companyName
+                  : `${order.client.lastName} ${order.client.firstName}`
+                : null
               return (
                 <tr key={order._id} style={isCompleted ? { background: "var(--ok-soft)", cursor: "pointer" } : { cursor: "pointer" }} onClick={() => router.push(`/admin/klient/${order.clientId}/zlecenie/${order._id}`)}>
                   <td className="mono" style={{
                     fontSize: 11,
                     color: "var(--text-mute)",
-                    borderLeft: order.assignedUserColor ? `10px solid ${order.assignedUserColor}` : undefined,
+                    borderLeft: order.assignedUserColor ? `4px solid ${order.assignedUserColor}` : undefined,
                   }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
-                      <span>{order.name ?? <span style={{ color: "var(--panel-3)" }}>—</span>}</span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start" }}>
+                      <span style={{ fontWeight: 600, color: "var(--text-strong)" }}>{order.name ?? "—"}</span>
                       {order.customText && <span className="chip-custom">{order.customText}</span>}
                     </div>
                   </td>
                   <td>
-                    {order.client?.clientType === "business" && order.client.companyName ? (
-                      <div>
-                        <div className="strong" style={{ fontWeight: 500 }}>{order.client.companyName}</div>
-                        <div className="mute" style={{ fontSize: 11 }}>{order.client.firstName} {order.client.lastName}</div>
-                      </div>
+                    {clientName ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); router.push(`/admin/klient/${order.clientId}`); }}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 4,
+                          padding: "3px 10px", borderRadius: 20, fontSize: 11.5,
+                          fontWeight: 600, fontFamily: "inherit",
+                          background: "var(--panel-2)", border: "1px solid var(--line)",
+                          color: "var(--text-strong)", cursor: "pointer",
+                          transition: "background 0.12s, border-color 0.12s",
+                          maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}
+                        title={clientName}
+                      >
+                        {clientName}
+                      </button>
                     ) : (
-                      <div className="strong" style={{ fontWeight: 500 }}>
-                        {order.client ? `${order.client.lastName} ${order.client.firstName}` : <span className="mute">—</span>}
-                      </div>
+                      <span className="mute">—</span>
                     )}
                   </td>
-                  <td>
+                  <td style={{ fontSize: 12 }}>
                     {order.investmentCity ?? order.client?.city ?? <span className="mute">—</span>}
                   </td>
                   <td style={{ fontSize: 12 }}>{statusLabels[order.status] ?? order.status}</td>
-                  <td><DocumentProgressTiles documents={order.documents} /></td>
-                  <td><InvoiceBadge invoices={order.fakturownia?.invoices} /></td>
-                  <td style={{ fontSize: 12 }}>
+                  <td style={{ fontSize: 11.5 }}>
                     {order.services && order.services.length > 0
                       ? order.services.join(", ")
                       : <span className="mute">—</span>}
                   </td>
-                  <td>
-                    <div className="mono" style={{ fontSize: 11 }}>
-                      {order.projectStartDate ? (
-                        <>
-                          <div>Start: {fmtDate(order.projectStartDate)}</div>
-                          {order.installationStartDate && (
-                            <div className="mute" style={{ fontSize: 10.5, marginTop: 1 }}>
-                              Montaż: {fmtDate(order.installationStartDate)}
-                            </div>
-                          )}
-                          {order.projectEndDate && (
-                            <div className="mute" style={{ fontSize: 10.5, marginTop: 1 }}>
-                              Koniec: {fmtDate(order.projectEndDate)}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="mute">—</div>
-                      )}
-                    </div>
+                  <td><DocumentProgressTiles documents={order.documents} /></td>
+                  <td><InvoiceBadge fakturownia={order.fakturownia} /></td>
+                  <td className="mono" style={{ fontSize: 11 }}>
+                    {order.projectStartDate ? fmtDate(order.projectStartDate) : <span className="mute">—</span>}
+                  </td>
+                  <td className="mono" style={{ fontSize: 11 }}>
+                    {order.projectEndDate ? fmtDate(order.projectEndDate) : <span className="mute">—</span>}
                   </td>
                   <td className="mono tnum" style={{ textAlign: "right" }}>
                     {order.totalNet != null
