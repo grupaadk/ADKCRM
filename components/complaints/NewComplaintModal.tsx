@@ -197,7 +197,7 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
                     boxSizing: "border-box",
                   }}
                 />
-                {searchResults && searchResults.length > 0 && (
+                {clientSearch.trim().length >= 2 && searchResults && (
                   <div
                     style={{
                       position: "absolute",
@@ -213,58 +213,62 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
                       overflow: "hidden",
                     }}
                   >
-                    {searchResults.map((client) => {
-                      const name = [client.firstName, client.lastName].filter(Boolean).join(" ") || client.companyName || String(client._id);
-                      return (
+                    {searchResults.length > 0 ? (
+                      searchResults.map((client) => {
+                        const name = [client.firstName, client.lastName].filter(Boolean).join(" ") || client.companyName || String(client._id);
+                        return (
+                          <button
+                            key={client._id}
+                            onClick={() => selectClient(client)}
+                            style={{
+                              display: "block",
+                              width: "100%",
+                              textAlign: "left",
+                              padding: "8px 12px",
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              fontSize: 12.5,
+                              color: "var(--text)",
+                              fontFamily: "inherit",
+                              borderBottom: "1px solid var(--line)",
+                            }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--panel-2)"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                          >
+                            {name}
+                            {client.companyName && [client.firstName, client.lastName].filter(Boolean).length > 0 && (
+                              <span style={{ marginLeft: 6, fontSize: 11, color: "var(--text-mute)" }}>
+                                ({client.companyName})
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div style={{ padding: "12px", textAlign: "center" }}>
+                        <p style={{ fontSize: 11, color: "var(--text-mute)", marginBottom: 8 }}>Nie znaleziono klienta.</p>
                         <button
-                          key={client._id}
-                          onClick={() => selectClient(client)}
-                          style={{
-                            display: "block",
-                            width: "100%",
-                            textAlign: "left",
-                            padding: "8px 12px",
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            fontSize: 12.5,
-                            color: "var(--text)",
-                            fontFamily: "inherit",
-                            borderBottom: "1px solid var(--line)",
+                          type="button"
+                          onClick={() => {
+                            setIsCreatingClient(true);
+                            setClientSearch("");
                           }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--panel-2)"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                          style={{
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            padding: "6px 12px",
+                            borderRadius: 6,
+                            border: "1px solid var(--accent)",
+                            color: "var(--accent)",
+                            background: "var(--accent-soft)",
+                            cursor: "pointer",
+                          }}
                         >
-                          {name}
-                          {client.companyName && [client.firstName, client.lastName].filter(Boolean).length > 0 && (
-                            <span style={{ marginLeft: 6, fontSize: 11, color: "var(--text-mute)" }}>
-                              ({client.companyName})
-                            </span>
-                          )}
+                          Dodaj nowego klienta
                         </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {clientSearch.trim().length >= 2 && searchResults?.length === 0 && (
-                  <div style={{ marginTop: 8 }}>
-                    <p style={{ fontSize: 11, color: "var(--text-mute)", marginBottom: 8 }}>Nie znaleziono klienta.</p>
-                    <button
-                      type="button"
-                      onClick={() => setIsCreatingClient(true)}
-                      style={{
-                        fontSize: 11.5,
-                        fontWeight: 600,
-                        padding: "6px 12px",
-                        borderRadius: 6,
-                        border: "1px solid var(--accent)",
-                        color: "var(--accent)",
-                        background: "var(--accent-soft)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Dodaj nowego klienta
-                    </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
