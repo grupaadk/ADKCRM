@@ -11,6 +11,7 @@ export default function ZamowieniaPage() {
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [showFilters, setShowFilters] = useState(false)
 
   return (
     <div>
@@ -65,7 +66,11 @@ export default function ZamowieniaPage() {
         }
         actions={
           <>
-            <button className="btn">
+            <button
+              className={`btn ${showFilters ? 'active' : ''}`}
+              onClick={() => setShowFilters(!showFilters)}
+              style={{ background: showFilters ? 'var(--panel-3)' : undefined }}
+            >
               <SlidersHorizontal size={13} /> Filtry
             </button>
             <button className="btn primary" onClick={() => setShowModal(true)}>
@@ -74,7 +79,7 @@ export default function ZamowieniaPage() {
           </>
         }
       />
-      <OrderList searchTerm={searchTerm} />
+      <OrderList searchTerm={searchTerm} showFilters={showFilters} />
       {showModal && (
         <NewOrderModal
           onClose={() => setShowModal(false)}

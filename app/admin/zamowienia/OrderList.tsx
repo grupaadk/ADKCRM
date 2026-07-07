@@ -77,7 +77,7 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
 
 
 
-export default function OrderList({ searchTerm = "" }: { searchTerm?: string }) {
+export default function OrderList({ searchTerm = "", showFilters = false }: { searchTerm?: string, showFilters?: boolean }) {
   const router = useRouter()
   const statusLabels = useStatusLabels()
   const statuses = useStatuses()
@@ -245,103 +245,120 @@ export default function OrderList({ searchTerm = "" }: { searchTerm?: string }) 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {/* Toolbar */}
-      <div className="panel" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 20 }}>
-          {debouncedSearch && displayOrders && (
-            <span style={{
-              fontSize: 12, fontWeight: 600, color: "var(--accent)", whiteSpace: "nowrap",
-            }}>
-              {displayOrders.length} wyników
-            </span>
-          )}
-        </div>
-        {/* Row 1: view filter */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-          {viewTabs.map(({ key, label, count }) => (
-            <FilterBtn key={key} isActive={viewFilter === key} onClick={() => setViewFilter(key)}>
-              {label} <CountBadge count={count} active={viewFilter === key} />
-            </FilterBtn>
-          ))}
-        </div>
-        {/* Row 2: status filter */}
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
-          <span className="mute" style={{ fontSize: 11, marginRight: 2 }}>Status:</span>
-          {statuses.map((st) => st.key).filter((s) => (statusCounts[s] ?? 0) > 0).map((s) => (
-            <FilterBtn key={s} isActive={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? null : s)}>
-              {statusLabels[s] ?? s} <CountBadge count={statusCounts[s] ?? 0} active={statusFilter === s} />
-            </FilterBtn>
-          ))}
-        </div>
-        {/* Row 3: client type filter */}
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
-          <span className="mute" style={{ fontSize: 11, marginRight: 2 }}>Klient:</span>
-          {clientFilterLabels.map(({ key, label }) => (
-            <FilterBtn key={key} isActive={clientFilter === key} onClick={() => setClientFilter(key)}>
-              {label}
-            </FilterBtn>
-          ))}
-        </div>
-        {/* Row 4: user filter */}
-        {allUsers && (
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
-            <span className="mute" style={{ fontSize: 11, marginRight: 2 }}>Przypisany:</span>
-            {[...allUsers]
-              .sort((a, b) => {
-                if (a._id === currentUser?._id) return -1
-                if (b._id === currentUser?._id) return 1
-                return 0
-              })
-              .map(user => {
-                const name = user.displayName ?? user.login ?? "?"
-                const isMe = user._id === currentUser?._id
-                const active = activeUserFilters.has(user._id as string)
-                return (
+      {/* Filters Area */}
+      {showFilters && (
+        <div className="panel" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 24 }}>
+            {/* View filter */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Widok</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {viewTabs.map(({ key, label, count }) => (
+                  <FilterBtn key={key} isActive={viewFilter === key} onClick={() => setViewFilter(key)}>
+                    {label} <CountBadge count={count} active={viewFilter === key} />
+                  </FilterBtn>
+                ))}
+              </div>
+            </div>
+            
+            {/* Status filter */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Status zlecenia</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {statuses.map((st) => st.key).filter((s) => (statusCounts[s] ?? 0) > 0).map((s) => (
+                  <FilterBtn key={s} isActive={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? null : s)}>
+                    {statusLabels[s] ?? s} <CountBadge count={statusCounts[s] ?? 0} active={statusFilter === s} />
+                  </FilterBtn>
+                ))}
+              </div>
+            </div>
+            
+            {/* Client type filter */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Typ klienta</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {clientFilterLabels.map(({ key, label }) => (
+                  <FilterBtn key={key} isActive={clientFilter === key} onClick={() => setClientFilter(key)}>
+                    {label}
+                  </FilterBtn>
+                ))}
+              </div>
+            </div>
+            
+            {/* User filter */}
+            {allUsers && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Przypisany</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {[...allUsers]
+                    .sort((a, b) => {
+                      if (a._id === currentUser?._id) return -1
+                      if (b._id === currentUser?._id) return 1
+                      return 0
+                    })
+                    .map(user => {
+                      const name = user.displayName ?? user.login ?? "?"
+                      const isMe = user._id === currentUser?._id
+                      const active = activeUserFilters.has(user._id as string)
+                      return (
+                        <button
+                          key={user._id}
+                          onClick={() => toggleUserFilter(user._id as string)}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 5,
+                            padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                            background: active ? "var(--panel-3)" : "transparent",
+                            color: active ? "var(--text-strong)" : "var(--text-mute)",
+                            border: `1.5px solid ${active ? "var(--text-mute)" : "transparent"}`,
+                            fontWeight: active ? 600 : 500, cursor: "pointer",
+                            transition: "all 0.12s", fontFamily: "inherit",
+                          }}
+                        >
+                          <span style={{
+                            width: 8, height: 8, borderRadius: "50%",
+                            background: user.color ? (active ? user.color : `${user.color}80`) : (active ? "#64748b" : "#64748b40"),
+                            flexShrink: 0,
+                          }} />
+                          {name}{isMe ? " (Ty)" : ""}
+                        </button>
+                      )
+                    })
+                  }
                   <button
-                    key={user._id}
-                    onClick={() => toggleUserFilter(user._id as string)}
+                    onClick={() => toggleUserFilter("__none__")}
                     style={{
                       display: "inline-flex", alignItems: "center", gap: 5,
                       padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-                      background: active ? `${user.color ?? "#64748b"}22` : "transparent",
-                      color: active ? (user.color ?? "var(--accent)") : "var(--text-mute)",
-                      border: `1.5px solid ${active ? (user.color ?? "var(--accent)") : "transparent"}`,
-                      fontWeight: active ? 600 : 500, cursor: "pointer",
+                      background: activeUserFilters.has("__none__") ? "var(--panel-3)" : "transparent",
+                      color: activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)",
+                      border: `1.5px solid ${activeUserFilters.has("__none__") ? "var(--text-mute)" : "transparent"}`,
+                      fontWeight: activeUserFilters.has("__none__") ? 600 : 500, cursor: "pointer",
                       transition: "all 0.12s", fontFamily: "inherit",
                     }}
                   >
                     <span style={{
-                      width: 8, height: 8, borderRadius: "50%",
-                      background: user.color ? (active ? user.color : `${user.color}80`) : (active ? "#64748b" : "#64748b40"),
-                      flexShrink: 0,
+                      width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                      border: `1.5px dashed ${activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)"}`,
                     }} />
-                    {name}{isMe ? " (Ty)" : ""}
+                    Bez przypisania
                   </button>
-                )
-              })
-            }
-            <button
-              onClick={() => toggleUserFilter("__none__")}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 5,
-                padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-                background: activeUserFilters.has("__none__") ? "var(--panel-3)" : "transparent",
-                color: activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)",
-                border: `1.5px solid ${activeUserFilters.has("__none__") ? "var(--text-mute)" : "transparent"}`,
-                fontWeight: activeUserFilters.has("__none__") ? 600 : 500, cursor: "pointer",
-                transition: "all 0.12s", fontFamily: "inherit",
-              }}
-            >
-              <span style={{
-                width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-                border: `1.5px dashed ${activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)"}`,
-              }} />
-              Bez przypisania
-            </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Results Count Summary (if searching) */}
+      {!showFilters && debouncedSearch && displayOrders && (
+        <div style={{ display: "flex", alignItems: "center", padding: "0 4px", marginBottom: -4 }}>
+          <span style={{
+            fontSize: 12, fontWeight: 600, color: "var(--accent)", whiteSpace: "nowrap",
+          }}>
+            Znaleziono {displayOrders.length} wyników
+          </span>
+        </div>
+      )}
 
       {/* Table */}
       <div className="panel" style={{ overflow: "hidden" }}>
