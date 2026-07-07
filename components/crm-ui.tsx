@@ -21,7 +21,7 @@ export function CrmPageHeader({ title, sub, actions, center, tabs, activeTab, on
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 14, marginBottom: tabs ? 12 : 0 }}>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-strong)", letterSpacing: "-0.01em", margin: 0 }}>
             {title}
           </h1>
@@ -35,7 +35,7 @@ export function CrmPageHeader({ title, sub, actions, center, tabs, activeTab, on
           </div>
         )}
         {actions && (
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>{actions}</div>
+          <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>{actions}</div>
         )}
       </div>
 

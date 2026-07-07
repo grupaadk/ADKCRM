@@ -28,9 +28,10 @@ export default function ZamowieniaPage() {
               style={{
                 width: "100%",
                 padding: "8px 30px 8px 34px",
-                borderRadius: 8,
-                border: "2px solid var(--accent-line)",
-                background: "var(--bg)",
+                borderRadius: 999,
+                border: "1px solid var(--line)",
+                background: "var(--card)",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
                 fontSize: 13,
                 fontWeight: 500,
                 fontFamily: "inherit",
