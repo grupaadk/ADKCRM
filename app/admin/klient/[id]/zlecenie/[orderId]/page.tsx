@@ -1365,8 +1365,8 @@ export default function OrderDetailPage({
   }
 
   function startEditCompletionDate() {
-    setDraftCompletionDate(order?.completionDate);
-    setDraftInstallationStart(order?.installationStart);
+    setDraftCompletionDate(order?.projectEndDate);
+    setDraftInstallationStart(order?.installationStartDate);
     setEditingCompletionDate(true);
   }
 
@@ -1379,8 +1379,8 @@ export default function OrderDetailPage({
   async function saveCompletionDate() {
     await updateOrder({
       orderId: orderIdTyped,
-      completionDate: draftCompletionDate,
-      installationStart: draftInstallationStart,
+      projectEndDate: draftCompletionDate,
+      installationStartDate: draftInstallationStart,
     });
     setEditingCompletionDate(false);
     setDraftCompletionDate(undefined);
@@ -1486,11 +1486,13 @@ export default function OrderDetailPage({
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className="mono mute" style={{ fontSize: 11 }}>
-              {(order as { productionDate?: number }).productionDate
-                ? `Realizowane: ${fmtLocalDate((order as { productionDate?: number }).productionDate!)}`
+              {(order as { projectStartDate?: number }).projectStartDate
+                ? `Start: ${fmtLocalDate((order as { projectStartDate?: number }).projectStartDate!)}`
                 : `Dodano: ${createdDate}`}
-              {(order as { completionDate?: number }).completionDate &&
-                ` · Zak.: ${fmtLocalDate((order as { completionDate?: number }).completionDate!)}`}
+              {(order as { installationStartDate?: number }).installationStartDate &&
+                ` · Montaż: ${fmtLocalDate((order as { installationStartDate?: number }).installationStartDate!)}`}
+              {(order as { projectEndDate?: number }).projectEndDate &&
+                ` · Koniec: ${fmtLocalDate((order as { projectEndDate?: number }).projectEndDate!)}`}
             </span>
             <span style={{ width: 1, height: 14, background: "var(--line)", display: "inline-block" }} />
 
@@ -2223,16 +2225,16 @@ export default function OrderDetailPage({
           justifyContent: "space-between",
           gap: 12,
           flexWrap: "wrap",
-          background: order.completionDate ? "var(--accent-soft)" : "var(--panel-2)",
+          background: order.projectEndDate ? "var(--accent-soft)" : "var(--panel-2)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
             {/* Ikona w okręgu */}
             <div style={{
               width: 38, height: 38, borderRadius: 10, flexShrink: 0,
               display: "flex", alignItems: "center", justifyContent: "center",
-              background: order.completionDate ? "var(--accent)" : "var(--card)",
-              border: order.completionDate ? "none" : "1px solid var(--line)",
-              color: order.completionDate ? "#fff" : "var(--text-mute)",
+              background: order.projectEndDate ? "var(--accent)" : "var(--card)",
+              border: order.projectEndDate ? "none" : "1px solid var(--line)",
+              color: order.projectEndDate ? "#fff" : "var(--text-mute)",
             }}>
               <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" />
@@ -2279,15 +2281,15 @@ export default function OrderDetailPage({
                   <button onClick={saveCompletionDate} className="btn primary btn-xs">Zapisz</button>
                   <button onClick={cancelEditCompletionDate} className="btn btn-xs">Anuluj</button>
                 </div>
-              ) : order.completionDate ? (
+              ) : order.projectEndDate ? (
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text-strong)" }}>
-                    {fmtLocalDate(order.completionDate)}
+                    {fmtLocalDate(order.projectEndDate)}
                   </span>
                   <span style={{ fontSize: 12.5, color: "var(--text-mute)", textTransform: "capitalize" }}>
-                    {new Date(order.completionDate).toLocaleDateString("pl-PL", { weekday: "long" })}
+                    {new Date(order.projectEndDate).toLocaleDateString("pl-PL", { weekday: "long" })}
                   </span>
-                  {order.installationStart != null && (
+                  {order.installationStartDate != null && (
                     <span style={{
                       display: "inline-flex", alignItems: "center", gap: 4,
                       fontSize: 12, fontWeight: 700, color: "var(--accent)",
@@ -2297,7 +2299,7 @@ export default function OrderDetailPage({
                       <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      {hourStr(order.installationStart)}
+                      {hourStr(order.installationStartDate)}
                     </span>
                   )}
                 </div>
@@ -2320,9 +2322,9 @@ export default function OrderDetailPage({
                 <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
                 </svg>
-                {order.completionDate ? "Edytuj" : "Ustaw termin"}
+                {order.projectEndDate ? "Edytuj" : "Ustaw termin"}
               </button>
-              {order.completionDate && (
+              {order.projectEndDate && (
                 <button
                   type="button"
                   onClick={() => setConfirmDeleteDate(true)}

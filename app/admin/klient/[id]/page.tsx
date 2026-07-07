@@ -436,16 +436,22 @@ export default function ClientDetailPage({
                       </TableCell>
                       <TableCell>
                         <div className="mono" style={{ fontSize: 11 }}>
-                          {(order as { productionDate?: number }).productionDate ? (
+                          {(order as { projectStartDate?: number }).projectStartDate ? (
                             <>
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                                 <CalendarDays size={11} style={{ color: "var(--text-mute)" }} />
-                                {fmtDate((order as { productionDate?: number }).productionDate!)}
+                                Start: {fmtDate((order as { projectStartDate?: number }).projectStartDate!)}
                               </div>
-                              {(order as { completionDate?: number }).completionDate && (
+                              {(order as { installationStartDate?: number }).installationStartDate && (
                                 <div className="mute" style={{ fontSize: 10.5, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
                                   <Clock size={10} />
-                                  Zak.: {fmtDate((order as { completionDate?: number }).completionDate!)}
+                                  Montaż: {fmtDate((order as { installationStartDate?: number }).installationStartDate!)}
+                                </div>
+                              )}
+                              {(order as { projectEndDate?: number }).projectEndDate && (
+                                <div className="mute" style={{ fontSize: 10.5, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                                  <Clock size={10} />
+                                  Koniec: {fmtDate((order as { projectEndDate?: number }).projectEndDate!)}
                                 </div>
                               )}
                             </>

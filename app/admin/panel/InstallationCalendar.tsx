@@ -132,9 +132,9 @@ export default function InstallationCalendar() {
           return activeUserFilters.has(uid);
         });
     return filtered.map((o) => {
-      const startMins = o.installationStart ?? DEFAULT_START_HOUR * 60;
-      const start = minsToDate(o.completionDate, startMins);
-      const end = minsToDate(o.completionDate, startMins + EVENT_DURATION_HOURS * 60);
+      const startMins = o.installationStartDate ?? DEFAULT_START_HOUR * 60;
+      const start = minsToDate(o.projectEndDate, startMins);
+      const end = minsToDate(o.projectEndDate, startMins + EVENT_DURATION_HOURS * 60);
 
       return {
         id: o._id,
@@ -169,8 +169,8 @@ export default function InstallationCalendar() {
 
     await updateOrder({
       orderId: orderId as Id<"orders">,
-      completionDate: localMidnight(newStart),
-      installationStart: dateToMins(newStart),
+      projectEndDate: localMidnight(newStart),
+      installationStartDate: dateToMins(newStart),
     });
   };
 
@@ -214,15 +214,15 @@ export default function InstallationCalendar() {
   const dayMontazCount = useMemo(() => {
     if (!selectedDate || !orders) return 0;
     const dayStart = localMidnight(selectedDate);
-    return orders.filter((o) => localMidnight(new Date(o.completionDate)) === dayStart).length;
+    return orders.filter((o) => localMidnight(new Date(o.projectEndDate)) === dayStart).length;
   }, [selectedDate, orders]);
 
   const handleAssignDate = async () => {
     if (!selectedOrderId || !selectedDate) return;
     await updateOrder({
       orderId: selectedOrderId as Id<"orders">,
-      completionDate: localMidnight(selectedDate),
-      installationStart: dateToMins(selectedDate),
+      projectEndDate: localMidnight(selectedDate),
+      installationStartDate: dateToMins(selectedDate),
     });
     setDateModalOpen(false);
     setSelectedOrderId(null);

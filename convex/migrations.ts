@@ -136,3 +136,53 @@ export const fixFirstMayOrder = internalMutation({
 // Migracja clearTrelloFields została wykonana — dane są czyste (uruchomiona 2026-05-08).
 // Pola trelloCardId/trelloCardUrl zostały usunięte z bazy danych i schematu.
 
+export const migrateOrderDates = internalMutation({
+  args: {
+    cursor: v.optional(v.string()),
+  },
+  returns: v.object({
+    processed: v.number(),
+    hasMore: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("orders")
+      .paginate({ numItems: BATCH_SIZE, cursor: args.cursor ?? null });
+
+    let processed = 0;
+    for (const order of result.page) {
+      const anyOrder = order as any;
+      const updates: any = {};
+      
+      if (anyOrder.productionDate || anyOrder.realizationStartDate) {
+        updates.projectStartDate = anyOrder.productionDate ?? anyOrder.realizationStartDate;
+      }
+      if (anyOrder.completionDate || anyOrder.realizationEndDate) {
+        updates.projectEndDate = anyOrder.completionDate ?? anyOrder.realizationEndDate;
+      }
+      if (anyOrder.installationStart) {
+        updates.installationStartDate = anyOrder.installationStart;
+      }
+      
+      updates.productionDate = undefined;
+      updates.completionDate = undefined;
+      updates.realizationStartDate = undefined;
+      updates.realizationEndDate = undefined;
+      updates.installationStart = undefined;
+      updates.installationEnd = undefined;
+
+      await ctx.db.patch(order._id, updates);
+      processed++;
+    }
+
+    if (!result.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.migrateOrderDates,
+        { cursor: result.continueCursor },
+      );
+    }
+
+    return { processed, hasMore: !result.isDone };
+  },
+});

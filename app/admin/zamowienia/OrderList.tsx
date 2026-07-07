@@ -36,8 +36,9 @@ type Order = {
   totalGross?: number | null
   assignedUserColor?: string
   assignedUserId?: string
-  productionDate?: number
-  completionDate?: number
+  projectStartDate?: number
+  projectEndDate?: number
+  installationStartDate?: number
 }
 
 type ClientFilter = "all" | "individual" | "business"
@@ -203,7 +204,7 @@ export default function OrderList() {
         }
         case "status": cmp = a.status.localeCompare(b.status, "pl"); break
         case "services": cmp = (a.services ?? []).join().localeCompare((b.services ?? []).join(), "pl"); break
-        case "createdAt": cmp = (a.productionDate ?? a._creationTime) - (b.productionDate ?? b._creationTime); break
+        case "createdAt": cmp = (a.projectStartDate ?? a._creationTime) - (b.projectStartDate ?? b._creationTime); break
         case "city": cmp = (a.investmentCity ?? a.client?.city ?? "").localeCompare(b.investmentCity ?? b.client?.city ?? "", "pl"); break
         case "totalGross": cmp = (a.totalGross ?? 0) - (b.totalGross ?? 0); break
       }
@@ -483,12 +484,17 @@ export default function OrderList() {
                   </td>
                   <td>
                     <div className="mono" style={{ fontSize: 11 }}>
-                      {order.productionDate ? (
+                      {order.projectStartDate ? (
                         <>
-                          <div>{fmtDate(order.productionDate)}</div>
-                          {order.completionDate && (
+                          <div>Start: {fmtDate(order.projectStartDate)}</div>
+                          {order.installationStartDate && (
                             <div className="mute" style={{ fontSize: 10.5, marginTop: 1 }}>
-                              Zak.: {fmtDate(order.completionDate)}
+                              Montaż: {fmtDate(order.installationStartDate)}
+                            </div>
+                          )}
+                          {order.projectEndDate && (
+                            <div className="mute" style={{ fontSize: 10.5, marginTop: 1 }}>
+                              Koniec: {fmtDate(order.projectEndDate)}
                             </div>
                           )}
                         </>

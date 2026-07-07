@@ -276,8 +276,9 @@ export const update = mutation({
     investmentApartmentNumber: v.optional(v.string()),
     investmentPostalCode: v.optional(v.string()),
     investmentCity: v.optional(v.string()),
-    completionDate: v.optional(v.number()),
-    installationStart: v.optional(v.number()),
+    projectStartDate: v.optional(v.number()),
+    projectEndDate: v.optional(v.number()),
+    installationStartDate: v.optional(v.number()),
     serviceDeliveries: v.optional(v.array(v.object({
       serviceName: v.string(),
       supplierId: v.id("suppliers"),
@@ -349,20 +350,20 @@ export const clearInstallationDate = mutation({
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
 
-    if (!order.completionDate && !order.installationStart) {
+    if (!order.projectEndDate && !order.installationStartDate) {
       return;
     }
 
     await ctx.db.patch(args.orderId, {
-      completionDate: undefined,
-      installationStart: undefined,
+      projectEndDate: undefined,
+      installationStartDate: undefined,
     });
 
     await ctx.db.insert("clientEvents", {
       clientId: order.clientId,
       orderId: args.orderId,
       type: "data_updated",
-      details: { fields: ["completionDate", "installationStart"], action: "clear" },
+      details: { fields: ["projectEndDate", "installationStartDate"], action: "clear" },
       performedBy: userId,
     });
   },
@@ -400,18 +401,24 @@ export const changeStatus = mutation({
 
     const statusPatch: Record<string, unknown> = { status: args.newStatus };
 
-    // Start realizacji: "Zamówienie" (production) lub "Realizowane" (installation)
-    if (args.newStatus === "production" || args.newStatus === "installation") {
-      if (!order.realizationStartDate) {
-        statusPatch.realizationStartDate = Date.now();
+    // Automatyczne przypisywanie dat zlecenia
+    if (args.newStatus === "production") {
+      if (!order.projectStartDate) {
+        statusPatch.projectStartDate = Date.now();
+      }
+    }
+    
+    if (args.newStatus === "installation") {
+      if (!order.installationStartDate) {
+        statusPatch.installationStartDate = Date.now();
       }
     }
 
     if (args.newStatus === "completed") {
-      statusPatch.realizationEndDate = Date.now();
+      statusPatch.projectEndDate = Date.now();
     } else if (order.status === "completed" && args.newStatus !== "archived") {
-      // Jeśli cofamy status ze Zrealizowane (i nie archiwizujemy), czyścimy datę końca
-      statusPatch.realizationEndDate = undefined;
+      // Jeśli cofamy status ze Zakończone (i nie archiwizujemy), czyścimy datę końca
+      statusPatch.projectEndDate = undefined;
     }
 
     await ctx.db.patch(args.orderId, statusPatch);
@@ -887,8 +894,8 @@ export const listByCompletionDateRange = query({
   handler: async (ctx, args) => {
     const orders = await ctx.db
       .query("orders")
-      .withIndex("by_completion_date", (q) =>
-        q.gte("completionDate", args.startDate).lte("completionDate", args.endDate),
+      .withIndex("by_project_end", (q) =>
+        q.gte("projectEndDate", args.startDate).lte("projectEndDate", args.endDate),
       )
       .collect();
 
@@ -913,13 +920,13 @@ export const listByCompletionDateRange = query({
         }
         return {
           _id: order._id,
-          completionDate: order.completionDate!,
+          projectEndDate: order.projectEndDate!,
           status: order.status,
           clientId: order.clientId,
           clientName,
           services: order.services ?? [],
           name: order.name,
-          installationStart: order.installationStart,
+          installationStartDate: order.installationStartDate,
           customText: order.customText,
           assignedUserId: order.assignedUserId,
           assignedUserColor,

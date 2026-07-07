@@ -211,6 +211,11 @@ export default defineSchema({
 
     // Status workflow — dynamiczny klucz z rejestru (crmConfig.statuses)
     status: v.string(),
+    projectStartDate: v.optional(v.number()),
+    projectEndDate: v.optional(v.number()),
+    installationStartDate: v.optional(v.number()),
+    
+    // Legacy fields - tymczasowo przywrócone na czas migracji produkcji
     productionDate: v.optional(v.number()),
     completionDate: v.optional(v.number()),
     realizationStartDate: v.optional(v.number()),
@@ -264,8 +269,8 @@ export default defineSchema({
   })
     .index("by_client", ["clientId"])
     .index("by_status", ["status"])
-    .index("by_production_date", ["productionDate"])
-    .index("by_completion_date", ["completionDate"])
+    .index("by_project_start", ["projectStartDate"])
+    .index("by_project_end", ["projectEndDate"])
     .index("by_jotform_submission", ["jotformSubmissionId"]),
 
   // 3.1c Liczniki numeracji zleceń (per miesiąc)
