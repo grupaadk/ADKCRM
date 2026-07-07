@@ -175,16 +175,40 @@ export default function ComplaintPhotoSection({
           Zdjęcia
         </h2>
         {complaintFolderId && (
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="btn"
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12 }}
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Dodaj zdjęcia
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <a
+              href={`https://drive.google.com/drive/folders/${complaintFolderId}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 12,
+                color: "var(--accent)",
+                background: "var(--accent-soft)",
+                padding: "6px 12px",
+                borderRadius: 6,
+                fontWeight: 600,
+                textDecoration: "none",
+              }}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+              </svg>
+              Google Drive
+            </a>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="btn"
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12 }}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Dodaj zdjęcia
+            </button>
+          </div>
         )}
       </div>
 
