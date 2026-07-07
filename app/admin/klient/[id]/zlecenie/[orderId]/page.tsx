@@ -83,7 +83,7 @@ type CachedInvoice = {
 
 
 
-type Tab = "szczegoly" | "wycena" | "reklamacja" | "notatki";
+type Tab = "szczegoly" | "dokumenty" | "faktury" | "wycena" | "reklamacja" | "notatki";
 
 function getProjectFileLinks(projectFiles: string | undefined) {
   if (!projectFiles) return [];
@@ -1472,6 +1472,8 @@ export default function OrderDetailPage({
 
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "szczegoly", label: "Szczegóły" },
+    { key: "dokumenty", label: "Dokumenty" },
+    { key: "faktury", label: "Faktury" },
     { key: "wycena", label: "Wycena" },
 
     { key: "reklamacja", label: "Reklamacja" },
@@ -3088,33 +3090,20 @@ export default function OrderDetailPage({
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
 
-          {/* Dokumenty + Pliki zlecenia */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 2fr) minmax(0, 3fr)",
-              gap: 16,
-            }}
-          >
-            <div className="panel" style={{ overflow: "hidden" }}>
-              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--line)" }}>
-                <span className="up mute">Dokumenty</span>
-              </div>
-              <div style={{ padding: 16 }}>
-                <DocumentCheckboxes
-                  orderId={orderIdTyped}
-                  documents={order.documents}
-                  warrantyDocs={order.warrantyDocs ?? {}}
-                  clientData={client ?? undefined}
-                  orderData={order}
-                />
-              </div>
-            </div>
+          {/* Pliki zlecenia — dwa gridy side-by-side */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <OrderDriveBrowser
               orderId={orderIdTyped}
               rootFolderId={order.folderId}
+              previewSide="left"
+            />
+            <OrderDriveBrowser
+              orderId={orderIdTyped}
+              rootFolderId={order.folderId}
+              previewSide="right"
             />
           </div>
+
 
           {/* Szczegóły zlecenia (komentarz, pliki projektu) */}
           {(order.comment ||
@@ -3177,7 +3166,12 @@ export default function OrderDetailPage({
               </div>
             </CollapsibleSection>
           )}
+        </div>
+      )}
 
+      {/* ── Tab: Faktury ── */}
+      {activeTab === "faktury" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Faktury z Fakturowni */}
           <SectionCard
             title="Faktury z Fakturowni"
@@ -3406,6 +3400,26 @@ export default function OrderDetailPage({
               </div>
             </CollapsibleSection>
           )}
+        </div>
+      )}
+
+      {/* ── Tab: Dokumenty ── */}
+      {activeTab === "dokumenty" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="panel" style={{ overflow: "hidden" }}>
+            <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--line)" }}>
+              <span className="up mute">Dokumenty</span>
+            </div>
+            <div style={{ padding: 16 }}>
+              <DocumentCheckboxes
+                orderId={orderIdTyped}
+                documents={order.documents}
+                warrantyDocs={order.warrantyDocs ?? {}}
+                clientData={client ?? undefined}
+                orderData={order}
+              />
+            </div>
+          </div>
         </div>
       )}
 
