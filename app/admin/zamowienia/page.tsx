@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import OrderList from "./OrderList"
 import { CrmPageHeader } from "@/components/crm-ui"
-import { Plus, SlidersHorizontal, Search, X } from "lucide-react"
+import { Plus, SlidersHorizontal, Search, X, BarChart2 } from "lucide-react"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 
 export default function ZamowieniaPage() {
@@ -12,6 +12,17 @@ export default function ZamowieniaPage() {
   const [showModal, setShowModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [showFilters, setShowFilters] = useState(false)
+  const [showReports, setShowReports] = useState(false)
+
+  function toggleFilters() {
+    setShowFilters((v) => !v)
+    setShowReports(false)
+  }
+
+  function toggleReports() {
+    setShowReports((v) => !v)
+    setShowFilters(false)
+  }
 
   return (
     <div>
@@ -68,10 +79,17 @@ export default function ZamowieniaPage() {
           <>
             <button
               className={`btn ${showFilters ? 'active' : ''}`}
-              onClick={() => setShowFilters(!showFilters)}
+              onClick={toggleFilters}
               style={{ background: showFilters ? 'var(--panel-3)' : undefined }}
             >
               <SlidersHorizontal size={13} /> Filtry
+            </button>
+            <button
+              className={`btn ${showReports ? 'active' : ''}`}
+              onClick={toggleReports}
+              style={{ background: showReports ? 'var(--panel-3)' : undefined }}
+            >
+              <BarChart2 size={13} /> Raporty
             </button>
             <button className="btn primary" onClick={() => setShowModal(true)}>
               <Plus size={13} /> Nowe zlecenie
@@ -79,7 +97,7 @@ export default function ZamowieniaPage() {
           </>
         }
       />
-      <OrderList searchTerm={searchTerm} showFilters={showFilters} />
+      <OrderList searchTerm={searchTerm} showFilters={showFilters} showReports={showReports} />
       {showModal && (
         <NewOrderModal
           onClose={() => setShowModal(false)}

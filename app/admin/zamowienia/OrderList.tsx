@@ -8,6 +8,7 @@ import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
 import { CrmEmptyState, fmtDate } from "@/components/crm-ui"
 import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
+import OrdersReportDashboard from "./OrdersReportDashboard"
 
 type SortField = "client" | "city" | "status" | "services" | "createdAt" | "totalGross"
 type SortDirection = "asc" | "desc"
@@ -111,7 +112,7 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
 
 
 
-export default function OrderList({ searchTerm = "", showFilters = false }: { searchTerm?: string, showFilters?: boolean }) {
+export default function OrderList({ searchTerm = "", showFilters = false, showReports = false }: { searchTerm?: string, showFilters?: boolean, showReports?: boolean }) {
   const router = useRouter()
   const statusLabels = useStatusLabels()
   const statuses = useStatuses()
@@ -280,6 +281,13 @@ export default function OrderList({ searchTerm = "", showFilters = false }: { se
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Reports Dashboard */}
+      {showReports && (
+        <div className="panel" style={{ padding: "20px 24px" }}>
+          <OrdersReportDashboard />
+        </div>
+      )}
+
       {/* Filters Area */}
       {showFilters && (
         <div className="panel" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>

@@ -538,6 +538,69 @@ export const retryCreateFolderAndUploadFiles = mutation({
       { opportunityId: args.opportunityId },
     );
 
+
     return { opportunityId: args.opportunityId, scheduled: true };
+  },
+});
+
+// Raport konwersji szans sprzedaży → zlecenia.
+// Liczy szanse z offerSentAt w przedziale [fromTs, toTs] (etap inquiry)
+// i sprawdza ile z nich trafiło do zlecenia (processed=true).
+// Zwraca też dane poprzedniego okresu tej samej długości do trendu.
+export const getConversionReport = query({
+  args: {
+    fromTs: v.number(),
+    toTs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const { fromTs, toTs } = args;
+    const periodLen = toTs - fromTs;
+
+    // Pobierz wszystkie szanse (globalny widok, bez filtrów użytkownika)
+    const all = await ctx.db
+      .query("pendingJotformSubmissions")
+      .order("desc")
+      .take(5000);
+
+    // Szanse z offerSentAt w wybranym przedziale (dotarły do etapu inquiry)
+    const current = all.filter(
+      (o) =>
+        o.offerSentAt !== undefined &&
+        o.offerSentAt >= fromTs &&
+        o.offerSentAt <= toTs,
+    );
+    const currentConverted = current.filter((o) => o.processed === true);
+
+    // Poprzedni okres tej samej długości
+    const prevFrom = fromTs - periodLen;
+    const prevTo = fromTs - 1;
+    const prev = all.filter(
+      (o) =>
+        o.offerSentAt !== undefined &&
+        o.offerSentAt >= prevFrom &&
+        o.offerSentAt <= prevTo,
+    );
+    const prevConverted = prev.filter((o) => o.processed === true);
+
+    const rate =
+      current.length > 0
+        ? Math.round((currentConverted.length / current.length) * 100)
+        : null;
+    const prevRate =
+      prev.length > 0
+        ? Math.round((prevConverted.length / prev.length) * 100)
+        : null;
+    const delta =
+      rate !== null && prevRate !== null ? rate - prevRate : null;
+
+    return {
+      base: current.length,
+      converted: currentConverted.length,
+      rate,
+      prevBase: prev.length,
+      prevConverted: prevConverted.length,
+      prevRate,
+      delta,
+    };
   },
 });
