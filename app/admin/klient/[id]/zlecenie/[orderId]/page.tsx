@@ -2182,13 +2182,16 @@ export default function OrderDetailPage({
                 Usługi zlecenia
               </span>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {servicesList.map((svc) => {
-                  const active = draftServices.includes(svc.name);
+                {Array.from(new Set([
+                  ...servicesList.map((s) => s.name),
+                  ...(order.services ?? [])
+                ])).map((svcName) => {
+                  const active = draftServices.includes(svcName);
                   return (
                     <button
-                      key={svc._id}
+                      key={svcName}
                       type="button"
-                      onClick={() => toggleDraftService(svc.name)}
+                      onClick={() => toggleDraftService(svcName)}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
@@ -2219,9 +2222,9 @@ export default function OrderDetailPage({
                           flexShrink: 0,
                         }}
                       >
-                        <ServiceIcon name={svc.name} />
+                        <ServiceIcon name={svcName} />
                       </span>
-                      {svc.name}
+                      {svcName}
                     </button>
                   );
                 })}
