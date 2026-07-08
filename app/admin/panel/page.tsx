@@ -558,15 +558,17 @@ export default function PanelPage() {
     const all = items ?? []
     if (activeUserFilters.size === 0) return all
     return all.filter(item => {
-      if (item.type === "pending") {
-        const uid = (item.assignedUserId as string | undefined)
-        if (!uid) return activeUserFilters.has("__none__")
-        return activeUserFilters.has(uid)
+      const uids = item.assignees?.map(a => a.id) || []
+      if (item.assignedUserId && !uids.includes(item.assignedUserId)) {
+        uids.push(item.assignedUserId)
       }
-      const uid = (item.assignedUserId as string | undefined)
-        ?? (item.assignedUserColor ? colorToUserId[item.assignedUserColor] : undefined)
-      if (!uid) return activeUserFilters.has("__none__")
-      return activeUserFilters.has(uid)
+      if (item.assignedUserColor && uids.length === 0) {
+        const uidFromColor = colorToUserId[item.assignedUserColor]
+        if (uidFromColor) uids.push(uidFromColor)
+      }
+
+      if (uids.length === 0) return activeUserFilters.has("__none__")
+      return uids.some(uid => activeUserFilters.has(uid))
     })
   }, [items, activeUserFilters, colorToUserId])
 
