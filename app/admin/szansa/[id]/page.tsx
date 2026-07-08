@@ -268,12 +268,17 @@ export default function OpportunityDetailPage({
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {/* Przypisana osoba */}
           {(() => {
-            const assignedUser = opp.assignedUserId
-              ? assignableUsers.find((u) => u._id === opp.assignedUserId)
-              : null;
-            const assignedName = assignedUser
-              ? (assignedUser.displayName ?? assignedUser.login ?? "")
-              : null;
+            const assigneesArray = Array.from(new Set([
+              ...(opp.assignedUserId ? [opp.assignedUserId] : []),
+              ...(opp.assignedUserIds || [])
+            ]));
+            const assignedUsers = assigneesArray.map(id => assignableUsers.find((u) => u._id === id)).filter(Boolean);
+            
+            const assignedName = assignedUsers.length === 0
+              ? null
+              : assignedUsers.length === 1
+              ? (assignedUsers[0]!.displayName ?? assignedUsers[0]!.login ?? "")
+              : `${assignedUsers.length} osoby`;
             return (
               <div ref={assignDropdownRef} style={{ position: "relative" }}>
                 <button
@@ -284,8 +289,8 @@ export default function OpportunityDetailPage({
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 4,
-                    ...(assignedUser?.color
-                      ? { borderColor: assignedUser.color + "80", color: assignedUser.color }
+                    ...(assignedUsers.length === 1 && assignedUsers[0]!.color
+                      ? { borderColor: assignedUsers[0]!.color + "80", color: assignedUsers[0]!.color }
                       : {}),
                   }}
                   title={assignedName ? `Przypisany: ${assignedName}` : "Przypisz osobę"}
@@ -314,8 +319,11 @@ export default function OpportunityDetailPage({
                       <button
                         key={u._id}
                         onClick={() => {
-                          void assignOpportunity({ opportunityId, assignedUserId: u._id });
-                          setShowAssignDropdown(false);
+                          if (assigneesArray.includes(u._id)) {
+                            void assignOpportunity({ opportunityId, assignedUserIds: assigneesArray.filter(id => id !== u._id) });
+                          } else {
+                            void assignOpportunity({ opportunityId, assignedUserIds: [...assigneesArray, u._id] });
+                          }
                         }}
                         style={{
                           display: "flex",
@@ -325,31 +333,33 @@ export default function OpportunityDetailPage({
                           textAlign: "left",
                           padding: "6px 12px",
                           fontSize: 12,
-                          background: opp.assignedUserId === u._id ? "var(--panel-2)" : "transparent",
+                          background: assigneesArray.includes(u._id) ? "var(--panel-2)" : "transparent",
                           border: "none",
                           borderBottom: "1px solid var(--line)",
                           cursor: "pointer",
                           color: "var(--text)",
                           fontFamily: "inherit",
-                          fontWeight: opp.assignedUserId === u._id ? 600 : 400,
+                          fontWeight: assigneesArray.includes(u._id) ? 600 : 400,
                         }}
                       >
                         {u.color && (
                           <span style={{ width: 8, height: 8, borderRadius: "50%", background: u.color, flexShrink: 0 }} />
                         )}
                         <span style={{ flex: 1 }}>{u.displayName ?? u.login}</span>
-                        {opp.assignedUserId === u._id && (
-                          <span style={{ fontSize: 10, color: "var(--text-mute)", flexShrink: 0 }}>aktualny</span>
+                        {assigneesArray.includes(u._id) && (
+                          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} style={{ color: "#2563eb", flexShrink: 0 }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                          </svg>
                         )}
                       </button>
                     ))}
                     {/* Usuń przypisanie */}
-                    {opp.assignedUserId && (
-                      <button
-                        onClick={() => {
-                          void assignOpportunity({ opportunityId, assignedUserId: undefined });
-                          setShowAssignDropdown(false);
-                        }}
+                      {assigneesArray.length > 0 && (
+                        <button
+                          onClick={() => {
+                            void assignOpportunity({ opportunityId, assignedUserIds: [] });
+                            setShowAssignDropdown(false);
+                          }}
                         style={{
                           display: "block",
                           width: "100%",

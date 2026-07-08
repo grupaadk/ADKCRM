@@ -89,11 +89,10 @@ export default function TaskDrawer({
     else void updateTask({ taskId: shownId, clearDueDate: true });
   }
 
-  function setAssignee(id: Id<"users"> | null) {
+  function setAssignees(ids: Id<"users">[]) {
     if (!shownId) return;
-    if (id) void updateTask({ taskId: shownId, assignedUserId: id });
+    if (ids.length > 0) void updateTask({ taskId: shownId, assignedUserIds: ids });
     else void updateTask({ taskId: shownId, clearAssignee: true });
-    setAssignOpen(false);
   }
 
   function deleteTask() {
@@ -249,23 +248,45 @@ export default function TaskDrawer({
                   onClick={() => setAssignOpen((v) => !v)}
                   className="flex w-full items-center gap-2 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
                 >
-                  {task.assignedUserId ? (
-                    <span
-                      className="flex size-5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
-                      style={{ background: task.assignedUserColor ?? uColor(task.assignedUserId) }}
-                    >
-                      {uInitials(task.assignedUserName ?? "?")}
-                    </span>
-                  ) : (
-                    <UserPlus className="size-4 shrink-0 text-gray-400" />
-                  )}
-                  <span className="flex-1 truncate text-left">{task.assignedUserName ?? "Nieprzypisane"}</span>
+                  {(() => {
+                    const assignees = task.assignees ?? (task.assignedUserId ? [{ id: task.assignedUserId, name: task.assignedUserName, color: task.assignedUserColor }] : []);
+                    if (assignees.length === 0) {
+                      return (
+                        <>
+                          <UserPlus className="size-4 shrink-0 text-gray-400" />
+                          <span className="flex-1 truncate text-left">Nieprzypisane</span>
+                        </>
+                      );
+                    }
+                    if (assignees.length === 1) {
+                      const u = assignees[0];
+                      return (
+                        <>
+                          <span
+                            className="flex size-5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
+                            style={{ background: u.color ?? uColor(u.id) }}
+                          >
+                            {uInitials(u.name ?? "?")}
+                          </span>
+                          <span className="flex-1 truncate text-left">{u.name ?? "?"}</span>
+                        </>
+                      );
+                    }
+                    return (
+                      <>
+                        <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-[8px] font-bold text-gray-600">
+                          {assignees.length}
+                        </span>
+                        <span className="flex-1 truncate text-left">{assignees.length} osoby</span>
+                      </>
+                    );
+                  })()}
                   <ChevronDown className="size-3.5 shrink-0 text-gray-400" />
                 </button>
                 {assignOpen && (
                   <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
                     <button
-                      onClick={() => setAssignee(null)}
+                      onClick={() => { setAssignees([]); setAssignOpen(false); }}
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
                     >
                       <span className="flex size-5 items-center justify-center rounded-full border border-dashed border-gray-300">
@@ -275,15 +296,23 @@ export default function TaskDrawer({
                     </button>
                     {users.map((u) => {
                       const name = u.displayName ?? u.login ?? "";
-                      const sel = task.assignedUserId === u._id;
+                      const assignees = task.assignees ?? (task.assignedUserId ? [{ id: task.assignedUserId }] : []);
+                      const ids = assignees.map(a => a.id);
+                      const sel = ids.includes(u._id);
                       return (
                         <button
                           key={u._id}
-                          onClick={() => setAssignee(u._id)}
-                          className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                          onClick={() => {
+                            if (ids.includes(u._id)) {
+                              setAssignees(ids.filter(id => id !== u._id));
+                            } else {
+                              setAssignees([...ids, u._id]);
+                            }
+                          }}
+                          className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs ${sel ? "bg-gray-50 text-gray-900 font-medium" : "text-gray-700 hover:bg-gray-50"}`}
                         >
                           <span
-                            className="flex size-5 items-center justify-center rounded-full text-[8px] font-bold text-white"
+                            className="flex size-5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
                             style={{ background: u.color ?? uColor(u._id) }}
                           >
                             {uInitials(name)}

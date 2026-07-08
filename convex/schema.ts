@@ -247,8 +247,10 @@ export default defineSchema({
     }))),
     attachmentsFolderId: v.optional(v.string()),
 
-    // Przypisany użytkownik
+    // Przypisany użytkownik (pojedynczy - legacy)
     assignedUserId: v.optional(v.id("users")),
+    // Wiele przypisanych użytkowników (nowy standard)
+    assignedUserIds: v.optional(v.array(v.id("users"))),
 
     // Metadane
     source: v.union(v.literal("jotform"), v.literal("manual")),
@@ -421,7 +423,8 @@ export default defineSchema({
     offersSentFolderId: v.optional(v.string()),
     ponzioFilesFolderId: v.optional(v.string()),
     otherFilesFolderId: v.optional(v.string()),
-    assignedUserId: v.optional(v.id("users")),
+    assignedUserId: v.optional(v.id("users")), // legacy
+    assignedUserIds: v.optional(v.array(v.id("users"))),
   })
     .index("by_client", ["clientId"])
     .index("by_submission", ["submissionId"])
@@ -659,7 +662,8 @@ export default defineSchema({
     title: v.string(),
     dueDate: v.optional(v.number()),
     status: v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
-    assignedUserId: v.optional(v.id("users")),
+    assignedUserId: v.optional(v.id("users")), // legacy
+    assignedUserIds: v.optional(v.array(v.id("users"))),
     createdBy: v.string(),
   })
     .index("by_order", ["orderId"])

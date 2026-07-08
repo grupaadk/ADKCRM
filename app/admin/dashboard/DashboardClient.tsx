@@ -333,7 +333,9 @@ function DueBadge({ ts, today, tomorrow, done }: { ts: number; today: number; to
 
 /* ── badge przypisanej osoby ── */
 function AssigneeBadge({ task }: { task: DashboardTask }) {
-  if (!task.assignedUserId) {
+  const assignees = task.assignees ?? (task.assignedUserId ? [{ id: task.assignedUserId, name: task.assignedUserName, color: task.assignedUserColor }] : []);
+  
+  if (assignees.length === 0) {
     return (
       <span
         className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-2 py-0.5 text-[10.5px] font-medium text-gray-400"
@@ -343,16 +345,28 @@ function AssigneeBadge({ task }: { task: DashboardTask }) {
       </span>
     );
   }
-  const name = task.assignedUserName ?? "?";
-  const color = task.assignedUserColor ?? uColor(task.assignedUserId);
+
+  if (assignees.length === 1) {
+    const name = assignees[0].name ?? "?";
+    const color = assignees[0].color ?? uColor(assignees[0].id);
+    return (
+      <span
+        className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-semibold"
+        style={{ background: `${color}1f`, color }}
+        title={name}
+      >
+        <span className="size-1.5 shrink-0 rounded-full" style={{ background: color }} />
+        <span className="truncate">{name}</span>
+      </span>
+    );
+  }
+
   return (
     <span
-      className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-semibold"
-      style={{ background: `${color}1f`, color }}
-      title={name}
+      className="inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold bg-gray-100 text-gray-700"
+      title={assignees.map(a => a.name ?? "?").join(", ")}
     >
-      <span className="size-1.5 shrink-0 rounded-full" style={{ background: color }} />
-      <span className="truncate">{name}</span>
+      <span className="truncate">{assignees.length} osoby</span>
     </span>
   );
 }
@@ -398,10 +412,17 @@ function TaskCard({
     taskType === "complaint" ? (task.orderName ?? "Reklamacja") :
     (task.orderName ?? "Zlecenie");
 
-  // Akcent koloru przypisanej osoby (jak kafelki w /admin/panel)
-  const userColor = task.assignedUserId
-    ? task.assignedUserColor ?? uColor(task.assignedUserId)
-    : null;
+  const assignees = task.assignees ?? (task.assignedUserId ? [{ id: task.assignedUserId, name: task.assignedUserName, color: task.assignedUserColor }] : []);
+  const colors = assignees.map(a => a.color ?? uColor(a.id)).filter(Boolean) as string[];
+  const hasMultipleColors = colors.length > 1;
+  const singleColor = colors.length === 1 ? colors[0] : undefined;
+
+  let gradientStr = "";
+  if (hasMultipleColors) {
+    const step = 100 / colors.length;
+    const stops = colors.map((c, i) => `${c} ${i * step}%, ${c} ${(i + 1) * step}%`);
+    gradientStr = `linear-gradient(to bottom, ${stops.join(", ")})`;
+  }
 
   return (
     <div
@@ -412,13 +433,25 @@ function TaskCard({
       }}
       onDragEnd={onDragEnd}
       onClick={onOpen}
-      className={`group rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm transition-all duration-150 hover:shadow-md cursor-grab active:cursor-grabbing ${
+      className={`relative overflow-hidden group rounded-lg border border-gray-200 bg-white shadow-sm transition-all duration-150 hover:shadow-md cursor-grab active:cursor-grabbing ${
         dragging ? "rotate-1 scale-[0.97] opacity-50 shadow-md ring-2 ring-gray-300" : ""
       }`}
-      style={userColor ? { borderLeft: `5px solid ${userColor}` } : undefined}
+      style={{ padding: `10px 10px 10px ${(singleColor || hasMultipleColors) ? 15 : 10}px` }}
     >
+      {(singleColor || hasMultipleColors) && (
+        <div style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 5,
+          background: hasMultipleColors ? gradientStr : singleColor,
+          zIndex: 1,
+        }} />
+      )}
+      
       {/* kontekst zlecenia + CTA do zlecenia */}
-      <div className="mb-1.5 flex items-start justify-between gap-2">
+      <div className="mb-1.5 flex items-start justify-between gap-2 relative z-10">
         <div className="min-w-0">
           <div className="truncate text-[11px] font-semibold text-gray-900">
             {contextTitle}

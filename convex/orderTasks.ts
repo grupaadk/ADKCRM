@@ -7,10 +7,29 @@ async function withAssignee(ctx: Parameters<typeof requireUser>[0], task: Doc<"o
   const assignedUser = task.assignedUserId
     ? await ctx.db.get(task.assignedUserId)
     : null;
+
+  const assigneesArray = Array.from(new Set([
+    ...(task.assignedUserId ? [task.assignedUserId] : []),
+    ...(task.assignedUserIds || [])
+  ]));
+  
+  const resolvedAssignees = await Promise.all(assigneesArray.map(async (uid) => {
+    const u = await ctx.db.get(uid);
+    if (!u) return null;
+    return {
+      id: u._id,
+      name: u.displayName ?? u.email ?? null,
+      color: u.color ?? undefined,
+    };
+  }));
+  
+  const assignees = resolvedAssignees.filter((u): u is NonNullable<typeof u> => u !== null);
+
   return {
     ...task,
     assignedUserName: assignedUser?.displayName ?? assignedUser?.email ?? null,
     assignedUserColor: assignedUser?.color ?? undefined,
+    assignees,
   };
 }
 
@@ -66,7 +85,8 @@ export const create = mutation({
       v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
     ),
     dueDate: v.optional(v.number()),
-    assignedUserId: v.optional(v.id("users")),
+    assignedUserId: v.optional(v.id("users")), // legacy
+    assignedUserIds: v.optional(v.array(v.id("users"))),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -84,6 +104,7 @@ export const create = mutation({
       dueDate: args.dueDate,
       status: args.status ?? "todo",
       assignedUserId: args.assignedUserId,
+      assignedUserIds: args.assignedUserIds,
       createdBy: userIdentifier(user),
     });
   },
@@ -98,7 +119,8 @@ export const update = mutation({
     status: v.optional(
       v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
     ),
-    assignedUserId: v.optional(v.id("users")),
+    assignedUserId: v.optional(v.id("users")), // legacy
+    assignedUserIds: v.optional(v.array(v.id("users"))),
     clearAssignee: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -110,7 +132,11 @@ export const update = mutation({
     if (rest.dueDate !== undefined) patch.dueDate = rest.dueDate;
     if (clearDueDate) patch.dueDate = undefined;
     if (rest.assignedUserId !== undefined) patch.assignedUserId = rest.assignedUserId;
-    if (clearAssignee) patch.assignedUserId = undefined;
+    if (rest.assignedUserIds !== undefined) patch.assignedUserIds = rest.assignedUserIds;
+    if (clearAssignee) {
+      patch.assignedUserId = undefined;
+      patch.assignedUserIds = undefined;
+    }
     await ctx.db.patch(taskId, patch);
   },
 });

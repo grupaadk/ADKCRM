@@ -39,6 +39,11 @@ export type KanbanOrderItem = {
   docs: Record<string, DocState>;
   assignedUserColor?: string;
   assignedUserId?: Id<"users">;
+  assignees?: {
+    id: Id<"users">;
+    name: string | null;
+    color?: string;
+  }[];
 };
 
 export type KanbanPendingItem = {
@@ -55,6 +60,11 @@ export type KanbanPendingItem = {
   services: string[];
   assignedUserColor?: string;
   assignedUserId?: Id<"users">;
+  assignees?: {
+    id: Id<"users">;
+    name: string | null;
+    color?: string;
+  }[];
 };
 
 export type KanbanItem = KanbanOrderItem | KanbanPendingItem;
@@ -99,6 +109,24 @@ export const list = query({
           const assignedUser = await ctx.db.get(order.assignedUserId);
           assignedUserColor = assignedUser?.color ?? undefined;
         }
+
+        const assigneesArray = Array.from(new Set([
+          ...(order.assignedUserId ? [order.assignedUserId] : []),
+          ...(order.assignedUserIds || [])
+        ]));
+        
+        const resolvedAssignees = await Promise.all(assigneesArray.map(async (uid) => {
+          const u = await ctx.db.get(uid);
+          if (!u) return null;
+          return {
+            id: u._id,
+            name: u.displayName ?? u.email ?? null,
+            color: u.color ?? undefined,
+          };
+        }));
+        
+        const assignees = resolvedAssignees.filter((u): u is NonNullable<typeof u> => u !== null);
+
         return {
           type: "order" as const,
           id: order._id,
@@ -116,6 +144,7 @@ export const list = query({
           docs: orderDocs(order.documents),
           assignedUserColor,
           assignedUserId: order.assignedUserId,
+          assignees,
         };
       }),
     );
@@ -140,6 +169,24 @@ export const list = query({
           const user = await ctx.db.get(pending.assignedUserId);
           assignedUserColor = user?.color ?? undefined;
         }
+
+        const assigneesArray = Array.from(new Set([
+          ...(pending.assignedUserId ? [pending.assignedUserId] : []),
+          ...(pending.assignedUserIds || [])
+        ]));
+        
+        const resolvedAssignees = await Promise.all(assigneesArray.map(async (uid) => {
+          const u = await ctx.db.get(uid);
+          if (!u) return null;
+          return {
+            id: u._id,
+            name: u.displayName ?? u.email ?? null,
+            color: u.color ?? undefined,
+          };
+        }));
+        
+        const assignees = resolvedAssignees.filter((u): u is NonNullable<typeof u> => u !== null);
+
         return {
           type: "pending" as const,
           id: pending._id,
@@ -154,6 +201,7 @@ export const list = query({
           services: pending.services ?? [],
           assignedUserColor,
           assignedUserId: pending.assignedUserId,
+          assignees,
         };
       }),
     );

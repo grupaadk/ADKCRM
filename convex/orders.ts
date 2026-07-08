@@ -73,6 +73,23 @@ export const list = query({
           const assignedUser = await ctx.db.get(order.assignedUserId);
           assignedUserColor = assignedUser?.color ?? undefined;
         }
+
+        const assigneesArray = Array.from(new Set([
+          ...(order.assignedUserId ? [order.assignedUserId] : []),
+          ...(order.assignedUserIds || [])
+        ]));
+        
+        const resolvedAssignees = await Promise.all(assigneesArray.map(async (uid) => {
+          const u = await ctx.db.get(uid);
+          if (!u) return null;
+          return {
+            id: u._id,
+            name: u.displayName ?? u.email ?? null,
+            color: u.color ?? undefined,
+          };
+        }));
+        
+        const assignees = resolvedAssignees.filter((u): u is NonNullable<typeof u> => u !== null);
         return {
           ...order,
           client: client
@@ -87,6 +104,7 @@ export const list = query({
           totalNet: lineItems.length > 0 ? Math.round(totalNet * 100) / 100 : null,
           totalGross: lineItems.length > 0 ? Math.round(totalGross * 100) / 100 : null,
           assignedUserColor,
+          assignees,
         };
       }),
     );
@@ -178,13 +196,17 @@ export const listForPicker = query({
 export const assignOrder = mutation({
   args: {
     orderId: v.id("orders"),
-    assignedUserId: v.optional(v.id("users")),
+    assignedUserId: v.optional(v.id("users")), // legacy single assign
+    assignedUserIds: v.optional(v.array(v.id("users"))),
   },
   handler: async (ctx, args) => {
     await requireUser(ctx);
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new ConvexError("Zlecenie nie istnieje.");
-    await ctx.db.patch(args.orderId, { assignedUserId: args.assignedUserId });
+    await ctx.db.patch(args.orderId, {
+      assignedUserId: args.assignedUserId,
+      assignedUserIds: args.assignedUserIds,
+    });
   },
 });
 
@@ -920,6 +942,23 @@ export const listByCompletionDateRange = query({
           assignedUserColor = assignedUser?.color ?? undefined;
           assignedUserName = assignedUser?.displayName ?? assignedUser?.email ?? undefined;
         }
+
+        const assigneesArray = Array.from(new Set([
+          ...(order.assignedUserId ? [order.assignedUserId] : []),
+          ...(order.assignedUserIds || [])
+        ]));
+        
+        const resolvedAssignees = await Promise.all(assigneesArray.map(async (uid) => {
+          const u = await ctx.db.get(uid);
+          if (!u) return null;
+          return {
+            id: u._id,
+            name: u.displayName ?? u.email ?? null,
+            color: u.color ?? undefined,
+          };
+        }));
+        
+        const assignees = resolvedAssignees.filter((u): u is NonNullable<typeof u> => u !== null);
         return {
           _id: order._id,
           projectEndDate: order.projectEndDate!,
@@ -934,6 +973,7 @@ export const listByCompletionDateRange = query({
           assignedUserColor,
           assignedUserName,
           investmentCity: order.investmentCity,
+          assignees,
         };
       }),
     );

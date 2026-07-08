@@ -139,7 +139,25 @@ export const listOpportunities = query({
           const user = await ctx.db.get(opp.assignedUserId);
           assignedUserColor = user?.color ?? undefined;
         }
-        return { ...opp, assignedUserColor };
+
+        const assigneesArray = Array.from(new Set([
+          ...(opp.assignedUserId ? [opp.assignedUserId] : []),
+          ...(opp.assignedUserIds || [])
+        ]));
+        
+        const resolvedAssignees = await Promise.all(assigneesArray.map(async (uid) => {
+          const u = await ctx.db.get(uid);
+          if (!u) return null;
+          return {
+            id: u._id,
+            name: u.displayName ?? u.email ?? null,
+            color: u.color ?? undefined,
+          };
+        }));
+        
+        const assignees = resolvedAssignees.filter((u): u is NonNullable<typeof u> => u !== null);
+
+        return { ...opp, assignedUserColor, assignees };
       }),
     );
   },
@@ -220,7 +238,8 @@ export const updateOpportunityStage = mutation({
 export const assignOpportunity = mutation({
   args: {
     opportunityId: v.id("pendingJotformSubmissions"),
-    assignedUserId: v.optional(v.id("users")),
+    assignedUserId: v.optional(v.id("users")), // legacy
+    assignedUserIds: v.optional(v.array(v.id("users"))),
   },
   handler: async (ctx, args) => {
     await requireUser(ctx);
@@ -229,6 +248,7 @@ export const assignOpportunity = mutation({
     if (opp.processed) throw new Error("Szansa została już przekonwertowana");
     await ctx.db.patch(args.opportunityId, {
       assignedUserId: args.assignedUserId,
+      assignedUserIds: args.assignedUserIds,
     });
   },
 });

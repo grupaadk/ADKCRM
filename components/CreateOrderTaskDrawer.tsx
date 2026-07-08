@@ -43,7 +43,7 @@ export default function CreateOrderTaskDrawer({
 
   const [title, setTitle] = useState("");
   const [due, setDue] = useState("");
-  const [assigneeId, setAssigneeId] = useState<Id<"users"> | null>(null);
+  const [assigneeIds, setAssigneeIds] = useState<Id<"users">[]>([]);
   const [status, setStatus] = useState<StatusKey>("todo");
   const [assignOpen, setAssignOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -62,7 +62,7 @@ export default function CreateOrderTaskDrawer({
   function close() {
     setTitle("");
     setDue("");
-    setAssigneeId(null);
+    setAssigneeIds([]);
     setAssignOpen(false);
     setStatusForOpen(null);
     onClose();
@@ -79,15 +79,13 @@ export default function CreateOrderTaskDrawer({
         title: title.trim(),
         status,
         dueDate: due ? new Date(due).getTime() : undefined,
-        assignedUserId: assigneeId ?? undefined,
+        assignedUserIds: assigneeIds,
       });
       close();
     } finally {
       setSubmitting(false);
     }
   }
-
-  const assignee = users.find((u) => u._id === assigneeId) ?? null;
 
   return (
     <SideDrawer
@@ -171,25 +169,45 @@ export default function CreateOrderTaskDrawer({
               onClick={() => setAssignOpen((v) => !v)}
               className="flex w-full items-center gap-2 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
             >
-              {assignee ? (
-                <span
-                  className="flex size-5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
-                  style={{ background: assignee.color ?? uColor(assignee._id) }}
-                >
-                  {uInitials(assignee.displayName ?? assignee.login ?? "")}
-                </span>
-              ) : (
-                <UserPlus className="size-4 shrink-0 text-gray-400" />
-              )}
-              <span className="flex-1 truncate text-left">
-                {assignee ? (assignee.displayName ?? assignee.login) : "Nieprzypisane"}
-              </span>
+              {(() => {
+                const assignees = assigneeIds.map(id => users.find(u => u._id === id)).filter(Boolean);
+                if (assignees.length === 0) {
+                  return (
+                    <>
+                      <UserPlus className="size-4 shrink-0 text-gray-400" />
+                      <span className="flex-1 truncate text-left">Nieprzypisane</span>
+                    </>
+                  );
+                }
+                if (assignees.length === 1) {
+                  const assignee = assignees[0]!;
+                  return (
+                    <>
+                      <span
+                        className="flex size-5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
+                        style={{ background: assignee.color ?? uColor(assignee._id) }}
+                      >
+                        {uInitials(assignee.displayName ?? assignee.login ?? "")}
+                      </span>
+                      <span className="flex-1 truncate text-left">{assignee.displayName ?? assignee.login}</span>
+                    </>
+                  );
+                }
+                return (
+                  <>
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-[8px] font-bold text-gray-600">
+                      {assignees.length}
+                    </span>
+                    <span className="flex-1 truncate text-left">{assignees.length} osoby</span>
+                  </>
+                );
+              })()}
               <ChevronDown className="size-3.5 shrink-0 text-gray-400" />
             </button>
             {assignOpen && (
               <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
                 <button
-                  onClick={() => { setAssigneeId(null); setAssignOpen(false); }}
+                  onClick={() => { setAssigneeIds([]); setAssignOpen(false); }}
                   className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
                 >
                   <span className="flex size-5 items-center justify-center rounded-full border border-dashed border-gray-300">
@@ -199,12 +217,15 @@ export default function CreateOrderTaskDrawer({
                 </button>
                 {users.map((u) => {
                   const name = u.displayName ?? u.login ?? "";
-                  const sel = assigneeId === u._id;
+                  const sel = assigneeIds.includes(u._id);
                   const isMe = me && u._id === me._id;
                   return (
                     <button
                       key={u._id}
-                      onClick={() => { setAssigneeId(u._id); setAssignOpen(false); }}
+                      onClick={() => {
+                        if (sel) setAssigneeIds(assigneeIds.filter(id => id !== u._id));
+                        else setAssigneeIds([...assigneeIds, u._id]);
+                      }}
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
                     >
                       <span

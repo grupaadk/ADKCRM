@@ -28,20 +28,20 @@ function uInitials(name: string) {
 
 type AssignableUser = { _id: Id<"users">; displayName?: string | null; login: string };
 
-function UserPickerDropdown({
-  value,
+function MultiUserPickerDropdown({
+  values,
   onChange,
   users,
   currentUserId,
 }: {
-  value: string;
-  onChange: (id: string) => void;
+  values: string[];
+  onChange: (ids: string[]) => void;
   users: AssignableUser[];
   currentUserId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const sel = users.find((u) => u._id === value);
+  const selectedUsers = users.filter((u) => values.includes(u._id));
 
   useEffect(() => {
     if (!open) return;
@@ -52,34 +52,51 @@ function UserPickerDropdown({
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
 
-  const selName = sel ? (sel.displayName ?? sel.login) : null;
+  const renderLabel = () => {
+    if (selectedUsers.length === 0) {
+      return (
+        <span style={{
+          fontSize: 10.5, color: "var(--text-mute)", opacity: 0.5,
+          border: "1px dashed var(--line)", borderRadius: 4, padding: "1px 6px",
+        }}>
+          +osoba
+        </span>
+      );
+    }
+    if (selectedUsers.length === 1) {
+      const u = selectedUsers[0];
+      return (
+        <span style={{
+          fontSize: 10.5, color: "var(--text-mute)",
+          background: "var(--panel-2)", border: "1px solid var(--line)",
+          borderRadius: 4, padding: "1px 6px",
+          whiteSpace: "nowrap", maxWidth: 90,
+          overflow: "hidden", textOverflow: "ellipsis", display: "block",
+        }}>
+          {u.displayName ?? u.login}
+        </span>
+      );
+    }
+    return (
+      <span style={{
+        fontSize: 10.5, color: "var(--text-mute)",
+        background: "var(--panel-2)", border: "1px solid var(--line)",
+        borderRadius: 4, padding: "1px 6px",
+      }}>
+        {selectedUsers.length} osoby
+      </span>
+    );
+  };
 
   return (
     <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        title={selName ?? "Przypisz osobę"}
+        title="Przypisz osoby"
         style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
       >
-        {sel ? (
-          <span style={{
-            fontSize: 10.5, color: "var(--text-mute)",
-            background: "var(--panel-2)", border: "1px solid var(--line)",
-            borderRadius: 4, padding: "1px 6px",
-            whiteSpace: "nowrap", maxWidth: 90,
-            overflow: "hidden", textOverflow: "ellipsis", display: "block",
-          }}>
-            {selName}
-          </span>
-        ) : (
-          <span style={{
-            fontSize: 10.5, color: "var(--text-mute)", opacity: 0.5,
-            border: "1px dashed var(--line)", borderRadius: 4, padding: "1px 6px",
-          }}>
-            +osoba
-          </span>
-        )}
+        {renderLabel()}
       </button>
 
       {open && (
@@ -89,10 +106,10 @@ function UserPickerDropdown({
           borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
           minWidth: 180, overflow: "hidden", padding: "4px 0",
         }}>
-          <button type="button" onClick={() => { onChange(""); setOpen(false); }}
+          <button type="button" onClick={() => { onChange([]); setOpen(false); }}
             style={{
               display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "7px 12px",
-              background: !value ? "var(--panel-2)" : "none", border: "none", cursor: "pointer",
+              background: values.length === 0 ? "var(--panel-2)" : "none", border: "none", cursor: "pointer",
               fontSize: 12.5, color: "var(--text-mute)", fontFamily: "inherit", textAlign: "left",
             }}
           >
@@ -112,10 +129,17 @@ function UserPickerDropdown({
             const isMe = currentUserId && u._id === currentUserId;
             return (
               <button key={u._id} type="button"
-                onClick={() => { onChange(u._id); setOpen(false); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (values.includes(u._id)) {
+                    onChange(values.filter(id => id !== u._id));
+                  } else {
+                    onChange([...values, u._id]);
+                  }
+                }}
                 style={{
                   display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "7px 12px",
-                  background: value === u._id ? "var(--panel-2)" : "none", border: "none", cursor: "pointer",
+                  background: values.includes(u._id) ? "var(--panel-2)" : "none", border: "none", cursor: "pointer",
                   fontSize: 12.5, color: "var(--text)", fontFamily: "inherit", textAlign: "left",
                 }}
               >
@@ -130,7 +154,7 @@ function UserPickerDropdown({
                 {isMe && (
                   <span style={{ fontSize: 10, fontWeight: 600, color: "#2563eb", background: "#eff6ff", borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>Ty</span>
                 )}
-                {value === u._id && (
+                {values.includes(u._id) && (
                   <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} style={{ color: "#2563eb", flexShrink: 0 }}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                   </svg>
@@ -151,6 +175,7 @@ type KanbanTask = {
   dueDate?: number;
   assignedUserId?: Id<"users">;
   assignedUserName?: string | null;
+  assignees?: { id: Id<"users">; name: string | null; color?: string; }[];
 };
 
 function TaskCard({
@@ -173,7 +198,7 @@ function TaskCard({
   currentUserId?: string;
   onMove: (dir: "prev" | "next") => void;
   onRemove: () => void;
-  onUpdate: (args: { title?: string; assignedUserId?: Id<"users">; clearAssignee?: boolean; dueDate?: number; clearDueDate?: boolean }) => void;
+  onUpdate: (args: { title?: string; assignedUserIds?: Id<"users">[]; clearAssignee?: boolean; dueDate?: number; clearDueDate?: boolean }) => void;
   onOpenDrawer: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -190,12 +215,25 @@ function TaskCard({
     setEditingTitle(false);
   }
 
-  function handleAssigneeChange(id: string) {
-    if (id) onUpdate({ assignedUserId: id as Id<"users"> });
+  function handleAssigneeChange(ids: string[]) {
+    if (ids.length > 0) onUpdate({ assignedUserIds: ids as Id<"users">[] });
     else onUpdate({ clearAssignee: true });
   }
 
   const dueDateStr = task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : "";
+  
+  const taskAssignees = task.assignees ?? (task.assignedUserId ? [{ id: task.assignedUserId }] : []);
+  const taskAssigneeIds = taskAssignees.map(a => a.id);
+  const colors = taskAssignees.map(a => a.color).filter(Boolean) as string[];
+  const hasMultipleColors = colors.length > 1;
+  const singleColor = colors.length === 1 ? colors[0] : undefined;
+
+  let gradientStr = "";
+  if (hasMultipleColors) {
+    const step = 100 / colors.length;
+    const stops = colors.map((c, i) => `${c} ${i * step}%, ${c} ${(i + 1) * step}%`);
+    gradientStr = `linear-gradient(to bottom, ${stops.join(", ")})`;
+  }
 
   return (
     <div
@@ -213,12 +251,27 @@ function TaskCard({
         onOpenDrawer();
       }}
       style={{
+        position: "relative",
         background: "var(--panel)", borderRadius: 7, border: "1px solid var(--line)",
-        padding: "9px 10px 8px",
+        padding: `9px 10px 8px ${(singleColor || hasMultipleColors) ? 18 : 10}px`,
         boxShadow: hovered && !editingTitle ? "0 2px 8px rgba(0,0,0,0.08)" : "0 1px 2px rgba(0,0,0,0.04)",
         cursor: editingTitle ? "default" : "pointer", transition: "box-shadow 0.12s", userSelect: "none",
+        overflow: "hidden",
       }}
     >
+      {(singleColor || hasMultipleColors) && (
+        <div style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 10,
+          background: hasMultipleColors ? gradientStr : singleColor,
+          borderTopLeftRadius: 6,
+          borderBottomLeftRadius: 6,
+          zIndex: 1,
+        }} />
+      )}
       {/* Title */}
       {editingTitle ? (
         <textarea
@@ -232,6 +285,7 @@ function TaskCard({
           }}
           rows={2}
           style={{
+            position: "relative", zIndex: 2,
             width: "100%", resize: "none", border: "none", background: "transparent",
             fontSize: 12.5, fontFamily: "inherit", outline: "none",
             color: "var(--text)", lineHeight: 1.4, padding: 0,
@@ -243,6 +297,7 @@ function TaskCard({
           onClick={(e) => { e.stopPropagation(); setEditTitle(task.title); setEditingTitle(true); }}
           title="Kliknij aby edytować tytuł"
           style={{
+            position: "relative", zIndex: 2,
             fontSize: 12.5, fontWeight: 500, margin: "0 0 7px",
             color: task.status === "done" ? "var(--text-mute)" : "var(--text)",
             textDecoration: task.status === "done" ? "line-through" : "none",
@@ -254,7 +309,7 @@ function TaskCard({
       )}
 
       {/* Footer */}
-      <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", minHeight: 22 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", minHeight: 22, position: "relative", zIndex: 2 }}>
         {editingDate ? (
           <input
             type="date"
@@ -314,8 +369,8 @@ function TaskCard({
         ) : null}
 
         <span onClick={(e) => e.stopPropagation()} style={{ display: "inline-flex" }}>
-          <UserPickerDropdown
-            value={task.assignedUserId ?? ""}
+          <MultiUserPickerDropdown
+            values={taskAssigneeIds}
             onChange={handleAssigneeChange}
             users={users}
             currentUserId={currentUserId}

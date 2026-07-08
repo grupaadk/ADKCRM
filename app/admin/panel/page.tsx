@@ -122,7 +122,22 @@ function OrderCard({
       ? { fontSize: 12, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace" }
       : { fontSize: 11.5, fontWeight: 700, color: "#b45309" }
 
-  const userColor = item.assignedUserColor
+  const assignees = item.assignees && item.assignees.length > 0
+    ? item.assignees
+    : item.assignedUserColor
+      ? [{ color: item.assignedUserColor }]
+      : [];
+  
+  const colors = assignees.map(a => a.color).filter(Boolean) as string[];
+  const hasMultipleColors = colors.length > 1;
+  const singleColor = colors.length === 1 ? colors[0] : undefined;
+
+  let gradientStr = "";
+  if (hasMultipleColors) {
+    const step = 100 / colors.length;
+    const stops = colors.map((c, i) => `${c} ${i * step}%, ${c} ${(i + 1) * step}%`);
+    gradientStr = `linear-gradient(to bottom, ${stops.join(", ")})`;
+  }
 
   return (
     <div
@@ -133,9 +148,10 @@ function OrderCard({
       style={{
         background: "var(--panel)",
         border: `1px solid ${isDragging ? "var(--accent)" : isPending ? "#f59e0b55" : "var(--line)"}`,
-        borderLeft: userColor && !isDragging ? `10px solid ${userColor}` : undefined,
         borderRadius: 7,
-        padding: expanded ? "7px 8px 9px" : "6px 8px",
+        padding: expanded 
+          ? `7px 8px 9px ${(singleColor || hasMultipleColors) && !isDragging ? 18 : 8}px` 
+          : `6px 8px 6px ${(singleColor || hasMultipleColors) && !isDragging ? 18 : 8}px`,
         cursor: isDragging ? "grabbing" : "grab",
         userSelect: "none",
         transition: "all 0.15s ease",
@@ -152,7 +168,6 @@ function OrderCard({
         if (!isDragging) {
           const el = e.currentTarget as HTMLDivElement
           el.style.borderColor = "var(--accent)"
-          if (userColor) el.style.borderLeftColor = userColor
           el.style.boxShadow = "0 2px 6px rgba(0,0,0,0.1)"
           el.style.transform = "translateY(-2px)"
         }
@@ -161,14 +176,26 @@ function OrderCard({
         if (!isDragging) {
           const el = e.currentTarget as HTMLDivElement
           el.style.borderColor = isPending ? "#f59e0b55" : "var(--line)"
-          if (userColor) el.style.borderLeftColor = userColor
           el.style.boxShadow = "0 1px 2px rgba(0,0,0,0.04)"
           el.style.transform = ""
         }
       }}
     >
+      {(singleColor || hasMultipleColors) && !isDragging && (
+        <div style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 10,
+          background: hasMultipleColors ? gradientStr : singleColor,
+          borderTopLeftRadius: 6,
+          borderBottomLeftRadius: 6,
+          zIndex: 1,
+        }} />
+      )}
       {/* Wiersz tytułu + akcje */}
-      <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 3, position: "relative", zIndex: 2 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ ...titleStyle, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1.25 }}>
             {titleText}

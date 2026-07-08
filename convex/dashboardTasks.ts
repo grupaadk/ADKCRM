@@ -18,10 +18,16 @@ export type DashboardTask = {
   orderName: string | null;
   customText: string | null;
   clientName: string;
-  // Przypisana osoba
+  // Przypisana osoba (legacy)
   assignedUserId?: Id<"users">;
   assignedUserName: string | null;
   assignedUserColor?: string;
+  // Lista wszystkich przypisanych
+  assignees?: {
+    id: Id<"users">;
+    name: string | null;
+    color?: string;
+  }[];
 };
 
 function clientName(client: Doc<"clients"> | null): string {
@@ -56,26 +62,25 @@ export const list = query({
 
     const isAdmin = me.role === "admin";
 
+    const allTasks = await ctx.db.query("orderTasks").collect();
     let tasks: Doc<"orderTasks">[];
+
     if (!isAdmin) {
-      // Zwykły user — tylko własne zadania, niezależnie od `filter`.
-      tasks = await ctx.db
-        .query("orderTasks")
-        .withIndex("by_assignee", (q) => q.eq("assignedUserId", me._id))
-        .collect();
+      // Zwykły user — tylko własne zadania
+      tasks = allTasks.filter(t => 
+        t.assignedUserId === me._id || (t.assignedUserIds && t.assignedUserIds.includes(me._id))
+      );
     } else if (filter === "unassigned") {
-      tasks = await ctx.db
-        .query("orderTasks")
-        .withIndex("by_assignee", (q) => q.eq("assignedUserId", undefined))
-        .collect();
+      tasks = allTasks.filter(t => 
+        !t.assignedUserId && (!t.assignedUserIds || t.assignedUserIds.length === 0)
+      );
     } else if (filter && filter !== "all") {
-      tasks = await ctx.db
-        .query("orderTasks")
-        .withIndex("by_assignee", (q) => q.eq("assignedUserId", filter))
-        .collect();
+      tasks = allTasks.filter(t => 
+        t.assignedUserId === filter || (t.assignedUserIds && t.assignedUserIds.includes(filter))
+      );
     } else {
       // Admin, brak filtra / "all" — wszystkie zadania.
-      tasks = await ctx.db.query("orderTasks").collect();
+      tasks = allTasks;
     }
 
     // Cache na zlecenia / klientów / userów / reklamacje, by uniknąć powtórnych odczytów.
@@ -97,10 +102,33 @@ export const list = query({
             assignedUser = cached;
           }
         }
-        const assignee = {
+
+        const assigneesArray = Array.from(new Set([
+          ...(task.assignedUserId ? [task.assignedUserId] : []),
+          ...(task.assignedUserIds || [])
+        ]));
+
+        const resolvedAssignees = await Promise.all(assigneesArray.map(async (uid) => {
+          let u = userCache.get(uid);
+          if (u === undefined) {
+            u = await ctx.db.get(uid);
+            userCache.set(uid, u);
+          }
+          if (!u) return null;
+          return {
+            id: u._id,
+            name: u.displayName ?? u.email ?? null,
+            color: u.color ?? undefined,
+          };
+        }));
+
+        const finalAssignees = resolvedAssignees.filter((u): u is NonNullable<typeof u> => u !== null);
+
+        const assigneeProps = {
           assignedUserId: task.assignedUserId,
           assignedUserName: assignedUser?.displayName ?? assignedUser?.email ?? null,
           assignedUserColor: assignedUser?.color ?? undefined,
+          assignees: finalAssignees,
         };
 
         // Zadanie szansy sprzedaży
@@ -121,7 +149,7 @@ export const list = query({
             orderName: null,
             customText: opp.customText ?? null,
             clientName: opportunityName(opp),
-            ...assignee,
+            ...assigneeProps,
           };
         }
 
@@ -141,7 +169,7 @@ export const list = query({
           }
           const client = order
             ? (() => {
-                let c = clientCache.get(order.clientId);
+                const c = clientCache.get(order.clientId);
                 if (c === undefined) return undefined; // will be fetched below
                 return c;
               })()
@@ -170,7 +198,7 @@ export const list = query({
             orderName: order?.name ?? null,
             customText: order?.customText ?? null,
             clientName: clientName(resolvedClient ?? null),
-            ...assignee,
+            ...assigneeProps,
           };
         }
 
@@ -200,7 +228,7 @@ export const list = query({
           orderName: order.name ?? null,
           customText: order.customText ?? null,
           clientName: clientName(client),
-          ...assignee,
+          ...assigneeProps,
         };
       }),
     );
@@ -222,10 +250,29 @@ export const getOne = query({
     if (!task) return null;
 
     const assignedUser = task.assignedUserId ? await ctx.db.get(task.assignedUserId) : null;
-    const assignee = {
+    
+    const assigneesArray = Array.from(new Set([
+      ...(task.assignedUserId ? [task.assignedUserId] : []),
+      ...(task.assignedUserIds || [])
+    ]));
+
+    const resolvedAssignees = await Promise.all(assigneesArray.map(async (uid) => {
+      const u = await ctx.db.get(uid);
+      if (!u) return null;
+      return {
+        id: u._id,
+        name: u.displayName ?? u.email ?? null,
+        color: u.color ?? undefined,
+      };
+    }));
+
+    const finalAssignees = resolvedAssignees.filter((u): u is NonNullable<typeof u> => u !== null);
+
+    const assigneeProps = {
       assignedUserId: task.assignedUserId,
       assignedUserName: assignedUser?.displayName ?? assignedUser?.email ?? null,
       assignedUserColor: assignedUser?.color ?? undefined,
+      assignees: finalAssignees,
     };
 
     if (task.opportunityId) {
@@ -241,7 +288,7 @@ export const getOne = query({
         orderName: null,
         customText: opp.customText ?? null,
         clientName: opportunityName(opp),
-        ...assignee,
+        ...assigneeProps,
       };
     }
 
@@ -263,7 +310,7 @@ export const getOne = query({
         orderName: order?.name ?? null,
         customText: order?.customText ?? null,
         clientName: clientName(client),
-        ...assignee,
+        ...assigneeProps,
       };
     }
 
@@ -283,7 +330,7 @@ export const getOne = query({
       orderName: order.name ?? null,
       customText: order.customText ?? null,
       clientName: clientName(client),
-      ...assignee,
+      ...assigneeProps,
     };
   },
 });

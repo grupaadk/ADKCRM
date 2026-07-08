@@ -1570,12 +1570,17 @@ export default function OrderDetailPage({
 
             {/* Przypisana osoba */}
             {(() => {
-              const assignedUser = order.assignedUserId
-                ? assignableUsers.find((u) => u._id === order.assignedUserId)
-                : null;
-              const assignedName = assignedUser
-                ? (assignedUser.displayName ?? assignedUser.login ?? "")
-                : null;
+              const assigneesArray = Array.from(new Set([
+                ...(order.assignedUserId ? [order.assignedUserId] : []),
+                ...(order.assignedUserIds || [])
+              ]));
+              const assignedUsers = assigneesArray.map(id => assignableUsers.find((u) => u._id === id)).filter(Boolean);
+              
+              const assignedName = assignedUsers.length === 0
+                ? null
+                : assignedUsers.length === 1
+                ? (assignedUsers[0]!.displayName ?? assignedUsers[0]!.login ?? "")
+                : `${assignedUsers.length} osoby`;
               return (
                 <div ref={assignDropdownRef} style={{ position: "relative" }}>
                   <button
@@ -1617,8 +1622,9 @@ export default function OrderDetailPage({
                       {me && (
                         <button
                           onClick={() => {
-                            void assignOrder({ orderId: orderIdTyped, assignedUserId: me._id });
-                            setShowAssignDropdown(false);
+                            if (!assigneesArray.includes(me._id)) {
+                              void assignOrder({ orderId: orderIdTyped, assignedUserIds: [...assigneesArray, me._id] });
+                            }
                           }}
                           style={{
                             display: "block",
@@ -1645,8 +1651,11 @@ export default function OrderDetailPage({
                         <button
                           key={u._id}
                           onClick={() => {
-                            void assignOrder({ orderId: orderIdTyped, assignedUserId: u._id });
-                            setShowAssignDropdown(false);
+                            if (assigneesArray.includes(u._id)) {
+                              void assignOrder({ orderId: orderIdTyped, assignedUserIds: assigneesArray.filter(id => id !== u._id) });
+                            } else {
+                              void assignOrder({ orderId: orderIdTyped, assignedUserIds: [...assigneesArray, u._id] });
+                            }
                           }}
                           style={{
                             display: "flex",
@@ -1656,16 +1665,16 @@ export default function OrderDetailPage({
                             textAlign: "left",
                             padding: "6px 12px",
                             fontSize: 12,
-                            background: order.assignedUserId === u._id ? "var(--panel-2)" : "transparent",
+                            background: assigneesArray.includes(u._id) ? "var(--panel-2)" : "transparent",
                             border: "none",
                             borderBottom: "1px solid var(--line)",
                             cursor: "pointer",
                             color: "var(--text)",
                             fontFamily: "inherit",
-                            fontWeight: order.assignedUserId === u._id ? 600 : 400,
+                            fontWeight: assigneesArray.includes(u._id) ? 600 : 400,
                           }}
                           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--panel-2)" }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = order.assignedUserId === u._id ? "var(--panel-2)" : "transparent" }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = assigneesArray.includes(u._id) ? "var(--panel-2)" : "transparent" }}
                         >
                           {u.color && (
                             <span style={{ width: 8, height: 8, borderRadius: "50%", background: u.color, flexShrink: 0 }} />
@@ -1674,16 +1683,18 @@ export default function OrderDetailPage({
                           {me && u._id === me._id && (
                             <span style={{ fontSize: 10, fontWeight: 600, color: "#2563eb", background: "#eff6ff", borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>Ty</span>
                           )}
-                          {order.assignedUserId === u._id && (
-                            <span style={{ fontSize: 10, color: "var(--text-mute)", flexShrink: 0 }}>aktualny</span>
+                          {assigneesArray.includes(u._id) && (
+                            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} style={{ color: "#2563eb", flexShrink: 0 }}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
                           )}
                         </button>
                       ))}
                       {/* Usuń przypisanie */}
-                      {order.assignedUserId && (
+                      {assigneesArray.length > 0 && (
                         <button
                           onClick={() => {
-                            void assignOrder({ orderId: orderIdTyped, assignedUserId: undefined });
+                            void assignOrder({ orderId: orderIdTyped, assignedUserIds: [] });
                             setShowAssignDropdown(false);
                           }}
                           style={{
