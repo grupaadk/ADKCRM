@@ -15,10 +15,14 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
     return nextjsMiddlewareRedirect(request, "/login");
   }
   if (isLoginRoute(request) && isAuthed) {
-    return nextjsMiddlewareRedirect(request, "/admin");
+    return nextjsMiddlewareRedirect(request, "/admin/dashboard");
   }
-  if (isRootRoute(request) && !isAuthed) {
-    return nextjsMiddlewareRedirect(request, "/login");
+  if (isRootRoute(request)) {
+    if (!isAuthed) {
+      return nextjsMiddlewareRedirect(request, "/login");
+    } else {
+      return nextjsMiddlewareRedirect(request, "/admin/dashboard");
+    }
   }
 });
 
