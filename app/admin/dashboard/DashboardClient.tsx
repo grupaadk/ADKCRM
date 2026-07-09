@@ -552,7 +552,7 @@ export default function DashboardClient() {
                   className={unlockedColId === col._id ? "cursor-grab active:cursor-grabbing" : ""}
                   style={{
                     padding: "7px 10px", borderRadius: 7,
-                    background: col.color, border: `1px solid ${col.color}`,
+                    background: "#4abbc3", border: `1px solid #4abbc3`,
                     display: "flex", alignItems: "center", justifyContent: "space-between",
                     fontSize: 11.5, fontWeight: 700, color: "#ffffff",
                     marginBottom: 8
@@ -622,8 +622,8 @@ export default function DashboardClient() {
                   style={{
                     display: "flex", flexDirection: "column", gap: 6, flexGrow: 1,
                     minHeight: 80, padding: 4, borderRadius: 6,
-                    background: isDropTarget ? `${col.color}1A` : isColDropTarget ? `${col.color}1A` : `${col.color}0A`,
-                    border: isDropTarget ? `1.5px dashed ${col.color}` : isColDropTarget ? `1.5px dashed ${col.color}` : `1.5px dashed ${col.color}40`,
+                    background: isDropTarget ? `#4abbc31A` : isColDropTarget ? `#4abbc31A` : `#4abbc30A`,
+                    border: isDropTarget ? `1.5px dashed #4abbc3` : isColDropTarget ? `1.5px dashed #4abbc3` : `1.5px dashed #4abbc340`,
                     transition: "background 0.15s, border 0.15s",
                   }}
                 >
@@ -1067,12 +1067,12 @@ function TaskCard({
       }}
       onClick={onOpen}
       className={`relative overflow-hidden group rounded-lg border shadow-sm transition-all duration-150 hover:shadow-md cursor-grab active:cursor-grabbing ${
-        dragging ? "rotate-1 scale-[0.97] opacity-50 shadow-md ring-2 ring-gray-300" : ""
+        dragging ? "rotate-1 scale-[0.97] opacity-50 shadow-md ring-2 ring-[#4abbc3]" : ""
       }`}
       style={{ 
         padding: `10px 10px 10px ${(singleColor || hasMultipleColors) ? 15 : 10}px`,
-        backgroundColor: columnColor ? `${columnColor}08` : '#ffffff',
-        borderColor: columnColor ? `${columnColor}40` : '#e2e8f0'
+        backgroundColor: '#ffffff',
+        borderColor: '#4abbc340'
       }}
     >
       {(singleColor || hasMultipleColors) && (
