@@ -8,6 +8,8 @@ const isProtectedRoute = createRouteMatcher(["/admin(.*)"]);
 const isLoginRoute = createRouteMatcher(["/login"]);
 const isRootRoute = createRouteMatcher(["/"]);
 
+const isAdminRootRoute = createRouteMatcher(["/admin"]);
+
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
   const isAuthed = await convexAuth.isAuthenticated();
 
@@ -15,6 +17,9 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
     return nextjsMiddlewareRedirect(request, "/login");
   }
   if (isLoginRoute(request) && isAuthed) {
+    return nextjsMiddlewareRedirect(request, "/admin/dashboard");
+  }
+  if (isAdminRootRoute(request) && isAuthed) {
     return nextjsMiddlewareRedirect(request, "/admin/dashboard");
   }
   if (isRootRoute(request)) {
