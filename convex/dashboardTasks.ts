@@ -428,7 +428,7 @@ export const adminCreate = mutation({
     columnId: v.optional(v.id("taskColumns")),
   },
   handler: async (ctx, args) => {
-    const admin = await requireRole(ctx, "admin");
+    const admin = await requireRole(ctx, "admin", "sales");
     const trimmed = args.title.trim();
     if (!trimmed) throw new ConvexError("Treść zadania jest wymagana.");
     const targetCount = [args.orderId, args.opportunityId].filter(Boolean).length;

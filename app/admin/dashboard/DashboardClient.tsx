@@ -64,6 +64,7 @@ type FilterValue = "all" | "unassigned" | Id<"users">;
 export default function DashboardClient() {
   const me = useQuery(api.users.me);
   const isAdmin = me?.role === "admin";
+  const canAddTasks = me?.role === "admin" || me?.role === "sales";
 
   const [filter, setFilter] = useState<FilterValue>("all");
   const [showAllDone, setShowAllDone] = useState(false);
@@ -393,7 +394,7 @@ export default function DashboardClient() {
               {view === "archive" ? <ArrowLeft className="size-4" /> : <Archive className="size-4" />}
               {view === "archive" ? "Wróć do tablicy" : `Archiwum${archivedTasks.length > 0 ? ` (${archivedTasks.length})` : ""}`}
             </button>
-            {isAdmin && view === "board" && (
+            {canAddTasks && view === "board" && (
               <button
                 onClick={() => {
                   setAddDrawerType("order");
@@ -628,7 +629,7 @@ export default function DashboardClient() {
                   }}
                 >
                   {/* Dodawanie karty (dropdown) */}
-                  {isAdmin && (
+                  {canAddTasks && (
                     <div className="relative mb-2">
                       {addMenuCol === col._id ? (
                         <div className="flex flex-col gap-1 rounded-md border border-gray-200 bg-white p-1 shadow-sm absolute top-full left-0 right-0 z-20 mt-1">
@@ -730,7 +731,7 @@ export default function DashboardClient() {
                       task={task}
                       today={today}
                       tomorrow={tomorrow}
-                      showAssignee={isAdmin}
+                      showAssignee={canAddTasks}
                       onOpen={() => setOpenTaskId(task._id as Id<"orderTasks">)}
                       onDragStart={() => setDragId(task._id)}
                       onDragEnd={() => setDragId(null)}
@@ -868,7 +869,7 @@ export default function DashboardClient() {
       <TaskDrawer taskId={openTaskId} onClose={() => setOpenTaskId(null)} />
 
       {/* ── Panel dodawania zadania (admin) ── */}
-      {isAdmin && <AddTaskDrawer open={addOpen} onClose={() => setAddOpen(false)} initialTargetType={addDrawerType} initialColumnId={addDrawerColId} />}
+      {canAddTasks && <AddTaskDrawer open={addOpen} onClose={() => setAddOpen(false)} initialTargetType={addDrawerType} initialColumnId={addDrawerColId} />}
 
       {/* ── Potwierdzenie usunięcia listy ── */}
       {confirmDeleteColId && (
