@@ -653,15 +653,29 @@ export default defineSchema({
     .index("by_invoice", ["invoiceId"])
     .index("by_order", ["orderId"]),
 
+  // 3.20.a Niestandardowe kolumny na tablicy Kanban (Dashboard)
+  taskColumns: defineTable({
+    title: v.string(),
+    order: v.number(),
+    color: v.string(), // np. accent color
+    systemType: v.optional(v.string()), // np. "monday", "tuesday", null dla custom
+  }).index("by_order", ["order"]),
+
   // 3.20 Zadania (TODO lista) — należą do zlecenia, szansy sprzedaży ALBO reklamacji.
   // Dokładnie jedno z pól orderId / opportunityId / complaintId jest ustawione.
   orderTasks: defineTable({
     orderId: v.optional(v.id("orders")),
     opportunityId: v.optional(v.id("pendingJotformSubmissions")),
     complaintId: v.optional(v.id("complaints")),
+    columnId: v.optional(v.id("taskColumns")),
     title: v.string(),
     dueDate: v.optional(v.number()),
     status: v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
+    priority: v.optional(v.union(v.literal("high"), v.literal("normal"))),
+    // Zadanie zrealizowane trafia do "Worka" kolumny; zarchiwizowane znika z tablicy i Worka.
+    completedAt: v.optional(v.number()),
+    archived: v.optional(v.boolean()),
+    archivedAt: v.optional(v.number()),
     assignedUserId: v.optional(v.id("users")), // legacy
     assignedUserIds: v.optional(v.array(v.id("users"))),
     createdBy: v.string(),

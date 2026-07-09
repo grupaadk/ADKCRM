@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { uColor, uInitials } from "@/lib/userColor";
 import SideDrawer from "@/components/SideDrawer";
-import { ExternalLink, Trash2, Send, ChevronDown, UserPlus, Check, X } from "lucide-react";
+import { ExternalLink, Trash2, Send, ChevronDown, UserPlus, Check, X, Search, Flame } from "lucide-react";
 
 const STATUSES = [
   { key: "todo" as const, label: "Do zrobienia", accent: "#64748b", bg: "#f8fafc" },
@@ -54,6 +54,29 @@ export default function TaskDrawer({
   const [assignOpen, setAssignOpen] = useState(false);
   const assignRef = useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Zmienne dla zadań ogólnych (przypisywanie do zlecenia/szansy)
+  const isGeneral = task?.source === "general";
+  const [showAssignPicker, setShowAssignPicker] = useState(false);
+  const [assignType, setAssignType] = useState<"order" | "opportunity">("order");
+  const [assignSearch, setAssignSearch] = useState("");
+
+  const ordersData = useQuery(api.orders.listForPicker, isGeneral ? {} : "skip");
+  const oppsData = useQuery(api.salesOpportunities.listForPicker, isGeneral ? {} : "skip");
+
+  const filteredOrders = useMemo(() => {
+    if (!ordersData) return [];
+    if (!assignSearch.trim()) return ordersData;
+    const term = assignSearch.toLowerCase();
+    return ordersData.filter(o => o.clientName.toLowerCase().includes(term) || (o.customText || "").toLowerCase().includes(term));
+  }, [ordersData, assignSearch]);
+
+  const filteredOpps = useMemo(() => {
+    if (!oppsData) return [];
+    if (!assignSearch.trim()) return oppsData;
+    const term = assignSearch.toLowerCase();
+    return oppsData.filter(o => o.clientName.toLowerCase().includes(term) || (o.customText || "").toLowerCase().includes(term));
+  }, [oppsData, assignSearch]);
 
   // Reset edytowanego tytułu i potwierdzenia usuwania przy zmianie zadania
   // (setState w renderze — dozwolony wzorzec).
@@ -149,12 +172,14 @@ export default function TaskDrawer({
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => router.push(openHref)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-md bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-800"
-              >
-                <ExternalLink className="size-4" /> {openLabel}
-              </button>
+              {openHref !== "#" && (
+                <button
+                  onClick={() => router.push(openHref)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-md bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                >
+                  <ExternalLink className="size-4" /> {openLabel}
+                </button>
+              )}
               <button
                 onClick={() => setConfirmDelete(true)}
                 title="Usuń zadanie"
@@ -172,16 +197,107 @@ export default function TaskDrawer({
       ) : (
         <div className="flex flex-col">
           {/* kontekst zlecenia / szansy */}
-          <div className="border-b border-gray-100 bg-gray-50/60 px-5 py-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{contextLabel}</div>
-            <div className="mt-0.5 text-sm font-semibold text-gray-900">{contextTitle}</div>
-            <div className="text-xs text-gray-500">{task.clientName}</div>
-            {task.customText && (
-              <div className="mt-1.5">
-                <span className="chip-custom">{task.customText}</span>
+          {isGeneral ? (
+            <div className="border-b border-gray-100 bg-gray-50/60 px-5 py-4">
+              {!showAssignPicker ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Zadanie ogólne</div>
+                    <div className="text-xs text-gray-500 mt-0.5">Brak powiązania z klientem</div>
+                  </div>
+                  <button
+                    onClick={() => setShowAssignPicker(true)}
+                    className="flex shrink-0 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    <UserPlus className="size-3.5" /> Przypisz
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Przypisz zadanie do:</div>
+                    <button onClick={() => setShowAssignPicker(false)} className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-gray-600 transition-colors">
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                  
+                  <div className="flex gap-1.5 mb-3">
+                {([
+                  { key: "order" as const, label: "Zlecenie" },
+                  { key: "opportunity" as const, label: "Szansa sprzedaży" },
+                ]).map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => { setAssignType(t.key); setAssignSearch(""); }}
+                    className={`flex-1 rounded-md py-1.5 text-xs font-medium transition-colors ${
+                      assignType === t.key
+                        ? "bg-gray-200 text-gray-900"
+                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
+
+              <div className="relative mb-2">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={assignSearch}
+                  onChange={(e) => setAssignSearch(e.target.value)}
+                  placeholder="Szukaj klienta…"
+                  className="w-full rounded-md border border-gray-200 py-2 pl-8 pr-3 text-sm outline-none focus:border-gray-400 bg-white"
+                />
+              </div>
+
+              {assignType === "order" ? (
+                <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                  {filteredOrders.length === 0 && <div className="text-xs text-gray-400">Brak zleceń.</div>}
+                  {filteredOrders.map(o => (
+                    <button
+                      key={o._id}
+                      onClick={() => updateTask({ taskId: shownId!, orderId: o._id })}
+                      className="flex w-full flex-col items-start rounded-md border border-gray-100 bg-white px-3 py-2 text-left hover:border-gray-300 hover:bg-gray-50"
+                    >
+                      <span className="flex w-full items-center gap-2">
+                        <span className="truncate text-[13px] font-medium text-gray-900">{o.clientName}</span>
+                        {o.customText && <span className="chip-custom shrink-0">{o.customText}</span>}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                  {filteredOpps.length === 0 && <div className="text-xs text-gray-400">Brak szans.</div>}
+                  {filteredOpps.map(o => (
+                    <button
+                      key={o._id}
+                      onClick={() => updateTask({ taskId: shownId!, opportunityId: o._id })}
+                      className="flex w-full flex-col items-start rounded-md border border-gray-100 bg-white px-3 py-2 text-left hover:border-gray-300 hover:bg-gray-50"
+                    >
+                      <span className="flex w-full items-center gap-2">
+                        <span className="truncate text-[13px] font-medium text-gray-900">{o.clientName}</span>
+                        {o.customText && <span className="chip-custom shrink-0">{o.customText}</span>}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="border-b border-gray-100 bg-gray-50/60 px-5 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{contextLabel}</div>
+              <div className="mt-0.5 text-sm font-semibold text-gray-900">{contextTitle}</div>
+              <div className="text-xs text-gray-500">{task.clientName}</div>
+              {task.customText && (
+                <div className="mt-1.5">
+                  <span className="chip-custom">{task.customText}</span>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="space-y-5 px-5 py-4">
             {/* tytuł */}
@@ -225,6 +341,27 @@ export default function TaskDrawer({
                   );
                 })}
               </div>
+            </div>
+
+            {/* priorytet */}
+            <div>
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Priorytet
+              </label>
+              <button
+                onClick={() => {
+                  if (task.priority === "high") void updateTask({ taskId: task._id, clearPriority: true });
+                  else void updateTask({ taskId: task._id, priority: "high" });
+                }}
+                className={`flex items-center justify-center gap-1.5 w-full rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  task.priority === "high"
+                    ? "border-orange-500 bg-orange-50 text-orange-600"
+                    : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
+                }`}
+              >
+                <Flame className={`size-4 ${task.priority === "high" ? "fill-orange-500 text-orange-500" : ""}`} />
+                Wysoki priorytet
+              </button>
             </div>
 
             {/* termin + osoba */}

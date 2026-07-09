@@ -48,6 +48,7 @@ import type * as sms from "../sms.js";
 import type * as storage from "../storage.js";
 import type * as suppliers from "../suppliers.js";
 import type * as systemLogs from "../systemLogs.js";
+import type * as taskColumns from "../taskColumns.js";
 import type * as taskComments from "../taskComments.js";
 import type * as users from "../users.js";
 import type * as viewConfig from "../viewConfig.js";
@@ -100,6 +101,7 @@ declare const fullApi: ApiFromModules<{
   storage: typeof storage;
   suppliers: typeof suppliers;
   systemLogs: typeof systemLogs;
+  taskColumns: typeof taskColumns;
   taskComments: typeof taskComments;
   users: typeof users;
   viewConfig: typeof viewConfig;

@@ -1,22 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useRef, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { DashboardTask } from "@/convex/dashboardTasks";
 import type { Id } from "@/convex/_generated/dataModel";
-import { ExternalLink, Plus, Clock, CalendarDays } from "lucide-react";
+import { ExternalLink, Plus, Clock, CalendarDays, ChevronRight, ChevronLeft, Lock, Unlock, Flame, Check, Archive, ArchiveRestore, ShoppingBag, ArrowLeft, Trash2 } from "lucide-react";
 import TaskDrawer from "@/components/TaskDrawer";
 import AddTaskDrawer from "@/components/AddTaskDrawer";
+import ModalPortal from "@/components/ModalPortal";
 
-/* ── stałe kolumn kanbanu (zgodne z kanbanem w zleceniu) ── */
-const KANBAN_COLS = [
-  { key: "todo" as const, label: "Do zrobienia", accent: "#64748b", headerBg: "#f8fafc", colBg: "#f8fafc", border: "#e2e8f0" },
-  { key: "in_progress" as const, label: "W trakcie", accent: "#2563eb", headerBg: "#eff6ff", colBg: "#f5f9ff", border: "#bfdbfe" },
-  { key: "done" as const, label: "Gotowe", accent: "#16a34a", headerBg: "#f0fdf4", colBg: "#f7fdf9", border: "#bbf7d0" },
-];
-type StatusKey = (typeof KANBAN_COLS)[number]["key"];
 
 const DONE_LIMIT = 10;
 
@@ -25,6 +19,7 @@ const TASK_TYPE_META = {
   order:       { label: "Zlecenie",         openLabel: "Otwórz zlecenie", color: "#2563eb" },
   opportunity: { label: "Szansa sprzedaży", openLabel: "Otwórz szansę",  color: "#b45309" },
   complaint:   { label: "Reklamacja",       openLabel: "Otwórz reklamację", color: "#ea580c" },
+  general:     { label: "Zadanie",          openLabel: "Otwórz zadanie", color: "#64748b" },
 } as const;
 type TaskType = keyof typeof TASK_TYPE_META;
 
@@ -74,8 +69,55 @@ export default function DashboardClient() {
   const [showAllDone, setShowAllDone] = useState(false);
   const [openTaskId, setOpenTaskId] = useState<Id<"orderTasks"> | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [addDrawerType, setAddDrawerType] = useState<"order" | "opportunity" | "general">("order");
+  const [addDrawerColId, setAddDrawerColId] = useState<string | null>(null);
+  const [addMenuCol, setAddMenuCol] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
-  const [dragOverCol, setDragOverCol] = useState<StatusKey | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [dragColId, setDragColId] = useState<string | null>(null);
+  const [dragOverColIndex, setDragOverColIndex] = useState<string | null>(null);
+  const [addingList, setAddingList] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const [unlockedColId, setUnlockedColId] = useState<string | null>(null);
+  const [view, setView] = useState<"board" | "archive">("board");
+  const [openBags, setOpenBags] = useState<Record<string, boolean>>({});
+  const taskColumns = useQuery(api.taskColumns.list) ?? [];
+  const createColumn = useMutation(api.taskColumns.create);
+  const updateColumnOrder = useMutation(api.taskColumns.updateOrder);
+  const renameColumn = useMutation(api.taskColumns.rename);
+  const removeColumn = useMutation(api.taskColumns.remove);
+  const [colTitleDraft, setColTitleDraft] = useState("");
+  const [confirmDeleteColId, setConfirmDeleteColId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const commitColTitle = (colId: string) => {
+    const col = taskColumns.find((c) => c._id === colId);
+    const t = colTitleDraft.trim();
+    if (col && t && t !== col.title) {
+      void renameColumn({ columnId: colId as Id<"taskColumns">, title: t });
+    }
+  };
+
+  const closeDeleteConfirm = () => {
+    setConfirmDeleteColId(null);
+    setDeleteError(null);
+    setDeleting(false);
+  };
+
+  const confirmDeleteColumn = async () => {
+    if (!confirmDeleteColId) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await removeColumn({ columnId: confirmDeleteColId as Id<"taskColumns"> });
+      setUnlockedColId(null);
+      closeDeleteConfirm();
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Nie można usunąć listy zawierającej zadania.");
+      setDeleting(false);
+    }
+  };
 
   // Zwykły user dostaje tylko swoje (serwer ignoruje filter); admin filtruje.
   const tasks = useQuery(
@@ -84,45 +126,244 @@ export default function DashboardClient() {
   );
   const users = useQuery(api.users.listAllActive);
   const updateTask = useMutation(api.orderTasks.update);
+  const createTask = useMutation(api.dashboardTasks.adminCreate);
+
+  const [inlineAddCol, setInlineAddCol] = useState<string | null>(null);
+  const [inlineAddTitle, setInlineAddTitle] = useState("");
+  const [inlineSubmitting, setInlineSubmitting] = useState(false);
+
+  const submitInlineAdd = async (colId: string) => {
+    if (!inlineAddTitle.trim() || inlineSubmitting) return;
+    setInlineSubmitting(true);
+    try {
+      await createTask({
+        title: inlineAddTitle.trim(),
+        status: "todo",
+        dueDate: undefined,
+        columnId: colId as Id<"taskColumns">,
+        assignedUserId: me?._id,
+      });
+
+      setInlineAddTitle("");
+      setInlineAddCol(null);
+    } catch (e) {
+      console.error(e);
+      alert("Błąd podczas dodawania zadania.");
+    } finally {
+      setInlineSubmitting(false);
+    }
+  };
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollRaf = useRef<number | null>(null);
+  const scrollVelocity = useRef(0); // aktualna prędkość (px/klatkę)
+  const scrollTarget = useRef(0); // docelowa prędkość (0 = wytracanie)
+  const [showLeftScroll, setShowLeftScroll] = useState(false);
+  const [showRightScroll, setShowRightScroll] = useState(true);
+
+  const checkScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
+    setShowLeftScroll(scrollLeft > 0);
+    // Margines błędu 2px na floaty w przeglądarkach
+    setShowRightScroll(Math.ceil(scrollLeft + clientWidth) < scrollWidth - 2);
+  };
+
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      if (addMenuCol) setAddMenuCol(null);
+    };
+    if (addMenuCol) {
+      document.addEventListener("click", handleGlobalClick);
+    }
+    return () => document.removeEventListener("click", handleGlobalClick);
+  }, [addMenuCol]);
+
+  useEffect(() => {
+    // Odczekajmy chwilę, żeby DOM zdążył się narysować po zmianie zadań
+    const timer = setTimeout(checkScroll, 150);
+    window.addEventListener("resize", checkScroll);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", checkScroll);
+    };
+  }, [tasks]); // Uruchom po załadowaniu i przeliczeniu
+
+  // Pętla animacji: prędkość płynnie dąży do celu (ease-in przy najechaniu,
+  // bezwładne wytracanie po zejściu z przycisku) — zsynchronizowana z ekranem.
+  const runScrollLoop = () => {
+    const el = scrollContainerRef.current;
+    if (!el) {
+      scrollRaf.current = null;
+      return;
+    }
+    scrollVelocity.current += (scrollTarget.current - scrollVelocity.current) * 0.12;
+    el.scrollLeft += scrollVelocity.current;
+    // Zatrzymaj pętlę dopiero gdy praktycznie stoimy i nie ma celu (koniec bezwładności)
+    if (scrollTarget.current === 0 && Math.abs(scrollVelocity.current) < 0.15) {
+      scrollVelocity.current = 0;
+      scrollRaf.current = null;
+      return;
+    }
+    scrollRaf.current = requestAnimationFrame(runScrollLoop);
+  };
+
+  const startScrolling = (direction: 'left' | 'right') => {
+    const MAX_SPEED = 22; // maksymalna prędkość w px/klatkę
+    scrollTarget.current = direction === 'right' ? MAX_SPEED : -MAX_SPEED;
+    if (scrollRaf.current == null) {
+      scrollRaf.current = requestAnimationFrame(runScrollLoop);
+    }
+  };
+
+  const stopScrolling = () => {
+    // Nie zatrzymujemy gwałtownie — zerujemy cel, a pętla płynnie wyhamuje (momentum).
+    scrollTarget.current = 0;
+  };
+
+  useEffect(() => {
+    return () => {
+      if (scrollRaf.current) cancelAnimationFrame(scrollRaf.current);
+    };
+  }, []);
 
   const today = startOfToday();
   const tomorrow = today + 24 * 60 * 60 * 1000;
 
-  const { byStatus, overdueCount, todayCount } = useMemo(() => {
-    const grouped: Record<StatusKey, DashboardTask[]> = { todo: [], in_progress: [], done: [] };
+  const { byColumn, bagByColumn, archivedTasks, overdueCount, todayCount } = useMemo(() => {
+    const groupedCol: Record<string, DashboardTask[]> = {};
+    const bagCol: Record<string, DashboardTask[]> = {};
+    const archived: DashboardTask[] = [];
+    const sysColIds: Record<string, string> = {};
+
+    for (const col of taskColumns) {
+      groupedCol[col._id] = [];
+      bagCol[col._id] = [];
+      if (col.systemType) sysColIds[col.systemType] = col._id;
+    }
+    groupedCol["unassigned"] = [];
+    bagCol["unassigned"] = [];
+
     let overdue = 0;
     let due = 0;
+
+    const now = new Date();
+    const mondayThisWeek = new Date(now);
+    mondayThisWeek.setHours(0, 0, 0, 0);
+    const day = mondayThisWeek.getDay();
+    const diff = mondayThisWeek.getDate() - day + (day === 0 ? -6 : 1);
+    mondayThisWeek.setDate(diff);
+    const mTs = mondayThisWeek.getTime();
+    const dTs = (days: number) => mTs + days * 24 * 60 * 60 * 1000;
+
+    const tue = dTs(1), wed = dTs(2), thu = dTs(3), fri = dTs(4), sat = dTs(5), nextMon = dTs(7), nextNextMon = dTs(14);
+
+    // Wyznacza kolumnę (klucz), do której należy zadanie — po columnId lub po dacie.
+    const resolveKey = (t: DashboardTask): string => {
+      if (t.columnId && groupedCol[t.columnId]) return t.columnId;
+      if (!t.dueDate) return sysColIds["todo_list"] ?? "unassigned";
+      const ts = t.dueDate;
+      let id;
+      if (ts >= mTs && ts < tue) id = sysColIds["monday"];
+      else if (ts >= tue && ts < wed) id = sysColIds["tuesday"];
+      else if (ts >= wed && ts < thu) id = sysColIds["wednesday"];
+      else if (ts >= thu && ts < fri) id = sysColIds["thursday"];
+      else if (ts >= fri && ts < sat) id = sysColIds["friday"];
+      else if (ts >= mTs && ts < nextMon) id = sysColIds["this_week"];
+      else if (ts >= nextMon && ts < nextNextMon) id = sysColIds["next_week"];
+      else id = sysColIds["todo_list"];
+      return id && groupedCol[id] ? id : "unassigned";
+    };
+
     for (const t of tasks ?? []) {
-      grouped[t.status].push(t);
+      // Zarchiwizowane — poza tablicą i Workiem, tylko w widoku Archiwum.
+      if (t.archived) {
+        archived.push(t);
+        continue;
+      }
+
       if (t.status !== "done" && t.dueDate != null) {
         if (t.dueDate < today) overdue++;
         else if (t.dueDate < tomorrow) due++;
       }
+
+      const key = resolveKey(t);
+      // Zrealizowane trafiają do Worka danej kolumny, reszta zostaje na liście.
+      if (t.status === "done") bagCol[key].push(t);
+      else groupedCol[key].push(t);
     }
+
     const sortByDue = (a: DashboardTask, b: DashboardTask) => {
+      if (a.priority === "high" && b.priority !== "high") return -1;
+      if (a.priority !== "high" && b.priority === "high") return 1;
       if (a.dueDate == null && b.dueDate == null) return 0;
       if (a.dueDate == null) return 1;
       if (b.dueDate == null) return -1;
       return a.dueDate - b.dueDate;
     };
-    grouped.todo.sort(sortByDue);
-    grouped.in_progress.sort(sortByDue);
-    grouped.done.sort((a, b) => (b.dueDate ?? 0) - (a.dueDate ?? 0));
-    return { byStatus: grouped, overdueCount: overdue, todayCount: due };
-  }, [tasks, today, tomorrow]);
+
+    for (const key in groupedCol) groupedCol[key].sort(sortByDue);
+    // Worek: najświeższe zrealizowane na górze.
+    for (const key in bagCol) bagCol[key].sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
+    archived.sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0));
+
+    return { byColumn: groupedCol, bagByColumn: bagCol, archivedTasks: archived, overdueCount: overdue, todayCount: due };
+  }, [tasks, today, tomorrow, taskColumns]);
 
   const greetingName = me?.displayName ?? me?.login ?? "";
   const loading = me === undefined;
 
   const draggedTask = dragId ? (tasks ?? []).find((t) => t._id === dragId) ?? null : null;
 
-  function handleDrop(status: StatusKey) {
+  function handleDrop(columnId: string) {
     setDragOverCol(null);
     if (!dragId) return;
     const task = (tasks ?? []).find((t) => t._id === dragId);
     setDragId(null);
-    if (!task || task.status === status) return;
-    void updateTask({ taskId: task._id as Id<"orderTasks">, status });
+    if (!task) return;
+
+    const targetCol = taskColumns.find(c => c._id === columnId);
+    const systemType = targetCol?.systemType;
+
+    const now = new Date();
+    const mondayThisWeek = new Date(now);
+    mondayThisWeek.setHours(0, 0, 0, 0);
+    const day = mondayThisWeek.getDay();
+    const diff = mondayThisWeek.getDate() - day + (day === 0 ? -6 : 1);
+    mondayThisWeek.setDate(diff);
+    const mTs = mondayThisWeek.getTime();
+    const dTs = (days: number) => mTs + days * 24 * 60 * 60 * 1000;
+
+    let newDate: number | undefined = undefined;
+    if (systemType === "monday") newDate = mTs;
+    else if (systemType === "tuesday") newDate = dTs(1);
+    else if (systemType === "wednesday") newDate = dTs(2);
+    else if (systemType === "thursday") newDate = dTs(3);
+    else if (systemType === "friday") newDate = dTs(4);
+    else if (systemType === "this_week") newDate = dTs(5);
+    else if (systemType === "next_week") newDate = dTs(7);
+
+    // Jeśli to kolumna systemowa, zmieniamy datę i usuwamy columnId
+    if (systemType) {
+      if (systemType === "todo_list") {
+        void updateTask({ taskId: task._id as Id<"orderTasks">, clearDueDate: true, clearColumnId: true });
+      } else {
+        void updateTask({ taskId: task._id as Id<"orderTasks">, dueDate: newDate, clearColumnId: true });
+      }
+    } else {
+      // W przeciwnym razie ustawiamy nowy columnId, ignorując systemDate
+      if (task.columnId === columnId) return;
+      void updateTask({ taskId: task._id as Id<"orderTasks">, columnId: columnId as Id<"taskColumns"> });
+    }
+  }
+
+  function handleColDrop(targetColId: string) {
+    setDragOverColIndex(null);
+    if (!dragColId || dragColId === targetColId) return;
+    const targetCol = taskColumns.find(c => c._id === targetColId);
+    if (!targetCol) return;
+    void updateColumnOrder({ columnId: dragColId as Id<"taskColumns">, newOrder: targetCol.order });
+    setDragColId(null);
   }
 
   return (
@@ -140,14 +381,31 @@ export default function DashboardClient() {
                 : "Oto Twoja lista zadań."}
             </p>
           </div>
-          {isAdmin && (
+          <div className="flex shrink-0 items-center gap-2">
             <button
-              onClick={() => setAddOpen(true)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-gray-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-gray-800"
+              onClick={() => setView(view === "archive" ? "board" : "archive")}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium transition-colors ${
+                view === "archive"
+                  ? "bg-gray-900 text-white hover:bg-gray-800"
+                  : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
             >
-              <Plus className="size-4" /> Dodaj zadanie
+              {view === "archive" ? <ArrowLeft className="size-4" /> : <Archive className="size-4" />}
+              {view === "archive" ? "Wróć do tablicy" : `Archiwum${archivedTasks.length > 0 ? ` (${archivedTasks.length})` : ""}`}
             </button>
-          )}
+            {isAdmin && view === "board" && (
+              <button
+                onClick={() => {
+                  setAddDrawerType("order");
+                  setAddDrawerColId(null);
+                  setAddOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md bg-gray-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-gray-800"
+              >
+                <Plus className="size-4" /> Dodaj zadanie
+              </button>
+            )}
+          </div>
         </div>
 
         {/* liczniki zaległe / na dziś */}
@@ -169,7 +427,7 @@ export default function DashboardClient() {
       </div>
 
       {/* ── Filtr admina ── */}
-      {isAdmin && (
+      {isAdmin && view === "board" && (
         <div className="mb-5 flex flex-wrap items-center gap-2">
           <FilterChip label="Wszyscy" active={filter === "all"} onClick={() => setFilter("all")} />
           <FilterChip label="Nieprzypisane" active={filter === "unassigned"} onClick={() => setFilter("unassigned")} />
@@ -200,59 +458,271 @@ export default function DashboardClient() {
         </div>
       )}
 
-      {/* ── Kanban ── */}
-      {loading ? (
+      {/* ── Kontrolki Scrollowania ── */}
+      {view === "board" && !loading && (showLeftScroll || showRightScroll) && (
+        <div className="flex justify-center gap-2 mb-2 w-full">
+          <button
+            onMouseEnter={() => showLeftScroll && startScrolling('left')}
+            onMouseLeave={stopScrolling}
+            className={`flex size-9 items-center justify-center rounded-full shadow transition-all ${
+              showLeftScroll ? "bg-[#4abbc3] text-white hover:opacity-90 hover:scale-110 cursor-pointer" : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
+            }`}
+          >
+            <ChevronLeft className="size-5" />
+          </button>
+          <button
+            onMouseEnter={() => showRightScroll && startScrolling('right')}
+            onMouseLeave={stopScrolling}
+            className={`flex size-9 items-center justify-center rounded-full shadow transition-all ${
+              showRightScroll ? "bg-[#4abbc3] text-white hover:opacity-90 hover:scale-110 cursor-pointer" : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
+            }`}
+          >
+            <ChevronRight className="size-5" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Główny Kanban ── */}
+      {view === "board" && (loading ? (
         <div className="py-20 text-center text-sm text-gray-400">Ładowanie zadań…</div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {KANBAN_COLS.map((col) => {
-            const colTasks = byStatus[col.key];
-            const isDone = col.key === "done";
-            const visible = isDone && !showAllDone ? colTasks.slice(0, DONE_LIMIT) : colTasks;
-            const hiddenCount = isDone ? colTasks.length - visible.length : 0;
-            // cel upuszczenia: przeciągamy kartę nad tę kolumnę i nie jest to jej obecny status
-            const isDropTarget =
-              draggedTask != null && dragOverCol === col.key && draggedTask.status !== col.key;
+        <div className="relative w-full group">
+          <div 
+            ref={scrollContainerRef}
+            onScroll={checkScroll}
+            className="w-full overflow-x-auto pb-4 hide-scrollbar"
+          >
+            <div className="flex flex-row gap-4 items-stretch" style={{ minWidth: "max-content" }}>
+          {taskColumns.map((col) => {
+            const colTasks = byColumn[col._id] || [];
+            // Ukrywamy część zadań tylko w ostatniej kolumnie jako przykład (jeśli to była kolumna gotowe)
+            const isLast = col._id === taskColumns[taskColumns.length - 1]?._id;
+            const visible = isLast && !showAllDone ? colTasks.slice(0, DONE_LIMIT) : colTasks;
+            const hiddenCount = isLast ? colTasks.length - visible.length : 0;
+            const isDropTarget = draggedTask != null && dragOverCol === col._id && draggedTask.columnId !== col._id;
+            
+            const isColDropTarget = dragColId != null && dragColId !== col._id && dragOverColIndex === col._id;
+            
             return (
               <div
-                key={col.key}
+                key={col._id}
+                draggable={unlockedColId === col._id && dragId === null} // kolumna jest draggowalna tylko po odblokowaniu i gdy nie ciągniemy zadania
+                onDragStart={(e) => {
+                  if (dragId) {
+                    e.preventDefault();
+                    return;
+                  }
+                  // Nie chcemy ciągnąć gdy klikamy w textarea/input
+                  if ((e.target as HTMLElement).tagName.toLowerCase() === 'textarea' || (e.target as HTMLElement).tagName.toLowerCase() === 'input' || (e.target as HTMLElement).tagName.toLowerCase() === 'button') {
+                    e.preventDefault();
+                    return;
+                  }
+                  setDragColId(col._id);
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                onDragEnd={() => {
+                  setDragColId(null);
+                  setUnlockedColId(null);
+                }}
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.dataTransfer.dropEffect = "move";
-                  if (dragOverCol !== col.key) setDragOverCol(col.key);
-                }}
-                onDragLeave={(e) => {
-                  // ignoruj przejścia między dziećmi tej samej kolumny
-                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                    setDragOverCol((c) => (c === col.key ? null : c));
+                  if (dragColId) {
+                    if (dragOverColIndex !== col._id) setDragOverColIndex(col._id);
+                  } else {
+                    if (dragOverCol !== col._id) setDragOverCol(col._id);
                   }
                 }}
-                onDrop={() => handleDrop(col.key)}
-                className="flex flex-col rounded-xl border transition-all duration-150"
-                style={{
-                  background: isDropTarget ? col.headerBg : col.colBg,
-                  borderColor: isDropTarget ? col.accent : col.border,
-                  boxShadow: isDropTarget ? `0 0 0 2px ${col.accent}55` : undefined,
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    if (dragColId) setDragOverColIndex(null);
+                    else setDragOverCol((c) => (c === col._id ? null : c));
+                  }
                 }}
+                onDrop={(e) => {
+                  e.stopPropagation();
+                  if (dragColId) handleColDrop(col._id);
+                  else handleDrop(col._id);
+                }}
+                className={`flex flex-col rounded-xl transition-all duration-150 min-w-[18rem] max-w-[18rem] ${dragColId === col._id ? 'opacity-50' : ''}`}
+                style={{}}
               >
                 {/* nagłówek kolumny */}
                 <div
-                  className="flex items-center justify-between rounded-t-xl border-b px-3 py-2.5"
-                  style={{ background: col.headerBg, borderColor: col.border }}
+                  className={unlockedColId === col._id ? "cursor-grab active:cursor-grabbing" : ""}
+                  style={{
+                    padding: "7px 10px", borderRadius: 7,
+                    background: col.color, border: `1px solid ${col.color}`,
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    fontSize: 11.5, fontWeight: 700, color: "#ffffff",
+                    marginBottom: 8
+                  }}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="size-2 rounded-full" style={{ background: col.accent }} />
-                    <span className="text-[13px] font-semibold text-gray-700">{col.label}</span>
+                  {isAdmin && unlockedColId === col._id ? (
+                    <input
+                      value={colTitleDraft}
+                      draggable={false}
+                      onChange={(e) => setColTitleDraft(e.target.value)}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                      onBlur={() => commitColTitle(col._id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { commitColTitle(col._id); (e.target as HTMLInputElement).blur(); }
+                        if (e.key === "Escape") { setColTitleDraft(col.title); (e.target as HTMLInputElement).blur(); }
+                      }}
+                      className="min-w-0 flex-1 rounded border border-white/40 bg-white/20 px-1.5 py-0.5 text-[11.5px] font-bold text-white outline-none placeholder:text-white/60 focus:border-white/80"
+                      placeholder="Nazwa listy"
+                    />
+                  ) : (
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {col.title}
+                    </span>
+                  )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isAdmin && unlockedColId === col._id && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteError(null);
+                          setConfirmDeleteColId(col._id);
+                        }}
+                        className="rounded p-1 transition-colors hover:bg-white/20"
+                        title="Usuń listę"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const willUnlock = unlockedColId !== col._id;
+                          setUnlockedColId(willUnlock ? col._id : null);
+                          if (willUnlock) setColTitleDraft(col.title);
+                        }}
+                        className="rounded p-1 transition-colors hover:bg-white/20"
+                        title={unlockedColId === col._id ? "Zablokuj przesuwanie listy" : "Odblokuj przesuwanie listy"}
+                      >
+                        {unlockedColId === col._id ? <Unlock className="size-3.5" /> : <Lock className="size-3.5 opacity-60 hover:opacity-100" />}
+                      </button>
+                    )}
+                    <span style={{
+                      background: "rgba(255,255,255,0.22)",
+                      borderRadius: 4, padding: "1px 6px",
+                      fontSize: 10.5, fontWeight: 700, flexShrink: 0,
+                    }}>
+                      {colTasks.length}
+                    </span>
                   </div>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-gray-500 ring-1 ring-inset ring-gray-200">
-                    {colTasks.length}
-                  </span>
                 </div>
 
                 {/* karty */}
-                <div className="flex flex-1 flex-col gap-2 p-2.5" style={{ minHeight: 120 }}>
+                <div 
+                  style={{
+                    display: "flex", flexDirection: "column", gap: 6, flexGrow: 1,
+                    minHeight: 80, padding: 4, borderRadius: 6,
+                    background: isDropTarget ? `${col.color}1A` : isColDropTarget ? `${col.color}1A` : `${col.color}0A`,
+                    border: isDropTarget ? `1.5px dashed ${col.color}` : isColDropTarget ? `1.5px dashed ${col.color}` : `1.5px dashed ${col.color}40`,
+                    transition: "background 0.15s, border 0.15s",
+                  }}
+                >
+                  {/* Dodawanie karty (dropdown) */}
+                  {isAdmin && (
+                    <div className="relative mb-2">
+                      {addMenuCol === col._id ? (
+                        <div className="flex flex-col gap-1 rounded-md border border-gray-200 bg-white p-1 shadow-sm absolute top-full left-0 right-0 z-20 mt-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setInlineAddCol(col._id);
+                              setInlineAddTitle("");
+                              setAddMenuCol(null);
+                            }}
+                            className="w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-gray-900 hover:bg-gray-100"
+                          >
+                            Zadanie
+                          </button>
+                          <div className="my-0.5 h-px bg-gray-100" />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAddDrawerType("order");
+                              setAddDrawerColId(col._id);
+                              setAddOpen(true);
+                              setAddMenuCol(null);
+                            }}
+                            className="w-full rounded px-2 py-1.5 text-left text-xs font-medium text-gray-700 hover:bg-gray-100"
+                          >
+                            Do zlecenia
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAddDrawerType("opportunity");
+                              setAddDrawerColId(col._id);
+                              setAddOpen(true);
+                              setAddMenuCol(null);
+                            }}
+                            className="w-full rounded px-2 py-1.5 text-left text-xs font-medium text-gray-700 hover:bg-gray-100"
+                          >
+                            Do szansy sprzedaży
+                          </button>
+                        </div>
+                      ) : null}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAddMenuCol(addMenuCol === col._id ? null : col._id);
+                        }}
+                        className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-gray-500 hover:bg-black/5 hover:text-gray-700 transition-colors text-left"
+                      >
+                        <Plus className="size-3.5" />
+                        Dodaj kartę
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Inline form for General Task */}
+                  {inlineAddCol === col._id && (
+                    <div className="mb-3 rounded-md border border-[#4abbc3] bg-white p-2 shadow-sm">
+                      <textarea
+                        autoFocus
+                        rows={2}
+                        placeholder="Treść zadania..."
+                        className="w-full resize-none text-[13px] outline-none"
+                        value={inlineAddTitle}
+                        onChange={(e) => setInlineAddTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            void submitInlineAdd(col._id);
+                          }
+                          if (e.key === "Escape") {
+                            setInlineAddCol(null);
+                          }
+                        }}
+                      />
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setInlineAddCol(null)}
+                          className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+                        >
+                          Anuluj
+                        </button>
+                        <button
+                          onClick={() => submitInlineAdd(col._id)}
+                          disabled={!inlineAddTitle.trim() || inlineSubmitting}
+                          className="rounded bg-[#4abbc3] px-3 py-1 text-xs font-medium text-white hover:bg-[#3ca4ab] transition-colors disabled:opacity-50"
+                        >
+                          {inlineSubmitting ? "..." : "Dodaj"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {visible.length === 0 && (
-                    <div className="py-8 text-center text-xs text-gray-400">Brak zadań</div>
+                    <div className="py-8 text-center text-xs" style={{ color: `${col.color}90` }}>Brak zadań</div>
                   )}
                   {visible.map((task) => (
                     <TaskCard
@@ -265,36 +735,193 @@ export default function DashboardClient() {
                       onDragStart={() => setDragId(task._id)}
                       onDragEnd={() => setDragId(null)}
                       dragging={dragId === task._id}
+                      columnColor={col.color}
                     />
                   ))}
-                  {isDone && hiddenCount > 0 && (
+                  {isLast && hiddenCount > 0 && (
                     <button
                       onClick={() => setShowAllDone(true)}
-                      className="mt-1 rounded-md py-1.5 text-xs font-medium text-gray-500 hover:bg-white hover:text-gray-700"
+                      className="mt-1 rounded-md py-1.5 text-xs font-medium text-gray-500 hover:bg-white hover:text-gray-700 transition-colors"
                     >
                       Pokaż więcej ({hiddenCount})
                     </button>
                   )}
-                  {isDone && showAllDone && colTasks.length > DONE_LIMIT && (
+                  {isLast && showAllDone && colTasks.length > DONE_LIMIT && (
                     <button
                       onClick={() => setShowAllDone(false)}
-                      className="mt-1 rounded-md py-1.5 text-xs font-medium text-gray-500 hover:bg-white hover:text-gray-700"
+                      className="mt-1 rounded-md py-1.5 text-xs font-medium text-gray-500 hover:bg-white hover:text-gray-700 transition-colors"
                     >
-                      Zwiń
+                      Zwiń listy
                     </button>
                   )}
+
+                  {/* ── Worek: zrealizowane zadania tej kolumny (zawsze widoczny) ── */}
+                  {(() => {
+                    const bag = bagByColumn[col._id] ?? [];
+                    return (
+                      <div className="mt-2 border-t border-dashed border-gray-300 pt-2">
+                        <button
+                          onClick={() => setOpenBags((s) => ({ ...s, [col._id]: !s[col._id] }))}
+                          className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs font-semibold text-gray-500 hover:bg-black/5 transition-colors"
+                        >
+                          <span className="inline-flex items-center gap-1.5">
+                            <ShoppingBag className="size-3.5" />
+                            Worek ({bag.length})
+                          </span>
+                          <ChevronRight className={`size-3.5 transition-transform ${openBags[col._id] ? "rotate-90" : ""}`} />
+                        </button>
+                        {openBags[col._id] && (
+                          <div className="mt-1.5 flex flex-col gap-1.5">
+                            {bag.length === 0 ? (
+                              <div className="py-2 text-center text-[11px] text-gray-400">Brak zrealizowanych zadań</div>
+                            ) : (
+                              bag.map((task) => (
+                                <BagTaskRow
+                                  key={task._id}
+                                  task={task}
+                                  onOpen={() => setOpenTaskId(task._id as Id<"orderTasks">)}
+                                />
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             );
           })}
+
+          {/* Dodaj Listę */}
+          <div className="min-w-[320px] max-w-[320px]">
+            {addingList ? (
+              <div className="rounded-xl border bg-white p-2.5 shadow-sm ring-1 ring-slate-200">
+                <input
+                  autoFocus
+                  placeholder="Wprowadź tytuł listy..."
+                  value={newListName}
+                  onChange={(e) => setNewListName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      if (newListName.trim()) {
+                        void createColumn({ title: newListName.trim(), color: "#64748b" });
+                        setNewListName("");
+                        setAddingList(false);
+                      }
+                    } else if (e.key === "Escape") {
+                      setAddingList(false);
+                      setNewListName("");
+                    }
+                  }}
+                  className="w-full rounded bg-slate-50 px-2.5 py-1.5 text-[13px] outline-none border border-slate-200 focus:border-[#4abbc3]"
+                />
+                <div className="mt-2 flex gap-1.5">
+                  <button
+                    onClick={() => {
+                      if (newListName.trim()) {
+                        void createColumn({ title: newListName.trim(), color: "#64748b" });
+                        setNewListName("");
+                        setAddingList(false);
+                      }
+                    }}
+                    className="rounded bg-[#4abbc3] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3ca4ab]"
+                  >
+                    Dodaj listę
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAddingList(false);
+                      setNewListName("");
+                    }}
+                    className="rounded px-2 text-xs font-medium text-gray-500 hover:bg-slate-100"
+                  >
+                    Anuluj
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingList(true)}
+                className="flex w-full items-center gap-2 rounded-xl bg-slate-50/50 px-4 py-3 text-[14px] font-medium text-gray-600 hover:bg-slate-100/80 hover:text-gray-800 transition-colors border border-transparent hover:border-slate-200"
+              >
+                <Plus className="size-4" />
+                Dodaj kolejną listę
+              </button>
+            )}
+          </div>
         </div>
+        </div>
+      </div>
+      ))}
+
+      {/* ── Widok Archiwum ── */}
+      {view === "archive" && (
+        <ArchiveView
+          tasks={archivedTasks}
+          loading={loading}
+          onOpen={(id) => setOpenTaskId(id)}
+        />
       )}
 
       {/* ── Panel szczegółów (wysuwany z prawej) ── */}
       <TaskDrawer taskId={openTaskId} onClose={() => setOpenTaskId(null)} />
 
       {/* ── Panel dodawania zadania (admin) ── */}
-      {isAdmin && <AddTaskDrawer open={addOpen} onClose={() => setAddOpen(false)} />}
+      {isAdmin && <AddTaskDrawer open={addOpen} onClose={() => setAddOpen(false)} initialTargetType={addDrawerType} initialColumnId={addDrawerColId} />}
+
+      {/* ── Potwierdzenie usunięcia listy ── */}
+      {confirmDeleteColId && (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            onClick={closeDeleteConfirm}
+          >
+            <div
+              className="relative flex w-full max-w-md flex-col rounded-xl bg-white shadow-2xl ring-1 ring-gray-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3 p-5">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+                  <Trash2 className="size-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-gray-900">Usunąć listę?</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Lista{" "}
+                    <span className="font-medium text-gray-700">
+                      „{taskColumns.find((c) => c._id === confirmDeleteColId)?.title ?? ""}"
+                    </span>{" "}
+                    zostanie trwale usunięta. Operacji nie można cofnąć.
+                  </p>
+                  {deleteError && (
+                    <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {deleteError}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-gray-100 px-5 py-3">
+                <button
+                  onClick={closeDeleteConfirm}
+                  disabled={deleting}
+                  className="rounded-md px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                >
+                  Anuluj
+                </button>
+                <button
+                  onClick={() => void confirmDeleteColumn()}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-60"
+                >
+                  <Trash2 className="size-4" />
+                  {deleting ? "Usuwanie…" : "Usuń listę"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
     </div>
   );
 }
@@ -346,28 +973,23 @@ function AssigneeBadge({ task }: { task: DashboardTask }) {
     );
   }
 
-  if (assignees.length === 1) {
-    const name = assignees[0].name ?? "?";
-    const color = assignees[0].color ?? uColor(assignees[0].id);
-    return (
-      <span
-        className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-semibold"
-        style={{ background: `${color}1f`, color }}
-        title={name}
-      >
-        <span className="size-1.5 shrink-0 rounded-full" style={{ background: color }} />
-        <span className="truncate">{name}</span>
-      </span>
-    );
-  }
-
   return (
-    <span
-      className="inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold bg-gray-100 text-gray-700"
-      title={assignees.map(a => a.name ?? "?").join(", ")}
-    >
-      <span className="truncate">{assignees.length} osoby</span>
-    </span>
+    <div className="flex -space-x-1.5">
+      {assignees.map((a, i) => {
+        const name = a.name ?? "?";
+        const color = a.color ?? uColor(a.id);
+        return (
+          <span
+            key={a.id}
+            className="flex size-6 items-center justify-center rounded-full text-[10px] font-bold text-white border-2 border-white shadow-sm ring-1 ring-black/5"
+            style={{ background: color, zIndex: assignees.length - i }}
+            title={name}
+          >
+            {uInitials(name)}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -381,6 +1003,7 @@ function TaskCard({
   onDragStart,
   onDragEnd,
   dragging,
+  columnColor,
 }: {
   task: DashboardTask;
   today: number;
@@ -390,11 +1013,14 @@ function TaskCard({
   onDragStart: () => void;
   onDragEnd: () => void;
   dragging: boolean;
+  columnColor?: string;
 }) {
   const router = useRouter();
+  const updateTask = useMutation(api.orderTasks.update);
 
   // Typ zadania (źródło)
   const taskType: TaskType =
+    task.source === "general" ? "general" :
     task.source === "opportunity" ? "opportunity" :
     task.source === "complaint" ? "complaint" :
     "order";
@@ -406,10 +1032,13 @@ function TaskCard({
       ? `/admin/szansa/${task.opportunityId}`
       : taskType === "complaint"
         ? `/admin/klient/${task.clientId}/zlecenie/${task.orderId}?tab=reklamacja`
-        : `/admin/klient/${task.clientId}/zlecenie/${task.orderId}?tab=szczegoly`;
+        : taskType === "order"
+          ? `/admin/klient/${task.clientId}/zlecenie/${task.orderId}?tab=szczegoly`
+          : "#";
   const contextTitle =
     taskType === "opportunity" ? "Szansa sprzedaży" :
     taskType === "complaint" ? (task.orderName ?? "Reklamacja") :
+    taskType === "general" ? "Zadanie ogólne" :
     (task.orderName ?? "Zlecenie");
 
   const assignees = task.assignees ?? (task.assignedUserId ? [{ id: task.assignedUserId, name: task.assignedUserName, color: task.assignedUserColor }] : []);
@@ -428,15 +1057,23 @@ function TaskCard({
     <div
       draggable
       onDragStart={(e) => {
+        e.stopPropagation();
         e.dataTransfer.effectAllowed = "move";
         onDragStart();
       }}
-      onDragEnd={onDragEnd}
+      onDragEnd={(e) => {
+        e.stopPropagation();
+        onDragEnd();
+      }}
       onClick={onOpen}
-      className={`relative overflow-hidden group rounded-lg border border-gray-200 bg-white shadow-sm transition-all duration-150 hover:shadow-md cursor-grab active:cursor-grabbing ${
+      className={`relative overflow-hidden group rounded-lg border shadow-sm transition-all duration-150 hover:shadow-md cursor-grab active:cursor-grabbing ${
         dragging ? "rotate-1 scale-[0.97] opacity-50 shadow-md ring-2 ring-gray-300" : ""
       }`}
-      style={{ padding: `10px 10px 10px ${(singleColor || hasMultipleColors) ? 15 : 10}px` }}
+      style={{ 
+        padding: `10px 10px 10px ${(singleColor || hasMultipleColors) ? 15 : 10}px`,
+        backgroundColor: columnColor ? `${columnColor}08` : '#ffffff',
+        borderColor: columnColor ? `${columnColor}40` : '#e2e8f0'
+      }}
     >
       {(singleColor || hasMultipleColors) && (
         <div style={{
@@ -462,13 +1099,40 @@ function TaskCard({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              router.push(openHref);
+              void updateTask({ taskId: task._id as Id<"orderTasks">, status: "done" });
             }}
-            title={typeMeta.openLabel}
-            className="rounded p-1 text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-700 group-hover:opacity-100"
+            title="Oznacz jako zrealizowane"
+            className="rounded p-1 text-gray-400 opacity-100 transition-colors hover:bg-green-50 hover:text-green-600"
           >
-            <ExternalLink className="size-3.5" />
+            <Check className="size-3.5" />
           </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (task.priority === "high") void updateTask({ taskId: task._id as Id<"orderTasks">, clearPriority: true });
+              else void updateTask({ taskId: task._id as Id<"orderTasks">, priority: "high" });
+            }}
+            title={task.priority === "high" ? "Usuń wysoki priorytet" : "Oznacz jako wysoki priorytet"}
+            className={`rounded p-1 transition-colors ${
+              task.priority === "high"
+                ? "text-red-500 opacity-100 hover:text-red-600"
+                : "text-gray-400 opacity-100 hover:text-gray-600"
+            }`}
+          >
+            <Flame className="size-3.5" fill={task.priority === "high" ? "#f97316" : "none"} />
+          </button>
+          {openHref !== "#" && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(openHref);
+              }}
+              title={typeMeta.openLabel}
+              className="rounded p-1 text-gray-400 opacity-100 transition-colors hover:bg-gray-100 hover:text-gray-700"
+            >
+              <ExternalLink className="size-3.5" />
+            </button>
+          )}
           <TypeBadge type={taskType} />
         </div>
       </div>
@@ -483,7 +1147,9 @@ function TaskCard({
       )}
 
       {/* tytuł zadania */}
-      <div className="text-[13px] leading-snug text-gray-800">{task.title}</div>
+      <div className="mb-2 line-clamp-2 text-sm font-medium leading-snug text-gray-800">
+        {task.title}
+      </div>
 
       {/* stopka: termin + awatar */}
       {(task.dueDate != null || showAssignee) && (
@@ -500,6 +1166,88 @@ function TaskCard({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Wiersz zrealizowanego zadania w Worku kolumny ── */
+function BagTaskRow({ task, onOpen }: { task: DashboardTask; onOpen: () => void }) {
+  const updateTask = useMutation(api.orderTasks.update);
+  return (
+    <div
+      onClick={onOpen}
+      className="group flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-white/70 px-2 py-1.5 transition-colors hover:bg-white"
+    >
+      <Check className="size-3.5 shrink-0 text-green-500" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-medium text-gray-500 line-through">{task.title}</div>
+        <div className="truncate text-[10px] text-gray-400">{task.clientName}</div>
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          void updateTask({ taskId: task._id as Id<"orderTasks">, archived: true });
+        }}
+        title="Archiwizuj"
+        className="shrink-0 rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+      >
+        <Archive className="size-3.5" />
+      </button>
+    </div>
+  );
+}
+
+/* ── Widok Archiwum: lista zarchiwizowanych zadań ── */
+function ArchiveView({
+  tasks,
+  loading,
+  onOpen,
+}: {
+  tasks: DashboardTask[];
+  loading: boolean;
+  onOpen: (id: Id<"orderTasks">) => void;
+}) {
+  const updateTask = useMutation(api.orderTasks.update);
+
+  if (loading) {
+    return <div className="py-20 text-center text-sm text-gray-400">Ładowanie…</div>;
+  }
+  if (tasks.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-gray-200 py-20 text-center">
+        <Archive className="mx-auto mb-3 size-8 text-gray-300" />
+        <p className="text-sm text-gray-400">Archiwum jest puste.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      {tasks.map((task) => {
+        const taskType: TaskType =
+          task.source === "general" ? "general" :
+          task.source === "opportunity" ? "opportunity" :
+          task.source === "complaint" ? "complaint" :
+          "order";
+        return (
+          <div key={task._id} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50">
+            <TypeBadge type={taskType} />
+            <div
+              className="min-w-0 flex-1 cursor-pointer"
+              onClick={() => onOpen(task._id as Id<"orderTasks">)}
+            >
+              <div className="truncate text-sm font-medium text-gray-700">{task.title}</div>
+              <div className="truncate text-xs text-gray-400">{task.clientName}</div>
+            </div>
+            <button
+              onClick={() => void updateTask({ taskId: task._id as Id<"orderTasks">, archived: false })}
+              title="Przywróć z archiwum"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100"
+            >
+              <ArchiveRestore className="size-3.5" /> Przywróć
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -20,11 +20,20 @@ type AssignUser = { _id: Id<"users">; displayName?: string | null; login?: strin
 export default function AddTaskDrawer({
   open,
   onClose,
+  initialTargetType = "order",
+  initialColumnId = null,
 }: {
   open: boolean;
   onClose: () => void;
+  initialTargetType?: "order" | "opportunity" | "general";
+  // Kolumna Kanbana, z której otwarto panel — nowe zadanie ląduje w tej kolumnie.
+  initialColumnId?: string | null;
 }) {
-  const [targetType, setTargetType] = useState<"order" | "opportunity">("order");
+  const [targetType, setTargetType] = useState<"order" | "opportunity" | "general">(initialTargetType);
+
+  const me = useQuery(api.users.me);
+
+
 
   // Pobieraj dane dopiero gdy panel otwarty (i tylko właściwą listę).
   const ordersData = useQuery(
@@ -49,6 +58,15 @@ export default function AddTaskDrawer({
   const [status, setStatus] = useState<StatusKey>("todo");
   const [assignOpen, setAssignOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setTargetType(initialTargetType);
+      if (me && assigneeId === null) {
+        setAssigneeId(me._id);
+      }
+    }
+  }, [open, initialTargetType, me, assigneeId]);
 
   const selectedOrder = orders.find((o) => o._id === orderId) ?? null;
   const selectedOpp = opps.find((o) => o._id === opportunityId) ?? null;
@@ -79,12 +97,12 @@ export default function AddTaskDrawer({
     setOpportunityId(null);
     setTitle("");
     setDue("");
-    setAssigneeId(null);
+    setAssigneeId(me?._id ?? null);
     setStatus("todo");
     setAssignOpen(false);
   }
 
-  function switchType(next: "order" | "opportunity") {
+  function switchType(next: "order" | "opportunity" | "general") {
     setTargetType(next);
     setSearch("");
     setOrderId(null);
@@ -98,7 +116,7 @@ export default function AddTaskDrawer({
   }
 
   async function submit() {
-    if (!hasTarget || !title.trim() || submitting) return;
+    if ((!hasTarget && targetType !== "general") || !title.trim() || submitting) return;
     setSubmitting(true);
     try {
       await create({
@@ -108,6 +126,7 @@ export default function AddTaskDrawer({
         status,
         dueDate: due ? new Date(due).getTime() : undefined,
         assignedUserId: assigneeId ?? undefined,
+        columnId: initialColumnId ? (initialColumnId as Id<"taskColumns">) : undefined,
       });
       close();
     } finally {
@@ -126,7 +145,7 @@ export default function AddTaskDrawer({
       footer={
         <button
           onClick={submit}
-          disabled={!hasTarget || !title.trim() || submitting}
+          disabled={(!hasTarget && targetType !== "general") || !title.trim() || submitting}
           className="w-full rounded-md bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-40"
         >
           {submitting ? "Dodawanie…" : "Dodaj zadanie"}
@@ -143,6 +162,7 @@ export default function AddTaskDrawer({
             {([
               { key: "order" as const, label: "Zlecenie" },
               { key: "opportunity" as const, label: "Szansa sprzedaży" },
+              { key: "general" as const, label: "Zadanie" },
             ]).map((t) => {
               const active = targetType === t.key;
               return (
@@ -164,6 +184,7 @@ export default function AddTaskDrawer({
         </div>
 
         {/* wybór celu */}
+        {targetType !== "general" && (
         <div>
           {targetType === "order" ? (
             selectedOrder ? (
@@ -267,6 +288,7 @@ export default function AddTaskDrawer({
             </>
           )}
         </div>
+        )}
 
         {/* tytuł */}
         <div>

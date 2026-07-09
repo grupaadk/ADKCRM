@@ -3,13 +3,21 @@ import { query, mutation } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { getCurrentUser, requireRole } from "./lib/auth";
 
+export type TaskType = "order" | "opportunity" | "complaint" | "general";
+
 export type DashboardTask = {
   _id: Id<"orderTasks">;
   title: string;
   status: "todo" | "in_progress" | "done";
+  priority?: "high" | "normal";
+  completedAt?: number;
+  archived?: boolean;
+  archivedAt?: number;
   dueDate?: number;
   // Źródło zadania: zlecenie, szansa sprzedaży albo reklamacja.
-  source: "order" | "opportunity" | "complaint";
+  source: TaskType;
+  // Opcjonalne przypisanie do niestandardowej kolumny
+  columnId?: Id<"taskColumns">;
   // Kontekst karty.
   orderId?: Id<"orders">;
   opportunityId?: Id<"pendingJotformSubmissions">;
@@ -143,12 +151,17 @@ export const list = query({
             _id: task._id,
             title: task.title,
             status: task.status,
+            priority: task.priority,
+            completedAt: task.completedAt,
+            archived: task.archived,
+            archivedAt: task.archivedAt,
             dueDate: task.dueDate,
             source: "opportunity",
             opportunityId: task.opportunityId,
             orderName: null,
             customText: opp.customText ?? null,
             clientName: opportunityName(opp),
+            columnId: task.columnId,
             ...assigneeProps,
           };
         }
@@ -190,6 +203,10 @@ export const list = query({
             _id: task._id,
             title: task.title,
             status: task.status,
+            priority: task.priority,
+            completedAt: task.completedAt,
+            archived: task.archived,
+            archivedAt: task.archivedAt,
             dueDate: task.dueDate,
             source: "complaint",
             complaintId: task.complaintId,
@@ -198,36 +215,61 @@ export const list = query({
             orderName: order?.name ?? null,
             customText: order?.customText ?? null,
             clientName: clientName(resolvedClient ?? null),
+            columnId: task.columnId,
             ...assigneeProps,
           };
         }
 
-        // Zadanie zlecenia
-        if (!task.orderId) return null; // brak powiązania — pomijamy
-        let order = orderCache.get(task.orderId);
-        if (order === undefined) {
-          order = await ctx.db.get(task.orderId);
-          orderCache.set(task.orderId, order);
-        }
-        if (!order) return null; // osierocone zadanie — pomijamy
+        // Zadanie zlecenia lub ogólne
+        if (task.orderId) {
+          let order = orderCache.get(task.orderId);
+          if (order === undefined) {
+            order = await ctx.db.get(task.orderId);
+            orderCache.set(task.orderId, order);
+          }
+          if (order) {
+            let client = clientCache.get(order.clientId);
+            if (client === undefined) {
+              client = await ctx.db.get(order.clientId);
+              clientCache.set(order.clientId, client);
+            }
 
-        let client = clientCache.get(order.clientId);
-        if (client === undefined) {
-          client = await ctx.db.get(order.clientId);
-          clientCache.set(order.clientId, client);
+            return {
+              _id: task._id,
+              title: task.title,
+              status: task.status,
+              priority: task.priority,
+              completedAt: task.completedAt,
+              archived: task.archived,
+              archivedAt: task.archivedAt,
+              dueDate: task.dueDate,
+              source: "order",
+              orderId: task.orderId,
+              clientId: order.clientId,
+              orderName: order.name ?? null,
+              customText: order.customText ?? null,
+              clientName: clientName(client),
+              columnId: task.columnId,
+              ...assigneeProps,
+            };
+          }
         }
 
+        // Zadanie ogólne (brak orderId, opportunityId, complaintId)
         return {
           _id: task._id,
           title: task.title,
           status: task.status,
+          priority: task.priority,
+          completedAt: task.completedAt,
+          archived: task.archived,
+          archivedAt: task.archivedAt,
           dueDate: task.dueDate,
-          source: "order",
-          orderId: task.orderId,
-          clientId: order.clientId,
-          orderName: order.name ?? null,
-          customText: order.customText ?? null,
-          clientName: clientName(client),
+          source: "general",
+          orderName: null,
+          customText: null,
+          clientName: "Zadanie",
+          columnId: task.columnId,
           ...assigneeProps,
         };
       }),
@@ -282,12 +324,17 @@ export const getOne = query({
         _id: task._id,
         title: task.title,
         status: task.status,
+        priority: task.priority,
+        completedAt: task.completedAt,
+        archived: task.archived,
+        archivedAt: task.archivedAt,
         dueDate: task.dueDate,
         source: "opportunity",
         opportunityId: task.opportunityId,
         orderName: null,
         customText: opp.customText ?? null,
         clientName: opportunityName(opp),
+        columnId: task.columnId,
         ...assigneeProps,
       };
     }
@@ -302,6 +349,10 @@ export const getOne = query({
         _id: task._id,
         title: task.title,
         status: task.status,
+        priority: task.priority,
+        completedAt: task.completedAt,
+        archived: task.archived,
+        archivedAt: task.archivedAt,
         dueDate: task.dueDate,
         source: "complaint",
         complaintId: task.complaintId,
@@ -310,26 +361,50 @@ export const getOne = query({
         orderName: order?.name ?? null,
         customText: order?.customText ?? null,
         clientName: clientName(client),
+        columnId: task.columnId,
         ...assigneeProps,
       };
     }
 
-    if (!task.orderId) return null;
-    const order = await ctx.db.get(task.orderId);
-    if (!order) return null;
-    const client = await ctx.db.get(order.clientId);
+
+    if (task.orderId) {
+      const order = await ctx.db.get(task.orderId);
+      if (!order) return null;
+      const client = await ctx.db.get(order.clientId);
+      return {
+        _id: task._id,
+        title: task.title,
+        status: task.status,
+        priority: task.priority,
+        completedAt: task.completedAt,
+        archived: task.archived,
+        archivedAt: task.archivedAt,
+        dueDate: task.dueDate,
+        source: "order",
+        orderId: task.orderId,
+        clientId: order.clientId,
+        orderName: order.name ?? null,
+        customText: order.customText ?? null,
+        clientName: clientName(client),
+        columnId: task.columnId,
+        ...assigneeProps,
+      };
+    }
 
     return {
       _id: task._id,
       title: task.title,
       status: task.status,
+      priority: task.priority,
+      completedAt: task.completedAt,
+      archived: task.archived,
+      archivedAt: task.archivedAt,
       dueDate: task.dueDate,
-      source: "order",
-      orderId: task.orderId,
-      clientId: order.clientId,
-      orderName: order.name ?? null,
-      customText: order.customText ?? null,
-      clientName: clientName(client),
+      source: "general",
+      orderName: null,
+      customText: null,
+      clientName: "Zadanie",
+      columnId: task.columnId,
       ...assigneeProps,
     };
   },
@@ -348,15 +423,18 @@ export const adminCreate = mutation({
       v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
     ),
     dueDate: v.optional(v.number()),
+    priority: v.optional(v.union(v.literal("high"), v.literal("normal"))),
     assignedUserId: v.optional(v.id("users")),
+    columnId: v.optional(v.id("taskColumns")),
   },
   handler: async (ctx, args) => {
     const admin = await requireRole(ctx, "admin");
     const trimmed = args.title.trim();
     if (!trimmed) throw new ConvexError("Treść zadania jest wymagana.");
-    if ((args.orderId == null) === (args.opportunityId == null)) {
+    const targetCount = [args.orderId, args.opportunityId].filter(Boolean).length;
+    if (targetCount > 1) {
       throw new ConvexError(
-        "Zadanie musi należeć dokładnie do jednego: zlecenia lub szansy sprzedaży.",
+        "Zadanie może należeć do maksymalnie jednego obiektu (zlecenie lub szansa).",
       );
     }
     if (args.opportunityId) {
@@ -372,7 +450,9 @@ export const adminCreate = mutation({
       title: trimmed,
       status: args.status ?? "todo",
       dueDate: args.dueDate,
+      priority: args.priority,
       assignedUserId: args.assignedUserId,
+      columnId: args.columnId,
       createdBy: admin.email ?? admin._id,
     });
   },

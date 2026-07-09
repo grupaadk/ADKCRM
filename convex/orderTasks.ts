@@ -121,22 +121,43 @@ export const update = mutation({
     ),
     assignedUserId: v.optional(v.id("users")), // legacy
     assignedUserIds: v.optional(v.array(v.id("users"))),
+    priority: v.optional(v.union(v.literal("high"), v.literal("normal"))),
+    clearPriority: v.optional(v.boolean()),
     clearAssignee: v.optional(v.boolean()),
+    orderId: v.optional(v.id("orders")),
+    opportunityId: v.optional(v.id("pendingJotformSubmissions")),
+    columnId: v.optional(v.id("taskColumns")),
+    clearColumnId: v.optional(v.boolean()),
+    archived: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireUser(ctx);
-    const { taskId, clearDueDate, clearAssignee, ...rest } = args;
+    const { taskId, clearDueDate, clearAssignee, clearColumnId, ...rest } = args;
     const patch: Record<string, unknown> = {};
     if (rest.title !== undefined) patch.title = rest.title;
-    if (rest.status !== undefined) patch.status = rest.status;
+    if (rest.status !== undefined) {
+      patch.status = rest.status;
+      // Znacznik realizacji: ustawiamy przy przejściu w "done", czyścimy przy powrocie.
+      patch.completedAt = rest.status === "done" ? Date.now() : undefined;
+    }
+    if (rest.archived !== undefined) {
+      patch.archived = rest.archived;
+      patch.archivedAt = rest.archived ? Date.now() : undefined;
+    }
     if (rest.dueDate !== undefined) patch.dueDate = rest.dueDate;
     if (clearDueDate) patch.dueDate = undefined;
+    if (rest.priority !== undefined) patch.priority = rest.priority;
+    if (args.clearPriority) patch.priority = undefined;
     if (rest.assignedUserId !== undefined) patch.assignedUserId = rest.assignedUserId;
     if (rest.assignedUserIds !== undefined) patch.assignedUserIds = rest.assignedUserIds;
     if (clearAssignee) {
       patch.assignedUserId = undefined;
       patch.assignedUserIds = undefined;
     }
+    if (rest.orderId !== undefined) patch.orderId = rest.orderId;
+    if (rest.opportunityId !== undefined) patch.opportunityId = rest.opportunityId;
+    if (rest.columnId !== undefined) patch.columnId = rest.columnId;
+    if (clearColumnId) patch.columnId = undefined;
     await ctx.db.patch(taskId, patch);
   },
 });
