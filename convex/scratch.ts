@@ -1,11 +1,8 @@
 import { query } from "./_generated/server";
 
-export const getStatuses = query({
+export const getOrder = query({
+  args: {},
   handler: async (ctx) => {
-    const config = await ctx.db.query("crmConfig").first();
-    return {
-      statuses: config?.statuses,
-      statusLabels: config?.statusLabels,
-    };
+    return await ctx.db.get("k574thk6pka0v0yaeyvwachsd187jmef" as any);
   }
 });

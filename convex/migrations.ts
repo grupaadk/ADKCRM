@@ -186,3 +186,32 @@ export const migrateOrderDates = internalMutation({
     return { processed, hasMore: !result.isDone };
   },
 });
+
+export const fixInstallationDatesFormat = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const orders = await ctx.db.query("orders").collect();
+    let count = 0;
+    
+    for (const order of orders) {
+      // Szukamy zleceń, gdzie installationStartDate zapisano jako pełny timestamp (> 10000000)
+      if (order.installationStartDate && order.installationStartDate > 10000000) {
+        const d = new Date(order.installationStartDate);
+        
+        // Obliczamy północ w czasie lokalnym (timestamp) - trafia do projectEndDate
+        const dateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        
+        // Obliczamy liczbę minut od północy - trafia do installationStartDate
+        const minutes = d.getHours() * 60 + d.getMinutes();
+        
+        await ctx.db.patch(order._id, {
+          projectEndDate: dateOnly,
+          installationStartDate: minutes,
+        });
+        count++;
+      }
+    }
+    
+    return `Naprawiono format daty dla ${count} zleceń.`;
+  }
+});

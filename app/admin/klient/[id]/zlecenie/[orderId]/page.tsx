@@ -1415,16 +1415,10 @@ export default function OrderDetailPage({
   }
 
   async function saveCompletionDate() {
-    let combined: number | undefined = undefined;
-    if (draftCompletionDate) {
-      combined = draftCompletionDate;
-      if (draftInstallationStart !== undefined) {
-        combined += draftInstallationStart * 60 * 1000;
-      }
-    }
     await updateOrder({
       orderId: orderIdTyped,
-      installationStartDate: combined,
+      projectEndDate: draftCompletionDate !== undefined ? draftCompletionDate : undefined,
+      installationStartDate: draftInstallationStart !== undefined ? draftInstallationStart : undefined,
     });
     setEditingCompletionDate(false);
     setDraftCompletionDate(undefined);
@@ -2241,7 +2235,7 @@ export default function OrderDetailPage({
                       <button type="button" onClick={() => void deleteCompletionDate()} className="btn btn-xs" style={{ fontSize: 11, padding: "3px 10px", background: "var(--bad)", color: "#fff", borderColor: "var(--bad)" }}>Tak, usuń</button>
                       <button type="button" onClick={() => setConfirmDeleteDate(false)} className="btn btn-xs" style={{ fontSize: 11, padding: "3px 10px" }}>Anuluj</button>
                     </div>
-                  ) : (order.installationStartDate && order.installationStartDate > 10000000) ? (
+                  ) : (order.projectEndDate || (order.installationStartDate && order.installationStartDate > 10000000)) ? (
                     <div
                       style={{
                         display: "inline-flex",
@@ -2277,10 +2271,31 @@ export default function OrderDetailPage({
                           Termin montażu
                         </span>
                         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {fmtLocalDate(order.installationStartDate)}
+                          {(() => {
+                            if (order.installationStartDate && order.installationStartDate > 10000000) {
+                              return fmtLocalDate(order.installationStartDate);
+                            }
+                            return order.projectEndDate ? fmtLocalDate(order.projectEndDate) : "Brak daty";
+                          })()}
                         </span>
                         <span style={{ fontSize: 11.5, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {new Date(order.installationStartDate).toLocaleDateString("pl-PL", { weekday: "short" })}, godz. {new Date(order.installationStartDate).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
+                          {(() => {
+                            if (order.installationStartDate && order.installationStartDate > 10000000) {
+                              const d = new Date(order.installationStartDate);
+                              return `${d.toLocaleDateString("pl-PL", { weekday: "short" })}, godz. ${d.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}`;
+                            }
+                            if (order.projectEndDate) {
+                              const d = new Date(order.projectEndDate);
+                              let timeStr = "08:00";
+                              if (order.installationStartDate !== undefined && order.installationStartDate <= 1440) {
+                                const h = Math.floor(order.installationStartDate / 60).toString().padStart(2, "0");
+                                const m = (order.installationStartDate % 60).toString().padStart(2, "0");
+                                timeStr = `${h}:${m}`;
+                              }
+                              return `${d.toLocaleDateString("pl-PL", { weekday: "short" })}, godz. ${timeStr}`;
+                            }
+                            return "";
+                          })()}
                         </span>
                       </div>
 
