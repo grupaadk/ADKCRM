@@ -721,8 +721,8 @@ export default function InstallationCalendar() {
             hour12: false,
           }}
           slotDuration={view === "timeGridWeek" ? "01:00:00" : "00:30:00"}
-          slotMinTime="07:00:00"
-          slotMaxTime="18:00:00"
+          slotMinTime="06:00:00"
+          slotMaxTime="22:00:00"
           allDaySlot={false}
           nowIndicator={true}
           eventDisplay="block"
