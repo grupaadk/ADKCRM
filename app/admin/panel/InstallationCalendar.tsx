@@ -59,7 +59,7 @@ export default function InstallationCalendar() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [weekRange, setWeekRange] = useState<{ start: Date; end: Date } | null>(null);
-  const [view, setView] = useState<"multiMonth4" | "dayGridMonth" | "timeGridWeek">("multiMonth4");
+  const [view, setView] = useState<"multiMonth4" | "dayGridMonth" | "timeGridWeek">("dayGridMonth");
   const [visibleRange, setVisibleRange] = useState<{ start: Date; end: Date }>({
     start: new Date(year, month, 1),
     end: new Date(year, month + 1, 0),
@@ -104,6 +104,18 @@ export default function InstallationCalendar() {
       }
     } catch {}
   }, [currentUser?._id]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("montaz_default_view") as "multiMonth4" | "dayGridMonth" | "timeGridWeek" | null;
+      if (saved && (saved === "multiMonth4" || saved === "dayGridMonth" || saved === "timeGridWeek")) {
+        setTimeout(() => {
+          setView(saved);
+          calendarRef.current?.getApi().changeView(saved);
+        }, 0);
+      }
+    } catch {}
+  }, []);
 
   const toggleUserFilter = (id: string) => {
     setActiveUserFilters((prev) => {
@@ -561,11 +573,12 @@ export default function InstallationCalendar() {
             padding: 3,
             boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
           }}>
-            {(["multiMonth4", "dayGridMonth", "timeGridWeek"] as const).map((v) => (
+            {(["dayGridMonth", "timeGridWeek", "multiMonth4"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => {
                   setView(v);
+                  try { localStorage.setItem("montaz_default_view", v); } catch {}
                   setTimeout(() => calendarRef.current?.getApi().changeView(v), 0);
                 }}
                 className={`btn btn-xs calendar-view-btn ${view === v ? "active" : ""}`}
@@ -580,7 +593,7 @@ export default function InstallationCalendar() {
                   transition: "all 0.15s ease",
                   margin: "0 1px",
                 }}>
-                  {v === "multiMonth4" ? "Kwartał" : v === "dayGridMonth" ? "Miesiąc" : "Tydzień"}
+                  {v === "dayGridMonth" ? "Miesiąc" : v === "timeGridWeek" ? "Tydzień" : "Kwartał"}
               </button>
             ))}
           </div>
@@ -891,7 +904,7 @@ export default function InstallationCalendar() {
               ref={calendarRef}
               key="fullscreen"
               plugins={[dayGridPlugin, timeGridPlugin, multiMonthPlugin, interactionPlugin]}
-              initialView="multiMonth4"
+              initialView={view}
               views={{
                 multiMonth4: {
                   type: "multiMonth",
