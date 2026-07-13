@@ -56,11 +56,12 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
   const complaint = useQuery(api.complaints.getById, { complaintId });
   const me = useQuery(api.users.me);
   const users = useQuery(api.users.listAllActive);
+  const orders = useQuery(api.orders.listForPicker);
 
   const updateStatus = useMutation(api.complaints.updateStatus);
   const updateDetails = useMutation(api.complaints.updateDetails);
   const deleteComplaint = useMutation(api.complaints.deleteComplaint);
-  const addNote = useMutation(api.complaints.addEntry);
+  const addNote = useMutation(api.complaints.addNote);
   const deleteNote = useMutation(api.complaints.deleteNote);
 
   useEffect(() => {
@@ -99,7 +100,6 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
       await addNote({
         complaintId,
         text,
-        type: "note",
         createdBy: me?.displayName ?? me?.login ?? "Nieznany",
       });
       setNewNote("");
@@ -147,7 +147,15 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
 
   const status = complaint.status as Status;
   const statusColors = STATUS_COLORS[status] ?? STATUS_COLORS.nowa;
-  const notes = complaint.notes ?? [];
+  const notes = [
+    ...(complaint.notes ?? []),
+    ...(complaint.entries ?? []).filter((e) => e.type === "note").map((e) => ({
+      id: e.id,
+      text: e.text,
+      createdAt: e.createdAt,
+      createdBy: e.createdBy,
+    })),
+  ].sort((a, b) => a.createdAt - b.createdAt);
 
   return createPortal(
     <>
@@ -221,6 +229,47 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
                 {formatDate(complaint.startDate)}
               </span>
             </div>
+            {/* Service Date */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11.5, color: "var(--text-mute)", width: 120, flexShrink: 0 }}>Data serwisu</span>
+              <input
+                type="date"
+                value={complaint.serviceDate ? new Date(complaint.serviceDate).toISOString().slice(0, 10) : ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateDetails({
+                    complaintId,
+                    serviceDate: val ? new Date(val).getTime() : undefined,
+                  });
+                }}
+                style={{
+                  fontSize: 12,
+                  padding: "4px 8px",
+                  borderRadius: 6,
+                  border: "1px solid var(--line)",
+                  background: "var(--panel-2)",
+                  color: "var(--text)",
+                  fontFamily: "inherit",
+                }}
+              />
+              {complaint.serviceDate && (
+                <button
+                  type="button"
+                  onClick={() => updateDetails({ complaintId, serviceDate: undefined })}
+                  title="Wyczyść datę serwisu"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--text-mute)",
+                    fontSize: 11,
+                    padding: "2px 4px",
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
             {/* Status selector */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11.5, color: "var(--text-mute)", width: 120, flexShrink: 0 }}>Status</span>
@@ -250,6 +299,46 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
                 })}
               </div>
             </div>
+            {/* Order */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11.5, color: "var(--text-mute)", width: 120, flexShrink: 0 }}>Zlecenie</span>
+              <select
+                value={complaint.orderId ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value as Id<"orders"> | "";
+                  updateDetails({ complaintId, orderId: val || undefined });
+                }}
+                style={{
+                  fontSize: 12,
+                  padding: "3px 8px",
+                  borderRadius: 6,
+                  border: "1px solid var(--line)",
+                  background: "var(--panel-2)",
+                  color: "var(--text)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  flex: 1,
+                }}
+              >
+                <option value="">— Brak zlecenia —</option>
+                {orders?.map((o) => (
+                  <option key={o._id} value={o._id}>
+                    {o.name ?? o.customText ?? o._id} — {o.clientName}
+                  </option>
+                ))}
+              </select>
+              {complaint.orderId && (
+                <a
+                  href={`/admin/klient/${complaint.clientId}/zlecenie/${complaint.orderId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Przejdź do zlecenia"
+                  style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none", whiteSpace: "nowrap" }}
+                >
+                  → Otwórz
+                </a>
+              )}
+            </div>
             {/* Assigned to */}
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 11.5, color: "var(--text-mute)", width: 120, flexShrink: 0 }}>Przypisany do</span>
@@ -278,18 +367,6 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
                 ))}
               </select>
             </div>
-            {/* Order link if exists */}
-            {complaint.orderId && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 11.5, color: "var(--text-mute)", width: 120, flexShrink: 0 }}>Zlecenie</span>
-                <a
-                  href={`/admin/klient/${complaint.clientId}/zlecenie/${complaint.orderId}`}
-                  style={{ fontSize: 12, color: "var(--accent)", textDecoration: "none" }}
-                >
-                  Przejdź do zlecenia →
-                </a>
-              </div>
-            )}
           </div>
 
           {/* Uwagi klienta */}
@@ -298,15 +375,6 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
               value={complaint.clientDescription ?? ""}
               placeholder="Wpisz uwagi zgłoszone przez klienta…"
               onSave={(val) => updateDetails({ complaintId, clientDescription: val })}
-            />
-          </ComplaintSection>
-
-          {/* Opis wewnętrzny */}
-          <ComplaintSection title="Opis wewnętrzny">
-            <EditableTextArea
-              value={complaint.description ?? ""}
-              placeholder="Opis reklamacji dla działu wewnętrznego…"
-              onSave={(val) => updateDetails({ complaintId, description: val })}
             />
           </ComplaintSection>
 
@@ -464,9 +532,11 @@ function EditableTextArea({
     if (editing) ref.current?.focus();
   }, [editing]);
 
-  useEffect(() => {
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
     if (!editing) setDraft(value);
-  }, [value, editing]);
+  }
 
   if (!editing) {
     return (

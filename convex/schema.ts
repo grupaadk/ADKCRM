@@ -639,6 +639,7 @@ export default defineSchema({
       }),
     )),
     startDate: v.number(),
+    serviceDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
     createdBy: v.string(),
     complaintFolderId: v.optional(v.string()),

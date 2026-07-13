@@ -8,9 +8,7 @@ import ComplaintDetailPanel from "@/components/complaints/ComplaintDetailPanel";
 import NewComplaintModal from "@/components/complaints/NewComplaintModal";
 import { createPortal } from "react-dom";
 import { CrmPageHeader } from "@/components/crm-ui";
-import { Search, X, Plus } from "lucide-react";
-
-type Status = "nowa" | "w_toku" | "rozwiazana" | "zamknieta";
+import { Search, X, Plus, Printer } from "lucide-react";
 
 const STATUS_LABELS: Record<string, string> = {
   nowa: "Nowa",
@@ -54,15 +52,80 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function formatInvestmentAddress(c: {
+  order?: {
+    investmentStreet?: string;
+    investmentBuildingNumber?: string;
+    investmentApartmentNumber?: string;
+    investmentCity?: string;
+    investmentPostalCode?: string;
+  } | null;
+  client?: {
+    street?: string;
+    buildingNumber?: string;
+    apartmentNumber?: string;
+    city?: string;
+    postalCode?: string;
+    address?: string;
+  } | null;
+}): { primary: string; secondary?: string } {
+  if (c.order) {
+    const street = [c.order.investmentStreet, c.order.investmentBuildingNumber]
+      .filter(Boolean)
+      .join(" ");
+    const apt = c.order.investmentApartmentNumber ? `/${c.order.investmentApartmentNumber}` : "";
+    const fullStreet = `${street}${apt}`.trim();
+    const city = c.order.investmentCity?.trim() || "";
+    const postal = c.order.investmentPostalCode?.trim() || "";
+    const fullCity = [postal, city].filter(Boolean).join(" ");
+
+    if (fullStreet || city) {
+      if (fullStreet && city) {
+        return { primary: fullStreet, secondary: fullCity || city };
+      }
+      return { primary: fullStreet || fullCity || city };
+    }
+  }
+
+  if (c.client) {
+    const street = [c.client.street, c.client.buildingNumber]
+      .filter(Boolean)
+      .join(" ");
+    const apt = c.client.apartmentNumber ? `/${c.client.apartmentNumber}` : "";
+    const fullStreet = `${street}${apt}`.trim();
+    const city = c.client.city?.trim() || "";
+    const postal = c.client.postalCode?.trim() || "";
+    const fullCity = [postal, city].filter(Boolean).join(" ");
+
+    if (fullStreet || city) {
+      if (fullStreet && city) {
+        return { primary: fullStreet, secondary: fullCity || city };
+      }
+      return { primary: fullStreet || fullCity || city };
+    }
+    if (c.client.address?.trim()) {
+      return { primary: c.client.address.trim() };
+    }
+  }
+
+  return { primary: "—" };
+}
+
 export default function ReklamacjePage() {
   const [statusFilter, setStatusFilter] = useState<string>("wszystkie");
   const [assignedFilter, setAssignedFilter] = useState<string>("");
   const [clientFilter, setClientFilter] = useState<string>("");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
+  const [startDateFrom, setStartDateFrom] = useState<string>("");
+  const [startDateTo, setStartDateTo] = useState<string>("");
+  const [serviceDateFrom, setServiceDateFrom] = useState<string>("");
+  const [serviceDateTo, setServiceDateTo] = useState<string>("");
 
   const [selectedId, setSelectedId] = useState<Id<"complaints"> | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
+
+  // Print mode state
+  const [isPrintMode, setIsPrintMode] = useState(false);
+  const [selectedForPrint, setSelectedForPrint] = useState<Set<Id<"complaints">>>(new Set());
 
   const complaints = useQuery(api.complaints.getAll, {
     status: statusFilter !== "wszystkie" ? statusFilter : undefined,
@@ -80,19 +143,39 @@ export default function ReklamacjePage() {
       result = result.filter((c) => {
         const name = [c.client?.firstName, c.client?.lastName].filter(Boolean).join(" ").toLowerCase();
         const company = (c.client?.companyName ?? "").toLowerCase();
-        return name.includes(term) || company.includes(term);
+        const invAddr = [
+          c.order?.investmentStreet,
+          c.order?.investmentCity,
+          c.client?.street,
+          c.client?.city,
+          c.client?.address,
+        ].filter(Boolean).join(" ").toLowerCase();
+        const phone = (c.client?.phone ?? "").toLowerCase();
+        const notesText = [
+          ...(c.notes ?? []).map((n) => n.text),
+          ...(c.entries ?? []).filter((e) => e.type === "note").map((e) => e.text),
+        ].join(" ").toLowerCase();
+        return name.includes(term) || company.includes(term) || invAddr.includes(term) || phone.includes(term) || notesText.includes(term);
       });
     }
-    if (dateFrom) {
-      const from = new Date(dateFrom).getTime();
+    if (startDateFrom) {
+      const from = new Date(startDateFrom).getTime();
       result = result.filter((c) => c.startDate >= from);
     }
-    if (dateTo) {
-      const to = new Date(dateTo).getTime() + 86400000; // inclusive
+    if (startDateTo) {
+      const to = new Date(startDateTo).getTime() + 86400000; // inclusive
       result = result.filter((c) => c.startDate <= to);
     }
+    if (serviceDateFrom) {
+      const from = new Date(serviceDateFrom).getTime();
+      result = result.filter((c) => c.serviceDate !== undefined && c.serviceDate >= from);
+    }
+    if (serviceDateTo) {
+      const to = new Date(serviceDateTo).getTime() + 86400000; // inclusive
+      result = result.filter((c) => c.serviceDate !== undefined && c.serviceDate <= to);
+    }
     return result;
-  }, [complaints, clientFilter, dateFrom, dateTo]);
+  }, [complaints, clientFilter, startDateFrom, startDateTo, serviceDateFrom, serviceDateTo]);
 
   const statusCounts = useMemo(() => {
     if (!complaints) return {};
@@ -157,12 +240,50 @@ export default function ReklamacjePage() {
             </div>
           }
           actions={
-            <button
-              onClick={() => setShowNewModal(true)}
-              className="btn primary"
-            >
-              <Plus size={13} /> Nowa reklamacja
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              {isPrintMode ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setIsPrintMode(false);
+                      setSelectedForPrint(new Set());
+                    }}
+                    className="btn ghost"
+                  >
+                    Anuluj
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedForPrint.size === 0) return;
+                      // Otwieramy nowy widok do druku
+                      const ids = Array.from(selectedForPrint).join(",");
+                      window.open(`/admin/reklamacje/print?ids=${ids}`, "_blank");
+                    }}
+                    className="btn primary"
+                    disabled={selectedForPrint.size === 0}
+                    style={{ opacity: selectedForPrint.size === 0 ? 0.5 : 1, cursor: selectedForPrint.size === 0 ? "not-allowed" : "pointer" }}
+                  >
+                    <Printer size={13} /> Generuj PDF ({selectedForPrint.size})
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setIsPrintMode(true)}
+                    className="btn ghost"
+                    style={{ background: "var(--panel-2)" }}
+                  >
+                    <Printer size={13} /> Drukuj
+                  </button>
+                  <button
+                    onClick={() => setShowNewModal(true)}
+                    className="btn primary"
+                  >
+                    <Plus size={13} /> Nowa reklamacja
+                  </button>
+                </>
+              )}
+            </div>
           }
         />
 
@@ -243,54 +364,106 @@ export default function ReklamacjePage() {
               </option>
             ))}
           </select>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 11.5, color: "var(--text-mute)" }}>Od:</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              style={{
-                fontSize: 12.5,
-                padding: "5px 10px",
-                borderRadius: 6,
-                border: "1px solid var(--line)",
-                background: "var(--panel)",
-                color: "var(--text)",
-                fontFamily: "inherit",
-              }}
-            />
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 12px", background: "var(--accent-soft)", borderRadius: 8, border: "1px solid rgba(59, 130, 246, 0.2)" }}>
+            <span style={{ fontSize: 11.5, color: "var(--accent)", fontWeight: 600 }}>Zgłoszenie:</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: 11.5, color: "var(--accent)", opacity: 0.8 }}>od</span>
+              <input
+                type="date"
+                value={startDateFrom}
+                onChange={(e) => setStartDateFrom(e.target.value)}
+                style={{
+                  fontSize: 12.5,
+                  padding: "5px 10px",
+                  borderRadius: 6,
+                  border: "1px solid var(--line)",
+                  background: "var(--panel)",
+                  color: "var(--text)",
+                  fontFamily: "inherit",
+                }}
+              />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: 11.5, color: "var(--accent)", opacity: 0.8 }}>do</span>
+              <input
+                type="date"
+                value={startDateTo}
+                onChange={(e) => setStartDateTo(e.target.value)}
+                style={{
+                  fontSize: 12.5,
+                  padding: "5px 10px",
+                  borderRadius: 6,
+                  border: "1px solid var(--line)",
+                  background: "var(--panel)",
+                  color: "var(--text)",
+                  fontFamily: "inherit",
+                }}
+              />
+            </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 11.5, color: "var(--text-mute)" }}>Do:</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              style={{
-                fontSize: 12.5,
-                padding: "5px 10px",
-                borderRadius: 6,
-                border: "1px solid var(--line)",
-                background: "var(--panel)",
-                color: "var(--text)",
-                fontFamily: "inherit",
-              }}
-            />
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 12px", background: "rgba(34, 197, 94, 0.1)", borderRadius: 8, border: "1px solid rgba(34, 197, 94, 0.2)" }}>
+            <span style={{ fontSize: 11.5, color: "#166534", fontWeight: 600 }}>Serwis:</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: 11.5, color: "#166534", opacity: 0.8 }}>od</span>
+              <input
+                type="date"
+                value={serviceDateFrom}
+                onChange={(e) => setServiceDateFrom(e.target.value)}
+                style={{
+                  fontSize: 12.5,
+                  padding: "5px 10px",
+                  borderRadius: 6,
+                  border: "1px solid var(--line)",
+                  background: "var(--panel)",
+                  color: "var(--text)",
+                  fontFamily: "inherit",
+                }}
+              />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: 11.5, color: "#166534", opacity: 0.8 }}>do</span>
+              <input
+                type="date"
+                value={serviceDateTo}
+                onChange={(e) => setServiceDateTo(e.target.value)}
+                style={{
+                  fontSize: 12.5,
+                  padding: "5px 10px",
+                  borderRadius: 6,
+                  border: "1px solid var(--line)",
+                  background: "var(--panel)",
+                  color: "var(--text)",
+                  fontFamily: "inherit",
+                }}
+              />
+            </div>
           </div>
-          {(clientFilter || assignedFilter || dateFrom || dateTo) && (
+          {(clientFilter || assignedFilter || startDateFrom || startDateTo || serviceDateFrom || serviceDateTo) && (
             <button
-              onClick={() => { setClientFilter(""); setAssignedFilter(""); setDateFrom(""); setDateTo(""); }}
+              onClick={() => {
+                setClientFilter("");
+                setAssignedFilter("");
+                setStartDateFrom("");
+                setStartDateTo("");
+                setServiceDateFrom("");
+                setServiceDateTo("");
+              }}
               style={{
                 fontSize: 11.5,
                 padding: "5px 10px",
                 borderRadius: 6,
-                border: "1px solid var(--line)",
-                background: "none",
-                color: "var(--text-mute)",
+                border: "none",
+                background: "var(--accent-soft)",
+                color: "var(--accent)",
                 cursor: "pointer",
-                fontFamily: "inherit",
+                fontWeight: 500,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
               }}
             >
+              <X size={12} />
               Wyczyść filtry
             </button>
           )}
@@ -322,11 +495,27 @@ export default function ReklamacjePage() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--line)" }}>
-                  {["Data", "Klient", "Zlecenie", "Status", "Opis", "Przypisany do", ""].map((h) => (
+                  {isPrintMode && (
+                    <th style={{ padding: "14px 16px", width: 40, textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={filtered.length > 0 && selectedForPrint.size === filtered.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedForPrint(new Set(filtered.map(c => c._id)));
+                          } else {
+                            setSelectedForPrint(new Set());
+                          }
+                        }}
+                        style={{ cursor: "pointer" }}
+                      />
+                    </th>
+                  )}
+                  {["DATA ZGŁOSZENIA", "Data serwisu", "Klient", "Adres inwestycji", "Telefon", "Zlecenie", "Status", "Opis", "Notatki wewnętrzne", "Przypisany do", ""].map((h) => (
                     <th
                       key={h}
                       style={{
-                        padding: "10px 14px",
+                        padding: "14px 16px",
                         textAlign: "left",
                         fontSize: 11,
                         fontWeight: 600,
@@ -366,42 +555,215 @@ export default function ReklamacjePage() {
                         if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "transparent";
                       }}
                     >
-                      <td style={{ padding: "10px 14px", fontSize: 12.5, color: "var(--text)", whiteSpace: "nowrap" }}>
-                        {formatDate(c.startDate)}
+                      {isPrintMode && (
+                        <td style={{ padding: "14px 16px", textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedForPrint.has(c._id)}
+                            onChange={(e) => {
+                              const next = new Set(selectedForPrint);
+                              if (e.target.checked) next.add(c._id);
+                              else next.delete(c._id);
+                              setSelectedForPrint(next);
+                            }}
+                            style={{ cursor: "pointer" }}
+                          />
+                        </td>
+                      )}
+                      <td style={{ padding: "14px 16px", fontSize: 12.5, whiteSpace: "nowrap" }}>
+                        {(() => {
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const start = new Date(c.startDate);
+                          start.setHours(0, 0, 0, 0);
+                          const diffTime = today.getTime() - start.getTime();
+                          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                          
+                          let daysText = "";
+                          if (diffDays === 0) daysText = "Dzisiaj";
+                          else if (diffDays === 1) daysText = "Wczoraj";
+                          else daysText = `${diffDays} dni temu`;
+
+                          return (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                              <span style={{ color: "var(--text)", fontWeight: 500 }}>{formatDate(c.startDate)}</span>
+                              <span style={{ color: "var(--text-mute)", fontSize: 10 }}>{daysText}</span>
+                            </div>
+                          );
+                        })()}
                       </td>
-                      <td style={{ padding: "10px 14px" }}>
+                      <td style={{ padding: "14px 16px", fontSize: 12.5, whiteSpace: "nowrap" }}>
+                        {(() => {
+                          if (!c.serviceDate) return <span style={{ color: "var(--text-mute)" }}>—</span>;
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const service = new Date(c.serviceDate);
+                          service.setHours(0, 0, 0, 0);
+                          const diffTime = service.getTime() - today.getTime();
+                          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                          
+                          let badgeBg = "var(--panel-2)";
+                          let badgeColor = "var(--text-mute)";
+                          let daysText = "";
+                          
+                          if (c.status === "zakończona" || c.status === "anulowana") {
+                            // If finished/cancelled, no need to show countdown aggressively
+                            daysText = diffDays > 0 ? `Zrealizowano przed terminem` : `Data serwisu minęła`;
+                          } else if (diffDays === 0) {
+                            badgeBg = "#fef08a"; // yellow-200
+                            badgeColor = "#854d0e"; // yellow-800
+                            daysText = "Dzisiaj";
+                          } else if (diffDays === 1) {
+                            badgeBg = "#bfdbfe"; // blue-200
+                            badgeColor = "#1e3a8a"; // blue-900
+                            daysText = "Jutro";
+                          } else if (diffDays > 1 && diffDays <= 3) {
+                            badgeBg = "#fed7aa"; // orange-200
+                            badgeColor = "#9a3412"; // orange-800
+                            daysText = `za ${diffDays} dni`;
+                          } else if (diffDays > 3) {
+                            badgeBg = "#dcfce7"; // green-100
+                            badgeColor = "#166534"; // green-800
+                            daysText = `za ${diffDays} dni`;
+                          } else {
+                            badgeBg = "#fee2e2"; // red-100
+                            badgeColor = "#991b1b"; // red-800
+                            daysText = `${Math.abs(diffDays)} dni po terminie`;
+                          }
+                          
+                          return (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                              <span style={{ color: "var(--text)", fontWeight: 500 }}>{formatDate(c.serviceDate)}</span>
+                              {(c.status !== "zakończona" && c.status !== "anulowana") && (
+                                <span style={{
+                                  display: "inline-block",
+                                  background: badgeBg,
+                                  color: badgeColor,
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  padding: "2px 6px",
+                                  borderRadius: 12,
+                                  width: "fit-content",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.02em",
+                                  whiteSpace: "nowrap"
+                                }}>
+                                  {daysText}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      <td style={{ padding: "14px 16px" }}>
                         <span style={{ fontSize: 12.5, fontWeight: 500, color: "var(--text)" }}>
                           {clientName}
                         </span>
                         {c.client?.companyName && clientName !== c.client.companyName && (
-                          <div style={{ fontSize: 11, color: "var(--text-mute)" }}>{c.client.companyName}</div>
+                          <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 2 }}>{c.client.companyName}</div>
                         )}
                       </td>
-                      <td style={{ padding: "10px 14px" }}>
+                      <td style={{ padding: "14px 16px" }}>
+                        {(() => {
+                          const addr = formatInvestmentAddress(c);
+                          return (
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: 12.5,
+                                  color: addr.primary === "—" ? "var(--text-mute)" : "var(--text)",
+                                  fontWeight: addr.primary === "—" ? 400 : 500,
+                                }}
+                              >
+                                {addr.primary}
+                              </div>
+                              {addr.secondary && (
+                                <div style={{ fontSize: 11, color: "var(--text-mute)" }}>
+                                  {addr.secondary}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      <td style={{ padding: "14px 16px", fontSize: 12.5, whiteSpace: "nowrap" }}>
+                        {c.client?.phone ? (
+                          <span style={{ color: "var(--text)", fontWeight: 500 }}>{c.client.phone}</span>
+                        ) : (
+                          <span style={{ color: "var(--text-mute)" }}>—</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "14px 16px" }}>
                         <span style={{ fontSize: 12.5, color: "var(--text)" }}>
                           {c.order?.name ?? "—"}
                         </span>
                       </td>
-                      <td style={{ padding: "10px 14px" }}>
+                      <td style={{ padding: "14px 16px" }}>
                         <StatusBadge status={c.status} />
                       </td>
                       <td
                         style={{
-                          padding: "10px 14px",
+                          padding: "14px 16px",
                           fontSize: 12.5,
                           color: "var(--text-mute)",
                           maxWidth: 240,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          whiteSpace: "pre-wrap",
+                          lineHeight: 1.4,
                         }}
                       >
                         {c.clientDescription || c.description || <em style={{ opacity: 0.5 }}>Brak opisu</em>}
                       </td>
-                      <td style={{ padding: "10px 14px", fontSize: 12.5, color: "var(--text-mute)" }}>
+                      <td
+                        style={{
+                          padding: "14px 16px",
+                          fontSize: 12,
+                          color: "var(--text)",
+                          maxWidth: 260,
+                        }}
+                      >
+                        {(() => {
+                          const allNotes = [
+                            ...(c.notes ?? []),
+                            ...(c.entries ?? []).filter((e) => e.type === "note").map((e) => ({
+                              id: e.id,
+                              text: e.text,
+                              createdAt: e.createdAt,
+                              createdBy: e.createdBy,
+                            })),
+                          ].sort((a, b) => a.createdAt - b.createdAt);
+
+                          if (allNotes.length === 0) {
+                            return <span style={{ color: "var(--text-mute)" }}>—</span>;
+                          }
+
+                          return (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              {allNotes.map((n) => (
+                                <div
+                                  key={n.id}
+                                  style={{
+                                    background: "var(--panel-2, rgba(0,0,0,0.03))",
+                                    padding: "5px 8px",
+                                    borderRadius: 5,
+                                    border: "1px solid var(--line)",
+                                    fontSize: 11.5,
+                                    lineHeight: 1.35,
+                                  }}
+                                >
+                                  <div style={{ color: "var(--text)", whiteSpace: "pre-wrap" }}>{n.text}</div>
+                                  <div style={{ fontSize: 10, color: "var(--text-mute)", marginTop: 3 }}>
+                                    {n.createdBy}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      <td style={{ padding: "14px 16px", fontSize: 12.5, color: "var(--text-mute)" }}>
                         {c.assignedTo ?? "—"}
                       </td>
-                      <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                      <td style={{ padding: "14px 16px", textAlign: "right" }}>
                         <svg
                           width="14"
                           height="14"

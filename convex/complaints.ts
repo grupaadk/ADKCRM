@@ -63,6 +63,7 @@ export const create = mutation({
     orderId: v.optional(v.id("orders")),
     clientId: v.id("clients"),
     startDate: v.number(),
+    serviceDate: v.optional(v.number()),
     description: v.optional(v.string()),
     clientDescription: v.optional(v.string()),
     assignedTo: v.optional(v.string()),
@@ -86,6 +87,7 @@ export const create = mutation({
       assignedTo: args.assignedTo,
       notes: [],
       startDate: args.startDate,
+      serviceDate: args.serviceDate,
       todos: [],
       createdBy: args.createdBy,
     });
@@ -105,6 +107,8 @@ export const updateDetails = mutation({
     clientDescription: v.optional(v.string()),
     assignedTo: v.optional(v.string()),
     startDate: v.optional(v.number()),
+    serviceDate: v.optional(v.number()),
+    orderId: v.optional(v.id("orders")),
   },
   handler: async (ctx, args) => {
     const { complaintId, ...fields } = args;
@@ -113,6 +117,8 @@ export const updateDetails = mutation({
     if (fields.clientDescription !== undefined) patch.clientDescription = fields.clientDescription;
     if (fields.assignedTo !== undefined) patch.assignedTo = fields.assignedTo;
     if (fields.startDate !== undefined) patch.startDate = fields.startDate;
+    if ("serviceDate" in fields) patch.serviceDate = fields.serviceDate;
+    if ("orderId" in fields) patch.orderId = fields.orderId;
     await ctx.db.patch(complaintId, patch);
   },
 });
@@ -312,6 +318,7 @@ export const deleteNote = mutation({
     if (!complaint) throw new Error("Complaint not found");
     await ctx.db.patch(args.complaintId, {
       notes: (complaint.notes ?? []).filter((n) => n.id !== args.noteId),
+      entries: (complaint.entries ?? []).filter((e) => e.id !== args.noteId),
     });
   },
 });

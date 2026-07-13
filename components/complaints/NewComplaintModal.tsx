@@ -17,6 +17,7 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
   const [selectedClientName, setSelectedClientName] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState<Id<"orders"> | null>(null);
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [serviceDate, setServiceDate] = useState("");
   const [clientDescription, setClientDescription] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [saving, setSaving] = useState(false);
@@ -75,6 +76,7 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
         clientId: selectedClientId,
         orderId: selectedOrderId ?? undefined,
         startDate: new Date(startDate).getTime(),
+        serviceDate: serviceDate ? new Date(serviceDate).getTime() : undefined,
         clientDescription: clientDescription.trim() || undefined,
         assignedTo: assignedTo || undefined,
         createdBy: me?.displayName ?? me?.login ?? "Nieznany",
@@ -86,7 +88,7 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
     } finally {
       setSaving(false);
     }
-  }, [selectedClientId, selectedOrderId, startDate, clientDescription, assignedTo, me, createComplaint, onCreated, onClose]);
+  }, [selectedClientId, selectedOrderId, startDate, serviceDate, clientDescription, assignedTo, me, createComplaint, onCreated, onClose]);
 
   const overlayStyle: React.CSSProperties = {
     position: "fixed",
@@ -386,26 +388,53 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
             </div>
           )}
 
-          {/* Data reklamacji */}
-          <div>
-            <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
-              Data reklamacji <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              style={{
-                fontSize: 12.5,
-                padding: "7px 10px",
-                borderRadius: 7,
-                border: "1px solid var(--line)",
-                background: "var(--panel-2)",
-                color: "var(--text)",
-                fontFamily: "inherit",
-                outline: "none",
-              }}
-            />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {/* Data reklamacji */}
+            <div>
+              <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+                Data reklamacji <span style={{ color: "#ef4444" }}>*</span>
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{
+                  width: "100%",
+                  fontSize: 12.5,
+                  padding: "7px 10px",
+                  borderRadius: 7,
+                  border: "1px solid var(--line)",
+                  background: "var(--panel-2)",
+                  color: "var(--text)",
+                  fontFamily: "inherit",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            {/* Data serwisu */}
+            <div>
+              <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+                Data serwisu (opcjonalnie)
+              </label>
+              <input
+                type="date"
+                value={serviceDate}
+                onChange={(e) => setServiceDate(e.target.value)}
+                style={{
+                  width: "100%",
+                  fontSize: 12.5,
+                  padding: "7px 10px",
+                  borderRadius: 7,
+                  border: "1px solid var(--line)",
+                  background: "var(--panel-2)",
+                  color: "var(--text)",
+                  fontFamily: "inherit",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
           </div>
 
           {/* Uwagi klienta */}
