@@ -14,6 +14,8 @@ import {
   LayoutDashboard,
   Upload,
   Receipt,
+  CircleDollarSign,
+  AlertCircle,
 } from "lucide-react"
 
 type NavItem = {
@@ -36,6 +38,8 @@ const navItems: NavItem[] = [
     exactMatch: true,
   },
   { href: "/admin/faktury", label: "Faktury", icon: Receipt },
+  { href: "/admin/wydatki", label: "Wydatki", icon: CircleDollarSign },
+  { href: "/admin/reklamacje", label: "Reklamacje", icon: AlertCircle },
   { href: "/admin/dokumenty", label: "Dodaj dokument", icon: Upload },
   { href: "/admin/ustawienia", label: "Ustawienia", icon: Settings },
 ]

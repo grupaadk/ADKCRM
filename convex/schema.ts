@@ -577,6 +577,28 @@ export default defineSchema({
     .index("by_order", ["orderId"])
     .index("by_synced", ["syncedAt"]),
 
+  // 3.16b Cache wydatków z Fakturowni
+  fakturowniaExpensesCache: defineTable({
+    remoteId: v.string(),
+    number: v.optional(v.string()),
+    kind: v.string(),
+    status: v.optional(v.string()),
+    sellerName: v.optional(v.string()), // Vendor (mapped from buyer_name in API)
+    buyerName: v.optional(v.string()), // Us (mapped from seller_name in API)
+    issueDate: v.optional(v.string()),
+    paymentTo: v.optional(v.string()),
+    grossAmount: v.optional(v.number()),
+    netAmount: v.optional(v.number()),
+    currency: v.optional(v.string()),
+    oid: v.optional(v.string()),
+    orderId: v.optional(v.id("orders")),
+    syncedAt: v.number(),
+  })
+    .index("by_remote_id", ["remoteId"])
+    .index("by_order", ["orderId"])
+    .index("by_synced", ["syncedAt"]),
+
+
   // 3.17 Reklamacje
   complaints: defineTable({
     orderId: v.optional(v.id("orders")),

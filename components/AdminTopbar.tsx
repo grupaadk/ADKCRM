@@ -10,6 +10,8 @@ const ROUTE_LABELS: Record<string, string> = {
   "/admin/dashboard": "Dashboard",
   "/admin/zamowienia": "Zlecenia",
   "/admin/faktury": "Faktury",
+  "/admin/wydatki": "Wydatki",
+  "/admin/reklamacje": "Reklamacje",
   "/admin/mail": "Mail",
   "/admin/szablony": "Szablony",
   "/admin/dokumenty": "Dokumenty",

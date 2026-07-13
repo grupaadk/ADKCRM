@@ -52,19 +52,23 @@ const KIND_VARIANTS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   issued: "Wystawiona",
   sent: "Wysłana",
-  paid: "Zapłacona",
-  partially_paid: "Częściowo zapłacona",
+  paid: "Opłacona",
+  unpaid: "Nieopłacona",
+  partially_paid: "Częściowo opłacona",
   rejected: "Odrzucona",
+  overdue: "Przeterminowana",
   draft: "Szkic",
 };
 
 const STATUS_STYLES: Record<string, React.CSSProperties> = {
   draft:          { background: "#f3f4f6", color: "#475569", border: "1px solid #cbd5e1" },
   issued:         { background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" },
+  unpaid:         { background: "#fff1f2", color: "#be123c", border: "1px solid #fecdd3" },
   sent:           { background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe" },
   paid:           { background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0" },
   partially_paid: { background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa" },
   rejected:       { background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca" },
+  overdue:        { background: "#fef2f2", color: "#dc2626", border: "1px solid #fca5a5" },
 };
 
 type CachedInvoice = {
@@ -81,9 +85,24 @@ type CachedInvoice = {
   orderId?: Id<"orders">;
 };
 
+type CachedExpense = {
+  _id: Id<"fakturowniaExpensesCache">;
+  remoteId: string;
+  number?: string;
+  kind?: string;
+  status?: string;
+  sellerName?: string;
+  issueDate?: string;
+  netAmount?: number;
+  grossAmount?: number;
+  currency?: string;
+  orderId?: Id<"orders">;
+};
 
 
-type Tab = "szczegoly" | "dokumenty" | "faktury" | "wycena" | "reklamacja" | "notatki";
+
+
+type Tab = "szczegoly" | "dokumenty" | "finanse" | "faktury" | "koszty" | "wycena" | "reklamacja" | "notatki";
 
 function getProjectFileLinks(projectFiles: string | undefined) {
   if (!projectFiles) return [];
@@ -1058,6 +1077,478 @@ function EditDateField({
   );
 }
 
+function InvoicesTableGroup({
+  invoices,
+  title,
+  isEstimate,
+  fakturowniaConfig,
+  setReminderInvoiceId,
+  unassignInvoice,
+}: {
+  invoices: CachedInvoice[];
+  title?: string;
+  isEstimate?: boolean;
+  fakturowniaConfig: { subdomain?: string } | null | undefined;
+  setReminderInvoiceId: (id: Id<"fakturowniaInvoicesCache">) => void;
+  unassignInvoice: (args: { invoiceId: Id<"fakturowniaInvoicesCache"> }) => void;
+}) {
+  if (invoices.length === 0) return null;
+  const totalNet = invoices.reduce((s, i) => s + (i.netAmount ?? 0), 0);
+  const totalGross = invoices.reduce((s, i) => s + (i.grossAmount ?? 0), 0);
+  const currency = invoices.find((i) => i.currency)?.currency ?? "PLN";
+
+  return (
+    <div className={`mb-4 overflow-hidden rounded-xl border transition-all ${
+      isEstimate
+        ? "border-indigo-200 bg-white shadow-sm ring-1 ring-indigo-100"
+        : "border-emerald-200 bg-white shadow-sm ring-1 ring-emerald-100"
+    }`}>
+      {title && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-4 px-4 py-3.5 border-b ${
+            isEstimate
+              ? "bg-gradient-to-r from-indigo-50/90 via-indigo-50/40 to-white border-indigo-100"
+              : "bg-gradient-to-r from-emerald-50/90 via-emerald-50/40 to-white border-emerald-100"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                isEstimate
+                  ? "bg-indigo-100 text-indigo-700"
+                  : "bg-emerald-100 text-emerald-700"
+              }`}
+            >
+              {isEstimate ? (
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              ) : (
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4
+                  className={`text-sm font-bold tracking-wide uppercase ${
+                    isEstimate ? "text-indigo-950" : "text-emerald-950"
+                  }`}
+                >
+                  {title}
+                </h4>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase ${
+                    isEstimate
+                      ? "bg-indigo-100 text-indigo-800"
+                      : "bg-emerald-100 text-emerald-800"
+                  }`}
+                >
+                  {isEstimate ? "Dokument bazowy" : "Rozliczenia"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {isEstimate
+                  ? "Kosztorys / zamówienie wysłane do klienta w Fakturowni"
+                  : "Faktury VAT, zaliczkowe i końcowe wystawione do tego zlecenia"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                {isEstimate ? "Wycena (Zamówienie)" : "Suma faktur"} ({invoices.length} {invoices.length === 1 ? "szt." : "szt."})
+              </div>
+              <div className="text-sm font-bold text-slate-900 tabular-nums">
+                {totalNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}{" "}
+                <span className="text-xs font-normal text-slate-500">netto</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      <TableRoot className="w-full overflow-hidden">
+        <Table style={{ tableLayout: "fixed", width: "100%" }}>
+          <colgroup>
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "6%" }} />
+            <col style={{ width: "6%" }} />
+          </colgroup>
+          <TableHead>
+            <TableRow>
+              <TableHeaderCell className="w-[18%]">Numer</TableHeaderCell>
+              <TableHeaderCell className="w-[18%]">Rodzaj</TableHeaderCell>
+              <TableHeaderCell className="w-[14%]">Status</TableHeaderCell>
+              <TableHeaderCell className="w-[12%]">Data</TableHeaderCell>
+              <TableHeaderCell className="w-[13%] text-right">Netto</TableHeaderCell>
+              <TableHeaderCell className="w-[13%] text-right">Brutto</TableHeaderCell>
+              <TableHeaderCell className="w-[6%]" />
+              <TableHeaderCell className="w-[6%]" />
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {invoices.map((inv) => {
+              const invUrl = fakturowniaConfig?.subdomain
+                ? `https://${fakturowniaConfig.subdomain}.fakturownia.pl/invoices/${inv.remoteId}`
+                : null;
+              return (
+                <TableRow key={inv._id} className="hover:bg-gray-50 transition-colors">
+                  <TableCell className="whitespace-nowrap font-mono text-sm text-gray-900 truncate">
+                    <div className="flex items-center gap-1.5">
+                      {inv.number ?? <span className="text-gray-400">#${inv.remoteId}</span>}
+                      {invUrl && (
+                        <a
+                          href={invUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-400 hover:text-blue-500 transition-colors"
+                        >
+                          <svg
+                            className="h-3.5 w-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                            />
+                          </svg>
+                        </a>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="truncate">
+                    <Badge
+                      variant={
+                        (KIND_VARIANTS[inv.kind] ?? "neutral") as Parameters<typeof Badge>[0]["variant"]
+                      }
+                    >
+                      {KIND_LABELS[inv.kind] ?? inv.kind}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="truncate">
+                    {inv.status ? (
+                      <span
+                        style={{
+                          ...(STATUS_STYLES[inv.status] || {
+                            background: "#f3f4f6",
+                            color: "#475569",
+                            border: "1px solid #cbd5e1",
+                          }),
+                          padding: "4px 8px",
+                          borderRadius: "9999px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                          display: "inline-block",
+                        }}
+                      >
+                        {STATUS_LABELS[inv.status] ?? inv.status}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-gray-600 truncate">
+                    {inv.issueDate ? (
+                      new Date(inv.issueDate).toLocaleDateString("pl-PL")
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums text-sm font-semibold text-gray-900">
+                    {inv.netAmount != null ? (
+                      `${inv.netAmount.toLocaleString("pl-PL", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })} ${inv.currency ?? "PLN"}`
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums text-xs text-gray-400">
+                    {inv.grossAmount != null ? (
+                      `${inv.grossAmount.toLocaleString("pl-PL", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })} ${inv.currency ?? "PLN"}`
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {inv.status !== "paid" && !isEstimate && (
+                      <button
+                        onClick={() => setReminderInvoiceId(inv._id)}
+                        className="btn"
+                        style={{ fontSize: 11 }}
+                        title="Wyślij przypomnienie o płatności"
+                      >
+                        Przypomnienie
+                      </button>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <button
+                      onClick={() => unassignInvoice({ invoiceId: inv._id })}
+                      className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 ml-auto"
+                    >
+                      Odepnij
+                    </button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+          <TableFoot>
+            <TableRow className="bg-gray-50 font-semibold">
+              <TableCell
+                colSpan={4}
+                className="text-xs font-semibold text-gray-500 uppercase tracking-wide"
+                style={{ whiteSpace: "nowrap" }}
+              >
+                Suma {isEstimate ? "zamówienia" : "faktur"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-sm text-gray-900 whitespace-nowrap font-bold">
+                {totalNet.toLocaleString("pl-PL", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                {currency}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-xs text-gray-400 whitespace-nowrap font-normal">
+                {totalGross.toLocaleString("pl-PL", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                {currency}
+              </TableCell>
+              <TableCell colSpan={2} />
+            </TableRow>
+          </TableFoot>
+        </Table>
+      </TableRoot>
+    </div>
+  );
+}
+
+function ExpensesTableGroup({
+  expenses,
+  fakturowniaConfig,
+  unassignExpense,
+}: {
+  expenses: CachedExpense[];
+  fakturowniaConfig: { subdomain?: string } | null | undefined;
+  unassignExpense: (args: { expenseId: Id<"fakturowniaExpensesCache"> }) => void;
+}) {
+  if (expenses.length === 0) return null;
+  const totalNet = expenses.reduce((s, i) => s + (i.netAmount ?? 0), 0);
+  const totalGross = expenses.reduce((s, i) => s + (i.grossAmount ?? 0), 0);
+  const currency = expenses.find((i) => i.currency)?.currency ?? "PLN";
+
+  return (
+    <div className="mb-4 overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm ring-1 ring-amber-100 transition-all">
+      <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3.5 border-b bg-gradient-to-r from-amber-50/90 via-amber-50/40 to-white border-amber-100">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-bold tracking-wide uppercase text-amber-950">
+                Koszty Zlecenia (Wydatki)
+              </h4>
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-amber-100 text-amber-800">
+                Koszty
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Faktury kosztowe i wydatki z Fakturowni przypisane do tego zlecenia
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              Suma wydatków ({expenses.length} {expenses.length === 1 ? "szt." : "szt."})
+            </div>
+            <div className="text-sm font-bold text-slate-900 tabular-nums">
+              {totalNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}{" "}
+              <span className="text-xs font-normal text-slate-500">netto</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <TableRoot className="w-full overflow-hidden">
+        <Table style={{ tableLayout: "fixed", width: "100%" }}>
+          <colgroup>
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "6%" }} />
+            <col style={{ width: "6%" }} />
+          </colgroup>
+          <TableHead>
+            <TableRow>
+              <TableHeaderCell className="w-[18%]">Numer</TableHeaderCell>
+              <TableHeaderCell className="w-[18%]">Sprzedawca</TableHeaderCell>
+              <TableHeaderCell className="w-[14%]">Status</TableHeaderCell>
+              <TableHeaderCell className="w-[12%]">Data</TableHeaderCell>
+              <TableHeaderCell className="w-[13%] text-right">Netto</TableHeaderCell>
+              <TableHeaderCell className="w-[13%] text-right">Brutto</TableHeaderCell>
+              <TableHeaderCell className="w-[6%]" />
+              <TableHeaderCell className="w-[6%]" />
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {expenses.map((exp) => {
+              const expUrl = fakturowniaConfig?.subdomain
+                ? `https://${fakturowniaConfig.subdomain}.fakturownia.pl/invoices/${exp.remoteId}`
+                : null;
+              return (
+                <TableRow key={exp._id} className="hover:bg-gray-50 transition-colors">
+                  <TableCell className="whitespace-nowrap font-mono text-sm text-gray-900 truncate">
+                    <div className="flex items-center gap-1.5">
+                      {exp.number ?? <span className="text-gray-400">#${exp.remoteId}</span>}
+                      {expUrl && (
+                        <a
+                          href={expUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-400 hover:text-blue-500 transition-colors"
+                        >
+                          <svg
+                            className="h-3.5 w-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                            />
+                          </svg>
+                        </a>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="truncate text-sm text-gray-900 font-medium">
+                    {exp.sellerName || "—"}
+                  </TableCell>
+                  <TableCell className="truncate">
+                    {exp.status ? (
+                      <span
+                        style={{
+                          ...(STATUS_STYLES[exp.status] || {
+                            background: "#f3f4f6",
+                            color: "#475569",
+                            border: "1px solid #cbd5e1",
+                          }),
+                          padding: "4px 8px",
+                          borderRadius: "9999px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                          display: "inline-block",
+                        }}
+                      >
+                        {STATUS_LABELS[exp.status] ?? exp.status}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-gray-600 truncate">
+                    {exp.issueDate ? (
+                      new Date(exp.issueDate).toLocaleDateString("pl-PL")
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums text-sm font-semibold text-gray-900">
+                    {exp.netAmount != null ? (
+                      `${exp.netAmount.toLocaleString("pl-PL", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })} ${exp.currency ?? "PLN"}`
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums text-xs text-gray-400">
+                    {exp.grossAmount != null ? (
+                      `${exp.grossAmount.toLocaleString("pl-PL", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })} ${exp.currency ?? "PLN"}`
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right" />
+                  <TableCell className="text-right">
+                    <button
+                      onClick={() => unassignExpense({ expenseId: exp._id })}
+                      className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 ml-auto"
+                    >
+                      Odepnij
+                    </button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+          <TableFoot>
+            <TableRow className="bg-gray-50 font-semibold">
+              <TableCell
+                colSpan={4}
+                className="text-xs font-semibold text-gray-500 uppercase tracking-wide"
+                style={{ whiteSpace: "nowrap" }}
+              >
+                Suma wydatków
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-sm text-gray-900 whitespace-nowrap font-bold">
+                {totalNet.toLocaleString("pl-PL", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                {currency}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-xs text-gray-400 whitespace-nowrap font-normal">
+                {totalGross.toLocaleString("pl-PL", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                {currency}
+              </TableCell>
+              <TableCell colSpan={2} />
+            </TableRow>
+          </TableFoot>
+        </Table>
+      </TableRoot>
+    </div>
+  );
+}
+
 export default function OrderDetailPage({
   params,
 }: {
@@ -1091,6 +1582,8 @@ export default function OrderDetailPage({
   const [smsError, setSmsError] = useState<string | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [expenseSearch, setExpenseSearch] = useState("");
   const [reminderInvoiceId, setReminderInvoiceId] =
     useState<Id<"fakturowniaInvoicesCache"> | null>(null);
 
@@ -1100,9 +1593,15 @@ export default function OrderDetailPage({
   const assignedInvoices = useQuery(api.fakturownia.listCachedInvoicesByOrder, {
     orderId: orderIdTyped,
   });
+  const expenses = useQuery(api.fakturownia.listCachedExpensesByOrder, {
+    orderId: orderIdTyped,
+  });
   const allInvoices = useQuery(
     api.fakturownia.listCachedInvoices,
   ) as CachedInvoice[] | undefined;
+  const allExpenses = useQuery(
+    api.fakturownia.listCachedExpenses,
+  ) as CachedExpense[] | undefined;
   const fakturowniaConfig = useQuery(api.fakturownia.getConfig);
   const existingComplaint = useQuery(api.complaints.getByOrderId, {
     orderId: orderIdTyped,
@@ -1110,6 +1609,8 @@ export default function OrderDetailPage({
   const changeStatus = useMutation(api.orders.changeStatus);
   const assignInvoice = useMutation(api.fakturownia.assignInvoiceToOrder);
   const unassignInvoice = useMutation(api.fakturownia.unassignInvoiceFromOrder);
+  const assignExpense = useMutation(api.fakturownia.assignExpense);
+  const unassignExpense = useMutation(api.fakturownia.unassignExpense);
   const paymentReminders = useQuery(api.paymentReminders.listByOrder, {
     orderId: orderIdTyped,
   });
@@ -1467,7 +1968,7 @@ export default function OrderDetailPage({
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "szczegoly", label: "Szczegóły" },
     { key: "dokumenty", label: "Dokumenty" },
-    { key: "faktury", label: "Faktury" },
+    { key: "finanse", label: "Finanse" },
     { key: "wycena", label: "Wycena" },
 
     { key: "reklamacja", label: "Reklamacja" },
@@ -3078,7 +3579,7 @@ export default function OrderDetailPage({
         {/* Tabs */}
         <div style={{ display: "flex", borderTop: "1px solid var(--line)", gap: 2 }}>
           {tabs.map((tab) => {
-            const isActive = activeTab === tab.key;
+            const isActive = activeTab === tab.key || (tab.key === "finanse" && (activeTab === "faktury" || activeTab === "koszty"));
             const isComplaintTab = tab.key === "reklamacja";
             const activeColor = isComplaintTab
               ? "var(--bad)"
@@ -3195,9 +3696,164 @@ export default function OrderDetailPage({
         </div>
       )}
 
-      {/* ── Tab: Faktury ── */}
-      {activeTab === "faktury" && (
+      {/* ── Tab: Finanse (Faktury + Koszty) ── */}
+      {(activeTab === "finanse" || activeTab === "faktury" || activeTab === "koszty") && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Podsumowanie finansowe */}
+          {(() => {
+            const estimateInvs = (assignedInvoices ?? []).filter(
+              (inv) => inv.kind === "estimate" || inv.kind === "order"
+            );
+            const estimateNet = estimateInvs.reduce((sum, inv) => sum + (inv.netAmount ?? 0), 0);
+            const estimateGross = estimateInvs.reduce((sum, inv) => sum + (inv.grossAmount ?? 0), 0);
+
+            const regularInvs = (assignedInvoices ?? []).filter(
+              (inv) => inv.kind !== "estimate" && inv.kind !== "order"
+            );
+            const invNet = regularInvs.reduce((sum, inv) => sum + (inv.netAmount ?? 0), 0);
+            const invGross = regularInvs.reduce((sum, inv) => sum + (inv.grossAmount ?? 0), 0);
+
+            const expNet = (expenses ?? []).reduce((sum, exp) => sum + (exp.netAmount ?? 0), 0);
+            const expGross = (expenses ?? []).reduce((sum, exp) => sum + (exp.grossAmount ?? 0), 0);
+
+            const balNet = invNet - expNet;
+            const balGross = invGross - expGross;
+            const projBalNet = estimateNet - expNet;
+
+            const percentInvoiced = estimateNet > 0 ? Math.round((invNet / estimateNet) * 100) : null;
+            const remainingNet = estimateNet > 0 ? Math.max(0, estimateNet - invNet) : 0;
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* KARTA 1: PRZYCHODY / ZAMÓWIENIE */}
+                <div className="panel p-4 flex flex-col justify-between gap-3 border border-slate-200/80 rounded-xl shadow-sm bg-white">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Przychody (Faktury)
+                      </span>
+                      {percentInvoiced !== null && (
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                            invNet >= estimateNet && estimateNet > 0
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-indigo-100 text-indigo-800"
+                          }`}
+                        >
+                          {invNet >= estimateNet && estimateNet > 0 ? "✓ 100% zamówienia" : `${percentInvoiced}% zamówienia`}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-xl font-extrabold text-slate-900 tabular-nums">
+                      {invNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN{" "}
+                      <span className="text-xs font-normal text-slate-500">netto</span>
+                    </div>
+
+                    {estimateNet > 0 && (
+                      <div className="text-xs text-slate-500 mt-1">
+                        z zamówienia na kwotę{" "}
+                        <span className="font-semibold text-slate-700">
+                          {estimateNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN netto
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {estimateNet > 0 && (
+                    <div className="flex flex-col gap-1.5 mt-1">
+                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-500 ${
+                            invNet >= estimateNet ? "bg-emerald-500" : "bg-indigo-500"
+                          }`}
+                          style={{ width: `${Math.min(100, Math.max(2, (invNet / estimateNet) * 100))}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Brutto: {invGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN</span>
+                        {remainingNet > 0 ? (
+                          <span className="font-medium text-amber-700">
+                            Pozostało: {remainingNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN
+                          </span>
+                        ) : (
+                          <span className="font-medium text-emerald-700">Zafakturowano w całości</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {estimateNet === 0 && (
+                    <div className="text-xs text-slate-400 mt-auto">
+                      Brutto: {invGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN
+                    </div>
+                  )}
+                </div>
+
+                {/* KARTA 2: KOSZTY ZLECENIA */}
+                <div className="panel p-4 flex flex-col justify-between gap-3 border border-slate-200/80 rounded-xl shadow-sm bg-white">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Koszty (Wydatki)
+                      </span>
+                      {estimateNet > 0 && (
+                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                          {Math.round((expNet / estimateNet) * 100)}% wartości zam.
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-xl font-extrabold text-slate-900 tabular-nums">
+                      {expNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN{" "}
+                      <span className="text-xs font-normal text-slate-500">netto</span>
+                    </div>
+
+                    <div className="text-xs text-slate-500 mt-1">
+                      Łączne wydatki i faktury kosztowe przypisane do zlecenia
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-slate-400 mt-auto">
+                    Brutto: {expGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN
+                  </div>
+                </div>
+
+                {/* KARTA 3: BILANS ZLECENIA */}
+                <div className="panel p-4 flex flex-col justify-between gap-3 border border-slate-200/80 rounded-xl shadow-sm bg-white">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Bilans Zlecenia (Zafakturowany)
+                      </span>
+                    </div>
+
+                    <div
+                      className={`text-xl font-extrabold tabular-nums ${
+                        balNet >= 0 ? "text-emerald-700" : "text-rose-700"
+                      }`}
+                    >
+                      {balNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN{" "}
+                      <span className="text-xs font-normal text-slate-500">netto</span>
+                    </div>
+
+                    {estimateNet > 0 && (
+                      <div className="text-xs text-slate-500 mt-1">
+                        Prognozowany bilans z zamówienia:{" "}
+                        <span className={`font-semibold ${projBalNet >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                          {projBalNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN netto
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-xs text-slate-400 mt-auto">
+                    Brutto: {balGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           {/* Faktury z Fakturowni */}
           <SectionCard
             title="Faktury z Fakturowni"
@@ -3226,169 +3882,38 @@ export default function OrderDetailPage({
             }
           >
             {assignedInvoices && assignedInvoices.length > 0 ? (
-              <TableRoot>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableHeaderCell>Numer</TableHeaderCell>
-                      <TableHeaderCell>Rodzaj</TableHeaderCell>
-                      <TableHeaderCell>Status</TableHeaderCell>
-                      <TableHeaderCell>Data</TableHeaderCell>
-                      <TableHeaderCell className="text-right">
-                        Brutto
-                      </TableHeaderCell>
-                      <TableHeaderCell />
-                      <TableHeaderCell />
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {assignedInvoices.map((inv) => {
-                      const invUrl = fakturowniaConfig?.subdomain
-                        ? `https://${fakturowniaConfig.subdomain}.fakturownia.pl/invoices/${inv.remoteId}`
-                        : null;
-                      return (
-                        <TableRow
-                          key={inv._id}
-                          className="hover:bg-gray-50 transition-colors"
-                        >
-                          <TableCell className="whitespace-nowrap font-mono text-sm text-gray-900">
-                            <div className="flex items-center gap-1.5">
-                              {inv.number ?? (
-                                <span className="text-gray-400">
-                                  #{inv.remoteId}
-                                </span>
-                              )}
-                              {invUrl && (
-                                <a
-                                  href={invUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-gray-400 hover:text-blue-500 transition-colors"
-                                >
-                                  <svg
-                                    className="h-3.5 w-3.5"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    strokeWidth={2}
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
-                                    />
-                                  </svg>
-                                </a>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                (KIND_VARIANTS[inv.kind] ??
-                                  "neutral") as Parameters<
-                                  typeof Badge
-                                >[0]["variant"]
-                              }
-                            >
-                              {KIND_LABELS[inv.kind] ?? inv.kind}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {inv.status ? (
-                              <span
-                                style={{
-                                  ...(STATUS_STYLES[inv.status] || { background: "#f3f4f6", color: "#475569", border: "1px solid #cbd5e1" }),
-                                  padding: "4px 8px",
-                                  borderRadius: "9999px",
-                                  fontSize: "12px",
-                                  fontWeight: 600,
-                                  whiteSpace: "nowrap",
-                                  display: "inline-block"
-                                }}
-                              >
-                                {STATUS_LABELS[inv.status] ?? inv.status}
-                              </span>
-                            ) : (
-                              <span className="text-gray-400">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap text-sm text-gray-600">
-                            {inv.issueDate
-                              ? new Date(inv.issueDate).toLocaleDateString(
-                                  "pl-PL",
-                                )
-                              : <span className="text-gray-400">—</span>}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap text-right tabular-nums text-sm font-semibold text-gray-900">
-                            {inv.grossAmount != null
-                              ? `${inv.grossAmount.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${inv.currency ?? "PLN"}`
-                              : <span className="text-gray-400">—</span>}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {inv.status !== "paid" && (
-                              <button
-                                onClick={() =>
-                                  setReminderInvoiceId(inv._id)
-                                }
-                                className="btn"
-                                style={{ fontSize: 11 }}
-                                title="Wyślij przypomnienie o płatności"
-                              >
-                                Przypomnienie
-                              </button>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <button
-                              onClick={() =>
-                                unassignInvoice({ invoiceId: inv._id })
-                              }
-                              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 ml-auto"
-                            >
-                              Odepnij
-                            </button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                  {(() => {
-                    const totalGross = assignedInvoices.reduce(
-                      (s, i) => s + (i.grossAmount ?? 0),
-                      0,
-                    );
-                    const currency =
-                      assignedInvoices.find((i) => i.currency)?.currency ??
-                      "PLN";
-                    return (
-                      <TableFoot>
-                        <TableRow className="bg-gray-50 font-semibold">
-                          <TableCell
-                            colSpan={4}
-                            className="text-xs font-semibold text-gray-500 uppercase tracking-wide"
-                            style={{ whiteSpace: "nowrap" }}
-                          >
-                            Suma ({assignedInvoices.length}{" "}
-                            {assignedInvoices.length === 1
-                              ? "faktura"
-                              : "faktur"}
-                            )
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums text-sm text-gray-900 whitespace-nowrap font-bold">
-                            {totalGross.toLocaleString("pl-PL", {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}{" "}
-                            {currency}
-                          </TableCell>
-                          <TableCell colSpan={2} />
-                        </TableRow>
-                      </TableFoot>
-                    );
-                  })()}
-                </Table>
-              </TableRoot>
+              (() => {
+                const estimateInvoices = assignedInvoices.filter(
+                  (inv) => inv.kind === "estimate" || inv.kind === "order"
+                );
+                const regularInvoices = assignedInvoices.filter(
+                  (inv) => inv.kind !== "estimate" && inv.kind !== "order"
+                );
+                return (
+                  <div className="flex flex-col">
+                    {estimateInvoices.length > 0 && (
+                      <InvoicesTableGroup
+                        invoices={estimateInvoices}
+                        title="Zamówienie w Fakturowni (Wycena)"
+                        isEstimate={true}
+                        fakturowniaConfig={fakturowniaConfig}
+                        setReminderInvoiceId={setReminderInvoiceId}
+                        unassignInvoice={unassignInvoice}
+                      />
+                    )}
+                    {regularInvoices.length > 0 && (
+                      <InvoicesTableGroup
+                        invoices={regularInvoices}
+                        title="Wystawione Faktury"
+                        isEstimate={false}
+                        fakturowniaConfig={fakturowniaConfig}
+                        setReminderInvoiceId={setReminderInvoiceId}
+                        unassignInvoice={unassignInvoice}
+                      />
+                    )}
+                  </div>
+                );
+              })()
             ) : (
               <p className="text-sm italic text-slate-400">
                 Brak przypisanych faktur.
@@ -3429,6 +3954,59 @@ export default function OrderDetailPage({
               </div>
             </CollapsibleSection>
           )}
+
+          {/* Koszty zlecenia (Fakturownia) */}
+          <SectionCard
+            title="Koszty zlecenia (Fakturownia)"
+            action={
+              <button
+                onClick={() => setShowExpenseModal(true)}
+                className="btn"
+                style={{ fontSize: 11 }}
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4.5v15m7.5-7.5h-15"
+                  />
+                </svg>
+                Przypisz wydatek
+              </button>
+            }
+          >
+            {expenses === undefined ? (
+              <div style={{ padding: 40, textAlign: "center", color: "var(--text-mute)", fontSize: 13 }}>
+                Ładowanie wydatków...
+              </div>
+            ) : expenses.length === 0 ? (
+              <div style={{ padding: 40, textAlign: "center" }}>
+                <p style={{ margin: 0, color: "var(--text-mute)", fontSize: 13, marginBottom: 12 }}>
+                  Brak powiązanych wydatków z tym zleceniem.
+                </p>
+                <button
+                  onClick={() => setShowExpenseModal(true)}
+                  className="btn"
+                  style={{ fontSize: 12 }}
+                >
+                  Przypisz wydatek
+                </button>
+              </div>
+            ) : (
+              <ExpensesTableGroup
+                expenses={expenses}
+                fakturowniaConfig={fakturowniaConfig}
+                unassignExpense={unassignExpense}
+              />
+            )}
+          </SectionCard>
         </div>
       )}
 
@@ -3452,6 +4030,8 @@ export default function OrderDetailPage({
         </div>
       )}
 
+
+      
       {/* ── Tab: Wycena ── */}
       {activeTab === "wycena" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -3660,6 +4240,201 @@ export default function OrderDetailPage({
                                 onClick={() =>
                                   assignInvoice({
                                     invoiceId: inv._id,
+                                    orderId: orderIdTyped,
+                                  })
+                                }
+                                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
+                              >
+                                <svg
+                                  className="h-3.5 w-3.5"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M12 4.5v15m7.5-7.5h-15"
+                                  />
+                                </svg>
+                                Przypisz
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      
+      {/* Expense assignment modal */}
+      {showExpenseModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => {
+            setShowExpenseModal(false);
+            setExpenseSearch("");
+          }}
+        >
+          <div
+            className="relative flex h-[80vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl ring-1 ring-gray-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">
+                  Przypisz wydatki do zlecenia
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">{orderNumber}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowExpenseModal(false);
+                  setExpenseSearch("");
+                }}
+                className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="border-b border-gray-100 px-5 py-3">
+              <div className="relative">
+                <svg
+                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                  />
+                </svg>
+                <input
+                  type="text"
+                  value={expenseSearch}
+                  onChange={(e) => setExpenseSearch(e.target.value)}
+                  placeholder="Szukaj po numerze lub sprzedawcy…"
+                  className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-3">
+              {allExpenses === undefined ? (
+                <div className="py-8 text-center text-sm text-gray-400">
+                  Ładowanie wydatków…
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {allExpenses
+                    .filter((exp) => {
+                      const q = expenseSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return (
+                        (exp.number ?? "").toLowerCase().includes(q) ||
+                        (exp.sellerName ?? "").toLowerCase().includes(q)
+                      );
+                    })
+                    .sort((a, b) => {
+                      const rank = (exp) =>
+                        exp.orderId === orderIdTyped
+                          ? 0
+                          : !exp.orderId
+                            ? 1
+                            : 2;
+                      return rank(a) - rank(b);
+                    })
+                    .map((exp) => {
+                      const isAssignedHere = exp.orderId === orderIdTyped;
+                      const isAssignedElsewhere =
+                        !!exp.orderId && exp.orderId !== orderIdTyped;
+                      return (
+                        <div
+                          key={exp._id}
+                          className={`flex items-center justify-between rounded-lg px-3 py-2.5 ${
+                            isAssignedHere
+                              ? "bg-blue-50 ring-1 ring-blue-200"
+                              : isAssignedElsewhere
+                                ? "opacity-50"
+                                : "hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-sm font-medium text-slate-900">
+                                {exp.number ?? `#${exp.remoteId}`}
+                              </span>
+                              <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
+                                Wydatek
+                              </span>
+                            </div>
+                            <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
+                              {exp.sellerName && (
+                                <span className="truncate">
+                                  {exp.sellerName}
+                                </span>
+                              )}
+                              {exp.grossAmount != null && (
+                                <span className="shrink-0 tabular-nums">
+                                  {exp.grossAmount.toLocaleString("pl-PL", {
+                                    minimumFractionDigits: 2,
+                                  })}{" "}
+                                  {exp.currency ?? "PLN"}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="ml-3 shrink-0">
+                            {isAssignedHere ? (
+                              <button
+                                onClick={() =>
+                                  unassignExpense({ expenseId: exp._id })
+                                }
+                                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                              >
+                                <svg
+                                  className="h-3.5 w-3.5"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M6 18L18 6M6 6l12 12"
+                                  />
+                                </svg>
+                                Odepnij
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() =>
+                                  assignExpense({
+                                    expenseId: exp._id,
                                     orderId: orderIdTyped,
                                   })
                                 }

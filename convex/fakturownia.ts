@@ -851,3 +851,174 @@ export const testCreateEstimate = action({
     }
   },
 });
+
+// ─── Wydatki (Expenses) ──────────────────────────────────────────────────────
+
+const cachedExpenseFields = {
+  remoteId: v.string(),
+  number: v.optional(v.string()),
+  kind: v.string(),
+  status: v.optional(v.string()),
+  sellerName: v.optional(v.string()),
+  buyerName: v.optional(v.string()),
+  issueDate: v.optional(v.string()),
+  paymentTo: v.optional(v.string()),
+  grossAmount: v.optional(v.number()),
+  netAmount: v.optional(v.number()),
+  currency: v.optional(v.string()),
+  oid: v.optional(v.string()),
+};
+
+function parseExpenseFromApi(raw: Record<string, unknown>) {
+  const id = typeof raw.id === "number" ? String(raw.id) : typeof raw.id === "string" ? raw.id : "";
+  const parseAmount = (v: unknown): number | undefined => {
+    if (typeof v === "number") return v;
+    if (typeof v === "string") {
+      const n = parseFloat(v.replace(",", "."));
+      return isNaN(n) ? undefined : n;
+    }
+    return undefined;
+  };
+  return {
+    remoteId: id,
+    number: typeof raw.number === "string" ? raw.number : undefined,
+    kind: typeof raw.kind === "string" ? raw.kind : "expense",
+    status: typeof raw.status === "string" ? raw.status : undefined,
+    sellerName: typeof raw.buyer_name === "string" ? raw.buyer_name : undefined,
+    buyerName: typeof raw.seller_name === "string" ? raw.seller_name : undefined,
+    issueDate: typeof raw.issue_date === "string" ? raw.issue_date : undefined,
+    paymentTo: typeof raw.payment_to === "string" ? raw.payment_to : undefined,
+    grossAmount: parseAmount(raw.price_gross),
+    netAmount: parseAmount(raw.price_net),
+    currency: typeof raw.currency === "string" ? raw.currency : undefined,
+    oid: typeof raw.oid === "string" ? raw.oid : undefined,
+  };
+}
+
+export const listCachedExpenses = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("fakturowniaExpensesCache").order("desc").take(1000);
+  },
+});
+
+export const upsertManyExpenses = internalMutation({
+  args: {
+    expenses: v.array(v.object(cachedExpenseFields)),
+    syncedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    for (const exp of args.expenses) {
+      const existing = await ctx.db
+        .query("fakturowniaExpensesCache")
+        .withIndex("by_remote_id", (q) => q.eq("remoteId", exp.remoteId))
+        .first();
+
+      let autoOrderId: Id<"orders"> | undefined;
+      if (!existing?.orderId && exp.oid?.startsWith("adkokna-")) {
+        const maybeId = exp.oid.slice("adkokna-".length);
+        try {
+          const order = await ctx.db.get(maybeId as Id<"orders">);
+          if (order) autoOrderId = order._id;
+        } catch { /* ignore */ }
+      }
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          ...exp,
+          syncedAt: args.syncedAt,
+          ...(autoOrderId && !existing.orderId ? { orderId: autoOrderId } : {}),
+        });
+      } else {
+        await ctx.db.insert("fakturowniaExpensesCache", {
+          ...exp,
+          syncedAt: args.syncedAt,
+          ...(autoOrderId ? { orderId: autoOrderId } : {}),
+        });
+      }
+    }
+  },
+});
+
+export const deleteStaleExpenses = internalMutation({
+  args: { syncedBefore: v.number() },
+  handler: async (ctx, args) => {
+    const stale = await ctx.db
+      .query("fakturowniaExpensesCache")
+      .withIndex("by_synced", (q) => q.lt("syncedAt", args.syncedBefore))
+      .collect();
+    for (const entry of stale) {
+      await ctx.db.delete(entry._id);
+    }
+    return stale.length;
+  },
+});
+
+export const assignExpense = mutation({
+  args: {
+    expenseId: v.id("fakturowniaExpensesCache"),
+    orderId: v.id("orders"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.expenseId, { orderId: args.orderId });
+  },
+});
+
+export const unassignExpense = mutation({
+  args: {
+    expenseId: v.id("fakturowniaExpensesCache"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.expenseId, { orderId: undefined });
+  },
+});
+
+export const listCachedExpensesByOrder = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("fakturowniaExpensesCache")
+      .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
+      .collect();
+  },
+});
+
+export const syncExpensesFromFakturownia = action({
+  args: {},
+  handler: async (ctx): Promise<{ count: number; pages: number; deleted: number }> => {
+    const token = await getDecryptedToken(ctx);
+    const sub = await resolveSubdomain(ctx);
+    if (!token) throw new Error("Fakturownia: skonfiguruj token API w Ustawieniach");
+    if (!sub) throw new Error("Fakturownia: skonfiguruj subdomenę");
+
+    const base = apiBase(sub);
+    const syncedAt = Date.now();
+    let page = 1;
+    let totalCount = 0;
+    const perPage = 100;
+
+    while (true) {
+      const url = `${base}/invoices.json?api_token=${encodeURIComponent(token)}&per_page=${perPage}&page=${page}&income=no`;
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Fakturownia API błąd (${res.status}): ${text.slice(0, 200)}`);
+      }
+      const data: unknown = await res.json();
+      if (!Array.isArray(data) || data.length === 0) break;
+
+      const expenses = (data as Record<string, unknown>[]).map(parseExpenseFromApi).filter((i) => i.remoteId);
+      await ctx.runMutation(internal.fakturownia.upsertManyExpenses, { expenses, syncedAt });
+
+      totalCount += expenses.length;
+      if (data.length < perPage) break;
+      page++;
+    }
+
+    const deleted = await ctx.runMutation(internal.fakturownia.deleteStaleExpenses, {
+      syncedBefore: syncedAt,
+    });
+
+    return { count: totalCount, pages: page, deleted };
+  },
+});
