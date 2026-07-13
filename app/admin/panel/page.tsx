@@ -8,6 +8,7 @@ import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
 import { deriveStatusStyle } from "@/lib/statuses"
 import type { KanbanItem } from "@/convex/kanban"
 import { Plus, ChevronDown, ChevronUp, Archive, ArchiveRestore } from "lucide-react"
+import { CrmSearch } from "@/components/crm-ui"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 import NewOpportunityModal from "@/components/NewOpportunityModal"
 
@@ -517,6 +518,15 @@ export default function PanelPage() {
   const currentUser = useQuery(api.users.me)
   const allUsers = useQuery(api.users.listAllActive)
   const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(searchQuery.toLowerCase().trim())
+    }, 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
 
   useEffect(() => {
     if (!currentUser?._id) return
@@ -556,8 +566,9 @@ export default function PanelPage() {
 
   const displayItems = useMemo(() => {
     const all = items ?? []
-    if (activeUserFilters.size === 0) return all
-    return all.filter(item => {
+    
+    let filtered = all.filter(item => {
+      if (activeUserFilters.size === 0) return true
       const uids = item.assignees?.map(a => a.id) || []
       if (item.assignedUserId && !uids.includes(item.assignedUserId)) {
         uids.push(item.assignedUserId)
@@ -570,7 +581,28 @@ export default function PanelPage() {
       if (uids.length === 0) return activeUserFilters.has("__none__")
       return uids.some(uid => activeUserFilters.has(uid))
     })
-  }, [items, activeUserFilters, colorToUserId])
+
+    if (debouncedSearch) {
+      filtered = filtered.filter(item => {
+        const clientName = item.clientType === "business" && item.companyName
+          ? `${item.companyName} ${item.clientFirstName} ${item.clientLastName}`
+          : `${item.clientLastName} ${item.clientFirstName}`
+          
+        const fields = [
+          item.type === "order" ? (item.orderName ?? "") : "",
+          item.customText ?? "",
+          item.investmentCity ?? "",
+          item.investmentStreet ?? "",
+          item.comment ?? "",
+          clientName,
+          item.clientCity ?? ""
+        ]
+        return fields.some((f) => f.toLowerCase().includes(debouncedSearch))
+      })
+    }
+    
+    return filtered
+  }, [items, activeUserFilters, colorToUserId, debouncedSearch])
 
   const changeStatus = useMutation(api.orders.changeStatus)
   const promoteToMeasurement = useMutation(api.jotformInternal.promoteToMeasurement)
@@ -859,10 +891,18 @@ export default function PanelPage() {
         ))}
       </div>
 
-      {/* User filter chips — Zlecenia + Szanse */}
-      {(activeTab === "kanban" || activeTab === "opportunities") && allUsers && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-          {[...allUsers]
+      {/* Toolbar: Search + User filter chips */}
+      {(activeTab === "kanban" || activeTab === "opportunities") && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 4 }}>
+          <CrmSearch
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Szukaj zlecenia, klienta, miasta…"
+            width={280}
+          />
+          {allUsers && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+              {[...allUsers]
             .sort((a, b) => {
               if (a._id === currentUser?._id) return -1
               if (b._id === currentUser?._id) return 1
@@ -914,6 +954,8 @@ export default function PanelPage() {
             }} />
             Bez przypisania
           </button>
+            </div>
+          )}
         </div>
       )}
 

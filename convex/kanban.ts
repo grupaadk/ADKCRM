@@ -44,6 +44,10 @@ export type KanbanOrderItem = {
     name: string | null;
     color?: string;
   }[];
+  investmentCity?: string;
+  investmentStreet?: string;
+  comment?: string;
+  clientCity?: string;
 };
 
 export type KanbanPendingItem = {
@@ -65,6 +69,10 @@ export type KanbanPendingItem = {
     name: string | null;
     color?: string;
   }[];
+  investmentCity?: string;
+  investmentStreet?: string;
+  comment?: string;
+  clientCity?: string;
 };
 
 export type KanbanItem = KanbanOrderItem | KanbanPendingItem;
@@ -145,6 +153,10 @@ export const list = query({
           assignedUserColor,
           assignedUserId: order.assignedUserId,
           assignees,
+          investmentCity: order.investmentCity,
+          investmentStreet: order.investmentStreet,
+          comment: order.comment,
+          clientCity: client?.city,
         };
       }),
     );
@@ -155,6 +167,7 @@ export const list = query({
         let lastName = pending.lastName;
         let clientType: "individual" | "business" | undefined;
         let companyName: string | undefined;
+        let clientCity: string | undefined;
         if (pending.clientId) {
           const client = await ctx.db.get(pending.clientId);
           if (client) {
@@ -162,6 +175,7 @@ export const list = query({
             lastName = client.lastName;
             clientType = client.clientType;
             companyName = client.companyName;
+            clientCity = client.city;
           }
         }
         let assignedUserColor: string | undefined;
@@ -202,6 +216,10 @@ export const list = query({
           assignedUserColor,
           assignedUserId: pending.assignedUserId,
           assignees,
+          investmentCity: pending.investmentCity,
+          investmentStreet: pending.investmentStreet,
+          comment: pending.comment,
+          clientCity: clientCity ?? pending.city,
         };
       }),
     );
