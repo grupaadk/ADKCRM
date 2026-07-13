@@ -3,20 +3,12 @@ import { query, mutation, action, internalMutation } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { requireUser, userIdentifier } from "./lib/auth";
 
-// Lista klientów z paginacją
+// Lista wszystkich klientów
 export const list = query({
-  args: {
-    paginationOpts: v.optional(
-      v.object({
-        cursor: v.union(v.string(), v.null()),
-        numItems: v.number(),
-      }),
-    ),
-  },
-  handler: async (ctx, args) => {
-    const numItems = args.paginationOpts?.numItems ?? 50;
-    const clients = await ctx.db.query("clients").order("desc").take(numItems);
-    return { page: clients, isDone: clients.length < numItems };
+  args: {},
+  handler: async (ctx) => {
+    const clients = await ctx.db.query("clients").order("desc").collect();
+    return { page: clients, isDone: true };
   },
 });
 
