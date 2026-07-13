@@ -58,13 +58,13 @@ const STATUS_LABELS: Record<string, string> = {
   draft: "Szkic",
 };
 
-const STATUS_VARIANTS: Record<string, string> = {
-  issued: "neutral",
-  sent: "default",
-  paid: "success",
-  partially_paid: "warning",
-  rejected: "error",
-  draft: "amber",
+const STATUS_STYLES: Record<string, React.CSSProperties> = {
+  draft:          { background: "#f3f4f6", color: "#475569", border: "1px solid #cbd5e1" },
+  issued:         { background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" },
+  sent:           { background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe" },
+  paid:           { background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0" },
+  partially_paid: { background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa" },
+  rejected:       { background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca" },
 };
 
 type CachedInvoice = {
@@ -3296,16 +3296,19 @@ export default function OrderDetailPage({
                           </TableCell>
                           <TableCell>
                             {inv.status ? (
-                              <Badge
-                                variant={
-                                  (STATUS_VARIANTS[inv.status] ??
-                                    "neutral") as Parameters<
-                                    typeof Badge
-                                  >[0]["variant"]
-                                }
+                              <span
+                                style={{
+                                  ...(STATUS_STYLES[inv.status] || { background: "#f3f4f6", color: "#475569", border: "1px solid #cbd5e1" }),
+                                  padding: "4px 8px",
+                                  borderRadius: "9999px",
+                                  fontSize: "12px",
+                                  fontWeight: 600,
+                                  whiteSpace: "nowrap",
+                                  display: "inline-block"
+                                }}
                               >
                                 {STATUS_LABELS[inv.status] ?? inv.status}
-                              </Badge>
+                              </span>
                             ) : (
                               <span className="text-gray-400">—</span>
                             )}

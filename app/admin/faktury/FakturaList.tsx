@@ -87,6 +87,15 @@ const STATUS_LABELS: Record<string, string> = {
   draft: "Szkic",
 };
 
+const STATUS_STYLES: Record<string, React.CSSProperties> = {
+  draft:          { background: "#f3f4f6", color: "#475569", border: "1px solid #cbd5e1" },
+  issued:         { background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" },
+  sent:           { background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe" },
+  paid:           { background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0" },
+  partially_paid: { background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa" },
+  rejected:       { background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca" },
+};
+
 
 type SortField = "number" | "kind" | "status" | "buyerName" | "issueDate" | "paymentTo" | "grossAmount" | "netAmount";
 type SortDir = "asc" | "desc";
@@ -645,8 +654,24 @@ export default function FakturaList() {
                     </TableCell>
 
                     {/* Status */}
-                    <TableCell className="text-sm text-gray-700">
-                      {invoice.status ? (STATUS_LABELS[invoice.status] ?? invoice.status) : <span className="text-gray-400">—</span>}
+                    <TableCell>
+                      {invoice.status ? (
+                        <span
+                          style={{
+                            ...(STATUS_STYLES[invoice.status] || { background: "#f3f4f6", color: "#475569", border: "1px solid #cbd5e1" }),
+                            padding: "4px 8px",
+                            borderRadius: "9999px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
+                            display: "inline-block"
+                          }}
+                        >
+                          {STATUS_LABELS[invoice.status] ?? invoice.status}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </TableCell>
 
                     {/* Buyer */}
