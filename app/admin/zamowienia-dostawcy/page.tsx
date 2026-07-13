@@ -328,68 +328,57 @@ export default function SupplierOrdersPage() {
       <CrmPageHeader
         title="Zamówienia od dostawcy"
         sub={`${allRows.length} zamówień · ${statusCounts.pending} oczekuje · ${statusCounts.overdue} przeterminowanych`}
+        center={
+          <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
+            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)" }} />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Numer zlecenia, klient, tekst własny, usługa lub dostawca"
+              style={{
+                width: "100%",
+                padding: "8px 30px 8px 34px",
+                borderRadius: 999,
+                border: "1px solid var(--line)",
+                background: "#fff",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: "inherit",
+                color: "var(--text-strong)",
+                outline: "none",
+                transition: "border-color 0.15s, box-shadow 0.15s",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "var(--line)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                style={{
+                  position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                  background: "var(--panel-3)", border: "none", borderRadius: "50%",
+                  cursor: "pointer", color: "var(--text-mute)", width: 20, height: 20,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <X style={{ width: 12, height: 12 }} />
+              </button>
+            )}
+          </div>
+        }
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {/* Toolbar */}
         <div className="panel" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-          {/* Search */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, maxWidth: 520 }}>
-            <span style={{
-              fontSize: 12, fontWeight: 600, color: "var(--text-strong)",
-              whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5,
-            }}>
-              <Search style={{ width: 15, height: 15 }} />
-              Szukaj
-            </span>
-            <div style={{ position: "relative", flex: 1 }}>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Numer zlecenia, klient, tekst własny, usługa lub dostawca"
-                style={{
-                  width: "100%",
-                  padding: "10px 34px 10px 12px",
-                  borderRadius: 8,
-                  border: "2px solid var(--accent-line)",
-                  background: "var(--bg)",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  fontFamily: "inherit",
-                  color: "var(--text-strong)",
-                  outline: "none",
-                  transition: "border-color 0.15s, box-shadow 0.15s",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent)"
-                  e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)"
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent-line)"
-                  e.currentTarget.style.boxShadow = "none"
-                }}
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  style={{
-                    position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
-                    background: "var(--panel-3)", border: "none", borderRadius: "50%",
-                    cursor: "pointer", color: "var(--text-mute)", width: 22, height: 22,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}
-                >
-                  <X style={{ width: 13, height: 13 }} />
-                </button>
-              )}
-            </div>
-            {isFiltering && (
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", whiteSpace: "nowrap" }}>
-                {rows.length} wyników
-              </span>
-            )}
-          </div>
 
           {/* Status filter */}
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
@@ -399,6 +388,11 @@ export default function SupplierOrdersPage() {
                 {STATUS_META[s].label} <CountBadge count={statusCounts[s]} active={statusFilter.has(s)} />
               </FilterBtn>
             ))}
+            {isFiltering && (
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", whiteSpace: "nowrap", marginLeft: 8 }}>
+                Znaleziono: {rows.length}
+              </span>
+            )}
           </div>
 
           {/* Supplier filter */}

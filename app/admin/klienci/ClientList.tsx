@@ -45,11 +45,11 @@ function primaryName(c: Client): string {
   return `${c.lastName} ${c.firstName}`
 }
 
-export default function ClientList({ viewConfig }: { viewConfig?: ViewConfig }) {
+export default function ClientList({ viewConfig, searchQuery }: { viewConfig?: ViewConfig, searchQuery: string }) {
   const router = useRouter()
   const updateSortMutation = useMutation(api.viewConfig.updateSort)
 
-  const [query, setQuery] = useState("")
+
   const [clientFilter, setClientFilter] = useState<ClientFilter>("all")
 
   const sortBy = viewConfig?.sortBy ?? DEFAULT_SORT
@@ -70,8 +70,8 @@ export default function ClientList({ viewConfig }: { viewConfig?: ViewConfig }) 
       )
     }
 
-    if (query.trim()) {
-      const lower = query.toLowerCase()
+    if (searchQuery.trim()) {
+      const lower = searchQuery.toLowerCase()
       filtered = filtered.filter((c) => {
         const name = `${c.firstName} ${c.lastName}`.toLowerCase()
         const company = (c.companyName ?? "").toLowerCase()
@@ -104,7 +104,7 @@ export default function ClientList({ viewConfig }: { viewConfig?: ViewConfig }) 
         : String(aVal).localeCompare(String(bVal), "pl")
       return sortBy.direction === "asc" ? cmp : -cmp
     })
-  }, [clients, query, sortBy, clientFilter])
+  }, [clients, searchQuery, sortBy, clientFilter])
 
   const handleSort = useCallback((field: string) => {
     const direction: "asc" | "desc" =
@@ -151,12 +151,7 @@ export default function ClientList({ viewConfig }: { viewConfig?: ViewConfig }) 
           ))}
         </div>
 
-        <CrmSearch
-          value={query}
-          onChange={setQuery}
-          placeholder="Szukaj po nazwie, firmie, mieście…"
-          width={280}
-        />
+
         <span className="mute" style={{ fontSize: 11, marginLeft: "auto" }}>
           {isLoading ? "Ładowanie…" : `${displayClients?.length ?? 0} klientów`}
         </span>

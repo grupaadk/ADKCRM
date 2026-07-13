@@ -7,6 +7,8 @@ import type { Id } from "@/convex/_generated/dataModel";
 import ComplaintDetailPanel from "@/components/complaints/ComplaintDetailPanel";
 import NewComplaintModal from "@/components/complaints/NewComplaintModal";
 import { createPortal } from "react-dom";
+import { CrmPageHeader } from "@/components/crm-ui";
+import { Search, X, Plus } from "lucide-react";
 
 type Status = "nowa" | "w_toku" | "rozwiazana" | "zamknieta";
 
@@ -105,26 +107,64 @@ export default function ReklamacjePage() {
     <>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {/* Page Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "var(--text-strong)" }}>
-              Reklamacje
-            </h1>
-            <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "var(--text-mute)" }}>
-              {complaints ? `${complaints.length} reklamacji łącznie` : "Ładowanie…"}
-            </p>
-          </div>
-          <button
-            onClick={() => setShowNewModal(true)}
-            className="btn"
-            style={{ fontSize: 12.5, padding: "8px 16px", display: "flex", alignItems: "center", gap: 6 }}
-          >
-            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Nowa reklamacja
-          </button>
-        </div>
+        <CrmPageHeader
+          title="Reklamacje"
+          sub={complaints ? `${complaints.length} reklamacji łącznie` : "Ładowanie…"}
+          center={
+            <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
+              <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)" }} />
+              <input
+                type="text"
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                placeholder="Szukaj reklamacji, klienta…"
+                style={{
+                  width: "100%",
+                  padding: "8px 30px 8px 34px",
+                  borderRadius: 999,
+                  border: "1px solid var(--line)",
+                  background: "#fff",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  fontFamily: "inherit",
+                  color: "var(--text-strong)",
+                  outline: "none",
+                  transition: "border-color 0.15s, box-shadow 0.15s",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--accent)";
+                  e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "var(--line)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+              {clientFilter && (
+                <button
+                  onClick={() => setClientFilter("")}
+                  style={{
+                    position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                    background: "var(--panel-3)", border: "none", borderRadius: "50%",
+                    cursor: "pointer", color: "var(--text-mute)", width: 20, height: 20,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  <X style={{ width: 12, height: 12 }} />
+                </button>
+              )}
+            </div>
+          }
+          actions={
+            <button
+              onClick={() => setShowNewModal(true)}
+              className="btn primary"
+            >
+              <Plus size={13} /> Nowa reklamacja
+            </button>
+          }
+        />
 
         {/* Status tabs */}
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -182,23 +222,7 @@ export default function ReklamacjePage() {
             borderRadius: 8,
           }}
         >
-          <input
-            type="text"
-            placeholder="Filtruj po kliencie…"
-            value={clientFilter}
-            onChange={(e) => setClientFilter(e.target.value)}
-            style={{
-              fontSize: 12.5,
-              padding: "5px 10px",
-              borderRadius: 6,
-              border: "1px solid var(--line)",
-              background: "var(--panel)",
-              color: "var(--text)",
-              fontFamily: "inherit",
-              outline: "none",
-              width: 180,
-            }}
-          />
+
           <select
             value={assignedFilter}
             onChange={(e) => setAssignedFilter(e.target.value)}

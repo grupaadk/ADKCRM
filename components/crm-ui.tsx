@@ -34,9 +34,11 @@ export function CrmPageHeader({ title, sub, actions, center, tabs, activeTab, on
             {center}
           </div>
         )}
-        {actions && (
-          <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>{actions}</div>
-        )}
+        {(actions || center) ? (
+          <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
+            {actions}
+          </div>
+        ) : null}
       </div>
 
       {tabs && (

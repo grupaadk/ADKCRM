@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
-import { Plus, Search, Loader2 } from "lucide-react";
+import { Plus, Search, Loader2, X } from "lucide-react";
 import ClientList from "./ClientList";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { CrmPageHeader } from "@/components/crm-ui";
@@ -43,6 +43,7 @@ export default function KlienciPage() {
   const [submitting, setSubmitting] = useState(false);
   const [nipLoading, setNipLoading] = useState(false);
   const [nipFetched, setNipFetched] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   function validate(): boolean {
     const newErrors: Record<string, string> = {};
@@ -164,6 +165,52 @@ export default function KlienciPage() {
       <CrmPageHeader
         title="Klienci"
         sub="Lista wszystkich klientów w systemie."
+        center={
+          <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
+            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)" }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Szukaj po nazwie, firmie, mieście…"
+              style={{
+                width: "100%",
+                padding: "8px 30px 8px 34px",
+                borderRadius: 999,
+                border: "1px solid var(--line)",
+                background: "#fff",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: "inherit",
+                color: "var(--text-strong)",
+                outline: "none",
+                transition: "border-color 0.15s, box-shadow 0.15s",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "var(--line)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                style={{
+                  position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                  background: "var(--panel-3)", border: "none", borderRadius: "50%",
+                  cursor: "pointer", color: "var(--text-mute)", width: 20, height: 20,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <X style={{ width: 12, height: 12 }} />
+              </button>
+            )}
+          </div>
+        }
         actions={
           <button onClick={() => setShowModal(true)} className="btn primary">
             <Plus size={13} /> Dodaj klienta
@@ -183,6 +230,7 @@ export default function KlienciPage() {
               }
             : undefined
         }
+        searchQuery={searchQuery}
       />
 
       {showModal && (
