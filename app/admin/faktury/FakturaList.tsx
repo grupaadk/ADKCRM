@@ -73,7 +73,7 @@ const KIND_LABELS: Record<string, string> = {
   vat: "Faktura VAT",
   advance: "Faktura zaliczkowa",
   final: "Faktura końcowa",
-  estimate: "Wycena",
+  estimate: "Zamówienie", // They use 'estimate' for 'Zamówienie' in Fakturownia
   proforma: "Proforma",
   correction: "Korekta",
 };
@@ -367,7 +367,7 @@ export default function FakturaList() {
     return counts;
   }, [invoices]);
 
-  const allKinds = useMemo(() => Object.keys(kindCounts).sort(), [kindCounts]);
+  const allKinds = useMemo(() => Object.keys(KIND_LABELS), []);
 
   // Filter + sort
   const displayed = useMemo(() => {

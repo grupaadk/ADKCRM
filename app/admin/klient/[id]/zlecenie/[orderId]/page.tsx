@@ -33,20 +33,20 @@ import { Badge } from "@/components/ui/Badge";
 
 const KIND_LABELS: Record<string, string> = {
   vat: "Faktura VAT",
-  advance: "Faktura zaliczkowa",
-  final: "Faktura końcowa",
-  estimate: "Wycena",
+  advance: "Zaliczkowa",
+  final: "Końcowa",
+  estimate: "Zamówienie",
   proforma: "Proforma",
   correction: "Korekta",
 };
 
 const KIND_VARIANTS: Record<string, string> = {
   vat: "default",
-  advance: "purple",
-  final: "teal",
-  estimate: "amber",
+  advance: "warning",
+  final: "success",
+  estimate: "neutral",
   proforma: "neutral",
-  correction: "orange",
+  correction: "error",
 };
 
 const STATUS_LABELS: Record<string, string> = {

@@ -653,7 +653,7 @@ export const listCachedInvoices = query({
   args: {},
   handler: async (ctx) => {
     const all = await ctx.db.query("fakturowniaInvoicesCache").order("desc").take(1000);
-    return all.filter((inv) => inv.kind !== "estimate");
+    return all;
   },
 });
 
@@ -664,7 +664,7 @@ export const listCachedInvoicesByOrder = query({
       .query("fakturowniaInvoicesCache")
       .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
       .collect();
-    return all.filter((inv) => inv.kind !== "estimate");
+    return all;
   },
 });
 
@@ -675,7 +675,6 @@ export const searchInvoicesByBuyerName = query({
     const term = args.name.toLowerCase();
     return all.filter(
       (inv) =>
-        inv.kind !== "estimate" &&
         inv.buyerName &&
         inv.buyerName.toLowerCase().includes(term),
     );
