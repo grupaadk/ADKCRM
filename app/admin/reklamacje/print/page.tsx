@@ -122,9 +122,9 @@ export default function PrintComplaintsPage() {
                   <td style={{ padding: "8px 6px" }}>
                     {allNotes.length > 0 ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        {allNotes.map((n, i) => (
+                        {allNotes.map((n: any, i: number) => (
                           <div key={i} style={{ fontSize: 9 }}>
-                            <span style={{ color: "#9ca3af", marginRight: 4 }}>
+                            <span style={{ color: "#374151", fontWeight: 700, marginRight: 4 }}>
                               {new Date(n.date).toLocaleDateString("pl-PL")}:
                             </span>
                             <span style={{ color: "#4b5563" }}>{n.text}</span>
