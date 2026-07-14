@@ -965,12 +965,13 @@ export const addCustomExpense = mutation({
   },
   handler: async (ctx, args) => {
     const remoteId = `custom_${crypto.randomUUID()}`;
+    const netAmount = Math.round((args.grossAmount / 1.23) * 100) / 100;
     await ctx.db.insert("fakturowniaExpensesCache", {
       remoteId,
       number: args.title,
       kind: "custom_expense",
       grossAmount: args.grossAmount,
-      netAmount: 0,
+      netAmount,
       currency: "PLN",
       orderId: args.orderId,
       syncedAt: Date.now(),
