@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { createPortal } from "react-dom";
 import ComplaintPhotoSection from "@/app/admin/klient/[id]/zlecenie/[orderId]/ComplaintPhotoSection";
+import { Search, UserPlus, X } from "lucide-react";
 
 type Status = "nowa" | "w_toku" | "rozwiazana" | "zamknieta";
 
@@ -56,7 +57,22 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
   const complaint = useQuery(api.complaints.getById, { complaintId });
   const me = useQuery(api.users.me);
   const users = useQuery(api.users.listAllActive);
-  const orders = useQuery(api.orders.listForPicker);
+
+  const currentClient = useQuery(api.clients.getById, complaint?.clientId ? { clientId: complaint.clientId } : "skip");
+  const currentOrder = useQuery(api.orders.getById, complaint?.orderId ? { orderId: complaint.orderId } : "skip");
+
+  const [showClientPicker, setShowClientPicker] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
+  const searchResults = useQuery(
+    api.clients.search,
+    clientSearch.trim().length >= 2 ? { searchTerm: clientSearch } : "skip"
+  );
+
+  const [showOrderPicker, setShowOrderPicker] = useState(false);
+  const clientOrders = useQuery(
+    api.orders.listByClient,
+    complaint?.clientId ? { clientId: complaint.clientId } : "skip"
+  );
 
   const updateStatus = useMutation(api.complaints.updateStatus);
   const updateDetails = useMutation(api.complaints.updateDetails);
@@ -299,44 +315,169 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
                 })}
               </div>
             </div>
-            {/* Order */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11.5, color: "var(--text-mute)", width: 120, flexShrink: 0 }}>Zlecenie</span>
-              <select
-                value={complaint.orderId ?? ""}
-                onChange={(e) => {
-                  const val = e.target.value as Id<"orders"> | "";
-                  updateDetails({ complaintId, orderId: val || undefined });
-                }}
-                style={{
-                  fontSize: 12,
-                  padding: "3px 8px",
-                  borderRadius: 6,
-                  border: "1px solid var(--line)",
-                  background: "var(--panel-2)",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  flex: 1,
-                }}
-              >
-                <option value="">— Brak zlecenia —</option>
-                {orders?.map((o) => (
-                  <option key={o._id} value={o._id}>
-                    {o.name ?? o.customText ?? o._id} — {o.clientName}
-                  </option>
-                ))}
-              </select>
-              {complaint.orderId && (
-                <a
-                  href={`/admin/klient/${complaint.clientId}/zlecenie/${complaint.orderId}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Przejdź do zlecenia"
-                  style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none", whiteSpace: "nowrap" }}
-                >
-                  → Otwórz
-                </a>
+            {/* Client Picker */}
+            <div className="border border-gray-200 bg-gray-50/50 rounded-md p-3">
+              {!showClientPicker ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Klient</div>
+                    <div className="text-xs text-gray-700 mt-0.5 font-medium">
+                      {currentClient 
+                        ? ([currentClient.firstName, currentClient.lastName].filter(Boolean).join(" ") || currentClient.companyName || currentClient._id)
+                        : "Brak przypisanego klienta"}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {complaint.clientId && (
+                      <a
+                        href={`/admin/klient/${complaint.clientId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                        title="Przejdź do klienta"
+                        style={{ textDecoration: "none" }}
+                      >
+                        Otwórz
+                      </a>
+                    )}
+                    <button
+                      onClick={() => setShowClientPicker(true)}
+                      className="flex shrink-0 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <UserPlus className="size-3.5" /> Zmień
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Przypisz klienta:</div>
+                    <button onClick={() => { setShowClientPicker(false); setClientSearch(""); }} className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-gray-600 transition-colors">
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                  
+                  <div className="relative mb-2">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      placeholder="Wpisz nazwisko lub firmę (min. 2 znaki)…"
+                      className="w-full rounded-md border border-gray-200 py-2 pl-8 pr-3 text-sm outline-none focus:border-gray-400 bg-white"
+                    />
+                  </div>
+                  <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                    {clientSearch.trim().length >= 2 ? (
+                      searchResults === undefined ? (
+                        <div className="text-xs text-gray-400 px-2 py-1">Szukanie...</div>
+                      ) : searchResults.length === 0 ? (
+                        <div className="text-xs text-gray-400 px-2 py-1">Brak wyników.</div>
+                      ) : (
+                        searchResults.map((c) => {
+                          const name = [c.firstName, c.lastName].filter(Boolean).join(" ") || c.companyName || c._id;
+                          return (
+                            <button
+                              key={c._id}
+                              onClick={() => {
+                                updateDetails({ complaintId, clientId: c._id, orderId: undefined });
+                                setShowClientPicker(false);
+                                setClientSearch("");
+                              }}
+                              className="flex w-full flex-col items-start rounded-md border border-gray-100 bg-white px-3 py-2 text-left hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                            >
+                              <span className="flex w-full items-center gap-2">
+                                <span className="truncate text-[13px] font-medium text-gray-900">{name}</span>
+                                {c.companyName && [c.firstName, c.lastName].filter(Boolean).length > 0 && (
+                                  <span className="text-[11px] text-gray-400">({c.companyName})</span>
+                                )}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )
+                    ) : (
+                      <div className="text-xs text-gray-400 px-2 py-1">Wpisz co najmniej 2 znaki...</div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Order Picker */}
+            <div className={`border border-gray-200 bg-gray-50/50 rounded-md p-3 ${!complaint.clientId ? "opacity-50 pointer-events-none" : ""}`}>
+              {!showOrderPicker ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Zlecenie</div>
+                    <div className="text-xs text-gray-700 mt-0.5 font-medium">
+                      {currentOrder 
+                        ? (currentOrder.name ?? currentOrder.customText ?? "Zlecenie bez nazwy")
+                        : "Brak przypisanego zlecenia"}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {complaint.orderId && complaint.clientId && (
+                      <a
+                        href={`/admin/klient/${complaint.clientId}/zlecenie/${complaint.orderId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                        title="Przejdź do zlecenia"
+                        style={{ textDecoration: "none" }}
+                      >
+                        Otwórz
+                      </a>
+                    )}
+                    <button
+                      onClick={() => setShowOrderPicker(true)}
+                      className="flex shrink-0 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <UserPlus className="size-3.5" /> Zmień
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Przypisz zlecenie:</div>
+                    <button onClick={() => setShowOrderPicker(false)} className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-gray-600 transition-colors">
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                  
+                  <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                    <button
+                      onClick={() => {
+                        updateDetails({ complaintId, orderId: undefined });
+                        setShowOrderPicker(false);
+                      }}
+                      className="flex w-full flex-col items-start rounded-md border border-gray-100 bg-white px-3 py-2 text-left hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                    >
+                      <span className="truncate text-[13px] font-medium text-gray-500">— Usuń przypisanie zlecenia —</span>
+                    </button>
+                    {clientOrders === undefined ? (
+                      <div className="text-xs text-gray-400 px-2 py-1">Ładowanie...</div>
+                    ) : clientOrders.length === 0 ? (
+                      <div className="text-xs text-gray-400 px-2 py-1">Ten klient nie ma żadnych zleceń.</div>
+                    ) : (
+                      clientOrders.map((o) => (
+                        <button
+                          key={o._id}
+                          onClick={() => {
+                            updateDetails({ complaintId, orderId: o._id });
+                            setShowOrderPicker(false);
+                          }}
+                          className="flex w-full flex-col items-start rounded-md border border-gray-100 bg-white px-3 py-2 text-left hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                        >
+                          <span className="flex w-full items-center gap-2">
+                            <span className="truncate text-[13px] font-medium text-gray-900">{o.name ?? "Zlecenie bez nazwy"}</span>
+                            {o.customText && <span className="chip-custom shrink-0">{o.customText}</span>}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </>
               )}
             </div>
             {/* Assigned to */}

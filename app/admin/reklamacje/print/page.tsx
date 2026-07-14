@@ -35,12 +35,13 @@ export default function PrintComplaintsPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", fontFamily: "'Inter', sans-serif", background: "#fff", color: "#000" }}>
+    <div className="print-wrapper" style={{ minHeight: "100vh", fontFamily: "'Inter', sans-serif", background: "#fff", color: "#000" }}>
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
-          body { background: white !important; margin: 0; }
+          body, html { background: white !important; margin: 0; padding: 0; height: auto; min-height: 0; }
+          .print-wrapper { min-height: 0 !important; padding: 10mm; }
           .no-print { display: none !important; }
-          @page { size: landscape; margin: 10mm; }
+          @page { size: landscape; margin: 0; }
         }
       `}} />
       
@@ -73,10 +74,8 @@ export default function PrintComplaintsPage() {
               <th style={{ padding: "8px 6px" }}>Adres</th>
               <th style={{ padding: "8px 6px" }}>Telefon</th>
               <th style={{ padding: "8px 6px" }}>Zlecenie</th>
-              <th style={{ padding: "8px 6px" }}>Status</th>
               <th style={{ padding: "8px 6px", width: "20%" }}>Opis</th>
               <th style={{ padding: "8px 6px", width: "15%" }}>Notatki</th>
-              <th style={{ padding: "8px 6px" }}>Przypisany do</th>
             </tr>
           </thead>
           <tbody>
@@ -98,10 +97,10 @@ export default function PrintComplaintsPage() {
               }
 
               const allNotes = [
-                ...(c.notes || []).map((n) => ({ date: n.createdAt, text: n.content })),
+                ...(c.notes || []).map((n: any) => ({ date: n.createdAt, text: n.text })),
                 ...(c.entries || [])
-                  .filter((e) => e.type === "note")
-                  .map((e) => ({ date: e.createdAt, text: e.content })),
+                  .filter((e: any) => e.type === "note")
+                  .map((e: any) => ({ date: e.createdAt, text: e.text })),
               ].sort((a, b) => a.date - b.date);
 
               return (
@@ -112,7 +111,6 @@ export default function PrintComplaintsPage() {
                   <td style={{ padding: "8px 6px" }}>{addr}</td>
                   <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{c.client?.phone || "—"}</td>
                   <td style={{ padding: "8px 6px" }}>{c.order?.name || "—"}</td>
-                  <td style={{ padding: "8px 6px" }}>{c.status.toUpperCase()}</td>
                   <td style={{ padding: "8px 6px", whiteSpace: "pre-wrap", color: "#4b5563" }}>
                     {c.clientDescription || c.description || "—"}
                   </td>
@@ -130,7 +128,6 @@ export default function PrintComplaintsPage() {
                       </div>
                     ) : "—"}
                   </td>
-                  <td style={{ padding: "8px 6px", color: "#6b7280" }}>{c.assignedTo || "—"}</td>
                 </tr>
               );
             })}

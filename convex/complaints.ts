@@ -109,6 +109,7 @@ export const updateDetails = mutation({
     startDate: v.optional(v.number()),
     serviceDate: v.optional(v.number()),
     orderId: v.optional(v.id("orders")),
+    clientId: v.optional(v.id("clients")),
   },
   handler: async (ctx, args) => {
     const { complaintId, ...fields } = args;
@@ -119,6 +120,7 @@ export const updateDetails = mutation({
     if (fields.startDate !== undefined) patch.startDate = fields.startDate;
     if ("serviceDate" in fields) patch.serviceDate = fields.serviceDate;
     if ("orderId" in fields) patch.orderId = fields.orderId;
+    if ("clientId" in fields && fields.clientId !== undefined) patch.clientId = fields.clientId;
     await ctx.db.patch(complaintId, patch);
   },
 });
