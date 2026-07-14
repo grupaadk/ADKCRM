@@ -970,7 +970,7 @@ export const addCustomExpense = mutation({
       number: args.title,
       kind: "custom_expense",
       grossAmount: args.grossAmount,
-      netAmount: args.grossAmount,
+      netAmount: 0,
       currency: "PLN",
       orderId: args.orderId,
       syncedAt: Date.now(),
