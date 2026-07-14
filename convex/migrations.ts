@@ -80,6 +80,27 @@ export const fixViewConfigTypes = internalMutation({
   },
 });
 
+export const recalculateCustomExpensesNet = internalMutation({
+  args: {},
+  returns: v.string(),
+  handler: async (ctx) => {
+    const expenses = await ctx.db
+      .query("fakturowniaExpensesCache")
+      .filter((q) => q.eq(q.field("kind"), "custom_expense"))
+      .collect();
+
+    let count = 0;
+    for (const exp of expenses) {
+      const netAmount = Math.round((exp.grossAmount / 1.23) * 100) / 100;
+      if (exp.netAmount !== netAmount) {
+        await ctx.db.patch(exp._id, { netAmount });
+        count++;
+      }
+    }
+    return `Zaktualizowano ${count} wydatków własnych.`;
+  },
+});
+
 export const resetOrderCounter = internalMutation({
   args: {},
   returns: v.string(),
