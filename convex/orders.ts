@@ -1,7 +1,7 @@
 import { v, ConvexError } from "convex/values";
 import { query, mutation, action, internalMutation, MutationCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
-import { requireUser, userIdentifier } from "./lib/auth";
+import { requireUser, requireRole, userIdentifier } from "./lib/auth";
 import { resolveStatuses, type StatusDef } from "../lib/statuses";
 
 export async function nextOrderNumber(ctx: MutationCtx): Promise<string> {
@@ -732,6 +732,34 @@ export const saveInvoicePlan = mutation({
     await ctx.db.patch(args.orderId, {
       invoicePlan: { type: args.type, advancePct: args.advancePct, advance2Pct: args.advance2Pct },
     });
+  },
+});
+
+export const refreshOrderNumber = mutation({
+  args: {
+    orderId: v.id("orders"),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireRole(ctx, "admin");
+    const userId = userIdentifier(user);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie znalezione");
+
+    const oldName = order.name ?? "";
+    const newName = await nextOrderNumber(ctx);
+
+    await ctx.db.patch(args.orderId, { name: newName });
+
+    await ctx.db.insert("clientEvents", {
+      clientId: order.clientId,
+      orderId: args.orderId,
+      type: "order_number_changed",
+      details: { from: oldName, to: newName },
+      performedBy: userId,
+    });
+
+    return { oldName, newName };
   },
 });
 
