@@ -73,7 +73,7 @@ interface OrderData {
   investmentBuildingNumber?: string;
   investmentPostalCode?: string;
   investmentCity?: string;
-  invoicePlan?: { type?: "vat" | "advance_final"; advancePct?: number };
+  invoicePlan?: { type?: "vat" | "advance_final" | "advance_2_final"; advancePct?: number };
 }
 
 interface MissingFieldGroup {
@@ -305,7 +305,7 @@ export default function DocumentCheckboxes({
     let selectedTemplateId: Id<"documentTemplates"> | undefined = keyTemplates[0]?._id;
 
     if (docType === "umowa" && keyTemplates.length > 1) {
-      const isAdvanceFinal = orderData?.invoicePlan?.type === "advance_final";
+      const isAdvanceFinal = orderData?.invoicePlan?.type === "advance_final" || orderData?.invoicePlan?.type === "advance_2_final";
       const targetName = isAdvanceFinal ? "Umowa_Zaliczka" : "Umowa_całość";
       const autoSelected = keyTemplates.find((t) => t.name === targetName);
       if (autoSelected) {
