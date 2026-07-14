@@ -80,7 +80,7 @@ export const fixViewConfigTypes = internalMutation({
   },
 });
 
-export const recalculateCustomExpensesNet = internalMutation({
+export const recalculateCustomExpensesNet = mutation({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
