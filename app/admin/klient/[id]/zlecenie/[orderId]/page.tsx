@@ -1599,7 +1599,7 @@ export default function OrderDetailPage({
   const [showAddCustomExpenseModal, setShowAddCustomExpenseModal] = useState(false);
   const [customExpenseTitle, setCustomExpenseTitle] = useState("");
   const [customExpenseAmount, setCustomExpenseAmount] = useState("");
-  const [customExpenseDate, setCustomExpenseDate] = useState("");
+  const [customExpenseDate, setCustomExpenseDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [reminderInvoiceId, setReminderInvoiceId] =
     useState<Id<"fakturowniaInvoicesCache"> | null>(null);
 
@@ -4335,7 +4335,7 @@ export default function OrderDetailPage({
           setShowAddCustomExpenseModal(false);
           setCustomExpenseTitle("");
           setCustomExpenseAmount("");
-          setCustomExpenseDate("");
+          setCustomExpenseDate(new Date().toISOString().split("T")[0]);
         }}
         title="Dodaj własny wydatek"
         width={400}
@@ -4347,7 +4347,7 @@ export default function OrderDetailPage({
                 setShowAddCustomExpenseModal(false);
                 setCustomExpenseTitle("");
                 setCustomExpenseAmount("");
-                setCustomExpenseDate("");
+                setCustomExpenseDate(new Date().toISOString().split("T")[0]);
               }}
             >
               Anuluj
@@ -4366,7 +4366,7 @@ export default function OrderDetailPage({
                   setShowAddCustomExpenseModal(false);
                   setCustomExpenseTitle("");
                   setCustomExpenseAmount("");
-                  setCustomExpenseDate("");
+                  setCustomExpenseDate(new Date().toISOString().split("T")[0]);
                 } catch (err: any) {
                   alert(err.message);
                 }
