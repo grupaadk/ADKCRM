@@ -1879,8 +1879,10 @@ export const copyTemplate = action({
       // Backward compat: type may be absent on older records
       const storedAdvancePct = order.invoicePlan?.advancePct ?? 0;
       const effectiveType = invoiceType ?? (storedAdvancePct > 0 ? "advance_final" : undefined);
-      const advancePct = effectiveType === "advance_final" ? storedAdvancePct : 0;
-      const finalPct = 100 - advancePct;
+      const isAdvance = effectiveType === "advance_final" || effectiveType === "advance_2_final";
+      const advancePct = isAdvance ? storedAdvancePct : 0;
+      const advance2Pct = effectiveType === "advance_2_final" ? (order.invoicePlan?.advance2Pct ?? 0) : 0;
+      const finalPct = 100 - advancePct - advance2Pct;
       const round2 = (n: number) => Math.round(n * 100) / 100;
       const lineItemsList = lineItemsResult.items.map((item) => item.name).join("\n");
       const computedFields = {
@@ -1892,13 +1894,17 @@ export const copyTemplate = action({
         invoiceVatAmount: effectiveType === "vat" ? formatPLN(totalGross) : "",
         invoiceVatNetAmount: effectiveType === "vat" ? formatPLN(totalNet) : "",
         // Faktura zaliczkowa
-        invoiceAdvancePct: effectiveType === "advance_final" ? `${advancePct}%` : "",
-        invoiceAdvanceAmount: effectiveType === "advance_final" ? formatPLN(round2(totalGross * advancePct / 100)) : "",
-        invoiceAdvanceNetAmount: effectiveType === "advance_final" ? formatPLN(round2(totalNet * advancePct / 100)) : "",
+        invoiceAdvancePct: isAdvance ? `${advancePct}%` : "",
+        invoiceAdvanceAmount: isAdvance ? formatPLN(round2(totalGross * advancePct / 100)) : "",
+        invoiceAdvanceNetAmount: isAdvance ? formatPLN(round2(totalNet * advancePct / 100)) : "",
+        // Faktura zaliczkowa 2
+        invoiceAdvance2Pct: effectiveType === "advance_2_final" ? `${advance2Pct}%` : "",
+        invoiceAdvance2Amount: effectiveType === "advance_2_final" ? formatPLN(round2(totalGross * advance2Pct / 100)) : "",
+        invoiceAdvance2NetAmount: effectiveType === "advance_2_final" ? formatPLN(round2(totalNet * advance2Pct / 100)) : "",
         // Faktura końcowa
-        invoiceFinalPct: effectiveType === "advance_final" ? `${finalPct}%` : "",
-        invoiceFinalAmount: effectiveType === "advance_final" ? formatPLN(round2(totalGross * finalPct / 100)) : "",
-        invoiceFinalNetAmount: effectiveType === "advance_final" ? formatPLN(round2(totalNet * finalPct / 100)) : "",
+        invoiceFinalPct: isAdvance ? `${finalPct}%` : "",
+        invoiceFinalAmount: isAdvance ? formatPLN(round2(totalGross * finalPct / 100)) : "",
+        invoiceFinalNetAmount: isAdvance ? formatPLN(round2(totalNet * finalPct / 100)) : "",
       };
 
       const connection = await getAuthorizedConnection(ctx);
@@ -2052,8 +2058,10 @@ export const copyWarrantyTemplate = action({
       const invoiceType = order.invoicePlan?.type;
       const storedAdvancePct = order.invoicePlan?.advancePct ?? 0;
       const effectiveType = invoiceType ?? (storedAdvancePct > 0 ? "advance_final" : undefined);
-      const advancePct = effectiveType === "advance_final" ? storedAdvancePct : 0;
-      const finalPct = 100 - advancePct;
+      const isAdvance = effectiveType === "advance_final" || effectiveType === "advance_2_final";
+      const advancePct = isAdvance ? storedAdvancePct : 0;
+      const advance2Pct = effectiveType === "advance_2_final" ? (order.invoicePlan?.advance2Pct ?? 0) : 0;
+      const finalPct = 100 - advancePct - advance2Pct;
       const round2 = (n: number) => Math.round(n * 100) / 100;
       const lineItemsList = lineItemsResult.items.map((item) => item.name).join("\n");
       const computedFields = {
@@ -2063,12 +2071,15 @@ export const copyWarrantyTemplate = action({
         invoiceVatPct: effectiveType === "vat" ? "100%" : "",
         invoiceVatAmount: effectiveType === "vat" ? formatPLN(totalGross) : "",
         invoiceVatNetAmount: effectiveType === "vat" ? formatPLN(totalNet) : "",
-        invoiceAdvancePct: effectiveType === "advance_final" ? `${advancePct}%` : "",
-        invoiceAdvanceAmount: effectiveType === "advance_final" ? formatPLN(round2(totalGross * advancePct / 100)) : "",
-        invoiceAdvanceNetAmount: effectiveType === "advance_final" ? formatPLN(round2(totalNet * advancePct / 100)) : "",
-        invoiceFinalPct: effectiveType === "advance_final" ? `${finalPct}%` : "",
-        invoiceFinalAmount: effectiveType === "advance_final" ? formatPLN(round2(totalGross * finalPct / 100)) : "",
-        invoiceFinalNetAmount: effectiveType === "advance_final" ? formatPLN(round2(totalNet * finalPct / 100)) : "",
+        invoiceAdvancePct: isAdvance ? `${advancePct}%` : "",
+        invoiceAdvanceAmount: isAdvance ? formatPLN(round2(totalGross * advancePct / 100)) : "",
+        invoiceAdvanceNetAmount: isAdvance ? formatPLN(round2(totalNet * advancePct / 100)) : "",
+        invoiceAdvance2Pct: effectiveType === "advance_2_final" ? `${advance2Pct}%` : "",
+        invoiceAdvance2Amount: effectiveType === "advance_2_final" ? formatPLN(round2(totalGross * advance2Pct / 100)) : "",
+        invoiceAdvance2NetAmount: effectiveType === "advance_2_final" ? formatPLN(round2(totalNet * advance2Pct / 100)) : "",
+        invoiceFinalPct: isAdvance ? `${finalPct}%` : "",
+        invoiceFinalAmount: isAdvance ? formatPLN(round2(totalGross * finalPct / 100)) : "",
+        invoiceFinalNetAmount: isAdvance ? formatPLN(round2(totalNet * finalPct / 100)) : "",
       };
 
       let fileName = template.fileNamePattern;

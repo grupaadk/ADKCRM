@@ -713,8 +713,9 @@ export const updateDriveProjectFiles = mutation({
 export const saveInvoicePlan = mutation({
   args: {
     orderId: v.id("orders"),
-    type: v.union(v.literal("vat"), v.literal("advance_final"), v.literal("none")),
+    type: v.union(v.literal("vat"), v.literal("advance_final"), v.literal("advance_2_final"), v.literal("none")),
     advancePct: v.number(),
+    advance2Pct: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireUser(ctx);
@@ -725,8 +726,11 @@ export const saveInvoicePlan = mutation({
     if (args.advancePct < 0 || args.advancePct > 100) {
       throw new Error("Procent musi być między 0 a 100");
     }
+    if (args.advance2Pct !== undefined && (args.advance2Pct < 0 || args.advancePct + args.advance2Pct > 100)) {
+      throw new Error("Suma zaliczek nie może przekroczyć 100%");
+    }
     await ctx.db.patch(args.orderId, {
-      invoicePlan: { type: args.type, advancePct: args.advancePct },
+      invoicePlan: { type: args.type, advancePct: args.advancePct, advance2Pct: args.advance2Pct },
     });
   },
 });

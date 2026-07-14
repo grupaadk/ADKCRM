@@ -380,9 +380,16 @@ export default function OrderLineItems({
   const [fkError, setFkError] = useState<string | null>(null);
   const [showNumberConflictModal, setShowNumberConflictModal] = useState(false);
 
-  const [tranches, setTranches] = useState<Array<{ kind: "vat" | "advance" | "final"; pct: number }>>(() => {
+  const [tranches, setTranches] = useState<Array<{ kind: "vat" | "advance" | "advance2" | "final"; pct: number }>>(() => {
     if (invoicePlan?.type === "vat") {
       return [{ kind: "vat" as const, pct: 100 }];
+    }
+    if (invoicePlan?.type === "advance_2_final") {
+      return [
+        { kind: "advance" as const, pct: invoicePlan.advancePct },
+        { kind: "advance2" as const, pct: invoicePlan.advance2Pct ?? 0 },
+        { kind: "final" as const, pct: 100 - invoicePlan.advancePct - (invoicePlan.advance2Pct ?? 0) },
+      ];
     }
     if (invoicePlan?.advancePct != null && invoicePlan.advancePct > 0) {
       return [
@@ -400,9 +407,11 @@ export default function OrderLineItems({
     try {
       const hasVat = tranches.some((t) => t.kind === "vat");
       const hasAdvance = tranches.some((t) => t.kind === "advance");
+      const hasAdvance2 = tranches.some((t) => t.kind === "advance2");
       const advancePct = tranches.find((t) => t.kind === "advance")?.pct ?? 0;
-      const type = hasVat ? "vat" : hasAdvance ? "advance_final" : "none";
-      await saveInvoicePlan({ orderId, type, advancePct });
+      const advance2Pct = tranches.find((t) => t.kind === "advance2")?.pct;
+      const type = hasVat ? "vat" : hasAdvance2 ? "advance_2_final" : hasAdvance ? "advance_final" : "none";
+      await saveInvoicePlan({ orderId, type, advancePct, advance2Pct });
       setPlanSaved(true);
     } finally {
       setPlanSaving(false);
@@ -708,9 +717,11 @@ export default function OrderLineItems({
       {items.length > 0 && (() => {
         const hasVat = tranches.some((t) => t.kind === "vat");
         const hasAdvance = tranches.some((t) => t.kind === "advance");
+        const hasAdvance2 = tranches.some((t) => t.kind === "advance2");
         const hasFinal = tranches.some((t) => t.kind === "final");
         const isEmpty = tranches.length === 0;
         const advanceTranche = tranches.find((t) => t.kind === "advance");
+        const advance2Tranche = tranches.find((t) => t.kind === "advance2");
 
         return (
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -746,33 +757,35 @@ export default function OrderLineItems({
                   )}
                   {hasAdvance && advanceTranche && (
                     <tr className="border-b border-slate-100">
-                      <td className="py-2 font-medium text-slate-700">Faktura zaliczkowa</td>
+                      <td className="py-2 font-medium text-slate-700">{hasAdvance2 ? "Faktura zaliczkowa 1" : "Faktura zaliczkowa"}</td>
                       <td className="py-2 text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <div className="flex gap-1">
-                            {[20, 30, 50, 70].map((preset) => (
-                              <button
-                                key={preset}
-                                type="button"
-                                onClick={() => {
-                                  setPlanSaved(false);
-                                  setTranches((ts) =>
-                                    ts.map((t) =>
-                                      t.kind === "advance" ? { ...t, pct: preset } :
-                                      t.kind === "final" ? { ...t, pct: 100 - preset } : t,
-                                    ),
-                                  );
-                                }}
-                                className={`rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
-                                  advanceTranche.pct === preset
-                                    ? "bg-slate-700 text-white"
-                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                                }`}
-                              >
-                                {preset}%
-                              </button>
-                            ))}
-                          </div>
+                          {!hasAdvance2 && (
+                            <div className="flex gap-1">
+                              {[20, 30, 50, 70].map((preset) => (
+                                <button
+                                  key={preset}
+                                  type="button"
+                                  onClick={() => {
+                                    setPlanSaved(false);
+                                    setTranches((ts) =>
+                                      ts.map((t) =>
+                                        t.kind === "advance" ? { ...t, pct: preset } :
+                                        t.kind === "final" ? { ...t, pct: 100 - preset } : t,
+                                      ),
+                                    );
+                                  }}
+                                  className={`rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
+                                    advanceTranche.pct === preset
+                                      ? "bg-slate-700 text-white"
+                                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                  }`}
+                                >
+                                  {preset}%
+                                </button>
+                              ))}
+                            </div>
+                          )}
                           <div className="inline-flex items-center gap-1">
                             <input
                               inputMode="numeric"
@@ -783,12 +796,14 @@ export default function OrderLineItems({
                               onChange={(e) => {
                                 setPlanSaved(false);
                                 const v = Math.min(99, Math.max(1, parseInt(e.target.value) || 1));
-                                setTranches((ts) =>
-                                  ts.map((t) =>
-                                    t.kind === "advance" ? { ...t, pct: v } :
-                                    t.kind === "final" ? { ...t, pct: 100 - v } : t,
-                                  ),
-                                );
+                                setTranches((ts) => {
+                                  const adv2 = ts.find(t => t.kind === "advance2")?.pct ?? 0;
+                                  const val = Math.min(v, 99 - adv2);
+                                  return ts.map((t) =>
+                                    t.kind === "advance" ? { ...t, pct: val } :
+                                    t.kind === "final" ? { ...t, pct: 100 - val - adv2 } : t
+                                  );
+                                });
                               }}
                               className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                             />
@@ -801,12 +816,47 @@ export default function OrderLineItems({
                       </td>
                     </tr>
                   )}
+                  {hasAdvance2 && advance2Tranche && (
+                    <tr className="border-b border-slate-100">
+                      <td className="py-2 font-medium text-slate-700">Faktura zaliczkowa 2</td>
+                      <td className="py-2 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="inline-flex items-center gap-1">
+                            <input
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              min={1}
+                              max={99}
+                              value={advance2Tranche.pct}
+                              onChange={(e) => {
+                                setPlanSaved(false);
+                                const v = Math.min(99, Math.max(1, parseInt(e.target.value) || 1));
+                                setTranches((ts) => {
+                                  const adv1 = ts.find(t => t.kind === "advance")?.pct ?? 0;
+                                  const val = Math.min(v, 99 - adv1);
+                                  return ts.map((t) =>
+                                    t.kind === "advance2" ? { ...t, pct: val } :
+                                    t.kind === "final" ? { ...t, pct: 100 - adv1 - val } : t
+                                  );
+                                });
+                              }}
+                              className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            />
+                            <span className="text-xs text-slate-500">%</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-2 text-right font-medium text-slate-900">
+                        {fmt((totals.totalGross * advance2Tranche.pct) / 100)} zł
+                      </td>
+                    </tr>
+                  )}
                   {hasFinal && (
                     <tr className="border-b border-slate-100">
                       <td className="py-2 font-medium text-slate-700">Faktura końcowa</td>
-                      <td className="py-2 text-center text-slate-600">{100 - (advanceTranche?.pct ?? 0)}%</td>
+                      <td className="py-2 text-center text-slate-600">{100 - (advanceTranche?.pct ?? 0) - (advance2Tranche?.pct ?? 0)}%</td>
                       <td className="py-2 text-right font-medium text-slate-900">
-                        {fmt((totals.totalGross * (100 - (advanceTranche?.pct ?? 0))) / 100)} zł
+                        {fmt((totals.totalGross * (100 - (advanceTranche?.pct ?? 0) - (advance2Tranche?.pct ?? 0))) / 100)} zł
                       </td>
                     </tr>
                   )}
@@ -833,15 +883,38 @@ export default function OrderLineItems({
                   </button>
                 </>
               )}
+              {hasAdvance && !hasAdvance2 && !hasFinal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlanSaved(false);
+                    setTranches((ts) => {
+                      const adv1 = ts.find(t => t.kind === "advance")?.pct ?? 50;
+                      const val = Math.floor((100 - adv1) / 2);
+                      return [
+                        ...ts,
+                        { kind: "advance2", pct: val > 0 ? val : 10 }
+                      ];
+                    });
+                  }}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  + 2. Faktura zaliczkowa
+                </button>
+              )}
               {hasAdvance && !hasFinal && (
                 <button
                   type="button"
                   onClick={() => {
                     setPlanSaved(false);
-                    setTranches((ts) => [
-                      ...ts,
-                      { kind: "final", pct: 100 - (ts.find((t) => t.kind === "advance")?.pct ?? 50) },
-                    ]);
+                    setTranches((ts) => {
+                      const adv1 = ts.find((t) => t.kind === "advance")?.pct ?? 50;
+                      const adv2 = ts.find((t) => t.kind === "advance2")?.pct ?? 0;
+                      return [
+                        ...ts,
+                        { kind: "final", pct: 100 - adv1 - adv2 },
+                      ];
+                    });
                   }}
                   className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
