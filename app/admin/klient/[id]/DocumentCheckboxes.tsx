@@ -19,8 +19,12 @@ const DOCUMENT_LABELS: Record<string, string> = {
 
 const DOCUMENT_GROUPS: Array<{ title: string; keys: string[] }> = [
   {
-    title: "Umowy i dokumenty handlowe",
-    keys: ["pomiar", "umowa"],
+    title: "Pomiary",
+    keys: ["pomiar"],
+  },
+  {
+    title: "Umowy",
+    keys: ["umowa"],
   },
   {
     title: "Protokoly odbioru",
