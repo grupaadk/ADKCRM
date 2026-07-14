@@ -1,17 +1,13 @@
-import { query, mutation } from "./_generated/server";
-import { v } from "convex/values";
+import { query } from "./_generated/server";
 
-export const getOrder = mutation({
+export const getDebugInfo = query({
   args: {},
   handler: async (ctx) => {
-    const orders = await ctx.db.query("orders").collect();
-    let count = 0;
-    for (const o of orders) {
-      if (o.installationStartDate !== undefined && o.installationStartDate < 420) {
-        await ctx.db.patch(o._id, { installationStartDate: 480 });
-        count++;
-      }
-    }
-    return `Naprawiono ${count} rekordów.`;
+    const order = await ctx.db.get("k57fpamgj0j71386sfn7h4kpph8agd12" as any);
+    const templates = await ctx.db.query("documentTemplates").collect();
+    return {
+      orderPlan: order?.invoicePlan,
+      templates: templates.filter(t => t.key === "umowa").map(t => ({ id: t._id, name: t.name, isActive: t.isActive, hasFile: !!t.googleDriveFileId }))
+    };
   }
 });

@@ -307,7 +307,13 @@ export default function DocumentCheckboxes({
     if (docType === "umowa" && keyTemplates.length > 1) {
       const isAdvanceFinal = orderData?.invoicePlan?.type === "advance_final" || orderData?.invoicePlan?.type === "advance_2_final";
       const targetName = isAdvanceFinal ? "Umowa_Zaliczka" : "Umowa_całość";
-      const autoSelected = keyTemplates.find((t) => t.name === targetName);
+      let autoSelected = keyTemplates.find((t) => t.name === targetName);
+      if (!autoSelected) {
+        autoSelected = keyTemplates.find((t) => {
+          const n = t.name.toLowerCase();
+          return isAdvanceFinal ? n.includes("zaliczka") : (n.includes("całość") || n.includes("calosc"));
+        });
+      }
       if (autoSelected) {
         selectedTemplateId = autoSelected._id;
       } else {
