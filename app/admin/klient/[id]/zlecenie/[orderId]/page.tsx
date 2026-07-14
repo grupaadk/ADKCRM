@@ -1188,8 +1188,8 @@ function InvoicesTableGroup({
               <TableHeaderCell>Rodzaj</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
               <TableHeaderCell>Data</TableHeaderCell>
-              <TableHeaderCell className="text-right">Netto</TableHeaderCell>
-              <TableHeaderCell className="text-right">Brutto</TableHeaderCell>
+              <TableHeaderCell style={{ textAlign: "right" }}>Netto</TableHeaderCell>
+              <TableHeaderCell style={{ textAlign: "right" }}>Brutto</TableHeaderCell>
               <TableHeaderCell />
               <TableHeaderCell />
             </TableRow>
@@ -1414,8 +1414,8 @@ function ExpensesTableGroup({
               <TableHeaderCell>Sprzedawca</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
               <TableHeaderCell>Data</TableHeaderCell>
-              <TableHeaderCell className="text-right">Netto</TableHeaderCell>
-              <TableHeaderCell className="text-right">Brutto</TableHeaderCell>
+              <TableHeaderCell style={{ textAlign: "right" }}>Netto</TableHeaderCell>
+              <TableHeaderCell style={{ textAlign: "right" }}>Brutto</TableHeaderCell>
               <TableHeaderCell />
               <TableHeaderCell />
             </TableRow>
