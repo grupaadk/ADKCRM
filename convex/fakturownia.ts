@@ -948,9 +948,45 @@ export const deleteStaleExpenses = internalMutation({
       .withIndex("by_synced", (q) => q.lt("syncedAt", args.syncedBefore))
       .collect();
     for (const entry of stale) {
-      await ctx.db.delete(entry._id);
+      if (!entry.remoteId.startsWith("custom_")) {
+        await ctx.db.delete(entry._id);
+      }
     }
     return stale.length;
+  },
+});
+
+export const addCustomExpense = mutation({
+  args: {
+    orderId: v.id("orders"),
+    title: v.string(),
+    grossAmount: v.number(),
+    issueDate: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const remoteId = `custom_${crypto.randomUUID()}`;
+    await ctx.db.insert("fakturowniaExpensesCache", {
+      remoteId,
+      number: args.title,
+      kind: "custom_expense",
+      grossAmount: args.grossAmount,
+      netAmount: args.grossAmount,
+      currency: "PLN",
+      orderId: args.orderId,
+      syncedAt: Date.now(),
+      issueDate: args.issueDate || new Date().toISOString().split("T")[0],
+    });
+  },
+});
+
+export const deleteCustomExpense = mutation({
+  args: { expenseId: v.id("fakturowniaExpensesCache") },
+  handler: async (ctx, args) => {
+    const exp = await ctx.db.get(args.expenseId);
+    if (!exp || !exp.remoteId.startsWith("custom_")) {
+      throw new Error("Można usuwać tylko ręcznie dodane wydatki");
+    }
+    await ctx.db.delete(args.expenseId);
   },
 });
 

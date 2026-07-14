@@ -15,6 +15,7 @@ import { deriveStatusStyle } from "@/lib/statuses";
 import ComplaintTab from "./ComplaintTab";
 import OrderDriveBrowser from "./OrderDriveBrowser";
 import TaskDrawer from "@/components/TaskDrawer";
+import SideDrawer from "@/components/SideDrawer";
 import CreateOrderTaskDrawer from "@/components/CreateOrderTaskDrawer";
 import InvestmentLocation from "../../InvestmentLocation";
 import Notes from "../../Notes";
@@ -1346,10 +1347,12 @@ function ExpensesTableGroup({
   expenses,
   fakturowniaConfig,
   unassignExpense,
+  deleteCustomExpense,
 }: {
   expenses: CachedExpense[];
   fakturowniaConfig: { subdomain?: string } | null | undefined;
   unassignExpense: (args: { expenseId: Id<"fakturowniaExpensesCache"> }) => void;
+  deleteCustomExpense: (args: { expenseId: Id<"fakturowniaExpensesCache"> }) => void;
 }) {
   if (expenses.length === 0) return null;
   const totalNet = expenses.reduce((s, i) => s + (i.netAmount ?? 0), 0);
@@ -1419,7 +1422,7 @@ function ExpensesTableGroup({
           </TableHead>
           <TableBody>
             {expenses.map((exp) => {
-              const expUrl = fakturowniaConfig?.subdomain
+              const expUrl = fakturowniaConfig?.subdomain && !exp.remoteId.startsWith("custom_")
                 ? `https://${fakturowniaConfig.subdomain}.fakturownia.pl/invoices/${exp.remoteId}`
                 : null;
               return (
@@ -1506,12 +1509,21 @@ function ExpensesTableGroup({
                   </TableCell>
                   <TableCell className="text-right" />
                   <TableCell className="text-right">
-                    <button
-                      onClick={() => unassignExpense({ expenseId: exp._id })}
-                      className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 ml-auto"
-                    >
-                      Odepnij
-                    </button>
+                    {exp.remoteId.startsWith("custom_") ? (
+                      <button
+                        onClick={() => deleteCustomExpense({ expenseId: exp._id })}
+                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 ml-auto"
+                      >
+                        Usuń
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => unassignExpense({ expenseId: exp._id })}
+                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 ml-auto"
+                      >
+                        Odepnij
+                      </button>
+                    )}
                   </TableCell>
                 </TableRow>
               );
@@ -1584,6 +1596,10 @@ export default function OrderDetailPage({
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expenseSearch, setExpenseSearch] = useState("");
+  const [showAddCustomExpenseModal, setShowAddCustomExpenseModal] = useState(false);
+  const [customExpenseTitle, setCustomExpenseTitle] = useState("");
+  const [customExpenseAmount, setCustomExpenseAmount] = useState("");
+  const [customExpenseDate, setCustomExpenseDate] = useState("");
   const [reminderInvoiceId, setReminderInvoiceId] =
     useState<Id<"fakturowniaInvoicesCache"> | null>(null);
 
@@ -1611,6 +1627,8 @@ export default function OrderDetailPage({
   const unassignInvoice = useMutation(api.fakturownia.unassignInvoiceFromOrder);
   const assignExpense = useMutation(api.fakturownia.assignExpense);
   const unassignExpense = useMutation(api.fakturownia.unassignExpense);
+  const addCustomExpense = useMutation(api.fakturownia.addCustomExpense);
+  const deleteCustomExpense = useMutation(api.fakturownia.deleteCustomExpense);
   const paymentReminders = useQuery(api.paymentReminders.listByOrder, {
     orderId: orderIdTyped,
   });
@@ -3959,27 +3977,54 @@ export default function OrderDetailPage({
           <SectionCard
             title="Koszty zlecenia (Fakturownia)"
             action={
-              <button
-                onClick={() => setShowExpenseModal(true)}
-                className="btn"
-                style={{ fontSize: 11 }}
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowAddCustomExpenseModal(true)}
+                  className="btn-outline"
+                  style={{ fontSize: 11, padding: "6px 12px", height: "auto" }}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4.5v15m7.5-7.5h-15"
-                  />
-                </svg>
-                Przypisz wydatek
-              </button>
+                  <svg
+                    width="12"
+                    height="12"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    className="mr-1"
+                    style={{ display: "inline-block" }}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 4.5v15m7.5-7.5h-15"
+                    />
+                  </svg>
+                  Dodaj wydatek
+                </button>
+                <button
+                  onClick={() => setShowExpenseModal(true)}
+                  className="btn"
+                  style={{ fontSize: 11, padding: "6px 12px", height: "auto" }}
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    className="mr-1"
+                    style={{ display: "inline-block" }}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"
+                    />
+                  </svg>
+                  Przypisz z Fakturowni
+                </button>
+              </div>
             }
           >
             {expenses === undefined ? (
@@ -3991,19 +4036,29 @@ export default function OrderDetailPage({
                 <p style={{ margin: 0, color: "var(--text-mute)", fontSize: 13, marginBottom: 12 }}>
                   Brak powiązanych wydatków z tym zleceniem.
                 </p>
-                <button
-                  onClick={() => setShowExpenseModal(true)}
-                  className="btn"
-                  style={{ fontSize: 12 }}
-                >
-                  Przypisz wydatek
-                </button>
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={() => setShowAddCustomExpenseModal(true)}
+                    className="btn-outline"
+                    style={{ fontSize: 12 }}
+                  >
+                    Dodaj wydatek
+                  </button>
+                  <button
+                    onClick={() => setShowExpenseModal(true)}
+                    className="btn"
+                    style={{ fontSize: 12 }}
+                  >
+                    Przypisz z Fakturowni
+                  </button>
+                </div>
               </div>
             ) : (
               <ExpensesTableGroup
                 expenses={expenses}
                 fakturowniaConfig={fakturowniaConfig}
                 unassignExpense={unassignExpense}
+                deleteCustomExpense={deleteCustomExpense}
               />
             )}
           </SectionCard>
@@ -4273,7 +4328,92 @@ export default function OrderDetailPage({
       )}
 
       
-      {/* Expense assignment modal */}
+      {/* Modal: Custom Expense */}
+      <SideDrawer
+        open={showAddCustomExpenseModal}
+        onClose={() => {
+          setShowAddCustomExpenseModal(false);
+          setCustomExpenseTitle("");
+          setCustomExpenseAmount("");
+          setCustomExpenseDate("");
+        }}
+        title="Dodaj własny wydatek"
+        width={400}
+        footer={
+          <div className="flex items-center justify-end gap-3">
+            <button
+              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+              onClick={() => {
+                setShowAddCustomExpenseModal(false);
+                setCustomExpenseTitle("");
+                setCustomExpenseAmount("");
+                setCustomExpenseDate("");
+              }}
+            >
+              Anuluj
+            </button>
+            <button
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!customExpenseTitle.trim() || !customExpenseAmount.trim()}
+              onClick={async () => {
+                try {
+                  await addCustomExpense({
+                    orderId: orderIdTyped,
+                    title: customExpenseTitle.trim(),
+                    grossAmount: parseFloat(customExpenseAmount),
+                    issueDate: customExpenseDate || undefined,
+                  });
+                  setShowAddCustomExpenseModal(false);
+                  setCustomExpenseTitle("");
+                  setCustomExpenseAmount("");
+                  setCustomExpenseDate("");
+                } catch (err: any) {
+                  alert(err.message);
+                }
+              }}
+            >
+              Dodaj wydatek
+            </button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-4 p-5">
+          <p className="text-sm text-gray-500 m-0">
+            Dodaj wydatek ręcznie (np. koszt, który nie ma faktury z Fakturowni). Zostanie on przypisany do tego zlecenia.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Tytuł / Nazwa wydatku *</label>
+            <input
+              type="text"
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={customExpenseTitle}
+              onChange={(e) => setCustomExpenseTitle(e.target.value)}
+              placeholder="np. Paliwo, Materiały pomocnicze"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Kwota brutto (PLN) *</label>
+            <input
+              type="number"
+              step="0.01"
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={customExpenseAmount}
+              onChange={(e) => setCustomExpenseAmount(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Data wydatku</label>
+            <input
+              type="date"
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={customExpenseDate}
+              onChange={(e) => setCustomExpenseDate(e.target.value)}
+            />
+          </div>
+        </div>
+      </SideDrawer>
+
       {showExpenseModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
