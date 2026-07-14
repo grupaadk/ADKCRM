@@ -17,6 +17,11 @@ export default function PrintComplaintsPage() {
   const complaintsToPrint = allComplaints?.filter((c) => ids.includes(c._id)) || [];
 
   useEffect(() => {
+    const today = new Date().toLocaleDateString("pl-PL").replace(/\./g, "-");
+    document.title = `${today}_Zestawienie Reklamacji`;
+  }, []);
+
+  useEffect(() => {
     if (allComplaints && complaintsToPrint.length > 0 && !readyToPrint) {
       const timer = setTimeout(() => {
         setReadyToPrint(true);
