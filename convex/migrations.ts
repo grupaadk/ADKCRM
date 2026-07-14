@@ -91,6 +91,7 @@ export const recalculateCustomExpensesNet = mutation({
 
     let count = 0;
     for (const exp of expenses) {
+      if (exp.grossAmount === undefined) continue;
       const netAmount = Math.round((exp.grossAmount / 1.23) * 100) / 100;
       if (exp.netAmount !== netAmount) {
         await ctx.db.patch(exp._id, { netAmount });

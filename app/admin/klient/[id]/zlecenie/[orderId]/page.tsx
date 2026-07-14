@@ -1184,14 +1184,14 @@ function InvoicesTableGroup({
           </colgroup>
           <TableHead>
             <TableRow>
-              <TableHeaderCell className="w-[18%]">Numer</TableHeaderCell>
-              <TableHeaderCell className="w-[18%]">Rodzaj</TableHeaderCell>
-              <TableHeaderCell className="w-[14%]">Status</TableHeaderCell>
-              <TableHeaderCell className="w-[12%]">Data</TableHeaderCell>
-              <TableHeaderCell className="w-[13%] text-right">Netto</TableHeaderCell>
-              <TableHeaderCell className="w-[13%] text-right">Brutto</TableHeaderCell>
-              <TableHeaderCell className="w-[6%]" />
-              <TableHeaderCell className="w-[6%]" />
+              <TableHeaderCell>Numer</TableHeaderCell>
+              <TableHeaderCell>Rodzaj</TableHeaderCell>
+              <TableHeaderCell>Status</TableHeaderCell>
+              <TableHeaderCell>Data</TableHeaderCell>
+              <TableHeaderCell className="text-right">Netto</TableHeaderCell>
+              <TableHeaderCell className="text-right">Brutto</TableHeaderCell>
+              <TableHeaderCell />
+              <TableHeaderCell />
             </TableRow>
           </TableHead>
           <TableBody>
@@ -1410,14 +1410,14 @@ function ExpensesTableGroup({
           </colgroup>
           <TableHead>
             <TableRow>
-              <TableHeaderCell className="w-[18%]">Numer</TableHeaderCell>
-              <TableHeaderCell className="w-[18%]">Sprzedawca</TableHeaderCell>
-              <TableHeaderCell className="w-[14%]">Status</TableHeaderCell>
-              <TableHeaderCell className="w-[12%]">Data</TableHeaderCell>
-              <TableHeaderCell className="w-[13%] text-right">Netto</TableHeaderCell>
-              <TableHeaderCell className="w-[13%] text-right">Brutto</TableHeaderCell>
-              <TableHeaderCell className="w-[6%]" />
-              <TableHeaderCell className="w-[6%]" />
+              <TableHeaderCell>Numer</TableHeaderCell>
+              <TableHeaderCell>Sprzedawca</TableHeaderCell>
+              <TableHeaderCell>Status</TableHeaderCell>
+              <TableHeaderCell>Data</TableHeaderCell>
+              <TableHeaderCell className="text-right">Netto</TableHeaderCell>
+              <TableHeaderCell className="text-right">Brutto</TableHeaderCell>
+              <TableHeaderCell />
+              <TableHeaderCell />
             </TableRow>
           </TableHead>
           <TableBody>
