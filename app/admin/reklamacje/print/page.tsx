@@ -11,7 +11,7 @@ export default function PrintComplaintsPage() {
   const idsParam = searchParams.get("ids") || "";
   const ids = idsParam.split(",").filter(Boolean) as Id<"complaints">[];
 
-  const allComplaints = useQuery(api.complaints.getAll);
+  const allComplaints = useQuery(api.complaints.getAll, {});
   const [readyToPrint, setReadyToPrint] = useState(false);
 
   const complaintsToPrint = allComplaints?.filter((c) => ids.includes(c._id)) || [];
@@ -88,17 +88,30 @@ export default function PrintComplaintsPage() {
               const clientName = [c.client?.firstName, c.client?.lastName].filter(Boolean).join(" ") || c.client?.companyName || "Brak danych";
               
               let addr = "—";
-              if (c.client) {
-                const street = [c.client.street, c.client.buildingNumber].filter(Boolean).join(" ");
-                const apt = c.client.apartmentNumber ? `/${c.client.apartmentNumber}` : "";
+              
+              const getClientAddress = (client: any) => {
+                if (!client) return "";
+                const street = [client.street, client.buildingNumber].filter(Boolean).join(" ");
+                const apt = client.apartmentNumber ? `/${client.apartmentNumber}` : "";
                 const fullStreet = `${street}${apt}`.trim();
-                const city = c.client.city?.trim() || "";
-                
+                const city = client.city?.trim() || "";
                 if (fullStreet || city) {
-                  addr = `${fullStreet ? fullStreet + ", " : ""}${city}`;
-                } else if (c.client.address?.trim()) {
-                  addr = c.client.address.trim();
+                  return `${fullStreet ? fullStreet + ", " : ""}${city}`;
                 }
+                return client.address?.trim() || "";
+              };
+
+              if (c.order) {
+                const street = [c.order.investmentStreet, c.order.investmentBuildingNumber].filter(Boolean).join(" ");
+                const apt = c.order.investmentApartmentNumber ? `/${c.order.investmentApartmentNumber}` : "";
+                const fullStreet = `${street}${apt}`.trim();
+                const city = c.order.investmentCity?.trim() || "";
+                
+                let rawAddr = fullStreet || city ? `${fullStreet ? fullStreet + ", " : ""}${city}` : "";
+                addr = `ADRES INWESTYCJI: ${rawAddr || "Brak danych"}`;
+              } else if (c.client) {
+                const rawAddr = getClientAddress(c.client);
+                addr = `ADRES KLIENTA: ${rawAddr || "Brak danych"}`;
               }
 
               const allNotes = [

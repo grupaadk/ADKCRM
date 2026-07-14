@@ -68,7 +68,7 @@ function formatInvestmentAddress(c: {
     postalCode?: string;
     address?: string;
   } | null;
-}): { primary: string; secondary?: string } {
+}): { prefix?: string; primary: string; secondary?: string } {
   if (c.order) {
     const street = [c.order.investmentStreet, c.order.investmentBuildingNumber]
       .filter(Boolean)
@@ -81,10 +81,11 @@ function formatInvestmentAddress(c: {
 
     if (fullStreet || city) {
       if (fullStreet && city) {
-        return { primary: fullStreet, secondary: fullCity || city };
+        return { prefix: "ADRES INWESTYCJI:", primary: fullStreet, secondary: fullCity || city };
       }
-      return { primary: fullStreet || fullCity || city };
+      return { prefix: "ADRES INWESTYCJI:", primary: fullStreet || fullCity || city };
     }
+    return { prefix: "ADRES INWESTYCJI:", primary: "Brak danych" };
   }
 
   if (c.client) {
@@ -99,13 +100,14 @@ function formatInvestmentAddress(c: {
 
     if (fullStreet || city) {
       if (fullStreet && city) {
-        return { primary: fullStreet, secondary: fullCity || city };
+        return { prefix: "ADRES KLIENTA:", primary: fullStreet, secondary: fullCity || city };
       }
-      return { primary: fullStreet || fullCity || city };
+      return { prefix: "ADRES KLIENTA:", primary: fullStreet || fullCity || city };
     }
     if (c.client.address?.trim()) {
-      return { primary: c.client.address.trim() };
+      return { prefix: "ADRES KLIENTA:", primary: c.client.address.trim() };
     }
+    return { prefix: "ADRES KLIENTA:", primary: "Brak danych" };
   }
 
   return { primary: "—" };
@@ -668,6 +670,11 @@ export default function ReklamacjePage() {
                           const addr = formatInvestmentAddress(c);
                           return (
                             <div>
+                              {addr.prefix && (
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", marginBottom: 2 }}>
+                                  {addr.prefix}
+                                </div>
+                              )}
                               <div
                                 style={{
                                   fontSize: 12.5,
