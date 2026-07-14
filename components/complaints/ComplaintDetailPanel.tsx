@@ -141,11 +141,11 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
     transform: visible ? "translateX(0)" : "translateX(100%)",
   };
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const handleDelete = async () => {
-    if (window.confirm("Czy na pewno chcesz usunąć tę reklamację? Tej operacji nie można cofnąć.")) {
-      await deleteComplaint({ complaintId });
-      onClose();
-    }
+    await deleteComplaint({ complaintId });
+    onClose();
   };
 
   if (complaint === undefined) {
@@ -618,25 +618,67 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
           </ComplaintSection>
           
           <div style={{ padding: "16px", marginTop: "auto" }}>
-            <button
-              onClick={handleDelete}
-              style={{
-                width: "100%",
-                padding: "10px",
-                backgroundColor: "#fee2e2",
-                color: "#dc2626",
-                border: "1px solid #fecaca",
-                borderRadius: "8px",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "background-color 0.2s",
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#fecaca")}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#fee2e2")}
-            >
-              Usuń reklamację
-            </button>
+            {!showDeleteConfirm ? (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  backgroundColor: "#fee2e2",
+                  color: "#dc2626",
+                  border: "1px solid #fecaca",
+                  borderRadius: "8px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "background-color 0.2s",
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#fecaca")}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#fee2e2")}
+              >
+                Usuń reklamację
+              </button>
+            ) : (
+              <div style={{ background: "#fef2f2", padding: "12px", borderRadius: "8px", border: "1px solid #fecaca" }}>
+                <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 600, color: "#991b1b", textAlign: "center" }}>
+                  Czy na pewno chcesz usunąć tę reklamację?
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    style={{
+                      flex: 1,
+                      padding: "8px",
+                      background: "white",
+                      border: "1px solid #fecaca",
+                      borderRadius: "6px",
+                      color: "#7f1d1d",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Anuluj
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    style={{
+                      flex: 1,
+                      padding: "8px",
+                      background: "#dc2626",
+                      border: "none",
+                      borderRadius: "6px",
+                      color: "white",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Tak, usuń
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
