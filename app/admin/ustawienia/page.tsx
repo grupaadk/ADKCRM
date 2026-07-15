@@ -866,7 +866,13 @@ function GoogleDriveTab() {
                     className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
                     placeholder="Folder wyceny..."
                   />
-                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                  <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
+                    <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    </svg>
+                    kopiowany do zlecenia
+                  </span>
+                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                 </div>
 
                 {/* Offers Received */}
@@ -882,7 +888,13 @@ function GoogleDriveTab() {
                     className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
                     placeholder="Folder kosztów..."
                   />
-                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                  <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
+                    <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    </svg>
+                    kopiowany do zlecenia
+                  </span>
+                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                 </div>
 
                 {/* Offers Sent */}
@@ -898,7 +910,13 @@ function GoogleDriveTab() {
                     className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
                     placeholder="Folder ofert..."
                   />
-                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                  <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
+                    <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    </svg>
+                    kopiowany do zlecenia
+                  </span>
+                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                 </div>
 
                 {/* Ponzio Files */}
@@ -914,7 +932,13 @@ function GoogleDriveTab() {
                     className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
                     placeholder="Folder Ponzio..."
                   />
-                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                  <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
+                    <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    </svg>
+                    kopiowany do zlecenia
+                  </span>
+                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                 </div>
 
                 {/* Custom Opportunity Subfolders list */}
@@ -934,10 +958,16 @@ function GoogleDriveTab() {
                         placeholder="Nazwa podfolderu..."
                         autoFocus={cf === "Nowy folder"}
                       />
+                      <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
+                        <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                        </svg>
+                        kopiowany do zlecenia
+                      </span>
                       <button
                         type="button"
                         onClick={() => handleDeleteCustomOppFolder(idx)}
-                        className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity"
+                        className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity ml-1"
                         title="Usuń folder"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
