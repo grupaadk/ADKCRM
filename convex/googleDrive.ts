@@ -1127,7 +1127,7 @@ export const createOrderFolder = action({
       ] as const;
       const ORDER_SUBFOLDERS = [
         "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
-        "Umowy",
+        "Dokumenty - gwarancje, protokoły, umowy",
         "Gwarancja",
         "Zdjęcia budowy",
         "Rysunki konstrukcji do zamówienia",
@@ -1369,7 +1369,7 @@ export const uploadUserDocument = action({
 
     let targetFolderId = order.folderId;
     if (args.documentType === "umowa") {
-      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Umowy", order.folderId);
+      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Dokumenty - gwarancje, protokoły, umowy", order.folderId);
     } else if (args.documentType === "faktura") {
       targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia", order.folderId);
     }
@@ -1910,7 +1910,7 @@ export const copyTemplate = action({
 
       let targetFolderId = order.folderId;
       if (args.templateKey === "umowa") {
-        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Umowy", order.folderId);
+        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Dokumenty - gwarancje, protokoły, umowy", order.folderId);
       } else if (args.templateKey === "faktura") {
         targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia", order.folderId);
       } else if (args.templateKey.startsWith("gwarancja_")) {
