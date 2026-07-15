@@ -961,11 +961,14 @@ export const addCustomExpense = mutation({
     orderId: v.id("orders"),
     title: v.string(),
     grossAmount: v.number(),
+    netAmount: v.optional(v.number()),
     issueDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const remoteId = `custom_${crypto.randomUUID()}`;
-    const netAmount = Math.round((args.grossAmount / 1.23) * 100) / 100;
+    const netAmount = args.netAmount !== undefined
+      ? args.netAmount
+      : Math.round((args.grossAmount / 1.23) * 100) / 100;
     await ctx.db.insert("fakturowniaExpensesCache", {
       remoteId,
       number: args.title,
@@ -988,6 +991,20 @@ export const deleteCustomExpense = mutation({
       throw new Error("Można usuwać tylko ręcznie dodane wydatki");
     }
     await ctx.db.delete(args.expenseId);
+  },
+});
+
+export const updateCustomExpenseNet = mutation({
+  args: {
+    expenseId: v.id("fakturowniaExpensesCache"),
+    netAmount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const exp = await ctx.db.get(args.expenseId);
+    if (!exp || !exp.remoteId.startsWith("custom_")) {
+      throw new Error("Można edytować tylko ręcznie dodane wydatki");
+    }
+    await ctx.db.patch(args.expenseId, { netAmount: args.netAmount });
   },
 });
 

@@ -1356,11 +1356,23 @@ function ExpensesTableGroup({
   fakturowniaConfig,
   unassignExpense,
   deleteCustomExpense,
+  updateCustomExpenseNet,
+  calculateNet,
+  editingVatExpenseId,
+  editingVatRate,
+  setEditingVatExpenseId,
+  setEditingVatRate,
 }: {
   expenses: CachedExpense[];
   fakturowniaConfig: { subdomain?: string } | null | undefined;
   unassignExpense: (args: { expenseId: Id<"fakturowniaExpensesCache"> }) => void;
   deleteCustomExpense: (args: { expenseId: Id<"fakturowniaExpensesCache"> }) => void;
+  updateCustomExpenseNet: (args: { expenseId: Id<"fakturowniaExpensesCache">; netAmount: number }) => Promise<unknown>;
+  calculateNet: (grossVal: string, vatVal: string) => number;
+  editingVatExpenseId: string | null;
+  editingVatRate: string;
+  setEditingVatExpenseId: (id: string | null) => void;
+  setEditingVatRate: (rate: string) => void;
 }) {
   if (expenses.length === 0) return null;
   const totalNet = expenses.reduce((s, i) => s + (i.netAmount ?? 0), 0);
@@ -1408,13 +1420,14 @@ function ExpensesTableGroup({
         <Table style={{ tableLayout: "fixed", width: "100%" }}>
           <colgroup>
             <col style={{ width: "18%" }} />
-            <col style={{ width: "16%" }} />
             <col style={{ width: "14%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "11%" }} />
             <col style={{ width: "12%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "6%" }} />
-            <col style={{ width: "6%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "9%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "7%" }} />
           </colgroup>
           <TableHead>
             <TableRow>
@@ -1424,6 +1437,7 @@ function ExpensesTableGroup({
               <TableHeaderCell>Data</TableHeaderCell>
               <TableHeaderCell style={{ textAlign: "right" }}>Netto</TableHeaderCell>
               <TableHeaderCell style={{ textAlign: "right" }}>Brutto</TableHeaderCell>
+              <TableHeaderCell style={{ textAlign: "center" }}>VAT%</TableHeaderCell>
               <TableHeaderCell />
               <TableHeaderCell />
             </TableRow>
@@ -1433,6 +1447,19 @@ function ExpensesTableGroup({
               const expUrl = fakturowniaConfig?.subdomain && !exp.remoteId.startsWith("custom_")
                 ? `https://${fakturowniaConfig.subdomain}.fakturownia.pl/invoices/${exp.remoteId}`
                 : null;
+              const isCustom = exp.remoteId.startsWith("custom_");
+              const isEditingVat = editingVatExpenseId === exp._id;
+
+              // Derive VAT rate from stored gross/net
+              const vatRateLabel = (() => {
+                const g = exp.grossAmount;
+                const n = exp.netAmount;
+                if (!g || !n || g === 0) return "—";
+                if (Math.abs(g - n) < 0.01) return "0% / BV";
+                const rate = Math.round((g / n - 1) * 100);
+                return `${rate}%`;
+              })();
+
               return (
                 <TableRow key={exp._id} className="hover:bg-gray-50 transition-colors">
                   <TableCell className="whitespace-nowrap font-mono text-sm text-gray-900 truncate">
@@ -1515,9 +1542,71 @@ function ExpensesTableGroup({
                       <span className="text-gray-400">—</span>
                     )}
                   </TableCell>
+                  {/* Kolumna VAT% */}
+                  <TableCell className="text-center">
+                    {isCustom ? (
+                      isEditingVat ? (
+                        <div className="flex items-center gap-1">
+                          <select
+                            className="rounded border border-blue-300 px-1 py-0.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            value={editingVatRate}
+                            onChange={(e) => setEditingVatRate(e.target.value)}
+                            autoFocus
+                          >
+                            <option value="23">23%</option>
+                            <option value="8">8%</option>
+                            <option value="5">5%</option>
+                            <option value="0">0%</option>
+                            <option value="exempt">Bez VAT</option>
+                          </select>
+                          <button
+                            onClick={async () => {
+                              if (!exp.grossAmount) return;
+                              const newNet = calculateNet(String(exp.grossAmount), editingVatRate);
+                              await updateCustomExpenseNet({ expenseId: exp._id, netAmount: newNet });
+                              setEditingVatExpenseId(null);
+                            }}
+                            className="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-blue-700"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => setEditingVatExpenseId(null)}
+                            className="rounded px-1 py-0.5 text-[10px] text-gray-400 hover:text-gray-600"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingVatExpenseId(exp._id);
+                            // Derive current rate to prefill
+                            const g = exp.grossAmount ?? 0;
+                            const n = exp.netAmount ?? 0;
+                            if (Math.abs(g - n) < 0.01) setEditingVatRate("exempt");
+                            else {
+                              const rate = Math.round((g / n - 1) * 100);
+                              if ([23, 8, 5, 0].includes(rate)) setEditingVatRate(String(rate));
+                              else setEditingVatRate("23");
+                            }
+                          }}
+                          className="group flex items-center gap-0.5 text-[11px] font-semibold text-slate-600 hover:text-blue-600 transition-colors"
+                          title="Edytuj stawkę VAT"
+                        >
+                          <span className="tabular-nums">{vatRateLabel}</span>
+                          <svg className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                          </svg>
+                        </button>
+                      )
+                    ) : (
+                      <span className="text-[11px] font-semibold text-slate-500 tabular-nums">{vatRateLabel}</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right" />
                   <TableCell className="text-right">
-                    {exp.remoteId.startsWith("custom_") ? (
+                    {isCustom ? (
                       <button
                         onClick={() => deleteCustomExpense({ expenseId: exp._id })}
                         className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 ml-auto"
@@ -1560,7 +1649,7 @@ function ExpensesTableGroup({
                 })}{" "}
                 {currency}
               </TableCell>
-              <TableCell colSpan={2} />
+              <TableCell colSpan={3} />
             </TableRow>
           </TableFoot>
         </Table>
@@ -1604,10 +1693,24 @@ export default function OrderDetailPage({
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expenseSearch, setExpenseSearch] = useState("");
+  const [amountView, setAmountView] = useState<"netto" | "brutto">("netto");
   const [showAddCustomExpenseModal, setShowAddCustomExpenseModal] = useState(false);
   const [customExpenseTitle, setCustomExpenseTitle] = useState("");
   const [customExpenseAmount, setCustomExpenseAmount] = useState("");
+  const [customExpenseVatRate, setCustomExpenseVatRate] = useState("23");
+  const [editingVatExpenseId, setEditingVatExpenseId] = useState<string | null>(null);
+  const [editingVatRate, setEditingVatRate] = useState("23");
   const [customExpenseDate, setCustomExpenseDate] = useState(() => new Date().toISOString().split("T")[0]);
+  
+  const calculateNet = (grossVal: string, vatVal: string) => {
+    const gross = parseFloat(grossVal);
+    if (isNaN(gross) || gross <= 0) return 0;
+    if (vatVal === "exempt" || vatVal === "0") return gross;
+    const vat = parseFloat(vatVal);
+    if (isNaN(vat)) return gross;
+    return Math.round((gross / (1 + vat / 100)) * 100) / 100;
+  };
+
   const [reminderInvoiceId, setReminderInvoiceId] =
     useState<Id<"fakturowniaInvoicesCache"> | null>(null);
   const [warningModalText, setWarningModalText] = useState<string | null>(null);
@@ -1638,6 +1741,7 @@ export default function OrderDetailPage({
   const unassignExpense = useMutation(api.fakturownia.unassignExpense);
   const addCustomExpense = useMutation(api.fakturownia.addCustomExpense);
   const deleteCustomExpense = useMutation(api.fakturownia.deleteCustomExpense);
+  const updateCustomExpenseNet = useMutation(api.fakturownia.updateCustomExpenseNet);
   const paymentReminders = useQuery(api.paymentReminders.listByOrder, {
     orderId: orderIdTyped,
   });
@@ -3780,142 +3884,271 @@ export default function OrderDetailPage({
             const balNet = invNet - expNet;
             const balGross = invGross - expGross;
             const projBalNet = estimateNet - expNet;
+            const projBalGross = estimateGross - expGross;
+
+            const marginPct = invNet > 0 ? (balNet / invNet) * 100 : null;
+
+            const vatFromRevenue = invGross - invNet;
+            const vatFromExpenses = expGross - expNet;
+            const vatPosition = vatFromRevenue - vatFromExpenses;
 
             const percentInvoiced = estimateNet > 0 ? Math.round((invNet / estimateNet) * 100) : null;
             const remainingNet = estimateNet > 0 ? Math.max(0, estimateNet - invNet) : 0;
+            const remainingGross = estimateGross > 0 ? Math.max(0, estimateGross - invGross) : 0;
+
+            const isNetto = amountView === "netto";
+            const fmt = (v: number) => v.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
             return (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* KARTA 1: PRZYCHODY / ZAMÓWIENIE */}
-                <div className="panel p-4 flex flex-col justify-between gap-3 border border-slate-200/80 rounded-xl shadow-sm bg-white">
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
+              <div className="flex flex-col gap-3">
+                {/* Toggle + nagłówek */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Podsumowanie finansowe
+                  </span>
+                  <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
+                    <button
+                      onClick={() => setAmountView("netto")}
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+                        isNetto
+                          ? "bg-white text-slate-800 shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      Netto
+                    </button>
+                    <button
+                      onClick={() => setAmountView("brutto")}
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+                        !isNetto
+                          ? "bg-white text-slate-800 shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      Brutto
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                  {/* KARTA 1: PRZYCHODY */}
+                  <div className="panel p-4 flex flex-col gap-2 border border-slate-200/80 rounded-xl shadow-sm bg-white">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        Przychody (Faktury)
+                        Przychody
                       </span>
                       {percentInvoiced !== null && (
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                            invNet >= estimateNet && estimateNet > 0
+                            (isNetto ? invNet : invGross) >= (isNetto ? estimateNet : estimateGross) && estimateNet > 0
                               ? "bg-emerald-100 text-emerald-800"
                               : "bg-indigo-100 text-indigo-800"
                           }`}
                         >
-                          {invNet >= estimateNet && estimateNet > 0 ? "✓ 100% zamówienia" : `${percentInvoiced}% zamówienia`}
+                          {(isNetto ? invNet : invGross) >= (isNetto ? estimateNet : estimateGross) && estimateNet > 0
+                            ? "✓ 100%"
+                            : `${percentInvoiced}%`}
                         </span>
                       )}
                     </div>
 
-                    <div className="text-xl font-extrabold text-slate-900 tabular-nums">
-                      {invNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN{" "}
-                      <span className="text-xs font-normal text-slate-500">netto</span>
+                    <div className="text-2xl font-extrabold text-slate-900 tabular-nums leading-tight">
+                      {fmt(isNetto ? invNet : invGross)}
+                      <span className="text-sm font-normal text-slate-400 ml-1">PLN</span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-400">
+                      {isNetto
+                        ? `Brutto: ${fmt(invGross)} PLN`
+                        : `Netto: ${fmt(invNet)} PLN`}
                     </div>
 
                     {estimateNet > 0 && (
-                      <div className="text-xs text-slate-500 mt-1">
-                        z zamówienia na kwotę{" "}
-                        <span className="font-semibold text-slate-700">
-                          {estimateNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN netto
+                      <div className="mt-auto flex flex-col gap-1">
+                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-500 ${
+                              invNet >= estimateNet ? "bg-emerald-500" : "bg-indigo-500"
+                            }`}
+                            style={{
+                              width: `${Math.min(100, Math.max(2, (invNet / estimateNet) * 100))}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400">
+                          <span>
+                            Zamówienie: {fmt(isNetto ? estimateNet : estimateGross)} PLN
+                          </span>
+                          {(isNetto ? remainingNet : remainingGross) > 0 ? (
+                            <span className="font-medium text-amber-600">
+                              Pozostało: {fmt(isNetto ? remainingNet : remainingGross)}
+                            </span>
+                          ) : (
+                            <span className="font-medium text-emerald-600">✓ Zafakt. w całości</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* KARTA 2: KOSZTY */}
+                  <div className="panel p-4 flex flex-col gap-2 border border-slate-200/80 rounded-xl shadow-sm bg-white">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Koszty
+                      </span>
+                      {invNet > 0 && (
+                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                          {Math.round(((isNetto ? expNet : expGross) / (isNetto ? invNet : invGross)) * 100)}% przychodów
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-2xl font-extrabold text-slate-900 tabular-nums leading-tight">
+                      {fmt(isNetto ? expNet : expGross)}
+                      <span className="text-sm font-normal text-slate-400 ml-1">PLN</span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-400">
+                      {isNetto
+                        ? `Brutto: ${fmt(expGross)} PLN`
+                        : `Netto: ${fmt(expNet)} PLN`}
+                    </div>
+
+                    <div className="mt-auto text-[11px] text-slate-400">
+                      {(expenses ?? []).length} pozycji kosztowych
+                    </div>
+                  </div>
+
+                  {/* KARTA 3: BILANS + MARŻA */}
+                  <div
+                    className={`panel p-4 flex flex-col gap-2 border rounded-xl shadow-sm ${
+                      (isNetto ? balNet : balGross) >= 0
+                        ? "border-emerald-200 bg-emerald-50/50"
+                        : "border-rose-200 bg-rose-50/50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Bilans (Zysk)
+                      </span>
+                      {marginPct !== null && invNet > 0 && (
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                            marginPct >= 20
+                              ? "bg-emerald-100 text-emerald-800"
+                              : marginPct >= 5
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-rose-100 text-rose-800"
+                          }`}
+                        >
+                          Marża {marginPct.toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
+
+                    <div
+                      className={`text-2xl font-extrabold tabular-nums leading-tight ${
+                        (isNetto ? balNet : balGross) >= 0 ? "text-emerald-700" : "text-rose-700"
+                      }`}
+                    >
+                      {fmt(isNetto ? balNet : balGross)}
+                      <span className="text-sm font-normal text-slate-400 ml-1">PLN</span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-500">
+                      {isNetto
+                        ? `Brutto: ${fmt(balGross)} PLN`
+                        : `Netto: ${fmt(balNet)} PLN`}
+                    </div>
+
+                    {estimateNet > 0 && (
+                      <div className="mt-auto text-[11px] text-slate-500">
+                        Prognoza z zamówienia:{" "}
+                        <span
+                          className={`font-semibold ${
+                            (isNetto ? projBalNet : projBalGross) >= 0
+                              ? "text-emerald-700"
+                              : "text-rose-700"
+                          }`}
+                        >
+                          {fmt(isNetto ? projBalNet : projBalGross)} PLN
                         </span>
                       </div>
                     )}
                   </div>
 
-                  {estimateNet > 0 && (
-                    <div className="flex flex-col gap-1.5 mt-1">
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full transition-all duration-500 ${
-                            invNet >= estimateNet ? "bg-emerald-500" : "bg-indigo-500"
-                          }`}
-                          style={{ width: `${Math.min(100, Math.max(2, (invNet / estimateNet) * 100))}%` }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span>Brutto: {invGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN</span>
-                        {remainingNet > 0 ? (
-                          <span className="font-medium text-amber-700">
-                            Pozostało: {remainingNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN
-                          </span>
-                        ) : (
-                          <span className="font-medium text-emerald-700">Zafakturowano w całości</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {estimateNet === 0 && (
-                    <div className="text-xs text-slate-400 mt-auto">
-                      Brutto: {invGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN
-                    </div>
-                  )}
-                </div>
-
-                {/* KARTA 2: KOSZTY ZLECENIA */}
-                <div className="panel p-4 flex flex-col justify-between gap-3 border border-slate-200/80 rounded-xl shadow-sm bg-white">
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                  {/* KARTA 4: POZYCJA VAT */}
+                  <div
+                    className={`panel p-4 flex flex-col gap-2 border rounded-xl shadow-sm ${
+                      vatPosition > 0
+                        ? "border-rose-200 bg-rose-50/40"
+                        : vatPosition < 0
+                          ? "border-emerald-200 bg-emerald-50/40"
+                          : "border-slate-200/80 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        Koszty (Wydatki)
+                        Pozycja VAT
                       </span>
-                      {estimateNet > 0 && (
-                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-                          {Math.round((expNet / estimateNet) * 100)}% wartości zam.
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="text-xl font-extrabold text-slate-900 tabular-nums">
-                      {expNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN{" "}
-                      <span className="text-xs font-normal text-slate-500">netto</span>
-                    </div>
-
-                    <div className="text-xs text-slate-500 mt-1">
-                      Łączne wydatki i faktury kosztowe przypisane do zlecenia
-                    </div>
-                  </div>
-
-                  <div className="text-xs text-slate-400 mt-auto">
-                    Brutto: {expGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN
-                  </div>
-                </div>
-
-                {/* KARTA 3: BILANS ZLECENIA */}
-                <div className="panel p-4 flex flex-col justify-between gap-3 border border-slate-200/80 rounded-xl shadow-sm bg-white">
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        Bilans Zlecenia (Zafakturowany)
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                          vatPosition > 0
+                            ? "bg-rose-100 text-rose-800"
+                            : vatPosition < 0
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {vatPosition > 0 ? "Do zapłaty" : vatPosition < 0 ? "Do zwrotu" : "Neutralna"}
                       </span>
                     </div>
 
                     <div
-                      className={`text-xl font-extrabold tabular-nums ${
-                        balNet >= 0 ? "text-emerald-700" : "text-rose-700"
+                      className={`text-2xl font-extrabold tabular-nums leading-tight ${
+                        vatPosition > 0
+                          ? "text-rose-700"
+                          : vatPosition < 0
+                            ? "text-emerald-700"
+                            : "text-slate-700"
                       }`}
                     >
-                      {balNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN{" "}
-                      <span className="text-xs font-normal text-slate-500">netto</span>
+                      {fmt(Math.abs(vatPosition))}
+                      <span className="text-sm font-normal text-slate-400 ml-1">PLN</span>
                     </div>
 
-                    {estimateNet > 0 && (
-                      <div className="text-xs text-slate-500 mt-1">
-                        Prognozowany bilans z zamówienia:{" "}
-                        <span className={`font-semibold ${projBalNet >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                          {projBalNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN netto
+                    <div className="mt-auto flex flex-col gap-1 text-[11px] text-slate-500">
+                      <div className="flex justify-between">
+                        <span>VAT z faktur sprzedaży</span>
+                        <span className="font-semibold text-slate-700">+{fmt(vatFromRevenue)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>VAT z kosztów</span>
+                        <span className="font-semibold text-slate-700">−{fmt(vatFromExpenses)}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-slate-200 pt-1 mt-0.5">
+                        <span className="font-bold text-slate-700">Saldo VAT</span>
+                        <span
+                          className={`font-bold ${
+                            vatPosition > 0
+                              ? "text-rose-700"
+                              : vatPosition < 0
+                                ? "text-emerald-700"
+                                : "text-slate-700"
+                          }`}
+                        >
+                          {vatPosition >= 0 ? "+" : "−"}{fmt(Math.abs(vatPosition))} PLN
                         </span>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="text-xs text-slate-400 mt-auto">
-                    Brutto: {balGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN
+                    </div>
                   </div>
                 </div>
               </div>
             );
           })()}
           {/* Faktury z Fakturowni */}
+
           <SectionCard
             title="Faktury z Fakturowni"
             action={
@@ -4102,6 +4335,12 @@ export default function OrderDetailPage({
                 fakturowniaConfig={fakturowniaConfig}
                 unassignExpense={unassignExpense}
                 deleteCustomExpense={deleteCustomExpense}
+                updateCustomExpenseNet={updateCustomExpenseNet}
+                calculateNet={calculateNet}
+                editingVatExpenseId={editingVatExpenseId}
+                editingVatRate={editingVatRate}
+                setEditingVatExpenseId={setEditingVatExpenseId}
+                setEditingVatRate={setEditingVatRate}
               />
             )}
           </SectionCard>
@@ -4378,6 +4617,7 @@ export default function OrderDetailPage({
           setShowAddCustomExpenseModal(false);
           setCustomExpenseTitle("");
           setCustomExpenseAmount("");
+          setCustomExpenseVatRate("23");
           setCustomExpenseDate(new Date().toISOString().split("T")[0]);
         }}
         title="Dodaj własny wydatek"
@@ -4390,6 +4630,7 @@ export default function OrderDetailPage({
                 setShowAddCustomExpenseModal(false);
                 setCustomExpenseTitle("");
                 setCustomExpenseAmount("");
+                setCustomExpenseVatRate("23");
                 setCustomExpenseDate(new Date().toISOString().split("T")[0]);
               }}
             >
@@ -4400,18 +4641,22 @@ export default function OrderDetailPage({
               disabled={!customExpenseTitle.trim() || !customExpenseAmount.trim()}
               onClick={async () => {
                 try {
+                  const grossVal = parseFloat(customExpenseAmount);
+                  const netVal = calculateNet(customExpenseAmount, customExpenseVatRate);
                   await addCustomExpense({
                     orderId: orderIdTyped,
                     title: customExpenseTitle.trim(),
-                    grossAmount: parseFloat(customExpenseAmount),
+                    grossAmount: grossVal,
+                    netAmount: netVal,
                     issueDate: customExpenseDate || undefined,
                   });
                   setShowAddCustomExpenseModal(false);
                   setCustomExpenseTitle("");
                   setCustomExpenseAmount("");
+                  setCustomExpenseVatRate("23");
                   setCustomExpenseDate(new Date().toISOString().split("T")[0]);
-                } catch (err: any) {
-                  alert(err.message);
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : String(err));
                 }
               }}
             >
@@ -4444,6 +4689,32 @@ export default function OrderDetailPage({
               onChange={(e) => setCustomExpenseAmount(e.target.value)}
               placeholder="0.00"
             />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Stawka VAT</label>
+            <select
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+              value={customExpenseVatRate}
+              onChange={(e) => setCustomExpenseVatRate(e.target.value)}
+            >
+              <option value="23">23%</option>
+              <option value="8">8%</option>
+              <option value="5">5%</option>
+              <option value="0">0%</option>
+              <option value="exempt">Zwolniony / Bez VAT</option>
+            </select>
+            {customExpenseAmount && !isNaN(parseFloat(customExpenseAmount)) && (
+              <div className="text-xs text-slate-500 mt-0.5">
+                Obliczona kwota netto:{" "}
+                <span className="font-semibold text-slate-700">
+                  {calculateNet(customExpenseAmount, customExpenseVatRate).toLocaleString("pl-PL", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  PLN
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Data wydatku</label>
@@ -4542,7 +4813,7 @@ export default function OrderDetailPage({
                       );
                     })
                     .sort((a, b) => {
-                      const rank = (exp) =>
+                      const rank = (exp: CachedExpense) =>
                         exp.orderId === orderIdTyped
                           ? 0
                           : !exp.orderId
