@@ -239,6 +239,13 @@ function GoogleDriveTab() {
   const [foldersNotice, setFoldersNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [savingFolders, setSavingFolders] = useState(false);
 
+  const parsedCustomFolders = useMemo(() => {
+    return customFoldersText
+      .split("\n")
+      .map((f) => f.trim())
+      .filter((f) => f.length > 0);
+  }, [customFoldersText]);
+
   useEffect(() => {
     if (config) {
       const folders = config.googleDriveFolders ?? {
@@ -876,6 +883,93 @@ function GoogleDriveTab() {
               rows={4}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono"
             />
+          </div>
+
+          {/* Visual folder tree preview */}
+          <div className="bg-slate-50 rounded-lg border border-slate-200 p-4">
+            <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">
+              Podgląd struktury na Google Drive
+            </h5>
+            <div className="font-mono text-xs text-slate-600 space-y-1">
+              <div className="flex items-center gap-1.5 text-slate-800 font-medium">
+                <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                </svg>
+                <span>Jan Kowalski (Warszawa, ul. Złota)</span>
+                <span className="text-[10px] text-slate-400 font-normal italic font-sans ml-1">(Główny folder klienta)</span>
+              </div>
+              
+              {/* Opportunity subfolder branch */}
+              <div className="pl-4 border-l border-slate-300">
+                <div className="flex items-center gap-1.5 text-slate-700 mt-1">
+                  <span className="text-slate-400">├──</span>
+                  <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                  </svg>
+                  <span>2026-07-15_Złota_Wycena</span>
+                  <span className="text-[10px] text-blue-500 font-normal font-sans ml-1">[SZANSA SPRZEDAŻY]</span>
+                </div>
+                
+                {/* Opportunity child folders */}
+                <div className="pl-6 border-l border-slate-300 ml-4">
+                  <div className="flex items-center gap-1.5 py-0.5">
+                    <span className="text-slate-400">├──</span>
+                    <span className="text-slate-500">{oppValuation || "Pliki do wyceny od klienta - rzuty i przysłane"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 py-0.5">
+                    <span className="text-slate-400">├──</span>
+                    <span className="text-slate-500">{oppReceived || "Koszta - oferty od dostawców"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 py-0.5">
+                    <span className="text-slate-400">├──</span>
+                    <span className="text-slate-500">{oppSent || "Oferty - wysłane do Klienta"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 py-0.5">
+                    <span className="text-slate-400">└──</span>
+                    <span className="text-slate-500">{oppPonzio || "Ponzio - pliki"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order subfolder branch */}
+              <div className="pl-4 border-l border-slate-300">
+                <div className="flex items-center gap-1.5 text-slate-700 mt-1">
+                  <span className="text-slate-400">└──</span>
+                  <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                  </svg>
+                  <span>2026-07-15_Złota</span>
+                  <span className="text-[10px] text-green-600 font-normal font-sans ml-1">[ZLECENIE]</span>
+                </div>
+                
+                {/* Order child folders */}
+                <div className="pl-6 ml-4">
+                  <div className="flex items-center gap-1.5 py-0.5">
+                    <span className="text-slate-400">├──</span>
+                    <span className="text-slate-500">{orderInvoices || "Faktury - sprzedażowe, kosztowe..."}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 py-0.5">
+                    <span className="text-slate-400">├──</span>
+                    <span className="text-slate-500">{orderDocs || "Dokumenty - gwarancje, protokoły..."}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 py-0.5">
+                    <span className="text-slate-400">├──</span>
+                    <span className="text-slate-500">{orderMeasurements || "Pomiary - ustalenia"}</span>
+                  </div>
+                  
+                  {parsedCustomFolders.map((cf, idx) => {
+                    const isLast = idx === parsedCustomFolders.length - 1;
+                    return (
+                      <div key={idx} className="flex items-center gap-1.5 py-0.5">
+                        <span className="text-slate-400">{isLast ? "└──" : "├──"}</span>
+                        <span className="text-slate-500">{cf}</span>
+                        <span className="text-[9px] text-slate-400 font-sans ml-1 italic">(dodatkowy pusty)</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="flex justify-end">
