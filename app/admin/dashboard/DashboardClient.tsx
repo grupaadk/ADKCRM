@@ -729,14 +729,11 @@ export default function DashboardClient() {
                     <TaskCard
                       key={task._id}
                       task={task}
-                      today={today}
-                      tomorrow={tomorrow}
                       showAssignee={canAddTasks}
                       onOpen={() => setOpenTaskId(task._id as Id<"orderTasks">)}
                       onDragStart={() => setDragId(task._id)}
                       onDragEnd={() => setDragId(null)}
                       dragging={dragId === task._id}
-                      columnColor={col.color}
                     />
                   ))}
                   {isLast && hiddenCount > 0 && (
@@ -942,7 +939,7 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
 }
 
 /* ── badge terminu ── */
-function DueBadge({ ts, today, tomorrow, done }: { ts: number; today: number; tomorrow: number; done: boolean }) {
+function _DueBadge({ ts, today, tomorrow, done }: { ts: number; today: number; tomorrow: number; done: boolean }) {
   const overdue = !done && ts < today;
   const isToday = !done && ts >= today && ts < tomorrow;
   const cls = overdue
@@ -997,24 +994,18 @@ function AssigneeBadge({ task }: { task: DashboardTask }) {
 /* ── karta zadania ── */
 function TaskCard({
   task,
-  today,
-  tomorrow,
   showAssignee,
   onOpen,
   onDragStart,
   onDragEnd,
   dragging,
-  columnColor,
 }: {
   task: DashboardTask;
-  today: number;
-  tomorrow: number;
   showAssignee: boolean;
   onOpen: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
   dragging: boolean;
-  columnColor?: string;
 }) {
   const router = useRouter();
   const updateTask = useMutation(api.orderTasks.update);
@@ -1152,19 +1143,12 @@ function TaskCard({
         {task.title}
       </div>
 
-      {/* stopka: termin + awatar */}
-      {(task.dueDate != null || showAssignee) && (
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <div>
-            {task.dueDate != null && (
-              <DueBadge ts={task.dueDate} today={today} tomorrow={tomorrow} done={task.status === "done"} />
-            )}
+      {/* stopka: awatar */}
+      {showAssignee && (
+        <div className="mt-2 flex items-center justify-end gap-2">
+          <div className="min-w-0">
+            <AssigneeBadge task={task} />
           </div>
-          {showAssignee && (
-            <div className="min-w-0">
-              <AssigneeBadge task={task} />
-            </div>
-          )}
         </div>
       )}
     </div>
