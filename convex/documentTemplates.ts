@@ -191,3 +191,21 @@ export const deleteTemplate = mutation({
     await ctx.db.delete(args.id);
   },
 });
+
+export const updateTargetFolder = mutation({
+  args: {
+    id: v.id("documentTemplates"),
+    targetFolder: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const template = await ctx.db.get(args.id);
+    if (!template) {
+      throw new Error("Szablon nie istnieje");
+    }
+    await ctx.db.patch(args.id, {
+      targetFolder: args.targetFolder,
+      version: template.version + 1,
+    });
+    return args.id;
+  },
+});

@@ -225,6 +225,72 @@ function GoogleDriveTab() {
 
   const config = useQuery(api.crmConfig.getConfig);
   const saveFoldersConfig = useMutation(api.crmConfig.saveGoogleDriveFoldersConfig);
+  const templates = useQuery(api.documentTemplates.list);
+  const updateTemplateTargetFolder = useMutation(api.documentTemplates.updateTargetFolder);
+
+  const templatesByFolder = useMemo(() => {
+    const groups: Record<string, typeof templates> = {};
+    if (!templates) return groups;
+
+    const validFolders = new Set([
+      oppValuation.trim(),
+      oppReceived.trim(),
+      oppSent.trim(),
+      oppPonzio.trim(),
+      ...customOppFolders.map((f) => f.trim()),
+      orderInvoices.trim(),
+      orderDocs.trim(),
+      orderMeasurements.trim(),
+      ...customFolders.map((f) => f.trim()),
+    ]);
+
+    for (const t of templates) {
+      const tf = t.targetFolder?.trim() ?? "";
+      if (tf && validFolders.has(tf)) {
+        if (!groups[tf]) groups[tf] = [];
+        groups[tf]!.push(t);
+      } else {
+        if (!groups[""]) groups[""] = [];
+        groups[""]!.push(t);
+      }
+    }
+    return groups;
+  }, [templates, oppValuation, oppReceived, oppSent, oppPonzio, customOppFolders, orderInvoices, orderDocs, orderMeasurements, customFolders]);
+
+  const renderMoveDropdown = (t: NonNullable<typeof templates>[number]) => {
+    return (
+      <select
+        value={t.targetFolder ?? ""}
+        onChange={async (e) => {
+          try {
+            await updateTemplateTargetFolder({
+              id: t._id,
+              targetFolder: e.target.value || undefined,
+            });
+          } catch (err) {
+            console.error("Failed to move template", err);
+          }
+        }}
+        className="ml-2 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-500 hover:text-slate-700 hover:border-slate-300 focus:outline-none transition-all cursor-pointer font-sans"
+      >
+        <option value="">📁 Przenieś do...</option>
+        <option value="">Główny folder klienta</option>
+        <optgroup label="Szansa Sprzedaży">
+          {oppValuation && <option value={oppValuation}>{oppValuation}</option>}
+          {oppReceived && <option value={oppReceived}>{oppReceived}</option>}
+          {oppSent && <option value={oppSent}>{oppSent}</option>}
+          {oppPonzio && <option value={oppPonzio}>{oppPonzio}</option>}
+          {customOppFolders.map((f) => f.trim() && <option key={f} value={f.trim()}>{f.trim()}</option>)}
+        </optgroup>
+        <optgroup label="Zlecenie">
+          {orderInvoices && <option value={orderInvoices}>{orderInvoices}</option>}
+          {orderDocs && <option value={orderDocs}>{orderDocs}</option>}
+          {orderMeasurements && <option value={orderMeasurements}>{orderMeasurements}</option>}
+          {customFolders.map((f) => f.trim() && <option key={f} value={f.trim()}>{f.trim()}</option>)}
+        </optgroup>
+      </select>
+    );
+  };
 
   const [oppValuation, setOppValuation] = useState("");
   const [oppReceived, setOppReceived] = useState("");
@@ -830,6 +896,18 @@ function GoogleDriveTab() {
               <span className="text-[10px] text-slate-400 font-normal italic font-sans ml-1">(Główny folder klienta)</span>
             </div>
 
+            {/* Templates in Main Folder */}
+            {templatesByFolder[""]?.map((t) => (
+              <div key={t._id} className="flex items-center gap-1.5 py-0.5 ml-4 pl-4 border-l border-slate-300">
+                <span className="text-slate-400">├──</span>
+                <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                </svg>
+                <span className="font-sans text-slate-500 font-medium">{t.name}</span>
+                {renderMoveDropdown(t)}
+              </div>
+            ))}
+
             {/* Opportunity Branch */}
             <div className="pl-4 border-l border-slate-300">
               <div className="flex items-center gap-1.5 text-slate-700 mt-2 mb-1 group">
@@ -854,126 +932,192 @@ function GoogleDriveTab() {
               {/* Opportunity Children */}
               <div className="pl-6 border-l border-slate-300 ml-4 space-y-1">
                 {/* Valuation Files */}
-                <div className="flex items-center gap-1.5 group">
-                  <span className="text-slate-400">├──</span>
-                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={oppValuation}
-                    onChange={(e) => setOppValuation(e.target.value)}
-                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
-                    placeholder="Folder wyceny..."
-                  />
-                  <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
-                    <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                <div>
+                  <div className="flex items-center gap-1.5 group">
+                    <span className="text-slate-400">├──</span>
+                    <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
                     </svg>
-                    kopiowany do zlecenia
-                  </span>
-                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
+                    <input
+                      type="text"
+                      value={oppValuation}
+                      onChange={(e) => setOppValuation(e.target.value)}
+                      className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                      placeholder="Folder wyceny..."
+                    />
+                    <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
+                      <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                      </svg>
+                      kopiowany do zlecenia
+                    </span>
+                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
+                  </div>
+                  {/* Templates inside Valuation Files */}
+                  {templatesByFolder[oppValuation.trim()]?.map((t) => (
+                    <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
+                      <span className="text-slate-400">├──</span>
+                      <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                      <span className="font-sans text-slate-500 font-medium">{t.name}</span>
+                      {renderMoveDropdown(t)}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Offers Received */}
-                <div className="flex items-center gap-1.5 group">
-                  <span className="text-slate-400">├──</span>
-                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={oppReceived}
-                    onChange={(e) => setOppReceived(e.target.value)}
-                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
-                    placeholder="Folder kosztów..."
-                  />
-                  <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
-                    <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                <div>
+                  <div className="flex items-center gap-1.5 group">
+                    <span className="text-slate-400">├──</span>
+                    <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
                     </svg>
-                    kopiowany do zlecenia
-                  </span>
-                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
+                    <input
+                      type="text"
+                      value={oppReceived}
+                      onChange={(e) => setOppReceived(e.target.value)}
+                      className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                      placeholder="Folder kosztów..."
+                    />
+                    <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
+                      <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                      </svg>
+                      kopiowany do zlecenia
+                    </span>
+                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
+                  </div>
+                  {/* Templates inside Offers Received */}
+                  {templatesByFolder[oppReceived.trim()]?.map((t) => (
+                    <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
+                      <span className="text-slate-400">├──</span>
+                      <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                      <span className="font-sans text-slate-500 font-medium">{t.name}</span>
+                      {renderMoveDropdown(t)}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Offers Sent */}
-                <div className="flex items-center gap-1.5 group">
-                  <span className="text-slate-400">├──</span>
-                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={oppSent}
-                    onChange={(e) => setOppSent(e.target.value)}
-                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
-                    placeholder="Folder ofert..."
-                  />
-                  <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
-                    <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                <div>
+                  <div className="flex items-center gap-1.5 group">
+                    <span className="text-slate-400">├──</span>
+                    <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
                     </svg>
-                    kopiowany do zlecenia
-                  </span>
-                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
+                    <input
+                      type="text"
+                      value={oppSent}
+                      onChange={(e) => setOppSent(e.target.value)}
+                      className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                      placeholder="Folder ofert..."
+                    />
+                    <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
+                      <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                      </svg>
+                      kopiowany do zlecenia
+                    </span>
+                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
+                  </div>
+                  {/* Templates inside Offers Sent */}
+                  {templatesByFolder[oppSent.trim()]?.map((t) => (
+                    <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
+                      <span className="text-slate-400">├──</span>
+                      <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                      <span className="font-sans text-slate-500 font-medium">{t.name}</span>
+                      {renderMoveDropdown(t)}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Ponzio Files */}
-                <div className="flex items-center gap-1.5 group">
-                  <span className="text-slate-400">{customOppFolders.length === 0 ? "└──" : "├──"}</span>
-                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={oppPonzio}
-                    onChange={(e) => setOppPonzio(e.target.value)}
-                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
-                    placeholder="Folder Ponzio..."
-                  />
-                  <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
-                    <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                <div>
+                  <div className="flex items-center gap-1.5 group">
+                    <span className="text-slate-400">{customOppFolders.length === 0 ? "└──" : "├──"}</span>
+                    <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
                     </svg>
-                    kopiowany do zlecenia
-                  </span>
-                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
+                    <input
+                      type="text"
+                      value={oppPonzio}
+                      onChange={(e) => setOppPonzio(e.target.value)}
+                      className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                      placeholder="Folder Ponzio..."
+                    />
+                    <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
+                      <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                      </svg>
+                      kopiowany do zlecenia
+                    </span>
+                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
+                  </div>
+                  {/* Templates inside Ponzio Files */}
+                  {templatesByFolder[oppPonzio.trim()]?.map((t) => (
+                    <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
+                      <span className="text-slate-400">├──</span>
+                      <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                      <span className="font-sans text-slate-500 font-medium">{t.name}</span>
+                      {renderMoveDropdown(t)}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Custom Opportunity Subfolders list */}
                 {customOppFolders.map((cf, idx) => {
                   const isLast = idx === customOppFolders.length - 1;
+                  const folderNameTrimmed = cf.trim();
                   return (
-                    <div key={idx} className="flex items-center gap-1.5 group">
-                      <span className="text-slate-400">{isLast ? "└──" : "├──"}</span>
-                      <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                      </svg>
-                      <input
-                        type="text"
-                        value={cf}
-                        onChange={(e) => handleUpdateCustomOppFolder(idx, e.target.value)}
-                        className="font-sans text-xs bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium text-blue-600 focus:text-slate-800"
-                        placeholder="Nazwa podfolderu..."
-                        autoFocus={cf === "Nowy folder"}
-                      />
-                      <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
-                        <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    <div key={idx}>
+                      <div className="flex items-center gap-1.5 group">
+                        <span className="text-slate-400">{isLast ? "└──" : "├──"}</span>
+                        <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
                         </svg>
-                        kopiowany do zlecenia
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCustomOppFolder(idx)}
-                        className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity ml-1"
-                        title="Usuń folder"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                        <input
+                          type="text"
+                          value={cf}
+                          onChange={(e) => handleUpdateCustomOppFolder(idx, e.target.value)}
+                          className="font-sans text-xs bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium text-blue-600 focus:text-slate-800"
+                          placeholder="Nazwa podfolderu..."
+                          autoFocus={cf === "Nowy folder"}
+                        />
+                        <span className="text-[9px] text-blue-500 font-sans font-medium bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 whitespace-nowrap ml-2">
+                          <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                          </svg>
+                          kopiowany do zlecenia
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCustomOppFolder(idx)}
+                          className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity ml-1"
+                          title="Usuń folder"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                      {/* Templates inside Custom Opp Folder */}
+                      {folderNameTrimmed && templatesByFolder[folderNameTrimmed]?.map((t) => (
+                        <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
+                          <span className="text-slate-400">├──</span>
+                          <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                          </svg>
+                          <span className="font-sans text-slate-500 font-medium">{t.name}</span>
+                          {renderMoveDropdown(t)}
+                        </div>
+                      ))}
                     </div>
                   );
                 })}
@@ -1004,80 +1148,133 @@ function GoogleDriveTab() {
               {/* Order Children */}
               <div className="pl-6 ml-4 space-y-1">
                 {/* Invoices */}
-                <div className="flex items-center gap-1.5 group">
-                  <span className="text-slate-400">├──</span>
-                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={orderInvoices}
-                    onChange={(e) => setOrderInvoices(e.target.value)}
-                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
-                    placeholder="Folder faktur..."
-                  />
-                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                <div>
+                  <div className="flex items-center gap-1.5 group">
+                    <span className="text-slate-400">├──</span>
+                    <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={orderInvoices}
+                      onChange={(e) => setOrderInvoices(e.target.value)}
+                      className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                      placeholder="Folder faktur..."
+                    />
+                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                  </div>
+                  {/* Templates inside Invoices */}
+                  {templatesByFolder[orderInvoices.trim()]?.map((t) => (
+                    <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
+                      <span className="text-slate-400">├──</span>
+                      <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                      <span className="font-sans text-slate-500 font-medium">{t.name}</span>
+                      {renderMoveDropdown(t)}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Documents */}
-                <div className="flex items-center gap-1.5 group">
-                  <span className="text-slate-400">├──</span>
-                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={orderDocs}
-                    onChange={(e) => setOrderDocs(e.target.value)}
-                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
-                    placeholder="Folder dokumentów..."
-                  />
-                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                <div>
+                  <div className="flex items-center gap-1.5 group">
+                    <span className="text-slate-400">├──</span>
+                    <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={orderDocs}
+                      onChange={(e) => setOrderDocs(e.target.value)}
+                      className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                      placeholder="Folder dokumentów..."
+                    />
+                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                  </div>
+                  {/* Templates inside Documents */}
+                  {templatesByFolder[orderDocs.trim()]?.map((t) => (
+                    <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
+                      <span className="text-slate-400">├──</span>
+                      <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                      <span className="font-sans text-slate-500 font-medium">{t.name}</span>
+                      {renderMoveDropdown(t)}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Measurements */}
-                <div className="flex items-center gap-1.5 group">
-                  <span className="text-slate-400">{customFolders.length === 0 ? "└──" : "├──"}</span>
-                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={orderMeasurements}
-                    onChange={(e) => setOrderMeasurements(e.target.value)}
-                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
-                    placeholder="Folder pomiarów..."
-                  />
-                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                <div>
+                  <div className="flex items-center gap-1.5 group">
+                    <span className="text-slate-400">{customFolders.length === 0 ? "└──" : "├──"}</span>
+                    <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={orderMeasurements}
+                      onChange={(e) => setOrderMeasurements(e.target.value)}
+                      className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                      placeholder="Folder pomiarów..."
+                    />
+                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                  </div>
+                  {/* Templates inside Measurements */}
+                  {templatesByFolder[orderMeasurements.trim()]?.map((t) => (
+                    <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
+                      <span className="text-slate-400">├──</span>
+                      <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                      <span className="font-sans text-slate-500 font-medium">{t.name}</span>
+                      {renderMoveDropdown(t)}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Custom Subfolders list */}
                 {customFolders.map((cf, idx) => {
                   const isLast = idx === customFolders.length - 1;
+                  const folderNameTrimmed = cf.trim();
                   return (
-                    <div key={idx} className="flex items-center gap-1.5 group">
-                      <span className="text-slate-400">{isLast ? "└──" : "├──"}</span>
-                      <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                      </svg>
-                      <input
-                        type="text"
-                        value={cf}
-                        onChange={(e) => handleUpdateCustomFolder(idx, e.target.value)}
-                        className="font-sans text-xs bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium text-blue-600 focus:text-slate-800"
-                        placeholder="Nazwa podfolderu..."
-                        autoFocus={cf === "Nowy folder"}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCustomFolder(idx)}
-                        className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity"
-                        title="Usuń folder"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    <div key={idx}>
+                      <div className="flex items-center gap-1.5 group">
+                        <span className="text-slate-400">{isLast ? "└──" : "├──"}</span>
+                        <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
                         </svg>
-                      </button>
+                        <input
+                          type="text"
+                          value={cf}
+                          onChange={(e) => handleUpdateCustomFolder(idx, e.target.value)}
+                          className="font-sans text-xs bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium text-blue-600 focus:text-slate-800"
+                          placeholder="Nazwa podfolderu..."
+                          autoFocus={cf === "Nowy folder"}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCustomFolder(idx)}
+                          className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity"
+                          title="Usuń folder"
+                        >
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                          </svg>
+                        </button>
+                      </div>
+                      {/* Templates inside Custom Order Folder */}
+                      {folderNameTrimmed && templatesByFolder[folderNameTrimmed]?.map((t) => (
+                        <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
+                          <span className="text-slate-400">├──</span>
+                          <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                          </svg>
+                          <span className="font-sans text-slate-500 font-medium">{t.name}</span>
+                          {renderMoveDropdown(t)}
+                        </div>
+                      ))}
                     </div>
                   );
                 })}
