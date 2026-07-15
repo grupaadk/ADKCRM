@@ -167,13 +167,14 @@ export const saveGoogleDriveFoldersConfig = mutation({
         offersReceived: v.string(),
         offersSent: v.string(),
         ponzioFiles: v.string(),
+        customSubfolders: v.array(v.string()),
       }),
       order: v.object({
         invoices: v.string(),
         documents: v.string(),
         measurements: v.string(),
+        customSubfolders: v.array(v.string()),
       }),
-      customSubfolders: v.array(v.string()),
     }),
   },
   handler: async (ctx, args) => {

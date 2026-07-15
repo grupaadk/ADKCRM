@@ -234,8 +234,8 @@ function GoogleDriveTab() {
   const [orderInvoices, setOrderInvoices] = useState("");
   const [orderDocs, setOrderDocs] = useState("");
   const [orderMeasurements, setOrderMeasurements] = useState("");
-
   const [customFolders, setCustomFolders] = useState<string[]>([]);
+  const [customOppFolders, setCustomOppFolders] = useState<string[]>([]);
   const [foldersNotice, setFoldersNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [savingFolders, setSavingFolders] = useState(false);
 
@@ -253,6 +253,20 @@ function GoogleDriveTab() {
     setCustomFolders((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleAddCustomOppFolder = () => {
+    setCustomOppFolders((prev) => [...prev, "Nowy folder"]);
+  };
+
+  const handleUpdateCustomOppFolder = (index: number, name: string) => {
+    setCustomOppFolders((prev) =>
+      prev.map((f, i) => (i === index ? name : f))
+    );
+  };
+
+  const handleDeleteCustomOppFolder = (index: number) => {
+    setCustomOppFolders((prev) => prev.filter((_, i) => i !== index));
+  };
+
   useEffect(() => {
     if (config) {
       const folders = config.googleDriveFolders ?? {
@@ -261,25 +275,49 @@ function GoogleDriveTab() {
           offersReceived: "Koszta - oferty od dostawców",
           offersSent: "Oferty - wysłane do Klienta",
           ponzioFiles: "Ponzio - pliki",
+          customSubfolders: [],
         },
         order: {
           invoices: "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
           documents: "Dokumenty - gwarancje, protokoły, umowy",
           measurements: "Pomiary - ustalenia",
+          customSubfolders: [
+            "Zdjęcia budowy",
+            "Rysunki konstrukcji do zamówienia"
+          ]
         },
+      };
+
+      const oppFolders = folders.opportunity ?? {
+        valuationFiles: "Pliki do wyceny od klienta - rzuty i przysłane",
+        offersReceived: "Koszta - oferty od dostawców",
+        offersSent: "Oferty - wysłane do Klienta",
+        ponzioFiles: "Ponzio - pliki",
+        customSubfolders: [],
+      };
+
+      const orderFolders = folders.order ?? {
+        invoices: "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
+        documents: "Dokumenty - gwarancje, protokoły, umowy",
+        measurements: "Pomiary - ustalenia",
         customSubfolders: [
           "Zdjęcia budowy",
           "Rysunki konstrukcji do zamówienia"
-        ],
+        ]
       };
-      setOppValuation(folders.opportunity.valuationFiles);
-      setOppReceived(folders.opportunity.offersReceived);
-      setOppSent(folders.opportunity.offersSent);
-      setOppPonzio(folders.opportunity.ponzioFiles);
-      setOrderInvoices(folders.order.invoices);
-      setOrderDocs(folders.order.documents);
-      setOrderMeasurements(folders.order.measurements);
-      setCustomFolders(folders.customSubfolders);
+
+      const legacyCustomFolders = (config?.googleDriveFolders as Record<string, unknown> | undefined)?.customSubfolders as string[] | undefined;
+
+      setOppValuation(oppFolders.valuationFiles);
+      setOppReceived(oppFolders.offersReceived);
+      setOppSent(oppFolders.offersSent);
+      setOppPonzio(oppFolders.ponzioFiles);
+      setCustomOppFolders(oppFolders.customSubfolders ?? []);
+
+      setOrderInvoices(orderFolders.invoices);
+      setOrderDocs(orderFolders.documents);
+      setOrderMeasurements(orderFolders.measurements);
+      setCustomFolders(orderFolders.customSubfolders ?? legacyCustomFolders ?? []);
     }
   }, [config]);
 
@@ -294,13 +332,14 @@ function GoogleDriveTab() {
             offersReceived: oppReceived.trim() || "Koszta - oferty od dostawców",
             offersSent: oppSent.trim() || "Oferty - wysłane do Klienta",
             ponzioFiles: oppPonzio.trim() || "Ponzio - pliki",
+            customSubfolders: customOppFolders.map((f) => f.trim()).filter((f) => f.length > 0),
           },
           order: {
             invoices: orderInvoices.trim() || "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
             documents: orderDocs.trim() || "Dokumenty - gwarancje, protokoły, umowy",
             measurements: orderMeasurements.trim() || "Pomiary - ustalenia",
+            customSubfolders: customFolders.map((f) => f.trim()).filter((f) => f.length > 0),
           },
-          customSubfolders: customFolders.map((f) => f.trim()).filter((f) => f.length > 0),
         },
       });
       setFoldersNotice({ type: "success", text: "Konfiguracja folderów została zapisana!" });
@@ -793,13 +832,25 @@ function GoogleDriveTab() {
 
             {/* Opportunity Branch */}
             <div className="pl-4 border-l border-slate-300">
-              <div className="flex items-center gap-1.5 text-slate-700 mt-2 mb-1">
-                <span className="text-slate-400">├──</span>
-                <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                </svg>
-                <span className="font-sans font-medium text-slate-800">2026-07-15_Złota_Wycena</span>
-                <span className="text-[10px] text-blue-500 font-normal font-sans ml-1">[SZANSA SPRZEDAŻY]</span>
+              <div className="flex items-center justify-between text-slate-700 mt-2 mb-1 pr-4 group">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400">├──</span>
+                  <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                  </svg>
+                  <span className="font-sans font-medium text-slate-800">2026-07-15_Złota_Wycena</span>
+                  <span className="text-[10px] text-blue-500 font-normal font-sans ml-1">[SZANSA SPRZEDAŻY]</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddCustomOppFolder}
+                  className="text-[11px] font-sans text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Dodaj podfolder szansy
+                </button>
               </div>
 
               {/* Opportunity Children */}
@@ -854,7 +905,7 @@ function GoogleDriveTab() {
 
                 {/* Ponzio Files */}
                 <div className="flex items-center gap-1.5 group">
-                  <span className="text-slate-400">└──</span>
+                  <span className="text-slate-400">{customOppFolders.length === 0 ? "└──" : "├──"}</span>
                   <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
                   </svg>
@@ -867,6 +918,37 @@ function GoogleDriveTab() {
                   />
                   <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
                 </div>
+
+                {/* Custom Opportunity Subfolders list */}
+                {customOppFolders.map((cf, idx) => {
+                  const isLast = idx === customOppFolders.length - 1;
+                  return (
+                    <div key={idx} className="flex items-center gap-1.5 group">
+                      <span className="text-slate-400">{isLast ? "└──" : "├──"}</span>
+                      <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={cf}
+                        onChange={(e) => handleUpdateCustomOppFolder(idx, e.target.value)}
+                        className="font-sans text-xs bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium text-blue-600 focus:text-slate-800"
+                        placeholder="Nazwa podfolderu..."
+                        autoFocus={cf === "Nowy folder"}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCustomOppFolder(idx)}
+                        className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity"
+                        title="Usuń folder"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

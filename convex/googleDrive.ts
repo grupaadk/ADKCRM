@@ -23,22 +23,24 @@ const CLIENTS_FOLDER_ID = "0AF5F7v0YZWQHUk9PVA";
 const TEMPLATES_FOLDER_ID = "0ANuZnSEtUiLTUk9PVA";
 
 export function resolveFoldersConfig(config: Doc<"crmConfig"> | null | undefined) {
+  const legacyCustomFolders = (config?.googleDriveFolders as Record<string, unknown> | undefined)?.customSubfolders as string[] | undefined;
   return {
     opportunity: {
       valuationFiles: config?.googleDriveFolders?.opportunity?.valuationFiles ?? "Pliki do wyceny od klienta - rzuty i przysłane",
       offersReceived: config?.googleDriveFolders?.opportunity?.offersReceived ?? "Koszta - oferty od dostawców",
       offersSent: config?.googleDriveFolders?.opportunity?.offersSent ?? "Oferty - wysłane do Klienta",
       ponzioFiles: config?.googleDriveFolders?.opportunity?.ponzioFiles ?? "Ponzio - pliki",
+      customSubfolders: config?.googleDriveFolders?.opportunity?.customSubfolders ?? [],
     },
     order: {
       invoices: config?.googleDriveFolders?.order?.invoices ?? "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
       documents: config?.googleDriveFolders?.order?.documents ?? "Dokumenty - gwarancje, protokoły, umowy",
       measurements: config?.googleDriveFolders?.order?.measurements ?? "Pomiary - ustalenia",
-    },
-    customSubfolders: config?.googleDriveFolders?.customSubfolders ?? [
-      "Zdjęcia budowy",
-      "Rysunki konstrukcji do zamówienia"
-    ]
+      customSubfolders: config?.googleDriveFolders?.order?.customSubfolders ?? legacyCustomFolders ?? [
+        "Zdjęcia budowy",
+        "Rysunki konstrukcji do zamówienia"
+      ]
+    }
   };
 }
 
@@ -1007,6 +1009,15 @@ export const createClientFolderForOpportunity = action({
         opportunityFolderId,
       );
 
+      // Krok 4.5: Utwórz dodatkowe niestandardowe podfoldery dla szansy
+      for (const customFolder of folders.opportunity.customSubfolders) {
+        await findOrCreateDriveFolder(
+          connection.accessToken,
+          customFolder,
+          opportunityFolderId,
+        );
+      }
+
       // Krok 5: Zapisz wszystkie foldery w rekordzie szansy
       await ctx.runMutation(internal.salesOpportunities.updateOpportunityFolders, {
         opportunityId: args.opportunityId,
@@ -1158,12 +1169,13 @@ export const createOrderFolder = action({
         folders.opportunity.offersReceived,
         folders.opportunity.offersSent,
         folders.opportunity.ponzioFiles,
+        ...folders.opportunity.customSubfolders,
       ];
       const ORDER_SUBFOLDERS = [
         folders.order.invoices,
         folders.order.documents,
         folders.order.measurements,
-        ...folders.customSubfolders,
+        ...folders.order.customSubfolders,
       ];
 
       const [oppSubfolderIds] = await Promise.all([
@@ -1181,12 +1193,36 @@ export const createOrderFolder = action({
           opportunityId: args.opportunityId,
         });
 
+        // Pobierz foldery z Google Drive szansy w celu znalezienia niestandardowych podfolderów
+        let driveFolders: Array<{ id: string; name: string }> = [];
+        if (opp?.opportunityFolderId) {
+          try {
+            const params = new URLSearchParams({
+              q: `'${opp.opportunityFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+              supportsAllDrives: "true",
+              includeItemsFromAllDrives: "true",
+              fields: "files(id,name)",
+            });
+            const driveData = await driveApiFetchWithRetry(ctx, `/files?${params.toString()}`) as { files?: Array<{ id?: string; name?: string }> };
+            driveFolders = (driveData.files ?? []).filter((f): f is { id: string; name: string } => !!(f.id && f.name));
+          } catch (e) {
+            await log("error", "failed to list opportunity subfolders from Drive", { error: String(e) });
+          }
+        }
+
         const subfoldersToCopy = [
           { id: opp?.valuationFilesFolderId, name: folders.opportunity.valuationFiles },
           { id: opp?.offersReceivedFolderId, name: folders.opportunity.offersReceived },
           { id: opp?.offersSentFolderId, name: folders.opportunity.offersSent },
           { id: opp?.ponzioFilesFolderId, name: folders.opportunity.ponzioFiles },
         ].filter((sf): sf is { id: string; name: string } => !!sf.id);
+
+        for (const cfName of folders.opportunity.customSubfolders) {
+          const matched = driveFolders.find((df) => df.name === cfName);
+          if (matched) {
+            subfoldersToCopy.push({ id: matched.id, name: cfName });
+          }
+        }
 
         if (subfoldersToCopy.length > 0) {
           await log("info", "copying files from opportunity subfolders", { count: subfoldersToCopy.length });
