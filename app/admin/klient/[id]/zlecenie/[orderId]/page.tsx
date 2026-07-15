@@ -1710,6 +1710,7 @@ export default function OrderDetailPage({
       await changeStatus({ orderId: orderIdTyped, newStatus });
     } catch (error) {
       console.error("Status change failed:", error);
+      alert(error instanceof Error ? error.message : "Nie udało się zmienić statusu.");
     }
   }
 
@@ -1719,6 +1720,7 @@ export default function OrderDetailPage({
       await changeStatus({ orderId: orderIdTyped, newStatus: "archived" });
     } catch (error) {
       console.error("Archive failed:", error);
+      alert(error instanceof Error ? error.message : "Błąd archiwizacji zlecenia.");
     }
   }
 
@@ -1728,6 +1730,7 @@ export default function OrderDetailPage({
       await changeStatus({ orderId: orderIdTyped, newStatus: "completed" });
     } catch (error) {
       console.error("Restore failed:", error);
+      alert(error instanceof Error ? error.message : "Błąd przywracania zlecenia.");
     }
   }
 

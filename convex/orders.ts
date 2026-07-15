@@ -422,6 +422,21 @@ export const changeStatus = mutation({
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
 
+    if (args.newStatus === "archived") {
+      const orderTasks = await ctx.db
+        .query("orderTasks")
+        .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
+        .collect();
+      const unfinished = orderTasks.filter(
+        (t) => t.status !== "done" && t.archived !== true,
+      );
+      if (unfinished.length > 0) {
+        throw new ConvexError(
+          "Nie można zarchiwizować zlecenia, ponieważ posiada ono niezrealizowane zadania."
+        );
+      }
+    }
+
     if (order.status === args.newStatus) {
       throw new Error("Status jest już ustawiony na tę wartość");
     }

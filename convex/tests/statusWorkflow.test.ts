@@ -227,4 +227,42 @@ describe("US-2.2 -- Order data update", () => {
     expect(order?.services).toEqual(["Okna", "Drzwi"]);
     expect(order?.comment).toBe("Pilne zamowienie");
   });
+
+  test("19. archiving order is blocked if there are unfinished tasks", async () => {
+    const t = convexTest(schema);
+
+    // Seed active admin user in test DB so requireUser auth check passes
+    const userId = await t.run(async (ctx) => {
+      return await ctx.db.insert("users", {
+        email: "admin@test.com",
+        role: "admin",
+        isActive: true,
+      });
+    });
+    const asUser = t.withIdentity({ subject: userId });
+
+    const { orderId } = await createOrderAtStatus(asUser, "lead");
+    
+    // Create an unfinished task for the order
+    await asUser.mutation(api.orderTasks.create, {
+      orderId,
+      title: "Zadanie testowe",
+      status: "todo",
+    });
+
+    // Try to archive - should fail
+    await expect(
+      asUser.mutation(api.orders.changeStatus, { orderId, newStatus: "archived" }),
+    ).rejects.toThrow();
+
+    // Now resolve the task (change status to 'done')
+    const tasks = await asUser.query(api.orderTasks.listByOrder, { orderId });
+    const taskId = tasks[0]._id;
+    await asUser.mutation(api.orderTasks.update, { taskId, status: "done" });
+
+    // Try to archive again - should succeed
+    await asUser.mutation(api.orders.changeStatus, { orderId, newStatus: "archived" });
+    const order = await asUser.query(api.orders.getById, { orderId });
+    expect(order?.status).toBe("archived");
+  });
 });
