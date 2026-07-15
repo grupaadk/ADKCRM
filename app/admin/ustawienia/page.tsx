@@ -339,6 +339,30 @@ function GoogleDriveTab() {
     );
   };
 
+  const renderUnassignButton = (t: NonNullable<typeof templates>[number]) => {
+    return (
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            await updateTemplateTargetFolder({
+              id: t._id,
+              targetFolder: undefined,
+            });
+          } catch (err) {
+            console.error("Failed to unassign template", err);
+          }
+        }}
+        className="ml-1 text-red-500 hover:text-red-700 p-0.5 rounded transition-all focus:outline-none"
+        title="Usuń powiązanie z folderem"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    );
+  };
+
   const handleAddCustomFolder = () => {
     setCustomFolders((prev) => [...prev, "Nowy folder"]);
   };
@@ -985,6 +1009,7 @@ function GoogleDriveTab() {
                       </svg>
                       <span className="font-sans text-slate-500 font-medium">{t.name}</span>
                       {renderMoveDropdown(t)}
+                      {renderUnassignButton(t)}
                     </div>
                   ))}
                 </div>
@@ -1021,6 +1046,7 @@ function GoogleDriveTab() {
                       </svg>
                       <span className="font-sans text-slate-500 font-medium">{t.name}</span>
                       {renderMoveDropdown(t)}
+                      {renderUnassignButton(t)}
                     </div>
                   ))}
                 </div>
@@ -1057,6 +1083,7 @@ function GoogleDriveTab() {
                       </svg>
                       <span className="font-sans text-slate-500 font-medium">{t.name}</span>
                       {renderMoveDropdown(t)}
+                      {renderUnassignButton(t)}
                     </div>
                   ))}
                 </div>
@@ -1093,6 +1120,7 @@ function GoogleDriveTab() {
                       </svg>
                       <span className="font-sans text-slate-500 font-medium">{t.name}</span>
                       {renderMoveDropdown(t)}
+                      {renderUnassignButton(t)}
                     </div>
                   ))}
                 </div>
@@ -1143,6 +1171,7 @@ function GoogleDriveTab() {
                           </svg>
                           <span className="font-sans text-slate-500 font-medium">{t.name}</span>
                           {renderMoveDropdown(t)}
+                          {renderUnassignButton(t)}
                         </div>
                       ))}
                     </div>
@@ -1200,6 +1229,7 @@ function GoogleDriveTab() {
                       </svg>
                       <span className="font-sans text-slate-500 font-medium">{t.name}</span>
                       {renderMoveDropdown(t)}
+                      {renderUnassignButton(t)}
                     </div>
                   ))}
                 </div>
@@ -1230,6 +1260,7 @@ function GoogleDriveTab() {
                       </svg>
                       <span className="font-sans text-slate-500 font-medium">{t.name}</span>
                       {renderMoveDropdown(t)}
+                      {renderUnassignButton(t)}
                     </div>
                   ))}
                 </div>
@@ -1260,6 +1291,7 @@ function GoogleDriveTab() {
                       </svg>
                       <span className="font-sans text-slate-500 font-medium">{t.name}</span>
                       {renderMoveDropdown(t)}
+                      {renderUnassignButton(t)}
                     </div>
                   ))}
                 </div>
@@ -1304,6 +1336,7 @@ function GoogleDriveTab() {
                           </svg>
                           <span className="font-sans text-slate-500 font-medium">{t.name}</span>
                           {renderMoveDropdown(t)}
+                          {renderUnassignButton(t)}
                         </div>
                       ))}
                     </div>
