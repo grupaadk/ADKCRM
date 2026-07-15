@@ -77,6 +77,7 @@ export default function DashboardClient() {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [dragColId, setDragColId] = useState<string | null>(null);
   const [dragOverColIndex, setDragOverColIndex] = useState<string | null>(null);
+  const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [addingList, setAddingList] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [unlockedColId, setUnlockedColId] = useState<string | null>(null);
@@ -325,6 +326,7 @@ export default function DashboardClient() {
   async function handleTaskMove(draggedTaskId: string, targetColumnId: string, targetTaskId?: string) {
     setDragId(null);
     setDragOverCol(null);
+    setDragOverTaskId(null);
     if (!draggedTaskId) return;
 
     const task = (tasks ?? []).find((t) => t._id === draggedTaskId);
@@ -774,25 +776,50 @@ export default function DashboardClient() {
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        if (dragId && dragId !== task._id && dragOverTaskId !== task._id) {
+                          setDragOverTaskId(task._id);
+                        }
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dragOverTaskId === task._id) {
+                          setDragOverTaskId(null);
+                        }
                       }}
                       onDrop={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        setDragOverTaskId(null);
                         if (dragId && dragId !== task._id) {
                           void handleTaskMove(dragId, col._id, task._id);
                         }
                       }}
                     >
+                      {dragOverTaskId === task._id && dragId !== task._id && (
+                        <div className="h-10 bg-[#4abbc3]/15 border-2 border-dashed border-[#4abbc3] rounded-lg my-1.5 transition-all duration-150 flex items-center justify-center text-xs text-[#4abbc3] font-semibold">
+                          Wszczep zadanie tutaj
+                        </div>
+                      )}
                       <TaskCard
                         task={task}
                         showAssignee={canAddTasks}
                         onOpen={() => setOpenTaskId(task._id as Id<"orderTasks">)}
                         onDragStart={() => setDragId(task._id)}
-                        onDragEnd={() => setDragId(null)}
+                        onDragEnd={() => {
+                          setDragId(null);
+                          setDragOverTaskId(null);
+                        }}
                         dragging={dragId === task._id}
                       />
                     </div>
                   ))}
+                  {/* Wskaźnik upuszczenia na koniec listy */}
+                  {dragOverCol === col._id && !dragOverTaskId && dragId && !visible.some(t => t._id === dragId) && (
+                    <div className="h-10 bg-[#4abbc3]/15 border-2 border-dashed border-[#4abbc3] rounded-lg mt-2 flex items-center justify-center text-xs text-[#4abbc3] font-semibold animate-pulse">
+                      Na koniec listy
+                    </div>
+                  )}
                   {isLast && hiddenCount > 0 && (
                     <button
                       onClick={() => setShowAllDone(true)}
