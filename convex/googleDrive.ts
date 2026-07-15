@@ -1124,7 +1124,6 @@ export const createOrderFolder = action({
         "Oferty otrzymane - koszta",
         "Oferty - wysłane do Klienta",
         "Ponzio - pliki",
-        "Inne",
       ] as const;
       const ORDER_SUBFOLDERS = [
         "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
@@ -1154,7 +1153,6 @@ export const createOrderFolder = action({
           { id: opp?.offersReceivedFolderId, name: "Oferty otrzymane - koszta" },
           { id: opp?.offersSentFolderId, name: "Oferty - wysłane do Klienta" },
           { id: opp?.ponzioFilesFolderId, name: "Ponzio - pliki" },
-          { id: opp?.otherFilesFolderId, name: "Inne" },
         ].filter((sf): sf is { id: string; name: string } => !!sf.id);
 
         if (subfoldersToCopy.length > 0) {
