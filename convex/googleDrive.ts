@@ -967,7 +967,7 @@ export const createClientFolderForOpportunity = action({
       );
       const ponzioFilesFolderId = await findOrCreateDriveFolder(
         connection.accessToken,
-        "Ponzio pliki",
+        "Ponzio - pliki",
         opportunityFolderId,
       );
       const otherFilesFolderId = await findOrCreateDriveFolder(
@@ -1123,7 +1123,7 @@ export const createOrderFolder = action({
         "Pliki do wyceny od klienta - rzuty i przysłane",
         "Oferty otrzymane - koszta",
         "Oferty wysłane",
-        "Ponzio pliki",
+        "Ponzio - pliki",
         "Inne",
       ] as const;
       const ORDER_SUBFOLDERS = [
@@ -1153,7 +1153,7 @@ export const createOrderFolder = action({
           { id: opp?.valuationFilesFolderId, name: "Pliki do wyceny od klienta - rzuty i przysłane" },
           { id: opp?.offersReceivedFolderId, name: "Oferty otrzymane - koszta" },
           { id: opp?.offersSentFolderId, name: "Oferty wysłane" },
-          { id: opp?.ponzioFilesFolderId, name: "Ponzio pliki" },
+          { id: opp?.ponzioFilesFolderId, name: "Ponzio - pliki" },
           { id: opp?.otherFilesFolderId, name: "Inne" },
         ].filter((sf): sf is { id: string; name: string } => !!sf.id);
 
