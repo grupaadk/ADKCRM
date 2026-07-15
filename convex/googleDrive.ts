@@ -957,7 +957,7 @@ export const createClientFolderForOpportunity = action({
       );
       const offersReceivedFolderId = await findOrCreateDriveFolder(
         connection.accessToken,
-        "Oferty otrzymane - koszta",
+        "Koszta - oferty od dostawców",
         opportunityFolderId,
       );
       const offersSentFolderId = await findOrCreateDriveFolder(
@@ -1121,7 +1121,7 @@ export const createOrderFolder = action({
       await log("info", "creating order subfolders");
       const OPPORTUNITY_SUBFOLDERS = [
         "Pliki do wyceny od klienta - rzuty i przysłane",
-        "Oferty otrzymane - koszta",
+        "Koszta - oferty od dostawców",
         "Oferty - wysłane do Klienta",
         "Ponzio - pliki",
       ] as const;
@@ -1150,7 +1150,7 @@ export const createOrderFolder = action({
 
         const subfoldersToCopy = [
           { id: opp?.valuationFilesFolderId, name: "Pliki do wyceny od klienta - rzuty i przysłane" },
-          { id: opp?.offersReceivedFolderId, name: "Oferty otrzymane - koszta" },
+          { id: opp?.offersReceivedFolderId, name: "Koszta - oferty od dostawców" },
           { id: opp?.offersSentFolderId, name: "Oferty - wysłane do Klienta" },
           { id: opp?.ponzioFilesFolderId, name: "Ponzio - pliki" },
         ].filter((sf): sf is { id: string; name: string } => !!sf.id);
