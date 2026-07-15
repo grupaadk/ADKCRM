@@ -432,7 +432,7 @@ export const changeStatus = mutation({
       );
       if (unfinished.length > 0) {
         throw new ConvexError(
-          "Nie można zarchiwizować zlecenia, ponieważ posiada ono niezrealizowane zadania."
+          "Nie możemy jeszcze zarchiwizować tego zlecenia, ponieważ na liście wciąż znajdują się niezrealizowane zadania. Ukończ je lub zarchiwizuj, aby zamknąć projekt."
         );
       }
     }
