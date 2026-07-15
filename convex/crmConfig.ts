@@ -158,3 +158,35 @@ export const resetStatusLabels = mutation({
     }
   },
 });
+
+export const saveGoogleDriveFoldersConfig = mutation({
+  args: {
+    googleDriveFolders: v.object({
+      opportunity: v.object({
+        valuationFiles: v.string(),
+        offersReceived: v.string(),
+        offersSent: v.string(),
+        ponzioFiles: v.string(),
+      }),
+      order: v.object({
+        invoices: v.string(),
+        documents: v.string(),
+        measurements: v.string(),
+      }),
+      customSubfolders: v.array(v.string()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+    const existing = await ctx.db.query("crmConfig").first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        googleDriveFolders: args.googleDriveFolders,
+      });
+    } else {
+      await ctx.db.insert("crmConfig", {
+        googleDriveFolders: args.googleDriveFolders,
+      });
+    }
+  },
+});

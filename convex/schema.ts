@@ -555,6 +555,22 @@ export default defineSchema({
         archived: v.optional(v.string()),
       }),
     ),
+    googleDriveFolders: v.optional(
+      v.object({
+        opportunity: v.object({
+          valuationFiles: v.string(),
+          offersReceived: v.string(),
+          offersSent: v.string(),
+          ponzioFiles: v.string(),
+        }),
+        order: v.object({
+          invoices: v.string(),
+          documents: v.string(),
+          measurements: v.string(),
+        }),
+        customSubfolders: v.array(v.string()),
+      })
+    ),
   }),
 
   // 3.16 Cache faktur z Fakturowni

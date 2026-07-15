@@ -223,6 +223,85 @@ function GoogleDriveTab() {
   const [sharedDriveIdInput, setSharedDriveIdInput] = useState<string>();
   const [templateFolderIdInput, setTemplateFolderIdInput] = useState<string>();
 
+  const config = useQuery(api.crmConfig.getConfig);
+  const saveFoldersConfig = useMutation(api.crmConfig.saveGoogleDriveFoldersConfig);
+
+  const [oppValuation, setOppValuation] = useState("");
+  const [oppReceived, setOppReceived] = useState("");
+  const [oppSent, setOppSent] = useState("");
+  const [oppPonzio, setOppPonzio] = useState("");
+
+  const [orderInvoices, setOrderInvoices] = useState("");
+  const [orderDocs, setOrderDocs] = useState("");
+  const [orderMeasurements, setOrderMeasurements] = useState("");
+
+  const [customFoldersText, setCustomFoldersText] = useState("");
+  const [foldersNotice, setFoldersNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [savingFolders, setSavingFolders] = useState(false);
+
+  useEffect(() => {
+    if (config) {
+      const folders = config.googleDriveFolders ?? {
+        opportunity: {
+          valuationFiles: "Pliki do wyceny od klienta - rzuty i przysłane",
+          offersReceived: "Koszta - oferty od dostawców",
+          offersSent: "Oferty - wysłane do Klienta",
+          ponzioFiles: "Ponzio - pliki",
+        },
+        order: {
+          invoices: "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
+          documents: "Dokumenty - gwarancje, protokoły, umowy",
+          measurements: "Pomiary - ustalenia",
+        },
+        customSubfolders: [
+          "Zdjęcia budowy",
+          "Rysunki konstrukcji do zamówienia"
+        ],
+      };
+      setOppValuation(folders.opportunity.valuationFiles);
+      setOppReceived(folders.opportunity.offersReceived);
+      setOppSent(folders.opportunity.offersSent);
+      setOppPonzio(folders.opportunity.ponzioFiles);
+      setOrderInvoices(folders.order.invoices);
+      setOrderDocs(folders.order.documents);
+      setOrderMeasurements(folders.order.measurements);
+      setCustomFoldersText(folders.customSubfolders.join("\n"));
+    }
+  }, [config]);
+
+  const handleSaveFolders = async () => {
+    setSavingFolders(true);
+    setFoldersNotice(null);
+    try {
+      const customFolders = customFoldersText
+        .split("\n")
+        .map((f) => f.trim())
+        .filter((f) => f.length > 0);
+
+      await saveFoldersConfig({
+        googleDriveFolders: {
+          opportunity: {
+            valuationFiles: oppValuation.trim() || "Pliki do wyceny od klienta - rzuty i przysłane",
+            offersReceived: oppReceived.trim() || "Koszta - oferty od dostawców",
+            offersSent: oppSent.trim() || "Oferty - wysłane do Klienta",
+            ponzioFiles: oppPonzio.trim() || "Ponzio - pliki",
+          },
+          order: {
+            invoices: orderInvoices.trim() || "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
+            documents: orderDocs.trim() || "Dokumenty - gwarancje, protokoły, umowy",
+            measurements: orderMeasurements.trim() || "Pomiary - ustalenia",
+          },
+          customSubfolders: customFolders,
+        },
+      });
+      setFoldersNotice({ type: "success", text: "Konfiguracja folderów została zapisana!" });
+    } catch (e) {
+      setFoldersNotice({ type: "error", text: e instanceof Error ? e.message : "Błąd zapisu" });
+    } finally {
+      setSavingFolders(false);
+    }
+  };
+
   const effectiveSharedDriveId =
     sharedDriveIdInput ?? connection?.sharedDriveId ?? "";
   const effectiveTemplateFolderId =
@@ -666,6 +745,149 @@ function GoogleDriveTab() {
             Po zapisaniu tego folderu aplikacja pobiera z niego pliki szablonow
             dokumentow.
           </p>
+        </div>
+      </div>
+
+      {/* Folder structure configuration */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <div className="mb-4">
+          <h4 className="text-sm font-semibold text-slate-900">
+            Struktura folderów na Google Drive
+          </h4>
+          <p className="mt-1 text-xs text-slate-500">
+            Skonfiguruj nazwy podfolderów tworzonych automatycznie wewnątrz folderu klienta.
+          </p>
+        </div>
+
+        {foldersNotice && (
+          <div
+            className={`mb-4 rounded-lg border p-4 text-sm ${
+              foldersNotice.type === "success"
+                ? "border-green-200 bg-green-50 text-green-700"
+                : "border-red-200 bg-red-50 text-red-700"
+            }`}
+          >
+            {foldersNotice.text}
+          </div>
+        )}
+
+        <div className="space-y-6">
+          {/* Szansa Sprzedaży (Opportunity) Folders */}
+          <div className="space-y-3">
+            <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              Podfoldery Szansy Sprzedaży (Wycena)
+            </h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Folder wyceny / rzutów od klienta</label>
+                <input
+                  type="text"
+                  value={oppValuation}
+                  onChange={(e) => setOppValuation(e.target.value)}
+                  placeholder="np. Pliki do wyceny od klienta"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Folder ofert kosztowych od dostawców</label>
+                <input
+                  type="text"
+                  value={oppReceived}
+                  onChange={(e) => setOppReceived(e.target.value)}
+                  placeholder="np. Koszta - oferty od dostawców"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Folder ofert wysłanych do klienta</label>
+                <input
+                  type="text"
+                  value={oppSent}
+                  onChange={(e) => setOppSent(e.target.value)}
+                  placeholder="np. Oferty - wysłane do Klienta"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Folder plików Ponzio</label>
+                <input
+                  type="text"
+                  value={oppPonzio}
+                  onChange={(e) => setOppPonzio(e.target.value)}
+                  placeholder="np. Ponzio - pliki"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Zlecenie (Order) Folders */}
+          <div className="space-y-3">
+            <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              Podfoldery Zlecenia (Realizacja)
+            </h5>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Folder dla faktur</label>
+                <input
+                  type="text"
+                  value={orderInvoices}
+                  onChange={(e) => setOrderInvoices(e.target.value)}
+                  placeholder="np. Faktury"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Folder dla umów / gwarancji / protokołów</label>
+                <input
+                  type="text"
+                  value={orderDocs}
+                  onChange={(e) => setOrderDocs(e.target.value)}
+                  placeholder="np. Dokumenty"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Folder dla pomiarów / ustaleń</label>
+                <input
+                  type="text"
+                  value={orderMeasurements}
+                  onChange={(e) => setOrderMeasurements(e.target.value)}
+                  placeholder="np. Pomiary - ustalenia"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Custom empty subfolders */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Dodatkowe puste podfoldery zlecenia (wpisz każdy w nowej linii)
+            </label>
+            <textarea
+              value={customFoldersText}
+              onChange={(e) => setCustomFoldersText(e.target.value)}
+              placeholder="Zdjęcia budowy&#10;Rysunki konstrukcji do zamówienia"
+              rows={4}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono"
+            />
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleSaveFolders}
+              disabled={savingFolders || config === undefined}
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {savingFolders ? "Zapisywanie..." : "Zapisz strukturę folderów"}
+            </button>
+          </div>
         </div>
       </div>
 

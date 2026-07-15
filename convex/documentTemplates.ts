@@ -59,6 +59,7 @@ export const create = mutation({
       }),
     ),
     isActive: v.optional(v.boolean()),
+    targetFolder: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("documentTemplates", {
@@ -69,6 +70,7 @@ export const create = mutation({
       fieldMappings: args.fieldMappings,
       version: 1,
       isActive: args.isActive ?? true,
+      targetFolder: args.targetFolder,
     });
   },
 });
@@ -87,6 +89,7 @@ export const updateById = mutation({
       }),
     ),
     isActive: v.optional(v.boolean()),
+    targetFolder: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.get(args.id);
@@ -99,6 +102,7 @@ export const updateById = mutation({
       fieldMappings: args.fieldMappings,
       version: existing.version + 1,
       isActive: args.isActive ?? existing.isActive,
+      targetFolder: args.targetFolder,
     });
     return args.id;
   },
@@ -118,6 +122,7 @@ export const upsert = mutation({
     ),
     version: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
+    targetFolder: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -133,6 +138,7 @@ export const upsert = mutation({
         fieldMappings: args.fieldMappings,
         version: args.version ?? existing.version + 1,
         isActive: args.isActive ?? existing.isActive,
+        targetFolder: args.targetFolder,
       });
       return existing._id;
     }
@@ -145,6 +151,7 @@ export const upsert = mutation({
       fieldMappings: args.fieldMappings,
       version: args.version ?? 1,
       isActive: args.isActive ?? true,
+      targetFolder: args.targetFolder,
     });
   },
 });

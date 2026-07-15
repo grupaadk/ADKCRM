@@ -22,6 +22,34 @@ const DOCS_API_BASE = "https://docs.googleapis.com/v1";
 const CLIENTS_FOLDER_ID = "0AF5F7v0YZWQHUk9PVA";
 const TEMPLATES_FOLDER_ID = "0ANuZnSEtUiLTUk9PVA";
 
+export function resolveFoldersConfig(config: Doc<"crmConfig"> | null | undefined) {
+  return {
+    opportunity: {
+      valuationFiles: config?.googleDriveFolders?.opportunity?.valuationFiles ?? "Pliki do wyceny od klienta - rzuty i przysłane",
+      offersReceived: config?.googleDriveFolders?.opportunity?.offersReceived ?? "Koszta - oferty od dostawców",
+      offersSent: config?.googleDriveFolders?.opportunity?.offersSent ?? "Oferty - wysłane do Klienta",
+      ponzioFiles: config?.googleDriveFolders?.opportunity?.ponzioFiles ?? "Ponzio - pliki",
+    },
+    order: {
+      invoices: config?.googleDriveFolders?.order?.invoices ?? "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
+      documents: config?.googleDriveFolders?.order?.documents ?? "Dokumenty - gwarancje, protokoły, umowy",
+      measurements: config?.googleDriveFolders?.order?.measurements ?? "Pomiary - ustalenia",
+    },
+    customSubfolders: config?.googleDriveFolders?.customSubfolders ?? [
+      "Zdjęcia budowy",
+      "Rysunki konstrukcji do zamówienia"
+    ]
+  };
+}
+
+function getDocumentType(key: string): "pomiar" | "umowa" | "gwarancja" | "faktura" | "custom" {
+  if (key === "pomiar") return "pomiar";
+  if (key === "umowa") return "umowa";
+  if (key === "faktura") return "faktura";
+  if (key.startsWith("gwarancja_") || key === "gwarancja_alco") return "gwarancja";
+  return "custom";
+}
+
 type DriveItem = {
   id: string;
   name: string;
@@ -950,24 +978,27 @@ export const createClientFolderForOpportunity = action({
 
       // Krok 4: Utwórz 3 podfoldery wewnątrz folderu szansy
       await log("info", "creating subfolders inside opportunity folder");
+      const config = await ctx.runQuery(api.crmConfig.getConfig);
+      const folders = resolveFoldersConfig(config);
+
       const valuationFilesFolderId = await findOrCreateDriveFolder(
         connection.accessToken,
-        "Pliki do wyceny od klienta - rzuty i przysłane",
+        folders.opportunity.valuationFiles,
         opportunityFolderId,
       );
       const offersReceivedFolderId = await findOrCreateDriveFolder(
         connection.accessToken,
-        "Koszta - oferty od dostawców",
+        folders.opportunity.offersReceived,
         opportunityFolderId,
       );
       const offersSentFolderId = await findOrCreateDriveFolder(
         connection.accessToken,
-        "Oferty - wysłane do Klienta",
+        folders.opportunity.offersSent,
         opportunityFolderId,
       );
       const ponzioFilesFolderId = await findOrCreateDriveFolder(
         connection.accessToken,
-        "Ponzio - pliki",
+        folders.opportunity.ponzioFiles,
         opportunityFolderId,
       );
       const otherFilesFolderId = await findOrCreateDriveFolder(
@@ -1119,20 +1150,21 @@ export const createOrderFolder = action({
 
       // Krok 4: Utwórz wszystkie podfoldery zlecenia (zawsze, niezależnie od szansy)
       await log("info", "creating order subfolders");
+      const config = await ctx.runQuery(api.crmConfig.getConfig);
+      const folders = resolveFoldersConfig(config);
+
       const OPPORTUNITY_SUBFOLDERS = [
-        "Pliki do wyceny od klienta - rzuty i przysłane",
-        "Koszta - oferty od dostawców",
-        "Oferty - wysłane do Klienta",
-        "Ponzio - pliki",
-      ] as const;
+        folders.opportunity.valuationFiles,
+        folders.opportunity.offersReceived,
+        folders.opportunity.offersSent,
+        folders.opportunity.ponzioFiles,
+      ];
       const ORDER_SUBFOLDERS = [
-        "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
-        "Dokumenty - gwarancje, protokoły, umowy",
-        "Gwarancja",
-        "Zdjęcia budowy",
-        "Rysunki konstrukcji do zamówienia",
-        "Pomiary - ustalenia",
-      ] as const;
+        folders.order.invoices,
+        folders.order.documents,
+        folders.order.measurements,
+        ...folders.customSubfolders,
+      ];
 
       const [oppSubfolderIds] = await Promise.all([
         Promise.all(OPPORTUNITY_SUBFOLDERS.map((name) => createDriveFolder(ctx, name, folderId).then((r) => ({ name, id: r.id })))),
@@ -1150,10 +1182,10 @@ export const createOrderFolder = action({
         });
 
         const subfoldersToCopy = [
-          { id: opp?.valuationFilesFolderId, name: "Pliki do wyceny od klienta - rzuty i przysłane" },
-          { id: opp?.offersReceivedFolderId, name: "Koszta - oferty od dostawców" },
-          { id: opp?.offersSentFolderId, name: "Oferty - wysłane do Klienta" },
-          { id: opp?.ponzioFilesFolderId, name: "Ponzio - pliki" },
+          { id: opp?.valuationFilesFolderId, name: folders.opportunity.valuationFiles },
+          { id: opp?.offersReceivedFolderId, name: folders.opportunity.offersReceived },
+          { id: opp?.offersSentFolderId, name: folders.opportunity.offersSent },
+          { id: opp?.ponzioFilesFolderId, name: folders.opportunity.ponzioFiles },
         ].filter((sf): sf is { id: string; name: string } => !!sf.id);
 
         if (subfoldersToCopy.length > 0) {
@@ -1367,11 +1399,15 @@ export const uploadUserDocument = action({
 
     const connection = await getAuthorizedConnection(ctx);
 
+    const config = await ctx.runQuery(api.crmConfig.getConfig);
+    const folders = resolveFoldersConfig(config);
+
     let targetFolderId = order.folderId;
-    if (args.documentType === "umowa") {
-      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Dokumenty - gwarancje, protokoły, umowy", order.folderId);
-    } else if (args.documentType === "faktura") {
-      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia", order.folderId);
+    const docType = getDocumentType(args.documentType);
+    if (docType === "umowa" || docType === "gwarancja") {
+      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, folders.order.documents, order.folderId);
+    } else if (docType === "faktura") {
+      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, folders.order.invoices, order.folderId);
     }
 
     const metadata = JSON.stringify({ name: args.fileName, parents: [targetFolderId] });
@@ -1908,15 +1944,6 @@ export const copyTemplate = action({
 
       const connection = await getAuthorizedConnection(ctx);
 
-      let targetFolderId = order.folderId;
-      if (args.templateKey === "umowa") {
-        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Dokumenty - gwarancje, protokoły, umowy", order.folderId);
-      } else if (args.templateKey === "faktura") {
-        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia", order.folderId);
-      } else if (args.templateKey.startsWith("gwarancja_")) {
-        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Gwarancja", order.folderId);
-      }
-
       // Get template — by specific ID if provided, otherwise first by key
       const template = args.templateId
         ? await ctx.runQuery(api.documentTemplates.getById, { id: args.templateId })
@@ -1926,6 +1953,23 @@ export const copyTemplate = action({
       }
       if (!template.googleDriveFileId) {
         throw new Error(`Template has no Google Drive file: ${args.templateKey}`);
+      }
+
+      const config = await ctx.runQuery(api.crmConfig.getConfig);
+      const folders = resolveFoldersConfig(config);
+
+      let targetFolderId = order.folderId;
+      const targetFolderName = (template as Record<string, unknown>).targetFolder as string | undefined;
+
+      if (targetFolderName) {
+        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, targetFolderName, order.folderId);
+      } else {
+        const docType = getDocumentType(args.templateKey);
+        if (docType === "umowa" || docType === "gwarancja") {
+          targetFolderId = await findOrCreateDriveFolder(connection.accessToken, folders.order.documents, order.folderId);
+        } else if (docType === "faktura") {
+          targetFolderId = await findOrCreateDriveFolder(connection.accessToken, folders.order.invoices, order.folderId);
+        }
       }
 
       // Build file name from pattern

@@ -168,6 +168,43 @@ export default function TemplateEditorPage() {
   const [saving, setSaving] = useState(false);
   const [detectingPlaceholders, setDetectingPlaceholders] = useState(false);
   const [initialized, setInitialized] = useState(false);
+
+  const [selectedFolderOption, setSelectedFolderOption] = useState("");
+  const [customFolderName, setCustomFolderName] = useState("");
+
+  const config = useQuery(api.crmConfig.getConfig);
+  const folders = useMemo(() => {
+    if (!config) return {
+      order: {
+        invoices: "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
+        documents: "Dokumenty - gwarancje, protokoły, umowy",
+        measurements: "Pomiary - ustalenia",
+      },
+      customSubfolders: ["Zdjęcia budowy", "Rysunki konstrukcji do zamówienia"]
+    };
+    return {
+      order: {
+        invoices: config.googleDriveFolders?.order?.invoices ?? "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
+        documents: config.googleDriveFolders?.order?.documents ?? "Dokumenty - gwarancje, protokoły, umowy",
+        measurements: config.googleDriveFolders?.order?.measurements ?? "Pomiary - ustalenia",
+      },
+      customSubfolders: config.googleDriveFolders?.customSubfolders ?? [
+        "Zdjęcia budowy",
+        "Rysunki konstrukcji do zamówienia"
+      ]
+    };
+  }, [config]);
+
+  const folderOptions = useMemo(() => {
+    return [
+      { value: "", label: "Główny folder zlecenia (brak podfolderu)" },
+      { value: folders.order.documents, label: `Dokumenty (${folders.order.documents})` },
+      { value: folders.order.invoices, label: `Faktury (${folders.order.invoices})` },
+      { value: folders.order.measurements, label: `Pomiary (${folders.order.measurements})` },
+      ...folders.customSubfolders.map((f) => ({ value: f, label: f })),
+      { value: "__custom__", label: "Inny (wpisz własną nazwę...)" }
+    ];
+  }, [folders]);
   const [availableFiles, setAvailableFiles] = useState<Array<{
     id: string;
     name: string;
@@ -180,7 +217,7 @@ export default function TemplateEditorPage() {
   } | null>(null);
 
   useEffect(() => {
-    if (template && !initialized) {
+    if (template && config && !initialized) {
       setName(template.name);
       setKey(template.key);
       setFileNamePattern(template.fileNamePattern);
@@ -192,14 +229,30 @@ export default function TemplateEditorPage() {
       const exactMatch = TEMPLATE_TYPES.find(t => t[1] === template.key && t[0] !== "gwarancja" && t[0] !== "custom");
       if (exactMatch) {
         initialType = exactMatch[0];
-      } else if (template.key.startsWith("gwarancja_")) {
+      } else if (template.key.startsWith("gwarancja_") || template.key === "gwarancja_alco") {
         initialType = "gwarancja";
       }
       setType(initialType);
+
+      const tf = (template as Record<string, unknown>).targetFolder as string | undefined ?? "";
+      const currentFolders = [
+        config.googleDriveFolders?.order?.invoices ?? "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
+        config.googleDriveFolders?.order?.documents ?? "Dokumenty - gwarancje, protokoły, umowy",
+        config.googleDriveFolders?.order?.measurements ?? "Pomiary - ustalenia",
+        ...(config.googleDriveFolders?.customSubfolders ?? ["Zdjęcia budowy", "Rysunki konstrukcji do zamówienia"])
+      ];
+      
+      if (tf === "" || currentFolders.includes(tf)) {
+        setSelectedFolderOption(tf);
+        setCustomFolderName("");
+      } else {
+        setSelectedFolderOption("__custom__");
+        setCustomFolderName(tf);
+      }
       
       setInitialized(true);
     }
-  }, [template, initialized]);
+  }, [template, config, initialized]);
 
   const fileNamePreview = useMemo(
     () => resolvePlaceholders(fileNamePattern, mappings, SAMPLE_DATA),
@@ -292,6 +345,7 @@ export default function TemplateEditorPage() {
     setSaving(true);
     setNotice(null);
     try {
+      const finalFolder = selectedFolderOption === "__custom__" ? customFolderName.trim() : selectedFolderOption;
       await updateTemplate({
         id,
         key: key.trim(),
@@ -302,6 +356,7 @@ export default function TemplateEditorPage() {
           (mapping) => mapping.placeholder && mapping.field,
         ),
         isActive,
+        targetFolder: finalFolder || undefined,
       });
       setNotice({ type: "success", text: "Szablon zostal zapisany." });
     } catch (error) {
@@ -529,6 +584,40 @@ export default function TemplateEditorPage() {
                 />
                 <p className="mt-1 text-xs text-slate-500">
                   Tylko małe litery, cyfry i podkreślenia. Klucze wbudowane (pomiar, umowa, gwarancja_alco, odbior_inwestor, protokol_montaz, faktura, reklamacja) używają stałego slotu w dokumencie. Pozostałe klucze zaczynające się od <span className="font-mono">gwarancja_</span> tworzą osobne dokumenty gwarancyjne.
+                </p>
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Docelowy folder na Google Drive
+                </label>
+                <select
+                  value={selectedFolderOption}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSelectedFolderOption(val);
+                    if (val !== "__custom__") {
+                      setCustomFolderName("");
+                    }
+                  }}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                >
+                  {folderOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {selectedFolderOption === "__custom__" && (
+                  <input
+                    type="text"
+                    value={customFolderName}
+                    onChange={(e) => setCustomFolderName(e.target.value)}
+                    placeholder="Wpisz własną nazwę podfolderu..."
+                    className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                )}
+                <p className="mt-1 text-xs text-slate-500">
+                  Wybierz, do którego podfolderu zlecenia ma trafiać wygenerowany plik. Możesz wybrać predefiniowany folder (zgodnie z konfiguracją w Ustawieniach) lub podać własną nazwę.
                 </p>
               </div>
               <div className="md:col-span-2">
