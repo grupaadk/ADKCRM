@@ -14,6 +14,7 @@ export type DashboardTask = {
   archived?: boolean;
   archivedAt?: number;
   dueDate?: number;
+  position?: number;
   // Źródło zadania: zlecenie, szansa sprzedaży albo reklamacja.
   source: TaskType;
   // Opcjonalne przypisanie do niestandardowej kolumny
@@ -162,6 +163,7 @@ export const list = query({
             customText: opp.customText ?? null,
             clientName: opportunityName(opp),
             columnId: task.columnId,
+            position: task.position,
             ...assigneeProps,
           };
         }
@@ -216,6 +218,7 @@ export const list = query({
             customText: order?.customText ?? null,
             clientName: clientName(resolvedClient ?? null),
             columnId: task.columnId,
+            position: task.position,
             ...assigneeProps,
           };
         }
@@ -250,6 +253,7 @@ export const list = query({
               customText: order.customText ?? null,
               clientName: clientName(client),
               columnId: task.columnId,
+              position: task.position,
               ...assigneeProps,
             };
           }
@@ -270,6 +274,7 @@ export const list = query({
           customText: null,
           clientName: "Zadanie",
           columnId: task.columnId,
+          position: task.position,
           ...assigneeProps,
         };
       }),

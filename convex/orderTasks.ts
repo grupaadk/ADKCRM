@@ -129,6 +129,7 @@ export const update = mutation({
     columnId: v.optional(v.id("taskColumns")),
     clearColumnId: v.optional(v.boolean()),
     archived: v.optional(v.boolean()),
+    position: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireUser(ctx);
@@ -158,6 +159,7 @@ export const update = mutation({
     if (rest.opportunityId !== undefined) patch.opportunityId = rest.opportunityId;
     if (rest.columnId !== undefined) patch.columnId = rest.columnId;
     if (clearColumnId) patch.columnId = undefined;
+    if (rest.position !== undefined) patch.position = rest.position;
     await ctx.db.patch(taskId, patch);
   },
 });

@@ -295,6 +295,12 @@ export default function DashboardClient() {
     }
 
     const sortByDue = (a: DashboardTask, b: DashboardTask) => {
+      if (a.position !== undefined && b.position !== undefined) {
+        return a.position - b.position;
+      }
+      if (a.position !== undefined) return -1;
+      if (b.position !== undefined) return 1;
+
       if (a.priority === "high" && b.priority !== "high") return -1;
       if (a.priority !== "high" && b.priority === "high") return 1;
       if (a.dueDate == null && b.dueDate == null) return 0;
@@ -316,14 +322,15 @@ export default function DashboardClient() {
 
   const draggedTask = dragId ? (tasks ?? []).find((t) => t._id === dragId) ?? null : null;
 
-  function handleDrop(columnId: string) {
-    setDragOverCol(null);
-    if (!dragId) return;
-    const task = (tasks ?? []).find((t) => t._id === dragId);
+  async function handleTaskMove(draggedTaskId: string, targetColumnId: string, targetTaskId?: string) {
     setDragId(null);
+    setDragOverCol(null);
+    if (!draggedTaskId) return;
+
+    const task = (tasks ?? []).find((t) => t._id === draggedTaskId);
     if (!task) return;
 
-    const targetCol = taskColumns.find(c => c._id === columnId);
+    const targetCol = taskColumns.find(c => c._id === targetColumnId);
     const systemType = targetCol?.systemType;
 
     const now = new Date();
@@ -344,17 +351,53 @@ export default function DashboardClient() {
     else if (systemType === "this_week") newDate = dTs(5);
     else if (systemType === "next_week") newDate = dTs(7);
 
-    // Jeśli to kolumna systemowa, zmieniamy datę i usuwamy columnId
+    // 1. Wyznacz zmiany dla przenoszonego zadania
+    let patch: {
+      dueDate?: number;
+      clearDueDate?: boolean;
+      columnId?: Id<"taskColumns">;
+      clearColumnId?: boolean;
+    } = {};
     if (systemType) {
       if (systemType === "todo_list") {
-        void updateTask({ taskId: task._id as Id<"orderTasks">, clearDueDate: true, clearColumnId: true });
+        patch = { clearDueDate: true, clearColumnId: true };
       } else {
-        void updateTask({ taskId: task._id as Id<"orderTasks">, dueDate: newDate, clearColumnId: true });
+        patch = { dueDate: newDate, clearColumnId: true };
       }
     } else {
-      // W przeciwnym razie ustawiamy nowy columnId, ignorując systemDate
-      if (task.columnId === columnId) return;
-      void updateTask({ taskId: task._id as Id<"orderTasks">, columnId: columnId as Id<"taskColumns"> });
+      patch = { columnId: targetColumnId as Id<"taskColumns"> };
+    }
+
+    // 2. Określ nową pozycję w kolumnie docelowej
+    const colTasks = [...(byColumn[targetColumnId] ?? [])].filter(t => t._id !== draggedTaskId);
+
+    if (targetTaskId) {
+      const targetIdx = colTasks.findIndex(t => t._id === targetTaskId);
+      if (targetIdx !== -1) {
+        colTasks.splice(targetIdx, 0, task);
+      } else {
+        colTasks.push(task);
+      }
+    } else {
+      colTasks.push(task);
+    }
+
+    // Zapisz pozycje w bazie danych
+    for (let i = 0; i < colTasks.length; i++) {
+      const t = colTasks[i];
+      const newPos = i * 1000;
+      if (t._id === draggedTaskId) {
+        await updateTask({
+          taskId: draggedTaskId as Id<"orderTasks">,
+          ...patch,
+          position: newPos,
+        });
+      } else if (t.position !== newPos) {
+        await updateTask({
+          taskId: t._id as Id<"orderTasks">,
+          position: newPos,
+        });
+      }
     }
   }
 
@@ -543,7 +586,7 @@ export default function DashboardClient() {
                 onDrop={(e) => {
                   e.stopPropagation();
                   if (dragColId) handleColDrop(col._id);
-                  else handleDrop(col._id);
+                  else if (dragId) void handleTaskMove(dragId, col._id);
                 }}
                 className={`flex flex-col rounded-xl transition-all duration-150 min-w-[18rem] max-w-[18rem] ${dragColId === col._id ? 'opacity-50' : ''}`}
                 style={{}}
@@ -726,15 +769,29 @@ export default function DashboardClient() {
                     <div className="py-8 text-center text-xs" style={{ color: `${col.color}90` }}>Brak zadań</div>
                   )}
                   {visible.map((task) => (
-                    <TaskCard
+                    <div
                       key={task._id}
-                      task={task}
-                      showAssignee={canAddTasks}
-                      onOpen={() => setOpenTaskId(task._id as Id<"orderTasks">)}
-                      onDragStart={() => setDragId(task._id)}
-                      onDragEnd={() => setDragId(null)}
-                      dragging={dragId === task._id}
-                    />
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dragId && dragId !== task._id) {
+                          void handleTaskMove(dragId, col._id, task._id);
+                        }
+                      }}
+                    >
+                      <TaskCard
+                        task={task}
+                        showAssignee={canAddTasks}
+                        onOpen={() => setOpenTaskId(task._id as Id<"orderTasks">)}
+                        onDragStart={() => setDragId(task._id)}
+                        onDragEnd={() => setDragId(null)}
+                        dragging={dragId === task._id}
+                      />
+                    </div>
                   ))}
                   {isLast && hiddenCount > 0 && (
                     <button

@@ -721,6 +721,7 @@ export default defineSchema({
     assignedUserId: v.optional(v.id("users")), // legacy
     assignedUserIds: v.optional(v.array(v.id("users"))),
     createdBy: v.string(),
+    position: v.optional(v.number()),
   })
     .index("by_order", ["orderId"])
     .index("by_opportunity", ["opportunityId"])
