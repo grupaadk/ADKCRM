@@ -1122,6 +1122,23 @@ function TaskCard({
     taskType === "general" ? "Zadanie ogólne" :
     (task.orderName ?? "Zlecenie");
 
+  const [daysInColumnLabel, setDaysInColumnLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!task.columnChangedAt) {
+        setDaysInColumnLabel(null);
+        return;
+      }
+      const diffMs = Date.now() - task.columnChangedAt;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0) setDaysInColumnLabel("dzisiaj");
+      else if (diffDays === 1) setDaysInColumnLabel("1 dzień");
+      else setDaysInColumnLabel(`${diffDays} dni`);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [task.columnChangedAt]);
+
   const assignees = task.assignees ?? (task.assignedUserId ? [{ id: task.assignedUserId, name: task.assignedUserName, color: task.assignedUserColor }] : []);
   const colors = assignees.map(a => a.color ?? uColor(a.id)).filter(Boolean) as string[];
   const hasMultipleColors = colors.length > 1;
@@ -1232,12 +1249,24 @@ function TaskCard({
         {task.title}
       </div>
 
-      {/* stopka: awatar */}
-      {showAssignee && (
-        <div className="mt-2 flex items-center justify-end gap-2">
-          <div className="min-w-0">
-            <AssigneeBadge task={task} />
+      {/* stopka: awatar i czas w kolumnie */}
+      {(daysInColumnLabel || showAssignee) && (
+        <div className="mt-2.5 flex items-center justify-between gap-2">
+          <div>
+            {daysInColumnLabel && (
+              <span className="inline-flex items-center gap-1 rounded bg-slate-50 px-1.5 py-0.5 font-medium text-[10.5px] text-slate-500 border border-slate-200/40" title={`Czas w tej kolumnie: ${daysInColumnLabel}`}>
+                <svg className="size-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                <span className="tabular-nums">{daysInColumnLabel}</span>
+              </span>
+            )}
           </div>
+          {showAssignee && (
+            <div className="min-w-0">
+              <AssigneeBadge task={task} />
+            </div>
+          )}
         </div>
       )}
     </div>
