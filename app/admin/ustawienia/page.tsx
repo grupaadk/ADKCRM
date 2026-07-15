@@ -832,24 +832,22 @@ function GoogleDriveTab() {
 
             {/* Opportunity Branch */}
             <div className="pl-4 border-l border-slate-300">
-              <div className="flex items-center justify-between text-slate-700 mt-2 mb-1 pr-4 group">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400">├──</span>
-                  <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                  </svg>
-                  <span className="font-sans font-medium text-slate-800">2026-07-15_Złota_Wycena</span>
-                  <span className="text-[10px] text-blue-500 font-normal font-sans ml-1">[SZANSA SPRZEDAŻY]</span>
-                </div>
+              <div className="flex items-center gap-1.5 text-slate-700 mt-2 mb-1 group">
+                <span className="text-slate-400">├──</span>
+                <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                </svg>
+                <span className="font-sans font-medium text-slate-800">2026-07-15_Złota_Wycena</span>
+                <span className="text-[10px] text-blue-500 font-normal font-sans ml-1">[SZANSA SPRZEDAŻY]</span>
                 <button
                   type="button"
                   onClick={handleAddCustomOppFolder}
-                  className="text-[11px] font-sans text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded transition-colors"
+                  className="ml-2 text-[10px] font-sans text-blue-600 hover:text-blue-700 flex items-center gap-0.5 font-medium bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded transition-all opacity-0 group-hover:opacity-100"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
-                  Dodaj podfolder szansy
+                  Dodaj podfolder
                 </button>
               </div>
 
@@ -954,24 +952,22 @@ function GoogleDriveTab() {
 
             {/* Order Branch */}
             <div className="pl-4 border-l border-slate-300">
-              <div className="flex items-center justify-between text-slate-700 mt-2 mb-1 pr-4 group">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400">└──</span>
-                  <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                  </svg>
-                  <span className="font-sans font-medium text-slate-800">2026-07-15_Złota</span>
-                  <span className="text-[10px] text-green-600 font-normal font-sans ml-1">[ZLECENIE]</span>
-                </div>
+              <div className="flex items-center gap-1.5 text-slate-700 mt-2 mb-1 group">
+                <span className="text-slate-400">└──</span>
+                <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                </svg>
+                <span className="font-sans font-medium text-slate-800">2026-07-15_Złota</span>
+                <span className="text-[10px] text-green-600 font-normal font-sans ml-1">[ZLECENIE]</span>
                 <button
                   type="button"
                   onClick={handleAddCustomFolder}
-                  className="text-[11px] font-sans text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded transition-colors"
+                  className="ml-2 text-[10px] font-sans text-blue-600 hover:text-blue-700 flex items-center gap-0.5 font-medium bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded transition-all opacity-0 group-hover:opacity-100"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
-                  Dodaj podfolder zlecenia
+                  Dodaj podfolder
                 </button>
               </div>
 
