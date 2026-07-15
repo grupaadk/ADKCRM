@@ -305,6 +305,40 @@ function GoogleDriveTab() {
     );
   };
 
+  const renderAssignTemplateDropdown = (folderName: string) => {
+    if (!templates) return null;
+    const availableTemplates = templates.filter(
+      (t) => (t.targetFolder?.trim() ?? "") !== folderName.trim()
+    );
+    if (availableTemplates.length === 0) return null;
+
+    return (
+      <select
+        value=""
+        onChange={async (e) => {
+          const val = e.target.value;
+          if (!val) return;
+          try {
+            await updateTemplateTargetFolder({
+              id: val as Id<"documentTemplates">,
+              targetFolder: folderName || undefined,
+            });
+          } catch (err) {
+            console.error("Failed to assign template", err);
+          }
+        }}
+        className="ml-2 text-[9px] font-sans text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 hover:border-amber-300 rounded px-1.5 py-0.5 transition-all cursor-pointer focus:outline-none opacity-0 group-hover:opacity-100 font-medium"
+      >
+        <option value="">+ Przypisz szablon</option>
+        {availableTemplates.map((t) => (
+          <option key={t._id} value={t._id}>
+            {t.name}
+          </option>
+        ))}
+      </select>
+    );
+  };
+
   const handleAddCustomFolder = () => {
     setCustomFolders((prev) => [...prev, "Nowy folder"]);
   };
@@ -888,12 +922,13 @@ function GoogleDriveTab() {
         <div className="space-y-6">
           <div className="font-mono text-xs text-slate-600 space-y-2 bg-slate-50 border border-slate-200 rounded-lg p-5">
             {/* Root: Client folder */}
-            <div className="flex items-center gap-1.5 text-slate-800 font-medium">
+            <div className="flex items-center gap-1.5 text-slate-800 font-medium group">
               <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
               </svg>
               <span className="font-sans font-semibold">Jan Kowalski (Warszawa, ul. Złota)</span>
               <span className="text-[10px] text-slate-400 font-normal italic font-sans ml-1">(Główny folder klienta)</span>
+              {renderAssignTemplateDropdown("")}
             </div>
 
             {/* Templates in Main Folder */}
@@ -951,6 +986,7 @@ function GoogleDriveTab() {
                       </svg>
                       kopiowany do zlecenia
                     </span>
+                    {renderAssignTemplateDropdown(oppValuation)}
                     <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                   </div>
                   {/* Templates inside Valuation Files */}
@@ -986,6 +1022,7 @@ function GoogleDriveTab() {
                       </svg>
                       kopiowany do zlecenia
                     </span>
+                    {renderAssignTemplateDropdown(oppReceived)}
                     <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                   </div>
                   {/* Templates inside Offers Received */}
@@ -1021,6 +1058,7 @@ function GoogleDriveTab() {
                       </svg>
                       kopiowany do zlecenia
                     </span>
+                    {renderAssignTemplateDropdown(oppSent)}
                     <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                   </div>
                   {/* Templates inside Offers Sent */}
@@ -1056,6 +1094,7 @@ function GoogleDriveTab() {
                       </svg>
                       kopiowany do zlecenia
                     </span>
+                    {renderAssignTemplateDropdown(oppPonzio)}
                     <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                   </div>
                   {/* Templates inside Ponzio Files */}
@@ -1096,14 +1135,15 @@ function GoogleDriveTab() {
                           </svg>
                           kopiowany do zlecenia
                         </span>
+                        {renderAssignTemplateDropdown(cf)}
                         <button
                           type="button"
                           onClick={() => handleDeleteCustomOppFolder(idx)}
                           className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity ml-1"
                           title="Usuń folder"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                           </svg>
                         </button>
                       </div>
@@ -1161,7 +1201,8 @@ function GoogleDriveTab() {
                       className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
                       placeholder="Folder faktur..."
                     />
-                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                    {renderAssignTemplateDropdown(orderInvoices)}
+                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                   </div>
                   {/* Templates inside Invoices */}
                   {templatesByFolder[orderInvoices.trim()]?.map((t) => (
@@ -1190,7 +1231,8 @@ function GoogleDriveTab() {
                       className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
                       placeholder="Folder dokumentów..."
                     />
-                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                    {renderAssignTemplateDropdown(orderDocs)}
+                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                   </div>
                   {/* Templates inside Documents */}
                   {templatesByFolder[orderDocs.trim()]?.map((t) => (
@@ -1219,7 +1261,8 @@ function GoogleDriveTab() {
                       className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
                       placeholder="Folder pomiarów..."
                     />
-                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                    {renderAssignTemplateDropdown(orderMeasurements)}
+                    <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                   </div>
                   {/* Templates inside Measurements */}
                   {templatesByFolder[orderMeasurements.trim()]?.map((t) => (
@@ -1253,6 +1296,7 @@ function GoogleDriveTab() {
                           placeholder="Nazwa podfolderu..."
                           autoFocus={cf === "Nowy folder"}
                         />
+                        {renderAssignTemplateDropdown(cf)}
                         <button
                           type="button"
                           onClick={() => handleDeleteCustomFolder(idx)}
