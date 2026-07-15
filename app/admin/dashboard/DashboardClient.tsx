@@ -773,6 +773,7 @@ export default function DashboardClient() {
                   {visible.map((task) => (
                     <div
                       key={task._id}
+                      className="relative"
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -797,26 +798,26 @@ export default function DashboardClient() {
                       }}
                     >
                       {dragOverTaskId === task._id && dragId !== task._id && (
-                        <div className="h-10 bg-[#4abbc3]/15 border-2 border-dashed border-[#4abbc3] rounded-lg my-1.5 transition-all duration-150 flex items-center justify-center text-xs text-[#4abbc3] font-semibold">
-                          Wszczep zadanie tutaj
-                        </div>
+                        <div className="absolute -top-1.5 left-0 right-0 h-1 bg-[#4abbc3] rounded-full z-10 animate-pulse pointer-events-none" />
                       )}
-                      <TaskCard
-                        task={task}
-                        showAssignee={canAddTasks}
-                        onOpen={() => setOpenTaskId(task._id as Id<"orderTasks">)}
-                        onDragStart={() => setDragId(task._id)}
-                        onDragEnd={() => {
-                          setDragId(null);
-                          setDragOverTaskId(null);
-                        }}
-                        dragging={dragId === task._id}
-                      />
+                      <div className={dragId ? "pointer-events-none" : ""}>
+                        <TaskCard
+                          task={task}
+                          showAssignee={canAddTasks}
+                          onOpen={() => setOpenTaskId(task._id as Id<"orderTasks">)}
+                          onDragStart={() => setDragId(task._id)}
+                          onDragEnd={() => {
+                            setDragId(null);
+                            setDragOverTaskId(null);
+                          }}
+                          dragging={dragId === task._id}
+                        />
+                      </div>
                     </div>
                   ))}
                   {/* Wskaźnik upuszczenia na koniec listy */}
                   {dragOverCol === col._id && !dragOverTaskId && dragId && !visible.some(t => t._id === dragId) && (
-                    <div className="h-10 bg-[#4abbc3]/15 border-2 border-dashed border-[#4abbc3] rounded-lg mt-2 flex items-center justify-center text-xs text-[#4abbc3] font-semibold animate-pulse">
+                    <div className="h-10 bg-[#4abbc3]/15 border-2 border-dashed border-[#4abbc3] rounded-lg mt-2 flex items-center justify-center text-xs text-[#4abbc3] font-semibold animate-pulse pointer-events-none">
                       Na koniec listy
                     </div>
                   )}
