@@ -228,6 +228,19 @@ function GoogleDriveTab() {
   const templates = useQuery(api.documentTemplates.list);
   const updateTemplateTargetFolder = useMutation(api.documentTemplates.updateTargetFolder);
 
+  const [oppValuation, setOppValuation] = useState("");
+  const [oppReceived, setOppReceived] = useState("");
+  const [oppSent, setOppSent] = useState("");
+  const [oppPonzio, setOppPonzio] = useState("");
+
+  const [orderInvoices, setOrderInvoices] = useState("");
+  const [orderDocs, setOrderDocs] = useState("");
+  const [orderMeasurements, setOrderMeasurements] = useState("");
+  const [customFolders, setCustomFolders] = useState<string[]>([]);
+  const [customOppFolders, setCustomOppFolders] = useState<string[]>([]);
+  const [foldersNotice, setFoldersNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [savingFolders, setSavingFolders] = useState(false);
+
   const templatesByFolder = useMemo(() => {
     const groups: Record<string, typeof templates> = {};
     if (!templates) return groups;
@@ -291,19 +304,6 @@ function GoogleDriveTab() {
       </select>
     );
   };
-
-  const [oppValuation, setOppValuation] = useState("");
-  const [oppReceived, setOppReceived] = useState("");
-  const [oppSent, setOppSent] = useState("");
-  const [oppPonzio, setOppPonzio] = useState("");
-
-  const [orderInvoices, setOrderInvoices] = useState("");
-  const [orderDocs, setOrderDocs] = useState("");
-  const [orderMeasurements, setOrderMeasurements] = useState("");
-  const [customFolders, setCustomFolders] = useState<string[]>([]);
-  const [customOppFolders, setCustomOppFolders] = useState<string[]>([]);
-  const [foldersNotice, setFoldersNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [savingFolders, setSavingFolders] = useState(false);
 
   const handleAddCustomFolder = () => {
     setCustomFolders((prev) => [...prev, "Nowy folder"]);
