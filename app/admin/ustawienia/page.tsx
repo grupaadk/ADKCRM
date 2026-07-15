@@ -235,16 +235,23 @@ function GoogleDriveTab() {
   const [orderDocs, setOrderDocs] = useState("");
   const [orderMeasurements, setOrderMeasurements] = useState("");
 
-  const [customFoldersText, setCustomFoldersText] = useState("");
+  const [customFolders, setCustomFolders] = useState<string[]>([]);
   const [foldersNotice, setFoldersNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [savingFolders, setSavingFolders] = useState(false);
 
-  const parsedCustomFolders = useMemo(() => {
-    return customFoldersText
-      .split("\n")
-      .map((f) => f.trim())
-      .filter((f) => f.length > 0);
-  }, [customFoldersText]);
+  const handleAddCustomFolder = () => {
+    setCustomFolders((prev) => [...prev, "Nowy folder"]);
+  };
+
+  const handleUpdateCustomFolder = (index: number, name: string) => {
+    setCustomFolders((prev) =>
+      prev.map((f, i) => (i === index ? name : f))
+    );
+  };
+
+  const handleDeleteCustomFolder = (index: number) => {
+    setCustomFolders((prev) => prev.filter((_, i) => i !== index));
+  };
 
   useEffect(() => {
     if (config) {
@@ -272,7 +279,7 @@ function GoogleDriveTab() {
       setOrderInvoices(folders.order.invoices);
       setOrderDocs(folders.order.documents);
       setOrderMeasurements(folders.order.measurements);
-      setCustomFoldersText(folders.customSubfolders.join("\n"));
+      setCustomFolders(folders.customSubfolders);
     }
   }, [config]);
 
@@ -280,11 +287,6 @@ function GoogleDriveTab() {
     setSavingFolders(true);
     setFoldersNotice(null);
     try {
-      const customFolders = customFoldersText
-        .split("\n")
-        .map((f) => f.trim())
-        .filter((f) => f.length > 0);
-
       await saveFoldersConfig({
         googleDriveFolders: {
           opportunity: {
@@ -298,7 +300,7 @@ function GoogleDriveTab() {
             documents: orderDocs.trim() || "Dokumenty - gwarancje, protokoły, umowy",
             measurements: orderMeasurements.trim() || "Pomiary - ustalenia",
           },
-          customSubfolders: customFolders,
+          customSubfolders: customFolders.map((f) => f.trim()).filter((f) => f.length > 0),
         },
       });
       setFoldersNotice({ type: "success", text: "Konfiguracja folderów została zapisana!" });
@@ -759,10 +761,10 @@ function GoogleDriveTab() {
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         <div className="mb-4">
           <h4 className="text-sm font-semibold text-slate-900">
-            Struktura folderów na Google Drive
+            Zarządzanie strukturą folderów na Google Drive
           </h4>
           <p className="mt-1 text-xs text-slate-500">
-            Skonfiguruj nazwy podfolderów tworzonych automatycznie wewnątrz folderu klienta.
+            Poniżej znajduje się interaktywne drzewo folderów. Kliknij bezpośrednio na nazwę folderu w drzewie, aby zmienić jego nazwę.
           </p>
         </div>
 
@@ -779,209 +781,212 @@ function GoogleDriveTab() {
         )}
 
         <div className="space-y-6">
-          {/* Szansa Sprzedaży (Opportunity) Folders */}
-          <div className="space-y-3">
-            <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              Podfoldery Szansy Sprzedaży (Wycena)
-            </h5>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Folder wyceny / rzutów od klienta</label>
-                <input
-                  type="text"
-                  value={oppValuation}
-                  onChange={(e) => setOppValuation(e.target.value)}
-                  placeholder="np. Pliki do wyceny od klienta"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Folder ofert kosztowych od dostawców</label>
-                <input
-                  type="text"
-                  value={oppReceived}
-                  onChange={(e) => setOppReceived(e.target.value)}
-                  placeholder="np. Koszta - oferty od dostawców"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Folder ofert wysłanych do klienta</label>
-                <input
-                  type="text"
-                  value={oppSent}
-                  onChange={(e) => setOppSent(e.target.value)}
-                  placeholder="np. Oferty - wysłane do Klienta"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Folder plików Ponzio</label>
-                <input
-                  type="text"
-                  value={oppPonzio}
-                  onChange={(e) => setOppPonzio(e.target.value)}
-                  placeholder="np. Ponzio - pliki"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
+          <div className="font-mono text-xs text-slate-600 space-y-2 bg-slate-50 border border-slate-200 rounded-lg p-5">
+            {/* Root: Client folder */}
+            <div className="flex items-center gap-1.5 text-slate-800 font-medium">
+              <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+              </svg>
+              <span className="font-sans font-semibold">Jan Kowalski (Warszawa, ul. Złota)</span>
+              <span className="text-[10px] text-slate-400 font-normal italic font-sans ml-1">(Główny folder klienta)</span>
             </div>
-          </div>
 
-          <hr className="border-slate-100" />
-
-          {/* Zlecenie (Order) Folders */}
-          <div className="space-y-3">
-            <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              Podfoldery Zlecenia (Realizacja)
-            </h5>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Folder dla faktur</label>
-                <input
-                  type="text"
-                  value={orderInvoices}
-                  onChange={(e) => setOrderInvoices(e.target.value)}
-                  placeholder="np. Faktury"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Folder dla umów / gwarancji / protokołów</label>
-                <input
-                  type="text"
-                  value={orderDocs}
-                  onChange={(e) => setOrderDocs(e.target.value)}
-                  placeholder="np. Dokumenty"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Folder dla pomiarów / ustaleń</label>
-                <input
-                  type="text"
-                  value={orderMeasurements}
-                  onChange={(e) => setOrderMeasurements(e.target.value)}
-                  placeholder="np. Pomiary - ustalenia"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-slate-100" />
-
-          {/* Custom empty subfolders */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Dodatkowe puste podfoldery zlecenia (wpisz każdy w nowej linii)
-            </label>
-            <textarea
-              value={customFoldersText}
-              onChange={(e) => setCustomFoldersText(e.target.value)}
-              placeholder="Zdjęcia budowy&#10;Rysunki konstrukcji do zamówienia"
-              rows={4}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono"
-            />
-          </div>
-
-          {/* Visual folder tree preview */}
-          <div className="bg-slate-50 rounded-lg border border-slate-200 p-4">
-            <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">
-              Podgląd struktury na Google Drive
-            </h5>
-            <div className="font-mono text-xs text-slate-600 space-y-1">
-              <div className="flex items-center gap-1.5 text-slate-800 font-medium">
+            {/* Opportunity Branch */}
+            <div className="pl-4 border-l border-slate-300">
+              <div className="flex items-center gap-1.5 text-slate-700 mt-2 mb-1">
+                <span className="text-slate-400">├──</span>
                 <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
                 </svg>
-                <span>Jan Kowalski (Warszawa, ul. Złota)</span>
-                <span className="text-[10px] text-slate-400 font-normal italic font-sans ml-1">(Główny folder klienta)</span>
-              </div>
-              
-              {/* Opportunity subfolder branch */}
-              <div className="pl-4 border-l border-slate-300">
-                <div className="flex items-center gap-1.5 text-slate-700 mt-1">
-                  <span className="text-slate-400">├──</span>
-                  <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                  </svg>
-                  <span>2026-07-15_Złota_Wycena</span>
-                  <span className="text-[10px] text-blue-500 font-normal font-sans ml-1">[SZANSA SPRZEDAŻY]</span>
-                </div>
-                
-                {/* Opportunity child folders */}
-                <div className="pl-6 border-l border-slate-300 ml-4">
-                  <div className="flex items-center gap-1.5 py-0.5">
-                    <span className="text-slate-400">├──</span>
-                    <span className="text-slate-500">{oppValuation || "Pliki do wyceny od klienta - rzuty i przysłane"}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 py-0.5">
-                    <span className="text-slate-400">├──</span>
-                    <span className="text-slate-500">{oppReceived || "Koszta - oferty od dostawców"}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 py-0.5">
-                    <span className="text-slate-400">├──</span>
-                    <span className="text-slate-500">{oppSent || "Oferty - wysłane do Klienta"}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 py-0.5">
-                    <span className="text-slate-400">└──</span>
-                    <span className="text-slate-500">{oppPonzio || "Ponzio - pliki"}</span>
-                  </div>
-                </div>
+                <span className="font-sans font-medium text-slate-800">2026-07-15_Złota_Wycena</span>
+                <span className="text-[10px] text-blue-500 font-normal font-sans ml-1">[SZANSA SPRZEDAŻY]</span>
               </div>
 
-              {/* Order subfolder branch */}
-              <div className="pl-4 border-l border-slate-300">
-                <div className="flex items-center gap-1.5 text-slate-700 mt-1">
+              {/* Opportunity Children */}
+              <div className="pl-6 border-l border-slate-300 ml-4 space-y-1">
+                {/* Valuation Files */}
+                <div className="flex items-center gap-1.5 group">
+                  <span className="text-slate-400">├──</span>
+                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={oppValuation}
+                    onChange={(e) => setOppValuation(e.target.value)}
+                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                    placeholder="Folder wyceny..."
+                  />
+                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                </div>
+
+                {/* Offers Received */}
+                <div className="flex items-center gap-1.5 group">
+                  <span className="text-slate-400">├──</span>
+                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={oppReceived}
+                    onChange={(e) => setOppReceived(e.target.value)}
+                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                    placeholder="Folder kosztów..."
+                  />
+                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                </div>
+
+                {/* Offers Sent */}
+                <div className="flex items-center gap-1.5 group">
+                  <span className="text-slate-400">├──</span>
+                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={oppSent}
+                    onChange={(e) => setOppSent(e.target.value)}
+                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                    placeholder="Folder ofert..."
+                  />
+                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                </div>
+
+                {/* Ponzio Files */}
+                <div className="flex items-center gap-1.5 group">
+                  <span className="text-slate-400">└──</span>
+                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={oppPonzio}
+                    onChange={(e) => setOppPonzio(e.target.value)}
+                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                    placeholder="Folder Ponzio..."
+                  />
+                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Order Branch */}
+            <div className="pl-4 border-l border-slate-300">
+              <div className="flex items-center justify-between text-slate-700 mt-2 mb-1 pr-4 group">
+                <div className="flex items-center gap-1.5">
                   <span className="text-slate-400">└──</span>
                   <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
                   </svg>
-                  <span>2026-07-15_Złota</span>
+                  <span className="font-sans font-medium text-slate-800">2026-07-15_Złota</span>
                   <span className="text-[10px] text-green-600 font-normal font-sans ml-1">[ZLECENIE]</span>
                 </div>
-                
-                {/* Order child folders */}
-                <div className="pl-6 ml-4">
-                  <div className="flex items-center gap-1.5 py-0.5">
-                    <span className="text-slate-400">├──</span>
-                    <span className="text-slate-500">{orderInvoices || "Faktury - sprzedażowe, kosztowe..."}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 py-0.5">
-                    <span className="text-slate-400">├──</span>
-                    <span className="text-slate-500">{orderDocs || "Dokumenty - gwarancje, protokoły..."}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 py-0.5">
-                    <span className="text-slate-400">├──</span>
-                    <span className="text-slate-500">{orderMeasurements || "Pomiary - ustalenia"}</span>
-                  </div>
-                  
-                  {parsedCustomFolders.map((cf, idx) => {
-                    const isLast = idx === parsedCustomFolders.length - 1;
-                    return (
-                      <div key={idx} className="flex items-center gap-1.5 py-0.5">
-                        <span className="text-slate-400">{isLast ? "└──" : "├──"}</span>
-                        <span className="text-slate-500">{cf}</span>
-                        <span className="text-[9px] text-slate-400 font-sans ml-1 italic">(dodatkowy pusty)</span>
-                      </div>
-                    );
-                  })}
+                <button
+                  type="button"
+                  onClick={handleAddCustomFolder}
+                  className="text-[11px] font-sans text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Dodaj podfolder zlecenia
+                </button>
+              </div>
+
+              {/* Order Children */}
+              <div className="pl-6 ml-4 space-y-1">
+                {/* Invoices */}
+                <div className="flex items-center gap-1.5 group">
+                  <span className="text-slate-400">├──</span>
+                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={orderInvoices}
+                    onChange={(e) => setOrderInvoices(e.target.value)}
+                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                    placeholder="Folder faktur..."
+                  />
+                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
                 </div>
+
+                {/* Documents */}
+                <div className="flex items-center gap-1.5 group">
+                  <span className="text-slate-400">├──</span>
+                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={orderDocs}
+                    onChange={(e) => setOrderDocs(e.target.value)}
+                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                    placeholder="Folder dokumentów..."
+                  />
+                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                </div>
+
+                {/* Measurements */}
+                <div className="flex items-center gap-1.5 group">
+                  <span className="text-slate-400">{customFolders.length === 0 ? "└──" : "├──"}</span>
+                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={orderMeasurements}
+                    onChange={(e) => setOrderMeasurements(e.target.value)}
+                    className="font-sans text-xs text-slate-600 bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium"
+                    placeholder="Folder pomiarów..."
+                  />
+                  <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity">(kliknij aby edytować)</span>
+                </div>
+
+                {/* Custom Subfolders list */}
+                {customFolders.map((cf, idx) => {
+                  const isLast = idx === customFolders.length - 1;
+                  return (
+                    <div key={idx} className="flex items-center gap-1.5 group">
+                      <span className="text-slate-400">{isLast ? "└──" : "├──"}</span>
+                      <svg className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={cf}
+                        onChange={(e) => handleUpdateCustomFolder(idx, e.target.value)}
+                        className="font-sans text-xs bg-transparent border border-transparent hover:border-slate-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:outline-none px-2 py-0.5 rounded transition-all w-80 font-medium text-blue-600 focus:text-slate-800"
+                        placeholder="Nazwa podfolderu..."
+                        autoFocus={cf === "Nowy folder"}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCustomFolder(idx)}
+                        className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity"
+                        title="Usuń folder"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
+        </div>
 
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={handleSaveFolders}
-              disabled={savingFolders || config === undefined}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-            >
-              {savingFolders ? "Zapisywanie..." : "Zapisz strukturę folderów"}
-            </button>
-          </div>
+        <div className="flex justify-end mt-4">
+          <button
+            type="button"
+            onClick={handleSaveFolders}
+            disabled={savingFolders || config === undefined}
+            className="rounded-md bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-sm"
+          >
+            {savingFolders ? "Zapisywanie..." : "Zapisz strukturę folderów"}
+          </button>
         </div>
       </div>
 
