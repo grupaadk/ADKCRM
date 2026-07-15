@@ -1037,12 +1037,12 @@ export const createClientFolderForOpportunity = action({
         { opportunityId: args.opportunityId },
       );
 
-      // Krok 7: Zaplanuj upload ręcznie dołączonych plików do "Inne" (foldery już gotowe)
+      // Krok 7: Zaplanuj upload ręcznie dołączonych plików do folderu wyceny ("Pliki do wyceny od klienta")
       for (const storageId of args.uploadedFileIds ?? []) {
         await ctx.scheduler.runAfter(
           0,
           api.googleDrive.uploadManualOpportunityFile,
-          { opportunityId: args.opportunityId, storageId },
+          { opportunityId: args.opportunityId, storageId, targetFolderId: valuationFilesFolderId },
         );
       }
 
