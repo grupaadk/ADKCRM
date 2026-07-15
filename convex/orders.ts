@@ -955,8 +955,10 @@ export const listByCompletionDateRange = query({
       )
       .collect();
 
+    const activeOrders = orders.filter((o) => o.status !== "archived");
+
     return await Promise.all(
-      orders.map(async (order) => {
+      activeOrders.map(async (order) => {
         let clientName = "";
         if (order.clientId) {
           const client = await ctx.db.get(order.clientId);
