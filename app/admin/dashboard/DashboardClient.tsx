@@ -777,6 +777,10 @@ export default function DashboardClient() {
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                      }}
+                      onDragEnter={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         if (dragId && dragId !== task._id && dragOverTaskId !== task._id) {
                           setDragOverTaskId(task._id);
                         }
@@ -784,8 +788,10 @@ export default function DashboardClient() {
                       onDragLeave={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        if (dragOverTaskId === task._id) {
-                          setDragOverTaskId(null);
+                        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                          if (dragOverTaskId === task._id) {
+                            setDragOverTaskId(null);
+                          }
                         }
                       }}
                       onDrop={(e) => {
@@ -800,19 +806,17 @@ export default function DashboardClient() {
                       {dragOverTaskId === task._id && dragId !== task._id && (
                         <div className="absolute -top-1.5 left-0 right-0 h-1 bg-[#4abbc3] rounded-full z-10 animate-pulse pointer-events-none" />
                       )}
-                      <div className={dragId ? "pointer-events-none" : ""}>
-                        <TaskCard
-                          task={task}
-                          showAssignee={canAddTasks}
-                          onOpen={() => setOpenTaskId(task._id as Id<"orderTasks">)}
-                          onDragStart={() => setDragId(task._id)}
-                          onDragEnd={() => {
-                            setDragId(null);
-                            setDragOverTaskId(null);
-                          }}
-                          dragging={dragId === task._id}
-                        />
-                      </div>
+                      <TaskCard
+                        task={task}
+                        showAssignee={canAddTasks}
+                        onOpen={() => setOpenTaskId(task._id as Id<"orderTasks">)}
+                        onDragStart={() => setDragId(task._id)}
+                        onDragEnd={() => {
+                          setDragId(null);
+                          setDragOverTaskId(null);
+                        }}
+                        dragging={dragId === task._id}
+                      />
                     </div>
                   ))}
                   {/* Wskaźnik upuszczenia na koniec listy */}
