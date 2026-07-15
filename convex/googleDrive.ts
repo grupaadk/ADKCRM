@@ -1131,6 +1131,7 @@ export const createOrderFolder = action({
         "Gwarancja",
         "Zdjęcia budowy",
         "Rysunki konstrukcji do zamówienia",
+        "Pomiary - ustalenia",
       ] as const;
 
       const [oppSubfolderIds] = await Promise.all([
