@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
+import { ConvexError } from "convex/values";
 
 const KIND_LABELS: Record<string, string> = {
   vat: "Faktura VAT",
@@ -40,6 +41,13 @@ const KIND_LABELS: Record<string, string> = {
   proforma: "Proforma",
   correction: "Korekta",
 };
+
+function convexErrorMessage(e: unknown, fallback: string): string {
+  if (e instanceof ConvexError) {
+    return typeof e.data === "string" ? e.data : fallback;
+  }
+  return e instanceof Error ? e.message : fallback;
+}
 
 const KIND_VARIANTS: Record<string, string> = {
   vat: "default",
@@ -1711,7 +1719,7 @@ export default function OrderDetailPage({
       await changeStatus({ orderId: orderIdTyped, newStatus });
     } catch (error) {
       console.error("Status change failed:", error);
-      setWarningModalText(error instanceof Error ? error.message : "Nie udało się zmienić statusu.");
+      setWarningModalText(convexErrorMessage(error, "Nie udało się zmienić statusu."));
     }
   }
 
@@ -1721,7 +1729,7 @@ export default function OrderDetailPage({
       await changeStatus({ orderId: orderIdTyped, newStatus: "archived" });
     } catch (error) {
       console.error("Archive failed:", error);
-      setWarningModalText(error instanceof Error ? error.message : "Błąd archiwizacji zlecenia.");
+      setWarningModalText(convexErrorMessage(error, "Błąd archiwizacji zlecenia."));
     }
   }
 
@@ -1731,7 +1739,7 @@ export default function OrderDetailPage({
       await changeStatus({ orderId: orderIdTyped, newStatus: "completed" });
     } catch (error) {
       console.error("Restore failed:", error);
-      setWarningModalText(error instanceof Error ? error.message : "Błąd przywracania zlecenia.");
+      setWarningModalText(convexErrorMessage(error, "Błąd przywracania zlecenia."));
     }
   }
 
