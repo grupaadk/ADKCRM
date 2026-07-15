@@ -110,6 +110,22 @@ function OrderCard({
     : `${item.clientFirstName} ${item.clientLastName}`.trim()
   const didDragRef = useRef(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [daysInStatusLabel, setDaysInStatusLabel] = useState<string | null>(null)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!item.statusChangedAt) {
+        setDaysInStatusLabel(null)
+        return
+      }
+      const diffMs = Date.now() - item.statusChangedAt
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+      if (diffDays <= 0) setDaysInStatusLabel("dzisiaj")
+      else if (diffDays === 1) setDaysInStatusLabel("1 dzień")
+      else setDaysInStatusLabel(`${diffDays} dni`)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [item.statusChangedAt])
 
   const titleText =
     item.type === "order" && item.orderName
@@ -205,6 +221,16 @@ function OrderCard({
           </div>
           {item.customText && (
             <span className="chip-custom" style={{ marginTop: 3 }}>{item.customText}</span>
+          )}
+          {daysInStatusLabel && (
+            <div style={{ display: "flex", marginTop: 4 }}>
+              <span className="inline-flex items-center gap-1 rounded bg-slate-50 px-1.5 py-0.5 font-medium text-[9.5px] text-slate-500 border border-slate-200/40" title={`Czas w tym statusie: ${daysInStatusLabel}`}>
+                <svg className="size-2.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                <span className="tabular-nums">{daysInStatusLabel}</span>
+              </span>
+            </div>
           )}
         </div>
 

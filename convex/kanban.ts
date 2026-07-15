@@ -48,6 +48,7 @@ export type KanbanOrderItem = {
   investmentStreet?: string;
   comment?: string;
   clientCity?: string;
+  statusChangedAt?: number;
 };
 
 export type KanbanPendingItem = {
@@ -73,6 +74,7 @@ export type KanbanPendingItem = {
   investmentStreet?: string;
   comment?: string;
   clientCity?: string;
+  statusChangedAt?: number;
 };
 
 export type KanbanItem = KanbanOrderItem | KanbanPendingItem;
@@ -145,6 +147,7 @@ export const list = query({
           clientType: client?.clientType,
           companyName: client?.companyName,
           status: order.status,
+          statusChangedAt: order.statusChangedAt ?? order._creationTime,
           orderName: order.name,
           customText: order.customText,
           grossAmount: lineItems.length > 0 ? Math.round(totalGross * 100) / 100 : undefined,
@@ -211,6 +214,7 @@ export const list = query({
           clientType,
           companyName,
           status: pending.stage === "inquiry" ? "inquiry" : "lead",
+          statusChangedAt: pending.stageChangedAt ?? pending._creationTime,
           customText: pending.customText,
           services: pending.services ?? [],
           assignedUserColor,

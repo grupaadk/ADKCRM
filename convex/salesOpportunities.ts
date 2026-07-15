@@ -38,6 +38,7 @@ export const createSalesOpportunity = mutation({
     const opportunityId = await ctx.db.insert("pendingJotformSubmissions", {
       ...args,
       stage: "lead",
+      stageChangedAt: Date.now(),
       processed: false,
       archived: false,
     });
@@ -85,6 +86,7 @@ export const createManualOpportunity = mutation({
     const opportunityId = await ctx.db.insert("pendingJotformSubmissions", {
       ...rest,
       stage: "lead",
+      stageChangedAt: Date.now(),
       processed: false,
       archived: false,
     });
@@ -437,6 +439,7 @@ export const convertToOrder = mutation({
       investmentPostalCode: opp.investmentPostalCode,
       investmentCity: opp.investmentCity,
       status: "measurement",
+      statusChangedAt: Date.now(),
       documents: DEFAULT_DOCUMENTS,
       source: opp.submissionId ? "jotform" : "manual",
       jotformSubmissionId: opp.submissionId,

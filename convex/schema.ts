@@ -211,6 +211,7 @@ export default defineSchema({
 
     // Status workflow — dynamiczny klucz z rejestru (crmConfig.statuses)
     status: v.string(),
+    statusChangedAt: v.optional(v.number()),
     projectStartDate: v.optional(v.number()),
     projectEndDate: v.optional(v.number()),
     installationStartDate: v.optional(v.number()),
@@ -415,6 +416,7 @@ export default defineSchema({
     clientFolderUrl: v.optional(v.string()),
     clientFolderCreatedAt: v.optional(v.number()),
     stage: v.optional(v.union(v.literal("lead"), v.literal("inquiry"))),
+    stageChangedAt: v.optional(v.number()),
     processed: v.boolean(),
     archived: v.optional(v.boolean()),
     offerSentAt: v.optional(v.number()),

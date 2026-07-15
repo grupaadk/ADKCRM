@@ -248,6 +248,7 @@ export const create = mutation({
       ...orderData,
       name,
       status: "measurement",
+      statusChangedAt: Date.now(),
       documents: DEFAULT_DOCUMENTS,
       source: "manual",
       createdBy: userId,
@@ -441,7 +442,10 @@ export const changeStatus = mutation({
       throw new Error("Status jest już ustawiony na tę wartość");
     }
 
-    const statusPatch: Record<string, unknown> = { status: args.newStatus };
+    const statusPatch: Record<string, unknown> = {
+      status: args.newStatus,
+      statusChangedAt: Date.now(),
+    };
 
     // Automatyczne przypisywanie dat zlecenia
     // Status 'installation' w tym systemie oznacza "Realizowane" (Start projektu)

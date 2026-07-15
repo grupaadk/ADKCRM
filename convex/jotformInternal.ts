@@ -101,6 +101,7 @@ export const savePendingSubmission = mutation({
     return await ctx.db.insert("pendingJotformSubmissions", {
       ...args,
       stage: "lead",
+      stageChangedAt: Date.now(),
       processed: false,
     });
   },
@@ -124,7 +125,10 @@ export const updatePendingStage = mutation({
     const pending = await ctx.db.get(args.pendingId);
     if (!pending) throw new Error("Pending submission not found");
     if (pending.processed) throw new Error("Submission already processed");
-    await ctx.db.patch(args.pendingId, { stage: args.stage });
+    await ctx.db.patch(args.pendingId, {
+      stage: args.stage,
+      stageChangedAt: Date.now(),
+    });
   },
 });
 
@@ -205,6 +209,7 @@ export const promoteToMeasurement = mutation({
       projectFiles: pending.projectFiles,
       comment: pending.comment,
       status: "measurement",
+      statusChangedAt: Date.now(),
       documents: DEFAULT_DOCUMENTS,
       source: "jotform",
       jotformSubmissionId: pending.submissionId,
@@ -293,6 +298,7 @@ export const repairPendingSubmission = mutation({
       projectFiles: pending.projectFiles,
       comment: pending.comment,
       status: "measurement",
+      statusChangedAt: Date.now(),
       documents: DEFAULT_DOCUMENTS,
       source: "jotform",
       jotformSubmissionId: pending.submissionId,
