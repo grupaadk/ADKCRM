@@ -294,6 +294,7 @@ export default defineSchema({
     ),
     version: v.number(),
     isActive: v.boolean(),
+    targetFolder: v.optional(v.string()),
   }).index("by_key", ["key"]),
 
   // 3.3 Historia zdarzeń
