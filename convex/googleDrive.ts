@@ -1127,7 +1127,7 @@ export const createOrderFolder = action({
         "Inne",
       ] as const;
       const ORDER_SUBFOLDERS = [
-        "Faktury",
+        "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
         "Umowy",
         "Gwarancja",
         "Zdjęcia budowy",
@@ -1372,7 +1372,7 @@ export const uploadUserDocument = action({
     if (args.documentType === "umowa") {
       targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Umowy", order.folderId);
     } else if (args.documentType === "faktura") {
-      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Faktury", order.folderId);
+      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia", order.folderId);
     }
 
     const metadata = JSON.stringify({ name: args.fileName, parents: [targetFolderId] });
@@ -1913,7 +1913,7 @@ export const copyTemplate = action({
       if (args.templateKey === "umowa") {
         targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Umowy", order.folderId);
       } else if (args.templateKey === "faktura") {
-        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Faktury", order.folderId);
+        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia", order.folderId);
       } else if (args.templateKey.startsWith("gwarancja_")) {
         targetFolderId = await findOrCreateDriveFolder(connection.accessToken, "Gwarancja", order.folderId);
       }
