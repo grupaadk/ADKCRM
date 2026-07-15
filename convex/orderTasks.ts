@@ -157,8 +157,14 @@ export const update = mutation({
     }
     if (rest.orderId !== undefined) patch.orderId = rest.orderId;
     if (rest.opportunityId !== undefined) patch.opportunityId = rest.opportunityId;
-    if (rest.columnId !== undefined) patch.columnId = rest.columnId;
-    if (clearColumnId) patch.columnId = undefined;
+    if (rest.columnId !== undefined) {
+      patch.columnId = rest.columnId;
+      patch.columnChangedAt = Date.now();
+    }
+    if (clearColumnId) {
+      patch.columnId = undefined;
+      patch.columnChangedAt = undefined;
+    }
     if (rest.position !== undefined) patch.position = rest.position;
     await ctx.db.patch(taskId, patch);
   },

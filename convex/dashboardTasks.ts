@@ -19,6 +19,7 @@ export type DashboardTask = {
   source: TaskType;
   // Opcjonalne przypisanie do niestandardowej kolumny
   columnId?: Id<"taskColumns">;
+  columnChangedAt?: number;
   // Kontekst karty.
   orderId?: Id<"orders">;
   opportunityId?: Id<"pendingJotformSubmissions">;
@@ -163,6 +164,7 @@ export const list = query({
             customText: opp.customText ?? null,
             clientName: opportunityName(opp),
             columnId: task.columnId,
+            columnChangedAt: task.columnChangedAt,
             position: task.position,
             ...assigneeProps,
           };
@@ -218,6 +220,7 @@ export const list = query({
             customText: order?.customText ?? null,
             clientName: clientName(resolvedClient ?? null),
             columnId: task.columnId,
+            columnChangedAt: task.columnChangedAt,
             position: task.position,
             ...assigneeProps,
           };
@@ -253,6 +256,7 @@ export const list = query({
               customText: order.customText ?? null,
               clientName: clientName(client),
               columnId: task.columnId,
+              columnChangedAt: task.columnChangedAt,
               position: task.position,
               ...assigneeProps,
             };
@@ -274,6 +278,7 @@ export const list = query({
           customText: null,
           clientName: "Zadanie",
           columnId: task.columnId,
+          columnChangedAt: task.columnChangedAt,
           position: task.position,
           ...assigneeProps,
         };
@@ -340,6 +345,7 @@ export const getOne = query({
         customText: opp.customText ?? null,
         clientName: opportunityName(opp),
         columnId: task.columnId,
+        columnChangedAt: task.columnChangedAt,
         ...assigneeProps,
       };
     }
@@ -367,6 +373,7 @@ export const getOne = query({
         customText: order?.customText ?? null,
         clientName: clientName(client),
         columnId: task.columnId,
+        columnChangedAt: task.columnChangedAt,
         ...assigneeProps,
       };
     }
@@ -392,6 +399,7 @@ export const getOne = query({
         customText: order.customText ?? null,
         clientName: clientName(client),
         columnId: task.columnId,
+        columnChangedAt: task.columnChangedAt,
         ...assigneeProps,
       };
     }
@@ -410,6 +418,7 @@ export const getOne = query({
       customText: null,
       clientName: "Zadanie",
       columnId: task.columnId,
+      columnChangedAt: task.columnChangedAt,
       ...assigneeProps,
     };
   },
@@ -458,6 +467,7 @@ export const adminCreate = mutation({
       priority: args.priority,
       assignedUserId: args.assignedUserId,
       columnId: args.columnId,
+      columnChangedAt: args.columnId ? Date.now() : undefined,
       createdBy: admin.email ?? admin._id,
     });
   },

@@ -710,6 +710,7 @@ export default defineSchema({
     opportunityId: v.optional(v.id("pendingJotformSubmissions")),
     complaintId: v.optional(v.id("complaints")),
     columnId: v.optional(v.id("taskColumns")),
+    columnChangedAt: v.optional(v.number()),
     title: v.string(),
     dueDate: v.optional(v.number()),
     status: v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),

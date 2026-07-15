@@ -265,4 +265,65 @@ describe("US-2.2 -- Order data update", () => {
     const order = await asUser.query(api.orders.getById, { orderId });
     expect(order?.status).toBe("archived");
   });
+
+  test("20. columnChangedAt is updated when columnId is set or cleared", async () => {
+    const t = convexTest(schema);
+
+    const userId = await t.run(async (ctx) => {
+      return await ctx.db.insert("users", {
+        email: "admin@test.com",
+        role: "admin",
+        isActive: true,
+      });
+    });
+    const asUser = t.withIdentity({ subject: userId });
+
+    const { orderId } = await createOrderAtStatus(asUser, "lead");
+
+    // Create a task
+    const taskId = await asUser.mutation(api.orderTasks.create, {
+      orderId,
+      title: "Zadanie z kolumną",
+      status: "todo",
+    });
+
+    const taskAfterCreate = await asUser.run(async (ctx) => {
+      return await ctx.db.get(taskId);
+    });
+    expect(taskAfterCreate?.columnChangedAt).toBeUndefined();
+
+    // Create a fake columnId
+    const columnId = await asUser.mutation(api.taskColumns.create, {
+      title: "Kolumna testowa",
+      color: "#ff0000",
+    });
+
+    // Update columnId
+    const beforeUpdate = Date.now();
+    await asUser.mutation(api.orderTasks.update, {
+      taskId,
+      columnId,
+    });
+    const afterUpdate = Date.now();
+
+    const taskAfterUpdate = await asUser.run(async (ctx) => {
+      return await ctx.db.get(taskId);
+    });
+    expect(taskAfterUpdate?.columnId).toBe(columnId);
+    expect(taskAfterUpdate?.columnChangedAt).toBeTypeOf("number");
+    expect(taskAfterUpdate?.columnChangedAt).toBeGreaterThanOrEqual(beforeUpdate);
+    expect(taskAfterUpdate?.columnChangedAt).toBeLessThanOrEqual(afterUpdate);
+
+    // Clear columnId
+    await asUser.mutation(api.orderTasks.update, {
+      taskId,
+      clearColumnId: true,
+    });
+
+    const taskAfterClear = await asUser.run(async (ctx) => {
+      return await ctx.db.get(taskId);
+    });
+    expect(taskAfterClear?.columnId).toBeUndefined();
+    expect(taskAfterClear?.columnChangedAt).toBeUndefined();
+  });
 });
