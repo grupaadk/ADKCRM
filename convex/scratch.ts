@@ -1,17 +1,23 @@
 import { query } from "./_generated/server";
 
-export const getExpenses = query({
+export const getPisarzakInfo = query({
   args: {},
   handler: async (ctx) => {
-    const expenses = await ctx.db
-      .query("fakturowniaExpensesCache")
-      .withIndex("by_order", (q) => q.eq("orderId", "k57fpamgj0j71386sfn7h4kpph8agd12" as any))
+    const clients = await ctx.db
+      .query("clients")
       .collect();
-    return expenses.map(e => ({
-      number: e.number,
-      kind: e.kind,
-      net: e.netAmount,
-      gross: e.grossAmount,
-    }));
+    const client = clients.find(c => c.lastName === "Pisarzak");
+
+    const pendings = await ctx.db
+      .query("pendingJotformSubmissions")
+      .collect();
+    const pending = pendings.find(p => p.lastName === "Pisarzak" || p.clientId === client?._id);
+
+    const orders = await ctx.db
+      .query("orders")
+      .collect();
+    const order = orders.find(o => o.clientId === client?._id);
+
+    return { client, pending, order };
   }
 });

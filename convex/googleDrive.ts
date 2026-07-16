@@ -3112,13 +3112,7 @@ export const getRenameTargets = internalQuery({
     const clients = await ctx.db.query("clients").collect();
     const pendings = await ctx.db
       .query("pendingJotformSubmissions")
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("processed"), false),
-          q.neq(q.field("archived"), true),
-          q.neq(q.field("clientFolderId"), undefined),
-        )
-      )
+      .filter((q) => q.neq(q.field("clientFolderId"), undefined))
       .collect();
 
     return {
@@ -3141,14 +3135,44 @@ export const getRenameTargets = internalQuery({
   },
 });
 
+export const syncClientFolderLinks = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const pendings = await ctx.db
+      .query("pendingJotformSubmissions")
+      .filter((q) => q.neq(q.field("clientFolderId"), undefined))
+      .collect();
+
+    let count = 0;
+    for (const p of pendings) {
+      if (p.clientId && p.clientFolderId) {
+        const client = await ctx.db.get(p.clientId);
+        if (client && !client.clientFolderId) {
+          await ctx.db.patch(p.clientId, {
+            clientFolderId: p.clientFolderId,
+            clientFolderUrl: p.clientFolderUrl,
+          });
+          count++;
+        }
+      }
+    }
+    return count;
+  },
+});
+
 export const backfillRenameClientFolders = action({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
+    // 1. Sync database client folder references from pending submissions
+    const syncedCount = await ctx.runMutation(internal.googleDrive.syncClientFolderLinks);
+    console.log(`Synced database folder references for ${syncedCount} clients`);
+
+    // 2. Fetch updated targets
     const { clients, pendings } = await ctx.runQuery(internal.googleDrive.getRenameTargets);
 
     let count = 0;
-    // 1. Rename folders for clients
+    // 3. Rename folders for clients
     for (const client of clients) {
       if (client.clientType !== "business" && client.clientFolderId) {
         const newFolderName = `${client.lastName}_${client.firstName}`;
@@ -3161,7 +3185,7 @@ export const backfillRenameClientFolders = action({
       }
     }
 
-    // 2. Rename folders for stand-alone opportunities
+    // 4. Rename folders for stand-alone opportunities
     for (const pending of pendings) {
       if (!pending.clientId && pending.clientFolderId) {
         const newFolderName = `${pending.lastName}_${pending.firstName}`;
@@ -3174,6 +3198,17 @@ export const backfillRenameClientFolders = action({
       }
     }
 
-    return `Zaktualizowano nazwy ${count} folderów na Google Drive (Format: Nazwisko_Imię).`;
+    return `Zaktualizowano nazwy ${count} folderów na Google Drive (Format: Nazwisko_Imię). Synchronicznie naprawiono ${syncedCount} relacji bazodanowych.`;
+  },
+});
+
+export const checkFolderInfo = action({
+  args: { folderId: v.string() },
+  handler: async (ctx, args) => {
+    const data = await driveApiFetchWithRetry(
+      ctx,
+      `/files/${args.folderId}?supportsAllDrives=true&fields=id,name,mimeType,parents,webViewLink`,
+    );
+    return data;
   },
 });

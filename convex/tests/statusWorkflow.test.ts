@@ -288,9 +288,9 @@ describe("US-2.2 -- Order data update", () => {
       status: "todo",
     });
 
-    const taskAfterCreate = await asUser.run(async (ctx) => {
+    const taskAfterCreate = (await asUser.run(async (ctx) => {
       return await ctx.db.get(taskId);
-    });
+    })) as Doc<"orderTasks"> | null;
     expect(taskAfterCreate?.columnChangedAt).toBeUndefined();
 
     // Create a fake columnId
@@ -307,9 +307,9 @@ describe("US-2.2 -- Order data update", () => {
     });
     const afterUpdate = Date.now();
 
-    const taskAfterUpdate = await asUser.run(async (ctx) => {
+    const taskAfterUpdate = (await asUser.run(async (ctx) => {
       return await ctx.db.get(taskId);
-    });
+    })) as Doc<"orderTasks"> | null;
     expect(taskAfterUpdate?.columnId).toBe(columnId);
     expect(taskAfterUpdate?.columnChangedAt).toBeTypeOf("number");
     expect(taskAfterUpdate?.columnChangedAt).toBeGreaterThanOrEqual(beforeUpdate);
@@ -321,9 +321,9 @@ describe("US-2.2 -- Order data update", () => {
       clearColumnId: true,
     });
 
-    const taskAfterClear = await asUser.run(async (ctx) => {
+    const taskAfterClear = (await asUser.run(async (ctx) => {
       return await ctx.db.get(taskId);
-    });
+    })) as Doc<"orderTasks"> | null;
     expect(taskAfterClear?.columnId).toBeUndefined();
     expect(taskAfterClear?.columnChangedAt).toBeUndefined();
   });
