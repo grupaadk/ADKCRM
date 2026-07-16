@@ -27,7 +27,7 @@ const STATUS_PATH: Record<ClientStatus, ClientStatus[]> = {
 };
 
 async function createOrderAtStatus(
-  t: ReturnType<typeof convexTest>,
+  t: any,
   targetStatus: ClientStatus,
 ) {
   const clientId = await t.mutation(api.clients.create, {
