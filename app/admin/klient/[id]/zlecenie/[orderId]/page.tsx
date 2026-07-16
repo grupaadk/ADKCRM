@@ -1615,7 +1615,7 @@ export default function OrderDetailPage({
   const [customExpenseTitle, setCustomExpenseTitle] = useState("");
   const [customExpenseAmount, setCustomExpenseAmount] = useState("");
   const [customExpenseVatRate, setCustomExpenseVatRate] = useState("23");
-  const [customExpenseInputMode, setCustomExpenseInputMode] = useState<"brutto" | "netto">("brutto");
+  const [customExpenseInputMode, setCustomExpenseInputMode] = useState<"brutto" | "netto">("netto");
   const [selectedExpense, setSelectedExpense] = useState<CachedExpense | null>(null);
   const [editExpenseTitle, setEditExpenseTitle] = useState("");
   const [editExpenseAmount, setEditExpenseAmount] = useState("");
@@ -4491,7 +4491,7 @@ export default function OrderDetailPage({
           setCustomExpenseTitle("");
           setCustomExpenseAmount("");
           setCustomExpenseVatRate("23");
-          setCustomExpenseInputMode("brutto");
+          setCustomExpenseInputMode("netto");
           setCustomExpenseDate(new Date().toISOString().split("T")[0]);
           setCustomExpenseCategory("");
         }}
@@ -4506,7 +4506,7 @@ export default function OrderDetailPage({
                 setCustomExpenseTitle("");
                 setCustomExpenseAmount("");
                 setCustomExpenseVatRate("23");
-                setCustomExpenseInputMode("brutto");
+                setCustomExpenseInputMode("netto");
                 setCustomExpenseDate(new Date().toISOString().split("T")[0]);
                 setCustomExpenseCategory("");
               }}
@@ -4544,7 +4544,7 @@ export default function OrderDetailPage({
                   setCustomExpenseTitle("");
                   setCustomExpenseAmount("");
                   setCustomExpenseVatRate("23");
-                  setCustomExpenseInputMode("brutto");
+                  setCustomExpenseInputMode("netto");
                   setCustomExpenseDate(new Date().toISOString().split("T")[0]);
                   setCustomExpenseCategory("");
                 } catch (err) {
