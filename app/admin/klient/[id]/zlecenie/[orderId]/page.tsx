@@ -1362,8 +1362,10 @@ function ExpensesTableGroup({
   editingVatRate,
   setEditingVatExpenseId,
   setEditingVatRate,
+  categories,
+  assignCategory,
 }: {
-  expenses: CachedExpense[];
+  expenses: (CachedExpense & { categoryId?: Id<"expenseCategories"> })[];
   fakturowniaConfig: { subdomain?: string } | null | undefined;
   unassignExpense: (args: { expenseId: Id<"fakturowniaExpensesCache"> }) => void;
   deleteCustomExpense: (args: { expenseId: Id<"fakturowniaExpensesCache"> }) => void;
@@ -1373,6 +1375,8 @@ function ExpensesTableGroup({
   editingVatRate: string;
   setEditingVatExpenseId: (id: string | null) => void;
   setEditingVatRate: (rate: string) => void;
+  categories: { _id: Id<"expenseCategories">; name: string }[];
+  assignCategory: (args: { expenseId: Id<"fakturowniaExpensesCache">; categoryId?: Id<"expenseCategories"> }) => Promise<unknown>;
 }) {
   if (expenses.length === 0) return null;
   const totalNet = expenses.reduce((s, i) => s + (i.netAmount ?? 0), 0);
@@ -1419,20 +1423,22 @@ function ExpensesTableGroup({
       <TableRoot className="w-full overflow-hidden">
         <Table style={{ tableLayout: "fixed", width: "100%" }}>
           <colgroup>
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "14%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "10%" }} />
             <col style={{ width: "10%" }} />
             <col style={{ width: "11%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "7%" }} />
-            <col style={{ width: "7%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "6%" }} />
+            <col style={{ width: "4%" }} />
+            <col style={{ width: "4%" }} />
           </colgroup>
           <TableHead>
             <TableRow>
               <TableHeaderCell>Numer</TableHeaderCell>
               <TableHeaderCell>Sprzedawca</TableHeaderCell>
+              <TableHeaderCell>Kategoria</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
               <TableHeaderCell>Data</TableHeaderCell>
               <TableHeaderCell style={{ textAlign: "right" }}>Netto</TableHeaderCell>
@@ -1491,6 +1497,26 @@ function ExpensesTableGroup({
                   </TableCell>
                   <TableCell className="truncate text-sm text-gray-900 font-medium">
                     {exp.sellerName || "—"}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    <select
+                      value={exp.categoryId ?? ""}
+                      onChange={async (e) => {
+                        const val = e.target.value;
+                        await assignCategory({
+                          expenseId: exp._id,
+                          categoryId: val ? (val as Id<"expenseCategories">) : undefined,
+                        });
+                      }}
+                      className="w-full rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-800 bg-white hover:border-gray-300 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                    >
+                      <option value="">Wybierz...</option>
+                      {categories.map((c) => (
+                        <option key={c._id} value={c._id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
                   </TableCell>
                   <TableCell className="truncate">
                     {exp.status ? (
@@ -1702,6 +1728,7 @@ export default function OrderDetailPage({
   const [editingVatExpenseId, setEditingVatExpenseId] = useState<string | null>(null);
   const [editingVatRate, setEditingVatRate] = useState("23");
   const [customExpenseDate, setCustomExpenseDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [customExpenseCategory, setCustomExpenseCategory] = useState<string>("");
   
   const calculateNet = (grossVal: string, vatVal: string) => {
     const gross = parseFloat(grossVal);
@@ -1752,6 +1779,8 @@ export default function OrderDetailPage({
   const addCustomExpense = useMutation(api.fakturownia.addCustomExpense);
   const deleteCustomExpense = useMutation(api.fakturownia.deleteCustomExpense);
   const updateCustomExpenseNet = useMutation(api.fakturownia.updateCustomExpenseNet);
+  const expenseCategories = useQuery(api.expenseCategories.list);
+  const assignCategory = useMutation(api.fakturownia.assignCategory);
   const paymentReminders = useQuery(api.paymentReminders.listByOrder, {
     orderId: orderIdTyped,
   });
@@ -4351,6 +4380,8 @@ export default function OrderDetailPage({
                 editingVatRate={editingVatRate}
                 setEditingVatExpenseId={setEditingVatExpenseId}
                 setEditingVatRate={setEditingVatRate}
+                categories={expenseCategories ?? []}
+                assignCategory={assignCategory}
               />
             )}
           </SectionCard>
@@ -4630,6 +4661,7 @@ export default function OrderDetailPage({
           setCustomExpenseVatRate("23");
           setCustomExpenseInputMode("brutto");
           setCustomExpenseDate(new Date().toISOString().split("T")[0]);
+          setCustomExpenseCategory("");
         }}
         title="Dodaj własny wydatek"
         width={400}
@@ -4644,6 +4676,7 @@ export default function OrderDetailPage({
                 setCustomExpenseVatRate("23");
                 setCustomExpenseInputMode("brutto");
                 setCustomExpenseDate(new Date().toISOString().split("T")[0]);
+                setCustomExpenseCategory("");
               }}
             >
               Anuluj
@@ -4673,6 +4706,7 @@ export default function OrderDetailPage({
                     grossAmount: grossVal,
                     netAmount: netVal,
                     issueDate: customExpenseDate || undefined,
+                    categoryId: customExpenseCategory ? (customExpenseCategory as Id<"expenseCategories">) : undefined,
                   });
                   setShowAddCustomExpenseModal(false);
                   setCustomExpenseTitle("");
@@ -4680,6 +4714,7 @@ export default function OrderDetailPage({
                   setCustomExpenseVatRate("23");
                   setCustomExpenseInputMode("brutto");
                   setCustomExpenseDate(new Date().toISOString().split("T")[0]);
+                  setCustomExpenseCategory("");
                 } catch (err) {
                   alert(err instanceof Error ? err.message : String(err));
                 }
@@ -4802,6 +4837,21 @@ export default function OrderDetailPage({
               value={customExpenseDate}
               onChange={(e) => setCustomExpenseDate(e.target.value)}
             />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Kategoria wydatku</label>
+            <select
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+              value={customExpenseCategory}
+              onChange={(e) => setCustomExpenseCategory(e.target.value)}
+            >
+              <option value="">Wybierz kategorię (opcjonalnie)</option>
+              {expenseCategories?.map((cat) => (
+                <option key={cat._id} value={cat._id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </SideDrawer>

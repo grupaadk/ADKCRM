@@ -19,6 +19,7 @@ import type * as dashboardTasks from "../dashboardTasks.js";
 import type * as documentTemplates from "../documentTemplates.js";
 import type * as emailClassification from "../emailClassification.js";
 import type * as events from "../events.js";
+import type * as expenseCategories from "../expenseCategories.js";
 import type * as fakturownia from "../fakturownia.js";
 import type * as gmail from "../gmail.js";
 import type * as gmailAuth from "../gmailAuth.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   documentTemplates: typeof documentTemplates;
   emailClassification: typeof emailClassification;
   events: typeof events;
+  expenseCategories: typeof expenseCategories;
   fakturownia: typeof fakturownia;
   gmail: typeof gmail;
   gmailAuth: typeof gmailAuth;

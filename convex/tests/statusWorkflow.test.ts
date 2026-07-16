@@ -328,4 +328,65 @@ describe("US-2.2 -- Order data update", () => {
     expect(taskAfterClear?.columnId).toBeUndefined();
     expect(taskAfterClear?.columnChangedAt).toBeUndefined();
   });
+
+  test("21. expense categories CRUD and category assignment on custom expense", async () => {
+    const t = convexTest(schema);
+
+    const userId = await t.run(async (ctx) => {
+      return await ctx.db.insert("users", {
+        email: "admin@test.com",
+        role: "admin",
+        isActive: true,
+      });
+    });
+    const asUser = t.withIdentity({ subject: userId });
+
+    const { orderId } = await createOrderAtStatus(asUser, "lead");
+
+    // Create expense category
+    const categoryId = await asUser.mutation(api.expenseCategories.create, {
+      name: "Robocizna",
+    });
+
+    // List categories
+    const categories = await asUser.query(api.expenseCategories.list, {});
+    expect(categories.length).toBe(1);
+    expect(categories[0].name).toBe("Robocizna");
+
+    // Add custom expense with categoryId
+    await asUser.mutation(api.fakturownia.addCustomExpense, {
+      orderId,
+      title: "Test custom expense",
+      grossAmount: 123,
+      categoryId,
+    });
+
+    // Verify it has categoryId
+    const expenses = await asUser.query(api.fakturownia.listCachedExpensesByOrder, { orderId });
+    expect(expenses.length).toBe(1);
+    expect(expenses[0].categoryId).toBe(categoryId);
+
+    // Assign category to undefined
+    await asUser.mutation(api.fakturownia.assignCategory, {
+      expenseId: expenses[0]._id,
+      categoryId: undefined,
+    });
+
+    const expensesUpdated = await asUser.query(api.fakturownia.listCachedExpensesByOrder, { orderId });
+    expect(expensesUpdated[0].categoryId).toBeUndefined();
+
+    // Assign back to category
+    await asUser.mutation(api.fakturownia.assignCategory, {
+      expenseId: expenses[0]._id,
+      categoryId,
+    });
+
+    // Remove category - should clear categoryId on the expense
+    await asUser.mutation(api.expenseCategories.remove, { categoryId });
+
+    const expensesAfterRemove = await asUser.run(async (ctx) => {
+      return await ctx.db.get(expenses[0]._id);
+    });
+    expect(expensesAfterRemove?.categoryId).toBeUndefined();
+  });
 });

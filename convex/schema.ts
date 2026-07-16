@@ -614,10 +614,16 @@ export default defineSchema({
     oid: v.optional(v.string()),
     orderId: v.optional(v.id("orders")),
     syncedAt: v.number(),
+    categoryId: v.optional(v.id("expenseCategories")),
   })
     .index("by_remote_id", ["remoteId"])
     .index("by_order", ["orderId"])
     .index("by_synced", ["syncedAt"]),
+
+  // 3.16c Kategorie wydatków (np. Robocizna, Materiały, Paliwo)
+  expenseCategories: defineTable({
+    name: v.string(),
+  }),
 
 
   // 3.17 Reklamacje

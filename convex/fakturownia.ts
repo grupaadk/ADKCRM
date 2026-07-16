@@ -963,6 +963,7 @@ export const addCustomExpense = mutation({
     grossAmount: v.number(),
     netAmount: v.optional(v.number()),
     issueDate: v.optional(v.string()),
+    categoryId: v.optional(v.id("expenseCategories")),
   },
   handler: async (ctx, args) => {
     const remoteId = `custom_${crypto.randomUUID()}`;
@@ -979,6 +980,19 @@ export const addCustomExpense = mutation({
       orderId: args.orderId,
       syncedAt: Date.now(),
       issueDate: args.issueDate || new Date().toISOString().split("T")[0],
+      categoryId: args.categoryId,
+    });
+  },
+});
+
+export const assignCategory = mutation({
+  args: {
+    expenseId: v.id("fakturowniaExpensesCache"),
+    categoryId: v.optional(v.id("expenseCategories")),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.expenseId, {
+      categoryId: args.categoryId,
     });
   },
 });

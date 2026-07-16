@@ -9,7 +9,7 @@ import Link from "next/link";
 import type { Id } from "@/convex/_generated/dataModel";
 import ModalPortal from "@/components/ModalPortal";
 
-type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy" | "wydatki";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -3749,6 +3749,132 @@ function LogiTab() {
   );
 }
 
+// --- ExpenseCategoriesTab ---
+function ExpenseCategoriesTab() {
+  const categories = useQuery(api.expenseCategories.list);
+  const createCategory = useMutation(api.expenseCategories.create);
+  const removeCategory = useMutation(api.expenseCategories.remove);
+
+  const [showForm, setShowForm] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await createCategory({ name: formName.trim() });
+      setFormName("");
+      setShowForm(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Błąd zapisu");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (categories === undefined) {
+    return <p className="text-sm text-slate-400">Ładowanie...</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Kategorie wydatków</h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Definiuj kategorie wydatków do przypisywania w rozliczeniach finansowych zleceń.
+          </p>
+        </div>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700"
+          >
+            + Dodaj kategorię
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+          <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">Nowy typ wydatków</h3>
+          <div className="flex gap-3 items-end">
+            <div className="flex-1">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>
+              <input
+                required
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="np. Paliwo, Robocizna, Materiały..."
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Anuluj
+              </button>
+              <button
+                type="submit"
+                disabled={busy}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+              >
+                Zapisz
+              </button>
+            </div>
+          </div>
+          {error && <p className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
+        </form>
+      )}
+
+      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+        <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+          <h3 className="text-sm font-semibold text-slate-900">Zdefiniowane kategorie</h3>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {categories.length === 0 ? (
+            <p className="p-5 text-sm text-slate-500">Brak zdefiniowanych kategorii. Dodaj pierwszą kategorię powyżej.</p>
+          ) : (
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
+                  <th className="px-5 py-3">Nazwa kategorii</th>
+                  <th className="px-5 py-3 text-right">Akcje</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {categories.map((c) => (
+                  <tr key={c._id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-5 py-3.5 font-medium text-slate-800">{c.name}</td>
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        onClick={async () => {
+                          if (confirm(`Czy na pewno chcesz usunąć kategorię "${c.name}"? Przypisane wydatki utracą tę kategorię.`)) {
+                            await removeCategory({ categoryId: c._id });
+                          }
+                        }}
+                        className="text-xs font-semibold text-red-600 hover:text-red-800"
+                      >
+                        Usuń
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- Tabs config ---
 
 const TABS: Array<{ key: Tab; label: string }> = [
@@ -3760,6 +3886,7 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "crm", label: "CRM" },
   { key: "uslugi", label: "Usługi" },
   { key: "dostawcy", label: "Dostawcy" },
+  { key: "wydatki", label: "Kategorie wydatków" },
   { key: "logi", label: "Logi" },
 ];
 
@@ -3804,6 +3931,7 @@ export default function UstawieniaPage() {
       {activeTab === "crm" && <CrmTab />}
       {activeTab === "uslugi" && <ServicesTab />}
       {activeTab === "dostawcy" && <SuppliersTab />}
+      {activeTab === "wydatki" && <ExpenseCategoriesTab />}
       {activeTab === "logi" && <LogiTab />}
 
       {/* ── TEST SENTRY — odkomentuj żeby sprawdzić czy błędy docierają do Sentry ──
