@@ -4515,7 +4515,7 @@ export default function OrderDetailPage({
             </button>
             <button
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={!customExpenseTitle.trim() || !customExpenseAmount.trim()}
+              disabled={!customExpenseTitle.trim() || !customExpenseAmount.trim() || !customExpenseCategory}
               onClick={async () => {
                 try {
                   let grossVal = 0;
@@ -4671,13 +4671,13 @@ export default function OrderDetailPage({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Kategoria wydatku</label>
+            <label className="text-sm font-medium text-gray-700">Kategoria wydatku *</label>
             <select
               className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
               value={customExpenseCategory}
               onChange={(e) => setCustomExpenseCategory(e.target.value)}
             >
-              <option value="">Wybierz kategorię (opcjonalnie)</option>
+              <option value="">Wybierz kategorię...</option>
               {expenseCategories?.map((cat) => (
                 <option key={cat._id} value={cat._id}>
                   {cat.name}
@@ -4755,7 +4755,7 @@ export default function OrderDetailPage({
               </button>
               <button
                 className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={selectedExpense?.remoteId.startsWith("custom_") && (!editExpenseTitle.trim() || !editExpenseAmount.trim())}
+                disabled={!editExpenseCategory || (selectedExpense?.remoteId.startsWith("custom_") && (!editExpenseTitle.trim() || !editExpenseAmount.trim()))}
                 onClick={async () => {
                   if (!selectedExpense) return;
                   try {
@@ -4975,13 +4975,13 @@ export default function OrderDetailPage({
 
             {/* Wspólne pole: Kategoria */}
             <div className="flex flex-col gap-1.5 border-t border-slate-100 pt-4">
-              <label className="text-sm font-semibold text-gray-800">Kategoria wydatku</label>
+              <label className="text-sm font-semibold text-gray-800">Kategoria wydatku *</label>
               <select
                 className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white"
                 value={editExpenseCategory}
                 onChange={(e) => setEditExpenseCategory(e.target.value)}
               >
-                <option value="">Wybierz kategorię (opcjonalnie)</option>
+                <option value="">Wybierz kategorię...</option>
                 {expenseCategories?.map((cat) => (
                   <option key={cat._id} value={cat._id}>
                     {cat.name}
