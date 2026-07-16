@@ -2863,63 +2863,7 @@ export default function OrderDetailPage({
                 )}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                {/* Podsumowanie finansowe (pigułka w rzędzie z Lokalizacją i Terminem montażu) */}
-                {(() => {
-                  const assignedSvcs = order.services ?? [];
-                  if (assignedSvcs.length === 0) return null;
-                  const finances = order.serviceFinances ?? [];
-                  let totalEarnings = 0;
-                  let totalDays = 0;
-                  for (const svc of assignedSvcs) {
-                    const f = finances.find((x) => x.serviceName === svc);
-                    if (f?.earningsAmount) totalEarnings += f.earningsAmount;
-                    if (f?.workDays) totalDays += f.workDays;
-                  }
-                  const avgDailyRate = totalDays > 0 ? totalEarnings / totalDays : 0;
-                  return (
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 12,
-                        padding: "0 14px",
-                        height: 54,
-                        boxSizing: "border-box",
-                        borderRadius: 12,
-                        border: "1px solid var(--line)",
-                        background: "var(--card)",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-                      }}
-                    >
-                      <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: "var(--text-mute)" }}>
-                          SUMA ZAROBKU
-                        </span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ok)", fontFamily: "monospace" }}>
-                          {totalEarnings > 0 ? `${totalEarnings.toLocaleString("pl-PL")} zł` : "—"}
-                        </span>
-                      </div>
-                      <div style={{ width: 1, height: 32, background: "var(--line)" }} />
-                      <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: "var(--text-mute)" }}>
-                          SUMA DNI
-                        </span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace" }}>
-                          {totalDays > 0 ? `${totalDays} dni` : "—"}
-                        </span>
-                      </div>
-                      <div style={{ width: 1, height: 32, background: "var(--line)" }} />
-                      <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: "var(--text-mute)" }}>
-                          ŚREDNIA DNIÓWKA
-                        </span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", fontFamily: "monospace" }}>
-                          {avgDailyRate > 0 ? `${Math.round(avgDailyRate).toLocaleString("pl-PL")} zł/dzień` : "—"}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })()}
+
 
                 <InvestmentLocation
                   orderId={orderIdTyped}
