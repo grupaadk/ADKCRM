@@ -997,6 +997,30 @@ export const assignCategory = mutation({
   },
 });
 
+export const updateCustomExpense = mutation({
+  args: {
+    expenseId: v.id("fakturowniaExpensesCache"),
+    title: v.string(),
+    grossAmount: v.number(),
+    netAmount: v.number(),
+    issueDate: v.optional(v.string()),
+    categoryId: v.optional(v.id("expenseCategories")),
+  },
+  handler: async (ctx, args) => {
+    const exp = await ctx.db.get(args.expenseId);
+    if (!exp || !exp.remoteId.startsWith("custom_")) {
+      throw new Error("Można edytować tylko ręcznie dodane wydatki");
+    }
+    await ctx.db.patch(args.expenseId, {
+      number: args.title,
+      grossAmount: args.grossAmount,
+      netAmount: args.netAmount,
+      issueDate: args.issueDate || new Date().toISOString().split("T")[0],
+      categoryId: args.categoryId,
+    });
+  },
+});
+
 export const deleteCustomExpense = mutation({
   args: { expenseId: v.id("fakturowniaExpensesCache") },
   handler: async (ctx, args) => {

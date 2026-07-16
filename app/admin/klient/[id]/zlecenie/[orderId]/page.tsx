@@ -1354,29 +1354,13 @@ function InvoicesTableGroup({
 function ExpensesTableGroup({
   expenses,
   fakturowniaConfig,
-  unassignExpense,
-  deleteCustomExpense,
-  updateCustomExpenseNet,
-  calculateNet,
-  editingVatExpenseId,
-  editingVatRate,
-  setEditingVatExpenseId,
-  setEditingVatRate,
   categories,
-  assignCategory,
+  onSelectExpense,
 }: {
   expenses: (CachedExpense & { categoryId?: Id<"expenseCategories"> })[];
   fakturowniaConfig: { subdomain?: string } | null | undefined;
-  unassignExpense: (args: { expenseId: Id<"fakturowniaExpensesCache"> }) => void;
-  deleteCustomExpense: (args: { expenseId: Id<"fakturowniaExpensesCache"> }) => void;
-  updateCustomExpenseNet: (args: { expenseId: Id<"fakturowniaExpensesCache">; netAmount: number }) => Promise<unknown>;
-  calculateNet: (grossVal: string, vatVal: string) => number;
-  editingVatExpenseId: string | null;
-  editingVatRate: string;
-  setEditingVatExpenseId: (id: string | null) => void;
-  setEditingVatRate: (rate: string) => void;
   categories: { _id: Id<"expenseCategories">; name: string }[];
-  assignCategory: (args: { expenseId: Id<"fakturowniaExpensesCache">; categoryId?: Id<"expenseCategories"> }) => Promise<unknown>;
+  onSelectExpense: (exp: CachedExpense) => void;
 }) {
   if (expenses.length === 0) return null;
   const totalNet = expenses.reduce((s, i) => s + (i.netAmount ?? 0), 0);
@@ -1410,7 +1394,7 @@ function ExpensesTableGroup({
         <div className="flex items-center gap-4">
           <div className="text-right">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Suma wydatków ({expenses.length} {expenses.length === 1 ? "szt." : "szt."})
+              Suma wydatków ({expenses.length} szt.)
             </div>
             <div className="text-sm font-bold text-slate-900 tabular-nums">
               {totalNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}{" "}
@@ -1423,16 +1407,14 @@ function ExpensesTableGroup({
       <TableRoot className="w-full overflow-hidden">
         <Table style={{ tableLayout: "fixed", width: "100%" }}>
           <colgroup>
+            <col style={{ width: "18%" }} />
             <col style={{ width: "16%" }} />
-            <col style={{ width: "13%" }} />
             <col style={{ width: "15%" }} />
-            <col style={{ width: "10%" }} />
+            <col style={{ width: "11%" }} />
             <col style={{ width: "10%" }} />
             <col style={{ width: "11%" }} />
             <col style={{ width: "11%" }} />
-            <col style={{ width: "6%" }} />
-            <col style={{ width: "4%" }} />
-            <col style={{ width: "4%" }} />
+            <col style={{ width: "8%" }} />
           </colgroup>
           <TableHead>
             <TableRow>
@@ -1444,8 +1426,6 @@ function ExpensesTableGroup({
               <TableHeaderCell style={{ textAlign: "right" }}>Netto</TableHeaderCell>
               <TableHeaderCell style={{ textAlign: "right" }}>Brutto</TableHeaderCell>
               <TableHeaderCell style={{ textAlign: "center" }}>VAT%</TableHeaderCell>
-              <TableHeaderCell />
-              <TableHeaderCell />
             </TableRow>
           </TableHead>
           <TableBody>
@@ -1453,8 +1433,6 @@ function ExpensesTableGroup({
               const expUrl = fakturowniaConfig?.subdomain && !exp.remoteId.startsWith("custom_")
                 ? `https://${fakturowniaConfig.subdomain}.fakturownia.pl/invoices/${exp.remoteId}`
                 : null;
-              const isCustom = exp.remoteId.startsWith("custom_");
-              const isEditingVat = editingVatExpenseId === exp._id;
 
               // Derive VAT rate from stored gross/net
               const vatRateLabel = (() => {
@@ -1466,8 +1444,14 @@ function ExpensesTableGroup({
                 return `${rate}%`;
               })();
 
+              const categoryName = categories.find((c) => c._id === exp.categoryId)?.name || "—";
+
               return (
-                <TableRow key={exp._id} className="hover:bg-gray-50 transition-colors">
+                <TableRow
+                  key={exp._id}
+                  className="hover:bg-slate-50 transition-colors cursor-pointer"
+                  onClick={() => onSelectExpense(exp)}
+                >
                   <TableCell className="whitespace-nowrap font-mono text-sm text-gray-900 truncate">
                     <div className="flex items-center gap-1.5">
                       {exp.number ?? <span className="text-gray-400">#${exp.remoteId}</span>}
@@ -1477,6 +1461,7 @@ function ExpensesTableGroup({
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-gray-400 hover:text-blue-500 transition-colors"
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <svg
                             className="h-3.5 w-3.5"
@@ -1498,25 +1483,8 @@ function ExpensesTableGroup({
                   <TableCell className="truncate text-sm text-gray-900 font-medium">
                     {exp.sellerName || "—"}
                   </TableCell>
-                  <TableCell className="text-sm">
-                    <select
-                      value={exp.categoryId ?? ""}
-                      onChange={async (e) => {
-                        const val = e.target.value;
-                        await assignCategory({
-                          expenseId: exp._id,
-                          categoryId: val ? (val as Id<"expenseCategories">) : undefined,
-                        });
-                      }}
-                      className="w-full rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-800 bg-white hover:border-gray-300 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
-                    >
-                      <option value="">Wybierz...</option>
-                      {categories.map((c) => (
-                        <option key={c._id} value={c._id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
+                  <TableCell className="truncate text-sm font-semibold text-slate-700">
+                    {categoryName}
                   </TableCell>
                   <TableCell className="truncate">
                     {exp.status ? (
@@ -1568,85 +1536,8 @@ function ExpensesTableGroup({
                       <span className="text-gray-400">—</span>
                     )}
                   </TableCell>
-                  {/* Kolumna VAT% */}
-                  <TableCell className="text-center">
-                    {isCustom ? (
-                      isEditingVat ? (
-                        <div className="flex items-center gap-1">
-                          <select
-                            className="rounded border border-blue-300 px-1 py-0.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                            value={editingVatRate}
-                            onChange={(e) => setEditingVatRate(e.target.value)}
-                            autoFocus
-                          >
-                            <option value="23">23%</option>
-                            <option value="8">8%</option>
-                            <option value="5">5%</option>
-                            <option value="0">0%</option>
-                            <option value="exempt">Bez VAT</option>
-                          </select>
-                          <button
-                            onClick={async () => {
-                              if (!exp.grossAmount) return;
-                              const newNet = calculateNet(String(exp.grossAmount), editingVatRate);
-                              await updateCustomExpenseNet({ expenseId: exp._id, netAmount: newNet });
-                              setEditingVatExpenseId(null);
-                            }}
-                            className="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-blue-700"
-                          >
-                            ✓
-                          </button>
-                          <button
-                            onClick={() => setEditingVatExpenseId(null)}
-                            className="rounded px-1 py-0.5 text-[10px] text-gray-400 hover:text-gray-600"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setEditingVatExpenseId(exp._id);
-                            // Derive current rate to prefill
-                            const g = exp.grossAmount ?? 0;
-                            const n = exp.netAmount ?? 0;
-                            if (Math.abs(g - n) < 0.01) setEditingVatRate("exempt");
-                            else {
-                              const rate = Math.round((g / n - 1) * 100);
-                              if ([23, 8, 5, 0].includes(rate)) setEditingVatRate(String(rate));
-                              else setEditingVatRate("23");
-                            }
-                          }}
-                          className="group flex items-center gap-0.5 text-[11px] font-semibold text-slate-600 hover:text-blue-600 transition-colors"
-                          title="Edytuj stawkę VAT"
-                        >
-                          <span className="tabular-nums">{vatRateLabel}</span>
-                          <svg className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                          </svg>
-                        </button>
-                      )
-                    ) : (
-                      <span className="text-[11px] font-semibold text-slate-500 tabular-nums">{vatRateLabel}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right" />
-                  <TableCell className="text-right">
-                    {isCustom ? (
-                      <button
-                        onClick={() => deleteCustomExpense({ expenseId: exp._id })}
-                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 ml-auto"
-                      >
-                        Usuń
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => unassignExpense({ expenseId: exp._id })}
-                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 ml-auto"
-                      >
-                        Odepnij
-                      </button>
-                    )}
+                  <TableCell className="text-center text-xs font-semibold text-slate-600 tabular-nums">
+                    {vatRateLabel}
                   </TableCell>
                 </TableRow>
               );
@@ -1655,7 +1546,7 @@ function ExpensesTableGroup({
           <TableFoot>
             <TableRow className="bg-gray-50 font-semibold">
               <TableCell
-                colSpan={4}
+                colSpan={5}
                 className="text-xs font-semibold text-gray-500 uppercase tracking-wide"
                 style={{ whiteSpace: "nowrap" }}
               >
@@ -1668,14 +1559,14 @@ function ExpensesTableGroup({
                 })}{" "}
                 {currency}
               </TableCell>
-              <TableCell className="text-right tabular-nums text-xs text-gray-400 whitespace-nowrap font-normal">
+              <TableCell className="text-right tabular-nums text-sm text-gray-900 whitespace-nowrap font-bold">
                 {totalGross.toLocaleString("pl-PL", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}{" "}
                 {currency}
               </TableCell>
-              <TableCell colSpan={3} />
+              <TableCell />
             </TableRow>
           </TableFoot>
         </Table>
@@ -1725,8 +1616,13 @@ export default function OrderDetailPage({
   const [customExpenseAmount, setCustomExpenseAmount] = useState("");
   const [customExpenseVatRate, setCustomExpenseVatRate] = useState("23");
   const [customExpenseInputMode, setCustomExpenseInputMode] = useState<"brutto" | "netto">("brutto");
-  const [editingVatExpenseId, setEditingVatExpenseId] = useState<string | null>(null);
-  const [editingVatRate, setEditingVatRate] = useState("23");
+  const [selectedExpense, setSelectedExpense] = useState<CachedExpense | null>(null);
+  const [editExpenseTitle, setEditExpenseTitle] = useState("");
+  const [editExpenseAmount, setEditExpenseAmount] = useState("");
+  const [editExpenseVatRate, setEditExpenseVatRate] = useState("23");
+  const [editExpenseInputMode, setEditExpenseInputMode] = useState<"brutto" | "netto">("brutto");
+  const [editExpenseDate, setEditExpenseDate] = useState("");
+  const [editExpenseCategory, setEditExpenseCategory] = useState("");
   const [customExpenseDate, setCustomExpenseDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [customExpenseCategory, setCustomExpenseCategory] = useState<string>("");
   
@@ -1778,7 +1674,7 @@ export default function OrderDetailPage({
   const unassignExpense = useMutation(api.fakturownia.unassignExpense);
   const addCustomExpense = useMutation(api.fakturownia.addCustomExpense);
   const deleteCustomExpense = useMutation(api.fakturownia.deleteCustomExpense);
-  const updateCustomExpenseNet = useMutation(api.fakturownia.updateCustomExpenseNet);
+  const updateCustomExpense = useMutation(api.fakturownia.updateCustomExpense);
   const expenseCategories = useQuery(api.expenseCategories.list);
   const assignCategory = useMutation(api.fakturownia.assignCategory);
   const paymentReminders = useQuery(api.paymentReminders.listByOrder, {
@@ -4292,16 +4188,32 @@ export default function OrderDetailPage({
               <ExpensesTableGroup
                 expenses={expenses}
                 fakturowniaConfig={fakturowniaConfig}
-                unassignExpense={unassignExpense}
-                deleteCustomExpense={deleteCustomExpense}
-                updateCustomExpenseNet={updateCustomExpenseNet}
-                calculateNet={calculateNet}
-                editingVatExpenseId={editingVatExpenseId}
-                editingVatRate={editingVatRate}
-                setEditingVatExpenseId={setEditingVatExpenseId}
-                setEditingVatRate={setEditingVatRate}
                 categories={expenseCategories ?? []}
-                assignCategory={assignCategory}
+                onSelectExpense={(exp) => {
+                  const isCustom = exp.remoteId.startsWith("custom_");
+                  setSelectedExpense(exp);
+                  setEditExpenseCategory(exp.categoryId ?? "");
+                  if (isCustom) {
+                    setEditExpenseTitle(exp.number ?? "");
+                    setEditExpenseAmount(exp.grossAmount?.toString() ?? "");
+                    setEditExpenseInputMode("brutto");
+                    setEditExpenseDate(exp.issueDate ?? "");
+                    // Derive VAT rate
+                    const g = exp.grossAmount;
+                    const n = exp.netAmount;
+                    if (g && n && g !== 0) {
+                      const rate = Math.round((g / n - 1) * 100);
+                      setEditExpenseVatRate(rate.toString());
+                    } else {
+                      setEditExpenseVatRate("23");
+                    }
+                  } else {
+                    setEditExpenseTitle("");
+                    setEditExpenseAmount("");
+                    setEditExpenseDate("");
+                    setEditExpenseVatRate("23");
+                  }
+                }}
               />
             )}
           </SectionCard>
@@ -4774,6 +4686,311 @@ export default function OrderDetailPage({
             </select>
           </div>
         </div>
+      </SideDrawer>
+
+      {/* Drawer: Szczegóły / Edycja Wydatku */}
+      <SideDrawer
+        open={!!selectedExpense}
+        onClose={() => {
+          setSelectedExpense(null);
+          setEditExpenseTitle("");
+          setEditExpenseAmount("");
+          setEditExpenseVatRate("23");
+          setEditExpenseInputMode("brutto");
+          setEditExpenseDate("");
+          setEditExpenseCategory("");
+        }}
+        title={selectedExpense?.remoteId.startsWith("custom_") ? "Edycja wydatku" : "Szczegóły wydatku"}
+        width={400}
+        footer={
+          <div className="flex items-center justify-between w-full">
+            {selectedExpense?.remoteId.startsWith("custom_") ? (
+              <button
+                className="rounded-md bg-red-50 border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-100"
+                onClick={async () => {
+                  if (selectedExpense && confirm("Czy na pewno chcesz usunąć ten wydatek?")) {
+                    try {
+                      await deleteCustomExpense({ expenseId: selectedExpense._id });
+                      setSelectedExpense(null);
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : String(err));
+                    }
+                  }
+                }}
+              >
+                Usuń
+              </button>
+            ) : selectedExpense ? (
+              <button
+                className="rounded-md bg-red-50 border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-100"
+                onClick={async () => {
+                  if (confirm("Czy na pewno chcesz odpiąć ten wydatek od zlecenia?")) {
+                    try {
+                      await unassignExpense({ expenseId: selectedExpense._id });
+                      setSelectedExpense(null);
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : String(err));
+                    }
+                  }
+                }}
+              >
+                Odepnij od zlecenia
+              </button>
+            ) : <div />}
+
+            <div className="flex items-center gap-3">
+              <button
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                onClick={() => {
+                  setSelectedExpense(null);
+                  setEditExpenseTitle("");
+                  setEditExpenseAmount("");
+                  setEditExpenseVatRate("23");
+                  setEditExpenseInputMode("brutto");
+                  setEditExpenseDate("");
+                  setEditExpenseCategory("");
+                }}
+              >
+                Anuluj
+              </button>
+              <button
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={selectedExpense?.remoteId.startsWith("custom_") && (!editExpenseTitle.trim() || !editExpenseAmount.trim())}
+                onClick={async () => {
+                  if (!selectedExpense) return;
+                  try {
+                    const isCustom = selectedExpense.remoteId.startsWith("custom_");
+                    const catId = editExpenseCategory ? (editExpenseCategory as Id<"expenseCategories">) : undefined;
+                    if (isCustom) {
+                      let grossVal = 0;
+                      let netVal = 0;
+                      if (editExpenseInputMode === "brutto") {
+                        grossVal = parseFloat(editExpenseAmount);
+                        netVal = calculateNet(editExpenseAmount, editExpenseVatRate);
+                      } else {
+                        netVal = parseFloat(editExpenseAmount);
+                        grossVal = calculateGross(editExpenseAmount, editExpenseVatRate);
+                      }
+
+                      if (isNaN(grossVal) || isNaN(netVal)) {
+                        throw new Error("Wprowadź poprawną kwotę");
+                      }
+
+                      await updateCustomExpense({
+                        expenseId: selectedExpense._id,
+                        title: editExpenseTitle.trim(),
+                        grossAmount: grossVal,
+                        netAmount: netVal,
+                        issueDate: editExpenseDate || undefined,
+                        categoryId: catId,
+                      });
+                    } else {
+                      await assignCategory({
+                        expenseId: selectedExpense._id,
+                        categoryId: catId,
+                      });
+                    }
+                    setSelectedExpense(null);
+                  } catch (err) {
+                    alert(err instanceof Error ? err.message : String(err));
+                  }
+                }}
+              >
+                Zapisz
+              </button>
+            </div>
+          </div>
+        }
+      >
+        {selectedExpense && (
+          <div className="flex flex-col gap-4 p-5">
+            {selectedExpense.remoteId.startsWith("custom_") ? (
+              <>
+                {/* Ręczny koszt - pełna edycja */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-gray-700">Wprowadzana kwota</label>
+                  <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5 w-full">
+                    <button
+                      onClick={() => {
+                        setEditExpenseInputMode("brutto");
+                        setEditExpenseAmount("");
+                      }}
+                      className={`flex-1 rounded-md py-1.5 text-xs font-semibold text-center transition-all ${
+                        editExpenseInputMode === "brutto"
+                          ? "bg-white text-slate-800 shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      Brutto
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditExpenseInputMode("netto");
+                        setEditExpenseAmount("");
+                      }}
+                      className={`flex-1 rounded-md py-1.5 text-xs font-semibold text-center transition-all ${
+                        editExpenseInputMode === "netto"
+                          ? "bg-white text-slate-800 shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      Netto
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-gray-700">Tytuł / Nazwa wydatku *</label>
+                  <input
+                    type="text"
+                    className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    value={editExpenseTitle}
+                    onChange={(e) => setEditExpenseTitle(e.target.value)}
+                    placeholder="np. Paliwo, Materiały pomocnicze"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-gray-700">
+                    {editExpenseInputMode === "brutto" ? "Kwota brutto (PLN) *" : "Kwota netto (PLN) *"}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    value={editExpenseAmount}
+                    onChange={(e) => setEditExpenseAmount(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-gray-700">Stawka VAT</label>
+                  <select
+                    className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white"
+                    value={editExpenseVatRate}
+                    onChange={(e) => setEditExpenseVatRate(e.target.value)}
+                  >
+                    <option value="23">23%</option>
+                    <option value="8">8%</option>
+                    <option value="5">5%</option>
+                    <option value="0">0%</option>
+                    <option value="exempt">Zwolniony / Bez VAT</option>
+                  </select>
+                  {editExpenseAmount && !isNaN(parseFloat(editExpenseAmount)) && (
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {editExpenseInputMode === "brutto" ? (
+                        <>
+                          Obliczona kwota netto:{" "}
+                          <span className="font-semibold text-slate-700">
+                            {calculateNet(editExpenseAmount, editExpenseVatRate).toLocaleString("pl-PL", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            PLN
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          Obliczona kwota brutto:{" "}
+                          <span className="font-semibold text-slate-700">
+                            {calculateGross(editExpenseAmount, editExpenseVatRate).toLocaleString("pl-PL", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            PLN
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-gray-700">Data wydatku</label>
+                  <input
+                    type="date"
+                    className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    value={editExpenseDate}
+                    onChange={(e) => setEditExpenseDate(e.target.value)}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Koszt z Fakturowni - tylko do odczytu */}
+                <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-sm">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Numer</span>
+                    <p className="font-semibold text-slate-800 m-0 mt-0.5 font-mono">{selectedExpense.number || "—"}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sprzedawca</span>
+                    <p className="font-semibold text-slate-800 m-0 mt-0.5 truncate" title={selectedExpense.sellerName}>{selectedExpense.sellerName || "—"}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Status</span>
+                    <p className="m-0 mt-0.5">
+                      {selectedExpense.status ? (
+                        <span
+                          style={{
+                            ...(STATUS_STYLES[selectedExpense.status] || {
+                              background: "#f3f4f6",
+                              color: "#475569",
+                              border: "1px solid #cbd5e1",
+                            }),
+                            padding: "2px 6px",
+                            borderRadius: "9999px",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            display: "inline-block",
+                          }}
+                        >
+                          {STATUS_LABELS[selectedExpense.status] ?? selectedExpense.status}
+                        </span>
+                      ) : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Data</span>
+                    <p className="font-semibold text-slate-800 m-0 mt-0.5">
+                      {selectedExpense.issueDate ? new Date(selectedExpense.issueDate).toLocaleDateString("pl-PL") : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Netto</span>
+                    <p className="font-bold text-slate-800 m-0 mt-0.5 tabular-nums">
+                      {selectedExpense.netAmount != null ? `${selectedExpense.netAmount.toLocaleString("pl-PL", { minimumFractionDigits: 2 })} ${selectedExpense.currency ?? "PLN"}` : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Brutto</span>
+                    <p className="font-semibold text-slate-500 m-0 mt-0.5 tabular-nums">
+                      {selectedExpense.grossAmount != null ? `${selectedExpense.grossAmount.toLocaleString("pl-PL", { minimumFractionDigits: 2 })} ${selectedExpense.currency ?? "PLN"}` : "—"}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Wspólne pole: Kategoria */}
+            <div className="flex flex-col gap-1.5 border-t border-slate-100 pt-4">
+              <label className="text-sm font-semibold text-gray-800">Kategoria wydatku</label>
+              <select
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white"
+                value={editExpenseCategory}
+                onChange={(e) => setEditExpenseCategory(e.target.value)}
+              >
+                <option value="">Wybierz kategorię (opcjonalnie)</option>
+                {expenseCategories?.map((cat) => (
+                  <option key={cat._id} value={cat._id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
       </SideDrawer>
 
       {showExpenseModal && (
