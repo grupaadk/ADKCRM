@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import type { ActionCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
-import { query, mutation, action, internalMutation, internalAction } from "./_generated/server";
+import { query, mutation, action, internalMutation, internalAction, internalQuery } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { encrypt, decrypt } from "./lib/crypto";
 import { getAuthUserId } from "@convex-dev/auth/server";
@@ -480,6 +480,23 @@ async function createDriveFolder(
   };
 }
 
+async function renameDriveFolder(
+  ctx: ActionCtx,
+  folderId: string,
+  newName: string,
+) {
+  await driveApiFetchWithRetry(
+    ctx,
+    `/files/${folderId}?supportsAllDrives=true`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: newName,
+      }),
+    },
+  );
+}
+
 async function uploadFileToDrive(
   ctx: ActionCtx,
   fileUrl: string,
@@ -922,9 +939,9 @@ export const createClientFolderForOpportunity = action({
           const client = await ctx.runQuery(api.clients.getById, { clientId: opp.clientId });
           clientFolderName = client?.clientType === "business" && client.companyName
             ? client.companyName
-            : `${opp.firstName}_${opp.lastName}`;
+            : `${opp.lastName}_${opp.firstName}`;
         } else {
-          clientFolderName = `${opp.firstName}_${opp.lastName}`;
+          clientFolderName = `${opp.lastName}_${opp.firstName}`;
         }
 
         await log("info", "creating client folder", { clientFolderName });
@@ -1114,7 +1131,7 @@ export const createOrderFolder = action({
       if (!clientFolderId) {
         const clientFolderName = client.clientType === "business" && client.companyName
           ? client.companyName
-          : `${client.firstName}_${client.lastName}`;
+          : `${client.lastName}_${client.firstName}`;
         await log("info", "creating client folder", { clientFolderName, parentId: CLIENTS_FOLDER_ID });
         const { id, url: clientFolderUrl } = await createDriveFolder(
           ctx,
@@ -1379,7 +1396,7 @@ export const createClientFolder = action({
 
       const clientFolderName = client.clientType === "business" && client.companyName
         ? client.companyName
-        : `${client.firstName}_${client.lastName}`;
+        : `${client.lastName}_${client.firstName}`;
       await log("info", "creating Drive folder", { clientFolderName, parentId: CLIENTS_FOLDER_ID });
 
       const { id, url: clientFolderUrl } = await createDriveFolder(ctx, clientFolderName, CLIENTS_FOLDER_ID);
@@ -3086,5 +3103,77 @@ export const createOrderFolderInDrive = action({
       id: folder.id,
       url: `https://drive.google.com/drive/folders/${folder.id}`,
     };
+  },
+});
+
+export const getRenameTargets = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const clients = await ctx.db.query("clients").collect();
+    const pendings = await ctx.db
+      .query("pendingJotformSubmissions")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("processed"), false),
+          q.neq(q.field("archived"), true),
+          q.neq(q.field("clientFolderId"), undefined),
+        )
+      )
+      .collect();
+
+    return {
+      clients: clients.map((c) => ({
+        id: c._id,
+        clientType: c.clientType,
+        companyName: c.companyName,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        clientFolderId: c.clientFolderId,
+      })),
+      pendings: pendings.map((p) => ({
+        id: p._id,
+        clientId: p.clientId,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        clientFolderId: p.clientFolderId,
+      })),
+    };
+  },
+});
+
+export const backfillRenameClientFolders = action({
+  args: {},
+  returns: v.string(),
+  handler: async (ctx) => {
+    const { clients, pendings } = await ctx.runQuery(internal.googleDrive.getRenameTargets);
+
+    let count = 0;
+    // 1. Rename folders for clients
+    for (const client of clients) {
+      if (client.clientType !== "business" && client.clientFolderId) {
+        const newFolderName = `${client.lastName}_${client.firstName}`;
+        try {
+          await renameDriveFolder(ctx, client.clientFolderId, newFolderName);
+          count++;
+        } catch (e) {
+          console.error(`Failed to rename folder ${client.clientFolderId} to ${newFolderName}:`, e);
+        }
+      }
+    }
+
+    // 2. Rename folders for stand-alone opportunities
+    for (const pending of pendings) {
+      if (!pending.clientId && pending.clientFolderId) {
+        const newFolderName = `${pending.lastName}_${pending.firstName}`;
+        try {
+          await renameDriveFolder(ctx, pending.clientFolderId, newFolderName);
+          count++;
+        } catch (e) {
+          console.error(`Failed to rename pending opportunity folder ${pending.clientFolderId} to ${newFolderName}:`, e);
+        }
+      }
+    }
+
+    return `Zaktualizowano nazwy ${count} folderów na Google Drive (Format: Nazwisko_Imię).`;
   },
 });
