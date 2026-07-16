@@ -1801,7 +1801,6 @@ export default function OrderDetailPage({
   const [editingCustomText, setEditingCustomText] = useState(false);
   const [customTextDraft, setCustomTextDraft] = useState("");
   const [editingServices, setEditingServices] = useState(false);
-  const [showFinances, setShowFinances] = useState(false);
   const [draftServices, setDraftServices] = useState<string[]>([]);
   const [editingDeliverySvc, setEditingDeliverySvc] = useState<string | null>(null);
   // Edycja jednej usługi = lista wpisów (po jednym na zaznaczonego dostawcę).
@@ -3240,30 +3239,7 @@ export default function OrderDetailPage({
                     {(order.services ?? []).length > 0 ? "Zarządzaj usługami" : "Dodaj usługi"}
                   </button>
 
-                  {(order.services ?? []).length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowFinances(!showFinances)}
-                      className="btn"
-                      style={{
-                        fontSize: 11.5,
-                        padding: "5px 12px",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        fontWeight: 600,
-                        background: showFinances ? "var(--accent-soft)" : "transparent",
-                        color: showFinances ? "var(--accent)" : "var(--text-mute)",
-                        border: showFinances ? "1px solid var(--accent-line)" : "1px solid var(--line)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-1.97-.659-1.171-.879-1.171-2.303 0-3.182 1.172-.879 3.07-.879 4.242 0L15 9M8 12h8" />
-                      </svg>
-                      {showFinances ? "Ukryj finanse" : "Zarządzaj finansami"}
-                    </button>
-                  )}
+
                 </div>
               </div>
 
@@ -3346,14 +3322,14 @@ export default function OrderDetailPage({
                   Brak przypisanych usług w zleceniu — kliknij przycisk <strong>„Dodaj usługi”</strong> powyżej, aby dodać zakres prac i wprowadzić ich wycenę.
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: showFinances ? "repeat(auto-fill, minmax(290px, 1fr))" : "repeat(auto-fill, minmax(210px, 1fr))", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14 }}>
                   {(order.services ?? []).map((svcName) => {
                     const f = (order.serviceFinances ?? []).find((x) => x.serviceName === svcName);
                     const earnings = f?.earningsAmount;
                     const days = f?.workDays;
                     const dailyRate = earnings && days && days > 0 ? earnings / days : null;
                     const isEditingThis = editingFinanceSvc === svcName;
-                    const displayFinanceInfo = showFinances || isEditingThis;
+                    const displayFinanceInfo = isEditingThis;
 
                     return (
                       <div
