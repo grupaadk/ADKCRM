@@ -27,6 +27,7 @@ const STATUS_PATH: Record<ClientStatus, ClientStatus[]> = {
 };
 
 async function createOrderAtStatus(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: any,
   targetStatus: ClientStatus,
 ) {

@@ -111,6 +111,7 @@ function OrderCard({
   const didDragRef = useRef(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [daysInStatusLabel, setDaysInStatusLabel] = useState<string | null>(null)
+  const [daysInStatusColor, setDaysInStatusColor] = useState<string>("slate")
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -120,9 +121,22 @@ function OrderCard({
       }
       const diffMs = Date.now() - item.statusChangedAt
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-      if (diffDays <= 0) setDaysInStatusLabel("dzisiaj")
-      else if (diffDays === 1) setDaysInStatusLabel("1 dzień")
-      else setDaysInStatusLabel(`${diffDays} dni`)
+      if (diffDays <= 0) {
+        setDaysInStatusLabel("dzisiaj")
+        setDaysInStatusColor("slate")
+      } else if (diffDays === 1) {
+        setDaysInStatusLabel("1 dzień")
+        setDaysInStatusColor("slate")
+      } else {
+        setDaysInStatusLabel(`${diffDays} dni`)
+        if (diffDays >= 7) {
+          setDaysInStatusColor("red")
+        } else if (diffDays >= 3) {
+          setDaysInStatusColor("amber")
+        } else {
+          setDaysInStatusColor("slate")
+        }
+      }
     }, 0)
     return () => clearTimeout(timer)
   }, [item.statusChangedAt])
@@ -224,8 +238,29 @@ function OrderCard({
           )}
           {daysInStatusLabel && (
             <div style={{ display: "flex", marginTop: 4 }}>
-              <span className="inline-flex items-center gap-1 rounded bg-slate-50 px-1.5 py-0.5 font-medium text-[9.5px] text-slate-500 border border-slate-200/40" title={`Czas w tym statusie: ${daysInStatusLabel}`}>
-                <svg className="size-2.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <span 
+                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium text-[9.5px] border ${
+                  daysInStatusColor === "red"
+                    ? "bg-red-50 text-red-600 border-red-200/40"
+                    : daysInStatusColor === "amber"
+                    ? "bg-amber-50 text-amber-600 border-amber-200/40"
+                    : "bg-slate-50 text-slate-500 border-slate-200/40"
+                }`}
+                title={`Czas w tym statusie: ${daysInStatusLabel}`}
+              >
+                <svg 
+                  className={`size-2.5 ${
+                    daysInStatusColor === "red"
+                      ? "text-red-400"
+                      : daysInStatusColor === "amber"
+                      ? "text-amber-400"
+                      : "text-slate-400"
+                  }`} 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor" 
+                  strokeWidth={2.5}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                 </svg>
                 <span className="tabular-nums">{daysInStatusLabel}</span>
