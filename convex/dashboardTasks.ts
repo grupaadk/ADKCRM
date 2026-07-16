@@ -38,6 +38,12 @@ export type DashboardTask = {
     name: string | null;
     color?: string;
   }[];
+  labelIds?: Id<"taskLabels">[];
+  labels?: {
+    id: Id<"taskLabels">;
+    title: string;
+    color: string;
+  }[];
 };
 
 function clientName(client: Doc<"clients"> | null): string {
@@ -100,6 +106,9 @@ export const list = query({
     const oppCache = new Map<string, Doc<"pendingJotformSubmissions"> | null>();
     const complaintCache = new Map<string, Doc<"complaints"> | null>();
 
+    const allLabels = await ctx.db.query("taskLabels").collect();
+    const labelMap = new Map(allLabels.map((l) => [l._id, l]));
+
     const result = await Promise.all(
       tasks.map(async (task): Promise<DashboardTask | null> => {
         let assignedUser: Doc<"users"> | null = null;
@@ -134,11 +143,22 @@ export const list = query({
 
         const finalAssignees = resolvedAssignees.filter((u): u is NonNullable<typeof u> => u !== null);
 
+        const resolvedLabels = (task.labelIds || [])
+          .map((id) => labelMap.get(id))
+          .filter((l): l is Doc<"taskLabels"> => !!l)
+          .map((l) => ({
+            id: l._id,
+            title: l.title,
+            color: l.color,
+          }));
+
         const assigneeProps = {
           assignedUserId: task.assignedUserId,
           assignedUserName: assignedUser?.displayName ?? assignedUser?.email ?? null,
           assignedUserColor: assignedUser?.color ?? undefined,
           assignees: finalAssignees,
+          labelIds: task.labelIds,
+          labels: resolvedLabels,
         };
 
         // Zadanie szansy sprzedaży
@@ -320,11 +340,26 @@ export const getOne = query({
 
     const finalAssignees = resolvedAssignees.filter((u): u is NonNullable<typeof u> => u !== null);
 
+    const resolvedLabels = await Promise.all(
+      (task.labelIds || []).map(async (id) => {
+        const l = await ctx.db.get(id);
+        if (!l) return null;
+        return {
+          id: l._id,
+          title: l.title,
+          color: l.color,
+        };
+      })
+    );
+    const finalLabels = resolvedLabels.filter((l): l is NonNullable<typeof l> => l !== null);
+
     const assigneeProps = {
       assignedUserId: task.assignedUserId,
       assignedUserName: assignedUser?.displayName ?? assignedUser?.email ?? null,
       assignedUserColor: assignedUser?.color ?? undefined,
       assignees: finalAssignees,
+      labelIds: task.labelIds,
+      labels: finalLabels,
     };
 
     if (task.opportunityId) {

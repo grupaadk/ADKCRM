@@ -725,11 +725,18 @@ export default defineSchema({
     assignedUserIds: v.optional(v.array(v.id("users"))),
     createdBy: v.string(),
     position: v.optional(v.number()),
+    labelIds: v.optional(v.array(v.id("taskLabels"))),
   })
     .index("by_order", ["orderId"])
     .index("by_opportunity", ["opportunityId"])
     .index("by_complaint", ["complaintId"])
     .index("by_assignee", ["assignedUserId"]),
+
+  // 3.20.b Etykiety dla zadań (Trello-like labels)
+  taskLabels: defineTable({
+    title: v.string(),
+    color: v.string(), // Hex color, np. "#ef4444"
+  }),
 
   // 3.21 Komentarze do zadań
   taskComments: defineTable({

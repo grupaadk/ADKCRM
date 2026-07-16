@@ -7,7 +7,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { uColor, uInitials } from "@/lib/userColor";
 import SideDrawer from "@/components/SideDrawer";
-import { ExternalLink, Trash2, Send, ChevronDown, UserPlus, Check, X, Search, Flame } from "lucide-react";
+import { ExternalLink, Trash2, Send, ChevronDown, UserPlus, Check, X, Search, Flame, Tag, Pencil } from "lucide-react";
 
 const STATUSES = [
   { key: "todo" as const, label: "Do zrobienia", accent: "#64748b", bg: "#f8fafc" },
@@ -15,6 +15,19 @@ const STATUSES = [
   { key: "done" as const, label: "Gotowe", accent: "#16a34a", bg: "#f0fdf4" },
 ];
 type StatusKey = (typeof STATUSES)[number]["key"];
+
+const PRESET_COLORS = [
+  { name: "Zielony", hex: "#22c55e" },
+  { name: "Żółty", hex: "#eab308" },
+  { name: "Pomarańczowy", hex: "#f97316" },
+  { name: "Czerwony", hex: "#ef4444" },
+  { name: "Fioletowy", hex: "#a855f7" },
+  { name: "Niebieski", hex: "#3b82f6" },
+  { name: "Błękitny", hex: "#0ea5e9" },
+  { name: "Różowy", hex: "#ec4899" },
+  { name: "Limonkowy", hex: "#84cc16" },
+  { name: "Szary", hex: "#64748b" },
+];
 
 type AssignUser = { _id: Id<"users">; displayName?: string | null; login?: string | null; color?: string };
 
@@ -61,6 +74,35 @@ export default function TaskDrawer({
   const [assignType, setAssignType] = useState<"order" | "opportunity">("order");
   const [assignSearch, setAssignSearch] = useState("");
 
+  // Label management state
+  const [labelsOpen, setLabelsOpen] = useState(false);
+  const labelsRef = useRef<HTMLDivElement>(null);
+  const [labelSearch, setLabelSearch] = useState("");
+  const [editingLabelId, setEditingLabelId] = useState<Id<"taskLabels"> | null>(null);
+  const [isCreatingLabel, setIsCreatingLabel] = useState(false);
+  const [newLabelTitle, setNewLabelTitle] = useState("");
+  const [newLabelColor, setNewLabelColor] = useState("#22c55e"); // Green default
+
+  const allLabels = useQuery(api.taskLabels.list) ?? [];
+  const createLabel = useMutation(api.taskLabels.create);
+  const updateLabelMutation = useMutation(api.taskLabels.update);
+  const removeLabelMutation = useMutation(api.taskLabels.remove);
+
+  async function toggleLabel(labelId: Id<"taskLabels">) {
+    if (!shownId || !task) return;
+    const currentLabelIds = task.labelIds || [];
+    let updatedLabelIds: Id<"taskLabels">[];
+    if (currentLabelIds.includes(labelId)) {
+      updatedLabelIds = currentLabelIds.filter((id) => id !== labelId);
+    } else {
+      updatedLabelIds = [...currentLabelIds, labelId];
+    }
+    await updateTask({
+      taskId: shownId,
+      labelIds: updatedLabelIds,
+    });
+  }
+
   const ordersData = useQuery(api.orders.listForPicker, isGeneral ? {} : "skip");
   const oppsData = useQuery(api.salesOpportunities.listForPicker, isGeneral ? {} : "skip");
 
@@ -94,6 +136,19 @@ export default function TaskDrawer({
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [assignOpen]);
+
+  useEffect(() => {
+    if (!labelsOpen) return;
+    const h = (e: MouseEvent) => {
+      if (labelsRef.current && !labelsRef.current.contains(e.target as Node)) {
+        setLabelsOpen(false);
+        setIsCreatingLabel(false);
+        setEditingLabelId(null);
+      }
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [labelsOpen]);
 
   function saveTitle() {
     if (!shownId || !task) return;
@@ -462,6 +517,207 @@ export default function TaskDrawer({
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Etykiety (Trello-style popover) */}
+          <div className="px-5 pb-1">
+            <div ref={labelsRef} className="relative">
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Etykiety
+              </label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {(task.labels || []).map((l) => (
+                  <span
+                    key={l.id}
+                    className="px-2 py-0.5 rounded text-xs font-semibold text-white tracking-wide shadow-sm"
+                    style={{ backgroundColor: l.color }}
+                  >
+                    {l.title}
+                  </span>
+                ))}
+              </div>
+              <button
+                onClick={() => setLabelsOpen((v) => !v)}
+                className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+              >
+                <Tag className="size-3.5" />
+                Zarządzaj etykietami
+              </button>
+
+              {labelsOpen && (
+                <div className="absolute left-0 bottom-full z-20 mt-1 w-64 rounded-md border border-gray-200 bg-white p-3 shadow-xl">
+                  {/* Widok główny (lista etykiet) */}
+                  {!isCreatingLabel && !editingLabelId && (
+                    <div>
+                      <div className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Etykiety</div>
+                      <input
+                        type="text"
+                        placeholder="Szukaj etykiet..."
+                        value={labelSearch}
+                        onChange={(e) => setLabelSearch(e.target.value)}
+                        className="w-full rounded border border-gray-200 px-2.5 py-1.5 text-xs outline-none focus:border-gray-400 mb-2"
+                      />
+                      <div className="max-h-40 overflow-y-auto space-y-1 pr-1 no-scrollbar">
+                        {allLabels
+                          .filter((l) => l.title.toLowerCase().includes(labelSearch.toLowerCase()))
+                          .map((l) => {
+                            const isSelected = (task.labelIds || []).includes(l._id);
+                            return (
+                              <div key={l._id} className="flex items-center gap-1 group">
+                                <button
+                                  onClick={() => void toggleLabel(l._id)}
+                                  className="flex-1 rounded px-2.5 py-1.5 text-left text-xs font-semibold text-white shadow-sm flex items-center justify-between transition-opacity hover:opacity-90"
+                                  style={{ backgroundColor: l.color }}
+                                >
+                                  <span>{l.title}</span>
+                                  {isSelected && <Check className="size-3.5 text-white" />}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingLabelId(l._id);
+                                    setNewLabelTitle(l.title);
+                                    setNewLabelColor(l.color);
+                                  }}
+                                  className="p-1 rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                >
+                                  <Pencil className="size-3" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        {allLabels.length === 0 && (
+                          <div className="text-xs text-gray-400 text-center py-2">Brak etykiet</div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setIsCreatingLabel(true);
+                          setNewLabelTitle("");
+                          setNewLabelColor("#22c55e");
+                        }}
+                        className="mt-3 w-full rounded bg-gray-100 px-3 py-1.5 text-center text-xs font-semibold text-gray-700 hover:bg-gray-200 transition-colors"
+                      >
+                        Utwórz nową etykietę
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Widok tworzenia etykiety */}
+                  {isCreatingLabel && (
+                    <div>
+                      <div className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Utwórz etykietę</div>
+                      <div className="mb-2">
+                        <label className="text-[10px] font-semibold text-gray-400 uppercase">Nazwa</label>
+                        <input
+                          type="text"
+                          value={newLabelTitle}
+                          onChange={(e) => setNewLabelTitle(e.target.value)}
+                          placeholder="Np. Ważne"
+                          className="w-full rounded border border-gray-200 px-2 py-1 text-xs outline-none focus:border-gray-400 mt-0.5"
+                        />
+                      </div>
+                      <div className="mb-3">
+                        <label className="text-[10px] font-semibold text-gray-400 uppercase">Kolor</label>
+                        <div className="grid grid-cols-5 gap-1.5 mt-1">
+                          {PRESET_COLORS.map((col) => (
+                            <button
+                              key={col.hex}
+                              onClick={() => setNewLabelColor(col.hex)}
+                              className="size-7 rounded relative flex items-center justify-center border hover:scale-105 transition-transform"
+                              style={{ backgroundColor: col.hex, borderColor: newLabelColor === col.hex ? '#000000' : 'transparent' }}
+                              title={col.name}
+                            >
+                              {newLabelColor === col.hex && <Check className="size-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => setIsCreatingLabel(false)}
+                          className="flex-1 rounded bg-gray-100 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-200 transition-colors"
+                        >
+                          Wróć
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!newLabelTitle.trim()) return;
+                            const newId = await createLabel({ title: newLabelTitle, color: newLabelColor });
+                            await toggleLabel(newId);
+                            setIsCreatingLabel(false);
+                          }}
+                          className="flex-1 rounded bg-blue-600 py-1 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+                        >
+                          Utwórz
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Widok edycji etykiety */}
+                  {editingLabelId && (
+                    <div>
+                      <div className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Edytuj etykietę</div>
+                      <div className="mb-2">
+                        <label className="text-[10px] font-semibold text-gray-400 uppercase">Nazwa</label>
+                        <input
+                          type="text"
+                          value={newLabelTitle}
+                          onChange={(e) => setNewLabelTitle(e.target.value)}
+                          className="w-full rounded border border-gray-200 px-2 py-1 text-xs outline-none focus:border-gray-400 mt-0.5"
+                        />
+                      </div>
+                      <div className="mb-3">
+                        <label className="text-[10px] font-semibold text-gray-400 uppercase">Kolor</label>
+                        <div className="grid grid-cols-5 gap-1.5 mt-1">
+                          {PRESET_COLORS.map((col) => (
+                            <button
+                              key={col.hex}
+                              onClick={() => setNewLabelColor(col.hex)}
+                              className="size-7 rounded relative flex items-center justify-center border hover:scale-105 transition-transform"
+                              style={{ backgroundColor: col.hex, borderColor: newLabelColor === col.hex ? '#000000' : 'transparent' }}
+                              title={col.name}
+                            >
+                              {newLabelColor === col.hex && <Check className="size-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => setEditingLabelId(null)}
+                            className="flex-1 rounded bg-gray-100 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-200 transition-colors"
+                          >
+                            Wróć
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!newLabelTitle.trim()) return;
+                              await updateLabelMutation({ labelId: editingLabelId, title: newLabelTitle, color: newLabelColor });
+                              setEditingLabelId(null);
+                            }}
+                            className="flex-1 rounded bg-blue-600 py-1 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+                          >
+                            Zapisz
+                          </button>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            await removeLabelMutation({ labelId: editingLabelId });
+                            setEditingLabelId(null);
+                          }}
+                          className="w-full rounded bg-red-50 border border-red-200 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 hover:text-red-700 transition-colors flex items-center justify-center gap-1"
+                        >
+                          <Trash2 className="size-3" />
+                          Usuń etykietę
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

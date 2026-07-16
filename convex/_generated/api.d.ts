@@ -50,6 +50,7 @@ import type * as suppliers from "../suppliers.js";
 import type * as systemLogs from "../systemLogs.js";
 import type * as taskColumns from "../taskColumns.js";
 import type * as taskComments from "../taskComments.js";
+import type * as taskLabels from "../taskLabels.js";
 import type * as users from "../users.js";
 import type * as viewConfig from "../viewConfig.js";
 import type * as whitelist from "../whitelist.js";
@@ -103,6 +104,7 @@ declare const fullApi: ApiFromModules<{
   systemLogs: typeof systemLogs;
   taskColumns: typeof taskColumns;
   taskComments: typeof taskComments;
+  taskLabels: typeof taskLabels;
   users: typeof users;
   viewConfig: typeof viewConfig;
   whitelist: typeof whitelist;

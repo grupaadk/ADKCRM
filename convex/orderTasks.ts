@@ -130,6 +130,7 @@ export const update = mutation({
     clearColumnId: v.optional(v.boolean()),
     archived: v.optional(v.boolean()),
     position: v.optional(v.number()),
+    labelIds: v.optional(v.array(v.id("taskLabels"))),
   },
   handler: async (ctx, args) => {
     await requireUser(ctx);
@@ -166,6 +167,7 @@ export const update = mutation({
       patch.columnChangedAt = undefined;
     }
     if (rest.position !== undefined) patch.position = rest.position;
+    if (rest.labelIds !== undefined) patch.labelIds = rest.labelIds;
     await ctx.db.patch(taskId, patch);
   },
 });

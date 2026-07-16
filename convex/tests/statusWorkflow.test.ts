@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { expect, test, describe } from "vitest";
 import { api } from "../_generated/api";
 import schema from "../schema";
+import type { Doc } from "../_generated/dataModel";
 
 type ClientStatus =
   | "lead"

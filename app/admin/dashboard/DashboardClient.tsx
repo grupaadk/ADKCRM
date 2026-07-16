@@ -1265,6 +1265,21 @@ function TaskCard({
       )}
 
       {/* tytuł zadania */}
+      {task.labels && task.labels.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1 relative z-10">
+          {task.labels.map((l) => (
+            <span
+              key={l.id}
+              className="px-1.5 py-0.5 rounded text-[10px] font-semibold text-white tracking-wide shadow-sm"
+              style={{ backgroundColor: l.color }}
+              title={l.title}
+            >
+              {l.title}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="mb-2 line-clamp-2 text-sm font-medium leading-snug text-gray-800">
         {task.title}
       </div>
