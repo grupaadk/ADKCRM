@@ -122,13 +122,13 @@ function OrderCard({
       const diffMs = Date.now() - item.statusChangedAt
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
       if (diffDays <= 0) {
-        setDaysInStatusLabel("dzisiaj")
+        setDaysInStatusLabel("na liście: dzisiaj")
         setDaysInStatusColor("slate")
       } else if (diffDays === 1) {
-        setDaysInStatusLabel("1 dzień")
+        setDaysInStatusLabel("na liście: 1 dzień")
         setDaysInStatusColor("slate")
       } else {
-        setDaysInStatusLabel(`${diffDays} dni`)
+        setDaysInStatusLabel(`na liście: ${diffDays} dni`)
         if (diffDays >= 7) {
           setDaysInStatusColor("red")
         } else if (diffDays >= 3) {

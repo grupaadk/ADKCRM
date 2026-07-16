@@ -1134,13 +1134,13 @@ function TaskCard({
       const diffMs = Date.now() - task.columnChangedAt;
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
       if (diffDays <= 0) {
-        setDaysInColumnLabel("dzisiaj");
+        setDaysInColumnLabel("na liście: dzisiaj");
         setDaysInColumnColor("slate");
       } else if (diffDays === 1) {
-        setDaysInColumnLabel("1 dzień");
+        setDaysInColumnLabel("na liście: 1 dzień");
         setDaysInColumnColor("slate");
       } else {
-        setDaysInColumnLabel(`${diffDays} dni`);
+        setDaysInColumnLabel(`na liście: ${diffDays} dni`);
         if (diffDays >= 7) {
           setDaysInColumnColor("red");
         } else if (diffDays >= 3) {
