@@ -50,57 +50,7 @@ function clientPrimaryName(client: Order["client"]): string {
   return `${client.lastName} ${client.firstName}`
 }
 
-function InvoiceBadge({ fakturownia, subdomain }: { fakturownia?: { estimateId?: string; estimateNumber?: string; invoices?: Array<{ kind: "advance" | "final" | "vat"; remoteId?: string; number?: string }> }; subdomain?: string }) {
-  const invoices = fakturownia?.invoices ?? []
-  const issued = invoices.filter((i) => i.number)
-  const baseUrl = subdomain ? `https://${subdomain}.fakturownia.pl/invoices` : null
-  if (issued.length === 0) {
-    if (fakturownia?.estimateNumber) {
-      const estimateUrl = baseUrl && fakturownia.estimateId ? `${baseUrl}/${fakturownia.estimateId}` : null
-      return estimateUrl ? (
-        <a
-          href={estimateUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          style={{ fontSize: 11, fontWeight: 500, color: "var(--text-mute)", whiteSpace: "nowrap", textDecoration: "none" }}
-        >
-          Oferta {fakturownia.estimateNumber}
-        </a>
-      ) : (
-        <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-mute)", whiteSpace: "nowrap" }}>
-          Oferta {fakturownia.estimateNumber}
-        </span>
-      )
-    }
-    return <span className="mute">—</span>
-  }
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      {issued.map((inv, i) => {
-        const label = inv.kind === "advance" ? "Zaliczka" : inv.kind === "final" ? "Końcowa" : "VAT"
-        const color = inv.kind === "final" ? "var(--ok)" : inv.kind === "advance" ? "var(--warn)" : "var(--info, #6366f1)"
-        const url = baseUrl && inv.remoteId ? `${baseUrl}/${inv.remoteId}` : null
-        return url ? (
-          <a
-            key={i}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            style={{ fontSize: 11, fontWeight: 500, color, whiteSpace: "nowrap", textDecoration: "none" }}
-          >
-            {label} ↗
-          </a>
-        ) : (
-          <span key={i} style={{ fontSize: 11, fontWeight: 500, color, whiteSpace: "nowrap" }}>
-            {label}
-          </span>
-        )
-      })}
-    </div>
-  )
-}
+
 
 function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDirection }) {
   const cls = "ml-1 inline"
@@ -117,7 +67,6 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
   const statusLabels = useStatusLabels()
   const statuses = useStatuses()
   const orders = useQuery(api.orders.list, {})
-  const fakturowniaConfig = useQuery(api.fakturownia.getConfig, {})
   const currentUser = useQuery(api.users.me)
   const allUsers = useQuery(api.users.listAllActive)
   const isLoading = orders === undefined
@@ -450,7 +399,6 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
                 Usługi <SortIcon field="services" sortField={sortField} sortDir={sortDir} />
               </th>
               <th style={{ width: 100 }}>Dokumenty</th>
-              <th style={{ width: 100 }}>Faktura</th>
               <th style={{ cursor: "pointer", width: 95 }} onClick={() => handleSort("createdAt")}>
                 Start <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
               </th>
@@ -463,7 +411,7 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
           <tbody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
               <tr key={i}>
-                {Array.from({ length: 10 }).map((_, j) => (
+                {Array.from({ length: 9 }).map((_, j) => (
                   <td key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} /></td>
                 ))}
               </tr>
@@ -549,7 +497,6 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
                     )}
                   </td>
                   <td><DocumentProgressTiles documents={order.documents} /></td>
-                  <td><InvoiceBadge fakturownia={order.fakturownia} subdomain={fakturowniaConfig?.subdomain} /></td>
                   <td className="mono" style={{ fontSize: 11 }}>
                     {order.projectStartDate ? fmtDate(order.projectStartDate) : <span className="mute">—</span>}
                   </td>
