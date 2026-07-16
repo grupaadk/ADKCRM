@@ -1698,6 +1698,7 @@ export default function OrderDetailPage({
   const [customExpenseTitle, setCustomExpenseTitle] = useState("");
   const [customExpenseAmount, setCustomExpenseAmount] = useState("");
   const [customExpenseVatRate, setCustomExpenseVatRate] = useState("23");
+  const [customExpenseInputMode, setCustomExpenseInputMode] = useState<"brutto" | "netto">("brutto");
   const [editingVatExpenseId, setEditingVatExpenseId] = useState<string | null>(null);
   const [editingVatRate, setEditingVatRate] = useState("23");
   const [customExpenseDate, setCustomExpenseDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -1709,6 +1710,15 @@ export default function OrderDetailPage({
     const vat = parseFloat(vatVal);
     if (isNaN(vat)) return gross;
     return Math.round((gross / (1 + vat / 100)) * 100) / 100;
+  };
+
+  const calculateGross = (netVal: string, vatVal: string) => {
+    const net = parseFloat(netVal);
+    if (isNaN(net) || net <= 0) return 0;
+    if (vatVal === "exempt" || vatVal === "0") return net;
+    const vat = parseFloat(vatVal);
+    if (isNaN(vat)) return net;
+    return Math.round((net * (1 + vat / 100)) * 100) / 100;
   };
 
   const [reminderInvoiceId, setReminderInvoiceId] =
@@ -4618,6 +4628,7 @@ export default function OrderDetailPage({
           setCustomExpenseTitle("");
           setCustomExpenseAmount("");
           setCustomExpenseVatRate("23");
+          setCustomExpenseInputMode("brutto");
           setCustomExpenseDate(new Date().toISOString().split("T")[0]);
         }}
         title="Dodaj własny wydatek"
@@ -4631,6 +4642,7 @@ export default function OrderDetailPage({
                 setCustomExpenseTitle("");
                 setCustomExpenseAmount("");
                 setCustomExpenseVatRate("23");
+                setCustomExpenseInputMode("brutto");
                 setCustomExpenseDate(new Date().toISOString().split("T")[0]);
               }}
             >
@@ -4641,8 +4653,20 @@ export default function OrderDetailPage({
               disabled={!customExpenseTitle.trim() || !customExpenseAmount.trim()}
               onClick={async () => {
                 try {
-                  const grossVal = parseFloat(customExpenseAmount);
-                  const netVal = calculateNet(customExpenseAmount, customExpenseVatRate);
+                  let grossVal = 0;
+                  let netVal = 0;
+                  if (customExpenseInputMode === "brutto") {
+                    grossVal = parseFloat(customExpenseAmount);
+                    netVal = calculateNet(customExpenseAmount, customExpenseVatRate);
+                  } else {
+                    netVal = parseFloat(customExpenseAmount);
+                    grossVal = calculateGross(customExpenseAmount, customExpenseVatRate);
+                  }
+
+                  if (isNaN(grossVal) || isNaN(netVal)) {
+                    throw new Error("Wprowadź poprawną kwotę");
+                  }
+
                   await addCustomExpense({
                     orderId: orderIdTyped,
                     title: customExpenseTitle.trim(),
@@ -4654,6 +4678,7 @@ export default function OrderDetailPage({
                   setCustomExpenseTitle("");
                   setCustomExpenseAmount("");
                   setCustomExpenseVatRate("23");
+                  setCustomExpenseInputMode("brutto");
                   setCustomExpenseDate(new Date().toISOString().split("T")[0]);
                 } catch (err) {
                   alert(err instanceof Error ? err.message : String(err));
@@ -4669,6 +4694,40 @@ export default function OrderDetailPage({
           <p className="text-sm text-gray-500 m-0">
             Dodaj wydatek ręcznie (np. koszt, który nie ma faktury z Fakturowni). Zostanie on przypisany do tego zlecenia.
           </p>
+          
+          {/* Przełącznik Netto / Brutto we wprowadzaniu */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Wprowadzana kwota</label>
+            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5 w-full">
+              <button
+                onClick={() => {
+                  setCustomExpenseInputMode("brutto");
+                  setCustomExpenseAmount("");
+                }}
+                className={`flex-1 rounded-md py-1.5 text-xs font-semibold text-center transition-all ${
+                  customExpenseInputMode === "brutto"
+                    ? "bg-white text-slate-800 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Brutto
+              </button>
+              <button
+                onClick={() => {
+                  setCustomExpenseInputMode("netto");
+                  setCustomExpenseAmount("");
+                }}
+                className={`flex-1 rounded-md py-1.5 text-xs font-semibold text-center transition-all ${
+                  customExpenseInputMode === "netto"
+                    ? "bg-white text-slate-800 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Netto
+              </button>
+            </div>
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Tytuł / Nazwa wydatku *</label>
             <input
@@ -4679,8 +4738,11 @@ export default function OrderDetailPage({
               placeholder="np. Paliwo, Materiały pomocnicze"
             />
           </div>
+          
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Kwota brutto (PLN) *</label>
+            <label className="text-sm font-medium text-gray-700">
+              {customExpenseInputMode === "brutto" ? "Kwota brutto (PLN) *" : "Kwota netto (PLN) *"}
+            </label>
             <input
               type="number"
               step="0.01"
@@ -4690,6 +4752,7 @@ export default function OrderDetailPage({
               placeholder="0.00"
             />
           </div>
+          
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Stawka VAT</label>
             <select
@@ -4705,14 +4768,29 @@ export default function OrderDetailPage({
             </select>
             {customExpenseAmount && !isNaN(parseFloat(customExpenseAmount)) && (
               <div className="text-xs text-slate-500 mt-0.5">
-                Obliczona kwota netto:{" "}
-                <span className="font-semibold text-slate-700">
-                  {calculateNet(customExpenseAmount, customExpenseVatRate).toLocaleString("pl-PL", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}{" "}
-                  PLN
-                </span>
+                {customExpenseInputMode === "brutto" ? (
+                  <>
+                    Obliczona kwota netto:{" "}
+                    <span className="font-semibold text-slate-700">
+                      {calculateNet(customExpenseAmount, customExpenseVatRate).toLocaleString("pl-PL", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      PLN
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Obliczona kwota brutto:{" "}
+                    <span className="font-semibold text-slate-700">
+                      {calculateGross(customExpenseAmount, customExpenseVatRate).toLocaleString("pl-PL", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      PLN
+                    </span>
+                  </>
+                )}
               </div>
             )}
           </div>

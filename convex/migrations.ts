@@ -237,3 +237,60 @@ export const fixInstallationDatesFormat = internalMutation({
     return `Naprawiono format daty dla ${count} zleceń.`;
   }
 });
+
+export const backfillKanbanTimestamps = mutation({
+  args: {},
+  returns: v.string(),
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // 1. Update orderTasks
+    const tasks = await ctx.db
+      .query("orderTasks")
+      .filter((q) => q.neq(q.field("columnId"), undefined))
+      .collect();
+
+    let taskCount = 0;
+    for (const task of tasks) {
+      if (task.columnChangedAt === undefined) {
+        await ctx.db.patch(task._id, { columnChangedAt: now });
+        taskCount++;
+      }
+    }
+
+    // 2. Update orders
+    const orders = await ctx.db
+      .query("orders")
+      .filter((q) => q.neq(q.field("status"), "archived"))
+      .collect();
+
+    let orderCount = 0;
+    for (const order of orders) {
+      if (order.statusChangedAt === undefined) {
+        await ctx.db.patch(order._id, { statusChangedAt: now });
+        orderCount++;
+      }
+    }
+
+    // 3. Update pending submissions (opportunities)
+    const pendings = await ctx.db
+      .query("pendingJotformSubmissions")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("processed"), false),
+          q.neq(q.field("archived"), true),
+        ),
+      )
+      .collect();
+
+    let pendingCount = 0;
+    for (const pending of pendings) {
+      if (pending.stageChangedAt === undefined) {
+        await ctx.db.patch(pending._id, { stageChangedAt: now });
+        pendingCount++;
+      }
+    }
+
+    return `Zaktualizowano: ${taskCount} zadań, ${orderCount} zleceń, ${pendingCount} szans.`;
+  },
+});
