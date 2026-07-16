@@ -21,6 +21,15 @@ const DOC_COLORS: Record<DocState, string> = {
 
 const DOC_KEYS = ["pomiar", "umowa", "gwarancja_alco", "odbior_inwestor", "protokol_montaz", "faktura", "reklamacja"]
 
+const sortItemsByDuration = (a: KanbanItem, b: KanbanItem) => {
+  const now = Date.now()
+  const aOlder = a.statusChangedAt ? (now - a.statusChangedAt > 1000 * 60 * 60 * 24) : false
+  const bOlder = b.statusChangedAt ? (now - b.statusChangedAt > 1000 * 60 * 60 * 24) : false
+  if (aOlder && !bOlder) return -1
+  if (!aOlder && bOlder) return 1
+  return (a.statusChangedAt ?? 0) - (b.statusChangedAt ?? 0)
+}
+
 const SERVICE_COLORS = [
   { bg: "#ede9fe", text: "#6d28d9" },
   { bg: "#dbeafe", text: "#1d4ed8" },
@@ -1087,7 +1096,7 @@ export default function PanelPage() {
               {/* Wiersz nagłówków */}
               <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8 }}>
                 {visibleColumns.map((col) => {
-                  const colItems = displayItems.filter((i) => i.status === col.key)
+                  const colItems = displayItems.filter((i) => i.status === col.key).sort(sortItemsByDuration)
                   const validTargets = draggingItem ? getValidTargets(draggingItem) : []
                   const isValid = validTargets.includes(col.key)
                   const isDraggingSameCol = draggingItem?.status === col.key
@@ -1128,7 +1137,7 @@ export default function PanelPage() {
               {/* Wiersz treści kolumn */}
               <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8, flex: 1, minHeight: 0 }}>
                 {visibleColumns.map((col) => {
-                  const colItems = displayItems.filter((i) => i.status === col.key)
+                  const colItems = displayItems.filter((i) => i.status === col.key).sort(sortItemsByDuration)
                   const isOver = dragOverCol === col.key
                   const isDraggingOver = draggingItem !== null && isOver
                   const validTargets = draggingItem ? getValidTargets(draggingItem) : []

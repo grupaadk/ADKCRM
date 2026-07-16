@@ -296,6 +296,12 @@ export default function DashboardClient() {
     }
 
     const sortByDue = (a: DashboardTask, b: DashboardTask) => {
+      const now = Date.now();
+      const aOlder = a.columnChangedAt ? (now - a.columnChangedAt > 1000 * 60 * 60 * 24) : false;
+      const bOlder = b.columnChangedAt ? (now - b.columnChangedAt > 1000 * 60 * 60 * 24) : false;
+      if (aOlder && !bOlder) return -1;
+      if (!aOlder && bOlder) return 1;
+
       if (a.position !== undefined && b.position !== undefined) {
         return a.position - b.position;
       }
