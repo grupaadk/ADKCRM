@@ -385,7 +385,7 @@ describe("US-2.2 -- Order data update", () => {
     await asUser.mutation(api.expenseCategories.remove, { categoryId });
 
     const expensesAfterRemove = await asUser.run(async (ctx) => {
-      return await ctx.db.get(expenses[0]._id);
+      return (await ctx.db.get(expenses[0]._id)) as Doc<"fakturowniaExpensesCache"> | null;
     });
     expect(expensesAfterRemove?.categoryId).toBeUndefined();
   });

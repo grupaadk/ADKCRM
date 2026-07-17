@@ -1833,9 +1833,9 @@ export const syncOrderAttachments = action({
     }> = [];
     await listDriveFolderRecursive(ctx, attachmentsFolderId, "", driveFiles);
 
-    const existingAttachments = await ctx.runQuery(api.attachments.listByOrder, {
+    const existingAttachments = (await ctx.runQuery(api.attachments.listByOrder, {
       orderId: args.orderId,
-    });
+    })) as Doc<"orderAttachments">[];
     const existingByFileId = new Map(
       existingAttachments.map((a) => [a.fileId, a] as const),
     );
@@ -1951,9 +1951,9 @@ export const copyTemplate = action({
         throw new Error("Client not found");
       }
 
-      const lineItemsResult = await ctx.runQuery(api.orderLineItems.listByOrder, {
+      const lineItemsResult = (await ctx.runQuery(api.orderLineItems.listByOrder, {
         orderId: args.orderId,
-      });
+      })) as { items: Doc<"orderLineItems">[]; totals: { totalGross: number; totalNet: number } };
       const { totalGross, totalNet } = lineItemsResult.totals;
       const formatPLN = (amount: number): string => {
         const rounded = Math.round(amount * 100) / 100;
@@ -2141,7 +2141,10 @@ export const copyWarrantyTemplate = action({
       if (!template) throw new Error(`Template not found: ${args.templateId}`);
       if (!template.googleDriveFileId) throw new Error(`Template has no Google Drive file: ${args.key}`);
 
-      const lineItemsResult = await ctx.runQuery(api.orderLineItems.listByOrder, { orderId: args.orderId });
+      const lineItemsResult = (await ctx.runQuery(api.orderLineItems.listByOrder, { orderId: args.orderId })) as {
+        items: Doc<"orderLineItems">[];
+        totals: { totalGross: number; totalNet: number };
+      };
       const { totalGross, totalNet } = lineItemsResult.totals;
       const formatPLN = (amount: number): string => {
         const rounded = Math.round(amount * 100) / 100;
@@ -2664,7 +2667,7 @@ export const uploadManualOpportunityFile = action({
       }
 
       // Wgraj plik do podfolderu
-      const result = await uploadFileToDrive(ctx, fileUrl, uploadFolderId);
+      const result = await uploadFileToDrive(ctx, fileUrl, uploadFolderId!);
       if (result) {
         await log("info", "File uploaded", {
           fileId: result.fileId,
@@ -3164,12 +3167,30 @@ export const backfillRenameClientFolders = action({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     // 1. Sync database client folder references from pending submissions
-    const syncedCount = await ctx.runMutation(internal.googleDrive.syncClientFolderLinks);
+    const syncedCount = (await ctx.runMutation(internal.googleDrive.syncClientFolderLinks as any)) as number;
     console.log(`Synced database folder references for ${syncedCount} clients`);
 
     // 2. Fetch updated targets
-    const { clients, pendings } = await ctx.runQuery(internal.googleDrive.getRenameTargets);
+    const { clients, pendings } = (await ctx.runQuery(internal.googleDrive.getRenameTargets as any)) as {
+      clients: Array<{
+        id: any;
+        clientType: string;
+        companyName?: string;
+        firstName?: string;
+        lastName?: string;
+        clientFolderId?: string;
+      }>;
+      pendings: Array<{
+        id: any;
+        clientId?: any;
+        firstName?: string;
+        lastName?: string;
+        clientFolderId?: string;
+      }>;
+    };
+    /* eslint-enable @typescript-eslint/no-explicit-any */
 
     let count = 0;
     // 3. Rename folders for clients

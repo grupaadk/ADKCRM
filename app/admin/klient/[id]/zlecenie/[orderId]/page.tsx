@@ -1610,7 +1610,6 @@ export default function OrderDetailPage({
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expenseSearch, setExpenseSearch] = useState("");
-  const [amountView, setAmountView] = useState<"netto" | "brutto">("netto");
   const [showAddCustomExpenseModal, setShowAddCustomExpenseModal] = useState(false);
   const [customExpenseTitle, setCustomExpenseTitle] = useState("");
   const [customExpenseAmount, setCustomExpenseAmount] = useState("");
@@ -3725,67 +3724,34 @@ export default function OrderDetailPage({
               (inv) => inv.kind === "estimate" || inv.kind === "order"
             );
             const estimateNet = estimateInvs.reduce((sum, inv) => sum + (inv.netAmount ?? 0), 0);
-            const estimateGross = estimateInvs.reduce((sum, inv) => sum + (inv.grossAmount ?? 0), 0);
 
             const regularInvs = (assignedInvoices ?? []).filter(
               (inv) => inv.kind !== "estimate" && inv.kind !== "order"
             );
             const invNet = regularInvs.reduce((sum, inv) => sum + (inv.netAmount ?? 0), 0);
-            const invGross = regularInvs.reduce((sum, inv) => sum + (inv.grossAmount ?? 0), 0);
 
             const expNet = (expenses ?? []).reduce((sum, exp) => sum + (exp.netAmount ?? 0), 0);
-            const expGross = (expenses ?? []).reduce((sum, exp) => sum + (exp.grossAmount ?? 0), 0);
 
             const balNet = invNet - expNet;
-            const balGross = invGross - expGross;
             const projBalNet = estimateNet - expNet;
-            const projBalGross = estimateGross - expGross;
 
             const marginPct = invNet > 0 ? (balNet / invNet) * 100 : null;
 
-            const vatFromRevenue = invGross - invNet;
-            const vatFromExpenses = expGross - expNet;
-            const vatPosition = vatFromRevenue - vatFromExpenses;
-
             const percentInvoiced = estimateNet > 0 ? Math.round((invNet / estimateNet) * 100) : null;
             const remainingNet = estimateNet > 0 ? Math.max(0, estimateNet - invNet) : 0;
-            const remainingGross = estimateGross > 0 ? Math.max(0, estimateGross - invGross) : 0;
 
-            const isNetto = amountView === "netto";
             const fmt = (v: number) => v.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
             return (
               <div className="flex flex-col gap-3">
-                {/* Toggle + nagłówek */}
+                {/* Nagłówek */}
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Podsumowanie finansowe
+                    Podsumowanie finansowe (Netto)
                   </span>
-                  <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
-                    <button
-                      onClick={() => setAmountView("netto")}
-                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                        isNetto
-                          ? "bg-white text-slate-800 shadow-sm"
-                          : "text-slate-500 hover:text-slate-700"
-                      }`}
-                    >
-                      Netto
-                    </button>
-                    <button
-                      onClick={() => setAmountView("brutto")}
-                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                        !isNetto
-                          ? "bg-white text-slate-800 shadow-sm"
-                          : "text-slate-500 hover:text-slate-700"
-                      }`}
-                    >
-                      Brutto
-                    </button>
-                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {/* KARTA 1: PRZYCHODY */}
                   <div className="panel p-4 flex flex-col gap-2 border border-slate-200/80 rounded-xl shadow-sm bg-white">
                     <div className="flex items-center justify-between gap-2">
@@ -3795,12 +3761,12 @@ export default function OrderDetailPage({
                       {percentInvoiced !== null && (
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                            (isNetto ? invNet : invGross) >= (isNetto ? estimateNet : estimateGross) && estimateNet > 0
+                            invNet >= estimateNet && estimateNet > 0
                               ? "bg-emerald-100 text-emerald-800"
                               : "bg-indigo-100 text-indigo-800"
                           }`}
                         >
-                          {(isNetto ? invNet : invGross) >= (isNetto ? estimateNet : estimateGross) && estimateNet > 0
+                          {invNet >= estimateNet && estimateNet > 0
                             ? "✓ 100%"
                             : `${percentInvoiced}%`}
                         </span>
@@ -3808,14 +3774,8 @@ export default function OrderDetailPage({
                     </div>
 
                     <div className="text-2xl font-extrabold text-slate-900 tabular-nums leading-tight">
-                      {fmt(isNetto ? invNet : invGross)}
+                      {fmt(invNet)}
                       <span className="text-sm font-normal text-slate-400 ml-1">PLN</span>
-                    </div>
-
-                    <div className="text-[11px] text-slate-400">
-                      {isNetto
-                        ? `Brutto: ${fmt(invGross)} PLN`
-                        : `Netto: ${fmt(invNet)} PLN`}
                     </div>
 
                     {estimateNet > 0 && (
@@ -3832,11 +3792,11 @@ export default function OrderDetailPage({
                         </div>
                         <div className="flex items-center justify-between text-[10px] text-slate-400">
                           <span>
-                            Zamówienie: {fmt(isNetto ? estimateNet : estimateGross)} PLN
+                            Zamówienie: {fmt(estimateNet)} PLN
                           </span>
-                          {(isNetto ? remainingNet : remainingGross) > 0 ? (
+                          {remainingNet > 0 ? (
                             <span className="font-medium text-amber-600">
-                              Pozostało: {fmt(isNetto ? remainingNet : remainingGross)}
+                              Pozostało: {fmt(remainingNet)}
                             </span>
                           ) : (
                             <span className="font-medium text-emerald-600">✓ Zafakt. w całości</span>
@@ -3854,20 +3814,14 @@ export default function OrderDetailPage({
                       </span>
                       {invNet > 0 && (
                         <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-                          {Math.round(((isNetto ? expNet : expGross) / (isNetto ? invNet : invGross)) * 100)}% przychodów
+                          {Math.round((expNet / invNet) * 100)}% przychodów
                         </span>
                       )}
                     </div>
 
                     <div className="text-2xl font-extrabold text-slate-900 tabular-nums leading-tight">
-                      {fmt(isNetto ? expNet : expGross)}
+                      {fmt(expNet)}
                       <span className="text-sm font-normal text-slate-400 ml-1">PLN</span>
-                    </div>
-
-                    <div className="text-[11px] text-slate-400">
-                      {isNetto
-                        ? `Brutto: ${fmt(expGross)} PLN`
-                        : `Netto: ${fmt(expNet)} PLN`}
                     </div>
 
                     <div className="mt-auto text-[11px] text-slate-400">
@@ -3878,7 +3832,7 @@ export default function OrderDetailPage({
                   {/* KARTA 3: BILANS + MARŻA */}
                   <div
                     className={`panel p-4 flex flex-col gap-2 border rounded-xl shadow-sm ${
-                      (isNetto ? balNet : balGross) >= 0
+                      balNet >= 0
                         ? "border-emerald-200 bg-emerald-50/50"
                         : "border-rose-200 bg-rose-50/50"
                     }`}
@@ -3904,17 +3858,11 @@ export default function OrderDetailPage({
 
                     <div
                       className={`text-2xl font-extrabold tabular-nums leading-tight ${
-                        (isNetto ? balNet : balGross) >= 0 ? "text-emerald-700" : "text-rose-700"
+                        balNet >= 0 ? "text-emerald-700" : "text-rose-700"
                       }`}
                     >
-                      {fmt(isNetto ? balNet : balGross)}
+                      {fmt(balNet)}
                       <span className="text-sm font-normal text-slate-400 ml-1">PLN</span>
-                    </div>
-
-                    <div className="text-[11px] text-slate-500">
-                      {isNetto
-                        ? `Brutto: ${fmt(balGross)} PLN`
-                        : `Netto: ${fmt(balNet)} PLN`}
                     </div>
 
                     {estimateNet > 0 && (
@@ -3922,81 +3870,15 @@ export default function OrderDetailPage({
                         Prognoza z zamówienia:{" "}
                         <span
                           className={`font-semibold ${
-                            (isNetto ? projBalNet : projBalGross) >= 0
+                            projBalNet >= 0
                               ? "text-emerald-700"
                               : "text-rose-700"
                           }`}
                         >
-                          {fmt(isNetto ? projBalNet : projBalGross)} PLN
+                          {fmt(projBalNet)} PLN
                         </span>
                       </div>
                     )}
-                  </div>
-
-                  {/* KARTA 4: POZYCJA VAT */}
-                  <div
-                    className={`panel p-4 flex flex-col gap-2 border rounded-xl shadow-sm ${
-                      vatPosition > 0
-                        ? "border-rose-200 bg-rose-50/40"
-                        : vatPosition < 0
-                          ? "border-emerald-200 bg-emerald-50/40"
-                          : "border-slate-200/80 bg-white"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        Pozycja VAT
-                      </span>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                          vatPosition > 0
-                            ? "bg-rose-100 text-rose-800"
-                            : vatPosition < 0
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {vatPosition > 0 ? "Do zapłaty" : vatPosition < 0 ? "Do zwrotu" : "Neutralna"}
-                      </span>
-                    </div>
-
-                    <div
-                      className={`text-2xl font-extrabold tabular-nums leading-tight ${
-                        vatPosition > 0
-                          ? "text-rose-700"
-                          : vatPosition < 0
-                            ? "text-emerald-700"
-                            : "text-slate-700"
-                      }`}
-                    >
-                      {fmt(Math.abs(vatPosition))}
-                      <span className="text-sm font-normal text-slate-400 ml-1">PLN</span>
-                    </div>
-
-                    <div className="mt-auto flex flex-col gap-1 text-[11px] text-slate-500">
-                      <div className="flex justify-between">
-                        <span>VAT z faktur sprzedaży</span>
-                        <span className="font-semibold text-slate-700">+{fmt(vatFromRevenue)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>VAT z kosztów</span>
-                        <span className="font-semibold text-slate-700">−{fmt(vatFromExpenses)}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-slate-200 pt-1 mt-0.5">
-                        <span className="font-bold text-slate-700">Saldo VAT</span>
-                        <span
-                          className={`font-bold ${
-                            vatPosition > 0
-                              ? "text-rose-700"
-                              : vatPosition < 0
-                                ? "text-emerald-700"
-                                : "text-slate-700"
-                          }`}
-                        >
-                          {vatPosition >= 0 ? "+" : "−"}{fmt(Math.abs(vatPosition))} PLN
-                        </span>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
