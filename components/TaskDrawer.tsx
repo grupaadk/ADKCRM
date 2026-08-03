@@ -27,6 +27,18 @@ const PRESET_COLORS = [
   { name: "Różowy", hex: "#ec4899" },
   { name: "Limonkowy", hex: "#84cc16" },
   { name: "Szary", hex: "#64748b" },
+  { name: "Szmaragdowy", hex: "#10b981" },
+  { name: "Morski", hex: "#14b8a6" },
+  { name: "Indigo", hex: "#6366f1" },
+  { name: "Fuksja", hex: "#d946ef" },
+  { name: "Różany", hex: "#f43f5e" },
+  { name: "Bursztynowy", hex: "#f59e0b" },
+  { name: "Fiołkowy", hex: "#8b5cf6" },
+  { name: "Cyan", hex: "#06b6d4" },
+  { name: "Oliwkowy", hex: "#65a30d" },
+  { name: "Granatowy", hex: "#1e40af" },
+  { name: "Malinowy", hex: "#be123c" },
+  { name: "Wrzosowy", hex: "#c084fc" },
 ];
 
 type AssignUser = { _id: Id<"users">; displayName?: string | null; login?: string | null; color?: string };
