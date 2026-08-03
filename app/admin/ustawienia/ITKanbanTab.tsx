@@ -551,7 +551,7 @@ export function ITKanbanTab() {
             
             {backlogTasks.length === 0 && backlogSearchQuery && (
                <div className="text-center py-6 text-slate-400 text-sm">
-                 Brak wyników wyszukiwania dla "{backlogSearchQuery}".
+                 Brak wyników wyszukiwania dla &quot;{backlogSearchQuery}&quot;.
                </div>
             )}
           </div>
