@@ -82,6 +82,7 @@ export const reorderColumns = mutation({
 export const createTask = mutation({
   args: {
     columnId: v.id("itKanbanColumns"),
+    sprintId: v.optional(v.id("itKanbanSprints")),
     title: v.string(),
     description: v.optional(v.string()),
     priority: v.union(v.literal("low"), v.literal("normal"), v.literal("high")),
@@ -94,6 +95,7 @@ export const createTask = mutation({
 
     await ctx.db.insert("itKanbanTasks", {
       columnId: args.columnId,
+      sprintId: args.sprintId,
       title: args.title,
       description: args.description,
       priority: args.priority,
@@ -110,13 +112,17 @@ export const updateTask = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     priority: v.optional(v.union(v.literal("low"), v.literal("normal"), v.literal("high"))),
+    sprintId: v.optional(v.union(v.id("itKanbanSprints"), v.null())),
   },
   handler: async (ctx, args) => {
     await requireUser(ctx);
-    const { id, ...updates } = args;
+    const { id, sprintId, ...updates } = args;
     const filtered: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(updates)) {
       if (val !== undefined) filtered[key] = val;
+    }
+    if (sprintId !== undefined) {
+      filtered.sprintId = sprintId === null ? undefined : sprintId;
     }
     await ctx.db.patch(id, filtered);
   },
@@ -146,5 +152,68 @@ export const moveTask = mutation({
         await ctx.db.patch(update.id, { position: update.position });
       }
     }
+  },
+});
+
+// --- SPRINTS ---
+
+export const getSprints = query({
+  args: {},
+  handler: async (ctx) => {
+    const sprints = await ctx.db.query("itKanbanSprints").collect();
+    return sprints;
+  },
+});
+
+export const createSprint = mutation({
+  args: {
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireUser(ctx);
+    await ctx.db.insert("itKanbanSprints", {
+      name: args.name,
+      status: "planned",
+    });
+  },
+});
+
+export const updateSprintStatus = mutation({
+  args: {
+    id: v.id("itKanbanSprints"),
+    status: v.union(v.literal("planned"), v.literal("active"), v.literal("completed")),
+  },
+  handler: async (ctx, args) => {
+    await requireUser(ctx);
+    
+    // Jeśli ustawiamy ten sprint jako aktywny, musimy upewnić się, że nie ma innych aktywnych sprintów.
+    if (args.status === "active") {
+      const activeSprints = await ctx.db.query("itKanbanSprints").filter((q) => q.eq(q.field("status"), "active")).collect();
+      for (const sprint of activeSprints) {
+        if (sprint._id !== args.id) {
+          await ctx.db.patch(sprint._id, { status: "completed", endDate: Date.now() });
+        }
+      }
+      await ctx.db.patch(args.id, { status: args.status, startDate: Date.now(), endDate: undefined });
+    } else if (args.status === "completed") {
+      await ctx.db.patch(args.id, { status: args.status, endDate: Date.now() });
+    } else {
+      await ctx.db.patch(args.id, { status: args.status });
+    }
+  },
+});
+
+export const deleteSprint = mutation({
+  args: {
+    id: v.id("itKanbanSprints"),
+  },
+  handler: async (ctx, args) => {
+    await requireUser(ctx);
+    // Usuwamy przypisanie do tego sprintu ze wszystkich zadań
+    const tasks = await ctx.db.query("itKanbanTasks").withIndex("by_sprint", (q) => q.eq("sprintId", args.id)).collect();
+    for (const task of tasks) {
+      await ctx.db.patch(task._id, { sprintId: undefined });
+    }
+    await ctx.db.delete(args.id);
   },
 });
