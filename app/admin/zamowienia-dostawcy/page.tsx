@@ -13,6 +13,7 @@ type SortField =
   | "serviceName"
   | "supplierName"
   | "orderDate"
+  | "confirmedDate"
   | "deliveryDate"
   | "receivedDate"
   | "status"
@@ -30,6 +31,7 @@ type Row = {
   serviceName: string
   supplierName: string
   orderDate?: number
+  confirmedDate?: number
   deliveryDate?: number
   receivedDate?: number
 }
@@ -216,6 +218,7 @@ export default function SupplierOrdersPage() {
         serviceName: d.serviceName,
         supplierName: d.supplierName,
         orderDate: d.orderDate,
+        confirmedDate: d.confirmedDate,
         deliveryDate: d.deliveryDate,
         receivedDate: d.receivedDate,
       })),
@@ -253,7 +256,7 @@ export default function SupplierOrdersPage() {
 
     const mul = sortDir === "asc" ? 1 : -1
     return [...filtered].sort((a, b) => {
-      if (sortField === "orderDate" || sortField === "deliveryDate" || sortField === "receivedDate") {
+      if (sortField === "orderDate" || sortField === "confirmedDate" || sortField === "deliveryDate" || sortField === "receivedDate") {
         const av = a[sortField]
         const bv = b[sortField]
         if (av == null && bv == null) return 0
@@ -296,7 +299,7 @@ export default function SupplierOrdersPage() {
 
   const handleDateChange = (
     row: Row,
-    field: "orderDate" | "deliveryDate" | "receivedDate",
+    field: "orderDate" | "confirmedDate" | "deliveryDate" | "receivedDate",
     value: string,
   ) => {
     updateDeliveryDate({
@@ -307,7 +310,13 @@ export default function SupplierOrdersPage() {
     })
   }
 
-  // Odbiór: przycisk ustawia dzisiejszą datę, krzyżyk ją usuwa
+  // Odbiór i potwierdzenie: przycisk ustawia dzisiejszą datę, krzyżyk ją usuwa
+  const markConfirmed = (row: Row) =>
+    updateDeliveryDate({ orderId: row.orderId, deliveryIndex: row.deliveryIndex, field: "confirmedDate", value: todayStart })
+
+  const clearConfirmed = (row: Row) =>
+    updateDeliveryDate({ orderId: row.orderId, deliveryIndex: row.deliveryIndex, field: "confirmedDate", value: null })
+
   const markReceived = (row: Row) =>
     updateDeliveryDate({ orderId: row.orderId, deliveryIndex: row.deliveryIndex, field: "receivedDate", value: todayStart })
 
@@ -428,6 +437,9 @@ export default function SupplierOrdersPage() {
                 <th style={{ cursor: "pointer", width: 140 }} onClick={() => handleSort("orderDate")}>
                   Data zamówienia <SortIcon field="orderDate" sortField={sortField} sortDir={sortDir} />
                 </th>
+                <th style={{ cursor: "pointer", width: 140 }} onClick={() => handleSort("confirmedDate")}>
+                  Potwierdzono <SortIcon field="confirmedDate" sortField={sortField} sortDir={sortDir} />
+                </th>
                 <th style={{ cursor: "pointer", width: 140 }} onClick={() => handleSort("deliveryDate")}>
                   Planowana dostawa <SortIcon field="deliveryDate" sortField={sortField} sortDir={sortDir} />
                 </th>
@@ -442,7 +454,7 @@ export default function SupplierOrdersPage() {
             <tbody>
               {isLoading && Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 8 }).map((_, j) => (
+                  {Array.from({ length: 9 }).map((_, j) => (
                     <td key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} /></td>
                   ))}
                 </tr>
@@ -450,7 +462,7 @@ export default function SupplierOrdersPage() {
 
               {!isLoading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <CrmEmptyState message={isFiltering ? "Brak wyników dla wybranych filtrów." : "Brak zamówień od dostawców."} />
                   </td>
                 </tr>
@@ -497,6 +509,38 @@ export default function SupplierOrdersPage() {
                         onChange={(e) => handleDateChange(r, "orderDate", e.target.value)}
                         style={dateInputStyle}
                       />
+                    </td>
+                    <td>
+                      {r.confirmedDate ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <span className="mono" style={{
+                            fontSize: 12, fontWeight: 600,
+                            color: "var(--text-strong)",
+                          }}>
+                            {fmtDate(r.confirmedDate)}
+                          </span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); clearConfirmed(r); }}
+                            title="Usuń datę potwierdzenia"
+                            style={{
+                              display: "inline-flex", alignItems: "center", justifyContent: "center",
+                              background: "transparent", border: "none", cursor: "pointer",
+                              color: "var(--text-mute)", padding: 2, borderRadius: 4,
+                            }}
+                          >
+                            <X style={{ width: 13, height: 13 }} />
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          className="btn"
+                          onClick={(e) => { e.stopPropagation(); markConfirmed(r); }}
+                          title="Potwierdź otrzymanie potwierdzenia od dostawcy"
+                          style={{ padding: "3px 10px", fontSize: 11.5, color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent" }}
+                        >
+                          Potwierdź zamówienie
+                        </button>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start" }}>

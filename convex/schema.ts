@@ -220,6 +220,7 @@ export default defineSchema({
       serviceName: v.string(),
       supplierId: v.id("suppliers"),
       orderDate: v.optional(v.number()),     // data zamówienia u dostawcy
+      confirmedDate: v.optional(v.number()), // potwierdzenie złożenia zamówienia
       deliveryDate: v.optional(v.number()),  // planowana data dostawy
       receivedDate: v.optional(v.number()),  // faktyczna data odbioru (fizycznie dostarczone)
     }))),

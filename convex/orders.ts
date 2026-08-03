@@ -306,6 +306,7 @@ export const update = mutation({
       serviceName: v.string(),
       supplierId: v.id("suppliers"),
       orderDate: v.optional(v.number()),
+      confirmedDate: v.optional(v.number()),
       deliveryDate: v.optional(v.number()),
       receivedDate: v.optional(v.number()),
     }))),
@@ -1075,6 +1076,7 @@ export const listSupplierOrders = query({
                 serviceName: d.serviceName,
                 supplierName,
                 orderDate: d.orderDate,
+                confirmedDate: d.confirmedDate,
                 deliveryDate: d.deliveryDate,
                 receivedDate: d.receivedDate,
               };
@@ -1101,7 +1103,7 @@ export const updateServiceDeliveryDate = mutation({
   args: {
     orderId: v.id("orders"),
     deliveryIndex: v.number(),
-    field: v.union(v.literal("orderDate"), v.literal("deliveryDate"), v.literal("receivedDate")),
+    field: v.union(v.literal("orderDate"), v.literal("confirmedDate"), v.literal("deliveryDate"), v.literal("receivedDate")),
     value: v.union(v.number(), v.null()),
   },
   handler: async (ctx, args) => {

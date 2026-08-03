@@ -871,7 +871,7 @@ const dateStrToTs = (str: string) => {
 
 
 // ── Zamówienia u dostawców — model kamieni milowych ──
-type DeliveryField = "orderDate" | "deliveryDate" | "receivedDate";
+type DeliveryField = "orderDate" | "confirmedDate" | "deliveryDate" | "receivedDate";
 
 const DELIVERY_MILESTONES: Array<{
   key: DeliveryField;
@@ -881,12 +881,14 @@ const DELIVERY_MILESTONES: Array<{
   border: string;
 }> = [
   { key: "orderDate", label: "Zamówienie", tone: "#2563eb", soft: "#eff6ff", border: "#bfdbfe" },
+  { key: "confirmedDate", label: "Potwierdzenie", tone: "#7c3aed", soft: "#f5f3ff", border: "#ddd6fe" },
   { key: "deliveryDate", label: "Dostawa", tone: "#b45309", soft: "#fffbeb", border: "#fde68a" },
   { key: "receivedDate", label: "Odbiór", tone: "#15803d", soft: "#f0fdf4", border: "#bbf7d0" },
 ];
 
-function deliveryStatusBadge(d: { orderDate?: number; deliveryDate?: number; receivedDate?: number }) {
+function deliveryStatusBadge(d: { orderDate?: number; confirmedDate?: number; deliveryDate?: number; receivedDate?: number }) {
   if (d.receivedDate) return { label: "Odebrane", bg: "#f0fdf4", fg: "#15803d", border: "#bbf7d0" };
+  if (d.confirmedDate) return { label: "Potwierdzone", bg: "#f5f3ff", fg: "#7c3aed", border: "#ddd6fe" };
   if (d.orderDate) return { label: "Zamówione", bg: "#eff6ff", fg: "#1d4ed8", border: "#bfdbfe" };
   return { label: "Oczekuje", bg: "var(--panel-2)", fg: "var(--text-mute)", border: "var(--line)" };
 }
@@ -940,6 +942,10 @@ function OdbiorMilestone({
   fmt,
   onMark,
   onClear,
+  label = "Odbiór",
+  buttonLabel = "Odebrano",
+  titleClear = "Usuń datę odbioru",
+  titleMark = "Oznacz jako odebrane (dzisiejsza data)"
 }: {
   tone: string;
   soft: string;
@@ -948,6 +954,10 @@ function OdbiorMilestone({
   fmt: (ts: number) => string;
   onMark: () => void;
   onClear: () => void;
+  label?: string;
+  buttonLabel?: string;
+  titleClear?: string;
+  titleMark?: string;
 }) {
   const set = date != null;
   return (
@@ -964,14 +974,14 @@ function OdbiorMilestone({
       }}
     >
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: set ? tone : "var(--line)", flexShrink: 0 }} />
-      <span style={{ fontSize: 10, fontWeight: 700, color: set ? tone : "var(--text-mute)" }}>Odbiór</span>
+      <span style={{ fontSize: 10, fontWeight: 700, color: set ? tone : "var(--text-mute)" }}>{label}</span>
       {set ? (
         <>
           <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-strong)" }}>{fmt(date)}</span>
           <button
             type="button"
             onClick={onClear}
-            title="Usuń datę odbioru"
+            title={titleClear}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -993,19 +1003,19 @@ function OdbiorMilestone({
         <button
           type="button"
           onClick={onMark}
-          title="Oznacz jako odebrane (dzisiejsza data)"
+          title={titleMark}
           style={{
             background: "transparent",
             border: "none",
             cursor: "pointer",
-            padding: 0,
-            fontSize: 11.5,
+            color: "var(--accent)",
+            fontSize: 10,
             fontWeight: 600,
-            color: tone,
-            fontFamily: "inherit",
+            padding: 0,
+            textDecoration: "underline",
           }}
         >
-          Potwierdź odbiór
+          {buttonLabel}
         </button>
       )}
     </span>
@@ -1884,7 +1894,7 @@ export default function OrderDetailPage({
       if (!prev) return prev;
       if (checked) {
         if (prev.some((x) => x.supplierId === supplierId)) return prev;
-        return [...prev, { serviceName: svcName, supplierId, orderDate: undefined, deliveryDate: undefined, receivedDate: undefined }];
+        return [...prev, { serviceName: svcName, supplierId, orderDate: undefined, confirmedDate: undefined, deliveryDate: undefined, receivedDate: undefined }];
       }
       return prev.filter((x) => x.supplierId !== supplierId);
     });
@@ -1892,7 +1902,7 @@ export default function OrderDetailPage({
 
   function updateDraftSupplierDate(
     supplierId: Id<"suppliers">,
-    field: "orderDate" | "deliveryDate" | "receivedDate",
+    field: "orderDate" | "confirmedDate" | "deliveryDate" | "receivedDate",
     ts: number | undefined,
   ) {
     setDraftDeliveries((prev) =>
@@ -1906,7 +1916,7 @@ export default function OrderDetailPage({
       prev
         ? prev.map((x) =>
             x.supplierId === supplierId
-              ? { ...x, orderDate: undefined, deliveryDate: undefined, receivedDate: undefined }
+              ? { ...x, orderDate: undefined, confirmedDate: undefined, deliveryDate: undefined, receivedDate: undefined }
               : x,
           )
         : prev,
@@ -1932,6 +1942,15 @@ export default function OrderDetailPage({
   }
   function clearReceived(deliveryIndex: number) {
     return updateDeliveryDate({ orderId: orderIdTyped, deliveryIndex, field: "receivedDate", value: null });
+  }
+
+  function markConfirmed(deliveryIndex: number) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return updateDeliveryDate({ orderId: orderIdTyped, deliveryIndex, field: "confirmedDate", value: d.getTime() });
+  }
+  function clearConfirmed(deliveryIndex: number) {
+    return updateDeliveryDate({ orderId: orderIdTyped, deliveryIndex, field: "confirmedDate", value: null });
   }
 
   function startEditFinance(svcName: string) {
@@ -3395,7 +3414,7 @@ export default function OrderDetailPage({
                           availableSuppliers.map((s) => {
                             const entry = draftDeliveries.find((x) => x.supplierId === s._id);
                             const checked = !!entry;
-                            const hasAnyDate = !!(entry && (entry.orderDate || entry.deliveryDate || entry.receivedDate));
+                            const hasAnyDate = !!(entry && (entry.orderDate || entry.confirmedDate || entry.deliveryDate || entry.receivedDate));
                             return (
                               <div key={s._id} style={{
                                 borderRadius: 8,
@@ -3527,6 +3546,21 @@ export default function OrderDetailPage({
                                       fmt={fmtLocalDate}
                                       onMark={() => markReceived(deliveryIndex)}
                                       onClear={() => clearReceived(deliveryIndex)}
+                                    />
+                                  ) : m.key === "confirmedDate" ? (
+                                    <OdbiorMilestone
+                                      key={m.key}
+                                      tone={m.tone}
+                                      soft={m.soft}
+                                      border={m.border}
+                                      date={d[m.key]}
+                                      fmt={fmtLocalDate}
+                                      onMark={() => markConfirmed(deliveryIndex)}
+                                      onClear={() => clearConfirmed(deliveryIndex)}
+                                      label="Potwierdzenie"
+                                      buttonLabel="Potwierdź zamówienie"
+                                      titleClear="Usuń datę potwierdzenia"
+                                      titleMark="Potwierdź otrzymanie potwierdzenia od dostawcy"
                                     />
                                   ) : (
                                     <MilestonePill
