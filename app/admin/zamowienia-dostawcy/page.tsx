@@ -471,8 +471,22 @@ export default function SupplierOrdersPage() {
               {!isLoading && rows.map((r) => {
                 const status = rowStatus(r, todayStart)
                 const delivery = deliveryCellDecor(r, status, todayStart)
+                
+                const isOrdered = r.orderDate != null;
+                const isConfirmed = r.confirmedDate != null;
+                const isDelivered = status === "delivered";
+                
+                let rowBg = "transparent";
+                if (!isDelivered) {
+                  if (isConfirmed) {
+                    rowBg = "#f0fdf4"; // zielony - potwierdzone
+                  } else if (isOrdered) {
+                    rowBg = "#fffbeb"; // żółty - zamówione, brak potwierdzenia
+                  }
+                }
+
                 return (
-                  <tr key={r.key} onClick={(e) => openOrder(r, e)} style={{ cursor: "pointer" }} title="Otwórz zlecenie w nowej karcie">
+                  <tr key={r.key} onClick={(e) => openOrder(r, e)} style={{ cursor: "pointer", background: rowBg }} title="Otwórz zlecenie w nowej karcie">
                     <td className="mono" style={{ fontSize: 11, color: "var(--text-mute)" }}>
                       {r.orderName ?? <span style={{ color: "var(--panel-3)" }}>—</span>}
                     </td>
