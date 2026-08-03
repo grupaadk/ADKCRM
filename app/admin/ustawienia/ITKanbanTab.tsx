@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { X, Plus, Play, CheckCircle2 } from "lucide-react";
+import { X, Plus, Play, CheckCircle2, History } from "lucide-react";
 
 export function ITKanbanTab() {
   const columns = useQuery(api.itKanban.getColumns) ?? [];
@@ -22,7 +22,7 @@ export function ITKanbanTab() {
   const updateSprintStatus = useMutation(api.itKanban.updateSprintStatus);
   const deleteSprint = useMutation(api.itKanban.deleteSprint);
 
-  const [mode, setMode] = useState<"active-sprint" | "backlog" | "all-tasks">("all-tasks");
+  const [mode, setMode] = useState<"active-sprint" | "backlog" | "all-tasks" | "history">("all-tasks");
   const [viewType, setViewType] = useState<"board" | "list">("board");
   const [backlogSearchQuery, setBacklogSearchQuery] = useState("");
 
@@ -38,8 +38,13 @@ export function ITKanbanTab() {
   // DND State for backlog
   const [draggedToSprintId, setDraggedToSprintId] = useState<Id<"itKanbanSprints"> | "backlog" | null>(null);
 
+  // Modals state
+  const [startingSprintId, setStartingSprintId] = useState<Id<"itKanbanSprints"> | null>(null);
+  const [endingSprintId, setEndingSprintId] = useState<Id<"itKanbanSprints"> | null>(null);
+
   const activeSprint = sprints.find((s) => s.status === "active");
   const plannedSprints = sprints.filter((s) => s.status === "planned");
+  const completedSprints = sprints.filter((s) => s.status === "completed").sort((a, b) => (b.endDate || 0) - (a.endDate || 0));
 
   // Handlers
   const handleAddColumn = async (e: React.FormEvent) => {
@@ -165,11 +170,7 @@ export function ITKanbanTab() {
             </div>
             {sprintFilter !== "all" && activeSprint && (
               <button
-                onClick={async () => {
-                  if(confirm("Zakończyć ten sprint?")) {
-                    await updateSprintStatus({ id: activeSprint._id, status: "completed" });
-                  }
-                }}
+                onClick={() => setEndingSprintId(activeSprint._id)}
                 className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-md text-sm font-medium hover:bg-slate-800 transition-colors"
               >
                 <CheckCircle2 className="w-4 h-4" /> Zakończ sprint
@@ -334,10 +335,10 @@ export function ITKanbanTab() {
                           value={newTaskTitle}
                           onChange={(e) => setNewTaskTitle(e.target.value)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") handleAddTask(col._id, activeSprint._id);
+                            if (e.key === "Enter") handleAddTask(col._id, sprintFilter === "all" ? undefined : activeSprint?._id);
                             if (e.key === "Escape") setAddingTaskToCol(null);
                           }}
-                          onBlur={() => handleAddTask(col._id, activeSprint._id)}
+                          onBlur={() => handleAddTask(col._id, sprintFilter === "all" ? undefined : activeSprint?._id)}
                         />
                       </div>
                     ) : (
@@ -416,9 +417,7 @@ export function ITKanbanTab() {
                           alert("Zakończ wpierw obecny aktywny sprint!");
                           return;
                         }
-                        if (confirm(`Rozpocząć ${sprint.name}?`)) {
-                          await updateSprintStatus({ id: sprint._id, status: "active" });
-                        }
+                        setStartingSprintId(sprint._id);
                       }}
                       className="text-xs font-medium bg-white border border-slate-200 shadow-sm px-3 py-1.5 rounded text-slate-700 hover:bg-slate-50 transition-colors"
                     >
@@ -583,8 +582,180 @@ export function ITKanbanTab() {
     );
   };
 
+  const renderHistory = () => {
+    if (completedSprints.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+            <History className="w-8 h-8 text-slate-400" />
+          </div>
+          <h3 className="text-lg font-medium text-slate-900">Brak historii sprintów</h3>
+          <p className="text-sm text-slate-500 mt-1 max-w-sm">
+            Gdy zrealizujesz i zakończysz swój pierwszy sprint, pojawi się on w tym miejscu.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-8 max-w-4xl">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900">Historia Sprintów</h3>
+          <p className="text-sm text-slate-500 mt-1">Zakończone sprinty oraz zadania w nich zrealizowane.</p>
+        </div>
+        <div className="space-y-6">
+          {completedSprints.map((sprint) => {
+            const sprintTasks = tasks.filter((t) => t.sprintId === sprint._id);
+            const completedCount = sprintTasks.filter(t => t.isCompleted).length;
+            const startDateStr = sprint.startDate ? new Date(sprint.startDate).toLocaleDateString('pl-PL') : "Brak daty";
+            const endDateStr = sprint.endDate ? new Date(sprint.endDate).toLocaleDateString('pl-PL') : "Brak daty";
+
+            return (
+              <div key={sprint._id} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                  <div>
+                    <h4 className="font-semibold text-slate-800">{sprint.name}</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">{startDateStr} - {endDateStr}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-medium text-slate-700 bg-white border border-slate-200 px-2.5 py-1 rounded-md shadow-sm">
+                      Zakończono: {completedCount} / {sprintTasks.length}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-4">
+                  {sprintTasks.length === 0 ? (
+                    <p className="text-sm text-slate-500">Brak zadań w tym sprincie.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {sprintTasks.map(task => (
+                        <div key={task._id} className="flex items-center gap-3">
+                          <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${task.isCompleted ? 'text-green-500' : 'text-slate-300'}`} />
+                          <span className={`text-sm ${task.isCompleted ? 'text-slate-700 font-medium' : 'text-slate-400 line-through'}`}>
+                            {task.title}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderModals = () => {
+    // START SPRINT MODAL
+    if (startingSprintId) {
+      const sprintToStart = sprints.find(s => s._id === startingSprintId);
+      const tasksInSprint = tasks.filter(t => t.sprintId === startingSprintId);
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100">
+              <h3 className="text-lg font-semibold text-slate-900">Rozpocznij sprint</h3>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-slate-600">
+                Zamierzasz wystartować sprint <strong>{sprintToStart?.name}</strong>. W tym sprincie znajduje się obecnie <strong>{tasksInSprint.length}</strong> zadań.
+              </p>
+              <p className="text-sm text-slate-600">
+                Po rozpoczęciu, sprint pojawi się w zakładce Tablica Sprintu dla całego zespołu.
+              </p>
+            </div>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button 
+                onClick={() => setStartingSprintId(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={async () => {
+                  await updateSprintStatus({ id: startingSprintId, status: "active" });
+                  setStartingSprintId(null);
+                  setMode("active-sprint");
+                }}
+                className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors shadow-sm"
+              >
+                Rozpocznij sprint
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // END SPRINT MODAL
+    if (endingSprintId) {
+      const sprintToEnd = sprints.find(s => s._id === endingSprintId);
+      const tasksInSprint = tasks.filter(t => t.sprintId === endingSprintId);
+      const completedCount = tasksInSprint.filter(t => t.isCompleted).length;
+      const incompleteCount = tasksInSprint.length - completedCount;
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100">
+              <h3 className="text-lg font-semibold text-slate-900">Zakończ sprint</h3>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-slate-600">
+                Podsumowanie sprintu <strong>{sprintToEnd?.name}</strong>:
+              </p>
+              <div className="bg-slate-50 p-4 rounded-lg flex items-center justify-around border border-slate-100">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{completedCount}</div>
+                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-1">Ukończone</div>
+                </div>
+                <div className="w-px h-10 bg-slate-200" />
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-amber-500">{incompleteCount}</div>
+                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-1">Otwarte</div>
+                </div>
+              </div>
+              {incompleteCount > 0 && (
+                <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
+                  <p className="text-xs text-amber-800 font-medium">
+                    Uwaga: {incompleteCount} niezakończone zadania zostaną automatycznie przeniesione z powrotem do Backlogu (stracą przypisanie do tego sprintu).
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button 
+                onClick={() => setEndingSprintId(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+              >
+                Wróć
+              </button>
+              <button
+                onClick={async () => {
+                  await updateSprintStatus({ id: endingSprintId, status: "completed" });
+                  setEndingSprintId(null);
+                  setMode("history");
+                }}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                Zakończ sprint
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="space-y-6">
+      {renderModals()}
+      
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900">IT Kanban</h2>
@@ -595,7 +766,7 @@ export function ITKanbanTab() {
         <div className="flex gap-2 bg-slate-100 p-1 rounded-lg">
           <button
             onClick={() => setMode("all-tasks")}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
               mode === "all-tasks"
                 ? "bg-white shadow-sm text-slate-900"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
@@ -605,7 +776,7 @@ export function ITKanbanTab() {
           </button>
           <button
             onClick={() => setMode("active-sprint")}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
               mode === "active-sprint"
                 ? "bg-white shadow-sm text-slate-900"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
@@ -615,7 +786,7 @@ export function ITKanbanTab() {
           </button>
           <button
             onClick={() => setMode("backlog")}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
               mode === "backlog"
                 ? "bg-white shadow-sm text-slate-900"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
@@ -623,12 +794,23 @@ export function ITKanbanTab() {
           >
             Planowanie (Backlog)
           </button>
+          <button
+            onClick={() => setMode("history")}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
+              mode === "history"
+                ? "bg-white shadow-sm text-slate-900"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+          >
+            <History className="w-4 h-4" /> Historia
+          </button>
         </div>
       </div>
 
       {mode === "active-sprint" && renderActiveSprint(activeSprint?._id || "none")}
       {mode === "all-tasks" && renderActiveSprint("all")}
       {mode === "backlog" && renderBacklog()}
+      {mode === "history" && renderHistory()}
     </div>
   );
 }
