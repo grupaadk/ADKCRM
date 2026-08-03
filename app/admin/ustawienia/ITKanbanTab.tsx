@@ -216,13 +216,19 @@ export function ITKanbanTab() {
                           draggedTaskId === task._id ? "opacity-50" : ""
                         }`}
                       >
-                        <div className="flex items-start justify-between">
-                          <p className="text-sm text-slate-700 font-medium leading-snug">{task.title}</p>
+                        <div className="flex items-start gap-2">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); updateTask({ id: task._id, isCompleted: !task.isCompleted }) }}
+                            className={`mt-0.5 flex-shrink-0 transition-colors ${task.isCompleted ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </button>
+                          <p className={`text-sm font-medium leading-snug flex-1 ${task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{task.title}</p>
                           <button
                             onClick={() => {
                               if (confirm("Usunąć zadanie?")) deleteTask({ id: task._id });
                             }}
-                            className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition-opacity"
+                            className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition-opacity flex-shrink-0"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -292,7 +298,15 @@ export function ITKanbanTab() {
                         <tbody className="divide-y divide-slate-100">
                           {colTasks.map((task) => (
                             <tr key={task._id} className="hover:bg-slate-50 group">
-                              <td className="px-4 py-2.5 font-medium text-slate-700">{task.title}</td>
+                              <td className="px-4 py-2.5 font-medium flex items-center gap-2">
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); updateTask({ id: task._id, isCompleted: !task.isCompleted }) }}
+                                  className={`flex-shrink-0 transition-colors ${task.isCompleted ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
+                                >
+                                  <CheckCircle2 className="w-4 h-4" />
+                                </button>
+                                <span className={task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}>{task.title}</span>
+                              </td>
                               <td className="px-4 py-2.5 w-10 text-right">
                                 <button
                                   onClick={() => {
@@ -437,7 +451,15 @@ export function ITKanbanTab() {
                            onDragStart={(e) => handleDragStart(e, task._id)}
                            className="flex items-center justify-between bg-white px-3 py-2 border border-slate-200 rounded-md cursor-grab active:cursor-grabbing hover:border-slate-300 transition-colors group"
                          >
-                           <span className="text-sm text-slate-700 font-medium">{task.title}</span>
+                           <div className="flex items-center gap-2">
+                             <button 
+                               onClick={(e) => { e.stopPropagation(); updateTask({ id: task._id, isCompleted: !task.isCompleted }) }}
+                               className={`flex-shrink-0 transition-colors ${task.isCompleted ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
+                             >
+                               <CheckCircle2 className="w-4 h-4" />
+                             </button>
+                             <span className={`text-sm font-medium ${task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{task.title}</span>
+                           </div>
                            <button
                              onClick={() => updateTask({ id: task._id, sprintId: null })} // usun ze sprintu = przenies do backlogu
                              className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600"
@@ -497,7 +519,15 @@ export function ITKanbanTab() {
                         onDragStart={(e) => handleDragStart(e, task._id)}
                         className="flex items-center justify-between bg-white px-3 py-2 border border-slate-200 rounded-md cursor-grab active:cursor-grabbing hover:border-slate-300 transition-colors group"
                       >
-                        <span className="text-sm text-slate-700 font-medium">{task.title}</span>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); updateTask({ id: task._id, isCompleted: !task.isCompleted }) }}
+                            className={`flex-shrink-0 transition-colors ${task.isCompleted ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </button>
+                          <span className={`text-sm font-medium ${task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{task.title}</span>
+                        </div>
                         <button
                           onClick={() => {
                             if (confirm("Usunąć zadanie całkowicie?")) deleteTask({ id: task._id });

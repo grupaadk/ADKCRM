@@ -113,6 +113,7 @@ export const updateTask = mutation({
     description: v.optional(v.string()),
     priority: v.optional(v.union(v.literal("low"), v.literal("normal"), v.literal("high"))),
     sprintId: v.optional(v.union(v.id("itKanbanSprints"), v.null())),
+    isCompleted: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireUser(ctx);
@@ -196,6 +197,13 @@ export const updateSprintStatus = mutation({
       }
       await ctx.db.patch(args.id, { status: args.status, startDate: Date.now(), endDate: undefined });
     } else if (args.status === "completed") {
+      // Roll-over uncompleted tasks to the backlog
+      const sprintTasks = await ctx.db.query("itKanbanTasks").withIndex("by_sprint", (q) => q.eq("sprintId", args.id)).collect();
+      for (const task of sprintTasks) {
+        if (!task.isCompleted) {
+          await ctx.db.patch(task._id, { sprintId: undefined });
+        }
+      }
       await ctx.db.patch(args.id, { status: args.status, endDate: Date.now() });
     } else {
       await ctx.db.patch(args.id, { status: args.status });

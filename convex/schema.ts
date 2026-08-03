@@ -777,6 +777,7 @@ export default defineSchema({
     description: v.optional(v.string()),
     priority: v.union(v.literal("low"), v.literal("normal"), v.literal("high")),
     position: v.number(),
+    isCompleted: v.optional(v.boolean()),
     assignedUserIds: v.optional(v.array(v.id("users"))),
     createdBy: v.id("users"),
     createdAt: v.number(),
