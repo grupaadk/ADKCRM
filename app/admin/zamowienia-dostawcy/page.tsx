@@ -197,7 +197,7 @@ export default function SupplierOrdersPage() {
 
   const [search, setSearch] = useState("")
   const [supplierFilter, setSupplierFilter] = useState<Set<string>>(new Set())
-  const [statusFilter, setStatusFilter] = useState<Set<DeliveryStatus>>(new Set())
+  const [statusFilter, setStatusFilter] = useState<Set<DeliveryStatus>>(new Set(["pending"]))
   const [sortField, setSortField] = useState<SortField>("deliveryDate")
   const [sortDir, setSortDir] = useState<SortDirection>("asc")
 
