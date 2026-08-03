@@ -456,32 +456,49 @@ export function ITKanbanTab() {
           onDrop={(e) => handleDropToSprint(e, null)}
         >
           <div className="flex items-center gap-3 mb-4">
-            <h4 className="text-lg font-semibold text-slate-900">Backlog</h4>
+            <h4 className="text-lg font-semibold text-slate-900">Backlog (Nieprzypisane zadania)</h4>
             <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{backlogTasks.length} zadań</span>
           </div>
 
-          <div className="space-y-1 mb-4">
-            {backlogTasks.map((task) => (
-              <div
-                key={task._id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, task._id)}
-                className="flex items-center justify-between bg-white px-3 py-2 border border-slate-200 rounded-md cursor-grab active:cursor-grabbing hover:border-slate-300 transition-colors group"
-              >
-                <span className="text-sm text-slate-700 font-medium">{task.title}</span>
-                <button
-                  onClick={() => {
-                    if (confirm("Usunąć zadanie całkowicie?")) deleteTask({ id: task._id });
-                  }}
-                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition-opacity"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
+          <div className="space-y-6 mb-4">
+            {columns.map((col) => {
+              const colTasks = backlogTasks.filter(t => t.columnId === col._id).sort((a, b) => a.position - b.position);
+              
+              if (colTasks.length === 0) return null; // Ukryj puste kolumny w backlogu dla przejrzystości
+              
+              return (
+                <div key={col._id}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: col.color || "#cbd5e1" }} />
+                    <h5 className="text-sm font-semibold text-slate-700">{col.title}</h5>
+                  </div>
+                  <div className="space-y-1 pl-4 border-l-2 border-slate-100">
+                    {colTasks.map((task) => (
+                      <div
+                        key={task._id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, task._id)}
+                        className="flex items-center justify-between bg-white px-3 py-2 border border-slate-200 rounded-md cursor-grab active:cursor-grabbing hover:border-slate-300 transition-colors group"
+                      >
+                        <span className="text-sm text-slate-700 font-medium">{task.title}</span>
+                        <button
+                          onClick={() => {
+                            if (confirm("Usunąć zadanie całkowicie?")) deleteTask({ id: task._id });
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition-opacity"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            
             {backlogTasks.length === 0 && (
                <div className="text-center py-6 text-slate-400 text-sm">
-                 Backlog jest pusty.
+                 Backlog jest pusty. Wszystkie zadania zostały zaplanowane w sprintach!
                </div>
             )}
           </div>
