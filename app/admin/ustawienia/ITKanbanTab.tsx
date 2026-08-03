@@ -239,10 +239,10 @@ export function ITKanbanTab() {
                           value={newTaskTitle}
                           onChange={(e) => setNewTaskTitle(e.target.value)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") handleAddTask(col._id, activeSprint._id);
+                            if (e.key === "Enter") handleAddTask(col._id, sprintFilter === "all" ? undefined : activeSprint?._id);
                             if (e.key === "Escape") setAddingTaskToCol(null);
                           }}
-                          onBlur={() => handleAddTask(col._id, activeSprint._id)}
+                          onBlur={() => handleAddTask(col._id, sprintFilter === "all" ? undefined : activeSprint?._id)}
                         />
                       </div>
                     ) : (
