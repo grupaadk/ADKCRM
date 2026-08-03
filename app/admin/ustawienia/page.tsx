@@ -2977,7 +2977,7 @@ function ServicesTab() {
     setError(null);
     setBusy(true);
     try {
-      await createService({ name: form.name, description: form.description || undefined });
+      await createService({ name: form.name, description: form.description || undefined, defaultTasks: [] });
       setForm({ name: "", description: "" });
       setShowForm(false);
     } catch (e) {
@@ -2987,7 +2987,7 @@ function ServicesTab() {
     }
   }
 
-  async function handleSave(id: Id<"services">, data: { name?: string; description?: string }) {
+  async function handleSave(id: Id<"services">, data: { name?: string; description?: string; defaultTasks?: { title: string; daysToComplete?: number }[] }) {
     await updateService({ id, ...data });
   }
 
@@ -3141,10 +3141,11 @@ function ServicesRow({
     supplierIds?: Id<"suppliers">[];
     isActive: boolean;
     sortOrder: number;
+    defaultTasks?: { title: string; daysToComplete?: number }[];
   };
   supplierMap: Map<string, string>;
   allSuppliers: { _id: Id<"suppliers">; name: string }[];
-  onSave: (id: Id<"services">, data: { name?: string; description?: string }) => Promise<void>;
+  onSave: (id: Id<"services">, data: { name?: string; description?: string; defaultTasks?: { title: string; daysToComplete?: number }[] }) => Promise<void>;
   onToggle: (id: Id<"services">) => Promise<void>;
   onDelete: (id: Id<"services">) => Promise<void>;
   onAssignSuppliers: (id: Id<"services">, supplierIds: Id<"suppliers">[]) => Promise<void>;
@@ -3156,6 +3157,7 @@ function ServicesRow({
     name: service.name,
     description: service.description ?? "",
     supplierIds: service.supplierIds ?? [] as Id<"suppliers">[],
+    defaultTasks: service.defaultTasks ?? [],
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -3164,7 +3166,7 @@ function ServicesRow({
     setBusy(true);
     setError(null);
     try {
-      await onSave(service._id, { name: draft.name, description: draft.description || undefined });
+      await onSave(service._id, { name: draft.name, description: draft.description || undefined, defaultTasks: draft.defaultTasks });
       await onAssignSuppliers(service._id, draft.supplierIds);
       setEditing(false);
     } catch (e) {
@@ -3236,6 +3238,75 @@ function ServicesRow({
                 </div>
               )}
             </div>
+            
+            {/* Sekcja domyślnych zadań */}
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Domyślne zadania (przy tworzeniu zlecenia)</label>
+                <button
+                  type="button"
+                  onClick={() => setDraft(d => ({ ...d, defaultTasks: [...d.defaultTasks, { title: "Nowe zadanie" }] }))}
+                  className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-200"
+                >
+                  + Dodaj zadanie
+                </button>
+              </div>
+              
+              {draft.defaultTasks.length === 0 ? (
+                <p className="text-xs text-slate-400">Brak domyślnych zadań dla tej usługi.</p>
+              ) : (
+                <div className="space-y-2">
+                  {draft.defaultTasks.map((task, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                        placeholder="Tytuł zadania (np. Zamówienie u dostawcy)"
+                        value={task.title}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDraft(d => {
+                            const nt = [...d.defaultTasks];
+                            nt[idx] = { ...nt[idx], title: val };
+                            return { ...d, defaultTasks: nt };
+                          });
+                        }}
+                      />
+                      <input
+                        className="w-24 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                        type="number"
+                        min="0"
+                        placeholder="Dni"
+                        title="Dni na realizację od momentu utworzenia (puste = brak terminu)"
+                        value={task.daysToComplete === undefined ? "" : task.daysToComplete}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDraft(d => {
+                            const nt = [...d.defaultTasks];
+                            nt[idx] = { ...nt[idx], daysToComplete: val === "" ? undefined : parseInt(val, 10) };
+                            return { ...d, defaultTasks: nt };
+                          });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDraft(d => {
+                            const nt = [...d.defaultTasks];
+                            nt.splice(idx, 1);
+                            return { ...d, defaultTasks: nt };
+                          });
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-red-600"
+                        title="Usuń zadanie"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {error && <p className="text-xs text-red-600">{error}</p>}
             <div className="flex gap-2">
               <button onClick={save} disabled={busy || !draft.name}

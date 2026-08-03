@@ -473,6 +473,10 @@ export default defineSchema({
     sortOrder: v.number(),
     description: v.optional(v.string()),
     supplierIds: v.optional(v.array(v.id("suppliers"))),
+    defaultTasks: v.optional(v.array(v.object({
+      title: v.string(),
+      daysToComplete: v.optional(v.number()),
+    }))),
     // Pola legacy — do usunięcia po migracji
     unit: v.optional(v.string()),
     unitPrice: v.optional(v.number()),

@@ -282,6 +282,34 @@ export const create = mutation({
       performedBy: userId,
     });
 
+    if (args.services && args.services.length > 0) {
+      const allServices = await ctx.db.query("services").collect();
+      let pos = 0;
+      for (const sName of args.services) {
+        const svc = allServices.find((s) => s.name === sName);
+        if (svc?.defaultTasks) {
+          for (const t of svc.defaultTasks) {
+            let dueDate = undefined;
+            if (t.daysToComplete !== undefined) {
+              const d = new Date();
+              d.setDate(d.getDate() + t.daysToComplete);
+              d.setHours(23, 59, 59, 999);
+              dueDate = d.getTime();
+            }
+            await ctx.db.insert("orderTasks", {
+              orderId,
+              title: t.title,
+              dueDate,
+              status: "todo",
+              priority: "normal",
+              createdBy: userId,
+              position: pos++,
+            });
+          }
+        }
+      }
+    }
+
     return orderId;
   },
 });
@@ -339,6 +367,45 @@ export const update = mutation({
       details: { fields: Object.keys(filtered) },
       performedBy: userId,
     });
+    if (args.services !== undefined) {
+      const oldServices = order.services ?? [];
+      const newServices = args.services;
+      const addedServices = newServices.filter((s) => !oldServices.includes(s));
+      
+      if (addedServices.length > 0) {
+        const allServices = await ctx.db.query("services").collect();
+        
+        const existingTasks = await ctx.db
+          .query("orderTasks")
+          .withIndex("by_order", (q) => q.eq("orderId", orderId))
+          .collect();
+        let pos = existingTasks.length > 0 ? Math.max(...existingTasks.map(t => t.position ?? 0)) + 1 : 0;
+
+        for (const sName of addedServices) {
+          const svc = allServices.find((s) => s.name === sName);
+          if (svc?.defaultTasks) {
+            for (const t of svc.defaultTasks) {
+              let dueDate = undefined;
+              if (t.daysToComplete !== undefined) {
+                const d = new Date();
+                d.setDate(d.getDate() + t.daysToComplete);
+                d.setHours(23, 59, 59, 999);
+                dueDate = d.getTime();
+              }
+              await ctx.db.insert("orderTasks", {
+                orderId,
+                title: t.title,
+                dueDate,
+                status: "todo",
+                priority: "normal",
+                createdBy: userId,
+                position: pos++,
+              });
+            }
+          }
+        }
+      }
+    }
   },
 });
 
