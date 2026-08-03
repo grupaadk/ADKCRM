@@ -756,6 +756,26 @@ export default defineSchema({
     authorId: v.id("users"),
   }).index("by_task", ["taskId"]),
 
+  // IT Kanban (Niezależna tablica w ustawieniach dla zespołu IT)
+  itKanbanColumns: defineTable({
+    title: v.string(),
+    order: v.number(),
+    color: v.string(),
+  }).index("by_order", ["order"]),
+
+  itKanbanTasks: defineTable({
+    columnId: v.id("itKanbanColumns"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    priority: v.union(v.literal("low"), v.literal("normal"), v.literal("high")),
+    position: v.number(),
+    assignedUserIds: v.optional(v.array(v.id("users"))),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_column", ["columnId"])
+    .index("by_assignee", ["assignedUserIds"]),
+
   // Logi systemowe
   systemLogs: defineTable({
     level: v.union(v.literal("info"), v.literal("warn"), v.literal("error")),

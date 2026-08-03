@@ -26,6 +26,7 @@ import type * as gmailAuth from "../gmailAuth.js";
 import type * as googleDrive from "../googleDrive.js";
 import type * as googleDriveAuth from "../googleDriveAuth.js";
 import type * as http from "../http.js";
+import type * as itKanban from "../itKanban.js";
 import type * as jotform from "../jotform.js";
 import type * as jotformAdmin from "../jotformAdmin.js";
 import type * as jotformInternal from "../jotformInternal.js";
@@ -81,6 +82,7 @@ declare const fullApi: ApiFromModules<{
   googleDrive: typeof googleDrive;
   googleDriveAuth: typeof googleDriveAuth;
   http: typeof http;
+  itKanban: typeof itKanban;
   jotform: typeof jotform;
   jotformAdmin: typeof jotformAdmin;
   jotformInternal: typeof jotformInternal;
