@@ -3509,6 +3509,17 @@ export default function OrderDetailPage({
                           const supplier = allSuppliers.find((s) => s._id === d.supplierId);
                           const status = deliveryStatusBadge(d);
                           const deliveryIndex = (order.serviceDeliveries ?? []).findIndex((x) => x === d);
+                          
+                          const isOrdered = d.orderDate != null;
+                          const isConfirmed = d.confirmedDate != null;
+                          const isDelivered = d.receivedDate != null;
+                          
+                          let rowBg = "transparent";
+                          if (!isDelivered) {
+                            if (isConfirmed) rowBg = "#f0fdf4"; // zielony - potwierdzone
+                            else if (isOrdered) rowBg = "#fffbeb"; // żółty - zamówione, brak potwierdzenia
+                          }
+
                           return (
                             <div
                               key={`${d.supplierId}:${i}`}
@@ -3516,6 +3527,7 @@ export default function OrderDetailPage({
                                 display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
                                 padding: "10px 12px",
                                 borderTop: i > 0 ? "1px solid var(--line)" : "none",
+                                background: rowBg,
                               }}
                             >
                               <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 150, flex: "0 0 auto" }}>
