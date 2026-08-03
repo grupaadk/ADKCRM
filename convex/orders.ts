@@ -1038,7 +1038,10 @@ export const listSupplierOrders = query({
   handler: async (ctx) => {
     const orders = await ctx.db
       .query("orders")
-      .filter((q) => q.neq(q.field("serviceDeliveries"), undefined))
+      .filter((q) => q.and(
+        q.neq(q.field("serviceDeliveries"), undefined),
+        q.neq(q.field("status"), "archived")
+      ))
       .order("desc")
       .collect();
 
