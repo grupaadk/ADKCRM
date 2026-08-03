@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import type { Id } from "@/convex/_generated/dataModel";
 import ModalPortal from "@/components/ModalPortal";
+import { X } from "lucide-react";
 
 type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy" | "wydatki";
 
