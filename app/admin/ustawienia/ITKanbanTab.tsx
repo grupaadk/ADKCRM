@@ -24,6 +24,7 @@ export function ITKanbanTab() {
 
   const [mode, setMode] = useState<"active-sprint" | "backlog" | "all-tasks">("all-tasks");
   const [viewType, setViewType] = useState<"board" | "list">("board");
+  const [backlogSearchQuery, setBacklogSearchQuery] = useState("");
 
   const [newColName, setNewColName] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -344,7 +345,13 @@ export function ITKanbanTab() {
   };
 
   const renderBacklog = () => {
-    const backlogTasks = tasks.filter((t) => t.sprintId === undefined);
+    let backlogTasks = tasks.filter((t) => t.sprintId === undefined);
+    
+    if (backlogSearchQuery.trim()) {
+      const q = backlogSearchQuery.toLowerCase();
+      backlogTasks = backlogTasks.filter(t => t.title.toLowerCase().includes(q));
+    }
+
     // Domyślna kolumna dla nowo tworzonych zadań w backlogu
     const defaultColumnId = columns.length > 0 ? columns[0]._id : undefined;
 
@@ -455,9 +462,19 @@ export function ITKanbanTab() {
           onDragLeave={() => setDraggedToSprintId(null)}
           onDrop={(e) => handleDropToSprint(e, null)}
         >
-          <div className="flex items-center gap-3 mb-4">
-            <h4 className="text-lg font-semibold text-slate-900">Backlog (Nieprzypisane zadania)</h4>
-            <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{backlogTasks.length} zadań</span>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <h4 className="text-lg font-semibold text-slate-900">Backlog (Nieprzypisane zadania)</h4>
+              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{backlogTasks.length} zadań</span>
+            </div>
+            
+            <input
+              type="text"
+              placeholder="Szukaj w backlogu..."
+              value={backlogSearchQuery}
+              onChange={(e) => setBacklogSearchQuery(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-slate-400 bg-white"
+            />
           </div>
 
           <div className="space-y-6 mb-4">
@@ -496,9 +513,15 @@ export function ITKanbanTab() {
               );
             })}
             
-            {backlogTasks.length === 0 && (
+            {backlogTasks.length === 0 && !backlogSearchQuery && (
                <div className="text-center py-6 text-slate-400 text-sm">
                  Backlog jest pusty. Wszystkie zadania zostały zaplanowane w sprintach!
+               </div>
+            )}
+            
+            {backlogTasks.length === 0 && backlogSearchQuery && (
+               <div className="text-center py-6 text-slate-400 text-sm">
+                 Brak wyników wyszukiwania dla "{backlogSearchQuery}".
                </div>
             )}
           </div>
