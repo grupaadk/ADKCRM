@@ -296,6 +296,10 @@ export default function DashboardClient() {
     }
 
     const sortByDue = (a: DashboardTask, b: DashboardTask) => {
+      // 1. Wysoki priorytet ponad wszystko
+      if (a.priority === "high" && b.priority !== "high") return -1;
+      if (a.priority !== "high" && b.priority === "high") return 1;
+
       const now = Date.now();
       const aOlder = a.columnChangedAt ? (now - a.columnChangedAt > 1000 * 60 * 60 * 24) : false;
       const bOlder = b.columnChangedAt ? (now - b.columnChangedAt > 1000 * 60 * 60 * 24) : false;
@@ -308,8 +312,6 @@ export default function DashboardClient() {
       if (a.position !== undefined) return -1;
       if (b.position !== undefined) return 1;
 
-      if (a.priority === "high" && b.priority !== "high") return -1;
-      if (a.priority !== "high" && b.priority === "high") return 1;
       if (a.dueDate == null && b.dueDate == null) return 0;
       if (a.dueDate == null) return 1;
       if (b.dueDate == null) return -1;
