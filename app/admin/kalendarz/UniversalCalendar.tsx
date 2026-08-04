@@ -770,14 +770,21 @@ export default function UniversalCalendar() {
         document.body
       )}
 
-      {/* Date click modal */}
+      {/* Date click modal (Slide-over drawer from right) */}
       {dateModalOpen && selectedDate && createPortal(
-        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "flex-end" }}>
+          <style>{`
+            @keyframes slideInFromRight {
+              from { transform: translateX(100%); }
+              to { transform: translateX(0); }
+            }
+          `}</style>
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={() => setDateModalOpen(false)} />
           <div style={{
-            position: "relative", width: "100%", maxWidth: 520, maxHeight: "90vh",
-            background: "var(--panel)", borderRadius: 12, border: "1px solid var(--line)",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.2)", display: "flex", flexDirection: "column", overflow: "hidden",
+            position: "relative", width: "100%", maxWidth: 480, height: "100vh",
+            background: "var(--panel)", borderLeft: "1px solid var(--line)",
+            boxShadow: "-10px 0 30px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden",
+            zIndex: 51, animation: "slideInFromRight 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
           }} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
