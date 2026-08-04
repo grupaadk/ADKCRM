@@ -172,6 +172,8 @@ export const getLinkedOrderEvents = query({
       color: string;
       startDate: number;
       hasTime?: boolean;
+      supplierId?: string;
+      supplierName?: string;
       deliveryIndex?: number;
       serviceName?: string;
       field: string;
@@ -210,6 +212,7 @@ export const getLinkedOrderEvents = query({
               color: type.color,
               startDate: startVal,
               hasTime,
+              supplierId: type.linkedSupplierId,
               field,
               assignedUserId: order.assignedUserId,
             });
@@ -237,6 +240,7 @@ export const getLinkedOrderEvents = query({
               color: type.color,
               startDate: computedStart,
               hasTime,
+              supplierId: type.linkedSupplierId,
               field,
               assignedUserId: order.assignedUserId,
             });
@@ -277,6 +281,8 @@ export const getLinkedOrderEvents = query({
                   color: type.color,
                   startDate: startVal,
                   hasTime,
+                  supplierId: delivery.supplierId ?? type.linkedSupplierId,
+                  supplierName: suppName,
                   deliveryIndex: idx,
                   serviceName: label,
                   field,

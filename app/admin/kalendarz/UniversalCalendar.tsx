@@ -78,6 +78,7 @@ export default function UniversalCalendar() {
   // Filters
   const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set());
   const [activeEventTypeFilters, setActiveEventTypeFilters] = useState<Set<string>>(new Set());
+  const [activeSupplierFilters, setActiveSupplierFilters] = useState<Set<string>>(new Set());
   const [showPrivate, setShowPrivate] = useState(true);
 
   // Modals
@@ -124,6 +125,7 @@ export default function UniversalCalendar() {
   const allOrders = useQuery(api.orders.listForPicker);
   const currentUser = useQuery(api.users.me);
   const allUsers = useQuery(api.users.listAllActive);
+  const activeSuppliers = useQuery(api.suppliers.listActive) ?? [];
   const eventTypes = useQuery(api.calendarEvents.getEventTypes) ?? [];
   const effectiveEventTypeId = newEventTypeId || eventTypes[0]?._id || "";
   const calendarEvents = useQuery(api.calendarEvents.getEvents, {
@@ -194,13 +196,41 @@ export default function UniversalCalendar() {
     });
   };
 
+  const suppliersFromTypes = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; typeIds: string[]; color: string }>();
+    eventTypes.forEach((t) => {
+      if (t.linkedSupplierId && t.linkedSupplierName) {
+        if (!map.has(t.linkedSupplierId)) {
+          map.set(t.linkedSupplierId, {
+            id: t.linkedSupplierId,
+            name: t.linkedSupplierName,
+            typeIds: [t._id],
+            color: t.color,
+          });
+        } else {
+          map.get(t.linkedSupplierId)!.typeIds.push(t._id);
+        }
+      }
+    });
+    return Array.from(map.values());
+  }, [eventTypes]);
+
+  const toggleSupplierFilter = (supplierId: string) => {
+    setActiveSupplierFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(supplierId)) next.delete(supplierId);
+      else next.add(supplierId);
+      return next;
+    });
+  };
+
   // ─── Build unified events ───────────────────────────────────────────────────
 
   const events = useMemo(() => {
     const result: object[] = [];
 
     // --- Calendar events ---
-    if (calendarEvents) {
+    if (calendarEvents && activeSupplierFilters.size === 0) {
       for (const e of calendarEvents) {
         if (!showPrivate && e.isPrivate) continue;
         if (activeEventTypeFilters.size > 0 && !activeEventTypeFilters.has(e.eventTypeId)) continue;
@@ -240,6 +270,9 @@ export default function UniversalCalendar() {
 
       for (const le of filteredLinked) {
         if (activeEventTypeFilters.size > 0 && !activeEventTypeFilters.has(le.eventTypeId)) continue;
+        if (activeSupplierFilters.size > 0) {
+          if (!le.supplierId || !activeSupplierFilters.has(le.supplierId)) continue;
+        }
 
         const baseText = le.orderName ? `${le.orderName} - ${le.clientName}` : le.clientName;
         const customPart = le.customText ? ` [${le.customText}]` : "";
@@ -261,6 +294,8 @@ export default function UniversalCalendar() {
             orderName: le.orderName,
             customText: le.customText,
             serviceName: le.serviceName,
+            supplierId: le.supplierId,
+            supplierName: le.supplierName,
             field: le.field,
             deliveryIndex: le.deliveryIndex,
             eventTypeId: le.eventTypeId,
@@ -272,7 +307,7 @@ export default function UniversalCalendar() {
     }
 
     return result;
-  }, [calendarEvents, linkedOrderEvents, activeUserFilters, activeEventTypeFilters, showPrivate]);
+  }, [calendarEvents, linkedOrderEvents, activeUserFilters, activeEventTypeFilters, activeSupplierFilters, showPrivate]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
 
@@ -693,8 +728,8 @@ export default function UniversalCalendar() {
 
       {/* Filters bar */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 20px", borderBottom: "1px solid var(--line)", background: "var(--card)" }}>
-        {/* General Event types (no supplier link) */}
-        {eventTypes.filter((t) => !t.linkedSupplierId).map((type) => {
+        {/* Event type filters */}
+        {eventTypes.map((type) => {
           const active = activeEventTypeFilters.has(type._id);
           return (
             <button
@@ -716,50 +751,36 @@ export default function UniversalCalendar() {
           );
         })}
 
-        {/* Supplier-linked Event types (Zagnieżdżone powiązania z Dostawcami) */}
-        {(() => {
-          const supplierTypes = eventTypes.filter((t) => !!t.linkedSupplierId);
-          if (supplierTypes.length === 0) return null;
-          return (
-            <>
-              <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                Dostawcy:
-              </span>
-              {supplierTypes.map((type) => {
-                const active = activeEventTypeFilters.has(type._id);
-                return (
-                  <button
-                    key={type._id}
-                    onClick={() => toggleEventTypeFilter(type._id)}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-                      background: active ? `${type.color}22` : "var(--panel)",
-                      color: active ? type.color : "var(--text-mute)",
-                      border: `1.5px solid ${active ? type.color : "var(--line)"}`,
-                      fontWeight: active ? 600 : 500,
-                      cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-                    }}
-                  >
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
-                    <span>{type.name}</span>
-                    {type.linkedSupplierName && (
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: "1px 5px", borderRadius: 4,
-                        background: active ? `${type.color}33` : "var(--panel-2)",
-                        border: `1px solid ${active ? type.color : "var(--line)"}`,
-                        color: active ? type.color : "var(--text-strong)",
-                      }}>
-                        🏢 {type.linkedSupplierName}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </>
-          );
-        })()}
+        {/* Dynamic Suppliers Filter (Filtrowanie po Dostawcach) */}
+        {activeSuppliers.length > 0 && (
+          <>
+            <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              Dostawcy:
+            </span>
+            {activeSuppliers.map((supplier) => {
+              const active = activeSupplierFilters.has(supplier._id);
+              return (
+                <button
+                  key={supplier._id}
+                  onClick={() => toggleSupplierFilter(supplier._id)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                    background: active ? "var(--accent)22" : "var(--panel)",
+                    color: active ? "var(--accent)" : "var(--text-mute)",
+                    border: `1.5px solid ${active ? "var(--accent)" : "var(--line)"}`,
+                    fontWeight: active ? 700 : 500,
+                    cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                  }}
+                >
+                  <span style={{ fontSize: 11 }}>🏢</span>
+                  <span>{supplier.name}</span>
+                </button>
+              );
+            })}
+          </>
+        )}
 
         <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
 
