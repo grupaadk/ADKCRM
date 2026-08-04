@@ -449,6 +449,10 @@ export default function UniversalCalendar() {
         }}>
           <div style={{ width: 5, minWidth: 5, background: accentColor, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
           <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
+            {/* Typ zdarzenia */}
+            <span style={{ fontSize: 9, fontWeight: 700, color: accentColor, background: `${accentColor}18`, border: `1px solid ${accentColor}33`, borderRadius: 3, padding: "1px 5px", width: "fit-content", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+              🔧 Montaż
+            </span>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 5 }}>
               {timeStr && (
                 <span style={{ fontSize: 12, fontWeight: 800, color: "#fff", background: accentColor, borderRadius: 4, padding: "2px 6px", flexShrink: 0 }}>
@@ -493,6 +497,14 @@ export default function UniversalCalendar() {
       }}>
         <div style={{ width: 5, minWidth: 5, background: color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
+          {/* Typ zdarzenia — zawsze na górze */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color, background: `${color}18`, border: `1px solid ${color}33`, borderRadius: 3, padding: "1px 5px", letterSpacing: "0.04em", textTransform: "uppercase", flexShrink: 0 }}>
+              {props.eventTypeName}
+            </span>
+            {props.isPrivate && <span style={{ fontSize: 9, background: "#f1f5f9", color: "#64748b", borderRadius: 3, padding: "1px 4px", flexShrink: 0 }}>🔒</span>}
+          </div>
+          {/* Tytuł + godzina */}
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
             {timeStr && (
               <span style={{ fontSize: 12, fontWeight: 800, color: "#fff", background: color, borderRadius: 4, padding: "2px 6px", flexShrink: 0 }}>
@@ -502,11 +514,18 @@ export default function UniversalCalendar() {
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {arg.event.title}
             </div>
-            {props.isPrivate && <span style={{ fontSize: 9, background: "#f1f5f9", color: "#64748b", borderRadius: 3, padding: "1px 4px", flexShrink: 0 }}>🔒</span>}
           </div>
-          <span style={{ fontSize: 10, fontWeight: 600, color, background: `${color}22`, border: `1px solid ${color}44`, borderRadius: 4, padding: "1px 6px", width: "fit-content" }}>
-            {props.eventTypeName}
-          </span>
+          {/* Godzina zakończenia */}
+          {arg.event.end && !arg.event.allDay && (() => {
+            const endDate = arg.event.end!;
+            const startDate = arg.event.start;
+            const sameDay = startDate && endDate.toDateString() === startDate.toDateString();
+            const endTimeStr = `${endDate.getHours().toString().padStart(2, "0")}:${endDate.getMinutes().toString().padStart(2, "0")}`;
+            const endLabel = sameDay ? `do ${endTimeStr}` : `${endDate.getDate()}.${(endDate.getMonth()+1).toString().padStart(2,"0")} ${endTimeStr}`;
+            return (
+              <div style={{ fontSize: 10, color: "var(--text-mute)" }}>{endLabel}</div>
+            );
+          })()}
         </div>
       </div>
     );
