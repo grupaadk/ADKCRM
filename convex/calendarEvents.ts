@@ -19,6 +19,7 @@ export const createEventType = mutation({
     color: v.string(),
     icon: v.optional(v.string()),
     isPrivate: v.boolean(),
+    linkedOrderField: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireRole(ctx, "admin");
@@ -27,6 +28,7 @@ export const createEventType = mutation({
       color: args.color,
       icon: args.icon,
       isPrivate: args.isPrivate,
+      linkedOrderField: args.linkedOrderField,
       createdAt: Date.now(),
     });
   },
@@ -39,13 +41,17 @@ export const updateEventType = mutation({
     color: v.optional(v.string()),
     icon: v.optional(v.string()),
     isPrivate: v.optional(v.boolean()),
+    linkedOrderField: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     await requireRole(ctx, "admin");
-    const { id, ...updates } = args;
+    const { id, linkedOrderField, ...updates } = args;
     const filtered: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(updates)) {
       if (val !== undefined) filtered[key] = val;
+    }
+    if (linkedOrderField !== undefined) {
+      filtered.linkedOrderField = linkedOrderField === null ? undefined : linkedOrderField;
     }
     await ctx.db.patch(id, filtered);
   },
@@ -109,6 +115,138 @@ export const getEvents = query({
         .map((uid) => userMap.get(uid))
         .filter(Boolean),
     }));
+  },
+});
+
+export const getLinkedOrderEvents = query({
+  args: {
+    startDate: v.number(),
+    endDate: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireUser(ctx);
+
+    const eventTypes = await ctx.db.query("calendarEventTypes").collect();
+    const linkedTypes = eventTypes.filter((t) => t.linkedOrderField);
+    if (linkedTypes.length === 0) return [];
+
+    const orders = await ctx.db.query("orders").collect();
+    const clients = await ctx.db.query("clients").collect();
+    const clientMap = new Map(clients.map((c) => [c._id, c.name]));
+
+    const results: Array<{
+      id: string;
+      orderId: string;
+      clientId?: string;
+      clientName: string;
+      orderName?: string;
+      eventTypeId: string;
+      eventTypeName: string;
+      color: string;
+      startDate: number;
+      deliveryIndex?: number;
+      serviceName?: string;
+      field: string;
+      assignedUserId?: string;
+    }> = [];
+
+    for (const type of linkedTypes) {
+      const field = type.linkedOrderField!;
+
+      for (const order of orders) {
+        const clientName = clientMap.get(order.clientId) ?? "Klient";
+
+        if (field === "projectStartDate" && order.projectStartDate) {
+          if (order.projectStartDate >= args.startDate && order.projectStartDate <= args.endDate) {
+            results.push({
+              id: `${type._id}_${order._id}_projectStart`,
+              orderId: order._id,
+              clientId: order.clientId,
+              clientName,
+              orderName: order.name,
+              eventTypeId: type._id,
+              eventTypeName: type.name,
+              color: type.color,
+              startDate: order.projectStartDate,
+              field,
+              assignedUserId: order.assignedUserId,
+            });
+          }
+        } else if (field === "projectEndDate" && order.projectEndDate) {
+          if (order.projectEndDate >= args.startDate && order.projectEndDate <= args.endDate) {
+            results.push({
+              id: `${type._id}_${order._id}_projectEnd`,
+              orderId: order._id,
+              clientId: order.clientId,
+              clientName,
+              orderName: order.name,
+              eventTypeId: type._id,
+              eventTypeName: type.name,
+              color: type.color,
+              startDate: order.projectEndDate,
+              field,
+              assignedUserId: order.assignedUserId,
+            });
+          }
+        } else if (field.startsWith("serviceDeliveries.")) {
+          const deliveryField = field.split(".")[1] as "deliveryDate" | "orderDate" | "confirmedDate" | "receivedDate";
+          if (order.serviceDeliveries && Array.isArray(order.serviceDeliveries)) {
+            order.serviceDeliveries.forEach((delivery, idx) => {
+              const dateVal = delivery[deliveryField];
+              if (dateVal && dateVal >= args.startDate && dateVal <= args.endDate) {
+                results.push({
+                  id: `${type._id}_${order._id}_del_${idx}`,
+                  orderId: order._id,
+                  clientId: order.clientId,
+                  clientName,
+                  orderName: order.name,
+                  eventTypeId: type._id,
+                  eventTypeName: type.name,
+                  color: type.color,
+                  startDate: dateVal,
+                  deliveryIndex: idx,
+                  serviceName: delivery.serviceName,
+                  field,
+                  assignedUserId: order.assignedUserId,
+                });
+              }
+            });
+          }
+        }
+      }
+    }
+
+    return results;
+  },
+});
+
+export const updateLinkedOrderDate = mutation({
+  args: {
+    orderId: v.id("orders"),
+    field: v.string(),
+    deliveryIndex: v.optional(v.number()),
+    newDate: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireUser(ctx);
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie istnieje.");
+
+    if (args.field === "projectStartDate") {
+      await ctx.db.patch(args.orderId, { projectStartDate: args.newDate });
+    } else if (args.field === "projectEndDate") {
+      await ctx.db.patch(args.orderId, { projectEndDate: args.newDate });
+    } else if (args.field.startsWith("serviceDeliveries.") && args.deliveryIndex !== undefined) {
+      const deliveryField = args.field.split(".")[1] as "deliveryDate" | "orderDate" | "confirmedDate" | "receivedDate";
+      const deliveries = [...(order.serviceDeliveries ?? [])];
+      if (deliveries[args.deliveryIndex]) {
+        deliveries[args.deliveryIndex] = {
+          ...deliveries[args.deliveryIndex],
+          [deliveryField]: args.newDate,
+        };
+        await ctx.db.patch(args.orderId, { serviceDeliveries: deliveries });
+      }
+    }
   },
 });
 

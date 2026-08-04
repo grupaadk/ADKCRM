@@ -802,6 +802,7 @@ export default defineSchema({
     color: v.string(),
     icon: v.optional(v.string()),
     isPrivate: v.boolean(),
+    linkedOrderField: v.optional(v.string()),
     createdAt: v.number(),
   }),
 

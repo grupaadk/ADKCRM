@@ -127,6 +127,10 @@ export default function UniversalCalendar() {
     startDate: visibleRange.start.getTime(),
     endDate: visibleRange.end.getTime(),
   });
+  const linkedOrderEvents = useQuery(api.calendarEvents.getLinkedOrderEvents, {
+    startDate: visibleRange.start.getTime(),
+    endDate: visibleRange.end.getTime(),
+  });
   const orders = useQuery(api.orders.listByCompletionDateRange, {
     startDate: visibleRange.start.getTime(),
     endDate: visibleRange.end.getTime(),
@@ -136,6 +140,7 @@ export default function UniversalCalendar() {
   const createCalendarEvent = useMutation(api.calendarEvents.createEvent);
   const deleteCalendarEvent = useMutation(api.calendarEvents.deleteEvent);
   const updateCalendarEvent = useMutation(api.calendarEvents.updateEvent);
+  const updateLinkedOrderDate = useMutation(api.calendarEvents.updateLinkedOrderDate);
 
   const statuses = useStatuses();
   const statusColorByKey = useMemo(() => {
@@ -267,8 +272,48 @@ export default function UniversalCalendar() {
       }
     }
 
+    // --- Linked Order events ---
+    if (linkedOrderEvents) {
+      const filteredLinked = activeUserFilters.size === 0
+        ? linkedOrderEvents
+        : linkedOrderEvents.filter((le) => {
+            if (!le.assignedUserId) return activeUserFilters.has("__none__");
+            return activeUserFilters.has(le.assignedUserId);
+          });
+
+      for (const le of filteredLinked) {
+        if (activeEventTypeFilters.size > 0 && !activeEventTypeFilters.has(le.eventTypeId)) continue;
+
+        const titleText = le.serviceName
+          ? `${le.orderName ?? le.clientName} (${le.serviceName})`
+          : (le.orderName ?? le.clientName);
+
+        result.push({
+          id: le.id,
+          title: titleText,
+          start: new Date(le.startDate),
+          allDay: true,
+          backgroundColor: "transparent",
+          borderColor: "transparent",
+          extendedProps: {
+            sourceType: "order-linked",
+            orderId: le.orderId,
+            clientId: le.clientId,
+            clientName: le.clientName,
+            orderName: le.orderName,
+            serviceName: le.serviceName,
+            field: le.field,
+            deliveryIndex: le.deliveryIndex,
+            eventTypeId: le.eventTypeId,
+            eventTypeName: le.eventTypeName,
+            color: le.color,
+          },
+        });
+      }
+    }
+
     return result;
-  }, [orders, calendarEvents, activeUserFilters, activeEventTypeFilters, showPrivate]);
+  }, [orders, calendarEvents, linkedOrderEvents, activeUserFilters, activeEventTypeFilters, showPrivate]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
 
@@ -296,15 +341,27 @@ export default function UniversalCalendar() {
   }, [allOrders, orderSearch]);
 
   const handleEventDrop = async (info: EventDropArg) => {
-    const { sourceType } = info.event.extendedProps as { sourceType: string };
+    const props = info.event.extendedProps as {
+      sourceType: string;
+      orderId?: string;
+      field?: string;
+      deliveryIndex?: number;
+    };
     const newStart = info.event.start;
     if (!newStart) return;
 
-    if (sourceType === "montaz") {
+    if (props.sourceType === "montaz") {
       await updateOrder({
         orderId: info.event.id as Id<"orders">,
         projectEndDate: localMidnight(newStart),
         installationStartDate: dateToMins(newStart),
+      });
+    } else if (props.sourceType === "order-linked" && props.orderId && props.field) {
+      await updateLinkedOrderDate({
+        orderId: props.orderId as Id<"orders">,
+        field: props.field,
+        deliveryIndex: props.deliveryIndex,
+        newDate: localMidnight(newStart),
       });
     } else {
       const newEnd = info.event.end;
@@ -327,8 +384,10 @@ export default function UniversalCalendar() {
       eventTypeName?: string;
     };
 
-    if (props.sourceType === "montaz") {
-      window.open(`/admin/klient/${props.clientId}/zlecenie/${props.orderId}`, "_blank");
+    if (props.sourceType === "montaz" || props.sourceType === "order-linked") {
+      if (props.clientId && props.orderId) {
+        window.open(`/admin/klient/${props.clientId}/zlecenie/${props.orderId}`, "_blank");
+      }
     } else {
       setDetailEvent({
         id: info.event.id,
@@ -476,6 +535,31 @@ export default function UniversalCalendar() {
                 {props.assignedUserName}
               </span>
             )}
+          </div>
+        </div>
+      );
+    }
+
+    if (props.sourceType === "order-linked") {
+      const color = props.color ?? "#3b82f6";
+      return (
+        <div className="calendar-event-card" style={{
+          display: "flex", flexDirection: "row", borderRadius: 8,
+          background: "var(--panel)", border: "1px solid var(--line)",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+          minWidth: 0, width: "100%", cursor: "pointer",
+        }}>
+          <div style={{ width: 5, minWidth: 5, background: color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color, background: `${color}18`, border: `1px solid ${color}33`, borderRadius: 3, padding: "1px 5px", width: "fit-content", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+              🔗 {props.eventTypeName}
+            </span>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {props.orderName ?? "—"}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {props.clientName}
+            </div>
           </div>
         </div>
       );
