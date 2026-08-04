@@ -27,6 +27,7 @@ interface EventTypeFormData {
   isPrivate: boolean;
   linkedOrderField: string;
   linkedSupplierId: string;
+  defaultTimeMode: "all_day" | "timed";
 }
 
 const defaultForm = (): EventTypeFormData => ({
@@ -35,6 +36,7 @@ const defaultForm = (): EventTypeFormData => ({
   isPrivate: false,
   linkedOrderField: "",
   linkedSupplierId: "",
+  defaultTimeMode: "all_day",
 });
 
 export function EventTypesTab() {
@@ -64,6 +66,7 @@ export function EventTypesTab() {
     isPrivate: boolean;
     linkedOrderField?: string;
     linkedSupplierId?: Id<"suppliers">;
+    defaultTimeMode?: "all_day" | "timed";
   }) => {
     setForm({
       name: type.name,
@@ -71,6 +74,7 @@ export function EventTypesTab() {
       isPrivate: type.isPrivate,
       linkedOrderField: type.linkedOrderField ?? "",
       linkedSupplierId: type.linkedSupplierId ?? "",
+      defaultTimeMode: type.defaultTimeMode ?? "all_day",
     });
     setEditingId(type._id);
     setError(null);
@@ -94,6 +98,7 @@ export function EventTypesTab() {
           isPrivate: form.isPrivate,
           linkedOrderField: form.linkedOrderField || null,
           linkedSupplierId: supplierIdVal,
+          defaultTimeMode: form.defaultTimeMode,
         });
       } else {
         await createEventType({
@@ -102,6 +107,7 @@ export function EventTypesTab() {
           isPrivate: form.isPrivate,
           linkedOrderField: form.linkedOrderField || undefined,
           linkedSupplierId: supplierIdVal || undefined,
+          defaultTimeMode: form.defaultTimeMode,
         });
       }
       setShowForm(false);
@@ -186,6 +192,39 @@ export function EventTypesTab() {
                   <span className="text-xs font-mono text-slate-500">{form.color}</span>
                 </div>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                Tryb czasu w kalendarzu
+              </label>
+              <div className="flex items-center gap-4 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                <label className="flex items-center gap-2 text-sm cursor-pointer font-medium text-slate-700">
+                  <input
+                    type="radio"
+                    name="defaultTimeMode"
+                    value="all_day"
+                    checked={form.defaultTimeMode === "all_day"}
+                    onChange={() => setForm((f) => ({ ...f, defaultTimeMode: "all_day" }))}
+                    className="text-slate-900 focus:ring-slate-400"
+                  />
+                  ☀️ Cały dzień
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer font-medium text-slate-700">
+                  <input
+                    type="radio"
+                    name="defaultTimeMode"
+                    value="timed"
+                    checked={form.defaultTimeMode === "timed"}
+                    onChange={() => setForm((f) => ({ ...f, defaultTimeMode: "timed" }))}
+                    className="text-slate-900 focus:ring-slate-400"
+                  />
+                  ⏱ Przedział godzinowy (od – do)
+                </label>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Wydarzenia całodniowe trafiają do kontenera "Cały dzień". Wydarzenia z przedziałem godzinowym lądują na siatce czasu.
+              </p>
             </div>
 
             <div>

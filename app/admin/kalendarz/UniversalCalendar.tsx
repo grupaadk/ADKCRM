@@ -1221,7 +1221,11 @@ export default function UniversalCalendar() {
                         {eventTypes.map((type) => (
                           <button
                             key={type._id}
-                            onClick={() => setNewEventTypeId(type._id)}
+                            onClick={() => {
+                              setNewEventTypeId(type._id);
+                              if (type.defaultTimeMode === "all_day") setNewEventIsAllDay(true);
+                              if (type.defaultTimeMode === "timed") setNewEventIsAllDay(false);
+                            }}
                             style={{
                               display: "inline-flex", alignItems: "center", gap: 6,
                               padding: "5px 12px", borderRadius: 20, fontSize: 12,

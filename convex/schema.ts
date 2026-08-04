@@ -804,6 +804,7 @@ export default defineSchema({
     isPrivate: v.boolean(),
     linkedOrderField: v.optional(v.string()),
     linkedSupplierId: v.optional(v.id("suppliers")),
+    defaultTimeMode: v.optional(v.union(v.literal("all_day"), v.literal("timed"))),
     createdAt: v.number(),
   }),
 

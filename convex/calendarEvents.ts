@@ -28,6 +28,7 @@ export const createEventType = mutation({
     isPrivate: v.boolean(),
     linkedOrderField: v.optional(v.string()),
     linkedSupplierId: v.optional(v.id("suppliers")),
+    defaultTimeMode: v.optional(v.union(v.literal("all_day"), v.literal("timed"))),
   },
   handler: async (ctx, args) => {
     await requireRole(ctx, "admin");
@@ -38,6 +39,7 @@ export const createEventType = mutation({
       isPrivate: args.isPrivate,
       linkedOrderField: args.linkedOrderField,
       linkedSupplierId: args.linkedSupplierId,
+      defaultTimeMode: args.defaultTimeMode ?? "all_day",
       createdAt: Date.now(),
     });
   },
@@ -52,10 +54,11 @@ export const updateEventType = mutation({
     isPrivate: v.optional(v.boolean()),
     linkedOrderField: v.optional(v.union(v.string(), v.null())),
     linkedSupplierId: v.optional(v.union(v.id("suppliers"), v.null())),
+    defaultTimeMode: v.optional(v.union(v.literal("all_day"), v.literal("timed"), v.null())),
   },
   handler: async (ctx, args) => {
     await requireRole(ctx, "admin");
-    const { id, linkedOrderField, linkedSupplierId, ...updates } = args;
+    const { id, linkedOrderField, linkedSupplierId, defaultTimeMode, ...updates } = args;
     const filtered: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(updates)) {
       if (val !== undefined) filtered[key] = val;
@@ -65,6 +68,9 @@ export const updateEventType = mutation({
     }
     if (linkedSupplierId !== undefined) {
       filtered.linkedSupplierId = linkedSupplierId === null ? undefined : linkedSupplierId;
+    }
+    if (defaultTimeMode !== undefined) {
+      filtered.defaultTimeMode = defaultTimeMode === null ? undefined : defaultTimeMode;
     }
     await ctx.db.patch(id, filtered);
   },
@@ -173,14 +179,24 @@ export const getLinkedOrderEvents = query({
 
     for (const type of linkedTypes) {
       const field = type.linkedOrderField!;
+      const timeMode = type.defaultTimeMode ?? "all_day";
 
       for (const order of orders) {
         const clientName = clientMap.get(order.clientId) ?? "Klient";
 
         if (field === "projectStartDate" && order.projectStartDate) {
           if (order.projectStartDate >= args.startDate && order.projectStartDate <= args.endDate) {
-            const d = new Date(order.projectStartDate);
-            const hasTime = d.getHours() > 0 || d.getMinutes() > 0;
+            let startVal = order.projectStartDate;
+            let hasTime = timeMode === "timed";
+            if (timeMode === "timed") {
+              const d = new Date(startVal);
+              if (d.getHours() === 0 && d.getMinutes() === 0) {
+                d.setHours(8, 0, 0, 0);
+                startVal = d.getTime();
+              }
+            } else {
+              hasTime = false;
+            }
             results.push({
               id: `${type._id}_${order._id}_projectStart`,
               orderId: order._id,
@@ -190,7 +206,7 @@ export const getLinkedOrderEvents = query({
               eventTypeId: type._id,
               eventTypeName: type.name,
               color: type.color,
-              startDate: order.projectStartDate,
+              startDate: startVal,
               hasTime,
               field,
               assignedUserId: order.assignedUserId,
@@ -198,9 +214,15 @@ export const getLinkedOrderEvents = query({
           }
         } else if (field === "projectEndDate" && order.projectEndDate) {
           if (order.projectEndDate >= args.startDate && order.projectEndDate <= args.endDate) {
-            const hasTime = order.installationStartDate !== undefined;
-            const startMins = order.installationStartDate ?? 0;
-            const computedStart = order.projectEndDate + startMins * 60 * 1000;
+            let hasTime = false;
+            let computedStart = order.projectEndDate;
+            if (timeMode === "timed") {
+              hasTime = true;
+              const startMins = order.installationStartDate ?? 480;
+              computedStart = order.projectEndDate + startMins * 60 * 1000;
+            } else {
+              hasTime = false;
+            }
             results.push({
               id: `${type._id}_${order._id}_projectEnd`,
               orderId: order._id,
@@ -227,8 +249,19 @@ export const getLinkedOrderEvents = query({
               if (dateVal && dateVal >= args.startDate && dateVal <= args.endDate) {
                 const suppName = delivery.supplierId ? supplierMap.get(delivery.supplierId) : undefined;
                 const label = [suppName, delivery.serviceName].filter(Boolean).join(" - ") || undefined;
-                const d = new Date(dateVal);
-                const hasTime = d.getHours() > 0 || d.getMinutes() > 0;
+                
+                let startVal = dateVal;
+                let hasTime = timeMode === "timed";
+                if (timeMode === "timed") {
+                  const d = new Date(startVal);
+                  if (d.getHours() === 0 && d.getMinutes() === 0) {
+                    d.setHours(8, 0, 0, 0);
+                    startVal = d.getTime();
+                  }
+                } else {
+                  hasTime = false;
+                }
+
                 results.push({
                   id: `${type._id}_${order._id}_del_${idx}`,
                   orderId: order._id,
@@ -238,7 +271,7 @@ export const getLinkedOrderEvents = query({
                   eventTypeId: type._id,
                   eventTypeName: type.name,
                   color: type.color,
-                  startDate: dateVal,
+                  startDate: startVal,
                   hasTime,
                   deliveryIndex: idx,
                   serviceName: label,
