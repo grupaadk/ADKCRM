@@ -325,6 +325,17 @@ export default function UniversalCalendar() {
         endDate: newEnd ? newEnd.getTime() : undefined,
       });
     }
+  const handleEventResize = async (info: { event: { id: string; start: Date | null; end: Date | null; extendedProps: Record<string, unknown> } }) => {
+    const props = info.event.extendedProps as { sourceType: string };
+    const newStart = info.event.start;
+    const newEnd = info.event.end;
+    if (props.sourceType === "event" && newStart) {
+      await updateCalendarEvent({
+        id: info.event.id as Id<"calendarEvents">,
+        startDate: newStart.getTime(),
+        endDate: newEnd ? newEnd.getTime() : undefined,
+      });
+    }
   };
 
   const handleEventClick = (info: EventClickArg) => {
@@ -717,6 +728,7 @@ export default function UniversalCalendar() {
           eventDurationEditable={true}
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
+          eventResize={handleEventResize as unknown as (arg: unknown) => void}
           dateClick={handleDateClick}
           datesSet={handleDatesSet}
           eventContent={renderEventContent}
