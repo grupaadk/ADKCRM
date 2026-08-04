@@ -81,6 +81,7 @@ export default function UniversalCalendar() {
   const [showPrivate, setShowPrivate] = useState(true);
 
   // Modals
+  const [dayEventsListModalOpen, setDayEventsListModalOpen] = useState(false);
   const [dateModalOpen, setDateModalOpen] = useState(false);
   const [dateModalTab, setDateModalTab] = useState<"montaz" | "event">("montaz");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -739,7 +740,8 @@ export default function UniversalCalendar() {
           eventResize={handleEventResize as unknown as (arg: unknown) => void}
           dateClick={handleDateClick}
           moreLinkClick={(arg) => {
-            handleDateClick({ date: arg.date } as DateClickArg);
+            setSelectedDate(arg.date);
+            setDayEventsListModalOpen(true);
             return "none";
           }}
           datesSet={handleDatesSet}
@@ -780,7 +782,116 @@ export default function UniversalCalendar() {
         document.body
       )}
 
-      {/* Date click modal (Slide-over drawer from right) */}
+      {/* Day Events List Drawer (Slide-over from right) */}
+      {dayEventsListModalOpen && selectedDate && createPortal(
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "flex-end" }}>
+          <style>{`
+            @keyframes slideInFromRight {
+              from { transform: translateX(100%); }
+              to { transform: translateX(0); }
+            }
+          `}</style>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={() => setDayEventsListModalOpen(false)} />
+          <div style={{
+            position: "relative", width: "100%", maxWidth: 480, height: "100vh",
+            background: "var(--panel)", borderLeft: "1px solid var(--line)",
+            boxShadow: "-10px 0 30px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden",
+            zIndex: 51, animation: "slideInFromRight 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+          }} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)" }}>Wydarzenia w dniu</div>
+                <div style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 2 }}>{fmtDateTime(selectedDate)}</div>
+              </div>
+              <button onClick={() => setDayEventsListModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", padding: 6 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* List Content */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {selectedDayEvents.length === 0 ? (
+                <div style={{ padding: "30px 0", textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>
+                  Brak wydarzeń w tym dniu
+                </div>
+              ) : (
+                selectedDayEvents.map((ev, idx) => {
+                  const props = (ev as { extendedProps: Record<string, unknown> }).extendedProps;
+                  const color = (props.color as string) || (props.assignedUserColor as string) || "#3b82f6";
+                  const title = (ev as { title: string }).title;
+                  const startD = (ev as { start?: Date }).start;
+                  const timeStr = (ev as { allDay?: boolean }).allDay || !startD
+                    ? null
+                    : `${startD.getHours().toString().padStart(2,"0")}:${startD.getMinutes().toString().padStart(2,"0")}`;
+                  const typeName = (props.eventTypeName as string) || (props.sourceType === "montaz" ? "Montaż" : "Zdarzenie");
+
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => handleEventClick({ event: { id: (ev as { id: string }).id, title, start: startD, end: (ev as { end?: Date }).end, extendedProps: props } } as unknown as EventClickArg)}
+                      style={{
+                        display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px",
+                        borderRadius: 10, background: "var(--panel-2)", border: "1px solid var(--line)",
+                        cursor: "pointer", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                      }}
+                    >
+                      <div style={{ width: 4, height: "100%", minHeight: 36, borderRadius: 2, background: color, flexShrink: 0, alignSelf: "stretch" }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color, background: `${color}18`, border: `1px solid ${color}33`, borderRadius: 4, padding: "2px 6px" }}>
+                            {typeName}
+                          </span>
+                          {timeStr && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)" }}>{timeStr}</span>}
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)", marginTop: 6, wordBreak: "break-word" }}>
+                          {title}
+                        </div>
+                        {props.clientName && (
+                          <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 2 }}>
+                            {props.clientName as string}
+                          </div>
+                        )}
+                        {props.description && (
+                          <div style={{ fontSize: 11, color: "var(--text)", marginTop: 4, lineHeight: 1.4 }}>
+                            {props.description as string}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+              <button
+                onClick={() => setDayEventsListModalOpen(false)}
+                className="btn btn-xs"
+                style={{ fontSize: 13, padding: "7px 16px" }}
+              >
+                Zamknij
+              </button>
+              <button
+                onClick={() => {
+                  setDayEventsListModalOpen(false);
+                  handleDateClick({ date: selectedDate } as DateClickArg);
+                }}
+                className="btn primary btn-xs"
+                style={{ fontSize: 13, padding: "7px 16px" }}
+              >
+                + Dodaj nowe wydarzenie
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Date click modal (Slide-over drawer from right for adding events) */}
       {dateModalOpen && selectedDate && createPortal(
         <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "flex-end" }}>
           <style>{`
@@ -799,7 +910,7 @@ export default function UniversalCalendar() {
             {/* Header */}
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)" }}>Harmonogram dnia</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)" }}>Nowe wydarzenie</div>
                 <div style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 2 }}>{fmtDateTime(selectedDate)}</div>
               </div>
               <button onClick={() => setDateModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", padding: 6 }}>
@@ -808,52 +919,6 @@ export default function UniversalCalendar() {
                 </svg>
               </button>
             </div>
-
-            {/* Day events list if any */}
-            {selectedDayEvents.length > 0 && (
-              <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--line)", background: "var(--panel-2)", flexShrink: 0 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
-                  Wydarzenia w tym dniu ({selectedDayEvents.length})
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflowY: "auto" }}>
-                  {selectedDayEvents.map((ev, idx) => {
-                    const props = (ev as { extendedProps: Record<string, unknown> }).extendedProps;
-                    const color = (props.color as string) || (props.assignedUserColor as string) || "#3b82f6";
-                    const title = (ev as { title: string }).title;
-                    const startD = (ev as { start?: Date }).start;
-                    const timeStr = (ev as { allDay?: boolean }).allDay || !startD
-                      ? null
-                      : `${startD.getHours().toString().padStart(2,"0")}:${startD.getMinutes().toString().padStart(2,"0")}`;
-                    const typeName = (props.eventTypeName as string) || (props.sourceType === "montaz" ? "Montaż" : "Zdarzenie");
-
-                    return (
-                      <div
-                        key={idx}
-                        onClick={() => handleEventClick({ event: { id: (ev as { id: string }).id, title, start: startD, end: (ev as { end?: Date }).end, extendedProps: props } } as unknown as EventClickArg)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
-                          borderRadius: 6, background: "var(--panel)", border: "1px solid var(--line)",
-                          cursor: "pointer", transition: "all 0.12s",
-                        }}
-                      >
-                        <div style={{ width: 4, height: 24, borderRadius: 2, background: color, flexShrink: 0 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                            <span style={{ fontSize: 9, fontWeight: 700, color, background: `${color}18`, borderRadius: 3, padding: "1px 5px" }}>
-                              {typeName}
-                            </span>
-                            {timeStr && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-mute)" }}>{timeStr}</span>}
-                          </div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>
-                            {title}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Tabs */}
             <div style={{ display: "flex", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
