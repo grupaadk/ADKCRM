@@ -693,8 +693,8 @@ export default function UniversalCalendar() {
 
       {/* Filters bar */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 20px", borderBottom: "1px solid var(--line)", background: "var(--card)" }}>
-        {/* Event type filters */}
-        {eventTypes.map((type) => {
+        {/* General Event types (no supplier link) */}
+        {eventTypes.filter((t) => !t.linkedSupplierId).map((type) => {
           const active = activeEventTypeFilters.has(type._id);
           return (
             <button
@@ -715,6 +715,51 @@ export default function UniversalCalendar() {
             </button>
           );
         })}
+
+        {/* Supplier-linked Event types (Zagnieżdżone powiązania z Dostawcami) */}
+        {(() => {
+          const supplierTypes = eventTypes.filter((t) => !!t.linkedSupplierId);
+          if (supplierTypes.length === 0) return null;
+          return (
+            <>
+              <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Dostawcy:
+              </span>
+              {supplierTypes.map((type) => {
+                const active = activeEventTypeFilters.has(type._id);
+                return (
+                  <button
+                    key={type._id}
+                    onClick={() => toggleEventTypeFilter(type._id)}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                      background: active ? `${type.color}22` : "var(--panel)",
+                      color: active ? type.color : "var(--text-mute)",
+                      border: `1.5px solid ${active ? type.color : "var(--line)"}`,
+                      fontWeight: active ? 600 : 500,
+                      cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                    }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
+                    <span>{type.name}</span>
+                    {type.linkedSupplierName && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: "1px 5px", borderRadius: 4,
+                        background: active ? `${type.color}33` : "var(--panel-2)",
+                        border: `1px solid ${active ? type.color : "var(--line)"}`,
+                        color: active ? type.color : "var(--text-strong)",
+                      }}>
+                        🏢 {type.linkedSupplierName}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </>
+          );
+        })()}
 
         <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
 
