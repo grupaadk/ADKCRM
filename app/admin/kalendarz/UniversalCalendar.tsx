@@ -90,7 +90,6 @@ export default function UniversalCalendar() {
   // New event form
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventTypeId, setNewEventTypeId] = useState<string>("");
-  const effectiveEventTypeId = newEventTypeId || eventTypes[0]?._id || "";
   const [newEventEndDate, setNewEventEndDate] = useState("");
   const [newEventEndTime, setNewEventEndTime] = useState("09:00");
   const [newEventIsAllDay, setNewEventIsAllDay] = useState(false);
@@ -123,6 +122,7 @@ export default function UniversalCalendar() {
   const currentUser = useQuery(api.users.me);
   const allUsers = useQuery(api.users.listAllActive);
   const eventTypes = useQuery(api.calendarEvents.getEventTypes) ?? [];
+  const effectiveEventTypeId = newEventTypeId || eventTypes[0]?._id || "";
   const calendarEvents = useQuery(api.calendarEvents.getEvents, {
     startDate: visibleRange.start.getTime(),
     endDate: visibleRange.end.getTime(),
