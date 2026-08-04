@@ -132,7 +132,12 @@ export const getLinkedOrderEvents = query({
 
     const orders = await ctx.db.query("orders").collect();
     const clients = await ctx.db.query("clients").collect();
-    const clientMap = new Map(clients.map((c) => [c._id, c.name]));
+    const clientMap = new Map(
+      clients.map((c) => [
+        c._id,
+        c.companyName || `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim() || "Klient",
+      ]),
+    );
 
     const results: Array<{
       id: string;
