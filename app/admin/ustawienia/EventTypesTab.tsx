@@ -227,48 +227,109 @@ export function EventTypesTab() {
               </p>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                Powiązane pole daty ze zlecenia (automatyczne wydarzenia)
-              </label>
-              <select
-                value={form.linkedOrderField}
-                onChange={(e) => setForm((f) => ({ ...f, linkedOrderField: e.target.value, linkedSupplierId: "" }))}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-slate-400 bg-white"
-              >
-                {LINKED_DATE_FIELDS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-slate-500 mt-1">
-                Wybierając pole daty, kalendarz automatycznie wyświetli kafelki tego typu dla zleceń posiadających tę datę.
-              </p>
-            </div>
-
-            {form.linkedOrderField.startsWith("serviceDeliveries.") && (
+            {/* Powiązanie z automatycznymi zdarzeniami ze zleceń i dostaw */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Filtruj wg dostawcy (opcjonalnie)
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  Powiązanie z automatycznym zdarzeniem ze zlecenia
                 </label>
-                <select
-                  value={form.linkedSupplierId}
-                  onChange={(e) => setForm((f) => ({ ...f, linkedSupplierId: e.target.value }))}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-slate-400 bg-white"
-                >
-                  <option value="">— Wszyscy dostawcy —</option>
-                  {suppliers.map((s) => (
-                    <option key={s._id} value={s._id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500 mt-1">
-                  Jeśli wybierzesz dostawcę, zdarzenia powstaną wyłącznie dla dostaw związanych z tym dostawcą.
-                </p>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2.5 p-2.5 rounded-lg border border-slate-200 bg-white cursor-pointer hover:border-slate-300 transition-colors">
+                    <input
+                      type="radio"
+                      name="linkedTypeCategory"
+                      checked={!form.linkedOrderField}
+                      onChange={() => setForm((f) => ({ ...f, linkedOrderField: "", linkedSupplierId: "" }))}
+                      className="text-slate-900 focus:ring-slate-400"
+                    />
+                    <span className="text-sm font-medium text-slate-800">
+                      ⚪ Brak powiązania (zdarzenie dodawane ręcznie)
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-2.5 rounded-lg border border-slate-200 bg-white cursor-pointer hover:border-slate-300 transition-colors">
+                    <input
+                      type="radio"
+                      name="linkedTypeCategory"
+                      checked={form.linkedOrderField === "projectStartDate"}
+                      onChange={() => setForm((f) => ({ ...f, linkedOrderField: "projectStartDate", linkedSupplierId: "" }))}
+                      className="text-slate-900 focus:ring-slate-400"
+                    />
+                    <span className="text-sm font-medium text-slate-800">
+                      📅 Zlecenie: Data rozpoczęcia projektu
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-2.5 rounded-lg border border-slate-200 bg-white cursor-pointer hover:border-slate-300 transition-colors">
+                    <input
+                      type="radio"
+                      name="linkedTypeCategory"
+                      checked={form.linkedOrderField === "projectEndDate"}
+                      onChange={() => setForm((f) => ({ ...f, linkedOrderField: "projectEndDate", linkedSupplierId: "" }))}
+                      className="text-slate-900 focus:ring-slate-400"
+                    />
+                    <span className="text-sm font-medium text-slate-800">
+                      🔧 Zlecenie: Data montażu (zakończenia projektu)
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-2.5 rounded-lg border border-slate-200 bg-white cursor-pointer hover:border-slate-300 transition-colors">
+                    <input
+                      type="radio"
+                      name="linkedTypeCategory"
+                      checked={form.linkedOrderField.startsWith("serviceDeliveries.")}
+                      onChange={() => setForm((f) => ({ ...f, linkedOrderField: "serviceDeliveries.deliveryDate" }))}
+                      className="text-slate-900 focus:ring-slate-400"
+                    />
+                    <span className="text-sm font-medium text-slate-800">
+                      🚚 Dostawa od Dostawcy (pozycja z listy dostaw w zleceniu)
+                    </span>
+                  </label>
+                </div>
               </div>
-            )}
+
+              {/* Sub-options for Dostawa (Linked Supplier & Delivery Date Field) */}
+              {form.linkedOrderField.startsWith("serviceDeliveries.") && (
+                <div className="pt-3 border-t border-slate-200 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                      Pole daty w dostawie *
+                    </label>
+                    <select
+                      value={form.linkedOrderField}
+                      onChange={(e) => setForm((f) => ({ ...f, linkedOrderField: e.target.value }))}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-slate-400 bg-white font-medium text-slate-800"
+                    >
+                      <option value="serviceDeliveries.deliveryDate">📦 Planowana data dostawy</option>
+                      <option value="serviceDeliveries.orderDate">📝 Data złożenia zamówienia</option>
+                      <option value="serviceDeliveries.confirmedDate">✅ Data potwierdzenia zamówienia</option>
+                      <option value="serviceDeliveries.receivedDate">🏢 Data odbioru fizycznego</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                      Powiązany Dostawca
+                    </label>
+                    <select
+                      value={form.linkedSupplierId}
+                      onChange={(e) => setForm((f) => ({ ...f, linkedSupplierId: e.target.value }))}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-slate-400 bg-white font-medium text-slate-800"
+                    >
+                      <option value="">— Wszyscy dostawcy (brak filtra) —</option>
+                      {suppliers.map((s) => (
+                        <option key={s._id} value={s._id}>
+                          🏢 {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Po wybraniu dostawcy wydarzenia stworzą się automatycznie wyłącznie dla pozycji dostaw powiązanych z tym konkretnym dostawcą.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Podgląd</label>
