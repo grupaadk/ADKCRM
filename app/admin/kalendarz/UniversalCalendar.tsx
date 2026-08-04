@@ -131,10 +131,6 @@ export default function UniversalCalendar() {
     startDate: visibleRange.start.getTime(),
     endDate: visibleRange.end.getTime(),
   });
-  const orders = useQuery(api.orders.listByCompletionDateRange, {
-    startDate: visibleRange.start.getTime(),
-    endDate: visibleRange.end.getTime(),
-  });
 
   const updateOrder = useMutation(api.orders.update);
   const createCalendarEvent = useMutation(api.calendarEvents.createEvent);
@@ -199,48 +195,6 @@ export default function UniversalCalendar() {
 
   const events = useMemo(() => {
     const result: object[] = [];
-
-    // --- Montaże (from orders) ---
-    if (orders) {
-      const filteredOrders = activeUserFilters.size === 0
-        ? orders
-        : orders.filter((o) => {
-            const uid = o.assignedUserId as string | undefined;
-            if (!uid) return activeUserFilters.has("__none__");
-            return activeUserFilters.has(uid);
-          });
-
-      for (const o of filteredOrders) {
-        // Filter by event type if "montaż" type selected
-        if (activeEventTypeFilters.size > 0 && !activeEventTypeFilters.has("__montaz__")) continue;
-
-        const startMins = o.installationStartDate ?? DEFAULT_START_HOUR * 60;
-        const start = minsToDate(o.projectEndDate, startMins);
-        const end = minsToDate(o.projectEndDate, startMins + EVENT_DURATION_HOURS * 60);
-        result.push({
-          id: o._id,
-          title: o.clientName,
-          start,
-          end,
-          backgroundColor: "transparent",
-          borderColor: "transparent",
-          textColor: "var(--text)",
-          extendedProps: {
-            sourceType: "montaz",
-            clientId: o.clientId,
-            orderId: o._id,
-            status: o.status,
-            clientName: o.clientName,
-            orderName: o.name,
-            customText: o.customText,
-            investmentCity: o.investmentCity,
-            assignedUserId: o.assignedUserId,
-            assignedUserName: o.assignedUserName,
-            assignedUserColor: o.assignedUserColor,
-          },
-        });
-      }
-    }
 
     // --- Calendar events ---
     if (calendarEvents) {
@@ -313,7 +267,7 @@ export default function UniversalCalendar() {
     }
 
     return result;
-  }, [orders, calendarEvents, linkedOrderEvents, activeUserFilters, activeEventTypeFilters, showPrivate]);
+  }, [calendarEvents, linkedOrderEvents, activeUserFilters, activeEventTypeFilters, showPrivate]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
 
@@ -615,11 +569,11 @@ export default function UniversalCalendar() {
     );
   };
 
-  const dayMontazCount = useMemo(() => {
-    if (!selectedDate || !orders) return 0;
+  const dayEventsCount = useMemo(() => {
+    if (!selectedDate || !linkedOrderEvents) return 0;
     const dayStart = localMidnight(selectedDate);
-    return orders.filter((o) => localMidnight(new Date(o.projectEndDate)) === dayStart).length;
-  }, [selectedDate, orders]);
+    return linkedOrderEvents.filter((e) => localMidnight(new Date(e.startDate)) === dayStart).length;
+  }, [selectedDate, linkedOrderEvents]);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -679,22 +633,6 @@ export default function UniversalCalendar() {
       {/* Filters bar */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 20px", borderBottom: "1px solid var(--line)", background: "var(--card)" }}>
         {/* Event type filters */}
-        <button
-          onClick={() => toggleEventTypeFilter("__montaz__")}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 5,
-            padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-            background: activeEventTypeFilters.has("__montaz__") ? "#64748b22" : "var(--panel)",
-            color: activeEventTypeFilters.has("__montaz__") ? "#475569" : "var(--text-mute)",
-            border: `1.5px solid ${activeEventTypeFilters.has("__montaz__") ? "#64748b" : "var(--line)"}`,
-            fontWeight: activeEventTypeFilters.has("__montaz__") ? 600 : 500,
-            cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-          }}
-        >
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#64748b", flexShrink: 0 }} />
-          Montaże
-        </button>
-
         {eventTypes.map((type) => {
           const active = activeEventTypeFilters.has(type._id);
           return (
@@ -794,7 +732,7 @@ export default function UniversalCalendar() {
           eventDisplay="block"
           eventClassNames={["fc-event-custom"]}
         />
-        {(orders === undefined || calendarEvents === undefined) && (
+        {(calendarEvents === undefined || linkedOrderEvents === undefined) && (
           <div style={{
             position: "absolute", bottom: 12, right: 16, fontSize: 11, color: "var(--text-mute)",
             background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 6,
@@ -862,9 +800,9 @@ export default function UniversalCalendar() {
             <div style={{ flex: 1, overflowY: "auto" }}>
               {dateModalTab === "montaz" ? (
                 <>
-                  {dayMontazCount > 0 && (
+                  {dayEventsCount > 0 && (
                     <div style={{ margin: "12px 20px 0", fontSize: 11, fontWeight: 600, color: "#92600a", background: "#fbe7c2", border: "1px solid #f0cd8a", borderRadius: 6, padding: "5px 10px" }}>
-                      ⚠ Na ten dzień zaplanowano już {dayMontazCount} montaży
+                      ⚠ Na ten dzień zaplanowano już {dayEventsCount} zdarzeń
                     </div>
                   )}
                   <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--line)" }}>
