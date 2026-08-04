@@ -26,6 +26,7 @@ interface EventTypeFormData {
   color: string;
   isPrivate: boolean;
   linkedOrderField: string;
+  linkedSupplierId: string;
 }
 
 const defaultForm = (): EventTypeFormData => ({
@@ -33,10 +34,12 @@ const defaultForm = (): EventTypeFormData => ({
   color: PRESET_COLORS[0],
   isPrivate: false,
   linkedOrderField: "",
+  linkedSupplierId: "",
 });
 
 export function EventTypesTab() {
   const eventTypes = useQuery(api.calendarEvents.getEventTypes) ?? [];
+  const suppliers = useQuery(api.suppliers.listActive) ?? [];
   const createEventType = useMutation(api.calendarEvents.createEventType);
   const updateEventType = useMutation(api.calendarEvents.updateEventType);
   const deleteEventType = useMutation(api.calendarEvents.deleteEventType);
@@ -54,8 +57,21 @@ export function EventTypesTab() {
     setShowForm(true);
   };
 
-  const openEdit = (type: { _id: Id<"calendarEventTypes">; name: string; color: string; isPrivate: boolean; linkedOrderField?: string }) => {
-    setForm({ name: type.name, color: type.color, isPrivate: type.isPrivate, linkedOrderField: type.linkedOrderField ?? "" });
+  const openEdit = (type: {
+    _id: Id<"calendarEventTypes">;
+    name: string;
+    color: string;
+    isPrivate: boolean;
+    linkedOrderField?: string;
+    linkedSupplierId?: Id<"suppliers">;
+  }) => {
+    setForm({
+      name: type.name,
+      color: type.color,
+      isPrivate: type.isPrivate,
+      linkedOrderField: type.linkedOrderField ?? "",
+      linkedSupplierId: type.linkedSupplierId ?? "",
+    });
     setEditingId(type._id);
     setError(null);
     setShowForm(true);
@@ -66,6 +82,10 @@ export function EventTypesTab() {
     setSaving(true);
     setError(null);
     try {
+      const supplierIdVal = form.linkedOrderField.startsWith("serviceDeliveries.") && form.linkedSupplierId
+        ? (form.linkedSupplierId as Id<"suppliers">)
+        : null;
+
       if (editingId) {
         await updateEventType({
           id: editingId,
@@ -73,6 +93,7 @@ export function EventTypesTab() {
           color: form.color,
           isPrivate: form.isPrivate,
           linkedOrderField: form.linkedOrderField || null,
+          linkedSupplierId: supplierIdVal,
         });
       } else {
         await createEventType({
@@ -80,6 +101,7 @@ export function EventTypesTab() {
           color: form.color,
           isPrivate: form.isPrivate,
           linkedOrderField: form.linkedOrderField || undefined,
+          linkedSupplierId: supplierIdVal || undefined,
         });
       }
       setShowForm(false);
@@ -134,7 +156,7 @@ export function EventTypesTab() {
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="np. Serwis, Urlop, Dostawa…"
+                placeholder="np. Serwis, Urlop, Dostawa Okna…"
                 autoFocus
                 className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-slate-400 bg-white"
               />
@@ -172,7 +194,7 @@ export function EventTypesTab() {
               </label>
               <select
                 value={form.linkedOrderField}
-                onChange={(e) => setForm((f) => ({ ...f, linkedOrderField: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, linkedOrderField: e.target.value, linkedSupplierId: "" }))}
                 className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-slate-400 bg-white"
               >
                 {LINKED_DATE_FIELDS.map((opt) => (
@@ -185,6 +207,29 @@ export function EventTypesTab() {
                 Wybierając pole daty, kalendarz automatycznie wyświetli kafelki tego typu dla zleceń posiadających tę datę.
               </p>
             </div>
+
+            {form.linkedOrderField.startsWith("serviceDeliveries.") && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Filtruj wg dostawcy (opcjonalnie)
+                </label>
+                <select
+                  value={form.linkedSupplierId}
+                  onChange={(e) => setForm((f) => ({ ...f, linkedSupplierId: e.target.value }))}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-slate-400 bg-white"
+                >
+                  <option value="">— Wszyscy dostawcy —</option>
+                  {suppliers.map((s) => (
+                    <option key={s._id} value={s._id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  Jeśli wybierzesz dostawcę, zdarzenia powstaną wyłącznie dla dostaw związanych z tym dostawcą.
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Podgląd</label>
@@ -237,6 +282,7 @@ export function EventTypesTab() {
         <div className="space-y-2">
           {eventTypes.map((type) => {
             const linkedLabel = LINKED_DATE_FIELDS.find((f) => f.value === type.linkedOrderField)?.label;
+            const supplierName = type.linkedSupplierName;
             return (
               <div
                 key={type._id}
@@ -252,6 +298,7 @@ export function EventTypesTab() {
                     {type.linkedOrderField && (
                       <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 font-mono">
                         🔗 {linkedLabel || type.linkedOrderField}
+                        {supplierName ? ` [Dostawca: ${supplierName}]` : ""}
                       </span>
                     )}
                   </div>

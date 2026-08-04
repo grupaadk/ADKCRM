@@ -9,7 +9,14 @@ import { requireUser, requireRole } from "./lib/auth";
 export const getEventTypes = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("calendarEventTypes").collect();
+    const types = await ctx.db.query("calendarEventTypes").collect();
+    const suppliers = await ctx.db.query("suppliers").collect();
+    const supplierMap = new Map(suppliers.map((s) => [s._id, s.name]));
+
+    return types.map((t) => ({
+      ...t,
+      linkedSupplierName: t.linkedSupplierId ? supplierMap.get(t.linkedSupplierId) ?? null : null,
+    }));
   },
 });
 
@@ -20,6 +27,7 @@ export const createEventType = mutation({
     icon: v.optional(v.string()),
     isPrivate: v.boolean(),
     linkedOrderField: v.optional(v.string()),
+    linkedSupplierId: v.optional(v.id("suppliers")),
   },
   handler: async (ctx, args) => {
     await requireRole(ctx, "admin");
@@ -29,6 +37,7 @@ export const createEventType = mutation({
       icon: args.icon,
       isPrivate: args.isPrivate,
       linkedOrderField: args.linkedOrderField,
+      linkedSupplierId: args.linkedSupplierId,
       createdAt: Date.now(),
     });
   },
@@ -42,16 +51,20 @@ export const updateEventType = mutation({
     icon: v.optional(v.string()),
     isPrivate: v.optional(v.boolean()),
     linkedOrderField: v.optional(v.union(v.string(), v.null())),
+    linkedSupplierId: v.optional(v.union(v.id("suppliers"), v.null())),
   },
   handler: async (ctx, args) => {
     await requireRole(ctx, "admin");
-    const { id, linkedOrderField, ...updates } = args;
+    const { id, linkedOrderField, linkedSupplierId, ...updates } = args;
     const filtered: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(updates)) {
       if (val !== undefined) filtered[key] = val;
     }
     if (linkedOrderField !== undefined) {
       filtered.linkedOrderField = linkedOrderField === null ? undefined : linkedOrderField;
+    }
+    if (linkedSupplierId !== undefined) {
+      filtered.linkedSupplierId = linkedSupplierId === null ? undefined : linkedSupplierId;
     }
     await ctx.db.patch(id, filtered);
   },
@@ -132,6 +145,8 @@ export const getLinkedOrderEvents = query({
 
     const orders = await ctx.db.query("orders").collect();
     const clients = await ctx.db.query("clients").collect();
+    const suppliers = await ctx.db.query("suppliers").collect();
+    const supplierMap = new Map(suppliers.map((s) => [s._id, s.name]));
     const clientMap = new Map(
       clients.map((c) => [
         c._id,
@@ -197,8 +212,13 @@ export const getLinkedOrderEvents = query({
           const deliveryField = field.split(".")[1] as "deliveryDate" | "orderDate" | "confirmedDate" | "receivedDate";
           if (order.serviceDeliveries && Array.isArray(order.serviceDeliveries)) {
             order.serviceDeliveries.forEach((delivery, idx) => {
+              if (type.linkedSupplierId && delivery.supplierId !== type.linkedSupplierId) {
+                return;
+              }
               const dateVal = delivery[deliveryField];
               if (dateVal && dateVal >= args.startDate && dateVal <= args.endDate) {
+                const suppName = delivery.supplierId ? supplierMap.get(delivery.supplierId) : undefined;
+                const label = [suppName, delivery.serviceName].filter(Boolean).join(" - ") || undefined;
                 results.push({
                   id: `${type._id}_${order._id}_del_${idx}`,
                   orderId: order._id,
@@ -210,7 +230,7 @@ export const getLinkedOrderEvents = query({
                   color: type.color,
                   startDate: dateVal,
                   deliveryIndex: idx,
-                  serviceName: delivery.serviceName,
+                  serviceName: label,
                   field,
                   assignedUserId: order.assignedUserId,
                 });

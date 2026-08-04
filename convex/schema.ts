@@ -803,6 +803,7 @@ export default defineSchema({
     icon: v.optional(v.string()),
     isPrivate: v.boolean(),
     linkedOrderField: v.optional(v.string()),
+    linkedSupplierId: v.optional(v.id("suppliers")),
     createdAt: v.number(),
   }),
 
