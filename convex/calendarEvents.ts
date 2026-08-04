@@ -164,6 +164,7 @@ export const getLinkedOrderEvents = query({
       eventTypeName: string;
       color: string;
       startDate: number;
+      hasTime?: boolean;
       deliveryIndex?: number;
       serviceName?: string;
       field: string;
@@ -178,6 +179,8 @@ export const getLinkedOrderEvents = query({
 
         if (field === "projectStartDate" && order.projectStartDate) {
           if (order.projectStartDate >= args.startDate && order.projectStartDate <= args.endDate) {
+            const d = new Date(order.projectStartDate);
+            const hasTime = d.getHours() > 0 || d.getMinutes() > 0;
             results.push({
               id: `${type._id}_${order._id}_projectStart`,
               orderId: order._id,
@@ -188,12 +191,16 @@ export const getLinkedOrderEvents = query({
               eventTypeName: type.name,
               color: type.color,
               startDate: order.projectStartDate,
+              hasTime,
               field,
               assignedUserId: order.assignedUserId,
             });
           }
         } else if (field === "projectEndDate" && order.projectEndDate) {
           if (order.projectEndDate >= args.startDate && order.projectEndDate <= args.endDate) {
+            const hasTime = order.installationStartDate !== undefined;
+            const startMins = order.installationStartDate ?? 0;
+            const computedStart = order.projectEndDate + startMins * 60 * 1000;
             results.push({
               id: `${type._id}_${order._id}_projectEnd`,
               orderId: order._id,
@@ -203,7 +210,8 @@ export const getLinkedOrderEvents = query({
               eventTypeId: type._id,
               eventTypeName: type.name,
               color: type.color,
-              startDate: order.projectEndDate,
+              startDate: computedStart,
+              hasTime,
               field,
               assignedUserId: order.assignedUserId,
             });
@@ -219,6 +227,8 @@ export const getLinkedOrderEvents = query({
               if (dateVal && dateVal >= args.startDate && dateVal <= args.endDate) {
                 const suppName = delivery.supplierId ? supplierMap.get(delivery.supplierId) : undefined;
                 const label = [suppName, delivery.serviceName].filter(Boolean).join(" - ") || undefined;
+                const d = new Date(dateVal);
+                const hasTime = d.getHours() > 0 || d.getMinutes() > 0;
                 results.push({
                   id: `${type._id}_${order._id}_del_${idx}`,
                   orderId: order._id,
@@ -229,6 +239,7 @@ export const getLinkedOrderEvents = query({
                   eventTypeName: type.name,
                   color: type.color,
                   startDate: dateVal,
+                  hasTime,
                   deliveryIndex: idx,
                   serviceName: label,
                   field,
@@ -260,7 +271,13 @@ export const updateLinkedOrderDate = mutation({
     if (args.field === "projectStartDate") {
       await ctx.db.patch(args.orderId, { projectStartDate: args.newDate });
     } else if (args.field === "projectEndDate") {
-      await ctx.db.patch(args.orderId, { projectEndDate: args.newDate });
+      const d = new Date(args.newDate);
+      const mins = d.getHours() * 60 + d.getMinutes();
+      const midnightTs = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      await ctx.db.patch(args.orderId, {
+        projectEndDate: midnightTs,
+        installationStartDate: mins,
+      });
     } else if (args.field.startsWith("serviceDeliveries.") && args.deliveryIndex !== undefined) {
       const deliveryField = args.field.split(".")[1] as "deliveryDate" | "orderDate" | "confirmedDate" | "receivedDate";
       const deliveries = [...(order.serviceDeliveries ?? [])];

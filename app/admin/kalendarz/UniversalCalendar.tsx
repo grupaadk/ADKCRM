@@ -248,7 +248,7 @@ export default function UniversalCalendar() {
           id: le.id,
           title: titleText,
           start: new Date(le.startDate),
-          allDay: true,
+          allDay: !le.hasTime,
           backgroundColor: "transparent",
           borderColor: "transparent",
           extendedProps: {
@@ -338,6 +338,38 @@ export default function UniversalCalendar() {
         id: info.event.id as Id<"calendarEvents">,
         startDate: newStart.getTime(),
         endDate: newEnd ? newEnd.getTime() : undefined,
+      });
+    }
+  };
+
+  const handleUpdateEventTime = async (
+    evProps: { id?: string; extendedProps: Record<string, unknown> },
+    timeStr: string
+  ) => {
+    if (!selectedDate || !timeStr) return;
+    const [h, m] = timeStr.split(":").map(Number);
+    const newDate = new Date(selectedDate);
+    newDate.setHours(h, m, 0, 0);
+
+    const props = evProps.extendedProps as {
+      sourceType: string;
+      orderId?: string;
+      field?: string;
+      deliveryIndex?: number;
+    };
+
+    if (props.sourceType === "order-linked" && props.orderId && props.field) {
+      await updateLinkedOrderDate({
+        orderId: props.orderId as Id<"orders">,
+        field: props.field,
+        deliveryIndex: props.deliveryIndex,
+        newDate: newDate.getTime(),
+      });
+    } else if (evProps.id) {
+      await updateCalendarEvent({
+        id: evProps.id as Id<"calendarEvents">,
+        startDate: newDate.getTime(),
+        isAllDay: false,
       });
     }
   };
@@ -918,19 +950,36 @@ export default function UniversalCalendar() {
                             return (
                               <div
                                 key={idx}
-                                onClick={() => handleEventClick({ event: { id: (ev as { id: string }).id, title, extendedProps: props } } as unknown as EventClickArg)}
                                 style={{
-                                  display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
+                                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "7px 10px",
                                   background: "var(--panel)", borderRadius: 6, border: `1px solid ${color}44`,
-                                  cursor: "pointer", borderLeft: `4px solid ${color}`,
+                                  borderLeft: `4px solid ${color}`,
                                 }}
                               >
-                                <span style={{ fontSize: 10, fontWeight: 700, color, background: `${color}18`, borderRadius: 3, padding: "1px 5px" }}>
-                                  {typeName}
-                                </span>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                  {title}
-                                </span>
+                                <div
+                                  onClick={() => handleEventClick({ event: { id: (ev as { id: string }).id, title, extendedProps: props } } as unknown as EventClickArg)}
+                                  style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, cursor: "pointer" }}
+                                >
+                                  <span style={{ fontSize: 10, fontWeight: 700, color, background: `${color}18`, borderRadius: 3, padding: "1px 5px" }}>
+                                    {typeName}
+                                  </span>
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {title}
+                                  </span>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }} title="Ustaw godzinę na siatce">
+                                  <span style={{ fontSize: 10, color: "var(--text-mute)" }}>🕒</span>
+                                  <input
+                                    type="time"
+                                    defaultValue="08:00"
+                                    onChange={(e) => handleUpdateEventTime({ id: (ev as { id: string }).id, extendedProps: props }, e.target.value)}
+                                    style={{
+                                      fontSize: 11, padding: "1px 4px", borderRadius: 4,
+                                      border: "1px solid var(--line)", background: "var(--panel-2)",
+                                      color: "var(--text-strong)", fontFamily: "inherit", cursor: "pointer",
+                                    }}
+                                  />
+                                </div>
                               </div>
                             );
                           })}
@@ -973,10 +1022,10 @@ export default function UniversalCalendar() {
                         const startH = Math.max(6, Math.min(22, startD.getHours() + startD.getMinutes() / 60));
                         const endH = Math.max(startH + 0.5, Math.min(22.5, endD.getHours() + endD.getMinutes() / 60));
                         const topPx = (startH - 6) * 52;
-                        const heightPx = Math.max(36, (endH - startH) * 52);
+                        const heightPx = Math.max(40, (endH - startH) * 52);
 
-                        const timeLabel = `${startD.getHours().toString().padStart(2, "0")}:${startD.getMinutes().toString().padStart(2, "0")} - ${endD.getHours().toString().padStart(2, "0")}:${endD.getMinutes().toString().padStart(2, "0")}`;
                         const typeName = (props.eventTypeName as string) || (props.sourceType === "montaz" ? "Montaż" : "Zdarzenie");
+                        const startTimeVal = `${startD.getHours().toString().padStart(2, "0")}:${startD.getMinutes().toString().padStart(2, "0")}`;
 
                         return (
                           <div
@@ -1008,9 +1057,18 @@ export default function UniversalCalendar() {
                               <span style={{ fontSize: 9, fontWeight: 700, color, background: `${color}18`, borderRadius: 3, padding: "1px 4px" }}>
                                 {typeName}
                               </span>
-                              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-mute)" }}>
-                                {timeLabel}
-                              </span>
+                              <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="time"
+                                  value={startTimeVal}
+                                  onChange={(e) => handleUpdateEventTime({ id: (ev as { id: string }).id, extendedProps: props }, e.target.value)}
+                                  style={{
+                                    fontSize: 10, fontWeight: 700, padding: "0 3px", borderRadius: 3,
+                                    border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)",
+                                    fontFamily: "inherit", cursor: "pointer",
+                                  }}
+                                />
+                              </div>
                             </div>
                             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                               {title}
