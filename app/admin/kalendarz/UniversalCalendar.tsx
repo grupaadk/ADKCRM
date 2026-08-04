@@ -83,6 +83,7 @@ export default function UniversalCalendar() {
   // Modals
   const [dayEventsListModalOpen, setDayEventsListModalOpen] = useState(false);
   const [dayEventsViewMode, setDayEventsViewMode] = useState<"timeline" | "list">("timeline");
+  const [dragOverHour, setDragOverHour] = useState<number | null>(null);
   const [dateModalOpen, setDateModalOpen] = useState(false);
   const [dateModalTab, setDateModalTab] = useState<"montaz" | "event">("montaz");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -945,16 +946,25 @@ export default function UniversalCalendar() {
                             return (
                               <div
                                 key={idx}
+                                draggable={true}
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData(
+                                    "text/plain",
+                                    JSON.stringify({ id: (ev as { id: string }).id, extendedProps: props })
+                                  );
+                                  e.dataTransfer.effectAllowed = "move";
+                                }}
                                 style={{
                                   display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "7px 10px",
                                   background: "var(--panel)", borderRadius: 6, border: `1px solid ${color}44`,
-                                  borderLeft: `4px solid ${color}`,
+                                  borderLeft: `4px solid ${color}`, cursor: "grab",
                                 }}
                               >
                                 <div
                                   onClick={() => handleEventClick({ event: { id: (ev as { id: string }).id, title, extendedProps: props } } as unknown as EventClickArg)}
-                                  style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, cursor: "pointer" }}
+                                  style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}
                                 >
+                                  <span style={{ fontSize: 11, color: "var(--text-mute)", userSelect: "none" }}>⋮⋮</span>
                                   <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                     {title}
                                   </span>
@@ -989,29 +999,53 @@ export default function UniversalCalendar() {
                         const startD = (ev as { start: Date }).start;
                         return startD.getHours() === h;
                       });
+                      const isTarget = dragOverHour === h;
 
                       return (
                         <div
                           key={h}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                            if (dragOverHour !== h) setDragOverHour(h);
+                          }}
+                          onDragLeave={() => setDragOverHour(null)}
+                          onDrop={async (e) => {
+                            e.preventDefault();
+                            setDragOverHour(null);
+                            const raw = e.dataTransfer.getData("text/plain");
+                            if (!raw) return;
+                            try {
+                              const data = JSON.parse(raw);
+                              const newTimeStr = `${h.toString().padStart(2, "0")}:00`;
+                              await handleUpdateEventTime(data, newTimeStr);
+                            } catch (err) {
+                              console.error("Drop error", err);
+                            }
+                          }}
                           style={{
                             display: "flex",
                             alignItems: "flex-start",
-                            minHeight: 44,
-                            padding: "8px 0",
-                            borderBottom: "1px solid var(--line)",
+                            minHeight: 48,
+                            padding: "8px 8px",
+                            margin: "0 -8px",
+                            borderRadius: 8,
+                            borderBottom: isTarget ? "2px dashed var(--accent)" : "1px solid var(--line)",
+                            background: isTarget ? "var(--accent)18" : "transparent",
+                            transition: "all 0.12s",
                             boxSizing: "border-box",
                           }}
                         >
                           {/* Hour Label */}
-                          <div style={{ width: 52, fontSize: 11, fontWeight: 700, color: "var(--text-mute)", flexShrink: 0, paddingTop: 4 }}>
+                          <div style={{ width: 48, fontSize: 11, fontWeight: 700, color: isTarget ? "var(--accent)" : "var(--text-mute)", flexShrink: 0, paddingTop: 4 }}>
                             {hourStr}
                           </div>
 
                           {/* Events or Empty Slot */}
                           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                             {eventsInHour.length === 0 ? (
-                              <div style={{ fontSize: 11, color: "var(--line)", fontStyle: "italic", paddingTop: 4 }}>
-                                —
+                              <div style={{ fontSize: 11, color: isTarget ? "var(--accent)" : "var(--line)", fontStyle: "italic", paddingTop: 4 }}>
+                                {isTarget ? "Upuść tutaj..." : "—"}
                               </div>
                             ) : (
                               eventsInHour.map((ev, idx) => {
@@ -1024,10 +1058,18 @@ export default function UniversalCalendar() {
                                 return (
                                   <div
                                     key={idx}
+                                    draggable={true}
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData(
+                                        "text/plain",
+                                        JSON.stringify({ id: (ev as { id: string }).id, extendedProps: props })
+                                      );
+                                      e.dataTransfer.effectAllowed = "move";
+                                    }}
                                     style={{
                                       display: "flex",
                                       alignItems: "center",
-                                      justify: "space-between",
+                                      justifyContent: "space-between",
                                       gap: 8,
                                       padding: "8px 12px",
                                       background: "var(--panel-2)",
@@ -1035,20 +1077,24 @@ export default function UniversalCalendar() {
                                       borderLeft: `4px solid ${color}`,
                                       borderRadius: 8,
                                       boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                                      cursor: "grab",
                                     }}
                                   >
                                     <div
                                       onClick={() => handleEventClick({ event: { id: (ev as { id: string }).id, title, start: startD, extendedProps: props } } as unknown as EventClickArg)}
-                                      style={{ flex: 1, minWidth: 0, cursor: "pointer" }}
+                                      style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}
                                     >
-                                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                        {title}
-                                      </div>
-                                      {props.clientName && (
-                                        <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                          {props.clientName as string}
+                                      <span style={{ fontSize: 11, color: "var(--text-mute)", userSelect: "none" }}>⋮⋮</span>
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                          {title}
                                         </div>
-                                      )}
+                                        {props.clientName && (
+                                          <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                            {props.clientName as string}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
 
                                     {/* Inline Time Setter */}
