@@ -325,6 +325,8 @@ export default function UniversalCalendar() {
         endDate: newEnd ? newEnd.getTime() : undefined,
       });
     }
+  };
+
   const handleEventResize = async (info: { event: { id: string; start: Date | null; end: Date | null; extendedProps: Record<string, unknown> } }) => {
     const props = info.event.extendedProps as { sourceType: string };
     const newStart = info.event.start;
