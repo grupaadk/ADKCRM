@@ -924,7 +924,7 @@ export default function UniversalCalendar() {
                   })}
                 </div>
               ) : (
-                /* Timeline Grid View (06:00 - 22:00) */
+                /* Timeline Hourly Schedule Agenda (06:00 - 22:00) */
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {/* All-day events banner */}
                   {(() => {
@@ -934,7 +934,7 @@ export default function UniversalCalendar() {
                     if (allDayEvs.length === 0) return null;
                     return (
                       <div style={{ background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 10, padding: 12 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", uppercase: true, letterSpacing: "0.04em", marginBottom: 8 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", letterSpacing: "0.04em", marginBottom: 8, textTransform: "uppercase" }}>
                           Cały dzień ({allDayEvs.length})
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -980,97 +980,98 @@ export default function UniversalCalendar() {
                     );
                   })()}
 
-                  {/* Hourly Grid (06:00 - 22:00) */}
-                  <div style={{ position: "relative", minHeight: 884 }}>
-                    {/* Hour slots background lines */}
-                    {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
-                      <div
-                        key={h}
-                        style={{
-                          height: 52,
-                          borderTop: "1px solid var(--line)",
-                          display: "flex",
-                          alignItems: "flex-start",
-                          boxSizing: "border-box",
-                        }}
-                      >
-                        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)", width: 44, flexShrink: 0, marginTop: -7, background: "var(--panel)", paddingRight: 4 }}>
-                          {h.toString().padStart(2, "0")}:00
-                        </span>
-                        <div style={{ flex: 1, borderTop: "1px dashed var(--line)", opacity: 0.5, marginTop: 0 }} />
-                      </div>
-                    ))}
-
-                    {/* Positioned Timed Events */}
-                    {selectedDayEvents
-                      .filter((ev) => !(ev as { allDay?: boolean }).allDay && (ev as { start?: Date }).start)
-                      .map((ev, idx) => {
-                        const props = (ev as { extendedProps: Record<string, unknown> }).extendedProps;
-                        const color = (props.color as string) || (props.assignedUserColor as string) || "#3b82f6";
-                        const title = (ev as { title: string }).title;
+                  {/* Hourly Agenda Slots (06:00 - 22:00) */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 0, borderTop: "1px solid var(--line)" }}>
+                    {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => {
+                      const hourStr = `${h.toString().padStart(2, "0")}:00`;
+                      const eventsInHour = selectedDayEvents.filter((ev) => {
+                        if ((ev as { allDay?: boolean }).allDay || !(ev as { start?: Date }).start) return false;
                         const startD = (ev as { start: Date }).start;
-                        const endD = (ev as { end?: Date }).end ?? new Date(startD.getTime() + 60 * 60 * 1000);
+                        return startD.getHours() === h;
+                      });
 
-                        const startH = Math.max(6, Math.min(22, startD.getHours() + startD.getMinutes() / 60));
-                        const endH = Math.max(startH + 0.5, Math.min(22.5, endD.getHours() + endD.getMinutes() / 60));
-                        const topPx = (startH - 6) * 52;
-                        const heightPx = Math.max(40, (endH - startH) * 52);
-                        const startTimeVal = `${startD.getHours().toString().padStart(2, "0")}:${startD.getMinutes().toString().padStart(2, "0")}`;
+                      return (
+                        <div
+                          key={h}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            minHeight: 44,
+                            padding: "8px 0",
+                            borderBottom: "1px solid var(--line)",
+                            boxSizing: "border-box",
+                          }}
+                        >
+                          {/* Hour Label */}
+                          <div style={{ width: 52, fontSize: 11, fontWeight: 700, color: "var(--text-mute)", flexShrink: 0, paddingTop: 4 }}>
+                            {hourStr}
+                          </div>
 
-                        return (
-                          <div
-                            key={idx}
-                            onClick={() => handleEventClick({ event: { id: (ev as { id: string }).id, title, start: startD, end: endD, extendedProps: props } } as unknown as EventClickArg)}
-                            style={{
-                              position: "absolute",
-                              left: 48,
-                              right: 0,
-                              top: topPx,
-                              height: heightPx,
-                              background: "var(--panel)",
-                              border: `1px solid ${color}66`,
-                              borderLeft: `4px solid ${color}`,
-                              borderRadius: 8,
-                              padding: "6px 10px",
-                              boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
-                              overflow: "hidden",
-                              cursor: "pointer",
-                              zIndex: 10 + idx,
-                              display: "flex",
-                              flexDirection: "column",
-                              justify: "flex-start",
-                              gap: 2,
-                              transition: "all 0.15s",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {title}
+                          {/* Events or Empty Slot */}
+                          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                            {eventsInHour.length === 0 ? (
+                              <div style={{ fontSize: 11, color: "var(--line)", fontStyle: "italic", paddingTop: 4 }}>
+                                —
                               </div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  type="time"
-                                  value={startTimeVal}
-                                  onChange={(e) => handleUpdateEventTime({ id: (ev as { id: string }).id, extendedProps: props }, e.target.value)}
-                                  style={{
-                                    fontSize: 10, fontWeight: 700, padding: "0 3px", borderRadius: 3,
-                                    border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)",
-                                    fontFamily: "inherit", cursor: "pointer",
-                                  }}
-                                />
-                              </div>
-                            </div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {title}
-                            </div>
-                            {props.clientName && heightPx > 48 && (
-                              <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {props.clientName as string}
-                              </div>
+                            ) : (
+                              eventsInHour.map((ev, idx) => {
+                                const props = (ev as { extendedProps: Record<string, unknown> }).extendedProps;
+                                const color = (props.color as string) || (props.assignedUserColor as string) || "#3b82f6";
+                                const title = (ev as { title: string }).title;
+                                const startD = (ev as { start: Date }).start;
+                                const startTimeVal = `${startD.getHours().toString().padStart(2, "0")}:${startD.getMinutes().toString().padStart(2, "0")}`;
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justify: "space-between",
+                                      gap: 8,
+                                      padding: "8px 12px",
+                                      background: "var(--panel-2)",
+                                      border: `1px solid ${color}44`,
+                                      borderLeft: `4px solid ${color}`,
+                                      borderRadius: 8,
+                                      boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                                    }}
+                                  >
+                                    <div
+                                      onClick={() => handleEventClick({ event: { id: (ev as { id: string }).id, title, start: startD, extendedProps: props } } as unknown as EventClickArg)}
+                                      style={{ flex: 1, minWidth: 0, cursor: "pointer" }}
+                                    >
+                                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                        {title}
+                                      </div>
+                                      {props.clientName && (
+                                        <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                          {props.clientName as string}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Inline Time Setter */}
+                                    <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                                      <input
+                                        type="time"
+                                        value={startTimeVal}
+                                        onChange={(e) => handleUpdateEventTime({ id: (ev as { id: string }).id, extendedProps: props }, e.target.value)}
+                                        style={{
+                                          fontSize: 11, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                                          border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)",
+                                          fontFamily: "inherit", cursor: "pointer",
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })
                             )}
                           </div>
-                        );
-                      })}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
