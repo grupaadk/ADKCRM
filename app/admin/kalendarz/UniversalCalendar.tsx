@@ -889,7 +889,6 @@ export default function UniversalCalendar() {
                     const timeStr = (ev as { allDay?: boolean }).allDay || !startD
                       ? "Cały dzień"
                       : `${startD.getHours().toString().padStart(2,"0")}:${startD.getMinutes().toString().padStart(2,"0")}`;
-                    const typeName = (props.eventTypeName as string) || (props.sourceType === "montaz" ? "Montaż" : "Zdarzenie");
 
                     return (
                       <div
@@ -898,19 +897,16 @@ export default function UniversalCalendar() {
                         style={{
                           display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px",
                           borderRadius: 10, background: "var(--panel-2)", border: "1px solid var(--line)",
+                          borderLeft: `4px solid ${color}`,
                           cursor: "pointer", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
                         }}
                       >
-                        <div style={{ width: 4, height: "100%", minHeight: 36, borderRadius: 2, background: color, flexShrink: 0, alignSelf: "stretch" }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color, background: `${color}18`, border: `1px solid ${color}33`, borderRadius: 4, padding: "2px 6px" }}>
-                              {typeName}
-                            </span>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)" }}>{timeStr}</span>
-                          </div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)", marginTop: 6, wordBreak: "break-word" }}>
-                            {title}
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)", wordBreak: "break-word" }}>
+                              {title}
+                            </div>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", flexShrink: 0 }}>{timeStr}</span>
                           </div>
                           {props.clientName && (
                             <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 2 }}>
@@ -946,7 +942,6 @@ export default function UniversalCalendar() {
                             const props = (ev as { extendedProps: Record<string, unknown> }).extendedProps;
                             const color = (props.color as string) || "#3b82f6";
                             const title = (ev as { title: string }).title;
-                            const typeName = (props.eventTypeName as string) || "Zdarzenie";
                             return (
                               <div
                                 key={idx}
@@ -960,9 +955,6 @@ export default function UniversalCalendar() {
                                   onClick={() => handleEventClick({ event: { id: (ev as { id: string }).id, title, extendedProps: props } } as unknown as EventClickArg)}
                                   style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, cursor: "pointer" }}
                                 >
-                                  <span style={{ fontSize: 10, fontWeight: 700, color, background: `${color}18`, borderRadius: 3, padding: "1px 5px" }}>
-                                    {typeName}
-                                  </span>
                                   <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                     {title}
                                   </span>
@@ -1023,8 +1015,6 @@ export default function UniversalCalendar() {
                         const endH = Math.max(startH + 0.5, Math.min(22.5, endD.getHours() + endD.getMinutes() / 60));
                         const topPx = (startH - 6) * 52;
                         const heightPx = Math.max(40, (endH - startH) * 52);
-
-                        const typeName = (props.eventTypeName as string) || (props.sourceType === "montaz" ? "Montaż" : "Zdarzenie");
                         const startTimeVal = `${startD.getHours().toString().padStart(2, "0")}:${startD.getMinutes().toString().padStart(2, "0")}`;
 
                         return (
@@ -1054,10 +1044,10 @@ export default function UniversalCalendar() {
                             }}
                           >
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
-                              <span style={{ fontSize: 9, fontWeight: 700, color, background: `${color}18`, borderRadius: 3, padding: "1px 4px" }}>
-                                {typeName}
-                              </span>
-                              <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {title}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
                                 <input
                                   type="time"
                                   value={startTimeVal}
