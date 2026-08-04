@@ -582,11 +582,17 @@ export default function UniversalCalendar() {
     );
   };
 
-  const dayEventsCount = useMemo(() => {
-    if (!selectedDate || !linkedOrderEvents) return 0;
-    const dayStart = localMidnight(selectedDate);
-    return linkedOrderEvents.filter((e) => localMidnight(new Date(e.startDate)) === dayStart).length;
-  }, [selectedDate, linkedOrderEvents]);
+  const selectedDayEvents = useMemo(() => {
+    if (!selectedDate || !events) return [];
+    const targetMidnight = localMidnight(selectedDate);
+    return events.filter((e) => {
+      const startD = (e as { start?: Date }).start;
+      if (!startD) return false;
+      return localMidnight(startD) === targetMidnight;
+    });
+  }, [selectedDate, events]);
+
+  const dayEventsCount = useMemo(() => selectedDayEvents.length, [selectedDayEvents]);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -732,6 +738,10 @@ export default function UniversalCalendar() {
           eventDrop={handleEventDrop}
           eventResize={handleEventResize as unknown as (arg: unknown) => void}
           dateClick={handleDateClick}
+          moreLinkClick={(arg) => {
+            handleDateClick({ date: arg.date } as DateClickArg);
+            return "none";
+          }}
           datesSet={handleDatesSet}
           eventContent={renderEventContent}
           height="100%"
@@ -789,7 +799,7 @@ export default function UniversalCalendar() {
             {/* Header */}
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)" }}>Nowe wydarzenie</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)" }}>Harmonogram dnia</div>
                 <div style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 2 }}>{fmtDateTime(selectedDate)}</div>
               </div>
               <button onClick={() => setDateModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", padding: 6 }}>
@@ -798,6 +808,52 @@ export default function UniversalCalendar() {
                 </svg>
               </button>
             </div>
+
+            {/* Day events list if any */}
+            {selectedDayEvents.length > 0 && (
+              <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--line)", background: "var(--panel-2)", flexShrink: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
+                  Wydarzenia w tym dniu ({selectedDayEvents.length})
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflowY: "auto" }}>
+                  {selectedDayEvents.map((ev, idx) => {
+                    const props = (ev as { extendedProps: Record<string, unknown> }).extendedProps;
+                    const color = (props.color as string) || (props.assignedUserColor as string) || "#3b82f6";
+                    const title = (ev as { title: string }).title;
+                    const startD = (ev as { start?: Date }).start;
+                    const timeStr = (ev as { allDay?: boolean }).allDay || !startD
+                      ? null
+                      : `${startD.getHours().toString().padStart(2,"0")}:${startD.getMinutes().toString().padStart(2,"0")}`;
+                    const typeName = (props.eventTypeName as string) || (props.sourceType === "montaz" ? "Montaż" : "Zdarzenie");
+
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => handleEventClick({ event: { id: (ev as { id: string }).id, title, start: startD, end: (ev as { end?: Date }).end, extendedProps: props } } as unknown as EventClickArg)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
+                          borderRadius: 6, background: "var(--panel)", border: "1px solid var(--line)",
+                          cursor: "pointer", transition: "all 0.12s",
+                        }}
+                      >
+                        <div style={{ width: 4, height: 24, borderRadius: 2, background: color, flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                            <span style={{ fontSize: 9, fontWeight: 700, color, background: `${color}18`, borderRadius: 3, padding: "1px 5px" }}>
+                              {typeName}
+                            </span>
+                            {timeStr && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-mute)" }}>{timeStr}</span>}
+                          </div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>
+                            {title}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Tabs */}
             <div style={{ display: "flex", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
