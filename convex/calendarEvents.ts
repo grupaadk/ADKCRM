@@ -166,6 +166,7 @@ export const getLinkedOrderEvents = query({
       clientId?: string;
       clientName: string;
       orderName?: string;
+      customText?: string;
       eventTypeId: string;
       eventTypeName: string;
       color: string;
@@ -203,6 +204,7 @@ export const getLinkedOrderEvents = query({
               clientId: order.clientId,
               clientName,
               orderName: order.name,
+              customText: order.customText,
               eventTypeId: type._id,
               eventTypeName: type.name,
               color: type.color,
@@ -229,6 +231,7 @@ export const getLinkedOrderEvents = query({
               clientId: order.clientId,
               clientName,
               orderName: order.name,
+              customText: order.customText,
               eventTypeId: type._id,
               eventTypeName: type.name,
               color: type.color,
@@ -268,6 +271,7 @@ export const getLinkedOrderEvents = query({
                   clientId: order.clientId,
                   clientName,
                   orderName: order.name,
+                  customText: order.customText,
                   eventTypeId: type._id,
                   eventTypeName: type.name,
                   color: type.color,

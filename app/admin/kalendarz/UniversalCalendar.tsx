@@ -241,9 +241,10 @@ export default function UniversalCalendar() {
       for (const le of filteredLinked) {
         if (activeEventTypeFilters.size > 0 && !activeEventTypeFilters.has(le.eventTypeId)) continue;
 
-        const titleText = le.serviceName
-          ? `${le.orderName ?? le.clientName} (${le.serviceName})`
-          : (le.orderName ?? le.clientName);
+        const baseText = le.orderName ? `${le.orderName} - ${le.clientName}` : le.clientName;
+        const customPart = le.customText ? ` [${le.customText}]` : "";
+        const servicePart = le.serviceName ? ` (${le.serviceName})` : "";
+        const titleText = `${baseText}${customPart}${servicePart}`;
 
         result.push({
           id: le.id,
@@ -258,6 +259,7 @@ export default function UniversalCalendar() {
             clientId: le.clientId,
             clientName: le.clientName,
             orderName: le.orderName,
+            customText: le.customText,
             serviceName: le.serviceName,
             field: le.field,
             deliveryIndex: le.deliveryIndex,
@@ -562,6 +564,11 @@ export default function UniversalCalendar() {
             <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {props.clientName}
             </div>
+            {props.customText && (
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-strong)", opacity: 0.9, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                💬 {props.customText as string}
+              </div>
+            )}
           </div>
         </div>
       );
