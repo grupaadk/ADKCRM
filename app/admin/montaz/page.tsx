@@ -1,11 +1,5 @@
-"use client"
-
-import InstallationCalendar from "../panel/InstallationCalendar"
+import { redirect } from "next/navigation";
 
 export default function MontazPage() {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)", overflow: "hidden" }}>
-      <InstallationCalendar />
-    </div>
-  )
+  redirect("/admin/kalendarz");
 }

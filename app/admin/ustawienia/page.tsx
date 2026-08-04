@@ -10,8 +10,9 @@ import type { Id } from "@/convex/_generated/dataModel";
 import ModalPortal from "@/components/ModalPortal";
 import { X } from "lucide-react";
 import { ITKanbanTab } from "./ITKanbanTab";
+import { EventTypesTab } from "./EventTypesTab";
 
-type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy" | "wydatki" | "it-kanban";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -3962,6 +3963,7 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "wydatki", label: "Kategorie wydatków" },
   { key: "logi", label: "Logi" },
   { key: "it-kanban", label: "IT Kanban" },
+  { key: "typy-wydarzen", label: "Typy Wydarzeń" },
 ];
 
 // --- Main Page ---
@@ -4008,6 +4010,7 @@ export default function UstawieniaPage() {
       {activeTab === "wydatki" && <ExpenseCategoriesTab />}
       {activeTab === "logi" && <LogiTab />}
       {activeTab === "it-kanban" && <ITKanbanTab />}
+      {activeTab === "typy-wydarzen" && <EventTypesTab />}
 
       {/* ── TEST SENTRY — odkomentuj żeby sprawdzić czy błędy docierają do Sentry ──
       <div className="mt-8 p-4 border border-dashed border-red-300 rounded-lg">

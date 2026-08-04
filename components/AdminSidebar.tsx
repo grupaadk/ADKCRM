@@ -51,7 +51,7 @@ type NavItem = {
 const mainItems: NavItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, exactMatch: true },
   { href: "/admin/panel", label: "Panel", icon: LayoutGrid },
-  { href: "/admin/montaz", label: "Montaż", icon: Calendar },
+  { href: "/admin/kalendarz", label: "Kalendarz", icon: Calendar },
   { href: "/admin/zamowienia", label: "Zlecenia", icon: ClipboardList, exactMatch: true },
   { href: "/admin/zamowienia-dostawcy", label: "Zamówienia od dostawcy", icon: Package, exactMatch: true },
   { href: "/admin/klienci", label: "Klienci", icon: Users, countKey: "clients", alsoActiveFor: ["/admin/klient/"] },

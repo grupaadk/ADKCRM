@@ -10,6 +10,7 @@
 
 import type * as attachments from "../attachments.js";
 import type * as auth from "../auth.js";
+import type * as calendarEvents from "../calendarEvents.js";
 import type * as clients from "../clients.js";
 import type * as complaints from "../complaints.js";
 import type * as crmConfig from "../crmConfig.js";
@@ -66,6 +67,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   attachments: typeof attachments;
   auth: typeof auth;
+  calendarEvents: typeof calendarEvents;
   clients: typeof clients;
   complaints: typeof complaints;
   crmConfig: typeof crmConfig;

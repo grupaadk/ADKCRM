@@ -1,0 +1,980 @@
+"use client";
+
+import { useState, useMemo, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import timeGridPlugin from "@fullcalendar/timegrid";
+import multiMonthPlugin from "@fullcalendar/multimonth";
+import interactionPlugin from "@fullcalendar/interaction";
+import plLocale from "@fullcalendar/core/locales/pl";
+import type { EventClickArg, EventDropArg, EventContentArg, DatesSetArg } from "@fullcalendar/core";
+import type { DateClickArg } from "@fullcalendar/interaction";
+import type { Id } from "@/convex/_generated/dataModel";
+import { useStatuses } from "@/components/StatusLabelsContext";
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+const MONTH_NAMES = [
+  "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
+  "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień",
+];
+
+const DEFAULT_START_HOUR = 8;
+const EVENT_DURATION_HOURS = 1;
+
+function minsToDate(baseDate: number, mins: number): Date {
+  const d = new Date(baseDate);
+  d.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
+  return d;
+}
+
+function dateToMins(date: Date): number {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+function localMidnight(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0).getTime();
+}
+
+function fmtWeekRange(start: Date, end: Date): string {
+  if (start.getMonth() === end.getMonth()) {
+    return `${start.getDate()} – ${end.getDate()} ${MONTH_NAMES[start.getMonth()]} ${end.getFullYear()}`;
+  }
+  return `${start.getDate()} ${MONTH_NAMES[start.getMonth()]} – ${end.getDate()} ${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
+}
+
+function fmtDateTime(d: Date) {
+  const day = d.getDate().toString().padStart(2, "0");
+  const mon = (d.getMonth() + 1).toString().padStart(2, "0");
+  const yr = d.getFullYear();
+  const h = d.getHours().toString().padStart(2, "0");
+  const m = d.getMinutes().toString().padStart(2, "0");
+  return `${day}.${mon}.${yr} ${h}:${m}`;
+}
+
+const VIEW_LABELS: Record<string, string> = {
+  dayGridMonth: "Miesiąc",
+  timeGridWeek: "Tydzień",
+  timeGridDay: "Dzień",
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function UniversalCalendar() {
+  const calendarRef = useRef<FullCalendar>(null);
+  const today = useMemo(() => new Date(), []);
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth());
+  const [weekRange, setWeekRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [view, setView] = useState<"dayGridMonth" | "timeGridWeek" | "timeGridDay">("dayGridMonth");
+  const [visibleRange, setVisibleRange] = useState<{ start: Date; end: Date }>({
+    start: new Date(today.getFullYear(), today.getMonth(), 1),
+    end: new Date(today.getFullYear(), today.getMonth() + 1, 0),
+  });
+
+  // Filters
+  const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set());
+  const [activeEventTypeFilters, setActiveEventTypeFilters] = useState<Set<string>>(new Set());
+  const [showPrivate, setShowPrivate] = useState(true);
+
+  // Modals
+  const [dateModalOpen, setDateModalOpen] = useState(false);
+  const [dateModalTab, setDateModalTab] = useState<"montaz" | "event">("montaz");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
+  // New event form
+  const [newEventTitle, setNewEventTitle] = useState("");
+  const [newEventTypeId, setNewEventTypeId] = useState<string>("");
+  const effectiveEventTypeId = newEventTypeId || eventTypes[0]?._id || "";
+  const [newEventEndDate, setNewEventEndDate] = useState("");
+  const [newEventEndTime, setNewEventEndTime] = useState("09:00");
+  const [newEventIsAllDay, setNewEventIsAllDay] = useState(false);
+  const [newEventIsPrivate, setNewEventIsPrivate] = useState(false);
+  const [newEventDescription, setNewEventDescription] = useState("");
+  const [newEventAssignedUserIds, setNewEventAssignedUserIds] = useState<string[]>([]);
+
+  // Event detail modal
+  const [detailEvent, setDetailEvent] = useState<{
+    id: string;
+    type: "montaz" | "event";
+    clientId?: string;
+    orderId?: string;
+    title: string;
+    color: string;
+    start?: Date | null;
+    end?: Date | null;
+    description?: string;
+    isPrivate?: boolean;
+    eventTypeName?: string;
+  } | null>(null);
+
+  // Tooltip
+  const [tooltip, setTooltip] = useState<{
+    visible: boolean; x: number; y: number; content: React.ReactNode;
+  }>({ visible: false, x: 0, y: 0, content: null });
+
+  // Convex data
+  const allOrders = useQuery(api.orders.listForPicker);
+  const currentUser = useQuery(api.users.me);
+  const allUsers = useQuery(api.users.listAllActive);
+  const eventTypes = useQuery(api.calendarEvents.getEventTypes) ?? [];
+  const calendarEvents = useQuery(api.calendarEvents.getEvents, {
+    startDate: visibleRange.start.getTime(),
+    endDate: visibleRange.end.getTime(),
+  });
+  const orders = useQuery(api.orders.listByCompletionDateRange, {
+    startDate: visibleRange.start.getTime(),
+    endDate: visibleRange.end.getTime(),
+  });
+
+  const updateOrder = useMutation(api.orders.update);
+  const createCalendarEvent = useMutation(api.calendarEvents.createEvent);
+  const deleteCalendarEvent = useMutation(api.calendarEvents.deleteEvent);
+  const updateCalendarEvent = useMutation(api.calendarEvents.updateEvent);
+
+  const statuses = useStatuses();
+  const statusColorByKey = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const s of statuses) m[s.key] = s.color;
+    return m;
+  }, [statuses]);
+
+  // Load persisted filters
+  useEffect(() => {
+    if (!currentUser?._id) return;
+    try {
+      const saved = localStorage.getItem(`montaz_user_filter_${currentUser._id}`);
+      if (saved) {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr)) setTimeout(() => setActiveUserFilters(new Set(arr)), 0);
+      }
+    } catch {}
+  }, [currentUser?._id]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("calendar_default_view") as typeof view | null;
+      if (saved && VIEW_LABELS[saved]) {
+        setTimeout(() => {
+          setView(saved);
+          calendarRef.current?.getApi().changeView(saved);
+        }, 0);
+      }
+    } catch {}
+  }, []);
+
+
+  const toggleUserFilter = (id: string) => {
+    setActiveUserFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      if (currentUser?._id) {
+        localStorage.setItem(`montaz_user_filter_${currentUser._id}`, JSON.stringify([...next]));
+      }
+      return next;
+    });
+  };
+
+  const toggleEventTypeFilter = (id: string) => {
+    setActiveEventTypeFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // ─── Build unified events ───────────────────────────────────────────────────
+
+  const events = useMemo(() => {
+    const result: object[] = [];
+
+    // --- Montaże (from orders) ---
+    if (orders) {
+      const filteredOrders = activeUserFilters.size === 0
+        ? orders
+        : orders.filter((o) => {
+            const uid = o.assignedUserId as string | undefined;
+            if (!uid) return activeUserFilters.has("__none__");
+            return activeUserFilters.has(uid);
+          });
+
+      for (const o of filteredOrders) {
+        // Filter by event type if "montaż" type selected
+        if (activeEventTypeFilters.size > 0 && !activeEventTypeFilters.has("__montaz__")) continue;
+
+        const startMins = o.installationStartDate ?? DEFAULT_START_HOUR * 60;
+        const start = minsToDate(o.projectEndDate, startMins);
+        const end = minsToDate(o.projectEndDate, startMins + EVENT_DURATION_HOURS * 60);
+        result.push({
+          id: o._id,
+          title: o.clientName,
+          start,
+          end,
+          backgroundColor: "transparent",
+          borderColor: "transparent",
+          textColor: "var(--text)",
+          extendedProps: {
+            sourceType: "montaz",
+            clientId: o.clientId,
+            orderId: o._id,
+            status: o.status,
+            clientName: o.clientName,
+            orderName: o.name,
+            customText: o.customText,
+            investmentCity: o.investmentCity,
+            assignedUserId: o.assignedUserId,
+            assignedUserName: o.assignedUserName,
+            assignedUserColor: o.assignedUserColor,
+          },
+        });
+      }
+    }
+
+    // --- Calendar events ---
+    if (calendarEvents) {
+      for (const e of calendarEvents) {
+        if (!showPrivate && e.isPrivate) continue;
+        if (activeEventTypeFilters.size > 0 && !activeEventTypeFilters.has(e.eventTypeId)) continue;
+
+        const color = e.eventType?.color ?? "#64748b";
+        result.push({
+          id: e._id,
+          title: e.title,
+          start: new Date(e.startDate),
+          end: e.endDate ? new Date(e.endDate) : undefined,
+          allDay: e.isAllDay,
+          backgroundColor: "transparent",
+          borderColor: "transparent",
+          extendedProps: {
+            sourceType: "event",
+            eventTypeId: e.eventTypeId,
+            eventTypeName: e.eventType?.name ?? "Zdarzenie",
+            color,
+            description: e.description,
+            isPrivate: e.isPrivate,
+            assignedUsers: e.assignedUsers,
+            clientId: e.clientId,
+            orderId: e.orderId,
+          },
+        });
+      }
+    }
+
+    return result;
+  }, [orders, calendarEvents, activeUserFilters, activeEventTypeFilters, showPrivate]);
+
+  // ─── Handlers ────────────────────────────────────────────────────────────────
+
+  const handleDatesSet = (info: DatesSetArg) => {
+    setVisibleRange({ start: info.start, end: info.end });
+    setYear(info.view.currentStart.getFullYear());
+    setMonth(info.view.currentStart.getMonth());
+    if (info.view.type === "timeGridWeek" || info.view.type === "timeGridDay") {
+      const displayEnd = new Date(info.end.getTime() - 1);
+      setWeekRange({ start: info.view.currentStart, end: displayEnd });
+    } else {
+      setWeekRange(null);
+    }
+  };
+
+  const filteredOrders = useMemo(() => {
+    if (!allOrders) return [];
+    const term = orderSearch.toLowerCase();
+    if (!term) return allOrders.slice(0, 20);
+    return allOrders.filter((o) =>
+      (o.name ?? "").toLowerCase().includes(term) ||
+      o.clientName.toLowerCase().includes(term) ||
+      (o.customText ?? "").toLowerCase().includes(term)
+    ).slice(0, 20);
+  }, [allOrders, orderSearch]);
+
+  const handleEventDrop = async (info: EventDropArg) => {
+    const { sourceType } = info.event.extendedProps as { sourceType: string };
+    const newStart = info.event.start;
+    if (!newStart) return;
+
+    if (sourceType === "montaz") {
+      await updateOrder({
+        orderId: info.event.id as Id<"orders">,
+        projectEndDate: localMidnight(newStart),
+        installationStartDate: dateToMins(newStart),
+      });
+    } else {
+      const newEnd = info.event.end;
+      await updateCalendarEvent({
+        id: info.event.id as Id<"calendarEvents">,
+        startDate: newStart.getTime(),
+        endDate: newEnd ? newEnd.getTime() : undefined,
+      });
+    }
+  };
+
+  const handleEventClick = (info: EventClickArg) => {
+    const props = info.event.extendedProps as {
+      sourceType: string;
+      clientId?: string;
+      orderId?: string;
+      color?: string;
+      description?: string;
+      isPrivate?: boolean;
+      eventTypeName?: string;
+    };
+
+    if (props.sourceType === "montaz") {
+      window.open(`/admin/klient/${props.clientId}/zlecenie/${props.orderId}`, "_blank");
+    } else {
+      setDetailEvent({
+        id: info.event.id,
+        type: "event",
+        title: info.event.title,
+        color: props.color ?? "#64748b",
+        start: info.event.start,
+        end: info.event.end,
+        description: props.description,
+        isPrivate: props.isPrivate,
+        eventTypeName: props.eventTypeName,
+        clientId: props.clientId,
+        orderId: props.orderId,
+      });
+    }
+  };
+
+  const handleDateClick = (info: DateClickArg) => {
+    setSelectedDate(info.date);
+    setSelectedOrderId(null);
+    setOrderSearch("");
+    setNewEventTitle("");
+    setNewEventDescription("");
+    setNewEventIsAllDay(false);
+    setNewEventIsPrivate(false);
+    setNewEventAssignedUserIds([]);
+    // Set default end date = same day, 1 hour later
+    const endD = new Date(info.date);
+    endD.setHours(endD.getHours() + 1);
+    setNewEventEndDate(endD.toISOString().slice(0, 10));
+    setNewEventEndTime(`${endD.getHours().toString().padStart(2, "0")}:${endD.getMinutes().toString().padStart(2, "0")}`);
+    setDateModalTab("montaz");
+    setDateModalOpen(true);
+  };
+
+  const handleAssignDate = async () => {
+    if (!selectedOrderId || !selectedDate) return;
+    await updateOrder({
+      orderId: selectedOrderId as Id<"orders">,
+      projectEndDate: localMidnight(selectedDate),
+      installationStartDate: dateToMins(selectedDate),
+    });
+    setDateModalOpen(false);
+  };
+
+  const handleCreateEvent = async () => {
+    if (!newEventTitle.trim() || !effectiveEventTypeId || !selectedDate) return;
+    const [endH, endM] = newEventEndTime.split(":").map(Number);
+    const endDate = new Date(newEventEndDate);
+    endDate.setHours(endH, endM, 0, 0);
+
+    await createCalendarEvent({
+      eventTypeId: effectiveEventTypeId as Id<"calendarEventTypes">,
+      title: newEventTitle.trim(),
+      description: newEventDescription || undefined,
+      startDate: selectedDate.getTime(),
+      endDate: newEventIsAllDay ? undefined : endDate.getTime(),
+      isAllDay: newEventIsAllDay,
+      assignedUserIds: newEventAssignedUserIds.length > 0
+        ? (newEventAssignedUserIds as Id<"users">[])
+        : undefined,
+      isPrivate: newEventIsPrivate,
+    });
+    setDateModalOpen(false);
+  };
+
+  // ─── Event rendering ─────────────────────────────────────────────────────────
+
+  const renderEventContent = (arg: EventContentArg) => {
+    const props = arg.event.extendedProps as {
+      sourceType: string;
+      clientName?: string;
+      orderName?: string;
+      status?: string;
+      customText?: string;
+      investmentCity?: string;
+      assignedUserName?: string;
+      assignedUserColor?: string;
+      color?: string;
+      eventTypeName?: string;
+      isPrivate?: boolean;
+    };
+
+    if (props.sourceType === "montaz") {
+      const accentColor = props.assignedUserColor ?? statusColorByKey[props.status ?? ""] ?? "#64748b";
+      const eventStart = arg.event.start;
+      const timeStr = eventStart
+        ? `${eventStart.getHours().toString().padStart(2, "0")}:${eventStart.getMinutes().toString().padStart(2, "0")}`
+        : null;
+      const isQuarterView = arg.view.type === "multiMonth4";
+
+      if (isQuarterView) {
+        return (
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 1,
+              borderRadius: 2, background: accentColor, padding: "0px 2px",
+              fontSize: 7, fontWeight: 600, color: "#fff",
+              overflow: "hidden", whiteSpace: "nowrap", cursor: "pointer",
+              lineHeight: 1.2, maxHeight: "14px",
+            }}
+            onMouseEnter={(e) => setTooltip({ visible: true, x: e.clientX, y: e.clientY, content: <><strong>{props.orderName ?? props.clientName}</strong><br />{props.clientName}</> })}
+            onMouseMove={(e) => setTooltip((t) => ({ ...t, x: e.clientX, y: e.clientY }))}
+            onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
+          >
+            {timeStr && <span style={{ fontWeight: 700 }}>{timeStr}</span>}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{props.orderName ?? props.clientName}</span>
+          </div>
+        );
+      }
+
+      return (
+        <div className="calendar-event-card" style={{
+          display: "flex", flexDirection: "row", borderRadius: 8,
+          background: "var(--panel)", border: "1px solid var(--line)",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+          minWidth: 0, width: "100%", cursor: "pointer",
+        }}>
+          <div style={{ width: 5, minWidth: 5, background: accentColor, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 5 }}>
+              {timeStr && (
+                <span style={{ fontSize: 12, fontWeight: 800, color: "#fff", background: accentColor, borderRadius: 4, padding: "2px 6px", flexShrink: 0 }}>
+                  {timeStr}
+                </span>
+              )}
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace" }}>
+                {props.orderName ?? "—"}
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {props.clientName}
+            </div>
+            {props.investmentCity && (
+              <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                📍 {props.investmentCity}
+              </div>
+            )}
+            {props.assignedUserName && (
+              <span style={{ fontSize: 10, fontWeight: 600, color: accentColor, background: `${accentColor}22`, border: `1px solid ${accentColor}44`, borderRadius: 4, padding: "1px 6px" }}>
+                {props.assignedUserName}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Custom calendar event
+    const color = props.color ?? "#64748b";
+    const eventStart = arg.event.start;
+    const timeStr = arg.event.allDay ? null : (eventStart
+      ? `${eventStart.getHours().toString().padStart(2, "0")}:${eventStart.getMinutes().toString().padStart(2, "0")}`
+      : null);
+
+    return (
+      <div className="calendar-event-card" style={{
+        display: "flex", flexDirection: "row", borderRadius: 8,
+        background: "var(--panel)", border: "1px solid var(--line)",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+        minWidth: 0, width: "100%", cursor: "pointer",
+      }}>
+        <div style={{ width: 5, minWidth: 5, background: color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            {timeStr && (
+              <span style={{ fontSize: 12, fontWeight: 800, color: "#fff", background: color, borderRadius: 4, padding: "2px 6px", flexShrink: 0 }}>
+                {timeStr}
+              </span>
+            )}
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {arg.event.title}
+            </div>
+            {props.isPrivate && <span style={{ fontSize: 9, background: "#f1f5f9", color: "#64748b", borderRadius: 3, padding: "1px 4px", flexShrink: 0 }}>🔒</span>}
+          </div>
+          <span style={{ fontSize: 10, fontWeight: 600, color, background: `${color}22`, border: `1px solid ${color}44`, borderRadius: 4, padding: "1px 6px", width: "fit-content" }}>
+            {props.eventTypeName}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  const dayMontazCount = useMemo(() => {
+    if (!selectedDate || !orders) return 0;
+    const dayStart = localMidnight(selectedDate);
+    return orders.filter((o) => localMidnight(new Date(o.projectEndDate)) === dayStart).length;
+  }, [selectedDate, orders]);
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
+
+  return (
+    <div style={{
+      background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12,
+      display: "flex", flexDirection: "column", flex: 1, overflow: "hidden", minHeight: 0,
+    }}>
+
+      {/* Toolbar */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "12px 20px", borderBottom: "1px solid var(--line)",
+        background: "var(--card)", borderRadius: "12px 12px 0 0",
+        position: "sticky", top: 0, zIndex: 10, flexShrink: 0, flexWrap: "wrap", gap: 12,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button onClick={() => calendarRef.current?.getApi().prev()} className="btn btn-xs" style={{ fontSize: 16, padding: "5px 10px", lineHeight: 1 }}>‹</button>
+          <span style={{ fontSize: 17, fontWeight: 700, color: "var(--text-strong)", minWidth: 200, textAlign: "center" }}>
+            {weekRange ? fmtWeekRange(weekRange.start, weekRange.end) : `${MONTH_NAMES[month]} ${year}`}
+          </span>
+          <button onClick={() => calendarRef.current?.getApi().next()} className="btn btn-xs" style={{ fontSize: 16, padding: "5px 10px", lineHeight: 1 }}>›</button>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 20, padding: "3px 10px", whiteSpace: "nowrap" }}>
+            {events.length} wydarzeń
+          </span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", background: "var(--panel-2)", borderRadius: 8, padding: 3, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+            {(["dayGridMonth", "timeGridWeek", "timeGridDay"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => {
+                  setView(v);
+                  try { localStorage.setItem("calendar_default_view", v); } catch {}
+                  setTimeout(() => calendarRef.current?.getApi().changeView(v), 0);
+                }}
+                className={`btn btn-xs calendar-view-btn ${view === v ? "active" : ""}`}
+                style={{
+                  fontSize: 12, padding: "6px 14px", borderRadius: 5,
+                  background: view === v ? "var(--accent)" : "transparent",
+                  color: view === v ? "#fff" : "var(--text)",
+                  border: "none", fontWeight: view === v ? 600 : 500,
+                  transition: "all 0.15s ease", margin: "0 1px",
+                }}
+              >
+                {VIEW_LABELS[v]}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => calendarRef.current?.getApi().today()} className="btn btn-xs" style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6 }}>
+            Dzisiaj
+          </button>
+        </div>
+      </div>
+
+      {/* Filters bar */}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 20px", borderBottom: "1px solid var(--line)", background: "var(--card)" }}>
+        {/* Event type filters */}
+        <button
+          onClick={() => toggleEventTypeFilter("__montaz__")}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+            background: activeEventTypeFilters.has("__montaz__") ? "#64748b22" : "var(--panel)",
+            color: activeEventTypeFilters.has("__montaz__") ? "#475569" : "var(--text-mute)",
+            border: `1.5px solid ${activeEventTypeFilters.has("__montaz__") ? "#64748b" : "var(--line)"}`,
+            fontWeight: activeEventTypeFilters.has("__montaz__") ? 600 : 500,
+            cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+          }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#64748b", flexShrink: 0 }} />
+          Montaże
+        </button>
+
+        {eventTypes.map((type) => {
+          const active = activeEventTypeFilters.has(type._id);
+          return (
+            <button
+              key={type._id}
+              onClick={() => toggleEventTypeFilter(type._id)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                background: active ? `${type.color}22` : "var(--panel)",
+                color: active ? type.color : "var(--text-mute)",
+                border: `1.5px solid ${active ? type.color : "var(--line)"}`,
+                fontWeight: active ? 600 : 500,
+                cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
+              {type.name}
+            </button>
+          );
+        })}
+
+        <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
+
+        {/* User filters */}
+        {allUsers && [...allUsers]
+          .sort((a, b) => (a._id === currentUser?._id ? -1 : b._id === currentUser?._id ? 1 : 0))
+          .map((user) => {
+            const name = user.displayName ?? user.login ?? "?";
+            const isMe = user._id === currentUser?._id;
+            const active = activeUserFilters.has(user._id as string);
+            return (
+              <button
+                key={user._id}
+                onClick={() => toggleUserFilter(user._id as string)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                  background: active ? `${user.color ?? "#64748b"}22` : "var(--panel)",
+                  color: active ? (user.color ?? "var(--accent)") : "var(--text-mute)",
+                  border: `1.5px solid ${active ? (user.color ?? "var(--accent)") : "var(--line)"}`,
+                  fontWeight: active ? 600 : 500,
+                  cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: user.color ? (active ? user.color : `${user.color}80`) : (active ? "#64748b" : "#64748b40"), flexShrink: 0 }} />
+                {name}{isMe ? " (Ty)" : ""}
+              </button>
+            );
+          })}
+
+        <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
+
+        {/* Private toggle */}
+        <button
+          onClick={() => setShowPrivate((p) => !p)}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+            background: showPrivate ? "var(--panel-3)" : "var(--panel)",
+            color: showPrivate ? "var(--text-strong)" : "var(--text-mute)",
+            border: `1.5px solid ${showPrivate ? "var(--text-mute)" : "var(--line)"}`,
+            fontWeight: showPrivate ? 600 : 500,
+            cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+          }}
+        >
+          🔒 Prywatne
+        </button>
+      </div>
+
+      {/* Calendar */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
+        <FullCalendar
+          ref={calendarRef}
+          key={view}
+          plugins={[dayGridPlugin, timeGridPlugin, multiMonthPlugin, interactionPlugin]}
+          initialView={view}
+          locale={plLocale}
+          headerToolbar={false}
+          events={events}
+          editable={true}
+          eventDurationEditable={true}
+          eventClick={handleEventClick}
+          eventDrop={handleEventDrop}
+          dateClick={handleDateClick}
+          datesSet={handleDatesSet}
+          eventContent={renderEventContent}
+          height="100%"
+          expandRows={true}
+          dayMaxEvents={view === "dayGridMonth" ? 3 : 99}
+          eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
+          slotDuration="01:00:00"
+          slotMinTime="06:00:00"
+          slotMaxTime="22:00:00"
+          allDaySlot={true}
+          nowIndicator={true}
+          eventDisplay="block"
+          eventClassNames={["fc-event-custom"]}
+        />
+        {(orders === undefined || calendarEvents === undefined) && (
+          <div style={{
+            position: "absolute", bottom: 12, right: 16, fontSize: 11, color: "var(--text-mute)",
+            background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 6,
+            padding: "4px 10px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", pointerEvents: "none",
+          }}>
+            Ładowanie…
+          </div>
+        )}
+      </div>
+
+      {/* Tooltip */}
+      {tooltip.visible && createPortal(
+        <div style={{
+          position: "fixed", left: tooltip.x + 12, top: tooltip.y + 12, zIndex: 100,
+          background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8,
+          padding: "10px 12px", boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+          fontSize: 12, color: "var(--text)", maxWidth: 260, pointerEvents: "none",
+        }}>
+          {tooltip.content}
+        </div>,
+        document.body
+      )}
+
+      {/* Date click modal */}
+      {dateModalOpen && selectedDate && createPortal(
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={() => setDateModalOpen(false)} />
+          <div style={{
+            position: "relative", width: "100%", maxWidth: 520, maxHeight: "90vh",
+            background: "var(--panel)", borderRadius: 12, border: "1px solid var(--line)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)", display: "flex", flexDirection: "column", overflow: "hidden",
+          }} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)" }}>Nowe wydarzenie</div>
+                <div style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 2 }}>{fmtDateTime(selectedDate)}</div>
+              </div>
+              <button onClick={() => setDateModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", padding: 6 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div style={{ display: "flex", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
+              {(["montaz", "event"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setDateModalTab(tab)}
+                  style={{
+                    flex: 1, padding: "10px 0", fontSize: 13, fontWeight: dateModalTab === tab ? 700 : 500,
+                    color: dateModalTab === tab ? "var(--accent)" : "var(--text-mute)",
+                    background: "none", border: "none", borderBottom: dateModalTab === tab ? "2px solid var(--accent)" : "2px solid transparent",
+                    cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit",
+                  }}
+                >
+                  {tab === "montaz" ? "🔧 Montaż (zlecenie)" : "📅 Nowe zdarzenie"}
+                </button>
+              ))}
+            </div>
+
+            {/* Content */}
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {dateModalTab === "montaz" ? (
+                <>
+                  {dayMontazCount > 0 && (
+                    <div style={{ margin: "12px 20px 0", fontSize: 11, fontWeight: 600, color: "#92600a", background: "#fbe7c2", border: "1px solid #f0cd8a", borderRadius: 6, padding: "5px 10px" }}>
+                      ⚠ Na ten dzień zaplanowano już {dayMontazCount} montaży
+                    </div>
+                  )}
+                  <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--line)" }}>
+                    <input
+                      type="text" placeholder="Szukaj zlecenia lub klienta…"
+                      value={orderSearch} onChange={(e) => setOrderSearch(e.target.value)} autoFocus
+                      style={{ width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div style={{ padding: "6px 0" }}>
+                    {filteredOrders.length === 0 ? (
+                      <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak zleceń</div>
+                    ) : filteredOrders.map((o) => {
+                      const selected = selectedOrderId === o._id;
+                      return (
+                        <button key={o._id} onClick={() => setSelectedOrderId(o._id)} style={{
+                          display: "flex", alignItems: "center", gap: 12, width: "100%",
+                          padding: "10px 20px", background: selected ? "var(--accent)11" : "transparent",
+                          border: "none", borderBottom: "1px solid var(--line)", cursor: "pointer", textAlign: "left",
+                          borderLeft: selected ? "3px solid var(--accent)" : "3px solid transparent",
+                          fontFamily: "inherit",
+                        }}>
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: selected ? "var(--accent)" : "var(--line)" }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-strong)", fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.name ?? "—"}</div>
+                            <div style={{ fontSize: 12, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.clientName}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+                  {/* Title */}
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Tytuł *</label>
+                    <input
+                      type="text" value={newEventTitle} onChange={(e) => setNewEventTitle(e.target.value)}
+                      placeholder="Nazwa zdarzenia…" autoFocus
+                      style={{ width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+
+                  {/* Event type */}
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Typ zdarzenia *</label>
+                    {eventTypes.length === 0 ? (
+                      <div style={{ fontSize: 12, color: "#e67e22", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 6, padding: "6px 10px" }}>
+                        Brak typów wydarzeń. Dodaj je w Ustawieniach → Typy Wydarzeń.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {eventTypes.map((type) => (
+                          <button
+                            key={type._id}
+                            onClick={() => setNewEventTypeId(type._id)}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 6,
+                              padding: "5px 12px", borderRadius: 20, fontSize: 12,
+                              background: newEventTypeId === type._id ? `${type.color}22` : "var(--panel)",
+                              color: newEventTypeId === type._id ? type.color : "var(--text-mute)",
+                              border: `1.5px solid ${newEventTypeId === type._id ? type.color : "var(--line)"}`,
+                              fontWeight: newEventTypeId === type._id ? 700 : 500,
+                              cursor: "pointer", fontFamily: "inherit",
+                            }}
+                          >
+                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color }} />
+                            {type.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* All day toggle */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <input type="checkbox" id="allDay" checked={newEventIsAllDay} onChange={(e) => setNewEventIsAllDay(e.target.checked)} />
+                    <label htmlFor="allDay" style={{ fontSize: 13, color: "var(--text)", cursor: "pointer" }}>Cały dzień</label>
+                  </div>
+
+                  {/* End date/time */}
+                  {!newEventIsAllDay && (
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Koniec zdarzenia</label>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input
+                          type="date" value={newEventEndDate} onChange={(e) => setNewEventEndDate(e.target.value)}
+                          style={{ flex: 1, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
+                        />
+                        <input
+                          type="time" value={newEventEndTime} onChange={(e) => setNewEventEndTime(e.target.value)}
+                          style={{ width: 110, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Opis (opcjonalnie)</label>
+                    <textarea
+                      value={newEventDescription} onChange={(e) => setNewEventDescription(e.target.value)}
+                      rows={2} style={{ width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }}
+                    />
+                  </div>
+
+                  {/* Assign users */}
+                  {allUsers && (
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Przypisz osoby</label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {allUsers.map((user) => {
+                          const selected = newEventAssignedUserIds.includes(user._id as string);
+                          const name = user.displayName ?? user.login ?? "?";
+                          return (
+                            <button
+                              key={user._id}
+                              onClick={() => setNewEventAssignedUserIds((prev) => selected ? prev.filter((id) => id !== user._id) : [...prev, user._id as string])}
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: 5,
+                                padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                                background: selected ? `${user.color ?? "#64748b"}22` : "var(--panel)",
+                                color: selected ? (user.color ?? "var(--accent)") : "var(--text-mute)",
+                                border: `1.5px solid ${selected ? (user.color ?? "var(--accent)") : "var(--line)"}`,
+                                fontWeight: selected ? 600 : 500, cursor: "pointer", fontFamily: "inherit",
+                              }}
+                            >
+                              <span style={{ width: 7, height: 7, borderRadius: "50%", background: user.color ?? "#94a3b8" }} />
+                              {name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Private */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <input type="checkbox" id="private" checked={newEventIsPrivate} onChange={(e) => setNewEventIsPrivate(e.target.checked)} />
+                    <label htmlFor="private" style={{ fontSize: 13, color: "var(--text)", cursor: "pointer" }}>🔒 Prywatne (widoczne tylko dla mnie)</label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: "12px 20px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "flex-end", gap: 8, flexShrink: 0 }}>
+              <button onClick={() => setDateModalOpen(false)} className="btn btn-xs" style={{ fontSize: 13, padding: "7px 16px" }}>Anuluj</button>
+              {dateModalTab === "montaz" ? (
+                <button onClick={handleAssignDate} disabled={!selectedOrderId} className="btn primary btn-xs" style={{ fontSize: 13, padding: "7px 16px", opacity: selectedOrderId ? 1 : 0.45 }}>Przypisz</button>
+              ) : (
+                <button onClick={handleCreateEvent} disabled={!newEventTitle.trim() || !effectiveEventTypeId} className="btn primary btn-xs" style={{ fontSize: 13, padding: "7px 16px", opacity: newEventTitle.trim() && effectiveEventTypeId ? 1 : 0.45 }}>Zapisz zdarzenie</button>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Event detail modal */}
+      {detailEvent && createPortal(
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={() => setDetailEvent(null)} />
+          <div style={{
+            position: "relative", width: "100%", maxWidth: 420,
+            background: "var(--panel)", borderRadius: 12, border: "1px solid var(--line)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden",
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ width: "100%", height: 6, background: detailEvent.color }} />
+            <div style={{ padding: "20px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                <div>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: detailEvent.color, background: `${detailEvent.color}22`, border: `1px solid ${detailEvent.color}44`, borderRadius: 4, padding: "2px 8px" }}>
+                    {detailEvent.eventTypeName}
+                    {detailEvent.isPrivate && " 🔒"}
+                  </span>
+                  <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--text-strong)", margin: "10px 0 4px" }}>{detailEvent.title}</h3>
+                  {detailEvent.start && (
+                    <p style={{ fontSize: 12, color: "var(--text-mute)" }}>
+                      {fmtDateTime(detailEvent.start)}{detailEvent.end ? ` – ${fmtDateTime(detailEvent.end)}` : ""}
+                    </p>
+                  )}
+                  {detailEvent.description && (
+                    <p style={{ fontSize: 13, color: "var(--text)", marginTop: 10, lineHeight: 1.5 }}>{detailEvent.description}</p>
+                  )}
+                </div>
+                <button onClick={() => setDetailEvent(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", padding: 6, flexShrink: 0 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
+                <button
+                  onClick={async () => {
+                    if (confirm("Usunąć to zdarzenie?")) {
+                      await deleteCalendarEvent({ id: detailEvent.id as Id<"calendarEvents"> });
+                      setDetailEvent(null);
+                    }
+                  }}
+                  className="btn btn-xs"
+                  style={{ fontSize: 12, padding: "6px 14px", color: "#dc2626", border: "1px solid #fca5a5" }}
+                >
+                  Usuń
+                </button>
+                <button onClick={() => setDetailEvent(null)} className="btn btn-xs" style={{ fontSize: 12, padding: "6px 14px" }}>Zamknij</button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}

@@ -795,4 +795,32 @@ export default defineSchema({
   })
     .index("by_source", ["source"])
     .index("by_level", ["level"]),
+
+  // Kalendarz — typy wydarzeń (zarządzane przez admina)
+  calendarEventTypes: defineTable({
+    name: v.string(),
+    color: v.string(),
+    icon: v.optional(v.string()),
+    isPrivate: v.boolean(),
+    createdAt: v.number(),
+  }),
+
+  // Kalendarz — ogólne wydarzenia (nie-montażowe)
+  calendarEvents: defineTable({
+    eventTypeId: v.id("calendarEventTypes"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    startDate: v.number(),
+    endDate: v.optional(v.number()),
+    isAllDay: v.boolean(),
+    assignedUserIds: v.optional(v.array(v.id("users"))),
+    clientId: v.optional(v.id("clients")),
+    orderId: v.optional(v.id("orders")),
+    createdBy: v.id("users"),
+    isPrivate: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_start", ["startDate"])
+    .index("by_type", ["eventTypeId"])
+    .index("by_creator", ["createdBy"]),
 });
