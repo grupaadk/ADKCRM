@@ -102,7 +102,7 @@ export function EventTypesTab() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900">Typy Wydarzeń</h2>
           <p className="text-sm text-slate-500 mt-1">
@@ -111,7 +111,7 @@ export function EventTypesTab() {
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm shrink-0 whitespace-nowrap"
         >
           <Plus className="w-4 h-4" /> Dodaj typ
         </button>
