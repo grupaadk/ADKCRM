@@ -519,7 +519,7 @@ export default function ComplaintsTable({
                       </td>
 
                       {/* Arrow & Action */}
-                      <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
+                      <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
                         {(() => {
                           const isClosed = c.status === "zamknieta" || c.status === "rozwiazana" || c.status === "zakonczona";
                           const isUpdating = updatingId === c._id;

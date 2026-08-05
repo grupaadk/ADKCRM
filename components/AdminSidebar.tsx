@@ -35,6 +35,7 @@ import {
   AlertTriangle,
   CircleDollarSign,
   Wrench,
+  Car,
 } from "lucide-react"
 
 type NavItem = {
@@ -57,6 +58,7 @@ const mainItems: NavItem[] = [
   { href: "/admin/ekipy", label: "Ekipy montażowe", icon: Wrench, alsoActiveFor: ["/admin/ekipy/"] },
   { href: "/admin/zamowienia-dostawcy", label: "Zamówienia od dostawcy", icon: Package, exactMatch: true },
   { href: "/admin/klienci", label: "Klienci", icon: Users, countKey: "clients", alsoActiveFor: ["/admin/klient/"] },
+  { href: "/admin/flota", label: "Flota", icon: Car, alsoActiveFor: ["/admin/flota/"] },
   { href: "/admin/faktury", label: "Faktury", icon: Receipt },
   { href: "/admin/wydatki", label: "Wydatki", icon: CircleDollarSign },
   { href: "/admin/reklamacje", label: "Reklamacje", icon: AlertTriangle },
