@@ -118,10 +118,21 @@ export default function TUIMobileCalendar({
         let isAllday = true;
         let category = "allday";
 
-        if (item.timeStr) {
-          const [hh, mm] = item.timeStr.split(":");
+        let timeString = item.timeStr;
+        if (!timeString && (start.getHours() !== 0 || start.getMinutes() !== 0)) {
+          timeString = `${start.getHours().toString().padStart(2, "0")}:${start.getMinutes().toString().padStart(2, "0")}`;
+        }
+
+        if (timeString) {
+          const [hh, mm] = timeString.split(":");
           start.setHours(parseInt(hh, 10), parseInt(mm, 10), 0);
-          end = new Date(start.getTime() + 60 * 60 * 1000);
+          if (item.serviceDateEnd) {
+            end = new Date(item.serviceDateEnd);
+          } else if (item.endDate) {
+            end = new Date(item.endDate);
+          } else {
+            end = new Date(start.getTime() + 60 * 60 * 1000);
+          }
           isAllday = false;
           category = "time";
         }

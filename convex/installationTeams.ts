@@ -424,6 +424,14 @@ export const getScheduleByPin = query({
         client?.city,
       ].filter(Boolean).join(" ");
 
+      let timeStr: string | undefined;
+      if (c.serviceDate) {
+        const d = new Date(c.serviceDate);
+        if (d.getHours() !== 0 || d.getMinutes() !== 0 || !!c.serviceDateEnd) {
+          timeStr = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+        }
+      }
+
       return {
         id: c._id,
         type: "serwis" as const,
@@ -431,6 +439,7 @@ export const getScheduleByPin = query({
         description: c.description || c.clientDescription,
         date: c.serviceDate ?? c.startDate,
         serviceDateEnd: c.serviceDateEnd,
+        timeStr,
         status: c.status,
         clientName,
         phone: client?.phone,
