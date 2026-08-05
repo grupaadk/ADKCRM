@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, use } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
@@ -10,9 +10,11 @@ import Link from "next/link"
 import toast from "react-hot-toast"
 import ModalPortal from "@/components/ModalPortal"
 
-export default function CarDetailsPage({ params }: { params: { carId: Id<"cars"> } }) {
-  const car = useQuery(api.cars.getCarById, { carId: params.carId })
-  const events = useQuery(api.cars.getCarEvents, { carId: params.carId })
+export default function CarDetailsPage({ params }: { params: Promise<{ carId: Id<"cars"> }> }) {
+  const resolvedParams = use(params)
+  
+  const car = useQuery(api.cars.getCarById, { carId: resolvedParams.carId })
+  const events = useQuery(api.cars.getCarEvents, { carId: resolvedParams.carId })
   const createEvent = useMutation(api.cars.createCarEvent)
   const deleteEvent = useMutation(api.cars.deleteCarEvent)
 
