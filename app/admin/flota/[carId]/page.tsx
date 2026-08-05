@@ -73,6 +73,20 @@ export default function CarDetailsPage({ params }: { params: { carId: Id<"cars">
     return <div className="p-6">Ładowanie...</div>
   }
 
+  if (car === null) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
+        <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-slate-200">
+          <h2 className="text-xl font-semibold text-slate-800 mb-2">Nie znaleziono samochodu</h2>
+          <p className="text-slate-500 mb-4">Ten samochód nie istnieje lub został usunięty.</p>
+          <Link href="/admin/flota">
+            <Button variant="outline">Wróć do listy</Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   const totalCost = events.reduce((sum, e) => sum + e.cost, 0)
   
   const typeLabels: Record<string, string> = {

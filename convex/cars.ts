@@ -30,7 +30,7 @@ export const getCarById = query({
   args: { carId: v.id("cars") },
   handler: async (ctx, args) => {
     const car = await ctx.db.get(args.carId);
-    if (!car) throw new Error("Car not found");
+    if (!car) return null;
 
     let teamName = null;
     if (car.assignedInstallationTeamId) {
