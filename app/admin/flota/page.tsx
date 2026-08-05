@@ -10,7 +10,7 @@ import ModalPortal from "@/components/ModalPortal"
 
 export default function FlotaPage() {
   const cars = useQuery(api.cars.getCars)
-  const teams = useQuery(api.installationTeams.getTeamsForSelect)
+  const teams = useQuery(api.installationTeams.listActive)
   const createCar = useMutation(api.cars.createCar)
 
   const [isAddOpen, setIsAddOpen] = useState(false)
