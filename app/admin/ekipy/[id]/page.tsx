@@ -6,8 +6,6 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -28,10 +26,7 @@ import {
   MapPin,
   Pencil,
   ChevronRight,
-  User,
-  Plus,
   X,
-  FileText,
   BarChart3,
   Receipt,
   ExternalLink,
@@ -40,6 +35,7 @@ import {
   Key,
 } from "lucide-react";
 import UniversalCalendar from "@/app/admin/kalendarz/UniversalCalendar";
+import { CrmPageHeader } from "@/components/crm-ui";
 
 const PRESET_COLORS = [
   "#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899",
@@ -98,32 +94,6 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
   const [editingInfo, setEditingInfo] = useState(false);
   const [updatingScheduleId, setUpdatingScheduleId] = useState<string | null>(null);
 
-  const handleToggleDone = async (item: typeof scheduleItems[0]) => {
-    setUpdatingScheduleId(item.id);
-    try {
-      if (item.type === "montaz") {
-        const isDone = item.status === "completed";
-        await changeOrderStatus({
-          orderId: item.id as Id<"orders">,
-          newStatus: isDone ? "installation" : "completed",
-        });
-      } else {
-        const isDone =
-          item.status === "rozwiazana" ||
-          item.status === "zamknieta" ||
-          item.status === "zakonczona";
-        await updateComplaintStatus({
-          complaintId: item.id as Id<"complaints">,
-          status: isDone ? "w_toku" : "rozwiazana",
-        });
-      }
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Błąd zmiany statusu.");
-    } finally {
-      setUpdatingScheduleId(null);
-    }
-  };
-
   const [name, setName] = useState("");
   const [leaderName, setLeaderName] = useState("");
   const [phone, setPhone] = useState("");
@@ -135,8 +105,8 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
 
   if (team === undefined) {
     return (
-      <div className="p-8 text-center text-slate-500">
-        <div className="animate-spin w-6 h-6 border-2 border-slate-900 border-t-transparent rounded-full mx-auto mb-2" />
+      <div style={{ padding: 48, textAlign: "center", color: "var(--text-mute)" }}>
+        <div style={{ width: 24, height: 24, border: "2px solid var(--text-mute)", borderTopColor: "transparent", borderRadius: "50%", margin: "0 auto 12px", animation: "spin 1s linear infinite" }} />
         Ładowanie danych ekipy...
       </div>
     );
@@ -144,12 +114,12 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
 
   if (team === null) {
     return (
-      <div className="p-8 max-w-xl mx-auto text-center space-y-4">
-        <div className="bg-red-50 text-red-700 p-4 rounded-xl border border-red-200">
+      <div style={{ padding: 32, maxWidth: 500, margin: "0 auto", textAlign: "center", display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ background: "#fef2f2", color: "#b91c1c", padding: 16, borderRadius: 12, border: "1px solid #fecaca", fontSize: 13, fontWeight: 500 }}>
           Ekipa montażowa nie istnieje lub została usunięta.
         </div>
-        <Link href="/admin/ekipy" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-900">
-          <ArrowLeft className="w-4 h-4" /> Powrót do listy ekip
+        <Link href="/admin/ekipy" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "var(--text-strong)", textDecoration: "none", margin: "0 auto" }}>
+          <ArrowLeft style={{ width: 16, height: 16 }} /> Powrót do listy ekip
         </Link>
       </div>
     );
@@ -235,59 +205,102 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
       })),
   ].sort((a, b) => a.date - b.date);
 
+  const handleToggleDone = async (item: typeof scheduleItems[0]) => {
+    setUpdatingScheduleId(item.id);
+    try {
+      if (item.type === "montaz") {
+        const isDone = item.status === "completed";
+        await changeOrderStatus({
+          orderId: item.id as Id<"orders">,
+          newStatus: isDone ? "installation" : "completed",
+        });
+      } else {
+        const isDone =
+          item.status === "rozwiazana" ||
+          item.status === "zamknieta" ||
+          item.status === "zakonczona";
+        await updateComplaintStatus({
+          complaintId: item.id as Id<"complaints">,
+          status: isDone ? "w_toku" : "rozwiazana",
+        });
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Błąd zmiany statusu.");
+    } finally {
+      setUpdatingScheduleId(null);
+    }
+  };
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Back Link */}
-      <Link
-        href="/admin/ekipy"
-        className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" /> Powrót do listy ekip montażowych
-      </Link>
+      <div>
+        <Link
+          href="/admin/ekipy"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5,
+            fontWeight: 600, color: "var(--text-mute)", textDecoration: "none",
+            transition: "color 0.15s",
+          }}
+        >
+          <ArrowLeft style={{ width: 14, height: 14 }} /> Powrót do listy ekip montażowych
+        </Link>
+      </div>
 
       {/* Header Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-          <div className="flex items-center gap-4">
+      <div style={{
+        background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 24,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.03)", display: "flex", flexDirection: "column", gap: 20,
+      }}>
+        <div style={{
+          display: "flex", flexWrap: "wrap", alignItems: "center", justifyBetween: "space-between",
+          gap: 16, borderBottom: "1px solid var(--line)", paddingBottom: 16, justifyContent: "space-between",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div
-              className="w-12 h-12 rounded-2xl shadow-sm flex items-center justify-center text-white font-bold"
-              style={{ backgroundColor: teamColor }}
+              style={{
+                width: 48, height: 48, borderRadius: 14, boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                display: "flex", alignItems: "center", justifyContent: "center", color: "#fff",
+                fontWeight: 700, backgroundColor: teamColor, flexShrink: 0,
+              }}
             >
-              <Wrench className="w-6 h-6" />
+              <Wrench style={{ width: 24, height: 24 }} />
             </div>
 
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-slate-900">{team.name}</h1>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-strong)", margin: 0, letterSpacing: "-0.01em" }}>
+                  {team.name}
+                </h1>
                 {team.isActive ? (
-                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wider">
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                     Aktywna
                   </span>
                 ) : (
-                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-wider">
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "var(--panel-2)", color: "var(--text-mute)", border: "1px solid var(--line)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                     Nieaktywna
                   </span>
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 mt-1.5">
-                <div className="flex items-center gap-1.5">
-                  <UserCheck className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Kierownik: <strong>{team.leaderName || "Nie przypisano"}</strong></span>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16, fontSize: 12, color: "var(--text-mute)", marginTop: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <UserCheck style={{ width: 14, height: 14, color: "var(--text-mute)" }} />
+                  <span>Kierownik: <strong style={{ color: "var(--text-strong)" }}>{team.leaderName || "Nie przypisano"}</strong></span>
                 </div>
 
                 {team.phone && (
-                  <div className="flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-slate-400" />
-                    <a href={`tel:${team.phone}`} className="font-semibold text-blue-600 hover:underline">
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Phone style={{ width: 14, height: 14, color: "var(--text-mute)" }} />
+                    <a href={`tel:${team.phone}`} style={{ fontWeight: 600, color: "var(--accent)", textDecoration: "none" }}>
                       {team.phone}
                     </a>
                   </div>
                 )}
 
-                <div className="flex items-center gap-1.5 font-mono">
-                  <Key className="w-3.5 h-3.5 text-slate-400" />
-                  <span>PIN (apka): <strong className="text-slate-900 tracking-wider">{team.pin ? team.pin : "Brak PIN"}</strong></span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "monospace" }}>
+                  <Key style={{ width: 14, height: 14, color: "var(--text-mute)" }} />
+                  <span>PIN (apka): <strong style={{ color: "var(--text-strong)", letterSpacing: "0.1em" }}>{team.pin ? team.pin : "Brak PIN"}</strong></span>
                 </div>
               </div>
             </div>
@@ -295,122 +308,118 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
 
           <button
             onClick={openEdit}
-            className="flex items-center gap-2 px-3.5 py-2 border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 transition-colors self-start md:self-auto cursor-pointer"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px",
+              border: "1px solid var(--line)", borderRadius: 8, fontSize: 12.5, fontWeight: 600,
+              color: "var(--text-strong)", background: "var(--panel)", cursor: "pointer",
+              transition: "border-color 0.15s, background 0.15s",
+            }}
           >
-            <Pencil className="w-3.5 h-3.5" />
+            <Pencil style={{ width: 14, height: 14 }} />
             Edytuj ekipę
           </button>
         </div>
 
         {/* Quick KPI Stats Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-1">
-          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
-            <div className="text-xl font-bold text-slate-900">{teamOrders.length}</div>
-            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Wszystkie zlecenia</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 10, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-strong)" }}>{teamOrders.length}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 2 }}>
+              Wszystkie zlecenia
+            </div>
           </div>
 
-          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
-            <div className="text-xl font-bold text-blue-600">{upcomingOrders.length}</div>
-            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Nadchodzące montaże</div>
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 10, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#3b82f6" }}>{upcomingOrders.length}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 2 }}>
+              Nadchodzące montaże
+            </div>
           </div>
 
-          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
-            <div className="text-xl font-bold text-amber-600">{openComplaints.length}</div>
-            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Otwarte serwisy</div>
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 10, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: openComplaints.length ? "#f59e0b" : "var(--text-strong)" }}>{openComplaints.length}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 2 }}>
+              Otwarte serwisy
+            </div>
           </div>
 
-          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
-            <div className="text-xl font-bold text-slate-900">{team.members?.length ?? 0}</div>
-            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Liczba monterów</div>
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 10, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-strong)" }}>{team.members?.length ?? 0}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 2 }}>
+              Liczba monterów
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="flex border-b border-slate-200 gap-6">
-        {[
-          { key: "schedule", label: "Harmonogram prac", icon: Calendar, badge: scheduleItems.length },
-          { key: "finanse", label: "Finanse", icon: BarChart3 },
-          { key: "info", label: "Skład & Informacje", icon: Users },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as Tab)}
-              className={`flex items-center gap-2 py-3 border-b-2 text-xs font-semibold transition-colors cursor-pointer ${
-                active
-                  ? "border-slate-900 text-slate-900"
-                  : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {tab.label}
-              {tab.badge !== undefined && (
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  {tab.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* Page Header Tabs */}
+      <CrmPageHeader
+        title=""
+        tabs={[
+          { key: "schedule", label: "Harmonogram prac", count: scheduleItems.length },
+          { key: "finanse", label: "Finanse" },
+          { key: "info", label: "Skład & Informacje" },
+        ]}
+        activeTab={activeTab}
+        onTab={(k) => setActiveTab(k as Tab)}
+      />
 
       {/* Tab Content */}
 
       {/* TAB 1: SCHEDULE */}
       {activeTab === "schedule" && (
-        <div className="space-y-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between gap-4 flex-wrap pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-blue-600" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.03)", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderBottom: "1px solid var(--line)", paddingBottom: 12 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <Calendar style={{ width: 16, height: 16, color: "var(--accent)" }} />
                 Harmonogram prac i serwisów
               </h3>
 
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+              <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--panel)", padding: 4, borderRadius: 8, border: "1px solid var(--line)" }}>
                 <button
                   type="button"
                   onClick={() => setScheduleView("list")}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-all cursor-pointer ${
-                    scheduleView === "list"
-                      ? "bg-white text-slate-900 shadow-sm font-bold"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
+                  style={{
+                    padding: "4px 12px", fontSize: 12, fontWeight: scheduleView === "list" ? 700 : 500,
+                    borderRadius: 6, border: "none", cursor: "pointer",
+                    background: scheduleView === "list" ? "var(--card)" : "transparent",
+                    color: scheduleView === "list" ? "var(--text-strong)" : "var(--text-mute)",
+                    boxShadow: scheduleView === "list" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                    display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s",
+                  }}
                 >
-                  <List className="w-3.5 h-3.5" />
+                  <List style={{ width: 14, height: 14 }} />
                   Lista prac
                 </button>
                 <button
                   type="button"
                   onClick={() => setScheduleView("calendar")}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-all cursor-pointer ${
-                    scheduleView === "calendar"
-                      ? "bg-white text-slate-900 shadow-sm font-bold"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
+                  style={{
+                    padding: "4px 12px", fontSize: 12, fontWeight: scheduleView === "calendar" ? 700 : 500,
+                    borderRadius: 6, border: "none", cursor: "pointer",
+                    background: scheduleView === "calendar" ? "var(--card)" : "transparent",
+                    color: scheduleView === "calendar" ? "var(--text-strong)" : "var(--text-mute)",
+                    boxShadow: scheduleView === "calendar" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                    display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s",
+                  }}
                 >
-                  <CalendarDays className="w-3.5 h-3.5" />
+                  <CalendarDays style={{ width: 14, height: 14 }} />
                   Kalendarz ekipy
                 </button>
               </div>
             </div>
 
             {scheduleView === "calendar" ? (
-              <div className="pt-2 min-h-[680px]">
+              <div style={{ paddingTop: 8, minHeight: 680 }}>
                 <UniversalCalendar initialTeamId={teamId} initialView="timeGridWeek" />
               </div>
             ) : scheduleItems.length === 0 ? (
-              <div className="p-8 text-center text-slate-500 border border-dashed border-slate-200 rounded-lg">
+              <div style={{ padding: 48, textAlign: "center", color: "var(--text-mute)", border: "1px dashed var(--line)", borderRadius: 10 }}>
                 Brak zaplanowanych montaży i serwisów dla tej ekipy.
               </div>
             ) : (
-              <div className="space-y-3">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {scheduleItems.map((item, idx) => {
                   const isMontaz = item.type === "montaz";
                   const isFuture = item.date >= Date.now();
@@ -424,23 +433,27 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
                   return (
                     <div
                       key={`${item.type}_${item.id}_${idx}`}
-                      className={`p-4 border rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 transition-colors ${
-                        isDone
-                          ? "bg-emerald-50/40 border-emerald-200/60"
+                      style={{
+                        padding: 16, borderRadius: 10, border: "1px solid var(--line)",
+                        display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between",
+                        gap: 12, transition: "all 0.15s",
+                        background: isDone
+                          ? "rgba(16, 185, 129, 0.05)"
                           : isFuture
-                          ? "bg-white border-slate-200 hover:border-slate-300"
-                          : "bg-slate-50/70 border-slate-200 opacity-75"
-                      }`}
+                          ? "var(--card)"
+                          : "var(--panel)",
+                        opacity: !isFuture && !isDone ? 0.75 : 1,
+                      }}
                     >
-                      <div className="flex items-start gap-3">
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, minWidth: 0, flex: 1 }}>
                         <div
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider flex-shrink-0 mt-0.5 ${
-                            isDone
-                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                              : isMontaz
-                              ? "bg-blue-50 text-blue-700 border border-blue-200"
-                              : "bg-amber-50 text-amber-700 border border-amber-200"
-                          }`}
+                          style={{
+                            padding: "3px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 700,
+                            textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0, marginTop: 2,
+                            background: isDone ? "#ecfdf5" : isMontaz ? "#eff6ff" : "#fffbeb",
+                            color: isDone ? "#047857" : isMontaz ? "#1d4ed8" : "#b45309",
+                            border: `1px solid ${isDone ? "#a7f3d0" : isMontaz ? "#bfdbfe" : "#fde68a"}`,
+                          }}
                         >
                           {isDone
                             ? isMontaz
@@ -451,38 +464,41 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
                             : "🛠️ Serwis"}
                         </div>
 
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className={`font-bold text-sm ${isDone ? "text-slate-500 line-through" : "text-slate-900"}`}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{
+                              fontWeight: 700, fontSize: 14, color: "var(--text-strong)",
+                              textDecoration: isDone ? "line-through" : "none", opacity: isDone ? 0.6 : 1,
+                            }}>
                               {item.title}
                             </span>
-                            <span className="text-xs text-slate-500">({item.clientName})</span>
+                            <span style={{ fontSize: 12, color: "var(--text-mute)" }}>({item.clientName})</span>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
-                            <div className="flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                              <span className="font-semibold text-slate-800">{formatDate(item.date)}</span>
+                          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 14, fontSize: 12, color: "var(--text-mute)" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <Calendar style={{ width: 14, height: 14, color: "var(--text-mute)" }} />
+                              <span style={{ fontWeight: 600, color: "var(--text-strong)" }}>{formatDate(item.date)}</span>
                             </div>
 
                             {item.timeStr && (
-                              <div className="flex items-center gap-1.5">
-                                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                                <span className="font-medium text-slate-700">{item.timeStr}</span>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <Clock style={{ width: 14, height: 14, color: "var(--text-mute)" }} />
+                                <span style={{ fontWeight: 500, color: "var(--text-strong)" }}>{item.timeStr}</span>
                               </div>
                             )}
 
                             {item.address && (
-                              <div className="flex items-center gap-1.5">
-                                <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <MapPin style={{ width: 14, height: 14, color: "var(--text-mute)" }} />
                                 <span>{item.address}</span>
                               </div>
                             )}
 
                             {item.phone && (
-                              <div className="flex items-center gap-1.5">
-                                <Phone className="w-3.5 h-3.5 text-slate-400" />
-                                <a href={`tel:${item.phone}`} className="text-blue-600 hover:underline">
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <Phone style={{ width: 14, height: 14, color: "var(--text-mute)" }} />
+                                <a href={`tel:${item.phone}`} style={{ color: "var(--accent)", textDecoration: "none" }}>
                                   {item.phone}
                                 </a>
                               </div>
@@ -491,31 +507,36 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 self-end md:self-auto">
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <button
                           type="button"
                           onClick={() => handleToggleDone(item)}
                           disabled={isUpdating}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                            isDone
-                              ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300"
-                              : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                          } ${isUpdating ? "opacity-50 cursor-wait" : ""}`}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 6,
+                            padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                            cursor: isUpdating ? "wait" : "pointer", transition: "all 0.15s",
+                            background: isDone ? "#ecfdf5" : "#10b981",
+                            color: isDone ? "#047857" : "#ffffff",
+                            border: isDone ? "1px solid #a7f3d0" : "none",
+                            opacity: isUpdating ? 0.6 : 1,
+                          }}
                           title={isDone ? "Kliknij, aby cofnąć oznaczenie jako zrobione" : "Oznacz tę pracę jako wykonaną"}
                         >
-                          {isUpdating ? (
-                            <div className="animate-spin w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full" />
-                          ) : (
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                          )}
+                          <CheckCircle2 style={{ width: 14, height: 14 }} />
                           {isDone ? "Zrobione ✓" : "Oznacz jako zrobione"}
                         </button>
 
                         <Link
                           href={item.href}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-slate-900 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 4,
+                            padding: "6px 12px", background: "var(--panel)", border: "1px solid var(--line)",
+                            borderRadius: 8, fontSize: 12, fontWeight: 600, color: "var(--text-strong)",
+                            textDecoration: "none", transition: "border-color 0.15s",
+                          }}
                         >
-                          Przejdź <ChevronRight className="w-3.5 h-3.5" />
+                          Przejdź <ChevronRight style={{ width: 14, height: 14 }} />
                         </Link>
                       </div>
                     </div>
@@ -527,229 +548,32 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-
-      {/* TAB 3: TEAM INFO */}
-      {activeTab === "info" && (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6 max-w-2xl">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <Users className="w-4 h-4 text-slate-700" />
-              Skład osobowy & Szczegóły ekipy
-            </h3>
-            <button
-              onClick={openEdit}
-              className="px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 cursor-pointer flex items-center gap-1.5"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-              Edytuj dane
-            </button>
-          </div>
-
-          <div className="space-y-4 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-              <div>
-                <span className="text-slate-500 block">Kierownik:</span>
-                <strong className="text-slate-900 text-sm">{team.leaderName || "Nie przypisano"}</strong>
-              </div>
-
-              <div>
-                <span className="text-slate-500 block">Telefon kontaktowy:</span>
-                <strong className="text-blue-600 text-sm">{team.phone || "Brak numeru"}</strong>
-              </div>
-
-              <div>
-                <span className="text-slate-500 block">PIN (apka mobilna):</span>
-                <strong className="text-slate-900 text-sm font-mono tracking-wider">
-                  {team.pin ? `🔑 ${team.pin}` : "Brak PIN"}
-                </strong>
-              </div>
-            </div>
-
-            <div>
-              <span className="text-slate-500 block mb-2 font-semibold">Monterzy w zespole:</span>
-              {team.members && team.members.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {team.members.map((m, idx) => (
-                    <span key={idx} className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-medium text-slate-800 shadow-xs">
-                      👤 {m}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-slate-400 italic">Nie wprowadzono członków ekipy</span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT TEAM MODAL */}
-      {editingInfo && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 shadow-xl max-w-lg w-full space-y-5 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-900 text-base">Edytuj dane ekipy montażowej</h3>
-              <button
-                onClick={() => setEditingInfo(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveInfo} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Nazwa ekipy <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-slate-400 focus:bg-white text-slate-800"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Kolor ekipy w kalendarzu
-                </label>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-8 h-8 rounded-lg border border-slate-300 flex-shrink-0"
-                    style={{ backgroundColor: color }}
-                  />
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {PRESET_COLORS.map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setColor(c)}
-                        className={`w-6 h-6 rounded-full border transition-transform cursor-pointer ${
-                          color === c ? "scale-110 border-slate-900 shadow-sm" : "border-transparent opacity-80 hover:opacity-100"
-                        }`}
-                        style={{ backgroundColor: c }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Kierownik ekipy</label>
-                  <input
-                    type="text"
-                    value={leaderName}
-                    onChange={(e) => setLeaderName(e.target.value)}
-                    placeholder="np. Jan Kowalski"
-                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-slate-400 focus:bg-white text-slate-800"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Telefon kontaktowy</label>
-                  <input
-                    type="text"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="np. +48 600 000 000"
-                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-slate-400 focus:bg-white text-slate-800"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  PIN do aplikacji mobilnej (4 cyfry)
-                </label>
-                <input
-                  type="text"
-                  value={pin}
-                  maxLength={4}
-                  pattern="[0-9]*"
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                  placeholder="np. 1234"
-                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-slate-400 focus:bg-white text-slate-800 font-mono tracking-widest"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Członkowie ekipy (oddzieleni przecinkami)
-                </label>
-                <input
-                  type="text"
-                  value={membersText}
-                  onChange={(e) => setMembersText(e.target.value)}
-                  placeholder="np. Piotr Nowak, Adam Wiśniewski"
-                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-slate-400 focus:bg-white text-slate-800"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="modalInfoIsActive"
-                  checked={isActive}
-                  onChange={(e) => setIsActive(e.target.checked)}
-                  className="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                />
-                <label htmlFor="modalInfoIsActive" className="text-xs font-medium text-slate-700 cursor-pointer">
-                  Ekipa aktywna (widoczna na listach wyboru przy zleceniach i kalendarzu)
-                </label>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setEditingInfo(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-100 cursor-pointer"
-                >
-                  Anuluj
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-                >
-                  {saving ? "Zapisywanie..." : "Zapisz zmiany"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 5: FINANSE */}
+      {/* TAB 2: FINANSE */}
       {activeTab === "finanse" && (
-        <div className="space-y-5">
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {teamFinancials === undefined ? (
-            <div className="flex items-center justify-center py-16 text-slate-400 text-sm">
-              <div className="animate-spin w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full mr-3" />
+            <div style={{ padding: 48, textAlign: "center", color: "var(--text-mute)" }}>
               Ładowanie danych finansowych...
             </div>
           ) : (
             <>
-              {/* Monthly breakdown — główna sekcja */}
               {teamFinancials.monthlyBreakdown.length > 0 ? (() => {
                 const maxVal = Math.max(...teamFinancials.monthlyBreakdown.map((m) => m.expenses), 1);
                 const reversed = [...teamFinancials.monthlyBreakdown].reverse();
                 return (
-                  <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                    <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between">
-                      <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-slate-400" />
+                  <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
+                    <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                        <Calendar style={{ width: 16, height: 16, color: "var(--text-mute)" }} />
                         Koszty miesiąc po miesiącu
                       </h3>
-                      <span className="text-xs text-slate-400">
+                      <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
                         {teamFinancials.monthlyBreakdown.length} {teamFinancials.monthlyBreakdown.length === 1 ? "miesiąc" : "miesięcy"}
                       </span>
                     </div>
 
-                    {/* Line chart */}
-                    <div className="px-2 pt-4 pb-2">
+                    {/* Chart */}
+                    <div style={{ padding: "16px 12px 8px" }}>
                       <ResponsiveContainer width="100%" height={210}>
                         <AreaChart
                           data={teamFinancials.monthlyBreakdown.map((m) => ({
@@ -769,83 +593,33 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
                               <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                          <XAxis
-                            dataKey="name"
-                            tick={{ fontSize: 11, fill: "#94a3b8" }}
-                            axisLine={false}
-                            tickLine={false}
-                            dy={6}
-                          />
-                          <YAxis
-                            tick={{ fontSize: 11, fill: "#94a3b8" }}
-                            axisLine={false}
-                            tickLine={false}
-                            width={60}
-                            tickFormatter={(v: number) =>
-                              v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`
-                            }
-                          />
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--text-mute)" }} axisLine={false} tickLine={false} dy={6} />
+                          <YAxis tick={{ fontSize: 11, fill: "var(--text-mute)" }} axisLine={false} tickLine={false} width={60} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
                           <Tooltip
-                            contentStyle={{
-                              fontSize: 12,
-                              borderRadius: 10,
-                              border: "1px solid #e2e8f0",
-                              boxShadow: "0 4px 12px rgba(0,0,0,0.07)",
-                            }}
+                            contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid var(--line)", background: "var(--card)", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
                             formatter={(value, name) => [
                               `${(value as number).toLocaleString("pl-PL", { minimumFractionDigits: 2 })} zł`,
                               (name as string) === "koszty" ? "Koszty netto" : "Bilans ze zleceń",
                             ]}
-                            labelStyle={{ fontWeight: 700, color: "#1e293b", marginBottom: 4 }}
+                            labelStyle={{ fontWeight: 700, color: "var(--text-strong)", marginBottom: 4 }}
                           />
-                          <Area
-                            type="monotone"
-                            dataKey="koszty"
-                            stroke="#f87171"
-                            strokeWidth={2.5}
-                            fill="url(#colorKoszty)"
-                            dot={{ r: 4, fill: "#f87171", strokeWidth: 2, stroke: "#fff" }}
-                            activeDot={{ r: 6, fill: "#ef4444", stroke: "#fff", strokeWidth: 2 }}
-                            name="koszty"
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="bilans"
-                            stroke="#10b981"
-                            strokeWidth={2.5}
-                            fill="url(#colorBilans)"
-                            dot={{ r: 4, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
-                            activeDot={{ r: 6, fill: "#059669", stroke: "#fff", strokeWidth: 2 }}
-                            strokeDasharray="5 3"
-                            name="bilans"
-                          />
+                          <Area type="monotone" dataKey="koszty" stroke="#f87171" strokeWidth={2.5} fill="url(#colorKoszty)" dot={{ r: 4, fill: "#f87171", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 6, fill: "#ef4444", stroke: "#fff", strokeWidth: 2 }} name="koszty" />
+                          <Area type="monotone" dataKey="bilans" stroke="#10b981" strokeWidth={2.5} fill="url(#colorBilans)" dot={{ r: 4, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 6, fill: "#059669", stroke: "#fff", strokeWidth: 2 }} strokeDasharray="5 3" name="bilans" />
                         </AreaChart>
                       </ResponsiveContainer>
-                      {/* Legenda */}
-                      <div className="flex items-center justify-center gap-6 pt-1 pb-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-block w-6 h-0.5 bg-red-400 rounded-full" />
-                          <span className="text-xs text-slate-500 font-medium">Koszty netto</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-block w-6 border-t-2 border-dashed border-emerald-400 rounded-full" />
-                          <span className="text-xs text-slate-500 font-medium">Bilans ze zleceń</span>
-                        </div>
-                      </div>
                     </div>
 
-                    <div className="overflow-x-auto border-t border-slate-100">
-                      <table className="w-full text-sm min-w-[560px]">
+                    <div style={{ overflowX: "auto", borderTop: "1px solid var(--line)" }}>
+                      <table style={{ width: "100%", textLeft: "left", fontSize: 12.5, borderCollapse: "collapse", minWidth: 560 }}>
                         <thead>
-                          <tr className="border-b border-slate-100 bg-slate-50/60">
-                            <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">Miesiąc</th>
-                            <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Koszty netto</th>
-                            <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Koszty brutto</th>
-                            <th className="text-right px-4 py-3 text-xs font-semibold text-emerald-600 uppercase tracking-wider">Bilans ze zleceń</th>
-                            <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Faktury</th>
-                            <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">vs poprz.</th>
-                            <th className="px-4 py-3 w-40" />
+                          <tr style={{ background: "var(--panel)", borderBottom: "1px solid var(--line)", color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            <th style={{ padding: "10px 20px", textAlign: "left" }}>Miesiąc</th>
+                            <th style={{ padding: "10px 16px", textAlign: "right" }}>Koszty netto</th>
+                            <th style={{ padding: "10px 16px", textAlign: "right" }}>Koszty brutto</th>
+                            <th style={{ padding: "10px 16px", textAlign: "right", color: "#10b981" }}>Bilans ze zleceń</th>
+                            <th style={{ padding: "10px 16px", textAlign: "right" }}>Faktury</th>
+                            <th style={{ padding: "10px 16px", textAlign: "right" }}>vs poprz.</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -853,132 +627,99 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
                             const mom = row.momChange;
                             const momUp = mom !== null && mom > 0;
                             const momDown = mom !== null && mom < 0;
-                            const barPct = Math.round((row.expenses / maxVal) * 100);
                             return (
-                              <tr key={row.month} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                                <td className="px-5 py-3.5 font-bold text-slate-800 whitespace-nowrap">
+                              <tr key={row.month} style={{ borderBottom: "1px solid var(--line)" }}>
+                                <td style={{ padding: "12px 20px", fontWeight: 700, color: "var(--text-strong)" }}>
                                   {monthLabel(row.month)}
                                 </td>
-                                <td className="px-4 py-3.5 text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+                                <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "var(--text-strong)" }}>
                                   {fmt(row.expenses)} zł
                                 </td>
-                                <td className="px-4 py-3.5 text-right text-slate-500 tabular-nums whitespace-nowrap text-xs">
+                                <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--text-mute)" }}>
                                   {fmt(row.expensesGross)} zł
                                 </td>
-                                <td className="px-4 py-3.5 text-right font-semibold text-emerald-600 tabular-nums whitespace-nowrap">
-                                  {row.earnings > 0 ? `${fmt(row.earnings)} zł` : <span className="text-slate-300 font-normal">—</span>}
+                                <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700, color: "#10b981" }}>
+                                  {row.earnings > 0 ? `${fmt(row.earnings)} zł` : <span style={{ color: "var(--text-mute)", fontWeight: 400 }}>—</span>}
                                 </td>
-                                <td className="px-4 py-3.5 text-right tabular-nums">
-                                  <span className="inline-flex items-center justify-center min-w-[1.5rem] px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600 rounded-full">
+                                <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                                  <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: "var(--panel-2)", color: "var(--text-strong)" }}>
                                     {row.count}
                                   </span>
                                 </td>
-                                <td className="px-4 py-3.5 text-right tabular-nums whitespace-nowrap">
+                                <td style={{ padding: "12px 16px", textAlign: "right" }}>
                                   {mom === null ? (
-                                    <span className="text-slate-300 text-xs">—</span>
+                                    <span style={{ color: "var(--text-mute)" }}>—</span>
                                   ) : (
-                                    <span className={`inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                                      momUp
-                                        ? "bg-red-50 text-red-600"
-                                        : momDown
-                                        ? "bg-emerald-50 text-emerald-600"
-                                        : "bg-slate-100 text-slate-500"
-                                    }`}>
-                                      {momUp ? "▲" : momDown ? "▼" : "="}
-                                      {Math.abs(mom).toFixed(0)}%
+                                    <span style={{
+                                      fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+                                      background: momUp ? "#fef2f2" : momDown ? "#ecfdf5" : "var(--panel)",
+                                      color: momUp ? "#ef4444" : momDown ? "#10b981" : "var(--text-mute)",
+                                    }}>
+                                      {momUp ? "▲" : momDown ? "▼" : "="} {Math.abs(mom).toFixed(0)}%
                                     </span>
                                   )}
-                                </td>
-                                <td className="px-4 py-3.5">
-                                  <div className="flex items-center gap-2">
-                                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden flex-1 max-w-[120px]">
-                                      <div
-                                        className="h-full bg-red-400 rounded-full transition-all"
-                                        style={{ width: `${barPct}%` }}
-                                      />
-                                    </div>
-                                    <span className="text-[10px] text-slate-400 tabular-nums w-8 text-right">{barPct}%</span>
-                                  </div>
                                 </td>
                               </tr>
                             );
                           })}
                         </tbody>
-                        <tfoot>
-                          <tr className="bg-slate-50 border-t-2 border-slate-200">
-                            <td className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Łącznie</td>
-                            <td className="px-4 py-3 text-right font-bold text-slate-800 tabular-nums">{fmt(teamFinancials.totalExpensesNet)} zł</td>
-                            <td className="px-4 py-3 text-right font-semibold text-slate-500 tabular-nums text-xs">{fmt(teamFinancials.totalExpensesGross)} zł</td>
-                            <td className="px-4 py-3 text-right font-bold text-emerald-600 tabular-nums">
-                              {teamFinancials.totalEarnings > 0 ? `${fmt(teamFinancials.totalEarnings)} zł` : "—"}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className="inline-flex items-center justify-center min-w-[1.5rem] px-2 py-0.5 text-xs font-bold bg-slate-200 text-slate-700 rounded-full">
-                                {teamFinancials.expensesCount}
-                              </span>
-                            </td>
-                            <td colSpan={2} />
-                          </tr>
-                        </tfoot>
                       </table>
                     </div>
                   </div>
                 );
               })() : null}
 
-              {/* Recent expenses */}
+              {/* Recent Expenses Table */}
               {teamFinancials.recentExpenses.length > 0 && (
-                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                  <div className="px-4 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between">
-                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                      <Receipt className="w-4 h-4 text-slate-400" />
+                <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
+                  <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                      <Receipt style={{ width: 16, height: 16, color: "var(--text-mute)" }} />
                       Ostatnie wydatki montażowe
                     </h3>
-                    <span className="text-xs text-slate-400">{teamFinancials.expensesCount} łącznie</span>
+                    <span style={{ fontSize: 12, color: "var(--text-mute)" }}>{teamFinancials.expensesCount} łącznie</span>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm min-w-[480px]">
+
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", textLeft: "left", fontSize: 12.5, borderCollapse: "collapse", minWidth: 480 }}>
                       <thead>
-                        <tr className="border-b border-slate-100 bg-slate-50/60">
-                          <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Dokument / Dostawca</th>
-                          <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Data</th>
-                          <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Kwota netto</th>
-                          <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Kwota brutto</th>
-                          <th className="px-4 py-2.5" />
+                        <tr style={{ background: "var(--panel)", borderBottom: "1px solid var(--line)", color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                          <th style={{ padding: "10px 20px", textAlign: "left" }}>Dokument / Dostawca</th>
+                          <th style={{ padding: "10px 16px", textAlign: "left" }}>Data</th>
+                          <th style={{ padding: "10px 16px", textAlign: "right" }}>Kwota netto</th>
+                          <th style={{ padding: "10px 16px", textAlign: "right" }}>Kwota brutto</th>
+                          <th style={{ padding: "10px 20px", textAlign: "right" }}>Akcja</th>
                         </tr>
                       </thead>
                       <tbody>
                         {teamFinancials.recentExpenses.map((e) => (
-                          <tr key={e._id} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
-                            <td className="px-4 py-3">
-                              <p className="font-medium text-slate-800 truncate max-w-[220px]">{e.number ?? e.sellerName ?? "—"}</p>
+                          <tr key={e._id} style={{ borderBottom: "1px solid var(--line)" }}>
+                            <td style={{ padding: "12px 20px" }}>
+                              <p style={{ fontWeight: 600, color: "var(--text-strong)", margin: 0 }}>{e.number ?? e.sellerName ?? "—"}</p>
                               {e.sellerName && e.number && (
-                                <p className="text-xs text-slate-400 truncate max-w-[220px]">{e.sellerName}</p>
+                                <p style={{ fontSize: 11, color: "var(--text-mute)", margin: "2px 0 0" }}>{e.sellerName}</p>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{e.issueDate ?? "—"}</td>
-                            <td className="px-4 py-3 text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
+                            <td style={{ padding: "12px 16px", color: "var(--text-mute)" }}>{e.issueDate ?? "—"}</td>
+                            <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "var(--text-strong)" }}>
                               {e.netAmount != null ? `${fmt(e.netAmount)} zł` : "—"}
                             </td>
-                            <td className="px-4 py-3 text-right text-slate-500 tabular-nums whitespace-nowrap">
+                            <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--text-mute)" }}>
                               {e.grossAmount != null ? `${fmt(e.grossAmount)} zł` : "—"}
                             </td>
-                            <td className="px-4 py-3 text-right">
+                            <td style={{ padding: "12px 20px", textAlign: "right" }}>
                               {e.clientId && e.orderId ? (
                                 <Link
                                   href={`/admin/klient/${e.clientId}/zlecenie/${e.orderId}`}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors whitespace-nowrap"
-                                  title={e.orderName ?? "Przejdź do zlecenia"}
+                                  style={{
+                                    display: "inline-flex", alignItems: "center", gap: 4,
+                                    fontSize: 12, fontWeight: 600, color: "var(--accent)", textDecoration: "none",
+                                  }}
                                 >
-                                  {e.orderName ? (
-                                    <span className="truncate max-w-[120px]">{e.orderName}</span>
-                                  ) : (
-                                    "Zlecenie"
-                                  )}
-                                  <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                  Zlecenie <ExternalLink style={{ width: 13, height: 13 }} />
                                 </Link>
                               ) : (
-                                <span className="text-slate-300 text-xs">—</span>
+                                <span style={{ color: "var(--text-mute)", fontSize: 12 }}>—</span>
                               )}
                             </td>
                           </tr>
@@ -986,22 +727,250 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
                       </tbody>
                     </table>
                   </div>
-                  {teamFinancials.expensesCount > 20 && (
-                    <div className="px-4 py-3 border-t border-slate-100 text-xs text-slate-400 text-right">
-                      Pokazano 20 z {teamFinancials.expensesCount} wydatków
-                    </div>
-                  )}
                 </div>
               )}
 
               {teamFinancials.monthlyBreakdown.length === 0 && teamFinancials.recentExpenses.length === 0 && (
-                <div className="bg-white border border-dashed border-slate-200 rounded-xl py-12 text-center text-slate-400 text-sm">
+                <div style={{
+                  background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 12, padding: "48px 24px",
+                  textAlign: "center", color: "var(--text-mute)", fontSize: 13,
+                }}>
                   Brak danych finansowych dla tej ekipy.<br />
-                  <span className="text-xs mt-1 block">Przypisz wydatki z kategorią „Montaż“ do tej ekipy w szczegółach zlecenia.</span>
+                  <span style={{ fontSize: 11.5, marginTop: 4, display: "block" }}>Przypisz wydatki z kategorią „Montaż” do tej ekipy w szczegółach zlecenia.</span>
                 </div>
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* TAB 3: TEAM INFO */}
+      {activeTab === "info" && (
+        <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.03)", display: "flex", flexDirection: "column", gap: 20, maxWidth: 640 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--line)", paddingBottom: 12 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              <Users style={{ width: 16, height: 16, color: "var(--text-mute)" }} />
+              Skład osobowy & Szczegóły ekipy
+            </h3>
+            <button
+              onClick={openEdit}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px",
+                borderRadius: 8, fontSize: 12, fontWeight: 600, background: "var(--panel)",
+                color: "var(--text-strong)", border: "1px solid var(--line)", cursor: "pointer",
+              }}
+            >
+              <Pencil style={{ width: 14, height: 14 }} />
+              Edytuj dane
+            </button>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, fontSize: 12.5 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, background: "var(--panel)", padding: 16, borderRadius: 10, border: "1px solid var(--line)" }}>
+              <div>
+                <span style={{ color: "var(--text-mute)", display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>Kierownik</span>
+                <strong style={{ color: "var(--text-strong)", fontSize: 14 }}>{team.leaderName || "Nie przypisano"}</strong>
+              </div>
+
+              <div>
+                <span style={{ color: "var(--text-mute)", display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>Telefon</span>
+                <strong style={{ color: "var(--accent)", fontSize: 14 }}>{team.phone || "Brak numeru"}</strong>
+              </div>
+
+              <div>
+                <span style={{ color: "var(--text-mute)", display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>PIN (apka)</span>
+                <strong style={{ color: "var(--text-strong)", fontSize: 14, fontFamily: "monospace", letterSpacing: "0.1em" }}>
+                  {team.pin ? team.pin : "Brak PIN"}
+                </strong>
+              </div>
+            </div>
+
+            <div>
+              <span style={{ color: "var(--text-strong)", display: "block", marginBottom: 8, fontWeight: 700 }}>Monterzy w zespole:</span>
+              {team.members && team.members.length > 0 ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {team.members.map((m, idx) => (
+                    <span key={idx} style={{ background: "var(--card)", border: "1px solid var(--line)", padding: "6px 12px", borderRadius: 8, fontWeight: 600, color: "var(--text-strong)" }}>
+                      👤 {m}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ color: "var(--text-mute)", fontStyle: "italic" }}>Nie wprowadzono członków ekipy</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT TEAM MODAL */}
+      {editingInfo && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.45)", backdropFilter: "blur(2px)",
+          zIndex: 99, display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }}>
+          <div style={{
+            background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 24,
+            width: "100%", maxWidth: 520, boxShadow: "0 12px 36px rgba(0,0,0,0.18)",
+            display: "flex", flexDirection: "column", gap: 16,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--line)", paddingBottom: 12 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
+                Edytuj dane ekipy montażowej
+              </h3>
+              <button
+                onClick={() => setEditingInfo(false)}
+                style={{ border: "none", background: "none", cursor: "pointer", color: "var(--text-mute)", padding: 4 }}
+              >
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveInfo} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 4 }}>
+                  Nazwa ekipy <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  style={{
+                    width: "100%", padding: "8px 12px", fontSize: 12.5, borderRadius: 8,
+                    border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)", outline: "none",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 4 }}>
+                  Kolor ekipy w kalendarzu
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div
+                    style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--line)", backgroundColor: color, flexShrink: 0 }}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    {PRESET_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setColor(c)}
+                        style={{
+                          width: 24, height: 24, borderRadius: "50%", border: color === c ? "2px solid var(--text-strong)" : "1px solid transparent",
+                          backgroundColor: c, cursor: "pointer", transition: "transform 0.1s",
+                          transform: color === c ? "scale(1.15)" : "scale(1)",
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 4 }}>Kierownik ekipy</label>
+                  <input
+                    type="text"
+                    value={leaderName}
+                    onChange={(e) => setLeaderName(e.target.value)}
+                    placeholder="np. Jan Kowalski"
+                    style={{
+                      width: "100%", padding: "8px 12px", fontSize: 12.5, borderRadius: 8,
+                      border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)", outline: "none",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 4 }}>Telefon kontaktowy</label>
+                  <input
+                    type="text"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="np. +48 600 000 000"
+                    style={{
+                      width: "100%", padding: "8px 12px", fontSize: 12.5, borderRadius: 8,
+                      border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)", outline: "none",
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 4 }}>
+                  PIN do aplikacji mobilnej (4 cyfry)
+                </label>
+                <input
+                  type="text"
+                  value={pin}
+                  maxLength={4}
+                  pattern="[0-9]*"
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  placeholder="np. 1234"
+                  style={{
+                    width: "100%", padding: "8px 12px", fontSize: 12.5, borderRadius: 8,
+                    border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)", outline: "none",
+                    fontFamily: "monospace", letterSpacing: "0.2em",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 4 }}>
+                  Członkowie ekipy (oddzieleni przecinkami)
+                </label>
+                <input
+                  type="text"
+                  value={membersText}
+                  onChange={(e) => setMembersText(e.target.value)}
+                  placeholder="np. Piotr Nowak, Adam Wiśniewski"
+                  style={{
+                    width: "100%", padding: "8px 12px", fontSize: 12.5, borderRadius: 8,
+                    border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)", outline: "none",
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 4 }}>
+                <input
+                  type="checkbox"
+                  id="modalInfoIsActive"
+                  checked={isActive}
+                  onChange={(e) => setIsActive(e.target.checked)}
+                  style={{ cursor: "pointer" }}
+                />
+                <label htmlFor="modalInfoIsActive" style={{ fontSize: 12.5, fontWeight: 500, color: "var(--text-strong)", cursor: "pointer" }}>
+                  Ekipa aktywna (widoczna na listach wyboru przy zleceniach i kalendarzu)
+                </label>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 14, marginTop: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingInfo(false)}
+                  style={{
+                    padding: "8px 16px", fontSize: 12.5, fontWeight: 600, color: "var(--text-mute)",
+                    background: "none", border: "none", cursor: "pointer", borderRadius: 8,
+                  }}
+                >
+                  Anuluj
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="btn primary"
+                  style={{
+                    padding: "8px 20px", fontSize: 12.5, fontWeight: 600, borderRadius: 8,
+                    cursor: saving ? "wait" : "pointer", opacity: saving ? 0.6 : 1,
+                  }}
+                >
+                  {saving ? "Zapisywanie..." : "Zapisz zmiany"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

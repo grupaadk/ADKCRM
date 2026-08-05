@@ -143,6 +143,12 @@ export default function UniversalCalendar({
     eventTypeName?: string;
   } | null>(null);
 
+  // Supplier Dropdown state
+  const [openSupplierDropdownId, setOpenSupplierDropdownId] = useState<string | null>(null);
+
+  // Team Dropdown state
+  const [openTeamDropdownId, setOpenTeamDropdownId] = useState<string | null>(null);
+
   // Tooltip
   const [tooltip, setTooltip] = useState<{
     visible: boolean; x: number; y: number; content: React.ReactNode;
@@ -926,7 +932,334 @@ export default function UniversalCalendar({
       {/* Filters bar */}
       {!initialTeamId && (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 20px", borderBottom: "1px solid var(--line)", background: "var(--card)" }}>
-          {/* Pasek filtrów w widoku ogólnym */}
+          {/* General Event type filters (unlinked) */}
+          {eventTypes.filter(t => !t.linkedSupplierId && !t.linkedInstallationTeamId).map((type) => {
+            const active = activeEventTypeFilters.has(type._id);
+            return (
+              <button
+                key={type._id}
+                onClick={() => toggleEventTypeFilter(type._id)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                  background: active ? `${type.color}22` : "var(--panel)",
+                  color: active ? type.color : "var(--text-mute)",
+                  border: `1.5px solid ${active ? type.color : "var(--line)"}`,
+                  fontWeight: active ? 600 : 500,
+                  cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
+                {type.name}
+              </button>
+            );
+          })}
+
+          {/* Dynamic Suppliers Filter (Filtrowanie po Dostawcach) */}
+          {activeSuppliers.length > 0 && (
+            <>
+              <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Dostawcy:
+              </span>
+              {activeSuppliers.slice(0, 3).map((supplier) => {
+                const active = activeSupplierFilters.has(supplier._id);
+                const linkedTypes = eventTypes.filter(t => t.linkedSupplierId === supplier._id);
+                const hasLinkedTypes = linkedTypes.length > 0;
+                
+                return (
+                  <div key={supplier._id} style={{ position: "relative" }} onMouseEnter={() => setOpenSupplierDropdownId(supplier._id)} onMouseLeave={() => setOpenSupplierDropdownId(null)}>
+                    <button
+                      onClick={() => toggleSupplierFilter(supplier._id)}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                        background: active ? "var(--accent)22" : "var(--panel)",
+                        color: active ? "var(--accent)" : "var(--text-mute)",
+                        border: `1.5px solid ${active ? "var(--accent)" : "var(--line)"}`,
+                        fontWeight: active ? 700 : 500,
+                        cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                      }}
+                    >
+                      <span style={{ fontSize: 11 }}>🏢</span>
+                      <span>{supplier.name}</span>
+                      {hasLinkedTypes && <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{openSupplierDropdownId === supplier._id ? "▲" : "▼"}</span>}
+                    </button>
+
+                    {hasLinkedTypes && openSupplierDropdownId === supplier._id && (
+                      <div
+                        style={{
+                          position: "absolute", top: "calc(100% + 6px)", left: 0,
+                          background: "var(--card)", border: "1px solid var(--line)",
+                          borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                          zIndex: 50, minWidth: 200, display: "flex", flexDirection: "column", gap: 4,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
+                            Typy wydarzeń dla {supplier.name}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const allActive = linkedTypes.every(t => activeEventTypeFilters.has(t._id));
+                              setActiveEventTypeFilters(prev => {
+                                const next = new Set(prev);
+                                linkedTypes.forEach(t => {
+                                  if (allActive) next.delete(t._id);
+                                  else next.add(t._id);
+                                });
+                                return next;
+                              });
+                            }}
+                            style={{ fontSize: 10, color: "var(--accent)", cursor: "pointer", background: "none", border: "none" }}
+                          >
+                            {linkedTypes.every(t => activeEventTypeFilters.has(t._id)) ? "Odznacz wszystkie" : "Zaznacz wszystkie"}
+                          </button>
+                        </div>
+                        {linkedTypes.map((type) => {
+                          const typeActive = activeEventTypeFilters.has(type._id);
+                          return (
+                            <button
+                              key={type._id}
+                              onClick={(e) => { e.stopPropagation(); toggleEventTypeFilter(type._id); }}
+                              style={{
+                                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                                padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
+                                background: typeActive ? `${type.color}18` : "transparent",
+                                color: typeActive ? "var(--text-strong)" : "var(--text)",
+                                border: `1px solid ${typeActive ? `${type.color}44` : "transparent"}`,
+                                cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
+                                <span style={{ fontWeight: typeActive ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{type.name}</span>
+                              </div>
+                              <span style={{ fontSize: 12, color: typeActive ? type.color : "var(--text-mute)" }}>
+                                {typeActive ? "✓" : "+"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {activeSuppliers.length > 3 && (
+                <div style={{ position: "relative" }} onMouseEnter={() => setOpenSupplierDropdownId("more")} onMouseLeave={() => setOpenSupplierDropdownId(null)}>
+                  <button
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                      background: "var(--panel)",
+                      color: "var(--text-mute)",
+                      border: "1.5px solid var(--line)",
+                      fontWeight: 500,
+                      cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                    }}
+                  >
+                    <span>Więcej ({activeSuppliers.length - 3})</span>
+                    <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{openSupplierDropdownId === "more" ? "▲" : "▼"}</span>
+                  </button>
+
+                  {openSupplierDropdownId === "more" && (
+                    <div
+                      style={{
+                        position: "absolute", top: "calc(100% + 6px)", left: 0,
+                        background: "var(--card)", border: "1px solid var(--line)",
+                        borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                        zIndex: 50, minWidth: 200, display: "flex", flexDirection: "column", gap: 4,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
+                          Pozostali dostawcy
+                        </span>
+                      </div>
+                      {activeSuppliers.slice(3).map(supplier => {
+                        const active = activeSupplierFilters.has(supplier._id);
+                        return (
+                          <button
+                            key={supplier._id}
+                            onClick={(e) => { e.stopPropagation(); toggleSupplierFilter(supplier._id); }}
+                            style={{
+                              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                              padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
+                              background: active ? "var(--accent)22" : "transparent",
+                              color: active ? "var(--accent)" : "var(--text)",
+                              border: `1px solid ${active ? "var(--accent)44" : "transparent"}`,
+                              cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
+                            }}
+                          >
+                            <span style={{ fontWeight: active ? 700 : 500 }}>{supplier.name}</span>
+                            <span style={{ fontSize: 12, color: active ? "var(--accent)" : "var(--text-mute)" }}>
+                              {active ? "✓" : "+"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Ekipy Filter */}
+          {installationTeams.length > 0 && (
+            <>
+              <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Ekipy:
+              </span>
+              {installationTeams.slice(0, 3).map((team) => {
+                const active = activeTeamFilters.has(team._id as string);
+                const linkedTypes = eventTypes.filter(t => t.linkedInstallationTeamId === team._id);
+                const hasLinkedTypes = linkedTypes.length > 0;
+
+                return (
+                  <div key={team._id} style={{ position: "relative" }} onMouseEnter={() => setOpenTeamDropdownId(team._id)} onMouseLeave={() => setOpenTeamDropdownId(null)}>
+                    <button
+                      onClick={() => toggleTeamFilter(team._id as string)}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                        background: active ? `${team.color}22` : "var(--panel)",
+                        color: active ? team.color : "var(--text-mute)",
+                        border: `1.5px solid ${active ? team.color : "var(--line)"}`,
+                        fontWeight: active ? 700 : 500,
+                        cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                      }}
+                    >
+                      <span style={{ fontSize: 11 }}>👷</span>
+                      <span>{team.name}</span>
+                      {hasLinkedTypes && <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{openTeamDropdownId === team._id ? "▲" : "▼"}</span>}
+                    </button>
+
+                    {hasLinkedTypes && openTeamDropdownId === team._id && (
+                      <div
+                        style={{
+                          position: "absolute", top: "calc(100% + 6px)", left: 0,
+                          background: "var(--card)", border: "1px solid var(--line)",
+                          borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                          zIndex: 50, minWidth: 200, display: "flex", flexDirection: "column", gap: 4,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
+                            Typy wydarzeń dla {team.name}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const allActive = linkedTypes.every(t => activeEventTypeFilters.has(t._id));
+                              setActiveEventTypeFilters(prev => {
+                                const next = new Set(prev);
+                                linkedTypes.forEach(t => {
+                                  if (allActive) next.delete(t._id);
+                                  else next.add(t._id);
+                                });
+                                return next;
+                              });
+                            }}
+                            style={{ fontSize: 10, color: "var(--accent)", cursor: "pointer", background: "none", border: "none" }}
+                          >
+                            {linkedTypes.every(t => activeEventTypeFilters.has(t._id)) ? "Odznacz wszystkie" : "Zaznacz wszystkie"}
+                          </button>
+                        </div>
+                        {linkedTypes.map((type) => {
+                          const typeActive = activeEventTypeFilters.has(type._id);
+                          return (
+                            <button
+                              key={type._id}
+                              onClick={(e) => { e.stopPropagation(); toggleEventTypeFilter(type._id); }}
+                              style={{
+                                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                                padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
+                                background: typeActive ? `${type.color}18` : "transparent",
+                                color: typeActive ? "var(--text-strong)" : "var(--text)",
+                                border: `1px solid ${typeActive ? `${type.color}44` : "transparent"}`,
+                                cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
+                                <span style={{ fontWeight: typeActive ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{type.name}</span>
+                              </div>
+                              <span style={{ fontSize: 12, color: typeActive ? type.color : "var(--text-mute)" }}>
+                                {typeActive ? "✓" : "+"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {installationTeams.length > 3 && (
+                <div style={{ position: "relative" }} onMouseEnter={() => setOpenTeamDropdownId("more")} onMouseLeave={() => setOpenTeamDropdownId(null)}>
+                  <button
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                      background: "var(--panel)",
+                      color: "var(--text-mute)",
+                      border: "1.5px solid var(--line)",
+                      fontWeight: 500,
+                      cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                    }}
+                  >
+                    <span>Więcej ({installationTeams.length - 3})</span>
+                    <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{openTeamDropdownId === "more" ? "▲" : "▼"}</span>
+                  </button>
+
+                  {openTeamDropdownId === "more" && (
+                    <div
+                      style={{
+                        position: "absolute", top: "calc(100% + 6px)", left: 0,
+                        background: "var(--card)", border: "1px solid var(--line)",
+                        borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                        zIndex: 50, minWidth: 200, display: "flex", flexDirection: "column", gap: 4,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
+                          Pozostałe ekipy
+                        </span>
+                      </div>
+                      {installationTeams.slice(3).map(team => {
+                        const active = activeTeamFilters.has(team._id as string);
+                        return (
+                          <button
+                            key={team._id}
+                            onClick={(e) => { e.stopPropagation(); toggleTeamFilter(team._id as string); }}
+                            style={{
+                              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                              padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
+                              background: active ? `${team.color}22` : "transparent",
+                              color: active ? team.color : "var(--text)",
+                              border: `1px solid ${active ? `${team.color}44` : "transparent"}`,
+                              cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
+                            }}
+                          >
+                            <span style={{ fontWeight: active ? 700 : 500 }}>{team.name}</span>
+                            <span style={{ fontSize: 12, color: active ? team.color : "var(--text-mute)" }}>
+                              {active ? "✓" : "+"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 

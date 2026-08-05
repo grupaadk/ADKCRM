@@ -79,6 +79,14 @@ export const getById = query({
   },
 });
 
+export const getDetailed = query({
+  args: { id: v.optional(v.id("installationTeams")) },
+  handler: async (ctx, args) => {
+    if (!args.id) return null;
+    return await ctx.db.get(args.id);
+  },
+});
+
 export const listAllWithStats = query({
   args: {},
   handler: async (ctx) => {

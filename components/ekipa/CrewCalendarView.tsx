@@ -8,12 +8,12 @@ import {
   Clock,
   MapPin,
   Phone,
-
   ChevronRight,
-  ShieldAlert,
   Search,
   UserCheck,
   Check,
+  List,
+  CalendarDays,
 } from "lucide-react";
 import { CrewJobDetailModal } from "./CrewJobDetailModal";
 
@@ -47,6 +47,115 @@ interface ScheduleItem {
   todos?: Array<{ id: string; text: string; completed: boolean }>;
 }
 
+function MobileCalendar({
+  items,
+  selectedDate,
+  onSelectDate,
+}: {
+  items: ScheduleItem[];
+  selectedDate: Date;
+  onSelectDate: (d: Date) => void;
+}) {
+  const [currentMonth, setCurrentMonth] = useState(
+    new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1)
+  );
+
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+  const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+
+  const days = [];
+  for (let i = 0; i < startOffset; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
+
+  const monthNames = [
+    "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
+    "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"
+  ];
+
+  return (
+    <div className="w-full bg-white border border-slate-200 rounded-2xl p-4 shadow-sm select-none">
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => setCurrentMonth(new Date(year, month - 1, 1))}
+          className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+        >
+          <ChevronRight className="w-4 h-4 text-slate-600 rotate-180" />
+        </button>
+        <h3 className="font-bold text-slate-900 text-sm">
+          {monthNames[month]} {year}
+        </h3>
+        <button
+          onClick={() => setCurrentMonth(new Date(year, month + 1, 1))}
+          className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+        >
+          <ChevronRight className="w-4 h-4 text-slate-600" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-wider">
+        {["Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd"].map((d) => (
+          <div key={d}>{d}</div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((date, i) => {
+          if (!date) return <div key={i} className="h-10" />;
+
+          const isSelected = date.getTime() === selectedDate.getTime();
+          const isToday =
+            date.getTime() === new Date(new Date().setHours(0, 0, 0, 0)).getTime();
+
+          const dayItems = items.filter((item) => {
+            const d = new Date(item.date);
+            d.setHours(0, 0, 0, 0);
+            return d.getTime() === date.getTime();
+          });
+
+          return (
+            <button
+              key={i}
+              onClick={() => onSelectDate(date)}
+              className={`h-10 rounded-xl flex flex-col items-center justify-center relative border transition-colors cursor-pointer ${
+                isSelected
+                  ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                  : isToday
+                  ? "bg-slate-50 text-slate-900 border-slate-200"
+                  : "bg-white border-transparent text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <span className="font-bold text-xs">{date.getDate()}</span>
+              {dayItems.length > 0 && (
+                <div className="flex gap-0.5 mt-0.5">
+                  {dayItems.slice(0, 3).map((it, idx) => (
+                    <div
+                      key={idx}
+                      className={`w-1 h-1 rounded-full ${
+                        isSelected ? "bg-white" : "bg-emerald-500"
+                      }`}
+                    />
+                  ))}
+                  {dayItems.length > 3 && (
+                    <div
+                      className={`w-1 h-1 rounded-full ${
+                        isSelected ? "bg-white" : "bg-emerald-500"
+                      }`}
+                    />
+                  )}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 interface CrewCalendarViewProps {
   team: TeamData;
   items: ScheduleItem[];
@@ -60,6 +169,7 @@ export function CrewCalendarView({
   onLogout,
   onToggleStatus,
 }: CrewCalendarViewProps) {
+  const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
   const [filter, setFilter] = useState<"upcoming" | "all" | "completed">("upcoming");
   const [search, setSearch] = useState("");
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
@@ -68,12 +178,13 @@ export function CrewCalendarView({
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
+  const [selectedDate, setSelectedDate] = useState<Date>(todayStart);
+
   const handleToggle = async (item: ScheduleItem) => {
     setUpdatingId(item.id);
     try {
       await onToggleStatus(item);
       if (selectedItem && selectedItem.id === item.id) {
-        // Toggle selected item status in modal view
         const isMontaz = item.type === "montaz";
         const isCurrentlyDone = isMontaz
           ? item.status === "completed"
@@ -111,28 +222,32 @@ export function CrewCalendarView({
       if (!matchTitle && !matchClient && !matchAddress && !matchPhone) return false;
     }
 
+    if (viewMode === "calendar") {
+      const d = new Date(item.date);
+      d.setHours(0, 0, 0, 0);
+      if (d.getTime() !== selectedDate.getTime()) return false;
+    }
+
     return true;
   });
 
-  const todayCount = items.filter((item) => item.date >= todayStart.getTime() && item.date < todayStart.getTime() + 86400000).length;
-
   return (
-    <div className="flex-1 flex flex-col pb-12 max-w-lg mx-auto w-full">
+    <div className="flex-1 flex flex-col pb-12 max-w-5xl mx-auto w-full">
       {/* Top Header */}
-      <header className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-4 sticky top-0 z-30 flex items-center justify-between">
+      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200 p-4 sticky top-0 z-30 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-3">
           <div
-            className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold shadow-md flex-shrink-0"
+            className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold shadow-sm flex-shrink-0"
             style={{ backgroundColor: team.color || "#10b981" }}
           >
             <Wrench className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-base font-bold text-white truncate">{team.name}</h1>
+            <h1 className="text-base font-extrabold text-slate-900 truncate">{team.name}</h1>
             {team.leaderName && (
-              <p className="text-[11px] text-slate-400 flex items-center gap-1 truncate">
-                <UserCheck className="w-3 h-3 text-slate-500" />
-                {team.leaderName}
+              <p className="text-[11px] text-slate-500 flex items-center gap-1 truncate font-medium">
+                <UserCheck className="w-3 h-3 text-slate-400" />
+                Kierownik: {team.leaderName}
               </p>
             )}
           </div>
@@ -141,195 +256,201 @@ export function CrewCalendarView({
         <button
           onClick={onLogout}
           title="Wyloguj ekipę"
-          className="p-2.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+          className="p-2.5 rounded-xl bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200 transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer border border-slate-200"
         >
           <LogOut className="w-4 h-4" />
           <span className="hidden sm:inline">Wyloguj</span>
         </button>
       </header>
 
-      {/* Main Content Area */}
+      {/* Main View Mode Selector (Kalendarz vs Lista) */}
       <div className="p-4 space-y-4">
-        {/* Quick Stats & Welcome */}
-        <div className="bg-slate-800/50 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
-          <div>
-            <div className="text-xs text-slate-400 font-medium">Harmonogram ekipy</div>
-            <div className="text-lg font-extrabold text-white mt-0.5">
-              {todayCount > 0 ? `${todayCount} zadań na dzisiaj` : "Brak zadań na dziś"}
+        <div className="flex items-center justify-between gap-3 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-xs">
+          <button
+            onClick={() => setViewMode("calendar")}
+            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              viewMode === "calendar"
+                ? "bg-slate-900 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+          >
+            <CalendarDays className="w-4 h-4" />
+            Kalendarz Ekipy
+          </button>
+          <button
+            onClick={() => setViewMode("list")}
+            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              viewMode === "list"
+                ? "bg-slate-900 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+          >
+            <List className="w-4 h-4" />
+            Lista Prac ({items.length})
+          </button>
+        </div>
+
+        {/* CALENDAR VIEW MODE */}
+        {viewMode === "calendar" && (
+          <div className="space-y-4">
+            <MobileCalendar
+              items={items}
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+            />
+
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 mt-6">
+              <h3 className="font-bold text-slate-900 text-sm">
+                Zadania na {selectedDate.toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}
+              </h3>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-black text-emerald-400 tabular-nums">{items.length}</div>
-            <div className="text-[10px] uppercase font-bold text-slate-400">Łącznie</div>
-          </div>
-        </div>
+        )}
 
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-800/80 rounded-2xl border border-slate-800">
-          {(
-            [
-              { key: "upcoming", label: "Do zrealizowania" },
-              { key: "all", label: "Wszystkie" },
-              { key: "completed", label: "Wykonane" },
-            ] as const
-          ).map((tab) => {
-            const active = filter === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setFilter(tab.key)}
-                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                  active
-                    ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/10"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* LIST VIEW MODE FILTERS */}
+        {viewMode === "list" && (
+          <div className="space-y-4">
+            <div className="space-y-3 bg-white p-3.5 border border-slate-200 rounded-2xl shadow-xs">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Szukaj zlecenia, klienta, adresu..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:bg-white text-slate-900"
+                />
+              </div>
 
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Szukaj klienta, adresu, telefonu..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-slate-800/60 border border-slate-800 rounded-2xl pl-10 pr-4 py-3 text-xs text-white placeholder-slate-500 outline-none focus:border-slate-700 font-medium"
-          />
-        </div>
-
-        {/* Schedule List */}
-        {filteredItems.length === 0 ? (
-          <div className="bg-slate-800/30 border border-dashed border-slate-800 rounded-2xl p-10 text-center text-slate-500 space-y-2">
-            <CalendarIcon className="w-10 h-10 mx-auto text-slate-700 mb-1" />
-            <p className="font-semibold text-slate-400 text-sm">Brak zaplanowanych zadań</p>
-            <p className="text-xs text-slate-600">Nie znaleziono pozycji w harmonogramie dla tej kategorii.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredItems.map((item) => {
-              const isMontaz = item.type === "montaz";
-              const isDone = isMontaz
-                ? item.status === "completed"
-                : item.status === "rozwiazana" || item.status === "zamknieta" || item.status === "zakonczona";
-              const isUpdating = updatingId === item.id;
-
-              const dateFormatted = new Date(item.date).toLocaleDateString("pl-PL", {
-                weekday: "short",
-                day: "numeric",
-                month: "short",
-              });
-
-              return (
-                <div
-                  key={item.id}
-                  className={`bg-slate-800/80 border rounded-2xl p-4 shadow-sm space-y-3 transition-all ${
-                    isDone
-                      ? "border-slate-800 opacity-60 bg-slate-900/40"
-                      : "border-slate-700/80 hover:border-slate-600"
-                  }`}
-                >
-                  {/* Item Header */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white flex-shrink-0 ${
-                          isMontaz ? "bg-blue-600" : "bg-amber-600"
-                        }`}
-                      >
-                        {isMontaz ? <Wrench className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full ${
-                              isMontaz ? "bg-blue-500/20 text-blue-300" : "bg-amber-500/20 text-amber-300"
-                            }`}
-                          >
-                            {isMontaz ? "Montaż" : "Serwis"}
-                          </span>
-
-                          <span className="text-xs font-semibold text-slate-400 capitalize">
-                            {dateFormatted}
-                          </span>
-                        </div>
-                        <h3 className="font-bold text-white text-sm truncate mt-0.5">{item.title}</h3>
-                      </div>
-                    </div>
-
-                    {item.timeStr && (
-                      <span className="flex items-center gap-1 text-xs font-bold text-emerald-400 bg-slate-900/80 px-2.5 py-1 rounded-xl border border-slate-700 flex-shrink-0">
-                        <Clock className="w-3 h-3" />
-                        {item.timeStr}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Client & Address Info */}
-                  <div className="space-y-1.5 text-xs text-slate-300 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
-                    <div className="font-bold text-white text-sm">{item.clientName}</div>
-
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <MapPin className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                      <span className="truncate">{item.address}</span>
-                    </div>
-
-                    {item.phone && (
-                      <div className="flex items-center gap-2 pt-1 border-t border-slate-800">
-                        <Phone className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                        <a
-                          href={`tel:${item.phone}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="font-semibold text-emerald-400 hover:underline"
-                        >
-                          {item.phone}
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Item Footer / Quick Actions */}
-                  <div className="flex items-center justify-between gap-2 pt-1">
+              <div className="flex items-center gap-1.5">
+                {(["upcoming", "all", "completed"] as const).map((st) => {
+                  const label = st === "upcoming" ? "Do zrobienia" : st === "all" ? "Wszystkie" : "Wykonane";
+                  const active = filter === st;
+                  return (
                     <button
-                      onClick={() => setSelectedItem(item)}
-                      className="flex-1 py-2.5 bg-slate-700/60 hover:bg-slate-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                    >
-                      Szczegóły
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      onClick={() => handleToggle(item)}
-                      disabled={isUpdating}
-                      className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 ${
-                        isDone
-                          ? "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                          : "bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-extrabold"
+                      key={st}
+                      onClick={() => setFilter(st)}
+                      className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-colors cursor-pointer text-center ${
+                        active
+                          ? "bg-slate-900 text-white border-slate-900"
+                          : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300"
                       }`}
                     >
-                      {isUpdating ? (
-                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <Check className="w-4 h-4" />
-                          {isDone ? "Wykonano" : "Zrealizuj"}
-                        </>
-                      )}
+                      {label}
                     </button>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
+
+        {/* Shared List of Tasks */}
+            {filteredItems.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-500">
+                <CalendarIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                <p className="font-bold text-slate-800 text-sm">Brak prac w tym widoku</p>
+                <p className="text-xs text-slate-500 mt-1">Brak zrealizowanych lub zaplanowanych zadań.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredItems.map((item) => {
+                  const isMontaz = item.type === "montaz";
+                  const isDone = isMontaz
+                    ? item.status === "completed"
+                    : item.status === "rozwiazana" || item.status === "zamknieta" || item.status === "zakonczona";
+                  const isUpdating = updatingId === item.id;
+
+                  const dateFormatted = new Date(item.date).toLocaleDateString("pl-PL", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  });
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => setSelectedItem(item)}
+                      className={`bg-white border rounded-2xl p-4 shadow-xs hover:shadow-md transition-all space-y-3 cursor-pointer group ${
+                        isDone ? "border-emerald-200 bg-emerald-50/20 opacity-80" : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      {/* Badge bar */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                              isMontaz
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-amber-50 text-amber-700 border-amber-200"
+                            }`}
+                          >
+                            {isMontaz ? "🔧 Montaż" : "🛠️ Serwis"}
+                          </span>
+
+                          <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                            {dateFormatted} {item.timeStr ? `(${item.timeStr})` : ""}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggle(item);
+                          }}
+                          disabled={isUpdating}
+                          className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                            isDone
+                              ? "bg-emerald-500 text-white border-emerald-500"
+                              : "bg-slate-100 text-slate-400 border-slate-200 hover:text-emerald-600 hover:bg-emerald-50"
+                          }`}
+                          title={isDone ? "Cofnij wykonanie" : "Oznacz jako wykonane"}
+                        >
+                          <Check className="w-4 h-4 stroke-[3]" />
+                        </button>
+                      </div>
+
+                      {/* Main Job Info */}
+                      <div>
+                        <h3 className={`font-bold text-sm ${isDone ? "text-slate-500 line-through" : "text-slate-900"} group-hover:text-blue-600 transition-colors`}>
+                          {item.title}
+                        </h3>
+                        <p className="text-xs font-semibold text-slate-700 mt-0.5">{item.clientName}</p>
+                      </div>
+
+                      {/* Address & Phone quick links */}
+                      <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          <span className="truncate">{item.address}</span>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
+                          {item.phone && (
+                            <a
+                              href={`tel:${item.phone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md transition-colors"
+                            >
+                              <Phone className="w-3 h-3" />
+                              {item.phone}
+                            </a>
+                          )}
+                          <span className="text-slate-400 font-semibold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                            Szczegóły <ChevronRight className="w-3.5 h-3.5" />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
       </div>
 
-      {/* Detail Modal */}
+      {/* Item Detail Modal */}
       <CrewJobDetailModal
         item={selectedItem}
         onClose={() => setSelectedItem(null)}

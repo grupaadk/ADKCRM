@@ -23,7 +23,7 @@ export default function LoginPage() {
         email: login.trim().toLowerCase(),
         password,
       });
-      const next = search.get("next") ?? "/admin";
+      const next = search.get("next") ?? "/admin/kalendarz";
       router.replace(next);
     } catch {
       setError("Nieprawidłowy login lub hasło.");

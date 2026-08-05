@@ -23,16 +23,16 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
     return nextjsMiddlewareRedirect(request, "/login");
   }
   if (isLoginRoute(request) && isAuthed) {
-    return nextjsMiddlewareRedirect(request, "/admin/dashboard");
+    return nextjsMiddlewareRedirect(request, "/admin/kalendarz");
   }
   if (isAdminRootRoute(request) && isAuthed) {
-    return nextjsMiddlewareRedirect(request, "/admin/dashboard");
+    return nextjsMiddlewareRedirect(request, "/admin/kalendarz");
   }
   if (isRootRoute(request)) {
     if (!isAuthed) {
       return nextjsMiddlewareRedirect(request, "/login");
     } else {
-      return nextjsMiddlewareRedirect(request, "/admin/dashboard");
+      return nextjsMiddlewareRedirect(request, "/admin/kalendarz");
     }
   }
 });
