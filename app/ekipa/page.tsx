@@ -30,6 +30,7 @@ export default function EkipaPage() {
 
   const updateOrderStatus = useMutation(api.installationTeams.updateOrderStatusByPin);
   const updateComplaintStatus = useMutation(api.installationTeams.updateComplaintStatusByPin);
+  const updateEventDate = useMutation(api.installationTeams.updateEventDateByPin);
 
   // Watch for invalid PIN response and reset accordingly
   useEffect(() => {
@@ -80,6 +81,21 @@ export default function EkipaPage() {
     [pin, updateOrderStatus, updateComplaintStatus]
   );
 
+  const handleChangeDate = useCallback(
+    async (item: { id: string; type: "montaz" | "serwis" }, newDate: Date) => {
+      if (!pin) return;
+      
+      const newDateMs = newDate.getTime();
+      await updateEventDate({
+        pin,
+        eventId: item.id as Id<"orders"> | Id<"complaints">,
+        eventType: item.type,
+        newDate: newDateMs,
+      });
+    },
+    [pin, updateEventDate]
+  );
+
   // Not yet hydrated — show spinner to prevent SSR mismatch
   if (!initialized) {
     return (
@@ -117,6 +133,7 @@ export default function EkipaPage() {
       items={scheduleData.items}
       onLogout={handleLogout}
       onToggleStatus={handleToggleStatus}
+      onChangeDate={handleChangeDate}
     />
   );
 }

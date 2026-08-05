@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Wrench,
   LogOut,
@@ -16,6 +16,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { CrewJobDetailModal } from "./CrewJobDetailModal";
+import TUIMobileCalendarWrapper from "./TUIMobileCalendarWrapper";
 
 interface TeamData {
   _id: string;
@@ -47,120 +48,12 @@ interface ScheduleItem {
   todos?: Array<{ id: string; text: string; completed: boolean }>;
 }
 
-function MobileCalendar({
-  items,
-  selectedDate,
-  onSelectDate,
-}: {
-  items: ScheduleItem[];
-  selectedDate: Date;
-  onSelectDate: (d: Date) => void;
-}) {
-  const [currentMonth, setCurrentMonth] = useState(
-    new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1)
-  );
-
-  const year = currentMonth.getFullYear();
-  const month = currentMonth.getMonth();
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDay = new Date(year, month, 1).getDay();
-  const startOffset = firstDay === 0 ? 6 : firstDay - 1;
-
-  const days = [];
-  for (let i = 0; i < startOffset; i++) days.push(null);
-  for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
-
-  const monthNames = [
-    "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
-    "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"
-  ];
-
-  return (
-    <div className="w-full bg-white border border-slate-200 rounded-2xl p-4 shadow-sm select-none">
-      <div className="flex items-center justify-between mb-4">
-        <button
-          onClick={() => setCurrentMonth(new Date(year, month - 1, 1))}
-          className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-        >
-          <ChevronRight className="w-4 h-4 text-slate-600 rotate-180" />
-        </button>
-        <h3 className="font-bold text-slate-900 text-sm">
-          {monthNames[month]} {year}
-        </h3>
-        <button
-          onClick={() => setCurrentMonth(new Date(year, month + 1, 1))}
-          className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-        >
-          <ChevronRight className="w-4 h-4 text-slate-600" />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-wider">
-        {["Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd"].map((d) => (
-          <div key={d}>{d}</div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-7 gap-1">
-        {days.map((date, i) => {
-          if (!date) return <div key={i} className="h-10" />;
-
-          const isSelected = date.getTime() === selectedDate.getTime();
-          const isToday =
-            date.getTime() === new Date(new Date().setHours(0, 0, 0, 0)).getTime();
-
-          const dayItems = items.filter((item) => {
-            const d = new Date(item.date);
-            d.setHours(0, 0, 0, 0);
-            return d.getTime() === date.getTime();
-          });
-
-          return (
-            <button
-              key={i}
-              onClick={() => onSelectDate(date)}
-              className={`h-10 rounded-xl flex flex-col items-center justify-center relative border transition-colors cursor-pointer ${
-                isSelected
-                  ? "bg-slate-900 text-white border-slate-900 shadow-sm"
-                  : isToday
-                  ? "bg-slate-50 text-slate-900 border-slate-200"
-                  : "bg-white border-transparent text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              <span className="font-bold text-xs">{date.getDate()}</span>
-              {dayItems.length > 0 && (
-                <div className="flex gap-0.5 mt-0.5">
-                  {dayItems.slice(0, 3).map((it, idx) => (
-                    <div
-                      key={idx}
-                      className={`w-1 h-1 rounded-full ${
-                        isSelected ? "bg-white" : "bg-emerald-500"
-                      }`}
-                    />
-                  ))}
-                  {dayItems.length > 3 && (
-                    <div
-                      className={`w-1 h-1 rounded-full ${
-                        isSelected ? "bg-white" : "bg-emerald-500"
-                      }`}
-                    />
-                  )}
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 interface CrewCalendarViewProps {
   team: TeamData;
   items: ScheduleItem[];
   onLogout: () => void;
   onToggleStatus: (item: ScheduleItem) => Promise<void>;
+  onChangeDate?: (item: ScheduleItem, newDate: Date) => Promise<void>;
 }
 
 export function CrewCalendarView({
@@ -174,11 +67,6 @@ export function CrewCalendarView({
   const [search, setSearch] = useState("");
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-
-  const [selectedDate, setSelectedDate] = useState<Date>(todayStart);
 
   const handleToggle = async (item: ScheduleItem) => {
     setUpdatingId(item.id);
@@ -220,12 +108,6 @@ export function CrewCalendarView({
       const matchAddress = item.address.toLowerCase().includes(term);
       const matchPhone = (item.phone ?? "").includes(term);
       if (!matchTitle && !matchClient && !matchAddress && !matchPhone) return false;
-    }
-
-    if (viewMode === "calendar") {
-      const d = new Date(item.date);
-      d.setHours(0, 0, 0, 0);
-      if (d.getTime() !== selectedDate.getTime()) return false;
     }
 
     return true;
@@ -292,18 +174,19 @@ export function CrewCalendarView({
 
         {/* CALENDAR VIEW MODE */}
         {viewMode === "calendar" && (
-          <div className="space-y-4">
-            <MobileCalendar
+          <div className="mt-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <TUIMobileCalendarWrapper
               items={items}
-              selectedDate={selectedDate}
-              onSelectDate={setSelectedDate}
+              filter={filter}
+              search={search}
+              onEventClick={(item: ScheduleItem) => setSelectedItem(item)}
+              onEventDateChange={async (item: ScheduleItem, newDate: Date) => {
+                if (onChangeDate) {
+                  await onChangeDate(item, newDate);
+                }
+              }}
+              onToggleEventStatus={handleToggle}
             />
-
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200 mt-6">
-              <h3 className="font-bold text-slate-900 text-sm">
-                Zadania na {selectedDate.toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}
-              </h3>
-            </div>
           </div>
         )}
 
@@ -371,7 +254,7 @@ export function CrewCalendarView({
                     <div
                       key={item.id}
                       onClick={() => setSelectedItem(item)}
-                      className={`bg-white border rounded-2xl p-4 shadow-xs hover:shadow-md transition-all space-y-3 cursor-pointer group ${
+                      className={`bg-white border rounded-2xl p-4 shadow-xs hover:shadow-md transition-all space-y-3 cursor-pointer group select-none ${
                         isDone ? "border-emerald-200 bg-emerald-50/20 opacity-80" : "border-slate-200 hover:border-slate-300"
                       }`}
                     >
@@ -450,13 +333,14 @@ export function CrewCalendarView({
             )}
       </div>
 
-      {/* Item Detail Modal */}
-      <CrewJobDetailModal
-        item={selectedItem}
-        onClose={() => setSelectedItem(null)}
-        onToggleStatus={handleToggle}
-        updating={updatingId === selectedItem?.id}
-      />
+      {selectedItem && (
+        <CrewJobDetailModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onToggleStatus={handleToggle}
+          updating={updatingId === selectedItem?.id}
+        />
+      )}
     </div>
   );
 }

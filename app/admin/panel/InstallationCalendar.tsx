@@ -732,10 +732,17 @@ export default function InstallationCalendar() {
             hour: "2-digit",
             minute: "2-digit",
             hour12: false,
+            meridiem: false,
+          }}
+          slotLabelFormat={{
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            meridiem: false,
           }}
           slotDuration={view === "timeGridWeek" ? "01:00:00" : "00:30:00"}
           slotMinTime="06:00:00"
-          slotMaxTime="22:00:00"
+          slotMaxTime="17:00:00"
           allDaySlot={false}
           nowIndicator={true}
           eventDisplay="block"

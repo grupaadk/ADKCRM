@@ -518,3 +518,46 @@ export const updateComplaintStatusByPin = mutation({
     });
   },
 });
+
+export const updateEventDateByPin = mutation({
+  args: {
+    pin: v.string(),
+    eventId: v.union(v.id("orders"), v.id("complaints")),
+    eventType: v.union(v.literal("montaz"), v.literal("serwis")),
+    newDate: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const cleanPin = args.pin.trim();
+    const teams = await ctx.db.query("installationTeams").collect();
+    const team = teams.find((t) => t.isActive && t.pin === cleanPin);
+    if (!team) {
+      throw new Error("Nieprawidłowy kod PIN ekipy.");
+    }
+
+    if (args.eventType === "montaz") {
+      const order = await ctx.db.get(args.eventId as any);
+      if (!order) throw new Error("Zlecenie nie istnieje.");
+      if (order.installationTeamId !== team._id) {
+        throw new Error("Brak uprawnień. Zlecenie nie jest przypisane do tej ekipy.");
+      }
+      
+      // If we only have projectEndDate mapped as date, we should update both
+      await ctx.db.patch(args.eventId as any, {
+        projectStartDate: args.newDate,
+        projectEndDate: args.newDate,
+      });
+    } else {
+      const complaint = await ctx.db.get(args.eventId as any);
+      if (!complaint) throw new Error("Reklamacja/Serwis nie istnieje.");
+      if (complaint.installationTeamId !== team._id) {
+        throw new Error("Brak uprawnień. Serwis nie jest przypisany do tej ekipy.");
+      }
+
+      await ctx.db.patch(args.eventId as any, {
+        startDate: args.newDate,
+        serviceDate: args.newDate,
+        serviceDateEnd: undefined, // Clear end date as it's a single day now
+      });
+    }
+  },
+});

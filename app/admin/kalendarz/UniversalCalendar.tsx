@@ -1337,11 +1337,11 @@ export default function UniversalCalendar({
           height="auto"
           expandRows={true}
           dayMaxEvents={view === "dayGridMonth" ? 3 : 99}
-          eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
-          slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
+          eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
+          slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotDuration="01:00:00"
           slotMinTime="06:00:00"
-          slotMaxTime="22:00:00"
+          slotMaxTime="17:00:00"
           allDaySlot={true}
           allDayText="Cały dzień"
           nowIndicator={true}

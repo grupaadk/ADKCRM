@@ -844,4 +844,37 @@ export default defineSchema({
     isActive: v.boolean(),
     createdAt: v.number(),
   }),
+
+  // Samochody we flocie (FMS)
+  cars: defineTable({
+    make: v.string(),
+    model: v.string(),
+    registrationNumber: v.string(),
+    vin: v.optional(v.string()),
+    year: v.optional(v.number()),
+    assignedInstallationTeamId: v.optional(v.id("installationTeams")),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_team", ["assignedInstallationTeamId"])
+    .index("by_registration", ["registrationNumber"]),
+
+  // Zdarzenia związane z samochodami (FMS)
+  carEvents: defineTable({
+    carId: v.id("cars"),
+    type: v.union(
+      v.literal("refueling"),
+      v.literal("inspection"),
+      v.literal("repair"),
+      v.literal("other")
+    ),
+    date: v.number(),
+    cost: v.number(),
+    description: v.optional(v.string()),
+    mileage: v.optional(v.number()),
+    linkedCalendarEventId: v.optional(v.id("calendarEvents")),
+    createdAt: v.number(),
+  })
+    .index("by_car", ["carId"])
+    .index("by_date", ["date"]),
 });
