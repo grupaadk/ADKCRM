@@ -12,17 +12,23 @@ export const COMPLAINT_STATUS_LABELS: Record<string, string> = {
 export const getByOrderId = query({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const c = await ctx.db
       .query("complaints")
       .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
       .first();
+    if (!c) return null;
+    const team = c.installationTeamId ? await ctx.db.get(c.installationTeamId) : null;
+    return { ...c, installationTeam: team ? { name: team.name, color: team.color } : null };
   },
 });
 
 export const getById = query({
   args: { complaintId: v.id("complaints") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.complaintId);
+    const c = await ctx.db.get(args.complaintId);
+    if (!c) return null;
+    const team = c.installationTeamId ? await ctx.db.get(c.installationTeamId) : null;
+    return { ...c, installationTeam: team ? { name: team.name, color: team.color } : null };
   },
 });
 
@@ -45,12 +51,35 @@ export const getAll = query({
       complaints = complaints.filter((c) => c.assignedTo === args.assignedTo);
     }
 
-    // Join with clients
+    // Join with clients, orders, installationTeams
     const results = await Promise.all(
       complaints.map(async (c) => {
         const client = await ctx.db.get(c.clientId);
         const order = c.orderId ? await ctx.db.get(c.orderId) : null;
-        return { ...c, client, order };
+        const team = c.installationTeamId ? await ctx.db.get(c.installationTeamId) : null;
+        return { ...c, client, order, installationTeam: team ? { name: team.name, color: team.color } : null };
+      }),
+    );
+
+    return results;
+  },
+});
+
+export const getAllByOrder = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const complaints = await ctx.db
+      .query("complaints")
+      .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
+      .order("desc")
+      .take(100);
+
+    const results = await Promise.all(
+      complaints.map(async (c) => {
+        const client = await ctx.db.get(c.clientId);
+        const order = c.orderId ? await ctx.db.get(c.orderId) : null;
+        const team = c.installationTeamId ? await ctx.db.get(c.installationTeamId) : null;
+        return { ...c, client, order, installationTeam: team ? { name: team.name, color: team.color } : null };
       }),
     );
 
@@ -64,20 +93,14 @@ export const create = mutation({
     clientId: v.id("clients"),
     startDate: v.number(),
     serviceDate: v.optional(v.number()),
+    serviceDateEnd: v.optional(v.number()),
     description: v.optional(v.string()),
     clientDescription: v.optional(v.string()),
     assignedTo: v.optional(v.string()),
+    installationTeamId: v.optional(v.id("installationTeams")),
     createdBy: v.string(),
   },
   handler: async (ctx, args) => {
-    // If tied to an order, only one complaint per order
-    if (args.orderId) {
-      const existing = await ctx.db
-        .query("complaints")
-        .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
-        .first();
-      if (existing) return existing._id;
-    }
     const complaintId = await ctx.db.insert("complaints", {
       orderId: args.orderId,
       clientId: args.clientId,
@@ -85,9 +108,11 @@ export const create = mutation({
       description: args.description,
       clientDescription: args.clientDescription,
       assignedTo: args.assignedTo,
+      installationTeamId: args.installationTeamId,
       notes: [],
       startDate: args.startDate,
       serviceDate: args.serviceDate,
+      serviceDateEnd: args.serviceDateEnd,
       todos: [],
       createdBy: args.createdBy,
     });
@@ -106,8 +131,10 @@ export const updateDetails = mutation({
     description: v.optional(v.string()),
     clientDescription: v.optional(v.string()),
     assignedTo: v.optional(v.string()),
+    installationTeamId: v.optional(v.union(v.id("installationTeams"), v.null())),
     startDate: v.optional(v.number()),
     serviceDate: v.optional(v.number()),
+    serviceDateEnd: v.optional(v.number()),
     orderId: v.optional(v.id("orders")),
     clientId: v.optional(v.id("clients")),
   },
@@ -117,8 +144,10 @@ export const updateDetails = mutation({
     if (fields.description !== undefined) patch.description = fields.description;
     if (fields.clientDescription !== undefined) patch.clientDescription = fields.clientDescription;
     if (fields.assignedTo !== undefined) patch.assignedTo = fields.assignedTo;
+    if (fields.installationTeamId !== undefined) patch.installationTeamId = fields.installationTeamId === null ? undefined : fields.installationTeamId;
     if (fields.startDate !== undefined) patch.startDate = fields.startDate;
     if ("serviceDate" in fields) patch.serviceDate = fields.serviceDate;
+    if ("serviceDateEnd" in fields) patch.serviceDateEnd = fields.serviceDateEnd;
     if ("orderId" in fields) patch.orderId = fields.orderId;
     if ("clientId" in fields && fields.clientId !== undefined) patch.clientId = fields.clientId;
     await ctx.db.patch(complaintId, patch);

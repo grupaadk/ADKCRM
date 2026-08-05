@@ -11,7 +11,7 @@ import multiMonthPlugin from "@fullcalendar/multimonth";
 import interactionPlugin from "@fullcalendar/interaction";
 import plLocale from "@fullcalendar/core/locales/pl";
 import type { EventClickArg, EventDropArg, EventContentArg, DatesSetArg } from "@fullcalendar/core";
-import type { DateClickArg } from "@fullcalendar/interaction";
+import type { DateClickArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useStatuses } from "@/components/StatusLabelsContext";
 
@@ -63,13 +63,26 @@ const VIEW_LABELS: Record<string, string> = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function UniversalCalendar() {
+export default function UniversalCalendar({
+  initialTeamId,
+  initialView = "timeGridWeek",
+}: {
+  initialTeamId?: Id<"installationTeams">;
+  initialView?: "dayGridMonth" | "timeGridWeek" | "timeGridDay";
+} = {}) {
   const calendarRef = useRef<FullCalendar>(null);
   const today = useMemo(() => new Date(), []);
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [weekRange, setWeekRange] = useState<{ start: Date; end: Date } | null>(null);
-  const [view, setView] = useState<"dayGridMonth" | "timeGridWeek" | "timeGridDay">("dayGridMonth");
+  const [view, setView] = useState<"dayGridMonth" | "timeGridWeek" | "timeGridDay">(() => {
+    if (initialTeamId) return initialView;
+    try {
+      const saved = localStorage.getItem("calendar_default_view") as "dayGridMonth" | "timeGridWeek" | "timeGridDay" | null;
+      if (saved && (saved === "dayGridMonth" || saved === "timeGridWeek" || saved === "timeGridDay")) return saved;
+    } catch {}
+    return initialView;
+  });
   const [visibleRange, setVisibleRange] = useState<{ start: Date; end: Date }>({
     start: new Date(today.getFullYear(), today.getMonth(), 1),
     end: new Date(today.getFullYear(), today.getMonth() + 1, 0),
@@ -79,6 +92,20 @@ export default function UniversalCalendar() {
   const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set());
   const [activeEventTypeFilters, setActiveEventTypeFilters] = useState<Set<string>>(new Set());
   const [activeSupplierFilters, setActiveSupplierFilters] = useState<Set<string>>(new Set());
+  const [activeTeamFilters, setActiveTeamFilters] = useState<Set<string>>(
+    () => (initialTeamId ? new Set([initialTeamId]) : new Set())
+  );
+
+  useEffect(() => {
+    if (initialTeamId) {
+      setActiveTeamFilters(new Set([initialTeamId]));
+    }
+  }, [initialTeamId]);
+  const [expandedSupplierId, setExpandedSupplierId] = useState<string | null>(null);
+  const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
+  const [showMoreSuppliersDropdown, setShowMoreSuppliersDropdown] = useState(false);
+  const [showMoreTeamsDropdown, setShowMoreTeamsDropdown] = useState(false);
+  const [showUserFilterDropdown, setShowUserFilterDropdown] = useState(false);
   const [showPrivate, setShowPrivate] = useState(true);
 
   // Modals
@@ -126,6 +153,7 @@ export default function UniversalCalendar() {
   const currentUser = useQuery(api.users.me);
   const allUsers = useQuery(api.users.listAllActive);
   const activeSuppliers = useQuery(api.suppliers.listActive) ?? [];
+  const installationTeams = useQuery(api.installationTeams.listActive) ?? [];
   const eventTypes = useQuery(api.calendarEvents.getEventTypes) ?? [];
   const effectiveEventTypeId = newEventTypeId || eventTypes[0]?._id || "";
   const calendarEvents = useQuery(api.calendarEvents.getEvents, {
@@ -224,13 +252,22 @@ export default function UniversalCalendar() {
     });
   };
 
+  const toggleTeamFilter = (teamId: string) => {
+    setActiveTeamFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(teamId)) next.delete(teamId);
+      else next.add(teamId);
+      return next;
+    });
+  };
+
   // ─── Build unified events ───────────────────────────────────────────────────
 
   const events = useMemo(() => {
     const result: object[] = [];
 
     // --- Calendar events ---
-    if (calendarEvents && activeSupplierFilters.size === 0) {
+    if (calendarEvents && activeSupplierFilters.size === 0 && activeTeamFilters.size === 0) {
       for (const e of calendarEvents) {
         if (!showPrivate && e.isPrivate) continue;
         if (activeEventTypeFilters.size > 0 && !activeEventTypeFilters.has(e.eventTypeId)) continue;
@@ -273,6 +310,9 @@ export default function UniversalCalendar() {
         if (activeSupplierFilters.size > 0) {
           if (!le.supplierId || !activeSupplierFilters.has(le.supplierId)) continue;
         }
+        if (activeTeamFilters.size > 0) {
+          if (!le.installationTeamId || !activeTeamFilters.has(le.installationTeamId)) continue;
+        }
 
         const baseText = le.orderName ? `${le.orderName} - ${le.clientName}` : le.clientName;
         const customPart = le.customText ? ` [${le.customText}]` : "";
@@ -283,12 +323,15 @@ export default function UniversalCalendar() {
           id: le.id,
           title: titleText,
           start: new Date(le.startDate),
+          end: (le as { endDate?: number }).endDate ? new Date((le as { endDate?: number }).endDate!) : undefined,
           allDay: !le.hasTime,
           backgroundColor: "transparent",
           borderColor: "transparent",
           extendedProps: {
             sourceType: "order-linked",
             orderId: le.orderId,
+            complaintId: (le as { complaintId?: string }).complaintId,
+            serviceDateOffset: (le as { serviceDateOffset?: number }).serviceDateOffset,
             clientId: le.clientId,
             clientName: le.clientName,
             orderName: le.orderName,
@@ -296,6 +339,9 @@ export default function UniversalCalendar() {
             serviceName: le.serviceName,
             supplierId: le.supplierId,
             supplierName: le.supplierName,
+            installationTeamId: le.installationTeamId,
+            installationTeamName: le.installationTeamName,
+            installationTeamColor: le.installationTeamColor,
             field: le.field,
             deliveryIndex: le.deliveryIndex,
             eventTypeId: le.eventTypeId,
@@ -307,7 +353,7 @@ export default function UniversalCalendar() {
     }
 
     return result;
-  }, [calendarEvents, linkedOrderEvents, activeUserFilters, activeEventTypeFilters, activeSupplierFilters, showPrivate]);
+  }, [calendarEvents, linkedOrderEvents, activeUserFilters, activeEventTypeFilters, activeSupplierFilters, activeTeamFilters, showPrivate]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
 
@@ -338,6 +384,8 @@ export default function UniversalCalendar() {
     const props = info.event.extendedProps as {
       sourceType: string;
       orderId?: string;
+      complaintId?: string;
+      serviceDateOffset?: number;
       field?: string;
       deliveryIndex?: number;
     };
@@ -350,12 +398,20 @@ export default function UniversalCalendar() {
         projectEndDate: localMidnight(newStart),
         installationStartDate: dateToMins(newStart),
       });
-    } else if (props.sourceType === "order-linked" && props.orderId && props.field) {
+    } else if (props.sourceType === "order-linked" && (props.orderId || props.complaintId) && props.field) {
+      // Compute new serviceDateEnd if this is a complaint service event with a known duration
+      const newServiceDateEnd =
+        props.field === "complaintServiceDate" && props.serviceDateOffset !== undefined
+          ? newStart.getTime() + props.serviceDateOffset
+          : undefined;
+
       await updateLinkedOrderDate({
-        orderId: props.orderId as Id<"orders">,
+        orderId: props.orderId ? (props.orderId as Id<"orders">) : undefined,
+        complaintId: props.complaintId ? (props.complaintId as Id<"complaints">) : undefined,
         field: props.field,
         deliveryIndex: props.deliveryIndex,
-        newDate: localMidnight(newStart),
+        newDate: newStart.getTime(),
+        serviceDateEnd: newServiceDateEnd,
       });
     } else {
       const newEnd = info.event.end;
@@ -363,19 +419,44 @@ export default function UniversalCalendar() {
         id: info.event.id as Id<"calendarEvents">,
         startDate: newStart.getTime(),
         endDate: newEnd ? newEnd.getTime() : undefined,
+        isAllDay: info.event.allDay,
       });
     }
   };
 
-  const handleEventResize = async (info: { event: { id: string; start: Date | null; end: Date | null; extendedProps: Record<string, unknown> } }) => {
-    const props = info.event.extendedProps as { sourceType: string };
+  const handleEventResize = async (info: EventResizeDoneArg) => {
+    const props = info.event.extendedProps as {
+      sourceType: string;
+      orderId?: string;
+      complaintId?: string;
+      field?: string;
+      deliveryIndex?: number;
+    };
     const newStart = info.event.start;
     const newEnd = info.event.end;
-    if (props.sourceType === "event" && newStart) {
+    if (!newStart) return;
+
+    if (props.sourceType === "montaz") {
+      await updateOrder({
+        orderId: info.event.id as Id<"orders">,
+        projectEndDate: localMidnight(newStart),
+        installationStartDate: dateToMins(newStart),
+      });
+    } else if (props.sourceType === "order-linked" && (props.orderId || props.complaintId) && props.field) {
+      await updateLinkedOrderDate({
+        orderId: props.orderId ? (props.orderId as Id<"orders">) : undefined,
+        complaintId: props.complaintId ? (props.complaintId as Id<"complaints">) : undefined,
+        field: props.field,
+        deliveryIndex: props.deliveryIndex,
+        newDate: newStart.getTime(),
+        serviceDateEnd: newEnd ? newEnd.getTime() : undefined,
+      });
+    } else {
       await updateCalendarEvent({
         id: info.event.id as Id<"calendarEvents">,
         startDate: newStart.getTime(),
         endDate: newEnd ? newEnd.getTime() : undefined,
+        isAllDay: info.event.allDay,
       });
     }
   };
@@ -392,13 +473,15 @@ export default function UniversalCalendar() {
     const props = evProps.extendedProps as {
       sourceType: string;
       orderId?: string;
+      complaintId?: string;
       field?: string;
       deliveryIndex?: number;
     };
 
-    if (props.sourceType === "order-linked" && props.orderId && props.field) {
+    if (props.sourceType === "order-linked" && (props.orderId || props.complaintId) && props.field) {
       await updateLinkedOrderDate({
-        orderId: props.orderId as Id<"orders">,
+        orderId: props.orderId ? (props.orderId as Id<"orders">) : undefined,
+        complaintId: props.complaintId ? (props.complaintId as Id<"complaints">) : undefined,
         field: props.field,
         deliveryIndex: props.deliveryIndex,
         newDate: newDate.getTime(),
@@ -508,6 +591,8 @@ export default function UniversalCalendar() {
       color?: string;
       eventTypeName?: string;
       isPrivate?: boolean;
+      installationTeamName?: string;
+      installationTeamColor?: string;
     };
 
     if (props.sourceType === "montaz") {
@@ -543,7 +628,7 @@ export default function UniversalCalendar() {
           display: "flex", flexDirection: "row", borderRadius: 8,
           background: "var(--panel)", border: "1px solid var(--line)",
           boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-          minWidth: 0, width: "100%", cursor: "pointer",
+          minWidth: 0, width: "100%", height: "100%", cursor: "pointer",
         }}>
           <div style={{ width: 5, minWidth: 5, background: accentColor, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
           <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
@@ -586,7 +671,7 @@ export default function UniversalCalendar() {
           display: "flex", flexDirection: "row", borderRadius: 8,
           background: "var(--panel)", border: "1px solid var(--line)",
           boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-          minWidth: 0, width: "100%", cursor: "pointer",
+          minWidth: 0, width: "100%", height: "100%", cursor: "pointer",
         }}>
           <div style={{ width: 5, minWidth: 5, background: color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
           <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
@@ -599,6 +684,11 @@ export default function UniversalCalendar() {
             <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {props.clientName}
             </div>
+            {props.installationTeamName && (
+              <div style={{ fontSize: 10, fontWeight: 700, color: props.installationTeamColor ?? color, background: `${props.installationTeamColor ?? color}18`, border: `1px solid ${props.installationTeamColor ?? color}33`, borderRadius: 4, padding: "1px 5px", width: "fit-content", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                🛠️ {props.installationTeamName as string}
+              </div>
+            )}
             {props.customText && (
               <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-strong)", opacity: 0.9, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 💬 {props.customText as string}
@@ -621,7 +711,7 @@ export default function UniversalCalendar() {
         display: "flex", flexDirection: "row", borderRadius: 8,
         background: "var(--panel)", border: "1px solid var(--line)",
         boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-        minWidth: 0, width: "100%", cursor: "pointer",
+        minWidth: 0, width: "100%", height: "100%", cursor: "pointer",
       }}>
         <div style={{ width: 5, minWidth: 5, background: color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
@@ -676,7 +766,7 @@ export default function UniversalCalendar() {
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12,
-      display: "flex", flexDirection: "column", flex: 1, overflow: "hidden", minHeight: 0,
+      display: "flex", flexDirection: "column", flex: 1, overflow: "hidden", minHeight: 680,
     }}>
 
       {/* Toolbar */}
@@ -697,7 +787,7 @@ export default function UniversalCalendar() {
           </span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ display: "flex", background: "var(--panel-2)", borderRadius: 8, padding: 3, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
             {(["dayGridMonth", "timeGridWeek", "timeGridDay"] as const).map((v) => (
               <button
@@ -723,115 +813,172 @@ export default function UniversalCalendar() {
           <button onClick={() => calendarRef.current?.getApi().today()} className="btn btn-xs" style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6 }}>
             Dzisiaj
           </button>
+
+          {!initialTeamId && (
+            <>
+              <div style={{ width: 1, height: 20, background: "var(--line)", margin: "0 2px" }} />
+
+              {/* Assigned User Filter Dropdown */}
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setShowUserFilterDropdown((prev) => !prev)}
+                  className="btn btn-xs"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    fontSize: 12, padding: "6px 12px", borderRadius: 6,
+                    background: activeUserFilters.size > 0 ? "var(--accent)22" : "var(--panel-2)",
+                    color: activeUserFilters.size > 0 ? "var(--accent)" : "var(--text-strong)",
+                    border: `1px solid ${activeUserFilters.size > 0 ? "var(--accent)" : "var(--line)"}`,
+                    fontWeight: activeUserFilters.size > 0 ? 700 : 600,
+                    cursor: "pointer", transition: "all 0.15s",
+                  }}
+                >
+                  <span>👤</span>
+                  <span>
+                    {activeUserFilters.size === 0
+                      ? "Wszyscy użytkownicy"
+                      : activeUserFilters.size === 1
+                      ? (allUsers?.find((u) => u._id === Array.from(activeUserFilters)[0])?.displayName ?? "1 użytkownik")
+                      : `${activeUserFilters.size} użytkowników`}
+                  </span>
+                  <span style={{ fontSize: 9, opacity: 0.7 }}>{showUserFilterDropdown ? "▲" : "▼"}</span>
+                </button>
+
+                {showUserFilterDropdown && (
+                  <div
+                    style={{
+                      position: "absolute", top: "calc(100% + 6px)", right: 0,
+                      background: "var(--card)", border: "1px solid var(--line)",
+                      borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                      zIndex: 50, minWidth: 210, display: "flex", flexDirection: "column", gap: 4,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
+                        Przypisany użytkownik
+                      </span>
+                      {activeUserFilters.size > 0 && (
+                        <button
+                          onClick={() => setActiveUserFilters(new Set())}
+                          style={{ fontSize: 10, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
+                        >
+                          Pokaż wszystkich
+                        </button>
+                      )}
+                    </div>
+
+                    {allUsers && [...allUsers]
+                      .sort((a, b) => (a._id === currentUser?._id ? -1 : b._id === currentUser?._id ? 1 : 0))
+                      .map((user) => {
+                        const name = user.displayName ?? user.login ?? "?";
+                        const isMe = user._id === currentUser?._id;
+                        const active = activeUserFilters.has(user._id as string);
+                        return (
+                          <button
+                            key={user._id}
+                            onClick={() => toggleUserFilter(user._id as string)}
+                            style={{
+                              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                              padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
+                              background: active ? `${user.color ?? "#64748b"}18` : "transparent",
+                              color: active ? "var(--text-strong)" : "var(--text)",
+                              border: `1px solid ${active ? `${user.color ?? "#64748b"}44` : "transparent"}`,
+                              cursor: "pointer", textAlign: "left", width: "100%", transition: "all 0.1s",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: user.color ?? "#64748b", flexShrink: 0 }} />
+                              <span style={{ fontWeight: active ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {isMe ? `${name} (Ja)` : name}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 12, color: active ? (user.color ?? "var(--accent)") : "var(--text-mute)" }}>
+                              {active ? "✓" : "+"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+
+              {/* Private toggle */}
+              <button
+                onClick={() => setShowPrivate((p) => !p)}
+                className="btn btn-xs"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  fontSize: 12, padding: "6px 12px", borderRadius: 6,
+                  background: showPrivate ? "var(--accent)22" : "var(--panel-2)",
+                  color: showPrivate ? "var(--accent)" : "var(--text-strong)",
+                  border: `1px solid ${showPrivate ? "var(--accent)" : "var(--line)"}`,
+                  fontWeight: showPrivate ? 700 : 600,
+                  cursor: "pointer", transition: "all 0.15s",
+                }}
+              >
+                🔒 Prywatne
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Filters bar */}
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 20px", borderBottom: "1px solid var(--line)", background: "var(--card)" }}>
-        {/* Event type filters */}
-        {eventTypes.map((type) => {
-          const active = activeEventTypeFilters.has(type._id);
-          return (
-            <button
-              key={type._id}
-              onClick={() => toggleEventTypeFilter(type._id)}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 5,
-                padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-                background: active ? `${type.color}22` : "var(--panel)",
-                color: active ? type.color : "var(--text-mute)",
-                border: `1.5px solid ${active ? type.color : "var(--line)"}`,
-                fontWeight: active ? 600 : 500,
-                cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
-              {type.name}
-            </button>
-          );
-        })}
-
-        {/* Dynamic Suppliers Filter (Filtrowanie po Dostawcach) */}
-        {activeSuppliers.length > 0 && (
-          <>
-            <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-              Dostawcy:
-            </span>
-            {activeSuppliers.map((supplier) => {
-              const active = activeSupplierFilters.has(supplier._id);
-              return (
-                <button
-                  key={supplier._id}
-                  onClick={() => toggleSupplierFilter(supplier._id)}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-                    background: active ? "var(--accent)22" : "var(--panel)",
-                    color: active ? "var(--accent)" : "var(--text-mute)",
-                    border: `1.5px solid ${active ? "var(--accent)" : "var(--line)"}`,
-                    fontWeight: active ? 700 : 500,
-                    cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-                  }}
-                >
-                  <span style={{ fontSize: 11 }}>🏢</span>
-                  <span>{supplier.name}</span>
-                </button>
-              );
-            })}
-          </>
-        )}
-
-        <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
-
-        {/* User filters */}
-        {allUsers && [...allUsers]
-          .sort((a, b) => (a._id === currentUser?._id ? -1 : b._id === currentUser?._id ? 1 : 0))
-          .map((user) => {
-            const name = user.displayName ?? user.login ?? "?";
-            const isMe = user._id === currentUser?._id;
-            const active = activeUserFilters.has(user._id as string);
-            return (
-              <button
-                key={user._id}
-                onClick={() => toggleUserFilter(user._id as string)}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-                  background: active ? `${user.color ?? "#64748b"}22` : "var(--panel)",
-                  color: active ? (user.color ?? "var(--accent)") : "var(--text-mute)",
-                  border: `1.5px solid ${active ? (user.color ?? "var(--accent)") : "var(--line)"}`,
-                  fontWeight: active ? 600 : 500,
-                  cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-                }}
-              >
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: user.color ? (active ? user.color : `${user.color}80`) : (active ? "#64748b" : "#64748b40"), flexShrink: 0 }} />
-                {name}{isMe ? " (Ty)" : ""}
-              </button>
-            );
-          })}
-
-        <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
-
-        {/* Private toggle */}
-        <button
-          onClick={() => setShowPrivate((p) => !p)}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 5,
-            padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-            background: showPrivate ? "var(--panel-3)" : "var(--panel)",
-            color: showPrivate ? "var(--text-strong)" : "var(--text-mute)",
-            border: `1.5px solid ${showPrivate ? "var(--text-mute)" : "var(--line)"}`,
-            fontWeight: showPrivate ? 600 : 500,
-            cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-          }}
-        >
-          🔒 Prywatne
-        </button>
-      </div>
+      {!initialTeamId && (
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 20px", borderBottom: "1px solid var(--line)", background: "var(--card)" }}>
+          {/* Pasek filtrów w widoku ogólnym */}
+        </div>
+      )}
 
       {/* Calendar */}
-      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
+      <div style={{ flex: 1, minHeight: 600, display: "flex", flexDirection: "column", position: "relative" }}>
+        <style>{`
+          .fc-timegrid-event-harness {
+            pointer-events: auto !important;
+          }
+          .fc-timegrid-event .fc-event-main {
+            height: 100% !important;
+          }
+          .fc-timegrid-event .fc-event-resizer {
+            z-index: 9999 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 14px !important;
+            cursor: ns-resize !important;
+            pointer-events: auto !important;
+            display: block !important;
+          }
+          .fc-timegrid-event .fc-event-resizer-bottom {
+            bottom: 0 !important;
+          }
+          .fc-timegrid-event .fc-event-resizer-top {
+            top: 0 !important;
+          }
+          .fc-timegrid-event:hover .fc-event-resizer-bottom::after {
+            content: '';
+            position: absolute;
+            bottom: 3px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 32px;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(0, 0, 0, 0.4);
+            box-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+          }
+          .fc-timegrid-event:hover .fc-event-resizer-top::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 32px;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(0, 0, 0, 0.4);
+            box-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+          }
+        `}</style>
         <FullCalendar
           ref={calendarRef}
           key={view}
@@ -842,6 +989,7 @@ export default function UniversalCalendar() {
           events={events}
           editable={true}
           eventDurationEditable={true}
+          eventResizableFromStart={true}
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
           eventResize={handleEventResize as unknown as (arg: unknown) => void}
@@ -853,14 +1001,16 @@ export default function UniversalCalendar() {
           }}
           datesSet={handleDatesSet}
           eventContent={renderEventContent}
-          height="100%"
+          height="auto"
           expandRows={true}
           dayMaxEvents={view === "dayGridMonth" ? 3 : 99}
           eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
+          slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
           slotDuration="01:00:00"
           slotMinTime="06:00:00"
           slotMaxTime="22:00:00"
           allDaySlot={true}
+          allDayText="Cały dzień"
           nowIndicator={true}
           eventDisplay="block"
           eventClassNames={["fc-event-custom"]}
@@ -982,14 +1132,14 @@ export default function UniversalCalendar() {
                             </div>
                             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", flexShrink: 0 }}>{timeStr}</span>
                           </div>
-                          {props.clientName && (
+                          {Boolean(props.clientName) && (
                             <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 2 }}>
-                              {props.clientName as string}
+                              {String(props.clientName)}
                             </div>
                           )}
-                          {props.description && (
+                          {Boolean(props.description) && (
                             <div style={{ fontSize: 11, color: "var(--text)", marginTop: 4, lineHeight: 1.4 }}>
-                              {props.description as string}
+                              {String(props.description)}
                             </div>
                           )}
                         </div>
@@ -1162,7 +1312,7 @@ export default function UniversalCalendar() {
                                         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                           {title}
                                         </div>
-                                        {props.clientName && (
+                                         {Boolean(props.clientName) && (
                                           <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                             {props.clientName as string}
                                           </div>

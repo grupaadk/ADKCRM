@@ -215,6 +215,7 @@ export default defineSchema({
     projectStartDate: v.optional(v.number()),
     projectEndDate: v.optional(v.number()),
     installationStartDate: v.optional(v.number()),
+    installationTeamId: v.optional(v.id("installationTeams")),
     orderDate: v.optional(v.number()), // legacy — przeniesione do serviceDeliveries
     serviceDeliveries: v.optional(v.array(v.object({
       serviceName: v.string(),
@@ -620,6 +621,8 @@ export default defineSchema({
     orderId: v.optional(v.id("orders")),
     syncedAt: v.number(),
     categoryId: v.optional(v.id("expenseCategories")),
+    // Ekipa montażowa — wymagana gdy kategoria wydatku to "Montaż"
+    installationTeamId: v.optional(v.id("installationTeams")),
   })
     .index("by_remote_id", ["remoteId"])
     .index("by_order", ["orderId"])
@@ -672,7 +675,9 @@ export default defineSchema({
     )),
     startDate: v.number(),
     serviceDate: v.optional(v.number()),
+    serviceDateEnd: v.optional(v.number()),
     endDate: v.optional(v.number()),
+    installationTeamId: v.optional(v.id("installationTeams")),
     createdBy: v.string(),
     complaintFolderId: v.optional(v.string()),
     complaintFolderUrl: v.optional(v.string()),
@@ -804,6 +809,7 @@ export default defineSchema({
     isPrivate: v.boolean(),
     linkedOrderField: v.optional(v.string()),
     linkedSupplierId: v.optional(v.id("suppliers")),
+    linkedInstallationTeamId: v.optional(v.id("installationTeams")),
     defaultTimeMode: v.optional(v.union(v.literal("all_day"), v.literal("timed"))),
     createdAt: v.number(),
   }),
@@ -826,4 +832,16 @@ export default defineSchema({
     .index("by_start", ["startDate"])
     .index("by_type", ["eventTypeId"])
     .index("by_creator", ["createdBy"]),
+
+  // Ekipy montażowe
+  installationTeams: defineTable({
+    name: v.string(),
+    color: v.optional(v.string()),
+    leaderName: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    members: v.optional(v.array(v.string())),
+    pin: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+  }),
 });

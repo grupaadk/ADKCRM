@@ -3015,13 +3015,23 @@ export const createComplaintFolder = internalAction({
     clientId: v.id("clients"),
   },
   handler: async (ctx, args): Promise<{ id: string; url: string }> => {
+    // ── 1. Resolve parent folder (order folder or client folder) ──────────────
     let parentFolderId: string | null = null;
+    let investmentAddress = "";
 
     if (args.orderId) {
       const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
       if (!order) throw new Error("Zlecenie nie znalezione");
       if (!order.folderId) throw new Error("To zlecenie nie ma folderu w Google Drive.");
       parentFolderId = order.folderId;
+
+      // Build investment address string for subfolder name
+      const street = [order.investmentStreet, order.investmentBuildingNumber]
+        .filter(Boolean)
+        .join(" ");
+      const apt = order.investmentApartmentNumber ? `/${order.investmentApartmentNumber}` : "";
+      const city = order.investmentCity?.trim() ?? "";
+      investmentAddress = [street + apt, city].filter(Boolean).join(", ");
     } else {
       const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
       if (!client) throw new Error("Klient nie znaleziony");
@@ -3029,9 +3039,41 @@ export const createComplaintFolder = internalAction({
       parentFolderId = client.clientFolderId;
     }
 
+    // ── 2. Fetch complaint details for subfolder name ─────────────────────────
+    const complaint = await ctx.runQuery(api.complaints.getById, {
+      complaintId: args.complaintId,
+    });
+    if (!complaint) throw new Error("Reklamacja nie znaleziona");
+
+    const datePart = new Date(complaint.startDate).toLocaleDateString("pl-PL", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).replace(/\./g, "-"); // "04-08-2026"
+
+    const descRaw = (complaint.clientDescription ?? complaint.description ?? "").trim();
+    // Sanitize for Drive folder name: remove slashes, colons, etc.
+    const sanitize = (s: string) =>
+      s.replace(/[/\\:*?"<>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+    const descPart = sanitize(descRaw);
+    const addrPart = sanitize(investmentAddress);
+
+    // Build subfolder name: "04-08-2026_Opis reklamacji_ul. Budowlana 5, Warszawa"
+    const subfolderName = [datePart, descPart, addrPart]
+      .filter(Boolean)
+      .join("_");
+
+    // ── 3. Find or create "Reklamacja" parent folder ──────────────────────────
     const connection = await getAuthorizedConnection(ctx);
     const accessToken = connection.accessToken;
 
+    const reklamacjaFolderId = await findOrCreateDriveFolder(
+      accessToken,
+      "Reklamacja",
+      parentFolderId,
+    );
+
+    // ── 4. Create the per-complaint subfolder inside "Reklamacja" ─────────────
     const createRes = await fetch(`${DRIVE_API_BASE}/files?supportsAllDrives=true`, {
       method: "POST",
       headers: {
@@ -3039,15 +3081,15 @@ export const createComplaintFolder = internalAction({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        name: "Reklamacja",
+        name: subfolderName,
         mimeType: "application/vnd.google-apps.folder",
-        parents: [parentFolderId],
+        parents: [reklamacjaFolderId],
       }),
     });
 
     if (!createRes.ok) {
       const errorBody = await createRes.text();
-      throw new Error(`Nie udało się utworzyć folderu Reklamacja: ${createRes.status} - ${errorBody}`);
+      throw new Error(`Nie udało się utworzyć podfolderu reklamacji: ${createRes.status} - ${errorBody}`);
     }
 
     const folder = await createRes.json() as { id?: string };
@@ -3064,6 +3106,7 @@ export const createComplaintFolder = internalAction({
     return { id: folder.id, url };
   },
 });
+
 
 export const createOrderFolderInDrive = action({
   args: {

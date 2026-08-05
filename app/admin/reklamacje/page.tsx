@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import ComplaintDetailPanel from "@/components/complaints/ComplaintDetailPanel";
 import NewComplaintModal from "@/components/complaints/NewComplaintModal";
 import { createPortal } from "react-dom";
 import { CrmPageHeader } from "@/components/crm-ui";
-import { Search, X, Plus, Printer } from "lucide-react";
+import { Search, X, Plus, Printer, CheckCircle2 } from "lucide-react";
 
 const STATUS_LABELS: Record<string, string> = {
   nowa: "Nowa",
@@ -128,6 +128,25 @@ export default function ReklamacjePage() {
   // Print mode state
   const [isPrintMode, setIsPrintMode] = useState(false);
   const [selectedForPrint, setSelectedForPrint] = useState<Set<Id<"complaints">>>(new Set());
+
+  const updateComplaintStatus = useMutation(api.complaints.updateStatus);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const handleToggleStatus = async (e: React.MouseEvent, complaintId: Id<"complaints">, currentStatus: string) => {
+    e.stopPropagation();
+    setUpdatingId(complaintId);
+    try {
+      const isClosed = currentStatus === "zamknieta" || currentStatus === "rozwiazana" || currentStatus === "zakonczona";
+      await updateComplaintStatus({
+        complaintId,
+        status: isClosed ? "w_toku" : "zamknieta",
+      });
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Błąd zmiany statusu reklamacji");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const complaints = useQuery(api.complaints.getAll, {
     status: statusFilter !== "wszystkie" ? statusFilter : undefined,
@@ -513,7 +532,7 @@ export default function ReklamacjePage() {
                       />
                     </th>
                   )}
-                  {["DATA ZGŁOSZENIA", "Data serwisu", "Klient", "Adres inwestycji", "Telefon", "Zlecenie", "Status", "Opis", "Notatki wewnętrzne", "Przypisany do", ""].map((h) => (
+                  {["DATA ZGŁOSZENIA", "Data serwisu", "Klient", "Adres inwestycji", "Telefon", "Zlecenie", "Status", "Opis", "Notatki wewnętrzne", "Przypisany do", "Ekipa", ""].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -608,8 +627,9 @@ export default function ReklamacjePage() {
                           let badgeColor = "var(--text-mute)";
                           let daysText = "";
                           
-                          if (c.status === "zakończona" || c.status === "anulowana") {
-                            // If finished/cancelled, no need to show countdown aggressively
+                          const isFinished = c.status === "zamknieta" || c.status === "rozwiazana" || c.status === "zakonczona";
+                          if (isFinished) {
+                            // If finished, no need to show countdown aggressively
                             daysText = diffDays > 0 ? `Zrealizowano przed terminem` : `Data serwisu minęła`;
                           } else if (diffDays === 0) {
                             badgeBg = "#fef08a"; // yellow-200
@@ -636,7 +656,7 @@ export default function ReklamacjePage() {
                           return (
                             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                               <span style={{ color: "var(--text)", fontWeight: 500 }}>{formatDate(c.serviceDate)}</span>
-                              {(c.status !== "zakończona" && c.status !== "anulowana") && (
+                              {!isFinished && (
                                 <span style={{
                                   display: "inline-block",
                                   background: badgeBg,
@@ -770,18 +790,72 @@ export default function ReklamacjePage() {
                       <td style={{ padding: "14px 16px", fontSize: 12.5, color: "var(--text-mute)" }}>
                         {c.assignedTo ?? "—"}
                       </td>
-                      <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                        <svg
-                          width="14"
-                          height="14"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          style={{ color: "var(--text-mute)" }}
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                        </svg>
+                      <td style={{ padding: "14px 16px", fontSize: 12.5 }}>
+                        {c.installationTeam ? (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              padding: "3px 8px",
+                              borderRadius: 12,
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              background: `${c.installationTeam.color ?? "#10b981"}22`,
+                              color: c.installationTeam.color ?? "#10b981",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            🛠️ {c.installationTeam.name}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--text-mute)" }}>—</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "14px 16px", textAlign: "right", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
+                        {(() => {
+                          const isClosed = c.status === "zamknieta" || c.status === "rozwiazana" || c.status === "zakonczona";
+                          const isUpdating = updatingId === c._id;
+                          return (
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                              <button
+                                type="button"
+                                onClick={(e) => handleToggleStatus(e, c._id, c.status)}
+                                disabled={isUpdating}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                  padding: "4px 10px",
+                                  borderRadius: 6,
+                                  fontSize: 11.5,
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                  border: isClosed ? "1px solid #bbf7d0" : "1px solid #cbd5e1",
+                                  background: isClosed ? "#f0fdf4" : "#ffffff",
+                                  color: isClosed ? "#15803d" : "#334155",
+                                  opacity: isUpdating ? 0.5 : 1,
+                                  transition: "all 0.15s ease",
+                                }}
+                                title={isClosed ? "Kliknij, aby otworzyć ponowne zgłoszenie" : "Kliknij, aby zamknąć tę reklamację"}
+                              >
+                                <CheckCircle2 size={13} style={{ color: isClosed ? "#16a34a" : "#64748b" }} />
+                                {isClosed ? "Zamknięta ✓" : "Zamknij"}
+                              </button>
+                              <svg
+                                width="14"
+                                height="14"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                                style={{ color: "var(--text-mute)" }}
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                              </svg>
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );

@@ -11,8 +11,9 @@ import ModalPortal from "@/components/ModalPortal";
 import { X } from "lucide-react";
 import { ITKanbanTab } from "./ITKanbanTab";
 import { EventTypesTab } from "./EventTypesTab";
+import { InstallationTeamsTab } from "./InstallationTeamsTab";
 
-type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -3964,6 +3965,7 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "logi", label: "Logi" },
   { key: "it-kanban", label: "IT Kanban" },
   { key: "typy-wydarzen", label: "Typy Wydarzeń" },
+  { key: "ekipy-montazowe", label: "Ekipy Montażowe" },
 ];
 
 // --- Main Page ---
@@ -3981,12 +3983,12 @@ export default function UstawieniaPage() {
 
       {/* Tab navigation */}
       <div className="border-b border-slate-200 mb-6">
-        <nav className="flex gap-6" aria-label="Zakladki ustawien">
+        <nav className="flex gap-6 overflow-x-auto" aria-label="Zakladki ustawien">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === tab.key
                   ? "border-slate-900 text-slate-900"
                   : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
@@ -4011,6 +4013,7 @@ export default function UstawieniaPage() {
       {activeTab === "logi" && <LogiTab />}
       {activeTab === "it-kanban" && <ITKanbanTab />}
       {activeTab === "typy-wydarzen" && <EventTypesTab />}
+      {activeTab === "ekipy-montazowe" && <InstallationTeamsTab />}
 
       {/* ── TEST SENTRY — odkomentuj żeby sprawdzić czy błędy docierają do Sentry ──
       <div className="mt-8 p-4 border border-dashed border-red-300 rounded-lg">

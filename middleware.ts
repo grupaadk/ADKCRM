@@ -7,10 +7,16 @@ import {
 const isProtectedRoute = createRouteMatcher(["/admin(.*)"]);
 const isLoginRoute = createRouteMatcher(["/login"]);
 const isRootRoute = createRouteMatcher(["/"]);
+const isEkipaRoute = createRouteMatcher(["/ekipa(.*)"]);
 
 const isAdminRootRoute = createRouteMatcher(["/admin"]);
 
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
+  // Crew PWA uses PIN-based auth — no Convex Auth check needed
+  if (isEkipaRoute(request)) {
+    return;
+  }
+
   const isAuthed = await convexAuth.isAuthenticated();
 
   if (isProtectedRoute(request) && !isAuthed) {

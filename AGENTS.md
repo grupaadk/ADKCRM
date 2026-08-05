@@ -43,6 +43,7 @@ npm test -- clients
 
 ## Highest Priority Rules
 
+- Never commit or push changes to master without explicit command/instruction from the user
 - Always read `convex/_generated/ai/guidelines.md` before changing Convex code
 - Never edit `convex/_generated/*` manually
 - Keep changes minimal and localized

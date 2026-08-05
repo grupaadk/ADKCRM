@@ -635,14 +635,16 @@ body > .fc-fullscreen-calendar .fc .fc-daygrid-day-frame {
 }
 
 .fc .fc-timegrid-slot {
-  height: 40px;
-  border-color: var(--line);
+  height: 48px !important;
+  border-color: var(--line) !important;
 }
 
-.fc .fc-timegrid-slot-label {
-  font-size: 10px;
-  color: var(--text-mute);
-  font-weight: 500;
+.fc .fc-timegrid-slot-label-cushion,
+.fc .fc-timegrid-axis-cushion {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: var(--text-dim) !important;
+  font-family: inherit;
 }
 
 .fc .fc-timegrid-event {

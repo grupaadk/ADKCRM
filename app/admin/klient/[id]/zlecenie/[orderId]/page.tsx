@@ -106,6 +106,8 @@ type CachedExpense = {
   grossAmount?: number;
   currency?: string;
   orderId?: Id<"orders">;
+  categoryId?: Id<"expenseCategories">;
+  installationTeamId?: Id<"installationTeams">;
 };
 
 
@@ -1634,6 +1636,8 @@ export default function OrderDetailPage({
   const [editExpenseCategory, setEditExpenseCategory] = useState("");
   const [customExpenseDate, setCustomExpenseDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [customExpenseCategory, setCustomExpenseCategory] = useState<string>("");
+  const [customExpenseTeamId, setCustomExpenseTeamId] = useState<string>("");
+  const [editExpenseTeamId, setEditExpenseTeamId] = useState<string>("");
   
   const calculateNet = (grossVal: string, vatVal: string) => {
     const gross = parseFloat(grossVal);
@@ -1698,6 +1702,7 @@ export default function OrderDetailPage({
   const assignOrder = useMutation(api.orders.assignOrder);
   const servicesList = useQuery(api.services.listActive) ?? [];
   const allSuppliers = useQuery(api.suppliers.listActive) ?? [];
+  const installationTeams = useQuery(api.installationTeams.listActive) ?? [];
   const updateOrder = useMutation(api.orders.update);
   const refreshOrderNumber = useMutation(api.orders.refreshOrderNumber);
   const setCustomText = useMutation(api.orders.setCustomText);
@@ -1713,6 +1718,7 @@ export default function OrderDetailPage({
   const [editingCompletionDate, setEditingCompletionDate] = useState(false);
   const [draftCompletionDate, setDraftCompletionDate] = useState<number | undefined>(undefined);
   const [draftInstallationStart, setDraftInstallationStart] = useState<number | undefined>(undefined);
+  const [draftInstallationTeamId, setDraftInstallationTeamId] = useState<Id<"installationTeams"> | undefined>(undefined);
   const [confirmDeleteDate, setConfirmDeleteDate] = useState(false);
   const [editingFinanceSvc, setEditingFinanceSvc] = useState<string | null>(null);
   const [draftEarnings, setDraftEarnings] = useState<string>("");
@@ -1993,6 +1999,7 @@ export default function OrderDetailPage({
       setDraftCompletionDate(order?.projectEndDate);
       setDraftInstallationStart(order?.installationStartDate);
     }
+    setDraftInstallationTeamId(order?.installationTeamId);
     setEditingCompletionDate(true);
   }
 
@@ -2000,6 +2007,7 @@ export default function OrderDetailPage({
     setEditingCompletionDate(false);
     setDraftCompletionDate(undefined);
     setDraftInstallationStart(undefined);
+    setDraftInstallationTeamId(undefined);
   }
 
   async function saveCompletionDate() {
@@ -2007,10 +2015,12 @@ export default function OrderDetailPage({
       orderId: orderIdTyped,
       projectEndDate: draftCompletionDate !== undefined ? draftCompletionDate : undefined,
       installationStartDate: draftInstallationStart !== undefined ? draftInstallationStart : undefined,
+      installationTeamId: draftInstallationTeamId,
     });
     setEditingCompletionDate(false);
     setDraftCompletionDate(undefined);
     setDraftInstallationStart(undefined);
+    setDraftInstallationTeamId(undefined);
   }
 
   async function deleteCompletionDate() {
@@ -2859,6 +2869,31 @@ export default function OrderDetailPage({
                             return "";
                           })()}
                         </span>
+                        {(() => {
+                          if (!order.installationTeamId) return null;
+                          const team = installationTeams.find((t) => t._id === order.installationTeamId);
+                          if (!team) return null;
+                          return (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                marginTop: 3,
+                                padding: "1px 6px",
+                                borderRadius: 4,
+                                background: `${team.color ?? "#10b981"}18`,
+                                border: `1px solid ${team.color ?? "#10b981"}44`,
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                color: team.color ?? "#10b981",
+                                width: "fit-content",
+                              }}
+                            >
+                              🛠️ {team.name}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0, marginLeft: 2 }}>
@@ -3031,6 +3066,28 @@ export default function OrderDetailPage({
                           <option value="">— godz.</option>
                           {Array.from({ length: 24 }, (_, i) => (
                             <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                          Ekipa montażowa
+                        </label>
+                        <select
+                          value={draftInstallationTeamId ?? ""}
+                          onChange={(e) => setDraftInstallationTeamId(e.target.value ? (e.target.value as Id<"installationTeams">) : undefined)}
+                          style={{
+                            fontSize: 12.5, padding: "6px 10px", borderRadius: 8,
+                            border: "1px solid var(--line)", background: "var(--panel-2)",
+                            color: "var(--text-strong)", fontFamily: "inherit", width: "100%", fontWeight: 500,
+                          }}
+                        >
+                          <option value="">— Brak przypisanej ekipy —</option>
+                          {installationTeams.map((team) => (
+                            <option key={team._id} value={team._id}>
+                              🛠️ {team.name}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -4121,6 +4178,7 @@ export default function OrderDetailPage({
                   const isCustom = exp.remoteId.startsWith("custom_");
                   setSelectedExpense(exp);
                   setEditExpenseCategory(exp.categoryId ?? "");
+                  setEditExpenseTeamId(exp.installationTeamId ?? "");
                   if (isCustom) {
                     setEditExpenseTitle(exp.number ?? "");
                     setEditExpenseAmount(exp.grossAmount?.toString() ?? "");
@@ -4422,6 +4480,7 @@ export default function OrderDetailPage({
           setCustomExpenseInputMode("netto");
           setCustomExpenseDate(new Date().toISOString().split("T")[0]);
           setCustomExpenseCategory("");
+          setCustomExpenseTeamId("");
         }}
         title="Dodaj własny wydatek"
         width={400}
@@ -4437,13 +4496,14 @@ export default function OrderDetailPage({
                 setCustomExpenseInputMode("netto");
                 setCustomExpenseDate(new Date().toISOString().split("T")[0]);
                 setCustomExpenseCategory("");
+                setCustomExpenseTeamId("");
               }}
             >
               Anuluj
             </button>
             <button
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={!customExpenseTitle.trim() || !customExpenseAmount.trim() || !customExpenseCategory}
+              disabled={!customExpenseTitle.trim() || !customExpenseAmount.trim() || !customExpenseCategory || (expenseCategories?.find((c) => c._id === customExpenseCategory)?.name === "Montaż" && !customExpenseTeamId)}
               onClick={async () => {
                 try {
                   let grossVal = 0;
@@ -4467,6 +4527,7 @@ export default function OrderDetailPage({
                     netAmount: netVal,
                     issueDate: customExpenseDate || undefined,
                     categoryId: customExpenseCategory ? (customExpenseCategory as Id<"expenseCategories">) : undefined,
+                    installationTeamId: customExpenseTeamId ? (customExpenseTeamId as Id<"installationTeams">) : undefined,
                   });
                   setShowAddCustomExpenseModal(false);
                   setCustomExpenseTitle("");
@@ -4475,6 +4536,7 @@ export default function OrderDetailPage({
                   setCustomExpenseInputMode("netto");
                   setCustomExpenseDate(new Date().toISOString().split("T")[0]);
                   setCustomExpenseCategory("");
+                  setCustomExpenseTeamId("");
                 } catch (err) {
                   alert(err instanceof Error ? err.message : String(err));
                 }
@@ -4603,7 +4665,16 @@ export default function OrderDetailPage({
             <select
               className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
               value={customExpenseCategory}
-              onChange={(e) => setCustomExpenseCategory(e.target.value)}
+              onChange={(e) => {
+                setCustomExpenseCategory(e.target.value);
+                // Reset ekipy gdy zmienia się kategoria (nie-Montaż)
+                const catName = expenseCategories?.find((c) => c._id === e.target.value)?.name;
+                if (catName !== "Montaż") setCustomExpenseTeamId("");
+                // Podpowiedz ekipę zlecenia gdy kategoria to Montaż
+                if (catName === "Montaż" && !customExpenseTeamId && order?.installationTeamId) {
+                  setCustomExpenseTeamId(order.installationTeamId);
+                }
+              }}
             >
               <option value="">Wybierz kategorię...</option>
               {expenseCategories?.map((cat) => (
@@ -4613,8 +4684,27 @@ export default function OrderDetailPage({
               ))}
             </select>
           </div>
+          {expenseCategories?.find((c) => c._id === customExpenseCategory)?.name === "Montaż" && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Ekipa montażowa *</label>
+              <select
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                value={customExpenseTeamId}
+                onChange={(e) => setCustomExpenseTeamId(e.target.value)}
+              >
+                <option value="">Wybierz ekipę...</option>
+                {installationTeams.map((team) => (
+                  <option key={team._id} value={team._id}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-400 mt-0.5">Wymagane dla kategorii Montaż</p>
+            </div>
+          )}
         </div>
       </SideDrawer>
+
 
       {/* Drawer: Szczegóły / Edycja Wydatku */}
       <SideDrawer
@@ -4627,6 +4717,7 @@ export default function OrderDetailPage({
           setEditExpenseInputMode("brutto");
           setEditExpenseDate("");
           setEditExpenseCategory("");
+          setEditExpenseTeamId("");
         }}
         title={selectedExpense?.remoteId.startsWith("custom_") ? "Edycja wydatku" : "Szczegóły wydatku"}
         width={400}
@@ -4677,13 +4768,14 @@ export default function OrderDetailPage({
                   setEditExpenseInputMode("brutto");
                   setEditExpenseDate("");
                   setEditExpenseCategory("");
+                  setEditExpenseTeamId("");
                 }}
               >
                 Anuluj
               </button>
               <button
                 className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!editExpenseCategory || (selectedExpense?.remoteId.startsWith("custom_") && (!editExpenseTitle.trim() || !editExpenseAmount.trim()))}
+                disabled={!editExpenseCategory || (selectedExpense?.remoteId.startsWith("custom_") && (!editExpenseTitle.trim() || !editExpenseAmount.trim())) || (expenseCategories?.find((c) => c._id === editExpenseCategory)?.name === "Montaż" && !editExpenseTeamId)}
                 onClick={async () => {
                   if (!selectedExpense) return;
                   try {
@@ -4711,11 +4803,13 @@ export default function OrderDetailPage({
                         netAmount: netVal,
                         issueDate: editExpenseDate || undefined,
                         categoryId: catId,
+                        installationTeamId: editExpenseTeamId ? (editExpenseTeamId as Id<"installationTeams">) : undefined,
                       });
                     } else {
                       await assignCategory({
                         expenseId: selectedExpense._id,
                         categoryId: catId,
+                        installationTeamId: editExpenseTeamId ? (editExpenseTeamId as Id<"installationTeams">) : undefined,
                       });
                     }
                     setSelectedExpense(null);
@@ -4907,7 +5001,15 @@ export default function OrderDetailPage({
               <select
                 className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white"
                 value={editExpenseCategory}
-                onChange={(e) => setEditExpenseCategory(e.target.value)}
+                onChange={(e) => {
+                  setEditExpenseCategory(e.target.value);
+                  const catName = expenseCategories?.find((c) => c._id === e.target.value)?.name;
+                  if (catName !== "Montaż") {
+                    setEditExpenseTeamId("");
+                  } else if (!editExpenseTeamId && order?.installationTeamId) {
+                    setEditExpenseTeamId(order.installationTeamId);
+                  }
+                }}
               >
                 <option value="">Wybierz kategorię...</option>
                 {expenseCategories?.map((cat) => (
@@ -4917,9 +5019,28 @@ export default function OrderDetailPage({
                 ))}
               </select>
             </div>
+            {expenseCategories?.find((c) => c._id === editExpenseCategory)?.name === "Montaż" && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-gray-800">Ekipa montażowa *</label>
+                <select
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white"
+                  value={editExpenseTeamId}
+                  onChange={(e) => setEditExpenseTeamId(e.target.value)}
+                >
+                  <option value="">Wybierz ekipę...</option>
+                  {installationTeams.map((team) => (
+                    <option key={team._id} value={team._id}>
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400 mt-0.5">Wymagane dla kategorii Montaż</p>
+              </div>
+            )}
           </div>
         )}
       </SideDrawer>
+
 
       {showExpenseModal && (
         <div

@@ -12,10 +12,14 @@ export const getEventTypes = query({
     const types = await ctx.db.query("calendarEventTypes").collect();
     const suppliers = await ctx.db.query("suppliers").collect();
     const supplierMap = new Map(suppliers.map((s) => [s._id, s.name]));
+    const teams = await ctx.db.query("installationTeams").collect();
+    const teamMap = new Map(teams.map((t) => [t._id, t]));
 
     return types.map((t) => ({
       ...t,
       linkedSupplierName: t.linkedSupplierId ? supplierMap.get(t.linkedSupplierId) ?? null : null,
+      linkedInstallationTeamName: t.linkedInstallationTeamId ? teamMap.get(t.linkedInstallationTeamId)?.name ?? null : null,
+      linkedInstallationTeamColor: t.linkedInstallationTeamId ? teamMap.get(t.linkedInstallationTeamId)?.color ?? null : null,
     }));
   },
 });
@@ -28,6 +32,7 @@ export const createEventType = mutation({
     isPrivate: v.boolean(),
     linkedOrderField: v.optional(v.string()),
     linkedSupplierId: v.optional(v.id("suppliers")),
+    linkedInstallationTeamId: v.optional(v.id("installationTeams")),
     defaultTimeMode: v.optional(v.union(v.literal("all_day"), v.literal("timed"))),
   },
   handler: async (ctx, args) => {
@@ -39,6 +44,7 @@ export const createEventType = mutation({
       isPrivate: args.isPrivate,
       linkedOrderField: args.linkedOrderField,
       linkedSupplierId: args.linkedSupplierId,
+      linkedInstallationTeamId: args.linkedInstallationTeamId,
       defaultTimeMode: args.defaultTimeMode ?? "all_day",
       createdAt: Date.now(),
     });
@@ -54,11 +60,12 @@ export const updateEventType = mutation({
     isPrivate: v.optional(v.boolean()),
     linkedOrderField: v.optional(v.union(v.string(), v.null())),
     linkedSupplierId: v.optional(v.union(v.id("suppliers"), v.null())),
+    linkedInstallationTeamId: v.optional(v.union(v.id("installationTeams"), v.null())),
     defaultTimeMode: v.optional(v.union(v.literal("all_day"), v.literal("timed"), v.null())),
   },
   handler: async (ctx, args) => {
     await requireRole(ctx, "admin");
-    const { id, linkedOrderField, linkedSupplierId, defaultTimeMode, ...updates } = args;
+    const { id, linkedOrderField, linkedSupplierId, linkedInstallationTeamId, defaultTimeMode, ...updates } = args;
     const filtered: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(updates)) {
       if (val !== undefined) filtered[key] = val;
@@ -68,6 +75,9 @@ export const updateEventType = mutation({
     }
     if (linkedSupplierId !== undefined) {
       filtered.linkedSupplierId = linkedSupplierId === null ? undefined : linkedSupplierId;
+    }
+    if (linkedInstallationTeamId !== undefined) {
+      filtered.linkedInstallationTeamId = linkedInstallationTeamId === null ? undefined : linkedInstallationTeamId;
     }
     if (defaultTimeMode !== undefined) {
       filtered.defaultTimeMode = defaultTimeMode === null ? undefined : defaultTimeMode;
@@ -112,8 +122,17 @@ export const getEvents = query({
       )
       .collect();
 
+    const orders = await ctx.db.query("orders").collect();
+    const completedOrderIds = new Set(
+      orders
+        .filter((o) => o.status === "completed" || o.status === "archived")
+        .map((o) => o._id),
+    );
+
     const visible = events.filter(
-      (e) => !e.isPrivate || e.createdBy === user._id,
+      (e) =>
+        (!e.isPrivate || e.createdBy === user._id) &&
+        (!e.orderId || !completedOrderIds.has(e.orderId)),
     );
 
     const eventTypes = await ctx.db.query("calendarEventTypes").collect();
@@ -146,13 +165,42 @@ export const getLinkedOrderEvents = query({
     await requireUser(ctx);
 
     const eventTypes = await ctx.db.query("calendarEventTypes").collect();
-    const linkedTypes = eventTypes.filter((t) => t.linkedOrderField);
-    if (linkedTypes.length === 0) return [];
+    const linkedTypes = [...eventTypes.filter((t) => t.linkedOrderField)];
+
+    if (!linkedTypes.some((t) => t.linkedOrderField === "projectEndDate")) {
+      linkedTypes.push({
+        _id: "builtin_montaz" as any,
+        _creationTime: Date.now(),
+        name: "Montaż",
+        color: "#3b82f6",
+        isPrivate: false,
+        linkedOrderField: "projectEndDate",
+        defaultTimeMode: "timed",
+        createdAt: Date.now(),
+      });
+    }
+
+    if (!linkedTypes.some((t) => t.linkedOrderField === "complaintServiceDate")) {
+      linkedTypes.push({
+        _id: "builtin_serwis" as any,
+        _creationTime: Date.now(),
+        name: "Serwis",
+        color: "#f59e0b",
+        isPrivate: false,
+        linkedOrderField: "complaintServiceDate",
+        defaultTimeMode: "timed",
+        createdAt: Date.now(),
+      });
+    }
 
     const orders = await ctx.db.query("orders").collect();
+    const complaints = await ctx.db.query("complaints").collect();
+    const orderMap = new Map(orders.map((o) => [o._id, o]));
     const clients = await ctx.db.query("clients").collect();
     const suppliers = await ctx.db.query("suppliers").collect();
     const supplierMap = new Map(suppliers.map((s) => [s._id, s.name]));
+    const teams = await ctx.db.query("installationTeams").collect();
+    const teamMap = new Map(teams.map((t) => [t._id, t]));
     const clientMap = new Map(
       clients.map((c) => [
         c._id,
@@ -162,7 +210,8 @@ export const getLinkedOrderEvents = query({
 
     const results: Array<{
       id: string;
-      orderId: string;
+      orderId?: string;
+      complaintId?: string;
       clientId?: string;
       clientName: string;
       orderName?: string;
@@ -171,21 +220,84 @@ export const getLinkedOrderEvents = query({
       eventTypeName: string;
       color: string;
       startDate: number;
+      endDate?: number;
       hasTime?: boolean;
       supplierId?: string;
       supplierName?: string;
+      installationTeamId?: string;
+      installationTeamName?: string;
+      installationTeamColor?: string;
       deliveryIndex?: number;
       serviceName?: string;
       field: string;
       assignedUserId?: string;
+      serviceDateOffset?: number;
     }> = [];
 
     for (const type of linkedTypes) {
       const field = type.linkedOrderField!;
       const timeMode = type.defaultTimeMode ?? "all_day";
 
+      if (field === "complaintServiceDate") {
+        for (const complaint of complaints) {
+          if (!complaint.serviceDate) continue;
+          if (type.linkedInstallationTeamId && complaint.installationTeamId !== type.linkedInstallationTeamId) {
+            continue;
+          }
+          const order = complaint.orderId ? orderMap.get(complaint.orderId) : null;
+          if (order && (order.status === "completed" || order.status === "archived")) {
+            continue;
+          }
+          if (complaint.serviceDate >= args.startDate && complaint.serviceDate <= args.endDate) {
+            const clientName = clientMap.get(complaint.clientId) ?? "Klient";
+            const teamId = complaint.installationTeamId ?? type.linkedInstallationTeamId;
+            const team = teamId ? teamMap.get(teamId) : undefined;
+
+            let startVal = complaint.serviceDate;
+            const d = new Date(startVal);
+            const hasHours = d.getHours() !== 0 || d.getMinutes() !== 0;
+            const hasTime = timeMode === "timed" || hasHours || !!complaint.serviceDateEnd;
+            if (hasTime && d.getHours() === 0 && d.getMinutes() === 0) {
+              d.setHours(8, 0, 0, 0);
+              startVal = d.getTime();
+            }
+
+            results.push({
+              id: `${type._id}_${complaint._id}_complaintService`,
+              complaintId: complaint._id,
+              orderId: complaint.orderId,
+              clientId: complaint.clientId,
+              clientName,
+              orderName: order?.name ?? "Reklamacja",
+              customText: complaint.clientDescription || complaint.description,
+              eventTypeId: type._id,
+              eventTypeName: type.name,
+              color: type.color,
+              startDate: startVal,
+              endDate: complaint.serviceDateEnd ?? (hasTime ? startVal + 3600000 : undefined),
+              hasTime,
+              installationTeamId: teamId,
+              installationTeamName: team?.name,
+              installationTeamColor: team?.color,
+              field,
+              assignedUserId: complaint.assignedTo ? undefined : order?.assignedUserId,
+              // Duration offset so frontend can compute new serviceDateEnd when dragging
+              serviceDateOffset:
+                complaint.serviceDate && complaint.serviceDateEnd
+                  ? complaint.serviceDateEnd - complaint.serviceDate
+                  : 3600000,
+            });
+          }
+        }
+        continue;
+      }
+
       for (const order of orders) {
+        if (order.status === "completed" || order.status === "archived") {
+          continue;
+        }
         const clientName = clientMap.get(order.clientId) ?? "Klient";
+        const team = order.installationTeamId ? teamMap.get(order.installationTeamId) : undefined;
 
         if (field === "projectStartDate" && order.projectStartDate) {
           if (order.projectStartDate >= args.startDate && order.projectStartDate <= args.endDate) {
@@ -213,11 +325,17 @@ export const getLinkedOrderEvents = query({
               startDate: startVal,
               hasTime,
               supplierId: type.linkedSupplierId,
+              installationTeamId: order.installationTeamId,
+              installationTeamName: team?.name,
+              installationTeamColor: team?.color,
               field,
               assignedUserId: order.assignedUserId,
             });
           }
         } else if (field === "projectEndDate" && order.projectEndDate) {
+          if (type.linkedInstallationTeamId && order.installationTeamId !== type.linkedInstallationTeamId) {
+            continue;
+          }
           if (order.projectEndDate >= args.startDate && order.projectEndDate <= args.endDate) {
             let hasTime = false;
             let computedStart = order.projectEndDate;
@@ -241,6 +359,9 @@ export const getLinkedOrderEvents = query({
               startDate: computedStart,
               hasTime,
               supplierId: type.linkedSupplierId,
+              installationTeamId: type.linkedInstallationTeamId ?? order.installationTeamId,
+              installationTeamName: team?.name,
+              installationTeamColor: team?.color,
               field,
               assignedUserId: order.assignedUserId,
             });
@@ -301,13 +422,26 @@ export const getLinkedOrderEvents = query({
 
 export const updateLinkedOrderDate = mutation({
   args: {
-    orderId: v.id("orders"),
+    orderId: v.optional(v.id("orders")),
+    complaintId: v.optional(v.id("complaints")),
     field: v.string(),
     deliveryIndex: v.optional(v.number()),
     newDate: v.number(),
+    serviceDateEnd: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireUser(ctx);
+
+    if (args.field === "complaintServiceDate" && args.complaintId) {
+      const patch: Record<string, unknown> = { serviceDate: args.newDate };
+      if (args.serviceDateEnd !== undefined) {
+        patch.serviceDateEnd = args.serviceDateEnd;
+      }
+      await ctx.db.patch(args.complaintId, patch);
+      return;
+    }
+
+    if (!args.orderId) throw new Error("Wymagane ID zlecenia.");
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie istnieje.");
 

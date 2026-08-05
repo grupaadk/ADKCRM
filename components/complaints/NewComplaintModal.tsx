@@ -8,18 +8,29 @@ import type { Id } from "@/convex/_generated/dataModel";
 type Props = {
   onClose: () => void;
   onCreated?: (id: Id<"complaints">) => void;
+  defaultClientId?: Id<"clients">;
+  defaultOrderId?: Id<"orders">;
 };
 
-export default function NewComplaintModal({ onClose, onCreated }: Props) {
+const FULL_HOURS = [
+  "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
+  "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00",
+  "20:00", "21:00", "22:00",
+];
+
+export default function NewComplaintModal({ onClose, onCreated, defaultClientId, defaultOrderId }: Props) {
   const [visible, setVisible] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
-  const [selectedClientId, setSelectedClientId] = useState<Id<"clients"> | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<Id<"clients"> | null>(defaultClientId ?? null);
   const [selectedClientName, setSelectedClientName] = useState("");
-  const [selectedOrderId, setSelectedOrderId] = useState<Id<"orders"> | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<Id<"orders"> | null>(defaultOrderId ?? null);
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [serviceDate, setServiceDate] = useState("");
+  const [serviceTimeStart, setServiceTimeStart] = useState("");
+  const [serviceTimeEnd, setServiceTimeEnd] = useState("");
   const [clientDescription, setClientDescription] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
+  const [installationTeamId, setInstallationTeamId] = useState<Id<"installationTeams"> | "">("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,10 +43,25 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
 
   const me = useQuery(api.users.me);
   const users = useQuery(api.users.listAllActive);
+  const installationTeams = useQuery(api.installationTeams.listActive) ?? [];
   const searchResults = useQuery(
     api.clients.search,
     clientSearch.trim().length >= 2 ? { searchTerm: clientSearch } : "skip",
   );
+  // Default client query if passed via props
+  const defaultClient = useQuery(
+    api.clients.getById,
+    defaultClientId ? { clientId: defaultClientId } : "skip",
+  );
+
+  useEffect(() => {
+    if (defaultClient && !selectedClientName) {
+      setSelectedClientName(
+        [defaultClient.firstName, defaultClient.lastName].filter(Boolean).join(" ") || defaultClient.companyName || String(defaultClient._id),
+      );
+    }
+  }, [defaultClient, selectedClientName]);
+
   // Orders for selected client
   const clientOrders = useQuery(
     api.orders.listByClient,
@@ -72,13 +98,33 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
     setSaving(true);
     setError(null);
     try {
+      let serviceDateTs: number | undefined;
+      let serviceDateEndTs: number | undefined;
+      if (serviceDate) {
+        const base = new Date(serviceDate);
+        if (serviceTimeStart) {
+          const [h, m] = serviceTimeStart.split(":").map(Number);
+          base.setHours(h, m, 0, 0);
+        } else {
+          base.setHours(0, 0, 0, 0);
+        }
+        serviceDateTs = base.getTime();
+        if (serviceTimeEnd) {
+          const end = new Date(serviceDate);
+          const [h, m] = serviceTimeEnd.split(":").map(Number);
+          end.setHours(h, m, 0, 0);
+          serviceDateEndTs = end.getTime();
+        }
+      }
       const id = await createComplaint({
         clientId: selectedClientId,
         orderId: selectedOrderId ?? undefined,
         startDate: new Date(startDate).getTime(),
-        serviceDate: serviceDate ? new Date(serviceDate).getTime() : undefined,
+        serviceDate: serviceDateTs,
+        serviceDateEnd: serviceDateEndTs,
         clientDescription: clientDescription.trim() || undefined,
         assignedTo: assignedTo || undefined,
+        installationTeamId: installationTeamId || undefined,
         createdBy: me?.displayName ?? me?.login ?? "Nieznany",
       });
       onCreated?.(id);
@@ -88,7 +134,7 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
     } finally {
       setSaving(false);
     }
-  }, [selectedClientId, selectedOrderId, startDate, serviceDate, clientDescription, assignedTo, me, createComplaint, onCreated, onClose]);
+  }, [selectedClientId, selectedOrderId, startDate, serviceDate, serviceTimeStart, serviceTimeEnd, clientDescription, assignedTo, installationTeamId, me, createComplaint, onCreated, onClose]);
 
   const overlayStyle: React.CSSProperties = {
     position: "fixed",
@@ -172,12 +218,14 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
                 }}
               >
                 <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }}>{selectedClientName}</span>
-                <button
-                  onClick={() => { setSelectedClientId(null); setSelectedClientName(""); setSelectedOrderId(null); }}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", fontSize: 11 }}
-                >
-                  Zmień
-                </button>
+                {!defaultClientId && (
+                  <button
+                    onClick={() => { setSelectedClientId(null); setSelectedClientName(""); setSelectedOrderId(null); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", fontSize: 11 }}
+                  >
+                    Zmień
+                  </button>
+                )}
               </div>
             ) : (
               <div style={{ position: "relative" }}>
@@ -357,8 +405,8 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
             </div>
           )}
 
-          {/* Zlecenie (opcjonalne) */}
-          {selectedClientId && (
+          {/* Zlecenie (opcjonalne) - ukryte jeśli przekazano defaultOrderId */}
+          {selectedClientId && !defaultOrderId && (
             <div>
               <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
                 Zlecenie <span style={{ fontSize: 10.5, fontWeight: 400 }}>(opcjonalne)</span>
@@ -437,6 +485,70 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
             </div>
           </div>
 
+          {/* Godziny serwisu (pełne godziny) */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+                Godzina serwisu od
+              </label>
+              <select
+                value={serviceTimeStart}
+                onChange={(e) => setServiceTimeStart(e.target.value)}
+                disabled={!serviceDate}
+                style={{
+                  width: "100%",
+                  fontSize: 12.5,
+                  padding: "7px 10px",
+                  borderRadius: 7,
+                  border: "1px solid var(--line)",
+                  background: serviceDate ? "var(--panel-2)" : "var(--panel)",
+                  color: "var(--text)",
+                  fontFamily: "inherit",
+                  outline: "none",
+                  boxSizing: "border-box",
+                  opacity: serviceDate ? 1 : 0.5,
+                }}
+              >
+                <option value="">— Pełna godzina —</option>
+                {FULL_HOURS.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+                Godzina serwisu do
+              </label>
+              <select
+                value={serviceTimeEnd}
+                onChange={(e) => setServiceTimeEnd(e.target.value)}
+                disabled={!serviceDate}
+                style={{
+                  width: "100%",
+                  fontSize: 12.5,
+                  padding: "7px 10px",
+                  borderRadius: 7,
+                  border: "1px solid var(--line)",
+                  background: serviceDate ? "var(--panel-2)" : "var(--panel)",
+                  color: "var(--text)",
+                  fontFamily: "inherit",
+                  outline: "none",
+                  boxSizing: "border-box",
+                  opacity: serviceDate ? 1 : 0.5,
+                }}
+              >
+                <option value="">— Pełna godzina —</option>
+                {FULL_HOURS.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {/* Uwagi klienta */}
           <div>
             <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
@@ -487,6 +599,35 @@ export default function NewComplaintModal({ onClose, onCreated }: Props) {
               {users?.map((u) => (
                 <option key={u._id} value={u.displayName ?? u.login ?? ""}>
                   {u.displayName ?? u.login}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Ekipa montażowa */}
+          <div>
+            <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+              Ekipa montażowa (opcjonalnie)
+            </label>
+            <select
+              value={installationTeamId}
+              onChange={(e) => setInstallationTeamId(e.target.value as Id<"installationTeams"> | "")}
+              style={{
+                width: "100%",
+                fontSize: 12.5,
+                padding: "7px 10px",
+                borderRadius: 7,
+                border: "1px solid var(--line)",
+                background: "var(--panel-2)",
+                color: "var(--text)",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+            >
+              <option value="">— Brak przypisanej ekipy —</option>
+              {installationTeams.map((t) => (
+                <option key={t._id} value={t._id}>
+                  🛠️ {t.name}
                 </option>
               ))}
             </select>

@@ -163,15 +163,15 @@ export const getById = query({
 });
 
 /**
- * Lekka lista zleceń do wyszukiwarki/pickera (np. dodawanie zadania).
- * Pomija zarchiwizowane. Zwraca tylko pola potrzebne do wyświetlenia.
+ * Lekka lista zleceń do wyszukiwarki/pickera (np. dodawanie zadania, kalendarz).
+ * Pomija zarchiwizowane i zakończone. Zwraca tylko pola potrzebne do wyświetlenia.
  */
 export const listForPicker = query({
   args: {},
   handler: async (ctx) => {
     await requireUser(ctx);
     const orders = await ctx.db.query("orders").order("desc").take(500);
-    const active = orders.filter((o) => o.status !== "archived");
+    const active = orders.filter((o) => o.status !== "archived" && o.status !== "completed");
     return Promise.all(
       active.map(async (order) => {
         const client = await ctx.db.get(order.clientId);
@@ -330,6 +330,7 @@ export const update = mutation({
     projectStartDate: v.optional(v.number()),
     projectEndDate: v.optional(v.number()),
     installationStartDate: v.optional(v.number()),
+    installationTeamId: v.optional(v.id("installationTeams")),
     serviceDeliveries: v.optional(v.array(v.object({
       serviceName: v.string(),
       supplierId: v.id("suppliers"),

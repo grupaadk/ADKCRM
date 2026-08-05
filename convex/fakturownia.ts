@@ -964,8 +964,16 @@ export const addCustomExpense = mutation({
     netAmount: v.optional(v.number()),
     issueDate: v.optional(v.string()),
     categoryId: v.optional(v.id("expenseCategories")),
+    installationTeamId: v.optional(v.id("installationTeams")),
   },
   handler: async (ctx, args) => {
+    // Walidacja: kategoria "Montaż" wymaga podania ekipy
+    if (args.categoryId) {
+      const category = await ctx.db.get(args.categoryId);
+      if (category?.name === "Montaż" && !args.installationTeamId) {
+        throw new Error("Wydatek z kategorią \"Montaż\" wymaga podania ekipy montażowej.");
+      }
+    }
     const remoteId = `custom_${crypto.randomUUID()}`;
     const netAmount = args.netAmount !== undefined
       ? args.netAmount
@@ -981,6 +989,7 @@ export const addCustomExpense = mutation({
       syncedAt: Date.now(),
       issueDate: args.issueDate || new Date().toISOString().split("T")[0],
       categoryId: args.categoryId,
+      installationTeamId: args.installationTeamId,
     });
   },
 });
@@ -989,10 +998,19 @@ export const assignCategory = mutation({
   args: {
     expenseId: v.id("fakturowniaExpensesCache"),
     categoryId: v.optional(v.id("expenseCategories")),
+    installationTeamId: v.optional(v.id("installationTeams")),
   },
   handler: async (ctx, args) => {
+    // Walidacja: kategoria "Montaż" wymaga podania ekipy montażowej
+    if (args.categoryId) {
+      const category = await ctx.db.get(args.categoryId);
+      if (category?.name === "Montaż" && !args.installationTeamId) {
+        throw new Error("Wydatek z kategorią \"Montaż\" wymaga podania ekipy montażowej.");
+      }
+    }
     await ctx.db.patch(args.expenseId, {
       categoryId: args.categoryId,
+      installationTeamId: args.installationTeamId,
     });
   },
 });
@@ -1005,11 +1023,19 @@ export const updateCustomExpense = mutation({
     netAmount: v.number(),
     issueDate: v.optional(v.string()),
     categoryId: v.optional(v.id("expenseCategories")),
+    installationTeamId: v.optional(v.id("installationTeams")),
   },
   handler: async (ctx, args) => {
     const exp = await ctx.db.get(args.expenseId);
     if (!exp || !exp.remoteId.startsWith("custom_")) {
       throw new Error("Można edytować tylko ręcznie dodane wydatki");
+    }
+    // Walidacja: kategoria "Montaż" wymaga podania ekipy
+    if (args.categoryId) {
+      const category = await ctx.db.get(args.categoryId);
+      if (category?.name === "Montaż" && !args.installationTeamId) {
+        throw new Error("Wydatek z kategorią \"Montaż\" wymaga podania ekipy montażowej.");
+      }
     }
     await ctx.db.patch(args.expenseId, {
       number: args.title,
@@ -1017,6 +1043,7 @@ export const updateCustomExpense = mutation({
       netAmount: args.netAmount,
       issueDate: args.issueDate || new Date().toISOString().split("T")[0],
       categoryId: args.categoryId,
+      installationTeamId: args.installationTeamId,
     });
   },
 });

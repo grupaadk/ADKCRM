@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { createPortal } from "react-dom";
 import ComplaintPhotoSection from "@/app/admin/klient/[id]/zlecenie/[orderId]/ComplaintPhotoSection";
-import { Search, UserPlus, X } from "lucide-react";
+import { Search, UserPlus, X, CheckCircle2 } from "lucide-react";
 
 type Status = "nowa" | "w_toku" | "rozwiazana" | "zamknieta";
 
@@ -23,6 +23,12 @@ const STATUS_COLORS: Record<Status, { bg: string; color: string; border: string 
   rozwiazana: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
   zamknieta: { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" },
 };
+
+const FULL_HOURS = [
+  "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
+  "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00",
+  "20:00", "21:00", "22:00",
+];
 
 function formatDate(ts: number) {
   return new Date(ts).toLocaleDateString("pl-PL", {
@@ -57,6 +63,7 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
   const complaint = useQuery(api.complaints.getById, { complaintId });
   const me = useQuery(api.users.me);
   const users = useQuery(api.users.listAllActive);
+  const installationTeams = useQuery(api.installationTeams.listActive) ?? [];
 
   const currentClient = useQuery(api.clients.getById, complaint?.clientId ? { clientId: complaint.clientId } : "skip");
   const currentOrder = useQuery(api.orders.getById, complaint?.orderId ? { orderId: complaint.orderId } : "skip");
@@ -215,6 +222,27 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
             >
               {STATUS_LABELS[status]}
             </span>
+            {status !== "zamknieta" && status !== "rozwiazana" && (
+              <button
+                type="button"
+                onClick={() => updateStatus({ complaintId, status: "zamknieta" })}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "3px 9px",
+                  borderRadius: 20,
+                  background: "#f0fdf4",
+                  color: "#15803d",
+                  border: "1px solid #bbf7d0",
+                  cursor: "pointer",
+                }}
+              >
+                <CheckCircle2 size={12} /> Zamknij
+              </button>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -246,45 +274,127 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
               </span>
             </div>
             {/* Service Date */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11.5, color: "var(--text-mute)", width: 120, flexShrink: 0 }}>Data serwisu</span>
-              <input
-                type="date"
-                value={complaint.serviceDate ? new Date(complaint.serviceDate).toISOString().slice(0, 10) : ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  updateDetails({
-                    complaintId,
-                    serviceDate: val ? new Date(val).getTime() : undefined,
-                  });
-                }}
-                style={{
-                  fontSize: 12,
-                  padding: "4px 8px",
-                  borderRadius: 6,
-                  border: "1px solid var(--line)",
-                  background: "var(--panel-2)",
-                  color: "var(--text)",
-                  fontFamily: "inherit",
-                }}
-              />
-              {complaint.serviceDate && (
-                <button
-                  type="button"
-                  onClick={() => updateDetails({ complaintId, serviceDate: undefined })}
-                  title="Wyczyść datę serwisu"
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+              <span style={{ fontSize: 11.5, color: "var(--text-mute)", width: 120, flexShrink: 0, paddingTop: 5 }}>Data serwisu</span>
+              <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap", flex: 1 }}>
+                <input
+                  type="date"
+                  value={complaint.serviceDate ? new Date(complaint.serviceDate).toISOString().slice(0, 10) : ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) {
+                      updateDetails({ complaintId, serviceDate: undefined, serviceDateEnd: undefined });
+                      return;
+                    }
+                    // Preserve existing time from serviceDate if present
+                    const existing = complaint.serviceDate ? new Date(complaint.serviceDate) : null;
+                    const base = new Date(val);
+                    if (existing && (existing.getHours() !== 0 || existing.getMinutes() !== 0)) {
+                      base.setHours(existing.getHours(), existing.getMinutes(), 0, 0);
+                    }
+                    // Recalculate end date on same new day
+                    let newEnd: number | undefined;
+                    if (complaint.serviceDateEnd) {
+                      const existingEnd = new Date(complaint.serviceDateEnd);
+                      const endBase = new Date(val);
+                      endBase.setHours(existingEnd.getHours(), existingEnd.getMinutes(), 0, 0);
+                      newEnd = endBase.getTime();
+                    }
+                    updateDetails({ complaintId, serviceDate: base.getTime(), serviceDateEnd: newEnd });
+                  }}
                   style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--text-mute)",
-                    fontSize: 11,
-                    padding: "2px 4px",
+                    fontSize: 12,
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid var(--line)",
+                    background: "var(--panel-2)",
+                    color: "var(--text)",
+                    fontFamily: "inherit",
+                  }}
+                />
+                <span style={{ fontSize: 11.5, color: "var(--text-mute)" }}>od</span>
+                <select
+                  value={complaint.serviceDate && (new Date(complaint.serviceDate).getHours() !== 0 || new Date(complaint.serviceDate).getMinutes() !== 0)
+                    ? `${String(new Date(complaint.serviceDate).getHours()).padStart(2, "0")}:${String(new Date(complaint.serviceDate).getMinutes()).padStart(2, "0")}`
+                    : ""}
+                  disabled={!complaint.serviceDate}
+                  onChange={(e) => {
+                    if (!complaint.serviceDate) return;
+                    const val = e.target.value;
+                    if (!val) return;
+                    const [h, m] = val.split(":").map(Number);
+                    const base = new Date(complaint.serviceDate);
+                    base.setHours(h, m, 0, 0);
+                    updateDetails({ complaintId, serviceDate: base.getTime() });
+                  }}
+                  style={{
+                    fontSize: 12,
+                    padding: "4px 6px",
+                    borderRadius: 6,
+                    border: "1px solid var(--line)",
+                    background: complaint.serviceDate ? "var(--panel-2)" : "var(--panel)",
+                    color: "var(--text)",
+                    fontFamily: "inherit",
+                    opacity: complaint.serviceDate ? 1 : 0.5,
                   }}
                 >
-                  ✕
-                </button>
-              )}
+                  <option value="">—</option>
+                  {FULL_HOURS.map((h) => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+                <span style={{ fontSize: 11.5, color: "var(--text-mute)" }}>do</span>
+                <select
+                  value={complaint.serviceDateEnd
+                    ? `${String(new Date(complaint.serviceDateEnd).getHours()).padStart(2, "0")}:${String(new Date(complaint.serviceDateEnd).getMinutes()).padStart(2, "0")}`
+                    : ""}
+                  disabled={!complaint.serviceDate}
+                  onChange={(e) => {
+                    if (!complaint.serviceDate) return;
+                    const val = e.target.value;
+                    if (!val) {
+                      updateDetails({ complaintId, serviceDateEnd: undefined });
+                      return;
+                    }
+                    const [h, m] = val.split(":").map(Number);
+                    const base = new Date(complaint.serviceDate);
+                    base.setHours(h, m, 0, 0);
+                    updateDetails({ complaintId, serviceDateEnd: base.getTime() });
+                  }}
+                  style={{
+                    fontSize: 12,
+                    padding: "4px 6px",
+                    borderRadius: 6,
+                    border: "1px solid var(--line)",
+                    background: complaint.serviceDate ? "var(--panel-2)" : "var(--panel)",
+                    color: "var(--text)",
+                    fontFamily: "inherit",
+                    opacity: complaint.serviceDate ? 1 : 0.5,
+                  }}
+                >
+                  <option value="">—</option>
+                  {FULL_HOURS.map((h) => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+                {complaint.serviceDate && (
+                  <button
+                    type="button"
+                    onClick={() => updateDetails({ complaintId, serviceDate: undefined, serviceDateEnd: undefined })}
+                    title="Wyczyść datę serwisu"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "var(--text-mute)",
+                      fontSize: 11,
+                      padding: "2px 4px",
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
             {/* Status selector */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -504,6 +614,38 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
                 {users?.map((u) => (
                   <option key={u._id} value={u.displayName ?? u.login ?? ""}>
                     {u.displayName ?? u.login}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Ekipa montażowa */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11.5, color: "var(--text-mute)", width: 120, flexShrink: 0 }}>Ekipa montażowa</span>
+              <select
+                value={complaint.installationTeamId ?? ""}
+                onChange={(e) =>
+                  updateDetails({
+                    complaintId,
+                    installationTeamId: e.target.value ? (e.target.value as Id<"installationTeams">) : null,
+                  })
+                }
+                style={{
+                  fontSize: 12,
+                  padding: "3px 8px",
+                  borderRadius: 6,
+                  border: "1px solid var(--line)",
+                  background: "var(--panel-2)",
+                  color: "var(--text)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  flex: 1,
+                }}
+              >
+                <option value="">— Brak przypisanej ekipy —</option>
+                {installationTeams.map((t) => (
+                  <option key={t._id} value={t._id}>
+                    🛠️ {t.name}
                   </option>
                 ))}
               </select>
