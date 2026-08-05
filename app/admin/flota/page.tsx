@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api"
 import { Button } from "@/components/ui/Button"
 import { Plus, Car, FileText } from "lucide-react"
 import Link from "next/link"
+import toast from "react-hot-toast"
 import ModalPortal from "@/components/ModalPortal"
 
 export default function FlotaPage() {
@@ -26,7 +27,7 @@ export default function FlotaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.make || !formData.model || !formData.registrationNumber) {
-      alert("Wypełnij wymagane pola")
+      toast.error("Wypełnij wymagane pola")
       return
     }
 
@@ -42,7 +43,7 @@ export default function FlotaPage() {
             ? (formData.assignedInstallationTeamId as any)
             : undefined,
       })
-      alert("Samochód dodany")
+      toast.success("Samochód dodany")
       setIsAddOpen(false)
       setFormData({
         make: "",
@@ -53,7 +54,7 @@ export default function FlotaPage() {
         assignedInstallationTeamId: "none",
       })
     } catch (err: any) {
-      alert(err.message || "Wystąpił błąd")
+      toast.error(err.message || "Wystąpił błąd")
     }
   }
 

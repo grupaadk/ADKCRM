@@ -7,6 +7,7 @@ import { Id } from "@/convex/_generated/dataModel"
 import { Button } from "@/components/ui/Button"
 import { ArrowLeft, Plus, Trash2 } from "lucide-react"
 import Link from "next/link"
+import toast from "react-hot-toast"
 import ModalPortal from "@/components/ModalPortal"
 
 export default function CarDetailsPage({ params }: { params: { carId: Id<"cars"> } }) {
@@ -28,7 +29,7 @@ export default function CarDetailsPage({ params }: { params: { carId: Id<"cars">
   const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!eventData.date || !eventData.cost) {
-      alert("Wypełnij wymagane pola")
+      toast.error("Wypełnij wymagane pola")
       return
     }
 
@@ -42,7 +43,7 @@ export default function CarDetailsPage({ params }: { params: { carId: Id<"cars">
         description: eventData.description || undefined,
         addToCalendar: eventData.addToCalendar,
       })
-      alert("Zdarzenie dodane")
+      toast.success("Zdarzenie dodane")
       setIsAddEventOpen(false)
       setEventData({
         type: "refueling",
@@ -53,7 +54,7 @@ export default function CarDetailsPage({ params }: { params: { carId: Id<"cars">
         addToCalendar: false,
       })
     } catch (err: any) {
-      alert(err.message || "Błąd dodawania zdarzenia")
+      toast.error(err.message || "Błąd dodawania zdarzenia")
     }
   }
 
@@ -61,9 +62,9 @@ export default function CarDetailsPage({ params }: { params: { carId: Id<"cars">
     if (confirm("Na pewno chcesz usunąć to zdarzenie?")) {
       try {
         await deleteEvent({ eventId })
-        alert("Usunięto zdarzenie")
+        toast.success("Usunięto zdarzenie")
       } catch (err: any) {
-        alert("Błąd usuwania")
+        toast.error("Błąd usuwania")
       }
     }
   }
