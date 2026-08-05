@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { getCurrentUser } from "./lib/auth";
 
 export const getCars = query({
   args: {},
@@ -132,20 +133,8 @@ export const createCarEvent = mutation({
       const car = await ctx.db.get(args.carId);
       const title = `${args.type === 'inspection' ? 'Przegląd' : args.type === 'repair' ? 'Naprawa' : args.type === 'refueling' ? 'Tankowanie' : 'Inne'}: ${car?.registrationNumber}`;
       
-      const identity = await ctx.auth.getUserIdentity();
-      // If no identity, we might fallback to some default user if required by schema. 
-      // The schema for calendarEvents requires createdBy: v.id("users").
-      // Since it's admin, they should be logged in. We need their user ID.
-      let createdBy = null;
-      if (identity && identity.subject) {
-        const user = await ctx.db
-          .query("users")
-          .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-          .first();
-        if (user) {
-          createdBy = user._id;
-        }
-      }
+      const user = await getCurrentUser(ctx);
+      let createdBy = user?._id || null;
 
       if (createdBy) {
         linkedCalendarEventId = await ctx.db.insert("calendarEvents", {
