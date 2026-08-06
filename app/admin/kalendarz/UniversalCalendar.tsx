@@ -14,6 +14,7 @@ import type { EventClickArg, EventDropArg, EventContentArg, DatesSetArg } from "
 import type { DateClickArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useStatuses } from "@/components/StatusLabelsContext";
+import { FilterX } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -966,6 +967,39 @@ export default function UniversalCalendar({
       {/* Filters bar */}
       {!initialTeamId && (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 20px", borderBottom: "1px solid var(--line)", background: "var(--card)" }}>
+          {/* CTA Clear All Filters Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveEventTypeFilters(new Set());
+              setActiveSupplierFilters(new Set());
+              setActiveTeamFilters(new Set());
+              setActiveUserFilters(new Set());
+            }}
+            title="Wyczyść wszystkie filtry"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "4px 12px", borderRadius: 20, fontSize: 11.5,
+              background: "#fef2f2", color: "#ef4444",
+              border: "1.5px solid #fecaca", fontWeight: 700,
+              cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+              boxShadow: "0 1px 3px rgba(239, 68, 68, 0.08)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#fee2e2";
+              e.currentTarget.style.borderColor = "#fca5a5";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#fef2f2";
+              e.currentTarget.style.borderColor = "#fecaca";
+            }}
+          >
+            <FilterX style={{ width: 13, height: 13 }} />
+            <span>Wyczyść filtry</span>
+          </button>
+
+          <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
+
           {/* General Event type filters (unlinked) */}
           {eventTypes.filter(t => !t.linkedSupplierId && !t.linkedInstallationTeamId).map((type) => {
             const active = activeEventTypeFilters.has(type._id);
