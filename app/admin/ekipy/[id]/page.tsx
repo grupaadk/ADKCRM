@@ -12,7 +12,8 @@ import {
   Tooltip,
   ResponsiveContainer,
   Area,
-  AreaChart,
+  ComposedChart,
+  Line,
 } from "recharts";
 import {
   Wrench,
@@ -562,24 +563,37 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
                 const reversed = [...teamFinancials.monthlyBreakdown].reverse();
                 return (
                   <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
-                    <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
                       <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
                         <Calendar style={{ width: 16, height: 16, color: "var(--text-mute)" }} />
-                        Koszty miesiąc po miesiącu
+                        Koszty i montaże miesiąc po miesiącu
                       </h3>
-                      <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
-                        {teamFinancials.monthlyBreakdown.length} {teamFinancials.monthlyBreakdown.length === 1 ? "miesiąc" : "miesięcy"}
-                      </span>
+                      
+                      <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 11.5, fontWeight: 600 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#f87171" }} />
+                          <span style={{ color: "var(--text-mute)" }}>Koszty netto</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} />
+                          <span style={{ color: "var(--text-mute)" }}>Bilans ze zleceń</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#3b82f6" }} />
+                          <span style={{ color: "var(--text-strong)", fontWeight: 700 }}>Liczba montaży</span>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Chart */}
                     <div style={{ padding: "16px 12px 8px" }}>
-                      <ResponsiveContainer width="100%" height={210}>
-                        <AreaChart
+                      <ResponsiveContainer width="100%" height={230}>
+                        <ComposedChart
                           data={teamFinancials.monthlyBreakdown.map((m) => ({
                             name: monthLabel(m.month),
                             koszty: m.expenses,
                             bilans: m.earnings,
+                            montaze: m.installationsCount ?? 0,
                           }))}
                           margin={{ top: 8, right: 20, left: 10, bottom: 0 }}
                         >
@@ -595,26 +609,35 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
                           <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--text-mute)" }} axisLine={false} tickLine={false} dy={6} />
-                          <YAxis tick={{ fontSize: 11, fill: "var(--text-mute)" }} axisLine={false} tickLine={false} width={60} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
+                          <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "var(--text-mute)" }} axisLine={false} tickLine={false} width={60} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
+                          <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "#2563eb", fontWeight: 700 }} axisLine={false} tickLine={false} width={35} allowDecimals={false} unit=" szt." />
                           <Tooltip
                             contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid var(--line)", background: "var(--card)", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
                             formatter={(value, name) => [
-                              `${(value as number).toLocaleString("pl-PL", { minimumFractionDigits: 2 })} zł`,
-                              (name as string) === "koszty" ? "Koszty netto" : "Bilans ze zleceń",
+                              (name as string) === "montaze"
+                                ? `${value} montaż(y)`
+                                : `${(value as number).toLocaleString("pl-PL", { minimumFractionDigits: 2 })} zł`,
+                              (name as string) === "koszty"
+                                ? "Koszty netto"
+                                : (name as string) === "bilans"
+                                ? "Bilans ze zleceń"
+                                : "Liczba montaży",
                             ]}
                             labelStyle={{ fontWeight: 700, color: "var(--text-strong)", marginBottom: 4 }}
                           />
-                          <Area type="monotone" dataKey="koszty" stroke="#f87171" strokeWidth={2.5} fill="url(#colorKoszty)" dot={{ r: 4, fill: "#f87171", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 6, fill: "#ef4444", stroke: "#fff", strokeWidth: 2 }} name="koszty" />
-                          <Area type="monotone" dataKey="bilans" stroke="#10b981" strokeWidth={2.5} fill="url(#colorBilans)" dot={{ r: 4, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 6, fill: "#059669", stroke: "#fff", strokeWidth: 2 }} strokeDasharray="5 3" name="bilans" />
-                        </AreaChart>
+                          <Area yAxisId="left" type="monotone" dataKey="koszty" stroke="#f87171" strokeWidth={2.5} fill="url(#colorKoszty)" dot={{ r: 4, fill: "#f87171", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 6, fill: "#ef4444", stroke: "#fff", strokeWidth: 2 }} name="koszty" />
+                          <Area yAxisId="left" type="monotone" dataKey="bilans" stroke="#10b981" strokeWidth={2.5} fill="url(#colorBilans)" dot={{ r: 4, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 6, fill: "#059669", stroke: "#fff", strokeWidth: 2 }} strokeDasharray="5 3" name="bilans" />
+                          <Line yAxisId="right" type="monotone" dataKey="montaze" stroke="#3b82f6" strokeWidth={3} dot={{ r: 5, fill: "#3b82f6", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 7, fill: "#1d4ed8", stroke: "#fff", strokeWidth: 2 }} name="montaze" />
+                        </ComposedChart>
                       </ResponsiveContainer>
                     </div>
 
                     <div style={{ overflowX: "auto", borderTop: "1px solid var(--line)" }}>
-                      <table style={{ width: "100%", textLeft: "left", fontSize: 12.5, borderCollapse: "collapse", minWidth: 560 }}>
+                      <table style={{ width: "100%", textLeft: "left", fontSize: 12.5, borderCollapse: "collapse", minWidth: 620 }}>
                         <thead>
                           <tr style={{ background: "var(--panel)", borderBottom: "1px solid var(--line)", color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
                             <th style={{ padding: "10px 20px", textAlign: "left" }}>Miesiąc</th>
+                            <th style={{ padding: "10px 16px", textAlign: "right", color: "#2563eb" }}>Montaże</th>
                             <th style={{ padding: "10px 16px", textAlign: "right" }}>Koszty netto</th>
                             <th style={{ padding: "10px 16px", textAlign: "right" }}>Koszty brutto</th>
                             <th style={{ padding: "10px 16px", textAlign: "right", color: "#10b981" }}>Bilans ze zleceń</th>
@@ -631,6 +654,11 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
                               <tr key={row.month} style={{ borderBottom: "1px solid var(--line)" }}>
                                 <td style={{ padding: "12px 20px", fontWeight: 700, color: "var(--text-strong)" }}>
                                   {monthLabel(row.month)}
+                                </td>
+                                <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                                  <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe" }}>
+                                    🛠️ {row.installationsCount ?? 0}
+                                  </span>
                                 </td>
                                 <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "var(--text-strong)" }}>
                                   {fmt(row.expenses)} zł

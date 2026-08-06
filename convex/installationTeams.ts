@@ -272,10 +272,27 @@ export const getTeamFinancials = query({
       };
     }
 
-    // Zestawienie miesięczne — połącz koszty i przychody
+    // Liczba montaży po miesiącu (zlecenia ekipy)
+    const installationsByMonth: Record<string, number> = {};
+    for (const o of teamOrders) {
+      let month: string | null = null;
+      if (o.projectEndDate) {
+        month = new Date(o.projectEndDate).toISOString().slice(0, 7);
+      } else if (o.serviceDate) {
+        month = new Date(o.serviceDate).toISOString().slice(0, 7);
+      } else {
+        month = new Date(o._creationTime).toISOString().slice(0, 7);
+      }
+      if (month) {
+        installationsByMonth[month] = (installationsByMonth[month] ?? 0) + 1;
+      }
+    }
+
+    // Zestawienie miesięczne — połącz koszty, przychody i liczbę montaży
     const allMonthsSet = new Set([
       ...Object.keys(expensesByMonth).filter((m) => m !== "unknown"),
       ...Object.keys(earningsByMonth),
+      ...Object.keys(installationsByMonth),
     ]);
     const allMonthsSorted = Array.from(allMonthsSet).sort();
 
@@ -286,6 +303,8 @@ export const getTeamFinancials = query({
         ? ((curr.net - prevExpMonth.net) / prevExpMonth.net) * 100
         : null;
       const earnings = earningsByMonth[month] ?? 0;
+      const installationsCount = installationsByMonth[month] ?? 0;
+
       return {
         month,
         expenses: curr.net,
@@ -294,6 +313,7 @@ export const getTeamFinancials = query({
         momChange,
         earnings,
         margin: earnings - curr.net,
+        installationsCount,
       };
     });
 
