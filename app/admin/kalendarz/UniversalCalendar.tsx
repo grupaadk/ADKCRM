@@ -295,21 +295,103 @@ export default function UniversalCalendar({
 
   // ─── Build unified events ───────────────────────────────────────────────────
 
+  // ─── Build unified events ───────────────────────────────────────────────────
+
   const events = useMemo(() => {
     const result: object[] = [];
 
-    const isFilteringSupplier = activeSupplierFilters.size > 0 && activeSupplierFilters.size < activeSuppliers.length;
-    const isFilteringTeam = !initialTeamId && activeTeamFilters.size > 0 && activeTeamFilters.size < installationTeams.length;
+    const hasActiveEventTypeFilters = activeEventTypeFilters.size > 0;
+    const hasActiveSupplierFilters = activeSupplierFilters.size > 0;
+    const hasActiveTeamFilters = activeTeamFilters.size > 0;
+    const hasActiveUserFilters = activeUserFilters.size > 0;
+
+    // Jeśli żaden filtr nie jest zaznaczony, kalendarz jest pusty
+    const isAnyFilterActive =
+      hasActiveEventTypeFilters ||
+      hasActiveSupplierFilters ||
+      hasActiveTeamFilters ||
+      hasActiveUserFilters;
+
+    if (!isAnyFilterActive) {
+      return result;
+    }
+
+    const matchesFilters = (params: {
+      eventTypeId: string;
+      supplierId?: string;
+      installationTeamId?: string;
+      assignedUserIds?: string[];
+      assignedUserId?: string;
+    }) => {
+      // Filtr użytkownika (jeśli aktywny)
+      if (hasActiveUserFilters) {
+        if (params.assignedUserIds) {
+          const userMatch =
+            params.assignedUserIds.some((uid) => activeUserFilters.has(uid)) ||
+            (params.assignedUserIds.length === 0 && activeUserFilters.has("__none__"));
+          if (!userMatch) return false;
+        } else if (params.assignedUserId !== undefined) {
+          const userMatch = params.assignedUserId
+            ? activeUserFilters.has(params.assignedUserId)
+            : activeUserFilters.has("__none__");
+          if (!userMatch) return false;
+        }
+      }
+
+      // Sprawdź czy wydarzenie pasuje do przynajmniej jednego aktywnego kryterium
+      let matched = false;
+
+      // 1. Pasuje do aktywnego typu wydarzenia
+      if (hasActiveEventTypeFilters && activeEventTypeFilters.has(params.eventTypeId)) {
+        matched = true;
+      }
+
+      // 2. Pasuje do aktywnego dostawcy
+      if (!matched && hasActiveSupplierFilters) {
+        if (params.supplierId && activeSupplierFilters.has(params.supplierId)) {
+          matched = true;
+        } else {
+          const et = eventTypes.find((t) => t._id === params.eventTypeId);
+          if (et?.linkedSupplierId && activeSupplierFilters.has(et.linkedSupplierId)) {
+            matched = true;
+          }
+        }
+      }
+
+      // 3. Pasuje do aktywnej ekipy montażowej
+      if (!matched && hasActiveTeamFilters) {
+        if (params.installationTeamId && activeTeamFilters.has(params.installationTeamId)) {
+          matched = true;
+        } else {
+          const et = eventTypes.find((t) => t._id === params.eventTypeId);
+          if (et?.linkedInstallationTeamId && activeTeamFilters.has(et.linkedInstallationTeamId)) {
+            matched = true;
+          }
+        }
+      }
+
+      return matched;
+    };
 
     // --- Calendar events ---
     if (calendarEvents) {
       for (const e of calendarEvents) {
         if (!showPrivate && e.isPrivate) continue;
-        if (activeEventTypeFilters.size > 0 && !activeEventTypeFilters.has(e.eventTypeId)) continue;
-        if (isFilteringSupplier) continue;
-        if (isFilteringTeam || (initialTeamId && activeTeamFilters.size > 0)) {
-          const teamId = e.installationTeamId ?? (e.orderId ? allOrders?.find((o) => o._id === e.orderId)?.installationTeamId : undefined);
-          if (teamId && !activeTeamFilters.has(teamId)) continue;
+
+        const teamId =
+          e.installationTeamId ??
+          (e.orderId ? allOrders?.find((o) => o._id === e.orderId)?.installationTeamId : undefined);
+        const supplierId = e.eventType?.linkedSupplierId;
+
+        if (
+          !matchesFilters({
+            eventTypeId: e.eventTypeId,
+            supplierId,
+            installationTeamId: teamId,
+            assignedUserIds: e.assignedUsers,
+          })
+        ) {
+          continue;
         }
 
         const color = e.eventType?.color ?? "#64748b";
@@ -338,21 +420,16 @@ export default function UniversalCalendar({
 
     // --- Linked Order events ---
     if (linkedOrderEvents) {
-      const isFilteringUser = activeUserFilters.size > 0 && (allUsers ? activeUserFilters.size < allUsers.length : false);
-      const filteredLinked = !isFilteringUser
-        ? linkedOrderEvents
-        : linkedOrderEvents.filter((le) => {
-            if (!le.assignedUserId) return activeUserFilters.has("__none__");
-            return activeUserFilters.has(le.assignedUserId);
-          });
-
-      for (const le of filteredLinked) {
-        if (activeEventTypeFilters.size > 0 && !activeEventTypeFilters.has(le.eventTypeId)) continue;
-        if (isFilteringSupplier) {
-          if (le.supplierId && !activeSupplierFilters.has(le.supplierId)) continue;
-        }
-        if (isFilteringTeam || (initialTeamId && activeTeamFilters.size > 0)) {
-          if (le.installationTeamId && !activeTeamFilters.has(le.installationTeamId)) continue;
+      for (const le of linkedOrderEvents) {
+        if (
+          !matchesFilters({
+            eventTypeId: le.eventTypeId,
+            supplierId: le.supplierId,
+            installationTeamId: le.installationTeamId,
+            assignedUserId: le.assignedUserId,
+          })
+        ) {
+          continue;
         }
 
         const baseText = le.orderName ? `${le.orderName} - ${le.clientName}` : le.clientName;
@@ -394,7 +471,17 @@ export default function UniversalCalendar({
     }
 
     return result;
-  }, [calendarEvents, linkedOrderEvents, activeUserFilters, activeEventTypeFilters, activeSupplierFilters, activeTeamFilters, showPrivate, activeSuppliers.length, installationTeams.length, allUsers, allOrders, initialTeamId]);
+  }, [
+    calendarEvents,
+    linkedOrderEvents,
+    activeUserFilters,
+    activeEventTypeFilters,
+    activeSupplierFilters,
+    activeTeamFilters,
+    showPrivate,
+    allOrders,
+    eventTypes,
+  ]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
 
