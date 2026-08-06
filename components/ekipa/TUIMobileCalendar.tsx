@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect, useMemo } from "react";
+import React, { useRef, useEffect, useMemo } from "react";
 import Calendar from "@toast-ui/calendar";
 import "@toast-ui/calendar/dist/toastui-calendar.min.css";
 import type { EventObject } from "@toast-ui/calendar";
@@ -41,14 +41,13 @@ export default function TUIMobileCalendar({
 }: TUIMobileCalendarProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const calendarInstanceRef = useRef<Calendar | null>(null);
-  const [view, setView] = useState<"day" | "week" | "month">("month");
 
   // Mount TUI Calendar directly via vanilla JS library to ensure React 19 compatibility
   useEffect(() => {
     if (!containerRef.current) return;
 
     const cal = new Calendar(containerRef.current, {
-      defaultView: view,
+      defaultView: "month",
       useFormPopup: false,
       useDetailPopup: false,
       isReadOnly: false,
@@ -197,14 +196,6 @@ export default function TUIMobileCalendar({
     cal.on("beforeUpdateEvent", handleUpdate);
   }, [onEventClick, onEventDateChange]);
 
-  const handleChangeView = (newView: "day" | "week" | "month") => {
-    setView(newView);
-    const cal = calendarInstanceRef.current;
-    if (cal) {
-      cal.changeView(newView);
-    }
-  };
-
   const nav = (action: "prev" | "next" | "today") => {
     const cal = calendarInstanceRef.current;
     if (!cal) return;
@@ -215,32 +206,10 @@ export default function TUIMobileCalendar({
 
   return (
     <div className="flex flex-col h-[700px] w-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
-        <div className="flex gap-2">
-          <button onClick={() => nav("prev")} className="p-2 border rounded-md hover:bg-slate-100">&lt;</button>
-          <button onClick={() => nav("today")} className="px-3 py-2 border rounded-md font-semibold text-sm hover:bg-slate-100">Dziś</button>
-          <button onClick={() => nav("next")} className="p-2 border rounded-md hover:bg-slate-100">&gt;</button>
-        </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => handleChangeView("day")} 
-            className={`px-3 py-2 border rounded-md font-semibold text-sm transition-colors ${view === "day" ? "bg-emerald-500 text-white border-emerald-600" : "bg-white text-slate-700 hover:bg-slate-100"}`}
-          >
-            Dzień
-          </button>
-          <button 
-            onClick={() => handleChangeView("week")} 
-            className={`px-3 py-2 border rounded-md font-semibold text-sm transition-colors ${view === "week" ? "bg-emerald-500 text-white border-emerald-600" : "bg-white text-slate-700 hover:bg-slate-100"}`}
-          >
-            Tydzień
-          </button>
-          <button 
-            onClick={() => handleChangeView("month")} 
-            className={`px-3 py-2 border rounded-md font-semibold text-sm transition-colors ${view === "month" ? "bg-emerald-500 text-white border-emerald-600" : "bg-white text-slate-700 hover:bg-slate-100"}`}
-          >
-            Miesiąc
-          </button>
-        </div>
+      <div className="flex items-center gap-2 p-4 border-b border-slate-200 bg-slate-50">
+        <button onClick={() => nav("prev")} className="p-2 border rounded-md hover:bg-slate-100">&lt;</button>
+        <button onClick={() => nav("today")} className="px-3 py-2 border rounded-md font-semibold text-sm hover:bg-slate-100">Dziś</button>
+        <button onClick={() => nav("next")} className="p-2 border rounded-md hover:bg-slate-100">&gt;</button>
       </div>
       <div className="flex-1 overflow-hidden relative" ref={containerRef} />
     </div>
