@@ -209,10 +209,18 @@ export const getTeamFinancials = query({
       }
     }
 
+    // Typy wydarzeń w kalendarzu podpięte pod tę ekipę
+    const allEventTypes = await ctx.db.query("calendarEventTypes").collect();
+    const teamEventTypeIds = new Set(
+      allEventTypes
+        .filter((t) => t.linkedInstallationTeamId === args.teamId)
+        .map((t) => t._id)
+    );
+
     // Pobierz wydarzenia w kalendarzu dla ekipy
     const allCalendarEvents = await ctx.db.query("calendarEvents").collect();
     const teamCalendarEvents = allCalendarEvents.filter(
-      (ev) => ev.installationTeamId === args.teamId
+      (ev) => ev.installationTeamId === args.teamId || teamEventTypeIds.has(ev.eventTypeId)
     );
     const calendarEventsByOrder = new Map<string, typeof allCalendarEvents>();
     for (const ev of allCalendarEvents) {
@@ -222,6 +230,14 @@ export const getTeamFinancials = query({
         calendarEventsByOrder.set(ev.orderId, list);
       }
     }
+
+    // Pomocnik do pobierania YYYY-MM z timestampu
+    const getMonthFromTs = (ts: number) => {
+      const d = new Date(ts);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      return `${y}-${m}`;
+    };
 
     // Zbierz wszystkie identyfikatory zleceń powiązanych z ekipą (bezpośrednio, przez wydatki lub kalendarz)
     const teamOrderIds = new Set<string>([
@@ -257,19 +273,19 @@ export const getTeamFinancials = query({
       if (orderRevenue > 0) {
         let month: string | null = null;
         const orderCalEvents = calendarEventsByOrder.get(o._id as string) ?? [];
-        const firstCal = orderCalEvents.find((ev) => ev.date);
-        if (firstCal?.date) {
-          month = firstCal.date.slice(0, 7);
+        const firstCal = orderCalEvents.find((ev) => ev.startDate);
+        if (firstCal?.startDate) {
+          month = getMonthFromTs(firstCal.startDate);
         } else if (o.projectEndDate) {
-          month = new Date(o.projectEndDate).toISOString().slice(0, 7);
+          month = getMonthFromTs(o.projectEndDate);
         } else if (o.installationStartDate) {
-          month = new Date(o.installationStartDate).toISOString().slice(0, 7);
+          month = getMonthFromTs(o.installationStartDate);
         } else {
           const firstInv = orderInvoices.find((i) => i.issueDate);
           if (firstInv?.issueDate) {
             month = firstInv.issueDate.slice(0, 7);
           } else {
-            month = new Date(o._creationTime).toISOString().slice(0, 7);
+            month = getMonthFromTs(o._creationTime);
           }
         }
         if (month) {
@@ -305,15 +321,15 @@ export const getTeamFinancials = query({
     for (const o of allTeamOrders) {
       let month: string | null = null;
       const orderCalEvents = calendarEventsByOrder.get(o._id as string) ?? [];
-      const firstCal = orderCalEvents.find((ev) => ev.date);
-      if (firstCal?.date) {
-        month = firstCal.date.slice(0, 7);
+      const firstCal = orderCalEvents.find((ev) => ev.startDate);
+      if (firstCal?.startDate) {
+        month = getMonthFromTs(firstCal.startDate);
       } else if (o.projectEndDate) {
-        month = new Date(o.projectEndDate).toISOString().slice(0, 7);
+        month = getMonthFromTs(o.projectEndDate);
       } else if (o.installationStartDate) {
-        month = new Date(o.installationStartDate).toISOString().slice(0, 7);
+        month = getMonthFromTs(o.installationStartDate);
       } else if (o.projectStartDate) {
-        month = new Date(o.projectStartDate).toISOString().slice(0, 7);
+        month = getMonthFromTs(o.projectStartDate);
       } else {
         const orderInvs = invoicesByOrder.get(o._id as string) ?? [];
         const firstInv = orderInvs.find((i) => i.issueDate);
@@ -324,11 +340,19 @@ export const getTeamFinancials = query({
           if (firstExp?.issueDate) {
             month = firstExp.issueDate.slice(0, 7);
           } else {
-            month = new Date(o._creationTime).toISOString().slice(0, 7);
+            month = getMonthFromTs(o._creationTime);
           }
         }
       }
       if (month) {
+        installationsByMonth[month] = (installationsByMonth[month] ?? 0) + 1;
+      }
+    }
+
+    // 2. Samodzielne wydarzenia kalendarzowe ekipy bez podpiętego orderId
+    for (const ev of teamCalendarEvents) {
+      if (!ev.orderId && ev.startDate) {
+        const month = getMonthFromTs(ev.startDate);
         installationsByMonth[month] = (installationsByMonth[month] ?? 0) + 1;
       }
     }
