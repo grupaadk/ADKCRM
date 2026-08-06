@@ -2963,6 +2963,130 @@ export const uploadManualOrderFile = action({
   },
 });
 
+export const listFolderContentsByPin = action({
+  args: {
+    pin: v.string(),
+    folderId: v.string(),
+  },
+  handler: async (ctx, args): Promise<Array<{
+    id: string;
+    name: string;
+    isFolder: boolean;
+    url?: string;
+    mimeType?: string;
+  }>> => {
+    const cleanPin = args.pin.trim();
+    const teams = await ctx.runQuery(api.installationTeams.listAll, {});
+    const team = teams.find((t) => t.isActive && t.pin === cleanPin);
+    if (!team) {
+      throw new Error("Nieprawidłowy PIN ekipy.");
+    }
+
+    const params = new URLSearchParams({
+      q: `'${args.folderId}' in parents and trashed=false`,
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+      fields: "files(id,name,mimeType,webViewLink)",
+      pageSize: "200",
+      orderBy: "folder,name",
+    });
+
+    const data = await driveApiFetchWithRetry(
+      ctx,
+      `/files?${params.toString()}`,
+    ) as unknown as { files?: Array<{ id?: string; name?: string; mimeType?: string; webViewLink?: string }> };
+
+    const items = (data.files ?? [])
+      .filter((f): f is { id: string; name: string; mimeType?: string; webViewLink?: string } => !!f.id && !!f.name)
+      .map(f => ({
+        id: f.id,
+        name: f.name,
+        isFolder: f.mimeType === "application/vnd.google-apps.folder",
+        url: f.mimeType !== "application/vnd.google-apps.folder"
+          ? (f.webViewLink ?? `https://drive.google.com/file/d/${f.id}/view`)
+          : undefined,
+        mimeType: f.mimeType,
+      }));
+
+    items.sort((a, b) => {
+      if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
+      return a.name.localeCompare(b.name, "pl");
+    });
+
+    return items;
+  },
+});
+
+export const uploadFileByPin = action({
+  args: {
+    pin: v.string(),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    mimeType: v.optional(v.string()),
+    targetFolderId: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ fileId: string; name: string; url: string }> => {
+    const cleanPin = args.pin.trim();
+    const teams = await ctx.runQuery(api.installationTeams.listAll, {});
+    const team = teams.find((t) => t.isActive && t.pin === cleanPin);
+    if (!team) {
+      throw new Error("Nieprawidłowy PIN ekipy.");
+    }
+
+    const connection = await getAuthorizedConnection(ctx);
+    const { accessToken } = connection;
+
+    const fileUrl = await ctx.storage.getUrl(args.storageId);
+    if (!fileUrl) throw new Error("Nie znaleziono pliku w storage");
+
+    const fileResponse = await fetch(fileUrl);
+    if (!fileResponse.ok) throw new Error(`Nie udało się pobrać pliku: ${fileResponse.status}`);
+
+    const contentType = args.mimeType || fileResponse.headers.get("content-type") || "application/octet-stream";
+    const fileBuffer = await fileResponse.arrayBuffer();
+
+    const metadata = JSON.stringify({ name: args.fileName, parents: [args.targetFolderId] });
+    const boundary = `drive_upload_${Date.now()}`;
+    const encoder = new TextEncoder();
+    const preamble = encoder.encode(
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`,
+    );
+    const epilogue = encoder.encode(`\r\n--${boundary}--`);
+    const body = new Uint8Array(preamble.byteLength + fileBuffer.byteLength + epilogue.byteLength);
+    body.set(preamble, 0);
+    body.set(new Uint8Array(fileBuffer), preamble.byteLength);
+    body.set(epilogue, preamble.byteLength + fileBuffer.byteLength);
+
+    const uploadResponse = await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": `multipart/related; boundary=${boundary}`,
+        },
+        body,
+      },
+    );
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      throw new Error(`Błąd uploadu do Drive (${uploadResponse.status}): ${errorText}`);
+    }
+
+    const uploaded = await uploadResponse.json() as { id?: string; name?: string };
+    if (!uploaded.id) throw new Error("Google Drive nie zwróciło ID pliku");
+
+    await ctx.storage.delete(args.storageId);
+
+    return {
+      fileId: uploaded.id,
+      name: args.fileName,
+      url: `https://drive.google.com/file/d/${uploaded.id}/view`,
+    };
+  },
+});
+
 export const createOpportunityFolder = action({
   args: {
     opportunityId: v.id("pendingJotformSubmissions"),

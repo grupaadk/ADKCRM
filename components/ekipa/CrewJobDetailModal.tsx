@@ -21,10 +21,14 @@ interface ScheduleItem {
   address: string;
   comment?: string;
   todos?: Array<{ id: string; text: string; completed: boolean }>;
+  clientId?: Id<"clients">;
+  orderId?: Id<"orders">;
+  complaintFolderId?: string;
 }
 
 interface CrewJobDetailModalProps {
   item: ScheduleItem | null;
+  pin: string | null;
   onClose: () => void;
   onToggleStatus: (item: ScheduleItem) => Promise<void>;
   updating?: boolean;
@@ -32,10 +36,80 @@ interface CrewJobDetailModalProps {
 
 export function CrewJobDetailModal({
   item,
+  pin,
   onClose,
   onToggleStatus,
   updating,
 }: CrewJobDetailModalProps) {
+  const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
+  const uploadFileByPin = useAction(api.googleDrive.uploadFileByPin);
+  const listFolderContentsByPin = useAction(api.googleDrive.listFolderContentsByPin);
+
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const [photos, setPhotos] = useState<Array<{ id: string; name: string; url?: string }>>([]);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [uploadingState, setUploadingState] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const complaintFolderId = item?.complaintFolderId;
+
+  // Load existing photos from Drive if serwis and folder exists
+  const fetchPhotos = useCallback(async () => {
+    if (!pin || !complaintFolderId) return;
+    setLoadingPhotos(true);
+    try {
+      const items = await listFolderContentsByPin({ pin, folderId: complaintFolderId });
+      const imgs = items.filter((i) => !i.isFolder && (i.mimeType?.startsWith("image/") || /\.(jpg|jpeg|png|webp)$/i.test(i.name)));
+      setPhotos(imgs);
+    } catch {
+      // Ignore load error
+    } finally {
+      setLoadingPhotos(false);
+    }
+  }, [pin, complaintFolderId, listFolderContentsByPin]);
+
+  useEffect(() => {
+    if (item?.type === "serwis") {
+      void fetchPhotos();
+    }
+  }, [item?.type, fetchPhotos]);
+
+  const handleUploadPhoto = async (file: File) => {
+    if (!pin || !complaintFolderId || !item) return;
+    setUploadingState("Wysyłanie zdjęcia do Google Drive...");
+    setUploadError(null);
+
+    try {
+      const uploadUrl = await generateUploadUrl();
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type || "image/jpeg" },
+        body: file,
+      });
+
+      if (!res.ok) throw new Error("Błąd podczas przesyłania zdjęcia do pamięci.");
+      const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+
+      const fileName = `Serwis_${item.id.slice(-5)}_${Date.now()}.jpg`;
+
+      await uploadFileByPin({
+        pin,
+        storageId,
+        fileName,
+        mimeType: file.type || "image/jpeg",
+        targetFolderId: complaintFolderId,
+      });
+
+      await fetchPhotos();
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : "Błąd dodawania zdjęcia.");
+    } finally {
+      setUploadingState(null);
+    }
+  };
+
   if (!item) return null;
 
   const isMontaz = item.type === "montaz";
@@ -59,6 +133,35 @@ export function CrewJobDetailModal({
         style={{ background: "var(--panel)" }}
       >
         
+        {/* Hidden Camera & Gallery Inputs */}
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void handleUploadPhoto(f);
+            e.target.value = "";
+          }}
+        />
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files) {
+              for (const f of Array.from(e.target.files)) {
+                void handleUploadPhoto(f);
+              }
+            }
+            e.target.value = "";
+          }}
+        />
+
         {/* Mobile Pull Handle Indicator */}
         <div className="w-12 h-1.5 rounded-full mx-auto sm:hidden opacity-40" style={{ background: "var(--line-2)" }} />
 
@@ -175,6 +278,83 @@ export function CrewJobDetailModal({
             <div className="text-sm font-medium text-slate-800 leading-relaxed">{item.address}</div>
           </div>
         </div>
+
+        {/* Photos Section for Serwis */}
+        {!isMontaz && (
+          <div className="panel p-4 space-y-3" style={{ background: "var(--panel-2)" }}>
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-bold strong flex items-center gap-1.5">
+                <span>📸 Dokumentacja zdjęciowa reklamacji</span>
+                {photos.length > 0 && <span className="chip font-bold">{photos.length}</span>}
+              </div>
+            </div>
+
+            {uploadError && (
+              <div className="p-2.5 text-xs rounded-lg pill bad w-full">{uploadError}</div>
+            )}
+
+            {uploadingState && (
+              <div className="p-2.5 text-xs rounded-lg bg-blue-50 border border-blue-200 text-blue-700 flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <span>{uploadingState}</span>
+              </div>
+            )}
+
+            {/* Quick Upload Buttons */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={!!uploadingState || !complaintFolderId}
+                className="btn primary py-2.5 justify-center font-bold text-xs shadow-xs"
+              >
+                📸 Zrób zdjęcie
+              </button>
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                disabled={!!uploadingState || !complaintFolderId}
+                className="btn py-2.5 justify-center font-bold text-xs"
+              >
+                🖼️ Wybierz z galerii
+              </button>
+            </div>
+
+            {!complaintFolderId && (
+              <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                Folder reklamacji nie został jeszcze utworzony w Google Drive przez biuro.
+              </p>
+            )}
+
+            {/* Photos Grid Preview */}
+            {loadingPhotos ? (
+              <div className="text-center py-4 text-xs dim">Ładowanie zdjęć z Google Drive...</div>
+            ) : photos.length > 0 ? (
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                {photos.map((p) => (
+                  <a
+                    key={p.id}
+                    href={`https://drive.google.com/file/d/${p.id}/view`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="aspect-square rounded-lg overflow-hidden border border-slate-200 bg-white relative block group"
+                  >
+                    <img
+                      src={`https://drive.google.com/thumbnail?id=${p.id}&sz=w400`}
+                      alt={p.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = `https://drive.google.com/uc?id=${p.id}`;
+                      }}
+                    />
+                  </a>
+                ))}
+              </div>
+            ) : complaintFolderId ? (
+              <p className="text-[11px] dim text-center py-2">Brak zdjęć w tej reklamacji. Zrób zdjęcie aparatem.</p>
+            ) : null}
+          </div>
+        )}
 
         {/* Services / Details */}
         {(item.services && item.services.length > 0) || item.customText || item.description ? (

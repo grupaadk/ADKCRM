@@ -54,6 +54,7 @@ interface ScheduleItem {
 interface CrewCalendarViewProps {
   team: TeamData;
   items: ScheduleItem[];
+  pin: string | null;
   onLogout: () => void;
   onToggleStatus: (item: ScheduleItem) => Promise<void>;
   onChangeDate?: (item: ScheduleItem, newDate: Date) => Promise<void>;
@@ -62,6 +63,7 @@ interface CrewCalendarViewProps {
 export function CrewCalendarView({
   team,
   items,
+  pin,
   onLogout,
   onToggleStatus,
   onChangeDate,
@@ -450,6 +452,7 @@ export function CrewCalendarView({
       {selectedItem && (
         <CrewJobDetailModal
           item={selectedItem}
+          pin={pin}
           onClose={() => setSelectedItem(null)}
           onToggleStatus={handleToggle}
           updating={updatingId === selectedItem?.id}

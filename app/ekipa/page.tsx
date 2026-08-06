@@ -137,6 +137,7 @@ export default function EkipaPage() {
     <CrewCalendarView
       team={scheduleData.team}
       items={scheduleData.items}
+      pin={pin}
       onLogout={handleLogout}
       onToggleStatus={handleToggleStatus}
       onChangeDate={handleChangeDate}

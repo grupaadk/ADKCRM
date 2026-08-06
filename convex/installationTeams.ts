@@ -524,6 +524,9 @@ export const getScheduleByPin = query({
 
       return {
         id: c._id,
+        clientId: c.clientId,
+        orderId: c.orderId,
+        complaintFolderId: c.complaintFolderId,
         type: "serwis" as const,
         title: "Serwis",
         description: c.description || c.clientDescription,
@@ -662,3 +665,33 @@ export const updateEventDateByPin = mutation({
     }
   },
 });
+
+export const listComplaintPhotosByPin = mutation({
+  args: {
+    pin: v.string(),
+    complaintId: v.id("complaints"),
+  },
+  handler: async (ctx, args) => {
+    const cleanPin = args.pin.trim();
+    const teams = await ctx.db.query("installationTeams").collect();
+    const team = teams.find((t) => t.isActive && t.pin === cleanPin);
+    if (!team) {
+      throw new Error("Nieprawidłowy kod PIN ekipy.");
+    }
+
+    const complaint = await ctx.db.get(args.complaintId);
+    if (!complaint) {
+      throw new Error("Reklamacja nie istnieje.");
+    }
+    if (complaint.installationTeamId !== team._id) {
+      throw new Error("Brak uprawnień. Reklamacja nie należy do tej ekipy.");
+    }
+
+    return {
+      complaintFolderId: complaint.complaintFolderId,
+      clientId: complaint.clientId,
+      orderId: complaint.orderId,
+    };
+  },
+});
+
