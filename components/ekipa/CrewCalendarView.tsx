@@ -66,6 +66,7 @@ export function CrewCalendarView({
 }: CrewCalendarViewProps) {
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
   const [filter, setFilter] = useState<"upcoming" | "all" | "completed">("upcoming");
+  const [typeFilter, setTypeFilter] = useState<"all" | "montaz" | "serwis">("all");
   const [search, setSearch] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
@@ -103,6 +104,8 @@ export function CrewCalendarView({
 
     if (filter === "upcoming" && isDone) return false;
     if (filter === "completed" && !isDone) return false;
+
+    if (typeFilter !== "all" && item.type !== typeFilter) return false;
 
     if (selectedDate) {
       const itemDate = new Date(item.date);
@@ -237,6 +240,30 @@ export function CrewCalendarView({
                         active
                           ? "bg-[var(--accent)] text-white border-[var(--accent)]"
                           : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {(["all", "montaz", "serwis"] as const).map((t) => {
+                  const label = t === "all" ? "Wszystkie typy" : t === "montaz" ? "🔧 Montaż" : "🛠️ Serwis";
+                  const active = typeFilter === t;
+                  const activeColor =
+                    t === "montaz"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : t === "serwis"
+                      ? "bg-amber-500 text-white border-amber-500"
+                      : "bg-[var(--accent)] text-white border-[var(--accent)]";
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setTypeFilter(t)}
+                      className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-colors cursor-pointer text-center ${
+                        active ? activeColor : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300"
                       }`}
                     >
                       {label}
