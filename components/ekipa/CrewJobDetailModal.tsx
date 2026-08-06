@@ -195,7 +195,7 @@ export function CrewJobDetailModal({
           className={`w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all active:scale-98 cursor-pointer disabled:opacity-50 ${
             isDone
               ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
-              : "bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              : "bg-[var(--accent)] hover:bg-[var(--brand-hover)] text-white font-bold"
           }`}
         >
           {updating ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
   Wrench,
   LogOut,
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { CrewJobDetailModal } from "./CrewJobDetailModal";
 import TUIMobileCalendarWrapper from "./TUIMobileCalendarWrapper";
+import { DateStrip } from "./DateStrip";
 
 interface TeamData {
   _id: string;
@@ -61,10 +62,12 @@ export function CrewCalendarView({
   items,
   onLogout,
   onToggleStatus,
+  onChangeDate,
 }: CrewCalendarViewProps) {
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
   const [filter, setFilter] = useState<"upcoming" | "all" | "completed">("upcoming");
   const [search, setSearch] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
@@ -100,6 +103,17 @@ export function CrewCalendarView({
 
     if (filter === "upcoming" && isDone) return false;
     if (filter === "completed" && !isDone) return false;
+
+    if (selectedDate) {
+      const itemDate = new Date(item.date);
+      if (
+        itemDate.getFullYear() !== selectedDate.getFullYear() ||
+        itemDate.getMonth() !== selectedDate.getMonth() ||
+        itemDate.getDate() !== selectedDate.getDate()
+      ) {
+        return false;
+      }
+    }
 
     if (search.trim()) {
       const term = search.toLowerCase();
@@ -152,7 +166,7 @@ export function CrewCalendarView({
             onClick={() => setViewMode("calendar")}
             className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
               viewMode === "calendar"
-                ? "bg-slate-900 text-white shadow-sm"
+                ? "bg-[var(--accent)] text-white shadow-sm"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
@@ -163,7 +177,7 @@ export function CrewCalendarView({
             onClick={() => setViewMode("list")}
             className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
               viewMode === "list"
-                ? "bg-slate-900 text-white shadow-sm"
+                ? "bg-[var(--accent)] text-white shadow-sm"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
@@ -193,6 +207,12 @@ export function CrewCalendarView({
         {/* LIST VIEW MODE FILTERS */}
         {viewMode === "list" && (
           <div className="space-y-4">
+            <DateStrip
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+              markedDates={items.map((item) => item.date)}
+            />
+
             <div className="space-y-3 bg-white p-3.5 border border-slate-200 rounded-2xl shadow-xs">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -215,7 +235,7 @@ export function CrewCalendarView({
                       onClick={() => setFilter(st)}
                       className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-colors cursor-pointer text-center ${
                         active
-                          ? "bg-slate-900 text-white border-slate-900"
+                          ? "bg-[var(--accent)] text-white border-[var(--accent)]"
                           : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300"
                       }`}
                     >

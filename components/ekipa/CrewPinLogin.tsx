@@ -34,8 +34,8 @@ export function CrewPinLogin({ onSuccess, errorMsg, loading }: CrewPinLoginProps
     <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-sm mx-auto w-full">
       {/* Brand & Title */}
       <div className="text-center space-y-3 mb-8">
-        <div className="w-16 h-16 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
-          <Wrench className="w-8 h-8 text-emerald-600" />
+        <div className="w-16 h-16 bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+          <Wrench className="w-8 h-8 text-[var(--accent)]" />
         </div>
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">ADK Ekipy</h1>
@@ -54,7 +54,7 @@ export function CrewPinLogin({ onSuccess, errorMsg, loading }: CrewPinLoginProps
               key={idx}
               className={`w-4 h-4 rounded-full transition-all duration-200 ${
                 filled
-                  ? "bg-emerald-500 scale-110 shadow-sm ring-4 ring-emerald-100"
+                  ? "bg-[var(--accent)] scale-110 shadow-sm ring-4 ring-[var(--accent-soft)]"
                   : "bg-slate-200 border border-slate-300"
               }`}
             />
@@ -112,8 +112,8 @@ export function CrewPinLogin({ onSuccess, errorMsg, loading }: CrewPinLoginProps
       </div>
 
       {loading && (
-        <div className="mt-6 flex items-center gap-2 text-xs font-medium text-emerald-700">
-          <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+        <div className="mt-6 flex items-center gap-2 text-xs font-medium text-[var(--accent)]">
+          <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
           Weryfikowanie PIN-u...
         </div>
       )}
