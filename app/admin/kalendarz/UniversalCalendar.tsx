@@ -104,6 +104,7 @@ export default function UniversalCalendar({
   const [activeCarFilters, setActiveCarFilters] = useState<Set<string>>(new Set());
   const [carsInitialized, setCarsInitialized] = useState(false);
   const [showCarFilterDropdown, setShowCarFilterDropdown] = useState(false);
+  const [showUserFilterDropdown, setShowUserFilterDropdown] = useState(false);
   const [showPrivate, setShowPrivate] = useState(true);
 
   // Modals
