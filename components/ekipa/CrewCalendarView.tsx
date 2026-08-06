@@ -370,8 +370,8 @@ export function CrewCalendarView({
                           <span
                             className={`pill font-bold ${
                               isMontaz
-                                ? "bg-blue-100 text-blue-800 border-blue-300"
-                                : "bg-orange-100 text-orange-800 border-orange-300"
+                                ? "bg-blue-50 text-blue-800 border-blue-300"
+                                : "bg-orange-50 text-orange-800 border-orange-300"
                             }`}
                           >
                             {isMontaz ? "🔧 Montaż" : "🛠️ Serwis"}
