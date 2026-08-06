@@ -334,23 +334,31 @@ export function CrewJobDetailModal({
             {loadingPhotos ? (
               <div className="text-center py-4 text-xs dim">Ładowanie zdjęć z Google Drive...</div>
             ) : photos.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2 pt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
                 {photos.map((p) => (
                   <a
                     key={p.id}
                     href={`https://drive.google.com/file/d/${p.id}/view`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="aspect-square rounded-lg overflow-hidden border border-slate-200 bg-white relative block group"
+                    className="group flex flex-col rounded-xl overflow-hidden border border-slate-200 bg-white shadow-xs hover:border-blue-400 hover:shadow-md transition-all text-decoration-none"
                   >
-                    <img
-                      src={`https://drive.google.com/thumbnail?id=${p.id}&sz=w400`}
-                      alt={p.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = `https://drive.google.com/uc?id=${p.id}`;
-                      }}
-                    />
+                    <div className="aspect-square relative w-full bg-slate-100 overflow-hidden">
+                      <img
+                        src={`https://drive.google.com/thumbnail?id=${p.id}&sz=w400`}
+                        alt={p.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = `https://drive.google.com/uc?id=${p.id}`;
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                        🔍 Podgląd
+                      </div>
+                    </div>
+                    <div className="p-2 bg-slate-50 border-t border-slate-100 text-[11px] font-semibold text-slate-700 truncate text-center">
+                      📷 {p.name}
+                    </div>
                   </a>
                 ))}
               </div>
