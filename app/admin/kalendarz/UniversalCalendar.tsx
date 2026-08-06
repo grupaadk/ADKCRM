@@ -404,23 +404,20 @@ export default function UniversalCalendar({
         }
       }
 
-      // 4. Pasuje do aktywnej floty samochodów (kategoria "Administracja")
+      // 4. Pasuje do aktywnej floty samochodów
       if (!matched && hasActiveCarFilters) {
-        const etName = eventTypes.find((t) => t._id === params.eventTypeId)?.name;
-        if (etName === "Administracja" || params.carId) {
-          if (params.carId && activeCarFilters.has(params.carId)) {
-            matched = true;
-          } else if (cars) {
-            const titleAndDesc = `${params.title ?? ""} ${params.customText ?? ""}`.toLowerCase();
-            for (const car of cars) {
-              if (
-                activeCarFilters.has(car._id) &&
-                car.registrationNumber &&
-                titleAndDesc.includes(car.registrationNumber.toLowerCase())
-              ) {
-                matched = true;
-                break;
-              }
+        if (params.carId && activeCarFilters.has(params.carId)) {
+          matched = true;
+        } else if (cars) {
+          const titleAndDesc = `${params.title ?? ""} ${params.customText ?? ""}`.toLowerCase();
+          for (const car of cars) {
+            if (
+              activeCarFilters.has(car._id) &&
+              car.registrationNumber &&
+              titleAndDesc.includes(car.registrationNumber.toLowerCase())
+            ) {
+              matched = true;
+              break;
             }
           }
         }
@@ -1710,7 +1707,7 @@ export default function UniversalCalendar({
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
-                        Samochody we flocie (Administracja)
+                        Samochody we flocie
                       </span>
                       <button
                         type="button"
