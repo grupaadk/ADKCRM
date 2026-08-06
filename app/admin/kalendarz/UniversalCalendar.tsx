@@ -723,6 +723,104 @@ export default function UniversalCalendar({
       installationTeamColor?: string;
     };
 
+    const isMonthView = arg.view.type === "dayGridMonth";
+    if (isMonthView) {
+      const color =
+        props.color ??
+        props.assignedUserColor ??
+        (props.status ? statusColorByKey[props.status] : undefined) ??
+        "#3b82f6";
+
+      const typeLabel =
+        props.eventTypeName ??
+        (props.sourceType === "montaz" ? "Montaż" : "Zdarzenie");
+
+      const titleText =
+        props.orderName && props.clientName
+          ? `${props.orderName} - ${props.clientName}`
+          : props.orderName ?? props.clientName ?? arg.event.title ?? "—";
+
+      return (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "2px 6px",
+            borderRadius: 4,
+            background: `${color}18`,
+            border: `1px solid ${color}44`,
+            fontSize: 11,
+            fontWeight: 600,
+            color: "var(--text-strong)",
+            cursor: "pointer",
+            width: "100%",
+            overflow: "hidden",
+            whiteSpace: "nowrap",
+            boxSizing: "border-box",
+            lineHeight: 1.2,
+          }}
+          onMouseEnter={(e) =>
+            setTooltip({
+              visible: true,
+              x: e.clientX,
+              y: e.clientY,
+              content: (
+                <div style={{ padding: 2 }}>
+                  <div style={{ fontWeight: 700, fontSize: 12, color }}>{typeLabel}</div>
+                  <div style={{ fontWeight: 600, fontSize: 11, marginTop: 2 }}>{titleText}</div>
+                  {props.investmentCity && (
+                    <div style={{ fontSize: 10, color: "var(--text-mute)" }}>
+                      📍 {props.investmentCity}
+                    </div>
+                  )}
+                  {props.installationTeamName && (
+                    <div style={{ fontSize: 10, color: "var(--text-mute)" }}>
+                      🛠️ {props.installationTeamName}
+                    </div>
+                  )}
+                </div>
+              ),
+            })
+          }
+          onMouseMove={(e) => setTooltip((t) => ({ ...t, x: e.clientX, y: e.clientY }))}
+          onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
+        >
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: color,
+              flexShrink: 0,
+            }}
+          />
+          <span
+            style={{
+              fontWeight: 700,
+              fontSize: 10,
+              color: color,
+              flexShrink: 0,
+              letterSpacing: "0.02em",
+            }}
+          >
+            {typeLabel}:
+          </span>
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              fontSize: 11,
+              color: "var(--text-strong)",
+              flex: 1,
+            }}
+          >
+            {titleText}
+          </span>
+        </div>
+      );
+    }
+
     if (props.sourceType === "montaz") {
       const accentColor = props.assignedUserColor ?? statusColorByKey[props.status ?? ""] ?? "#64748b";
       const eventStart = arg.event.start;
@@ -1540,7 +1638,7 @@ export default function UniversalCalendar({
           eventContent={renderEventContent}
           height="100%"
           expandRows={true}
-          dayMaxEvents={view === "dayGridMonth" ? 3 : 99}
+          dayMaxEvents={false}
           eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotDuration="01:00:00"
