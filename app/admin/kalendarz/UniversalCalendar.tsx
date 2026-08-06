@@ -95,32 +95,6 @@ export default function UniversalCalendar({
   const [activeTeamFilters, setActiveTeamFilters] = useState<Set<string>>(
     () => (initialTeamId ? new Set([initialTeamId]) : new Set())
   );
-
-  const [eventTypesInitialized, setEventTypesInitialized] = useState(false);
-  useEffect(() => {
-    if (eventTypes && eventTypes.length > 0 && !eventTypesInitialized) {
-      setActiveEventTypeFilters(new Set(eventTypes.map((t) => t._id)));
-      setEventTypesInitialized(true);
-    }
-  }, [eventTypes, eventTypesInitialized]);
-
-  const [suppliersInitialized, setSuppliersInitialized] = useState(false);
-  useEffect(() => {
-    if (activeSuppliers && activeSuppliers.length > 0 && !suppliersInitialized) {
-      setActiveSupplierFilters(new Set(activeSuppliers.map((s) => s._id)));
-      setSuppliersInitialized(true);
-    }
-  }, [activeSuppliers, suppliersInitialized]);
-
-  const [teamsInitialized, setTeamsInitialized] = useState(false);
-  useEffect(() => {
-    if (initialTeamId) {
-      setActiveTeamFilters(new Set([initialTeamId]));
-    } else if (installationTeams && installationTeams.length > 0 && !teamsInitialized) {
-      setActiveTeamFilters(new Set(installationTeams.map((t) => t._id)));
-      setTeamsInitialized(true);
-    }
-  }, [initialTeamId, installationTeams, teamsInitialized]);
   const [expandedSupplierId, setExpandedSupplierId] = useState<string | null>(null);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [showMoreSuppliersDropdown, setShowMoreSuppliersDropdown] = useState(false);
@@ -181,6 +155,32 @@ export default function UniversalCalendar({
   const activeSuppliers = useQuery(api.suppliers.listActive) ?? [];
   const installationTeams = useQuery(api.installationTeams.listActive) ?? [];
   const eventTypes = useQuery(api.calendarEvents.getEventTypes) ?? [];
+
+  const [eventTypesInitialized, setEventTypesInitialized] = useState(false);
+  useEffect(() => {
+    if (eventTypes && eventTypes.length > 0 && !eventTypesInitialized) {
+      setActiveEventTypeFilters(new Set(eventTypes.map((t) => t._id)));
+      setEventTypesInitialized(true);
+    }
+  }, [eventTypes, eventTypesInitialized]);
+
+  const [suppliersInitialized, setSuppliersInitialized] = useState(false);
+  useEffect(() => {
+    if (activeSuppliers && activeSuppliers.length > 0 && !suppliersInitialized) {
+      setActiveSupplierFilters(new Set(activeSuppliers.map((s) => s._id)));
+      setSuppliersInitialized(true);
+    }
+  }, [activeSuppliers, suppliersInitialized]);
+
+  const [teamsInitialized, setTeamsInitialized] = useState(false);
+  useEffect(() => {
+    if (initialTeamId) {
+      setActiveTeamFilters(new Set([initialTeamId]));
+    } else if (installationTeams && installationTeams.length > 0 && !teamsInitialized) {
+      setActiveTeamFilters(new Set(installationTeams.map((t) => t._id)));
+      setTeamsInitialized(true);
+    }
+  }, [initialTeamId, installationTeams, teamsInitialized]);
   const effectiveEventTypeId = newEventTypeId || eventTypes[0]?._id || "";
   const calendarEvents = useQuery(api.calendarEvents.getEvents, {
     startDate: visibleRange.start.getTime(),
