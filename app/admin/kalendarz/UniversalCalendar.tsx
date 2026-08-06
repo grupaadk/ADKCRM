@@ -1464,6 +1464,12 @@ export default function UniversalCalendar({
           .fc-view-harness-active > .fc-view {
             height: 100% !important;
           }
+          .fc-daygrid .fc-scroller {
+            overflow: hidden !important;
+          }
+          .fc-daygrid-body, .fc-scrollgrid-sync-table {
+            height: 100% !important;
+          }
           .fc-timegrid-event-harness {
             pointer-events: auto !important;
           }
