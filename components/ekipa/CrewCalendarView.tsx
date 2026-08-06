@@ -354,10 +354,10 @@ export function CrewCalendarView({
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span
-                            className={`pill ${
+                            className={`pill font-bold ${
                               isMontaz
-                                ? "bg-blue-50 text-blue-700 border-blue-200"
-                                : "warn"
+                                ? "bg-blue-100 text-blue-800 border-blue-300"
+                                : "bg-orange-100 text-orange-800 border-orange-300"
                             }`}
                           >
                             {isMontaz ? "🔧 Montaż" : "🛠️ Serwis"}
