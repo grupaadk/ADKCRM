@@ -143,6 +143,7 @@ export const createCarEvent = mutation({
           description: args.description || `Zdarzenie dla pojazdu ${car?.make} ${car?.model} (${car?.registrationNumber})`,
           startDate: args.date,
           isAllDay: true,
+          carId: args.carId,
           createdBy: createdBy,
           isPrivate: false,
           createdAt: Date.now(),

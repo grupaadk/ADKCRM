@@ -254,6 +254,14 @@ export const getEvents = query({
     const eventTypes = await ctx.db.query("calendarEventTypes").collect();
     const typeMap = new Map(eventTypes.map((t) => [t._id, t]));
 
+    const carEvents = await ctx.db.query("carEvents").collect();
+    const calendarEventToCarMap = new Map<string, string>();
+    for (const ce of carEvents) {
+      if (ce.linkedCalendarEventId) {
+        calendarEventToCarMap.set(ce.linkedCalendarEventId, ce.carId);
+      }
+    }
+
     const allUsers = await ctx.db.query("users").collect();
     const userMap = new Map(
       allUsers.map((u) => [
@@ -264,6 +272,7 @@ export const getEvents = query({
 
     return visible.map((e) => ({
       ...e,
+      carId: e.carId ?? calendarEventToCarMap.get(e._id) ?? null,
       eventType: typeMap.get(e.eventTypeId) ?? null,
       assignedUsers: (e.assignedUserIds ?? [])
         .map((uid) => userMap.get(uid))

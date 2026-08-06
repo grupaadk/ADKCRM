@@ -14,7 +14,7 @@ import type { EventClickArg, EventDropArg, EventContentArg, DatesSetArg } from "
 import type { DateClickArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useStatuses } from "@/components/StatusLabelsContext";
-import { FilterX, CheckCheck, Search, X } from "lucide-react";
+import { FilterX, CheckCheck, Search, X, Car } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -101,7 +101,9 @@ export default function UniversalCalendar({
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [showMoreSuppliersDropdown, setShowMoreSuppliersDropdown] = useState(false);
   const [showMoreTeamsDropdown, setShowMoreTeamsDropdown] = useState(false);
-  const [showUserFilterDropdown, setShowUserFilterDropdown] = useState(false);
+  const [activeCarFilters, setActiveCarFilters] = useState<Set<string>>(new Set());
+  const [carsInitialized, setCarsInitialized] = useState(false);
+  const [showCarFilterDropdown, setShowCarFilterDropdown] = useState(false);
   const [showPrivate, setShowPrivate] = useState(true);
 
   // Modals
@@ -183,6 +185,14 @@ export default function UniversalCalendar({
       setTeamsInitialized(true);
     }
   }, [initialTeamId, installationTeams, teamsInitialized]);
+  const cars = useQuery(api.cars.getCars);
+  useEffect(() => {
+    if (cars && cars.length > 0 && !carsInitialized) {
+      setActiveCarFilters(new Set(cars.map((c) => c._id)));
+      setCarsInitialized(true);
+    }
+  }, [cars, carsInitialized]);
+
   const effectiveEventTypeId = newEventTypeId || eventTypes[0]?._id || "";
   const calendarEvents = useQuery(api.calendarEvents.getEvents, {
     startDate: visibleRange.start.getTime(),
@@ -305,13 +315,15 @@ export default function UniversalCalendar({
     const hasActiveSupplierFilters = activeSupplierFilters.size > 0;
     const hasActiveTeamFilters = activeTeamFilters.size > 0;
     const hasActiveUserFilters = activeUserFilters.size > 0;
+    const hasActiveCarFilters = activeCarFilters.size > 0;
 
     // Jeśli żaden filtr nie jest zaznaczony, kalendarz jest pusty
     const isAnyFilterActive =
       hasActiveEventTypeFilters ||
       hasActiveSupplierFilters ||
       hasActiveTeamFilters ||
-      hasActiveUserFilters;
+      hasActiveUserFilters ||
+      hasActiveCarFilters;
 
     if (!isAnyFilterActive) {
       return result;
@@ -321,6 +333,7 @@ export default function UniversalCalendar({
       eventTypeId: string;
       supplierId?: string;
       installationTeamId?: string;
+      carId?: string | null;
       assignedUserIds?: string[];
       assignedUserId?: string;
       title?: string;
@@ -390,6 +403,28 @@ export default function UniversalCalendar({
         }
       }
 
+      // 4. Pasuje do aktywnej floty samochodów (kategoria "Administracja")
+      if (!matched && hasActiveCarFilters) {
+        const etName = eventTypes.find((t) => t._id === params.eventTypeId)?.name;
+        if (etName === "Administracja" || params.carId) {
+          if (params.carId && activeCarFilters.has(params.carId)) {
+            matched = true;
+          } else if (cars) {
+            const titleAndDesc = `${params.title ?? ""} ${params.customText ?? ""}`.toLowerCase();
+            for (const car of cars) {
+              if (
+                activeCarFilters.has(car._id) &&
+                car.registrationNumber &&
+                titleAndDesc.includes(car.registrationNumber.toLowerCase())
+              ) {
+                matched = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
       return matched;
     };
 
@@ -410,6 +445,7 @@ export default function UniversalCalendar({
             eventTypeId: e.eventTypeId,
             supplierId,
             installationTeamId: teamId,
+            carId: (e as { carId?: string | null }).carId,
             assignedUserIds: e.assignedUsers,
             title: e.title,
             orderName,
@@ -507,6 +543,8 @@ export default function UniversalCalendar({
     activeEventTypeFilters,
     activeSupplierFilters,
     activeTeamFilters,
+    activeCarFilters,
+    cars,
     showPrivate,
     allOrders,
     eventTypes,
@@ -1242,6 +1280,7 @@ export default function UniversalCalendar({
               setActiveSupplierFilters(new Set());
               setActiveTeamFilters(new Set());
               setActiveUserFilters(new Set());
+              setActiveCarFilters(new Set());
             }}
             title="Wyczyść wszystkie filtry"
             style={{
@@ -1272,6 +1311,7 @@ export default function UniversalCalendar({
               if (eventTypes) setActiveEventTypeFilters(new Set(eventTypes.map((t) => t._id)));
               if (activeSuppliers) setActiveSupplierFilters(new Set(activeSuppliers.map((s) => s._id)));
               if (installationTeams) setActiveTeamFilters(new Set(installationTeams.map((t) => t._id)));
+              if (cars) setActiveCarFilters(new Set(cars.map((c) => c._id)));
               setActiveUserFilters(new Set());
             }}
             title="Zaznacz wszystkie filtry"
@@ -1624,6 +1664,113 @@ export default function UniversalCalendar({
                   )}
                 </div>
               )}
+            </>
+          )}
+          {/* Dynamic Cars Fleet Filter (Filtrowanie po Flocie aut) */}
+          {cars && cars.length > 0 && (
+            <>
+              <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Flota:
+              </span>
+              <div style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCarFilterDropdown((prev) => !prev)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                    background: activeCarFilters.size > 0 ? "var(--accent)22" : "var(--panel)",
+                    color: activeCarFilters.size > 0 ? "var(--accent)" : "var(--text-mute)",
+                    border: `1.5px solid ${activeCarFilters.size > 0 ? "var(--accent)" : "var(--line)"}`,
+                    fontWeight: activeCarFilters.size > 0 ? 700 : 500,
+                    cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                  }}
+                >
+                  <Car style={{ width: 13, height: 13 }} />
+                  <span>
+                    {activeCarFilters.size === 0
+                      ? "Brak wybranych aut"
+                      : activeCarFilters.size === cars.length
+                      ? "Wszystkie auta"
+                      : `${activeCarFilters.size} z ${cars.length} aut`}
+                  </span>
+                  <span style={{ fontSize: 9, opacity: 0.7, marginLeft: 2 }}>{showCarFilterDropdown ? "▲" : "▼"}</span>
+                </button>
+
+                {showCarFilterDropdown && (
+                  <div
+                    style={{
+                      position: "absolute", top: "calc(100% + 6px)", left: 0,
+                      background: "var(--card)", border: "1px solid var(--line)",
+                      borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                      zIndex: 50, minWidth: 240, display: "flex", flexDirection: "column", gap: 4,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
+                        Samochody we flocie (Administracja)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (activeCarFilters.size === cars.length) {
+                            setActiveCarFilters(new Set());
+                          } else {
+                            setActiveCarFilters(new Set(cars.map((c) => c._id)));
+                          }
+                        }}
+                        style={{ fontSize: 10, color: "var(--accent)", cursor: "pointer", background: "none", border: "none", fontWeight: 600 }}
+                      >
+                        {activeCarFilters.size === cars.length ? "Odznacz wszystkie" : "Zaznacz wszystkie"}
+                      </button>
+                    </div>
+
+                    {cars.map((car) => {
+                      const active = activeCarFilters.has(car._id);
+                      return (
+                        <button
+                          key={car._id}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveCarFilters((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(car._id)) next.delete(car._id);
+                              else next.add(car._id);
+                              return next;
+                            });
+                          }}
+                          style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                            padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
+                            background: active ? "var(--accent)18" : "transparent",
+                            color: active ? "var(--text-strong)" : "var(--text)",
+                            border: `1px solid ${active ? "var(--accent)44" : "transparent"}`,
+                            cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                            <Car style={{ width: 13, height: 13, color: active ? "var(--accent)" : "var(--text-mute)", flexShrink: 0 }} />
+                            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                              <span style={{ fontWeight: active ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {car.registrationNumber} ({car.make} {car.model})
+                              </span>
+                              {car.teamName && (
+                                <span style={{ fontSize: 10, color: "var(--text-mute)" }}>🛠️ {car.teamName}</span>
+                              )}
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 12, color: active ? "var(--accent)" : "var(--text-mute)" }}>
+                            {active ? "✓" : "+"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>

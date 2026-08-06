@@ -824,6 +824,7 @@ export default defineSchema({
     isAllDay: v.boolean(),
     assignedUserIds: v.optional(v.array(v.id("users"))),
     installationTeamId: v.optional(v.id("installationTeams")),
+    carId: v.optional(v.id("cars")),
     clientId: v.optional(v.id("clients")),
     orderId: v.optional(v.id("orders")),
     createdBy: v.id("users"),
