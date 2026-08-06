@@ -32,7 +32,10 @@ export default function RootLayout({
 }>) {
   return (
     <ConvexAuthNextjsServerProvider>
-      <html lang="en">
+      <html lang="pl" className="notranslate" translate="no">
+        <head>
+          <meta name="google" content="notranslate" />
+        </head>
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
           suppressHydrationWarning
