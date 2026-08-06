@@ -15,6 +15,7 @@ export const ensureSupplierEventTypes = mutation({
     let createdCount = 0;
 
     for (const supplier of suppliers) {
+      // 1. Potwierdzenie
       const hasPotwierdzenie = existingTypes.some(
         (t) =>
           t.linkedSupplierId === supplier._id &&
@@ -46,21 +47,58 @@ export const ensureSupplierEventTypes = mutation({
         createdCount++;
       }
 
-      const hasOdbior = existingTypes.some(
+      // 2. Dostawa
+      const hasDostawa = existingTypes.some(
         (t) =>
           t.linkedSupplierId === supplier._id &&
           (t.linkedOrderField === "serviceDeliveries.deliveryDate" ||
-            t.linkedOrderField === "serviceDeliveries.receivedDate" ||
-            t.name.toLowerCase().includes("odbior") ||
-            t.name.toLowerCase().includes("odbiór"))
+            t.name.toLowerCase().includes("dostawa"))
       );
 
-      if (!hasOdbior) {
+      if (!hasDostawa) {
+        const newId = await ctx.db.insert("calendarEventTypes", {
+          name: `${supplier.name} - Dostawa`,
+          color: "#f59e0b",
+          isPrivate: false,
+          linkedOrderField: "serviceDeliveries.deliveryDate",
+          linkedSupplierId: supplier._id,
+          defaultTimeMode: "timed",
+          createdAt: Date.now(),
+        });
+        existingTypes.push({
+          _id: newId,
+          _creationTime: Date.now(),
+          name: `${supplier.name} - Dostawa`,
+          color: "#f59e0b",
+          isPrivate: false,
+          linkedOrderField: "serviceDeliveries.deliveryDate",
+          linkedSupplierId: supplier._id,
+          defaultTimeMode: "timed",
+          createdAt: Date.now(),
+        });
+        createdCount++;
+      }
+
+      // 3. Odbiór
+      const existingOdbior = existingTypes.find(
+        (t) =>
+          t.linkedSupplierId === supplier._id &&
+          (t.name.toLowerCase().includes("odbior") || t.name.toLowerCase().includes("odbiór"))
+      );
+
+      if (existingOdbior) {
+        if (existingOdbior.linkedOrderField !== "serviceDeliveries.receivedDate") {
+          await ctx.db.patch(existingOdbior._id, {
+            linkedOrderField: "serviceDeliveries.receivedDate",
+          });
+          existingOdbior.linkedOrderField = "serviceDeliveries.receivedDate";
+        }
+      } else {
         const newId = await ctx.db.insert("calendarEventTypes", {
           name: `${supplier.name} - Odbiór`,
           color: "#3b82f6",
           isPrivate: false,
-          linkedOrderField: "serviceDeliveries.deliveryDate",
+          linkedOrderField: "serviceDeliveries.receivedDate",
           linkedSupplierId: supplier._id,
           defaultTimeMode: "timed",
           createdAt: Date.now(),
@@ -71,7 +109,7 @@ export const ensureSupplierEventTypes = mutation({
           name: `${supplier.name} - Odbiór`,
           color: "#3b82f6",
           isPrivate: false,
-          linkedOrderField: "serviceDeliveries.deliveryDate",
+          linkedOrderField: "serviceDeliveries.receivedDate",
           linkedSupplierId: supplier._id,
           defaultTimeMode: "timed",
           createdAt: Date.now(),

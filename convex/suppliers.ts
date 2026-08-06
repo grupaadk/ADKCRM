@@ -55,10 +55,20 @@ export const create = mutation({
     });
 
     await ctx.db.insert("calendarEventTypes", {
+      name: `${args.name} - Dostawa`,
+      color: "#f59e0b",
+      isPrivate: false,
+      linkedOrderField: "serviceDeliveries.deliveryDate",
+      linkedSupplierId: supplierId,
+      defaultTimeMode: "timed",
+      createdAt: Date.now(),
+    });
+
+    await ctx.db.insert("calendarEventTypes", {
       name: `${args.name} - Odbiór`,
       color: "#3b82f6",
       isPrivate: false,
-      linkedOrderField: "serviceDeliveries.deliveryDate",
+      linkedOrderField: "serviceDeliveries.receivedDate",
       linkedSupplierId: supplierId,
       defaultTimeMode: "timed",
       createdAt: Date.now(),
