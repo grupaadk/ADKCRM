@@ -1,5 +1,9 @@
 "use client";
 
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useMutation, useAction } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { X, Phone, MapPin, Calendar, Clock, CheckCircle2, Wrench, ShieldAlert, Navigation, FileText, CheckSquare } from "lucide-react";
 
 interface ScheduleItem {
