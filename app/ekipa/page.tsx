@@ -14,13 +14,19 @@ export default function EkipaPage() {
   const [pinError, setPinError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
 
-  // Read saved PIN from localStorage after hydration (client-only)
+  // Read saved PIN from localStorage & register Service Worker for WebAPK PWA
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved && /^\d{4}$/.test(saved)) {
       setPin(saved);
     }
     setInitialized(true);
+
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {
+        // SW registration failed silently
+      });
+    }
   }, []);
 
   const scheduleData = useQuery(
