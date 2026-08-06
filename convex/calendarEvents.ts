@@ -6,6 +6,84 @@ import { requireUser, requireRole } from "./lib/auth";
 //  EVENT TYPES
 // ─────────────────────────────────────────────
 
+export const ensureSupplierEventTypes = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const suppliers = await ctx.db.query("suppliers").collect();
+    const existingTypes = await ctx.db.query("calendarEventTypes").collect();
+
+    let createdCount = 0;
+
+    for (const supplier of suppliers) {
+      const hasPotwierdzenie = existingTypes.some(
+        (t) =>
+          t.linkedSupplierId === supplier._id &&
+          (t.linkedOrderField === "serviceDeliveries.confirmedDate" ||
+            t.name.toLowerCase().includes("potwierdzenie"))
+      );
+
+      if (!hasPotwierdzenie) {
+        const newId = await ctx.db.insert("calendarEventTypes", {
+          name: `${supplier.name} - Potwierdzenie`,
+          color: "#10b981",
+          isPrivate: false,
+          linkedOrderField: "serviceDeliveries.confirmedDate",
+          linkedSupplierId: supplier._id,
+          defaultTimeMode: "timed",
+          createdAt: Date.now(),
+        });
+        existingTypes.push({
+          _id: newId,
+          _creationTime: Date.now(),
+          name: `${supplier.name} - Potwierdzenie`,
+          color: "#10b981",
+          isPrivate: false,
+          linkedOrderField: "serviceDeliveries.confirmedDate",
+          linkedSupplierId: supplier._id,
+          defaultTimeMode: "timed",
+          createdAt: Date.now(),
+        });
+        createdCount++;
+      }
+
+      const hasOdbior = existingTypes.some(
+        (t) =>
+          t.linkedSupplierId === supplier._id &&
+          (t.linkedOrderField === "serviceDeliveries.deliveryDate" ||
+            t.linkedOrderField === "serviceDeliveries.receivedDate" ||
+            t.name.toLowerCase().includes("odbior") ||
+            t.name.toLowerCase().includes("odbiór"))
+      );
+
+      if (!hasOdbior) {
+        const newId = await ctx.db.insert("calendarEventTypes", {
+          name: `${supplier.name} - Odbiór`,
+          color: "#3b82f6",
+          isPrivate: false,
+          linkedOrderField: "serviceDeliveries.deliveryDate",
+          linkedSupplierId: supplier._id,
+          defaultTimeMode: "timed",
+          createdAt: Date.now(),
+        });
+        existingTypes.push({
+          _id: newId,
+          _creationTime: Date.now(),
+          name: `${supplier.name} - Odbiór`,
+          color: "#3b82f6",
+          isPrivate: false,
+          linkedOrderField: "serviceDeliveries.deliveryDate",
+          linkedSupplierId: supplier._id,
+          defaultTimeMode: "timed",
+          createdAt: Date.now(),
+        });
+        createdCount++;
+      }
+    }
+
+    return { createdCount };
+  },
+});
+
 export const getEventTypes = query({
   args: {},
   handler: async (ctx) => {

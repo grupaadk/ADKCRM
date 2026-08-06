@@ -196,6 +196,11 @@ export default function UniversalCalendar({
   const deleteCalendarEvent = useMutation(api.calendarEvents.deleteEvent);
   const updateCalendarEvent = useMutation(api.calendarEvents.updateEvent);
   const updateLinkedOrderDate = useMutation(api.calendarEvents.updateLinkedOrderDate);
+  const ensureSupplierEventTypes = useMutation(api.calendarEvents.ensureSupplierEventTypes);
+
+  useEffect(() => {
+    ensureSupplierEventTypes().catch(() => {});
+  }, [ensureSupplierEventTypes]);
 
   const statuses = useStatuses();
   const statusColorByKey = useMemo(() => {

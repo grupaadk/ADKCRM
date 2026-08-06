@@ -38,11 +38,33 @@ export const create = mutation({
       .first();
     if (existing) throw new Error("Dostawca o tej nazwie już istnieje");
 
-    return ctx.db.insert("suppliers", {
+    const supplierId = await ctx.db.insert("suppliers", {
       name: args.name,
       isActive: true,
       createdBy: userIdentifier(user),
     });
+
+    await ctx.db.insert("calendarEventTypes", {
+      name: `${args.name} - Potwierdzenie`,
+      color: "#10b981",
+      isPrivate: false,
+      linkedOrderField: "serviceDeliveries.confirmedDate",
+      linkedSupplierId: supplierId,
+      defaultTimeMode: "timed",
+      createdAt: Date.now(),
+    });
+
+    await ctx.db.insert("calendarEventTypes", {
+      name: `${args.name} - Odbiór`,
+      color: "#3b82f6",
+      isPrivate: false,
+      linkedOrderField: "serviceDeliveries.deliveryDate",
+      linkedSupplierId: supplierId,
+      defaultTimeMode: "timed",
+      createdAt: Date.now(),
+    });
+
+    return supplierId;
   },
 });
 
