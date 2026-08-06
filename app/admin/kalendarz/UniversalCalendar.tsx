@@ -894,7 +894,7 @@ export default function UniversalCalendar({
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12,
-      display: "flex", flexDirection: "column", flex: 1, overflow: "hidden", minHeight: 680,
+      display: "flex", flexDirection: "column", flex: 1, height: "100%", overflow: "hidden", minHeight: 0,
     }}>
 
       {/* Toolbar */}
@@ -1450,8 +1450,20 @@ export default function UniversalCalendar({
       )}
 
       {/* Calendar */}
-      <div style={{ flex: 1, minHeight: 600, display: "flex", flexDirection: "column", position: "relative" }}>
+      <div style={{ flex: 1, height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
         <style>{`
+          .fc {
+            height: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .fc-view-harness {
+            flex: 1 !important;
+            height: 100% !important;
+          }
+          .fc-view-harness-active > .fc-view {
+            height: 100% !important;
+          }
           .fc-timegrid-event-harness {
             pointer-events: auto !important;
           }
@@ -1520,7 +1532,7 @@ export default function UniversalCalendar({
           }}
           datesSet={handleDatesSet}
           eventContent={renderEventContent}
-          height="auto"
+          height="100%"
           expandRows={true}
           dayMaxEvents={view === "dayGridMonth" ? 3 : 99}
           eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
