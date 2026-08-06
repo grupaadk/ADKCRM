@@ -18,8 +18,10 @@ import {
   Navigation,
 } from "lucide-react";
 import { CrewJobDetailModal } from "./CrewJobDetailModal";
+import { CrewVehicleModal } from "./CrewVehicleModal";
 import TUIMobileCalendarWrapper from "./TUIMobileCalendarWrapper";
 import { DateStrip } from "./DateStrip";
+import { Truck } from "lucide-react";
 
 interface TeamData {
   _id: string;
@@ -74,6 +76,7 @@ export function CrewCalendarView({
   const [search, setSearch] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const handleToggle = async (item: ScheduleItem) => {
@@ -158,14 +161,25 @@ export function CrewCalendarView({
           </div>
         </div>
 
-        <button
-          onClick={onLogout}
-          title="Wyloguj ekipę"
-          className="btn text-xs font-semibold cursor-pointer active:scale-95 shadow-xs"
-        >
-          <LogOut className="w-4 h-4" />
-          <span className="hidden sm:inline">Wyloguj</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowVehicleModal(true)}
+            title="Pojazd ekipy"
+            className="btn primary text-xs font-semibold cursor-pointer active:scale-95 shadow-xs flex items-center gap-1.5"
+          >
+            <Truck className="w-4 h-4" />
+            <span>Pojazd</span>
+          </button>
+
+          <button
+            onClick={onLogout}
+            title="Wyloguj ekipę"
+            className="btn text-xs font-semibold cursor-pointer active:scale-95 shadow-xs"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">Wyloguj</span>
+          </button>
+        </div>
       </header>
 
       {/* Main Content Area */}
@@ -456,6 +470,14 @@ export function CrewCalendarView({
           onClose={() => setSelectedItem(null)}
           onToggleStatus={handleToggle}
           updating={updatingId === selectedItem?.id}
+        />
+      )}
+
+      {/* Team Vehicle FMS Modal */}
+      {showVehicleModal && (
+        <CrewVehicleModal
+          pin={pin}
+          onClose={() => setShowVehicleModal(false)}
         />
       )}
     </div>

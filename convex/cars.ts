@@ -171,3 +171,80 @@ export const deleteCarEvent = mutation({
     await ctx.db.delete(args.eventId);
   },
 });
+
+export const getTeamCarAndEventsByPin = query({
+  args: { pin: v.string() },
+  handler: async (ctx, args) => {
+    const cleanPin = args.pin.trim();
+    if (!cleanPin || cleanPin.length !== 4) return null;
+
+    const teams = await ctx.db.query("installationTeams").collect();
+    const team = teams.find((t) => t.isActive && t.pin === cleanPin);
+    if (!team) return null;
+
+    const cars = await ctx.db
+      .query("cars")
+      .withIndex("by_team", (q) => q.eq("assignedInstallationTeamId", team._id))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    const car = cars[0] ?? null;
+    if (!car) {
+      return { team, car: null, events: [] };
+    }
+
+    const events = await ctx.db
+      .query("carEvents")
+      .withIndex("by_car", (q) => q.eq("carId", car._id))
+      .order("desc")
+      .take(20);
+
+    return { team, car, events };
+  },
+});
+
+export const createCarEventByPin = mutation({
+  args: {
+    pin: v.string(),
+    type: v.union(
+      v.literal("refueling"),
+      v.literal("inspection"),
+      v.literal("repair"),
+      v.literal("other")
+    ),
+    date: v.number(),
+    cost: v.number(),
+    description: v.optional(v.string()),
+    mileage: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const cleanPin = args.pin.trim();
+    const teams = await ctx.db.query("installationTeams").collect();
+    const team = teams.find((t) => t.isActive && t.pin === cleanPin);
+    if (!team) {
+      throw new Error("Nieprawidłowy kod PIN ekipy.");
+    }
+
+    const cars = await ctx.db
+      .query("cars")
+      .withIndex("by_team", (q) => q.eq("assignedInstallationTeamId", team._id))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    const car = cars[0];
+    if (!car) {
+      throw new Error("Brak przypisanego aktywnego pojazdu dla Twojej ekipy.");
+    }
+
+    return await ctx.db.insert("carEvents", {
+      carId: car._id,
+      type: args.type,
+      date: args.date,
+      cost: args.cost,
+      description: args.description,
+      mileage: args.mileage,
+      createdAt: Date.now(),
+    });
+  },
+});
+
