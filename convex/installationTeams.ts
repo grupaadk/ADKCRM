@@ -209,10 +209,32 @@ export const getTeamFinancials = query({
       }
     }
 
+    // Pobierz wydarzenia w kalendarzu dla ekipy
+    const allCalendarEvents = await ctx.db.query("calendarEvents").collect();
+    const teamCalendarEvents = allCalendarEvents.filter(
+      (ev) => ev.installationTeamId === args.teamId
+    );
+    const calendarEventsByOrder = new Map<string, typeof allCalendarEvents>();
+    for (const ev of allCalendarEvents) {
+      if (ev.orderId) {
+        const list = calendarEventsByOrder.get(ev.orderId) ?? [];
+        list.push(ev);
+        calendarEventsByOrder.set(ev.orderId, list);
+      }
+    }
+
+    // Zbierz wszystkie identyfikatory zleceń powiązanych z ekipą (bezpośrednio, przez wydatki lub kalendarz)
+    const teamOrderIds = new Set<string>([
+      ...teamOrders.map((o) => o._id as string),
+      ...teamExpenses.map((e) => e.orderId).filter((id): id is string => Boolean(id)),
+      ...teamCalendarEvents.map((ev) => ev.orderId).filter((id): id is string => Boolean(id)),
+    ]);
+    const allTeamOrders = orders.filter((o) => teamOrderIds.has(o._id as string));
+
     // Przychody ze zleceń ekipy grupowane po miesiącu montażu/faktury
     const earningsByMonth: Record<string, number> = {};
     let totalEarnings = 0;
-    for (const o of teamOrders) {
+    for (const o of allTeamOrders) {
       const serviceFinanceSum = (o.serviceFinances ?? []).reduce(
         (sum, f) => sum + (f.earningsAmount ?? 0),
         0
@@ -234,8 +256,14 @@ export const getTeamFinancials = query({
 
       if (orderRevenue > 0) {
         let month: string | null = null;
-        if (o.projectEndDate) {
+        const orderCalEvents = calendarEventsByOrder.get(o._id as string) ?? [];
+        const firstCal = orderCalEvents.find((ev) => ev.date);
+        if (firstCal?.date) {
+          month = firstCal.date.slice(0, 7);
+        } else if (o.projectEndDate) {
           month = new Date(o.projectEndDate).toISOString().slice(0, 7);
+        } else if (o.installationStartDate) {
+          month = new Date(o.installationStartDate).toISOString().slice(0, 7);
         } else {
           const firstInv = orderInvoices.find((i) => i.issueDate);
           if (firstInv?.issueDate) {
@@ -272,16 +300,33 @@ export const getTeamFinancials = query({
       };
     }
 
-    // Liczba montaży po miesiącu (zlecenia ekipy)
+    // Liczba montaży po miesiącu (zlecenia ekipy + kalendarz)
     const installationsByMonth: Record<string, number> = {};
-    for (const o of teamOrders) {
+    for (const o of allTeamOrders) {
       let month: string | null = null;
-      if (o.projectEndDate) {
+      const orderCalEvents = calendarEventsByOrder.get(o._id as string) ?? [];
+      const firstCal = orderCalEvents.find((ev) => ev.date);
+      if (firstCal?.date) {
+        month = firstCal.date.slice(0, 7);
+      } else if (o.projectEndDate) {
         month = new Date(o.projectEndDate).toISOString().slice(0, 7);
-      } else if (o.serviceDate) {
-        month = new Date(o.serviceDate).toISOString().slice(0, 7);
+      } else if (o.installationStartDate) {
+        month = new Date(o.installationStartDate).toISOString().slice(0, 7);
+      } else if (o.projectStartDate) {
+        month = new Date(o.projectStartDate).toISOString().slice(0, 7);
       } else {
-        month = new Date(o._creationTime).toISOString().slice(0, 7);
+        const orderInvs = invoicesByOrder.get(o._id as string) ?? [];
+        const firstInv = orderInvs.find((i) => i.issueDate);
+        if (firstInv?.issueDate) {
+          month = firstInv.issueDate.slice(0, 7);
+        } else {
+          const firstExp = teamExpenses.find((e) => e.orderId === o._id as string);
+          if (firstExp?.issueDate) {
+            month = firstExp.issueDate.slice(0, 7);
+          } else {
+            month = new Date(o._creationTime).toISOString().slice(0, 7);
+          }
+        }
       }
       if (month) {
         installationsByMonth[month] = (installationsByMonth[month] ?? 0) + 1;
