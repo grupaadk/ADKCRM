@@ -14,6 +14,8 @@ import {
   Check,
   List,
   CalendarDays,
+  Sparkles,
+  Navigation,
 } from "lucide-react";
 import { CrewJobDetailModal } from "./CrewJobDetailModal";
 import TUIMobileCalendarWrapper from "./TUIMobileCalendarWrapper";
@@ -64,7 +66,7 @@ export function CrewCalendarView({
   onToggleStatus,
   onChangeDate,
 }: CrewCalendarViewProps) {
-  const [viewMode, setViewMode] = useState<"calendar" | "list">("list");
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [filter, setFilter] = useState<"upcoming" | "all" | "completed">("upcoming");
   const [typeFilter, setTypeFilter] = useState<"all" | "montaz" | "serwis">("all");
   const [search, setSearch] = useState("");
@@ -131,17 +133,22 @@ export function CrewCalendarView({
   });
 
   return (
-    <div className="flex-1 flex flex-col pb-12 max-w-5xl mx-auto w-full">
-      {/* Top Header */}
-      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200 p-4 sticky top-0 z-30 flex items-center justify-between shadow-xs">
+    <div className="flex-1 flex flex-col pb-20 max-w-5xl mx-auto w-full min-h-[100dvh]" style={{ background: "var(--background)" }}>
+      {/* Sticky Top Header */}
+      <header className="sticky top-0 z-30 px-4 py-3 flex items-center justify-between border-b shadow-xs backdrop-blur-md" style={{ background: "var(--panel)", borderColor: "var(--line)" }}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold shadow-sm flex-shrink-0 bg-[var(--accent)]">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold shadow-xs flex-shrink-0" style={{ background: "var(--accent)" }}>
             <Wrench className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-base font-extrabold text-slate-900 truncate">{team.name}</h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-base font-extrabold strong truncate tracking-tight">{team.name}</h1>
+              <span className="pill acc text-[10px]">
+                PWA
+              </span>
+            </div>
             {team.leaderName && (
-              <p className="text-[11px] text-slate-500 flex items-center gap-1 truncate font-medium">
+              <p className="text-[11px] dim flex items-center gap-1 truncate font-medium">
                 <UserCheck className="w-3 h-3 text-slate-400" />
                 Kierownik: {team.leaderName}
               </p>
@@ -152,43 +159,41 @@ export function CrewCalendarView({
         <button
           onClick={onLogout}
           title="Wyloguj ekipę"
-          className="p-2.5 rounded-xl bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200 transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer border border-slate-200"
+          className="btn text-xs font-semibold cursor-pointer active:scale-95 shadow-xs"
         >
           <LogOut className="w-4 h-4" />
           <span className="hidden sm:inline">Wyloguj</span>
         </button>
       </header>
 
-      {/* Main View Mode Selector (Kalendarz vs Lista) */}
-      <div className="p-4 space-y-4">
-        <div className="flex items-center justify-between gap-3 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-xs">
-          <button
-            onClick={() => setViewMode("calendar")}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              viewMode === "calendar"
-                ? "bg-[var(--accent)] text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <CalendarDays className="w-4 h-4" />
-            Kalendarz Ekipy
-          </button>
+      {/* Main Content Area */}
+      <div className="p-3.5 sm:p-5 space-y-4">
+        
+        {/* Navigation View Switcher */}
+        <div className="flex items-center justify-between gap-2 p-1 rounded-xl border shadow-xs" style={{ background: "var(--panel)", borderColor: "var(--line)" }}>
           <button
             onClick={() => setViewMode("list")}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              viewMode === "list"
-                ? "bg-[var(--accent)] text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              viewMode === "list" ? "btn primary shadow-xs" : "btn ghost"
             }`}
           >
             <List className="w-4 h-4" />
-            Lista Prac ({items.length})
+            Harmonogram Prac ({items.length})
+          </button>
+          <button
+            onClick={() => setViewMode("calendar")}
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              viewMode === "calendar" ? "btn primary shadow-xs" : "btn ghost"
+            }`}
+          >
+            <CalendarDays className="w-4 h-4" />
+            Siatka Miesięczna
           </button>
         </div>
 
         {/* CALENDAR VIEW MODE */}
         {viewMode === "calendar" && (
-          <div className="mt-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="animate-in fade-in zoom-in-95 duration-200">
             <TUIMobileCalendarWrapper
               items={items}
               filter={filter}
@@ -204,39 +209,42 @@ export function CrewCalendarView({
           </div>
         )}
 
-        {/* LIST VIEW MODE FILTERS */}
+        {/* LIST VIEW MODE */}
         {viewMode === "list" && (
           <div className="space-y-4">
+            {/* Interactive Date Strip */}
             <DateStrip
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
               markedDates={items.map((item) => item.date)}
             />
 
-            <div className="space-y-3 bg-white p-3.5 border border-slate-200 rounded-2xl shadow-xs">
+            {/* Filter and Search Panel */}
+            <div className="space-y-3 p-3.5 border rounded-2xl shadow-xs" style={{ background: "var(--panel)", borderColor: "var(--line)" }}>
+              {/* Search Bar */}
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Szukaj zlecenia, klienta, adresu..."
+                  placeholder="Szukaj klienta, adresu, zamówienia..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:bg-white text-slate-900"
+                  className="w-full text-xs pl-9 pr-3 py-2 border rounded-xl outline-none"
+                  style={{ background: "var(--panel-2)", borderColor: "var(--line-2)" }}
                 />
               </div>
 
+              {/* Status Filter Tabs */}
               <div className="flex items-center gap-1.5">
                 {(["upcoming", "all", "completed"] as const).map((st) => {
-                  const label = st === "upcoming" ? "Do zrobienia" : st === "all" ? "Wszystkie" : "Wykonane";
+                  const label = st === "upcoming" ? "Do wykonania" : st === "all" ? "Wszystkie" : "Wykonane";
                   const active = filter === st;
                   return (
                     <button
                       key={st}
                       onClick={() => setFilter(st)}
-                      className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-colors cursor-pointer text-center ${
-                        active
-                          ? "bg-[var(--accent)] text-white border-[var(--accent)]"
-                          : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300"
+                      className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg border transition-all cursor-pointer text-center ${
+                        active ? "btn primary" : "btn ghost"
                       }`}
                     >
                       {label}
@@ -245,22 +253,23 @@ export function CrewCalendarView({
                 })}
               </div>
 
+              {/* Job Type Filter Tabs */}
               <div className="flex items-center gap-1.5">
                 {(["all", "montaz", "serwis"] as const).map((t) => {
-                  const label = t === "all" ? "Wszystkie typy" : t === "montaz" ? "🔧 Montaż" : "🛠️ Serwis";
+                  const label = t === "all" ? "Wszystkie typy" : t === "montaz" ? "🔧 Montaże" : "🛠️ Serwisy";
                   const active = typeFilter === t;
-                  const activeColor =
-                    t === "montaz"
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : t === "serwis"
-                      ? "bg-amber-500 text-white border-amber-500"
-                      : "bg-[var(--accent)] text-white border-[var(--accent)]";
                   return (
                     <button
                       key={t}
                       onClick={() => setTypeFilter(t)}
-                      className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-colors cursor-pointer text-center ${
-                        active ? activeColor : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300"
+                      className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg border transition-all cursor-pointer text-center ${
+                        active
+                          ? t === "montaz"
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : t === "serwis"
+                            ? "bg-amber-600 text-white border-amber-600"
+                            : "btn primary"
+                          : "btn ghost"
                       }`}
                     >
                       {label}
@@ -269,15 +278,13 @@ export function CrewCalendarView({
                 })}
               </div>
             </div>
-          </div>
-        )}
 
-        {/* Shared List of Tasks */}
+            {/* Schedule Cards List */}
             {filteredItems.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-500">
-                <CalendarIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+              <div className="panel p-10 text-center text-slate-500">
+                <CalendarIcon className="w-10 h-10 mx-auto text-slate-300 mb-3" />
                 <p className="font-bold text-slate-800 text-sm">Brak prac w tym widoku</p>
-                <p className="text-xs text-slate-500 mt-1">Brak zrealizowanych lub zaplanowanych zadań.</p>
+                <p className="text-xs text-slate-500 mt-1">Spróbuj zmienić filtry lub wybraną datę.</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -294,33 +301,36 @@ export function CrewCalendarView({
                     year: "numeric",
                   });
 
+                  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`;
+
                   return (
                     <div
                       key={item.id}
                       onClick={() => setSelectedItem(item)}
-                      className={`bg-white border rounded-2xl p-4 shadow-xs hover:shadow-md transition-all space-y-3 cursor-pointer group select-none ${
-                        isDone ? "border-emerald-200 bg-emerald-50/20 opacity-80" : "border-slate-200 hover:border-slate-300"
+                      className={`panel p-4 shadow-xs hover:shadow-md transition-all space-y-3 cursor-pointer group select-none ${
+                        isDone ? "bg-slate-50/50 opacity-80" : "hover:border-slate-300"
                       }`}
                     >
-                      {/* Badge bar */}
+                      {/* Top Badges & Status Toggle */}
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span
-                            className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                            className={`pill ${
                               isMontaz
                                 ? "bg-blue-50 text-blue-700 border-blue-200"
-                                : "bg-amber-50 text-amber-700 border-amber-200"
+                                : "warn"
                             }`}
                           >
                             {isMontaz ? "🔧 Montaż" : "🛠️ Serwis"}
                           </span>
 
-                          <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="text-xs font-semibold dim flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 mute" />
                             {dateFormatted} {item.timeStr ? `(${item.timeStr})` : ""}
                           </span>
                         </div>
 
+                        {/* Fast Status Toggle Button */}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -328,10 +338,10 @@ export function CrewCalendarView({
                             handleToggle(item);
                           }}
                           disabled={isUpdating}
-                          className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                          className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                             isDone
                               ? "bg-emerald-500 text-white border-emerald-500"
-                              : "bg-slate-100 text-slate-400 border-slate-200 hover:text-emerald-600 hover:bg-emerald-50"
+                              : "btn icon ghost"
                           }`}
                           title={isDone ? "Cofnij wykonanie" : "Oznacz jako wykonane"}
                         >
@@ -339,33 +349,53 @@ export function CrewCalendarView({
                         </button>
                       </div>
 
-                      {/* Main Job Info */}
+                      {/* Main Job Title & Client */}
                       <div>
-                        <h3 className={`font-bold text-sm ${isDone ? "text-slate-500 line-through" : "text-slate-900"} group-hover:text-blue-600 transition-colors`}>
+                        <h3
+                          className={`font-bold text-base ${
+                            isDone ? "text-slate-400 line-through" : "strong"
+                          } group-hover:text-blue-600 transition-colors leading-snug`}
+                        >
                           {item.title}
                         </h3>
-                        <p className="text-xs font-semibold text-slate-700 mt-0.5">{item.clientName}</p>
+                        <p className="text-xs font-semibold text-slate-700 mt-1 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-cyan-600" /> {item.clientName}
+                        </p>
                       </div>
 
-                      {/* Address & Phone quick links */}
-                      <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+                      {/* Address & Quick Actions Footer */}
+                      <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-slate-600">
                         <div className="flex items-center gap-1.5 truncate">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                          <span className="truncate">{item.address}</span>
+                          <MapPin className="w-4 h-4 mute flex-shrink-0" />
+                          <span className="truncate font-medium">{item.address}</span>
                         </div>
 
                         <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
+                          {/* Navigation Button */}
+                          <a
+                            href={mapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="btn btn-xs"
+                          >
+                            <Navigation className="w-3 h-3 text-blue-600" />
+                            Mapa
+                          </a>
+
+                          {/* Phone Call Button */}
                           {item.phone && (
                             <a
                               href={`tel:${item.phone}`}
                               onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md transition-colors"
+                              className="btn btn-xs"
                             >
-                              <Phone className="w-3 h-3" />
-                              {item.phone}
+                              <Phone className="w-3 h-3 text-emerald-600" />
+                              Zadzwoń
                             </a>
                           )}
-                          <span className="text-slate-400 font-semibold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                          
+                          <span className="dim font-semibold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform text-[11px] ml-1">
                             Szczegóły <ChevronRight className="w-3.5 h-3.5" />
                           </span>
                         </div>
@@ -375,8 +405,11 @@ export function CrewCalendarView({
                 })}
               </div>
             )}
+          </div>
+        )}
       </div>
 
+      {/* Selected Job Bottom Sheet Modal */}
       {selectedItem && (
         <CrewJobDetailModal
           item={selectedItem}

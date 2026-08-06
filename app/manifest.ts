@@ -4,17 +4,20 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "ADK Ekipy Montażowe",
     short_name: "ADK Ekipy",
-    description: "Kalendarz i harmonogram dla ekip montażowych ADK Okna",
+    description: "Mobilna aplikacja i harmonogram dla ekip montażowych ADK Okna",
     start_url: "/ekipa",
-    display: "standalone",
+    scope: "/ekipa",
+    display: "fullscreen",
+    display_override: ["fullscreen", "standalone"],
     orientation: "portrait",
-    background_color: "#f8fafc",
+    background_color: "#0f172a",
     theme_color: "#0f172a",
     icons: [
       {
         src: "/convex.svg",
         sizes: "any",
         type: "image/svg+xml",
+        purpose: "any maskable",
       },
     ],
   };
