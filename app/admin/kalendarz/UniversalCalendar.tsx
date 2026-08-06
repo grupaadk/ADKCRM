@@ -14,7 +14,7 @@ import type { EventClickArg, EventDropArg, EventContentArg, DatesSetArg } from "
 import type { DateClickArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useStatuses } from "@/components/StatusLabelsContext";
-import { FilterX } from "lucide-react";
+import { FilterX, CheckCheck } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -996,6 +996,37 @@ export default function UniversalCalendar({
           >
             <FilterX style={{ width: 13, height: 13 }} />
             <span>Wyczyść filtry</span>
+          </button>
+
+          {/* CTA Select All Filters Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (eventTypes) setActiveEventTypeFilters(new Set(eventTypes.map((t) => t._id)));
+              if (activeSuppliers) setActiveSupplierFilters(new Set(activeSuppliers.map((s) => s._id)));
+              if (installationTeams) setActiveTeamFilters(new Set(installationTeams.map((t) => t._id)));
+              setActiveUserFilters(new Set());
+            }}
+            title="Zaznacz wszystkie filtry"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "4px 12px", borderRadius: 20, fontSize: 11.5,
+              background: "#ecfdf5", color: "#047857",
+              border: "1.5px solid #a7f3d0", fontWeight: 700,
+              cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+              boxShadow: "0 1px 3px rgba(16, 185, 129, 0.08)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#d1fae5";
+              e.currentTarget.style.borderColor = "#6ee7b7";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#ecfdf5";
+              e.currentTarget.style.borderColor = "#a7f3d0";
+            }}
+          >
+            <CheckCheck style={{ width: 13, height: 13 }} />
+            <span>Zaznacz wszystkie</span>
           </button>
 
           <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
