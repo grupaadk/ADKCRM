@@ -14,7 +14,7 @@ import type { EventClickArg, EventDropArg, EventContentArg, DatesSetArg } from "
 import type { DateClickArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useStatuses } from "@/components/StatusLabelsContext";
-import { FilterX, CheckCheck } from "lucide-react";
+import { FilterX, CheckCheck, Search, X } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -90,6 +90,7 @@ export default function UniversalCalendar({
   });
 
   // Filters
+  const [searchQuery, setSearchQuery] = useState("");
   const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set());
   const [activeEventTypeFilters, setActiveEventTypeFilters] = useState<Set<string>>(new Set());
   const [activeSupplierFilters, setActiveSupplierFilters] = useState<Set<string>>(new Set());
@@ -322,7 +323,26 @@ export default function UniversalCalendar({
       installationTeamId?: string;
       assignedUserIds?: string[];
       assignedUserId?: string;
+      title?: string;
+      orderName?: string;
+      clientName?: string;
+      customText?: string;
+      city?: string;
     }) => {
+      // Wyszukiwarka tekstu (zlecenie / klient / opis / miasto)
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const titleMatch = (params.title ?? "").toLowerCase().includes(q);
+        const orderMatch = (params.orderName ?? "").toLowerCase().includes(q);
+        const clientMatch = (params.clientName ?? "").toLowerCase().includes(q);
+        const customMatch = (params.customText ?? "").toLowerCase().includes(q);
+        const cityMatch = (params.city ?? "").toLowerCase().includes(q);
+
+        if (!titleMatch && !orderMatch && !clientMatch && !customMatch && !cityMatch) {
+          return false;
+        }
+      }
+
       // Filtr użytkownika (jeśli aktywny)
       if (hasActiveUserFilters) {
         if (params.assignedUserIds) {
@@ -382,6 +402,8 @@ export default function UniversalCalendar({
           e.installationTeamId ??
           (e.orderId ? allOrders?.find((o) => o._id === e.orderId)?.installationTeamId : undefined);
         const supplierId = e.eventType?.linkedSupplierId;
+        const order = e.orderId ? allOrders?.find((o) => o._id === e.orderId) : undefined;
+        const orderName = order?.orderName ?? order?.orderNumber;
 
         if (
           !matchesFilters({
@@ -389,6 +411,9 @@ export default function UniversalCalendar({
             supplierId,
             installationTeamId: teamId,
             assignedUserIds: e.assignedUsers,
+            title: e.title,
+            orderName,
+            customText: e.description,
           })
         ) {
           continue;
@@ -427,6 +452,10 @@ export default function UniversalCalendar({
             supplierId: le.supplierId,
             installationTeamId: le.installationTeamId,
             assignedUserId: le.assignedUserId,
+            title: le.customText,
+            orderName: le.orderName,
+            clientName: le.clientName,
+            customText: le.serviceName,
           })
         ) {
           continue;
@@ -481,6 +510,7 @@ export default function UniversalCalendar({
     showPrivate,
     allOrders,
     eventTypes,
+    searchQuery,
   ]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
@@ -1011,6 +1041,58 @@ export default function UniversalCalendar({
           <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 20, padding: "3px 10px", whiteSpace: "nowrap" }}>
             {events.length} wydarzeń
           </span>
+
+          {/* Search Box for Order / Client */}
+          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <Search
+              style={{
+                position: "absolute",
+                left: 10,
+                width: 13,
+                height: 13,
+                color: searchQuery ? "var(--accent)" : "var(--text-mute)",
+                pointerEvents: "none",
+              }}
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Szukaj zlecenia / klienta..."
+              style={{
+                padding: "5px 26px 5px 28px",
+                borderRadius: 20,
+                border: searchQuery ? "1.5px solid var(--accent)" : "1px solid var(--line)",
+                fontSize: 12,
+                background: searchQuery ? "var(--accent)0d" : "var(--panel-2)",
+                color: "var(--text-strong)",
+                outline: "none",
+                width: 210,
+                fontFamily: "inherit",
+                transition: "all 0.15s ease",
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                style={{
+                  position: "absolute",
+                  right: 8,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  color: "var(--text-mute)",
+                }}
+                title="Wyczyść szukanie"
+              >
+                <X style={{ width: 13, height: 13 }} />
+              </button>
+            )}
+          </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
