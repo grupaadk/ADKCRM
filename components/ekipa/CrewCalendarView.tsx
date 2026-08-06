@@ -133,7 +133,7 @@ export function CrewCalendarView({
   });
 
   return (
-    <div className="flex-1 flex flex-col pb-20 max-w-5xl mx-auto w-full min-h-[100dvh]" style={{ background: "var(--background)" }}>
+    <div className="flex-1 flex flex-col pb-24 max-w-5xl mx-auto w-full min-h-[100dvh]" style={{ background: "var(--background)" }}>
       {/* Sticky Top Header */}
       <header className="sticky top-0 z-30 px-4 py-3 flex items-center justify-between border-b shadow-xs backdrop-blur-md" style={{ background: "var(--panel)", borderColor: "var(--line)" }}>
         <div className="flex items-center gap-3">

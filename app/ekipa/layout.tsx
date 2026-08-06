@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "ADK Ekipy",
   },
   formatDetection: {
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#f6f7f9",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -29,7 +29,10 @@ export default function EkipaLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="min-h-screen h-[100dvh] bg-slate-950 text-slate-100 flex flex-col font-sans select-none antialiased overflow-x-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+    <div
+      className="min-h-[100dvh] flex flex-col font-sans select-none antialiased overflow-x-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]"
+      style={{ background: "var(--background)", color: "var(--foreground)" }}
+    >
       {children}
     </div>
   );
