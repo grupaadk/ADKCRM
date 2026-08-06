@@ -1337,7 +1337,7 @@ export default function UniversalCalendar({
           <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
 
           {/* General Event type filters (unlinked) */}
-          {eventTypes.filter(t => !t.linkedSupplierId && !t.linkedInstallationTeamId).map((type) => {
+          {eventTypes.filter(t => !t.linkedSupplierId && !t.linkedInstallationTeamId && t.name !== "Administracja").map((type) => {
             const active = activeEventTypeFilters.has(type._id);
             return (
               <button
