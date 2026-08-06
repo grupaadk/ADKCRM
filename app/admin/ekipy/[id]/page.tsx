@@ -92,6 +92,7 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
 
   const [activeTab, setActiveTab] = useState<Tab>("schedule");
   const [scheduleView, setScheduleView] = useState<"list" | "calendar">("list");
+  const [scheduleStatusFilter, setScheduleStatusFilter] = useState<"todo" | "done" | "all">("todo");
   const [editingInfo, setEditingInfo] = useState(false);
   const [updatingScheduleId, setUpdatingScheduleId] = useState<string | null>(null);
 
@@ -188,6 +189,7 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
         address: o.clientAddress,
         phone: o.clientPhone,
         status: o.status,
+        done: o.status === "completed",
         href: `/admin/klient/${o.clientId}/zlecenie/${o._id}`,
       })),
     ...teamComplaints
@@ -202,9 +204,14 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
         address: undefined,
         phone: undefined,
         status: c.status,
+        done: c.status === "rozwiazana" || c.status === "zamknieta" || c.status === "zakonczona",
         href: c.orderId ? `/admin/klient/${c.clientId}/zlecenie/${c.orderId}` : `/admin/reklamacje`,
       })),
   ].sort((a, b) => a.date - b.date);
+
+  const filteredScheduleItems = scheduleItems.filter((item) =>
+    scheduleStatusFilter === "all" ? true : scheduleStatusFilter === "done" ? item.done : !item.done
+  );
 
   const handleToggleDone = async (item: typeof scheduleItems[0]) => {
     setUpdatingScheduleId(item.id);
@@ -377,7 +384,8 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
                 Harmonogram prac i serwisów
               </h3>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--panel)", padding: 4, borderRadius: 8, border: "1px solid var(--line)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--panel)", padding: 4, borderRadius: 8, border: "1px solid var(--line)" }}>
                 <button
                   type="button"
                   onClick={() => setScheduleView("list")}
@@ -409,26 +417,53 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
                   Kalendarz ekipy
                 </button>
               </div>
+
+              {scheduleView === "list" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--panel)", padding: 4, borderRadius: 8, border: "1px solid var(--line)" }}>
+                  {([
+                    ["todo", "Do zrobienia"],
+                    ["done", "Zrobione"],
+                    ["all", "Wszystkie"],
+                  ] as [typeof scheduleStatusFilter, string][]).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setScheduleStatusFilter(key)}
+                      style={{
+                        padding: "4px 12px", fontSize: 12, fontWeight: scheduleStatusFilter === key ? 700 : 500,
+                        borderRadius: 6, border: "none", cursor: "pointer",
+                        background: scheduleStatusFilter === key ? "var(--card)" : "transparent",
+                        color: scheduleStatusFilter === key ? "var(--text-strong)" : "var(--text-mute)",
+                        boxShadow: scheduleStatusFilter === key ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              </div>
             </div>
 
             {scheduleView === "calendar" ? (
               <div style={{ paddingTop: 8, minHeight: 680 }}>
                 <UniversalCalendar initialTeamId={teamId} initialView="timeGridWeek" />
               </div>
-            ) : scheduleItems.length === 0 ? (
+            ) : filteredScheduleItems.length === 0 ? (
               <div style={{ padding: 48, textAlign: "center", color: "var(--text-mute)", border: "1px dashed var(--line)", borderRadius: 10 }}>
-                Brak zaplanowanych montaży i serwisów dla tej ekipy.
+                {scheduleItems.length === 0
+                  ? "Brak zaplanowanych montaży i serwisów dla tej ekipy."
+                  : scheduleStatusFilter === "done"
+                  ? "Brak zrobionych montaży i serwisów."
+                  : "Brak montaży i serwisów do zrobienia."}
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {scheduleItems.map((item, idx) => {
+                {filteredScheduleItems.map((item, idx) => {
                   const isMontaz = item.type === "montaz";
                   const isFuture = item.date >= Date.now();
-                  const isDone = isMontaz
-                    ? item.status === "completed"
-                    : item.status === "rozwiazana" ||
-                      item.status === "zamknieta" ||
-                      item.status === "zakonczona";
+                  const isDone = item.done;
                   const isUpdating = updatingScheduleId === item.id;
 
                   return (
