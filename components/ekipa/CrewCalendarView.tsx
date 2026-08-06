@@ -234,48 +234,85 @@ export function CrewCalendarView({
                 />
               </div>
 
-              {/* Status Filter Tabs */}
-              <div className="flex items-center gap-1.5">
-                {(["upcoming", "all", "completed"] as const).map((st) => {
-                  const label = st === "upcoming" ? "Do wykonania" : st === "all" ? "Wszystkie" : "Wykonane";
-                  const active = filter === st;
-                  return (
-                    <button
-                      key={st}
-                      onClick={() => setFilter(st)}
-                      className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg border transition-all cursor-pointer text-center ${
-                        active ? "btn primary" : "btn ghost"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
+              {/* Multi-status 2x2 Grid Filters */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFilter("upcoming")}
+                  className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                    filter === "upcoming"
+                      ? "bg-amber-50 text-amber-800 border-amber-300 ring-2 ring-amber-400/20 font-bold shadow-xs"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Clock className={`w-4 h-4 ${filter === "upcoming" ? "text-amber-600" : "text-slate-400"}`} />
+                    <span className="text-xs">Do wykonania</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100/80 text-amber-800">
+                    {items.filter(i => {
+                      const isM = i.type === "montaz";
+                      return isM ? i.status !== "completed" : !(i.status === "rozwiazana" || i.status === "zamknieta" || i.status === "zakonczona");
+                    }).length}
+                  </span>
+                </button>
 
-              {/* Job Type Filter Tabs */}
-              <div className="flex items-center gap-1.5">
-                {(["all", "montaz", "serwis"] as const).map((t) => {
-                  const label = t === "all" ? "Wszystkie typy" : t === "montaz" ? "🔧 Montaże" : "🛠️ Serwisy";
-                  const active = typeFilter === t;
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => setTypeFilter(t)}
-                      className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg border transition-all cursor-pointer text-center ${
-                        active
-                          ? t === "montaz"
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : t === "serwis"
-                            ? "bg-amber-600 text-white border-amber-600"
-                            : "btn primary"
-                          : "btn ghost"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
+                <button
+                  type="button"
+                  onClick={() => setFilter("completed")}
+                  className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                    filter === "completed"
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-400/20 font-bold shadow-xs"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Check className={`w-4 h-4 ${filter === "completed" ? "text-emerald-600" : "text-slate-400"}`} />
+                    <span className="text-xs">Wykonane</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100/80 text-emerald-800">
+                    {items.filter(i => {
+                      const isM = i.type === "montaz";
+                      return isM ? i.status === "completed" : (i.status === "rozwiazana" || i.status === "zamknieta" || i.status === "zakonczona");
+                    }).length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter(typeFilter === "montaz" ? "all" : "montaz")}
+                  className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                    typeFilter === "montaz"
+                      ? "bg-blue-50 text-blue-800 border-blue-300 ring-2 ring-blue-400/20 font-bold shadow-xs"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Wrench className={`w-4 h-4 ${typeFilter === "montaz" ? "text-blue-600" : "text-slate-400"}`} />
+                    <span className="text-xs">Tylko Montaże</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100/80 text-blue-800">
+                    {items.filter(i => i.type === "montaz").length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter(typeFilter === "serwis" ? "all" : "serwis")}
+                  className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                    typeFilter === "serwis"
+                      ? "bg-orange-50 text-orange-800 border-orange-300 ring-2 ring-orange-400/20 font-bold shadow-xs"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Sparkles className={`w-4 h-4 ${typeFilter === "serwis" ? "text-orange-600" : "text-slate-400"}`} />
+                    <span className="text-xs">Tylko Serwisy</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100/80 text-orange-800">
+                    {items.filter(i => i.type === "serwis").length}
+                  </span>
+                </button>
               </div>
             </div>
 
