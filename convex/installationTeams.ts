@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 
 export const listAll = query({
   args: {},
@@ -242,8 +243,8 @@ export const getTeamFinancials = query({
     // Zbierz wszystkie identyfikatory zleceń powiązanych z ekipą (bezpośrednio, przez wydatki lub kalendarz)
     const teamOrderIds = new Set<string>([
       ...teamOrders.map((o) => o._id as string),
-      ...teamExpenses.map((e) => e.orderId).filter((id): id is string => Boolean(id)),
-      ...teamCalendarEvents.map((ev) => ev.orderId).filter((id): id is string => Boolean(id)),
+      ...teamExpenses.map((e) => e.orderId).filter((id): id is NonNullable<typeof id> => Boolean(id)),
+      ...teamCalendarEvents.map((ev) => ev.orderId).filter((id): id is NonNullable<typeof id> => Boolean(id)),
     ]);
     const allTeamOrders = orders.filter((o) => teamOrderIds.has(o._id as string));
 
@@ -633,25 +634,27 @@ export const updateEventDateByPin = mutation({
     }
 
     if (args.eventType === "montaz") {
-      const order = await ctx.db.get(args.eventId as any);
+      const orderId = args.eventId as Id<"orders">;
+      const order = await ctx.db.get(orderId);
       if (!order) throw new Error("Zlecenie nie istnieje.");
       if (order.installationTeamId !== team._id) {
         throw new Error("Brak uprawnień. Zlecenie nie jest przypisane do tej ekipy.");
       }
-      
+
       // If we only have projectEndDate mapped as date, we should update both
-      await ctx.db.patch(args.eventId as any, {
+      await ctx.db.patch(orderId, {
         projectStartDate: args.newDate,
         projectEndDate: args.newDate,
       });
     } else {
-      const complaint = await ctx.db.get(args.eventId as any);
+      const complaintId = args.eventId as Id<"complaints">;
+      const complaint = await ctx.db.get(complaintId);
       if (!complaint) throw new Error("Reklamacja/Serwis nie istnieje.");
       if (complaint.installationTeamId !== team._id) {
         throw new Error("Brak uprawnień. Serwis nie jest przypisany do tej ekipy.");
       }
 
-      await ctx.db.patch(args.eventId as any, {
+      await ctx.db.patch(complaintId, {
         startDate: args.newDate,
         serviceDate: args.newDate,
         serviceDateEnd: undefined, // Clear end date as it's a single day now
