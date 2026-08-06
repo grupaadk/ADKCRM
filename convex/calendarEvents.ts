@@ -408,6 +408,7 @@ export const getLinkedOrderEvents = query({
                   serviceName: label,
                   field,
                   assignedUserId: order.assignedUserId,
+                  installationTeamId: order.installationTeamId,
                 });
               }
             });

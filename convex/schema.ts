@@ -823,6 +823,7 @@ export default defineSchema({
     endDate: v.optional(v.number()),
     isAllDay: v.boolean(),
     assignedUserIds: v.optional(v.array(v.id("users"))),
+    installationTeamId: v.optional(v.id("installationTeams")),
     clientId: v.optional(v.id("clients")),
     orderId: v.optional(v.id("orders")),
     createdBy: v.id("users"),

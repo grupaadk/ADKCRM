@@ -96,11 +96,31 @@ export default function UniversalCalendar({
     () => (initialTeamId ? new Set([initialTeamId]) : new Set())
   );
 
+  const [eventTypesInitialized, setEventTypesInitialized] = useState(false);
+  useEffect(() => {
+    if (eventTypes && eventTypes.length > 0 && !eventTypesInitialized) {
+      setActiveEventTypeFilters(new Set(eventTypes.map((t) => t._id)));
+      setEventTypesInitialized(true);
+    }
+  }, [eventTypes, eventTypesInitialized]);
+
+  const [suppliersInitialized, setSuppliersInitialized] = useState(false);
+  useEffect(() => {
+    if (activeSuppliers && activeSuppliers.length > 0 && !suppliersInitialized) {
+      setActiveSupplierFilters(new Set(activeSuppliers.map((s) => s._id)));
+      setSuppliersInitialized(true);
+    }
+  }, [activeSuppliers, suppliersInitialized]);
+
+  const [teamsInitialized, setTeamsInitialized] = useState(false);
   useEffect(() => {
     if (initialTeamId) {
       setActiveTeamFilters(new Set([initialTeamId]));
+    } else if (installationTeams && installationTeams.length > 0 && !teamsInitialized) {
+      setActiveTeamFilters(new Set(installationTeams.map((t) => t._id)));
+      setTeamsInitialized(true);
     }
-  }, [initialTeamId]);
+  }, [initialTeamId, installationTeams, teamsInitialized]);
   const [expandedSupplierId, setExpandedSupplierId] = useState<string | null>(null);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [showMoreSuppliersDropdown, setShowMoreSuppliersDropdown] = useState(false);
@@ -272,11 +292,19 @@ export default function UniversalCalendar({
   const events = useMemo(() => {
     const result: object[] = [];
 
+    const isFilteringSupplier = activeSupplierFilters.size > 0 && activeSupplierFilters.size < activeSuppliers.length;
+    const isFilteringTeam = !initialTeamId && activeTeamFilters.size > 0 && activeTeamFilters.size < installationTeams.length;
+
     // --- Calendar events ---
-    if (calendarEvents && activeSupplierFilters.size === 0 && activeTeamFilters.size === 0) {
+    if (calendarEvents) {
       for (const e of calendarEvents) {
         if (!showPrivate && e.isPrivate) continue;
         if (activeEventTypeFilters.size > 0 && !activeEventTypeFilters.has(e.eventTypeId)) continue;
+        if (isFilteringSupplier) continue;
+        if (isFilteringTeam || (initialTeamId && activeTeamFilters.size > 0)) {
+          const teamId = e.installationTeamId ?? (e.orderId ? allOrders?.find((o) => o._id === e.orderId)?.installationTeamId : undefined);
+          if (teamId && !activeTeamFilters.has(teamId)) continue;
+        }
 
         const color = e.eventType?.color ?? "#64748b";
         result.push({
@@ -304,7 +332,8 @@ export default function UniversalCalendar({
 
     // --- Linked Order events ---
     if (linkedOrderEvents) {
-      const filteredLinked = activeUserFilters.size === 0
+      const isFilteringUser = activeUserFilters.size > 0 && (allUsers ? activeUserFilters.size < allUsers.length : false);
+      const filteredLinked = !isFilteringUser
         ? linkedOrderEvents
         : linkedOrderEvents.filter((le) => {
             if (!le.assignedUserId) return activeUserFilters.has("__none__");
@@ -313,11 +342,11 @@ export default function UniversalCalendar({
 
       for (const le of filteredLinked) {
         if (activeEventTypeFilters.size > 0 && !activeEventTypeFilters.has(le.eventTypeId)) continue;
-        if (activeSupplierFilters.size > 0) {
-          if (!le.supplierId || !activeSupplierFilters.has(le.supplierId)) continue;
+        if (isFilteringSupplier) {
+          if (le.supplierId && !activeSupplierFilters.has(le.supplierId)) continue;
         }
-        if (activeTeamFilters.size > 0) {
-          if (!le.installationTeamId || !activeTeamFilters.has(le.installationTeamId)) continue;
+        if (isFilteringTeam || (initialTeamId && activeTeamFilters.size > 0)) {
+          if (le.installationTeamId && !activeTeamFilters.has(le.installationTeamId)) continue;
         }
 
         const baseText = le.orderName ? `${le.orderName} - ${le.clientName}` : le.clientName;
@@ -359,7 +388,7 @@ export default function UniversalCalendar({
     }
 
     return result;
-  }, [calendarEvents, linkedOrderEvents, activeUserFilters, activeEventTypeFilters, activeSupplierFilters, activeTeamFilters, showPrivate]);
+  }, [calendarEvents, linkedOrderEvents, activeUserFilters, activeEventTypeFilters, activeSupplierFilters, activeTeamFilters, showPrivate, activeSuppliers.length, installationTeams.length, allUsers, allOrders, initialTeamId]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
 
