@@ -116,9 +116,52 @@ export const ensureSupplierEventTypes = mutation({
         });
         createdCount++;
       }
+    // 4. Własne
+    const hasWlasne = existingTypes.some(
+      (t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne"
+    );
+
+    if (!hasWlasne) {
+      const newId = await ctx.db.insert("calendarEventTypes", {
+        name: "Własne",
+        color: "#6366f1",
+        isPrivate: false,
+        defaultTimeMode: "timed",
+        createdAt: Date.now(),
+      });
+      existingTypes.push({
+        _id: newId,
+        _creationTime: Date.now(),
+        name: "Własne",
+        color: "#6366f1",
+        isPrivate: false,
+        defaultTimeMode: "timed",
+        createdAt: Date.now(),
+      });
+      createdCount++;
     }
 
     return { createdCount };
+  },
+});
+
+export const ensureDefaultWlasneType = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const existing = await ctx.db.query("calendarEventTypes").collect();
+    const wlasne = existing.find(
+      (t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne"
+    );
+    if (!wlasne) {
+      return await ctx.db.insert("calendarEventTypes", {
+        name: "Własne",
+        color: "#6366f1",
+        isPrivate: false,
+        defaultTimeMode: "timed",
+        createdAt: Date.now(),
+      });
+    }
+    return wlasne._id;
   },
 });
 

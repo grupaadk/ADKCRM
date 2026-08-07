@@ -112,10 +112,7 @@ export default function UniversalCalendar({
   const [dayEventsViewMode, setDayEventsViewMode] = useState<"timeline" | "list">("timeline");
   const [dragOverHour, setDragOverHour] = useState<number | null>(null);
   const [dateModalOpen, setDateModalOpen] = useState(false);
-  const [dateModalTab, setDateModalTab] = useState<"montaz" | "event">("montaz");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [orderSearch, setOrderSearch] = useState("");
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   // New event form
   const [newEventTitle, setNewEventTitle] = useState("");
@@ -164,6 +161,7 @@ export default function UniversalCalendar({
   const [eventTypesInitialized, setEventTypesInitialized] = useState(false);
   useEffect(() => {
     if (eventTypes && eventTypes.length > 0 && !eventTypesInitialized) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveEventTypeFilters(new Set(eventTypes.map((t) => t._id)));
       setEventTypesInitialized(true);
     }
@@ -172,6 +170,7 @@ export default function UniversalCalendar({
   const [suppliersInitialized, setSuppliersInitialized] = useState(false);
   useEffect(() => {
     if (activeSuppliers && activeSuppliers.length > 0 && !suppliersInitialized) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveSupplierFilters(new Set(activeSuppliers.map((s) => s._id)));
       setSuppliersInitialized(true);
     }
@@ -180,8 +179,10 @@ export default function UniversalCalendar({
   const [teamsInitialized, setTeamsInitialized] = useState(false);
   useEffect(() => {
     if (initialTeamId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveTeamFilters(new Set([initialTeamId]));
     } else if (installationTeams && installationTeams.length > 0 && !teamsInitialized) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveTeamFilters(new Set(installationTeams.map((t) => t._id)));
       setTeamsInitialized(true);
     }
@@ -189,12 +190,22 @@ export default function UniversalCalendar({
   const cars = useQuery(api.cars.getCars);
   useEffect(() => {
     if (cars && cars.length > 0 && !carsInitialized) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveCarFilters(new Set(cars.map((c) => c._id)));
       setCarsInitialized(true);
     }
   }, [cars, carsInitialized]);
 
-  const effectiveEventTypeId = newEventTypeId || eventTypes[0]?._id || "";
+  const ensureWlasneType = useMutation(api.calendarEvents.ensureDefaultWlasneType);
+  useEffect(() => {
+    if (eventTypes && !eventTypes.some((t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne")) {
+      void ensureWlasneType();
+    }
+  }, [eventTypes, ensureWlasneType]);
+
+  const wlasneType = eventTypes.find((t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne");
+  const defaultEventTypeId = wlasneType ? wlasneType._id : (eventTypes[0]?._id || "");
+  const effectiveEventTypeId = newEventTypeId || defaultEventTypeId;
   const calendarEvents = useQuery(api.calendarEvents.getEvents, {
     startDate: visibleRange.start.getTime(),
     endDate: visibleRange.end.getTime(),
@@ -357,26 +368,25 @@ export default function UniversalCalendar({
         }
       }
 
-      // Filtr użytkownika (jeśli aktywny)
-      if (hasActiveUserFilters) {
-        if (params.assignedUserIds) {
-          const userMatch =
-            params.assignedUserIds.some((uid) => activeUserFilters.has(uid)) ||
-            (params.assignedUserIds.length === 0 && activeUserFilters.has("__none__"));
-          if (!userMatch) return false;
-        } else if (params.assignedUserId !== undefined) {
-          const userMatch = params.assignedUserId
-            ? activeUserFilters.has(params.assignedUserId)
-            : activeUserFilters.has("__none__");
-          if (!userMatch) return false;
-        }
-      }
-
       // Sprawdź czy wydarzenie pasuje do przynajmniej jednego aktywnego kryterium
       let matched = false;
 
-      // 1. Pasuje do aktywnego typu wydarzenia
-      if (hasActiveEventTypeFilters && activeEventTypeFilters.has(params.eventTypeId)) {
+      // Filtr użytkownika (jeśli aktywny)
+      if (hasActiveUserFilters) {
+        let userMatch = false;
+        if (params.assignedUserIds) {
+          userMatch =
+            params.assignedUserIds.some((uid) => activeUserFilters.has(uid)) ||
+            (params.assignedUserIds.length === 0 && activeUserFilters.has("__none__"));
+        } else if (params.assignedUserId !== undefined) {
+          userMatch = params.assignedUserId
+            ? activeUserFilters.has(params.assignedUserId)
+            : activeUserFilters.has("__none__");
+        }
+        if (!userMatch) return false;
+        matched = true;
+      }
+      if (!matched && hasActiveEventTypeFilters && activeEventTypeFilters.has(params.eventTypeId)) {
         matched = true;
       }
 
@@ -438,13 +448,20 @@ export default function UniversalCalendar({
         const order = e.orderId ? allOrders?.find((o) => o._id === e.orderId) : undefined;
         const orderName = order?.orderName ?? order?.orderNumber;
 
+        const assignedUserIds =
+          e.assignedUsers && e.assignedUsers.length > 0
+            ? e.assignedUsers
+            : e.createdBy
+            ? [e.createdBy]
+            : [];
+
         if (
           !matchesFilters({
             eventTypeId: e.eventTypeId,
             supplierId,
             installationTeamId: teamId,
             carId: (e as { carId?: string | null }).carId,
-            assignedUserIds: e.assignedUsers,
+            assignedUserIds,
             title: e.title,
             orderName,
             customText: e.description,
@@ -562,17 +579,6 @@ export default function UniversalCalendar({
       setWeekRange(null);
     }
   };
-
-  const filteredOrders = useMemo(() => {
-    if (!allOrders) return [];
-    const term = orderSearch.toLowerCase();
-    if (!term) return allOrders.slice(0, 20);
-    return allOrders.filter((o) =>
-      (o.name ?? "").toLowerCase().includes(term) ||
-      o.clientName.toLowerCase().includes(term) ||
-      (o.customText ?? "").toLowerCase().includes(term)
-    ).slice(0, 20);
-  }, [allOrders, orderSearch]);
 
   const handleEventDrop = async (info: EventDropArg) => {
     const props = info.event.extendedProps as {
@@ -723,30 +729,18 @@ export default function UniversalCalendar({
 
   const handleDateClick = (info: DateClickArg) => {
     setSelectedDate(info.date);
-    setSelectedOrderId(null);
-    setOrderSearch("");
     setNewEventTitle("");
+    setNewEventTypeId(defaultEventTypeId);
     setNewEventDescription("");
     setNewEventIsAllDay(false);
     setNewEventIsPrivate(false);
-    setNewEventAssignedUserIds([]);
+    setNewEventAssignedUserIds(currentUser?._id ? [currentUser._id as string] : []);
     // Set default end date = same day, 1 hour later
     const endD = new Date(info.date);
     endD.setHours(endD.getHours() + 1);
     setNewEventEndDate(endD.toISOString().slice(0, 10));
     setNewEventEndTime(`${endD.getHours().toString().padStart(2, "0")}:${endD.getMinutes().toString().padStart(2, "0")}`);
-    setDateModalTab("montaz");
     setDateModalOpen(true);
-  };
-
-  const handleAssignDate = async () => {
-    if (!selectedOrderId || !selectedDate) return;
-    await updateOrder({
-      orderId: selectedOrderId as Id<"orders">,
-      projectEndDate: localMidnight(selectedDate),
-      installationStartDate: dateToMins(selectedDate),
-    });
-    setDateModalOpen(false);
   };
 
   const handleCreateEvent = async () => {
@@ -755,6 +749,10 @@ export default function UniversalCalendar({
     const endDate = new Date(newEventEndDate);
     endDate.setHours(endH, endM, 0, 0);
 
+    const finalAssignedIds = newEventAssignedUserIds.length > 0
+      ? (newEventAssignedUserIds as Id<"users">[])
+      : (currentUser?._id ? [currentUser._id as Id<"users">] : undefined);
+
     await createCalendarEvent({
       eventTypeId: effectiveEventTypeId as Id<"calendarEventTypes">,
       title: newEventTitle.trim(),
@@ -762,9 +760,7 @@ export default function UniversalCalendar({
       startDate: selectedDate.getTime(),
       endDate: newEventIsAllDay ? undefined : endDate.getTime(),
       isAllDay: newEventIsAllDay,
-      assignedUserIds: newEventAssignedUserIds.length > 0
-        ? (newEventAssignedUserIds as Id<"users">[])
-        : undefined,
+      assignedUserIds: finalAssignedIds,
       isPrivate: newEventIsPrivate,
     });
     setDateModalOpen(false);
@@ -1050,8 +1046,6 @@ export default function UniversalCalendar({
       return localMidnight(startD) === targetMidnight;
     });
   }, [selectedDate, events]);
-
-  const dayEventsCount = useMemo(() => selectedDayEvents.length, [selectedDayEvents]);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -2262,189 +2256,129 @@ export default function UniversalCalendar({
               </button>
             </div>
 
-            {/* Tabs */}
-            <div style={{ display: "flex", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
-              {(["montaz", "event"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setDateModalTab(tab)}
-                  style={{
-                    flex: 1, padding: "10px 0", fontSize: 13, fontWeight: dateModalTab === tab ? 700 : 500,
-                    color: dateModalTab === tab ? "var(--accent)" : "var(--text-mute)",
-                    background: "none", border: "none", borderBottom: dateModalTab === tab ? "2px solid var(--accent)" : "2px solid transparent",
-                    cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit",
-                  }}
-                >
-                  {tab === "montaz" ? "🔧 Montaż (zlecenie)" : "📅 Nowe zdarzenie"}
-                </button>
-              ))}
-            </div>
-
             {/* Content */}
             <div style={{ flex: 1, overflowY: "auto" }}>
-              {dateModalTab === "montaz" ? (
-                <>
-                  {dayEventsCount > 0 && (
-                    <div style={{ margin: "12px 20px 0", fontSize: 11, fontWeight: 600, color: "#92600a", background: "#fbe7c2", border: "1px solid #f0cd8a", borderRadius: 6, padding: "5px 10px" }}>
-                      ⚠ Na ten dzień zaplanowano już {dayEventsCount} zdarzeń
+              <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Title */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Tytuł *</label>
+                  <input
+                    type="text" value={newEventTitle} onChange={(e) => setNewEventTitle(e.target.value)}
+                    placeholder="Nazwa zdarzenia…" autoFocus
+                    style={{ width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+
+                {/* Event type */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Typ zdarzenia *</label>
+                  {eventTypes.length === 0 ? (
+                    <div style={{ fontSize: 12, color: "#e67e22", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 6, padding: "6px 10px" }}>
+                      Brak typów wydarzeń. Dodaj je w Ustawieniach → Typy Wydarzeń.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {eventTypes.map((type) => (
+                        <button
+                          key={type._id}
+                          onClick={() => {
+                            setNewEventTypeId(type._id);
+                            if (type.defaultTimeMode === "all_day") setNewEventIsAllDay(true);
+                            if (type.defaultTimeMode === "timed") setNewEventIsAllDay(false);
+                          }}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 6,
+                            padding: "5px 12px", borderRadius: 20, fontSize: 12,
+                            background: newEventTypeId === type._id ? `${type.color}22` : "var(--panel)",
+                            color: newEventTypeId === type._id ? type.color : "var(--text-mute)",
+                            border: `1.5px solid ${newEventTypeId === type._id ? type.color : "var(--line)"}`,
+                            fontWeight: newEventTypeId === type._id ? 700 : 500,
+                            cursor: "pointer", fontFamily: "inherit",
+                          }}
+                        >
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color }} />
+                          {type.name}
+                        </button>
+                      ))}
                     </div>
                   )}
-                  <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--line)" }}>
-                    <input
-                      type="text" placeholder="Szukaj zlecenia lub klienta…"
-                      value={orderSearch} onChange={(e) => setOrderSearch(e.target.value)} autoFocus
-                      style={{ width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div style={{ padding: "6px 0" }}>
-                    {filteredOrders.length === 0 ? (
-                      <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak zleceń</div>
-                    ) : filteredOrders.map((o) => {
-                      const selected = selectedOrderId === o._id;
-                      return (
-                        <button key={o._id} onClick={() => setSelectedOrderId(o._id)} style={{
-                          display: "flex", alignItems: "center", gap: 12, width: "100%",
-                          padding: "10px 20px", background: selected ? "var(--accent)11" : "transparent",
-                          border: "none", borderBottom: "1px solid var(--line)", cursor: "pointer", textAlign: "left",
-                          borderLeft: selected ? "3px solid var(--accent)" : "3px solid transparent",
-                          fontFamily: "inherit",
-                        }}>
-                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: selected ? "var(--accent)" : "var(--line)" }} />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-strong)", fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.name ?? "—"}</div>
-                            <div style={{ fontSize: 12, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.clientName}</div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-                  {/* Title */}
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Tytuł *</label>
-                    <input
-                      type="text" value={newEventTitle} onChange={(e) => setNewEventTitle(e.target.value)}
-                      placeholder="Nazwa zdarzenia…" autoFocus
-                      style={{ width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
-                    />
-                  </div>
+                </div>
 
-                  {/* Event type */}
+                {/* All day toggle */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input type="checkbox" id="allDay" checked={newEventIsAllDay} onChange={(e) => setNewEventIsAllDay(e.target.checked)} />
+                  <label htmlFor="allDay" style={{ fontSize: 13, color: "var(--text)", cursor: "pointer" }}>Cały dzień</label>
+                </div>
+
+                {/* End date/time */}
+                {!newEventIsAllDay && (
                   <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Typ zdarzenia *</label>
-                    {eventTypes.length === 0 ? (
-                      <div style={{ fontSize: 12, color: "#e67e22", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 6, padding: "6px 10px" }}>
-                        Brak typów wydarzeń. Dodaj je w Ustawieniach → Typy Wydarzeń.
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {eventTypes.map((type) => (
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Koniec zdarzenia</label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        type="date" value={newEventEndDate} onChange={(e) => setNewEventEndDate(e.target.value)}
+                        style={{ flex: 1, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
+                      />
+                      <input
+                        type="time" value={newEventEndTime} onChange={(e) => setNewEventEndTime(e.target.value)}
+                        style={{ width: 110, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Description */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Opis (opcjonalnie)</label>
+                  <textarea
+                    value={newEventDescription} onChange={(e) => setNewEventDescription(e.target.value)}
+                    rows={2} style={{ width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }}
+                  />
+                </div>
+
+                {/* Assign users */}
+                {allUsers && (
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Przypisane osoby</label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {allUsers.map((user) => {
+                        const selected = newEventAssignedUserIds.includes(user._id as string);
+                        const name = user.displayName ?? user.login ?? "?";
+                        const isMe = currentUser?._id === user._id;
+                        return (
                           <button
-                            key={type._id}
-                            onClick={() => {
-                              setNewEventTypeId(type._id);
-                              if (type.defaultTimeMode === "all_day") setNewEventIsAllDay(true);
-                              if (type.defaultTimeMode === "timed") setNewEventIsAllDay(false);
-                            }}
+                            key={user._id}
+                            onClick={() => setNewEventAssignedUserIds((prev) => selected ? prev.filter((id) => id !== user._id) : [...prev, user._id as string])}
                             style={{
-                              display: "inline-flex", alignItems: "center", gap: 6,
-                              padding: "5px 12px", borderRadius: 20, fontSize: 12,
-                              background: newEventTypeId === type._id ? `${type.color}22` : "var(--panel)",
-                              color: newEventTypeId === type._id ? type.color : "var(--text-mute)",
-                              border: `1.5px solid ${newEventTypeId === type._id ? type.color : "var(--line)"}`,
-                              fontWeight: newEventTypeId === type._id ? 700 : 500,
-                              cursor: "pointer", fontFamily: "inherit",
+                              display: "inline-flex", alignItems: "center", gap: 5,
+                              padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                              background: selected ? `${user.color ?? "#64748b"}22` : "var(--panel)",
+                              color: selected ? (user.color ?? "var(--accent)") : "var(--text-mute)",
+                              border: `1.5px solid ${selected ? (user.color ?? "var(--accent)") : "var(--line)"}`,
+                              fontWeight: selected ? 600 : 500, cursor: "pointer", fontFamily: "inherit",
                             }}
                           >
-                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color }} />
-                            {type.name}
+                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: user.color ?? "#94a3b8" }} />
+                            {name} {isMe && "(Ty)"}
                           </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* All day toggle */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <input type="checkbox" id="allDay" checked={newEventIsAllDay} onChange={(e) => setNewEventIsAllDay(e.target.checked)} />
-                    <label htmlFor="allDay" style={{ fontSize: 13, color: "var(--text)", cursor: "pointer" }}>Cały dzień</label>
-                  </div>
-
-                  {/* End date/time */}
-                  {!newEventIsAllDay && (
-                    <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Koniec zdarzenia</label>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <input
-                          type="date" value={newEventEndDate} onChange={(e) => setNewEventEndDate(e.target.value)}
-                          style={{ flex: 1, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
-                        />
-                        <input
-                          type="time" value={newEventEndTime} onChange={(e) => setNewEventEndTime(e.target.value)}
-                          style={{ width: 110, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
-                        />
-                      </div>
+                        );
+                      })}
                     </div>
-                  )}
-
-                  {/* Description */}
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Opis (opcjonalnie)</label>
-                    <textarea
-                      value={newEventDescription} onChange={(e) => setNewEventDescription(e.target.value)}
-                      rows={2} style={{ width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }}
-                    />
                   </div>
+                )}
 
-                  {/* Assign users */}
-                  {allUsers && (
-                    <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Przypisz osoby</label>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {allUsers.map((user) => {
-                          const selected = newEventAssignedUserIds.includes(user._id as string);
-                          const name = user.displayName ?? user.login ?? "?";
-                          return (
-                            <button
-                              key={user._id}
-                              onClick={() => setNewEventAssignedUserIds((prev) => selected ? prev.filter((id) => id !== user._id) : [...prev, user._id as string])}
-                              style={{
-                                display: "inline-flex", alignItems: "center", gap: 5,
-                                padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-                                background: selected ? `${user.color ?? "#64748b"}22` : "var(--panel)",
-                                color: selected ? (user.color ?? "var(--accent)") : "var(--text-mute)",
-                                border: `1.5px solid ${selected ? (user.color ?? "var(--accent)") : "var(--line)"}`,
-                                fontWeight: selected ? 600 : 500, cursor: "pointer", fontFamily: "inherit",
-                              }}
-                            >
-                              <span style={{ width: 7, height: 7, borderRadius: "50%", background: user.color ?? "#94a3b8" }} />
-                              {name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Private */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <input type="checkbox" id="private" checked={newEventIsPrivate} onChange={(e) => setNewEventIsPrivate(e.target.checked)} />
-                    <label htmlFor="private" style={{ fontSize: 13, color: "var(--text)", cursor: "pointer" }}>🔒 Prywatne (widoczne tylko dla mnie)</label>
-                  </div>
+                {/* Private */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input type="checkbox" id="private" checked={newEventIsPrivate} onChange={(e) => setNewEventIsPrivate(e.target.checked)} />
+                  <label htmlFor="private" style={{ fontSize: 13, color: "var(--text)", cursor: "pointer" }}>🔒 Prywatne (widoczne tylko dla mnie)</label>
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Footer */}
             <div style={{ padding: "12px 20px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "flex-end", gap: 8, flexShrink: 0 }}>
               <button onClick={() => setDateModalOpen(false)} className="btn btn-xs" style={{ fontSize: 13, padding: "7px 16px" }}>Anuluj</button>
-              {dateModalTab === "montaz" ? (
-                <button onClick={handleAssignDate} disabled={!selectedOrderId} className="btn primary btn-xs" style={{ fontSize: 13, padding: "7px 16px", opacity: selectedOrderId ? 1 : 0.45 }}>Przypisz</button>
-              ) : (
-                <button onClick={handleCreateEvent} disabled={!newEventTitle.trim() || !effectiveEventTypeId} className="btn primary btn-xs" style={{ fontSize: 13, padding: "7px 16px", opacity: newEventTitle.trim() && effectiveEventTypeId ? 1 : 0.45 }}>Zapisz zdarzenie</button>
-              )}
+              <button onClick={handleCreateEvent} disabled={!newEventTitle.trim() || !effectiveEventTypeId} className="btn primary btn-xs" style={{ fontSize: 13, padding: "7px 16px", opacity: newEventTitle.trim() && effectiveEventTypeId ? 1 : 0.45 }}>Zapisz zdarzenie</button>
             </div>
           </div>
         </div>,
