@@ -27,6 +27,7 @@ import type * as gmail from "../gmail.js";
 import type * as gmailAuth from "../gmailAuth.js";
 import type * as googleDrive from "../googleDrive.js";
 import type * as googleDriveAuth from "../googleDriveAuth.js";
+import type * as hr from "../hr.js";
 import type * as http from "../http.js";
 import type * as installationTeams from "../installationTeams.js";
 import type * as itKanban from "../itKanban.js";
@@ -86,6 +87,7 @@ declare const fullApi: ApiFromModules<{
   gmailAuth: typeof gmailAuth;
   googleDrive: typeof googleDrive;
   googleDriveAuth: typeof googleDriveAuth;
+  hr: typeof hr;
   http: typeof http;
   installationTeams: typeof installationTeams;
   itKanban: typeof itKanban;

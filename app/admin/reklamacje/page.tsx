@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import ComplaintDetailPanel from "@/components/complaints/ComplaintDetailPanel";
 import NewComplaintModal from "@/components/complaints/NewComplaintModal";
-import { createPortal } from "react-dom";
+import { useSearchParams } from "next/navigation";
 import { CrmPageHeader } from "@/components/crm-ui";
 import { Search, X, Plus, Printer, CheckCircle2 } from "lucide-react";
 
@@ -114,6 +114,10 @@ function formatInvestmentAddress(c: {
 }
 
 export default function ReklamacjePage() {
+  const searchParams = useSearchParams();
+  const fromTab = searchParams.get("fromTab");
+  const backHref = fromTab ? `/admin/panel?tab=${fromTab}` : "/admin/panel";
+
   const [statusFilter, setStatusFilter] = useState<string>("wszystkie");
   const [assignedFilter, setAssignedFilter] = useState<string>("");
   const [clientFilter, setClientFilter] = useState<string>("");
@@ -214,6 +218,8 @@ export default function ReklamacjePage() {
         <CrmPageHeader
           title="Reklamacje"
           sub={complaints ? `${complaints.length} reklamacji łącznie` : "Ładowanie…"}
+          backHref={backHref}
+          backLabel="Powrót do Panelu zleceń"
           center={
             <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
               <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)" }} />

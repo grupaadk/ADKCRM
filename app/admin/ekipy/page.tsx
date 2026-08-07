@@ -47,7 +47,7 @@ const defaultForm = (): TeamFormData => ({
   isActive: true,
 });
 
-export default function EkipyPage() {
+export function EkipyView() {
   const teams = useQuery(api.installationTeams.listAllWithStats) ?? [];
   const createTeam = useMutation(api.installationTeams.create);
   const updateTeam = useMutation(api.installationTeams.update);
@@ -630,3 +630,5 @@ export default function EkipyPage() {
     </div>
   );
 }
+
+export default EkipyView;

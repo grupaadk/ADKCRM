@@ -20,10 +20,7 @@ import { cx, focusRing } from "@/components/ui/utils"
 import {
   LayoutDashboard,
   LayoutGrid,
-  ClipboardList,
-  Users,
   UserCog,
-  FileText,
   Settings,
   Receipt,
   ScrollText,
@@ -31,11 +28,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Calendar,
-  Package,
-  AlertTriangle,
+  Clock,
   CircleDollarSign,
-  Wrench,
-  Car,
 } from "lucide-react"
 
 type NavItem = {
@@ -54,14 +48,9 @@ const mainItems: NavItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, exactMatch: true },
   { href: "/admin/panel", label: "Panel", icon: LayoutGrid },
   { href: "/admin/kalendarz", label: "Kalendarz", icon: Calendar },
-  { href: "/admin/zamowienia", label: "Zlecenia", icon: ClipboardList, exactMatch: true },
-  { href: "/admin/ekipy", label: "Ekipy montażowe", icon: Wrench, alsoActiveFor: ["/admin/ekipy/"] },
-  { href: "/admin/zamowienia-dostawcy", label: "Zamówienia od dostawcy", icon: Package, exactMatch: true },
-  { href: "/admin/klienci", label: "Klienci", icon: Users, countKey: "clients", alsoActiveFor: ["/admin/klient/"] },
-  { href: "/admin/flota", label: "Flota", icon: Car, alsoActiveFor: ["/admin/flota/"] },
+  { href: "/admin/hr", label: "HR (Urlopy, Ekipy, Flota)", icon: Clock, alsoActiveFor: ["/admin/hr/", "/admin/ekipy/", "/admin/flota/"] },
   { href: "/admin/faktury", label: "Faktury", icon: Receipt },
   { href: "/admin/wydatki", label: "Wydatki", icon: CircleDollarSign },
-  { href: "/admin/reklamacje", label: "Reklamacje", icon: AlertTriangle },
 ]
 
 const toolItems: NavItem[] = [

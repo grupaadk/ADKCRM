@@ -879,4 +879,51 @@ export default defineSchema({
   })
     .index("by_car", ["carId"])
     .index("by_date", ["date"]),
+
+  // Moduł HR — Urlopy
+  hrLeaves: defineTable({
+    userId: v.id("users"),
+    type: v.union(
+      v.literal("vacation"), // Urlop wypoczynkowy
+      v.literal("sick"),     // Chorobowe / L4
+      v.literal("unpaid"),   // Urlop bezpłatny
+      v.literal("other")     // Inne
+    ),
+    startDate: v.string(), // YYYY-MM-DD
+    endDate: v.string(),   // YYYY-MM-DD
+    daysCount: v.number(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected"),
+      v.literal("cancelled")
+    ),
+    reason: v.optional(v.string()),
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_status", ["status"])
+    .index("by_start", ["startDate"]),
+
+  // Moduł HR — Nadgodziny
+  hrOvertime: defineTable({
+    userId: v.id("users"),
+    date: v.string(), // YYYY-MM-DD
+    hours: v.number(),
+    description: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected")
+    ),
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_status", ["status"])
+    .index("by_date", ["date"]),
 });
+

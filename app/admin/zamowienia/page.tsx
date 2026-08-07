@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import OrderList from "./OrderList"
 import { CrmPageHeader } from "@/components/crm-ui"
 import { Plus, SlidersHorizontal, Search, X, BarChart2 } from "lucide-react"
@@ -9,6 +9,10 @@ import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 
 export default function ZamowieniaPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const fromTab = searchParams.get("fromTab")
+  const backHref = fromTab ? `/admin/panel?tab=${fromTab}` : "/admin/panel"
+
   const [showModal, setShowModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [showFilters, setShowFilters] = useState(false)
@@ -29,6 +33,8 @@ export default function ZamowieniaPage() {
       <CrmPageHeader
         title="Zlecenia"
         sub="Lista wszystkich zleceń w systemie."
+        backHref={backHref}
+        backLabel="Powrót do Panelu zleceń"
         center={
           <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
             <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)" }} />

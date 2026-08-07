@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { useSearchParams } from "next/navigation"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -197,6 +198,10 @@ export default function SupplierOrdersPage() {
     localStore.setQuery(api.orders.listSupplierOrders, {}, next)
   })
 
+  const searchParams = useSearchParams()
+  const fromTab = searchParams.get("fromTab")
+  const backHref = fromTab ? `/admin/panel?tab=${fromTab}` : "/admin/panel"
+
   const [search, setSearch] = useState("")
   const [supplierFilter, setSupplierFilter] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<Set<DeliveryStatus>>(new Set(["pending"]))
@@ -337,6 +342,8 @@ export default function SupplierOrdersPage() {
       <CrmPageHeader
         title="Zamówienia od dostawcy"
         sub={`${allRows.length} zamówień · ${statusCounts.pending} oczekuje · ${statusCounts.overdue} przeterminowanych`}
+        backHref={backHref}
+        backLabel="Powrót do Panelu zleceń"
         center={
           <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
             <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)" }} />

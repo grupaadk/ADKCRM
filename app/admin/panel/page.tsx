@@ -2,12 +2,13 @@
 
 import { useState, useRef, useEffect, useMemo } from "react"
 import { useQuery, useMutation, useAction } from "convex/react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
 import { deriveStatusStyle } from "@/lib/statuses"
 import type { KanbanItem } from "@/convex/kanban"
-import { Plus, ChevronDown, ChevronUp, Archive, ArchiveRestore, Search, X } from "lucide-react"
+import { Plus, ChevronDown, ChevronUp, Archive, ArchiveRestore, Search, X, ClipboardList, Users, AlertTriangle, Package } from "lucide-react"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 import NewOpportunityModal from "@/components/NewOpportunityModal"
 
@@ -861,9 +862,101 @@ export default function PanelPage() {
       {/* Header */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <div style={{ minWidth: 0 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-            Panel zleceń
-          </h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
+              Panel zleceń
+            </h1>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Link
+                href={`/admin/zamowienia?fromTab=${activeTab}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "var(--text-mute)",
+                  textDecoration: "none",
+                  padding: "3px 9px",
+                  borderRadius: 999,
+                  background: "var(--panel-2)",
+                  border: "1px solid var(--line)",
+                  transition: "all 0.15s ease",
+                }}
+                className="hover:text-brand hover:border-brand/30"
+                title="Przejdź do pełnej listy / tabeli zleceń"
+              >
+                <ClipboardList style={{ width: 12, height: 12 }} />
+                <span>Lista zleceń</span>
+              </Link>
+              <Link
+                href={`/admin/klienci?fromTab=${activeTab}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "var(--text-mute)",
+                  textDecoration: "none",
+                  padding: "3px 9px",
+                  borderRadius: 999,
+                  background: "var(--panel-2)",
+                  border: "1px solid var(--line)",
+                  transition: "all 0.15s ease",
+                }}
+                className="hover:text-brand hover:border-brand/30"
+                title="Przejdź do bazy klientów"
+              >
+                <Users style={{ width: 12, height: 12 }} />
+                <span>Baza klientów</span>
+              </Link>
+              <Link
+                href={`/admin/reklamacje?fromTab=${activeTab}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "var(--text-mute)",
+                  textDecoration: "none",
+                  padding: "3px 9px",
+                  borderRadius: 999,
+                  background: "var(--panel-2)",
+                  border: "1px solid var(--line)",
+                  transition: "all 0.15s ease",
+                }}
+                className="hover:text-amber-600 hover:border-amber-300"
+                title="Przejdź do zgłoszeń reklamacyjnych"
+              >
+                <AlertTriangle style={{ width: 12, height: 12 }} />
+                <span>Reklamacje</span>
+              </Link>
+              <Link
+                href={`/admin/zamowienia-dostawcy?fromTab=${activeTab}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "var(--text-mute)",
+                  textDecoration: "none",
+                  padding: "3px 9px",
+                  borderRadius: 999,
+                  background: "var(--panel-2)",
+                  border: "1px solid var(--line)",
+                  transition: "all 0.15s ease",
+                }}
+                className="hover:text-brand hover:border-brand/30"
+                title="Przejdź do zamówień od dostawcy"
+              >
+                <Package style={{ width: 12, height: 12 }} />
+                <span>Dostawcy</span>
+              </Link>
+            </div>
+          </div>
           <p style={{ fontSize: 12, color: "var(--text-mute)", margin: "2px 0 0" }}>
             {totalActive} {totalActive === 1 ? "zlecenie" : "zleceń"} aktywnych
             {totalPending > 0 && ` · ${totalPending} nowych zgłoszeń`}

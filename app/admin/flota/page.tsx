@@ -3,12 +3,13 @@
 import { useState } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { CrmPageHeader } from "@/components/crm-ui"
 import { Car, Plus, ChevronRight, Users, X, Hash, Calendar } from "lucide-react"
 import Link from "next/link"
 import toast from "react-hot-toast"
 
-export default function FlotaPage() {
+export function FlotaView() {
   const cars = useQuery(api.cars.getCars)
   const teams = useQuery(api.installationTeams.listActive)
   const createCar = useMutation(api.cars.createCar)
@@ -40,14 +41,15 @@ export default function FlotaPage() {
         year: formData.year ? parseInt(formData.year) : undefined,
         assignedInstallationTeamId:
           formData.assignedInstallationTeamId !== "none"
-            ? (formData.assignedInstallationTeamId as any)
+            ? (formData.assignedInstallationTeamId as Id<"installationTeams">)
             : undefined,
       })
       toast.success("Samochód dodany")
       setIsAddOpen(false)
       setFormData({ make: "", model: "", registrationNumber: "", vin: "", year: "", assignedInstallationTeamId: "none" })
-    } catch (err: any) {
-      toast.error(err.message || "Wystąpił błąd")
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Wystąpił błąd"
+      toast.error(msg)
     } finally {
       setSaving(false)
     }
@@ -313,3 +315,5 @@ export default function FlotaPage() {
     </div>
   )
 }
+
+export default FlotaView

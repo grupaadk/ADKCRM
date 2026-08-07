@@ -1,6 +1,8 @@
 "use client"
 
 import React, { ReactNode, CSSProperties } from "react"
+import Link from "next/link"
+import { ArrowLeft } from "lucide-react"
 import { useStatusDef } from "@/components/StatusLabelsContext"
 import { deriveStatusStyle } from "@/lib/statuses"
 
@@ -10,6 +12,8 @@ type Tab = { key: string; label: string; count?: number }
 interface PageHeaderProps {
   title: string
   sub?: string
+  backHref?: string
+  backLabel?: string
   actions?: ReactNode
   center?: ReactNode
   tabs?: Tab[]
@@ -17,9 +21,30 @@ interface PageHeaderProps {
   onTab?: (key: string) => void
 }
 
-export function CrmPageHeader({ title, sub, actions, center, tabs, activeTab, onTab }: PageHeaderProps) {
+export function CrmPageHeader({ title, sub, backHref, backLabel, actions, center, tabs, activeTab, onTab }: PageHeaderProps) {
   return (
     <div style={{ marginBottom: 16 }}>
+      {backHref && (
+        <div style={{ marginBottom: 6 }}>
+          <Link
+            href={backHref}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 12,
+              fontWeight: 500,
+              color: "var(--text-mute)",
+              textDecoration: "none",
+              transition: "color 0.15s ease",
+            }}
+            className="hover:text-brand"
+          >
+            <ArrowLeft style={{ width: 13, height: 13 }} />
+            {backLabel ?? "Powrót do Panelu zleceń"}
+          </Link>
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "flex-end", gap: 14, marginBottom: tabs ? 12 : 0 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-strong)", letterSpacing: "-0.01em", margin: 0 }}>

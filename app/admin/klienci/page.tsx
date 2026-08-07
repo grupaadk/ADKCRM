@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { Plus, Search, Loader2, X } from "lucide-react";
 import ClientList from "./ClientList";
@@ -33,6 +33,10 @@ const EMPTY_FORM = {
 
 export default function KlienciPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromTab = searchParams.get("fromTab");
+  const backHref = fromTab ? `/admin/panel?tab=${fromTab}` : "/admin/panel";
+
   const viewConfig = useQuery(api.viewConfig.getForUser, {});
   const createClient = useMutation(api.clients.create);
   const lookupNip = useAction(api.whitelist.lookupNip);
@@ -165,6 +169,8 @@ export default function KlienciPage() {
       <CrmPageHeader
         title="Klienci"
         sub="Lista wszystkich klientów w systemie."
+        backHref={backHref}
+        backLabel="Powrót do Panelu zleceń"
         center={
           <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
             <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)" }} />
