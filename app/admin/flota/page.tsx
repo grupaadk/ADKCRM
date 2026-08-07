@@ -1,21 +1,21 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
-import { CrmPageHeader } from "@/components/crm-ui"
-import { Car, Plus, ChevronRight, Users, X, Hash, Calendar } from "lucide-react"
-import Link from "next/link"
-import toast from "react-hot-toast"
+import { useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { CrmPageHeader } from "@/components/crm-ui";
+import { Car, Plus, ChevronRight, Users, X, Hash, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import toast from "react-hot-toast";
 
 export function FlotaView() {
-  const cars = useQuery(api.cars.getCars)
-  const teams = useQuery(api.installationTeams.listActive)
-  const createCar = useMutation(api.cars.createCar)
+  const cars = useQuery(api.cars.getCars);
+  const teams = useQuery(api.installationTeams.listActive);
+  const createCar = useMutation(api.cars.createCar);
 
-  const [isAddOpen, setIsAddOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     make: "",
     model: "",
@@ -23,15 +23,15 @@ export function FlotaView() {
     vin: "",
     year: "",
     assignedInstallationTeamId: "none",
-  })
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!formData.make || !formData.model || !formData.registrationNumber) {
-      toast.error("Wypełnij wymagane pola")
-      return
+      toast.error("Wypełnij wymagane pola");
+      return;
     }
-    setSaving(true)
+    setSaving(true);
     try {
       await createCar({
         make: formData.make,
@@ -43,195 +43,304 @@ export function FlotaView() {
           formData.assignedInstallationTeamId !== "none"
             ? (formData.assignedInstallationTeamId as Id<"installationTeams">)
             : undefined,
-      })
-      toast.success("Samochód dodany")
-      setIsAddOpen(false)
-      setFormData({ make: "", model: "", registrationNumber: "", vin: "", year: "", assignedInstallationTeamId: "none" })
+      });
+      toast.success("Samochód dodany do floty");
+      setIsAddOpen(false);
+      setFormData({
+        make: "",
+        model: "",
+        registrationNumber: "",
+        vin: "",
+        year: "",
+        assignedInstallationTeamId: "none",
+      });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Wystąpił błąd"
-      toast.error(msg)
+      const msg = err instanceof Error ? err.message : "Wystąpił błąd";
+      toast.error(msg);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
-  const totalCars = cars?.length ?? 0
-  const assignedCars = cars?.filter((c) => c.teamName).length ?? 0
+  const totalCars = cars?.length ?? 0;
+  const assignedCars = cars?.filter((c) => c.teamName).length ?? 0;
+  const unassignedCars = totalCars - assignedCars;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <CrmPageHeader
-        title="Zarządzanie flotą"
-        sub="Śledź pojazdy, ich przypisanie do ekip, historię przeglądów, napraw i kosztów."
-        actions={
-          <button
-            onClick={() => setIsAddOpen(true)}
-            className="btn primary"
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              fontSize: 13, fontWeight: 600, padding: "8px 16px", borderRadius: 8, cursor: "pointer",
-            }}
-          >
-            <Plus style={{ width: 15, height: 15 }} />
-            Dodaj pojazd
-          </button>
-        }
-      />
-
-      {/* KPI Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-        <div style={{
-          background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "16px 20px",
-          display: "flex", alignItems: "center", gap: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-        }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: 10, background: "#eff6ff", color: "#3b82f6",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>
-            <Car style={{ width: 22, height: 22 }} />
-          </div>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-strong)", lineHeight: 1.1 }}>{totalCars}</div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 4 }}>
-              Wszystkie pojazdy
-            </div>
-          </div>
+    <div className="space-y-6">
+      {/* Pasek Wyszukiwania i Akcji (Styl zgodny z HR / Ekipy) */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-gray-50 p-4 border border-gray-200">
+        <div>
+          <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+            <Car className="size-5 text-brand" />
+            Flota Pojazdów Firmowych ({totalCars})
+          </h2>
+          <p className="text-xs text-gray-500">
+            Śledź samochody firmowe, ich przypisanie do ekip, numery rejestracyjne i przeglądy.
+          </p>
         </div>
 
-        <div style={{
-          background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "16px 20px",
-          display: "flex", alignItems: "center", gap: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-        }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: 10, background: "#ecfdf5", color: "#10b981",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>
-            <Users style={{ width: 22, height: 22 }} />
-          </div>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-strong)", lineHeight: 1.1 }}>{assignedCars}</div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 4 }}>
-              Przypisane do ekip
-            </div>
-          </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-brand/90"
+          >
+            <Plus className="size-4" />
+            Dodaj pojazd
+          </button>
         </div>
       </div>
 
-      {/* Modal dodawania */}
+      {/* Karty KPI Statystyk (Styl zgodny z HR / Ekipy) */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+              Wszystkie Pojazdy
+            </span>
+            <div className="flex size-9 items-center justify-center rounded-lg bg-blue-50 text-brand">
+              <Car className="size-5" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-3xl font-bold text-gray-900">{totalCars}</span>
+            <span className="text-sm font-medium text-gray-500">samochodów</span>
+          </div>
+          <p className="mt-2 text-xs text-blue-600 font-medium">Flota ADK Okna</p>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+              Przypisane do Ekip
+            </span>
+            <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+              <Users className="size-5" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-3xl font-bold text-gray-900">{assignedCars}</span>
+            <span className="text-sm font-medium text-gray-500">pojazdów</span>
+          </div>
+          <p className="mt-2 text-xs text-emerald-600 font-medium">W stałym użytkowaniu ekip</p>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+              Wolne Pojazdy
+            </span>
+            <div className="flex size-9 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
+              <CheckCircle2 className="size-5" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-3xl font-bold text-gray-900">{unassignedCars}</span>
+            <span className="text-sm font-medium text-gray-500">samochodów</span>
+          </div>
+          <p className="mt-2 text-xs text-purple-600 font-medium">Rezerwowe / Ogólne</p>
+        </div>
+      </div>
+
+      {/* Siatka Kart Pojazdów */}
+      {cars === undefined ? (
+        <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-gray-500">
+          Ładowanie pojazdów...
+        </div>
+      ) : cars.length === 0 ? (
+        <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-gray-500">
+          <Car className="mx-auto size-12 text-gray-300 mb-3" />
+          <h3 className="text-base font-bold text-gray-900">Brak pojazdów we flocie</h3>
+          <p className="text-xs text-gray-500 mt-1">Dodaj pierwszy pojazd klikając przycisk powyżej.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {cars.map((car) => (
+            <Link key={car._id} href={`/admin/flota/${car._id}`} className="block group">
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md hover:border-brand">
+                {/* Nagłówek Karty */}
+                <div className="border-b border-gray-100 p-5 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900 group-hover:text-brand transition flex items-center gap-2">
+                      <Car className="size-4 text-brand" />
+                      {car.make} {car.model}
+                    </h3>
+                    {car.year && (
+                      <span className="text-xs text-gray-400 font-medium mt-0.5 block">
+                        Rocznik: {car.year}
+                      </span>
+                    )}
+                  </div>
+                  <ChevronRight className="size-5 text-gray-400 group-hover:text-brand group-hover:translate-x-0.5 transition" />
+                </div>
+
+                {/* Szegóły Pojazdu */}
+                <div className="p-5 space-y-3 text-xs text-gray-600">
+                  <div className="rounded-lg bg-gray-50 p-3 border border-gray-200/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                        <Hash className="size-3.5 text-gray-400" />
+                        Nr rejestracyjny:
+                      </span>
+                      <span className="font-mono font-bold text-sm text-gray-900 tracking-wider">
+                        {car.registrationNumber}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-gray-200/60 pt-2">
+                      <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                        <Users className="size-3.5 text-gray-400" />
+                        Przypisana ekipa:
+                      </span>
+                      {car.teamName ? (
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
+                          {car.teamName}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                          Brak
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {car.vin && (
+                    <div className="text-[11px] text-gray-400 font-mono truncate">
+                      VIN: {car.vin}
+                    </div>
+                  )}
+                </div>
+
+                {/* Stopka Karty */}
+                <div className="bg-gray-50/50 border-t border-gray-100 px-5 py-3 flex items-center justify-between text-xs text-brand font-semibold">
+                  <span className="text-[11px] text-gray-400 font-normal">Koszty & Przeglądy</span>
+                  <span className="flex items-center gap-1">
+                    Karta pojazdu <ChevronRight className="size-3.5" />
+                  </span>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Modal Dodawania Pojazdu */}
       {isAddOpen && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(2px)",
-          zIndex: 99, display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
-        }}>
-          <div style={{
-            background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 24,
-            width: "100%", maxWidth: 520, boxShadow: "0 12px 36px rgba(0,0,0,0.18)",
-            display: "flex", flexDirection: "column", gap: 16,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--line)", paddingBottom: 12 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-                Nowy pojazd we flocie
-              </h3>
-              <button onClick={() => setIsAddOpen(false)} style={{ border: "none", background: "none", cursor: "pointer", color: "var(--text-mute)", padding: 4 }}>
-                <X style={{ width: 18, height: 18 }} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+              <h2 className="text-lg font-bold text-gray-900">Nowy pojazd we flocie</h2>
+              <button
+                onClick={() => setIsAddOpen(false)}
+                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="size-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 4 }}>
-                    Marka <span style={{ color: "#ef4444" }}>*</span>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Marka *
                   </label>
                   <input
                     type="text"
+                    required
                     value={formData.make}
                     onChange={(e) => setFormData({ ...formData, make: e.target.value })}
                     placeholder="np. Ford"
-                    required
-                    style={{ width: "100%", padding: "8px 12px", fontSize: 12.5, borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)", outline: "none", boxSizing: "border-box" }}
+                    className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 focus:border-brand focus:outline-none"
                   />
                 </div>
+
                 <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 4 }}>
-                    Model <span style={{ color: "#ef4444" }}>*</span>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Model *
                   </label>
                   <input
                     type="text"
+                    required
                     value={formData.model}
                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                     placeholder="np. Transit"
-                    required
-                    style={{ width: "100%", padding: "8px 12px", fontSize: 12.5, borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)", outline: "none", boxSizing: "border-box" }}
+                    className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 focus:border-brand focus:outline-none"
                   />
                 </div>
-                <div style={{ gridColumn: "span 2" }}>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 4 }}>
-                    Numer rejestracyjny <span style={{ color: "#ef4444" }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.registrationNumber}
-                    onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
-                    placeholder="np. WZY 1234"
-                    required
-                    style={{ width: "100%", padding: "8px 12px", fontSize: 12.5, borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)", outline: "none", fontFamily: "monospace", letterSpacing: "0.05em", boxSizing: "border-box" }}
-                  />
-                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Numer rejestracyjny *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.registrationNumber}
+                  onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
+                  placeholder="np. WZY 1234"
+                  className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm font-mono tracking-wider text-gray-900 focus:border-brand focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 4 }}>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Rocznik
                   </label>
                   <input
                     type="number"
                     value={formData.year}
                     onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-                    placeholder="np. 2021"
-                    style={{ width: "100%", padding: "8px 12px", fontSize: 12.5, borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)", outline: "none", boxSizing: "border-box" }}
+                    placeholder="np. 2022"
+                    className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 focus:border-brand focus:outline-none"
                   />
                 </div>
+
                 <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 4 }}>
-                    VIN
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Numer VIN
                   </label>
                   <input
                     type="text"
                     value={formData.vin}
                     onChange={(e) => setFormData({ ...formData, vin: e.target.value })}
                     placeholder="17 znaków"
-                    style={{ width: "100%", padding: "8px 12px", fontSize: 12.5, borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)", outline: "none", boxSizing: "border-box" }}
+                    className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 focus:border-brand focus:outline-none font-mono"
                   />
-                </div>
-                <div style={{ gridColumn: "span 2" }}>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-strong)", marginBottom: 4 }}>
-                    Przypisz do ekipy
-                  </label>
-                  <select
-                    value={formData.assignedInstallationTeamId}
-                    onChange={(e) => setFormData({ ...formData, assignedInstallationTeamId: e.target.value })}
-                    style={{ width: "100%", padding: "8px 12px", fontSize: 12.5, borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)", outline: "none", boxSizing: "border-box" }}
-                  >
-                    <option value="none">Brak (pojazd bez ekipy)</option>
-                    {teams?.map((t) => (
-                      <option key={t._id} value={t._id}>{t.name}</option>
-                    ))}
-                  </select>
                 </div>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Przypisz do ekipy montażowej
+                </label>
+                <select
+                  value={formData.assignedInstallationTeamId}
+                  onChange={(e) => setFormData({ ...formData, assignedInstallationTeamId: e.target.value })}
+                  className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 focus:border-brand focus:outline-none"
+                >
+                  <option value="none">Brak (pojazd bez przypisania)</option>
+                  {teams?.map((t) => (
+                    <option key={t._id} value={t._id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3 pt-2 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setIsAddOpen(false)}
-                  style={{ padding: "8px 16px", fontSize: 12.5, fontWeight: 600, borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text-strong)", cursor: "pointer" }}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                 >
                   Anuluj
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="btn primary"
-                  style={{ padding: "8px 20px", fontSize: 12.5, fontWeight: 600, borderRadius: 8, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.6 : 1 }}
+                  className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50"
                 >
                   {saving ? "Dodawanie..." : "Dodaj pojazd"}
                 </button>
@@ -240,80 +349,20 @@ export function FlotaView() {
           </div>
         </div>
       )}
-
-      {/* Lista pojazdów */}
-      {cars === undefined ? (
-        <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "48px 24px", textAlign: "center", color: "var(--text-mute)" }}>
-          Ładowanie...
-        </div>
-      ) : cars.length === 0 ? (
-        <div style={{
-          background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: "48px 24px",
-          textAlign: "center", color: "var(--text-mute)",
-        }}>
-          <Car style={{ width: 44, height: 44, margin: "0 auto 12px", opacity: 0.4 }} />
-          <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>Brak pojazdów we flocie</p>
-          <p style={{ fontSize: 12.5, color: "var(--text-mute)", marginTop: 4 }}>Dodaj pierwszy pojazd klikając przycisk powyżej.</p>
-        </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
-          {cars.map((car) => (
-            <Link key={car._id} href={`/admin/flota/${car._id}`} style={{ textDecoration: "none" }}>
-              <div style={{
-                background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: 20,
-                boxShadow: "0 1px 4px rgba(0,0,0,0.03)", display: "flex", flexDirection: "column", gap: 14,
-                transition: "box-shadow 0.15s, border-color 0.15s", cursor: "pointer",
-              }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)"; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--accent)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.03)"; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--line)"; }}
-              >
-                {/* Header */}
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-                  <div>
-                    <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-                      {car.make} {car.model}
-                    </h3>
-                    {car.year && (
-                      <span style={{ fontSize: 12, color: "var(--text-mute)" }}>{car.year}</span>
-                    )}
-                  </div>
-                  <ChevronRight style={{ width: 16, height: 16, color: "var(--text-mute)", flexShrink: 0, marginTop: 2 }} />
-                </div>
-
-                {/* Rejestracja + VIN */}
-                <div style={{
-                  fontSize: 12, background: "var(--panel)", padding: 10, borderRadius: 8,
-                  border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 6,
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Hash style={{ width: 13, height: 13, color: "var(--text-mute)", flexShrink: 0 }} />
-                    <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 13, color: "var(--text-strong)", letterSpacing: "0.08em" }}>
-                      {car.registrationNumber}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Users style={{ width: 13, height: 13, color: "var(--text-mute)", flexShrink: 0 }} />
-                    <span style={{ color: "var(--text-mute)" }}>Ekipa:</span>
-                    <span style={{ fontWeight: 600, color: car.teamName ? "var(--text-strong)" : "var(--text-mute)" }}>
-                      {car.teamName || "Nie przypisana"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)", display: "flex", alignItems: "center", gap: 4 }}>
-                    <Calendar style={{ width: 12, height: 12 }} />
-                    Historia zdarzeń i koszty
-                  </span>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
     </div>
-  )
+  );
 }
 
-export default FlotaView
+export default function FlotaPage() {
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
+      <CrmPageHeader
+        title="Flota Pojazdów"
+        sub="Śledź samochody firmowe, ich przypisanie do ekip, historię przeglądów, napraw i kosztów."
+        backHref="/admin/hr?tab=flota"
+        backLabel="Powrót do Centrum HR"
+      />
+      <FlotaView />
+    </div>
+  );
+}

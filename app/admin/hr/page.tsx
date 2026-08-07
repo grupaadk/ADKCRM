@@ -12,13 +12,15 @@ import {
   XCircle,
   AlertCircle,
   User,
-  Filter,
   Check,
   X,
   CalendarDays,
   Building2,
   Wrench,
   Car,
+  Users,
+  Palmtree,
+  Sparkles,
 } from "lucide-react";
 import { EkipyView } from "@/app/admin/ekipy/page";
 import { FlotaView } from "@/app/admin/flota/page";
@@ -78,12 +80,16 @@ export default function HrPage() {
 
   const isAdmin = me?.role === "admin";
 
+  // Podsekcja HR: Admin domyślnie "admin" (Zarządzanie), Pracownik "my" (Osobiste)
+  const [activeTab, setActiveTab] = useState<"my" | "admin">(isAdmin ? "admin" : "my");
+  const [subTab, setSubTab] = useState<"leaves" | "overtime" | "employees">("leaves");
+
   // Stan filtrowania dla Admina
   const [adminUserFilter, setAdminUserFilter] = useState<string>("");
   const [adminStatusFilter, setAdminStatusFilter] = useState<string>("all");
   const [adminMonthFilter, setAdminMonthFilter] = useState<string>("");
 
-  // Zapytanie admina
+  // Zapytania admina
   const allHrData = useQuery(
     api.hr.getAllHrData,
     isAdmin && mainModuleTab === "hr"
@@ -95,11 +101,12 @@ export default function HrPage() {
       : "skip"
   );
 
-  const assignableUsers = useQuery(api.users.listAllActive);
+  const employeesOverview = useQuery(
+    api.hr.getEmployeesHrOverview,
+    isAdmin && mainModuleTab === "hr" ? {} : "skip"
+  );
 
-  // Tab wewnątrz "Urlopy & Nadgodziny": "my" (Moje HR) vs "admin" (Zarządzanie Zespołem)
-  const [activeTab, setActiveTab] = useState<"my" | "admin">("my");
-  const [subTab, setSubTab] = useState<"leaves" | "overtime">("leaves");
+  const assignableUsers = useQuery(api.users.listAllActive);
 
   // Modale
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
@@ -205,41 +212,25 @@ export default function HrPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Nagłówek główny modułu HR */}
+      {/* Nagłówek główny dostosowany pod rolę */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            Moduł HR i Zasobów
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+              {isAdmin ? "Panel Zarządzania HR i Zasobami" : "Mój Portal Pracownika — HR"}
+            </h1>
+            {isAdmin && (
+              <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+                Widok Administratora
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-gray-500">
-            Centrum zarządzania urlopami, czasem pracy, ekipami montażowymi oraz flotą pojazdów.
+            {isAdmin
+              ? "Centrum kontroli pracowników, wniosków urlopowych, nadgodzin, ekip montażowych oraz floty."
+              : `Witaj, ${me?.displayName || me?.login || "Pracowniku"}! System zarządzania HR i zasobami.`}
           </p>
         </div>
-
-        {mainModuleTab === "hr" && (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                setFormError(null);
-                setIsLeaveModalOpen(true);
-              }}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand/90 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
-            >
-              <Calendar className="size-4" />
-              Wniosek o urlop
-            </button>
-            <button
-              onClick={() => {
-                setFormError(null);
-                setIsOvertimeModalOpen(true);
-              }}
-              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2"
-            >
-              <Clock className="size-4" />
-              Wpisz nadgodziny
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Główne zakładki modułu HR (Urlopy/Nadgodziny | Ekipy Montażowe | Flota) */}
@@ -300,168 +291,589 @@ export default function HrPage() {
       {/* WIDOK: URLOPY I NADGODZINY */}
       {mainModuleTab === "hr" && (
         <>
-          {/* Karty ze statystykami */}
-          <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Wykorzystany urlop (rok)
-                </span>
-                <div className="flex size-9 items-center justify-center rounded-lg bg-blue-50 text-brand">
-                  <CalendarDays className="size-5" />
-                </div>
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-gray-900">
-                  {summary?.mySummary.approvedVacationDays ?? 0}
-                </span>
-                <span className="text-sm font-medium text-gray-500">dni</span>
-              </div>
-              <p className="mt-2 text-xs text-gray-500">
-                Zatwierdzone dni urlopu wypoczynkowego
+          {/* Pasek akcji składania wniosków w zakładce Urlopy i Nadgodziny */}
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-gray-50 p-4 border border-gray-200">
+            <div>
+              <h2 className="text-base font-bold text-gray-900">
+                Urlopy i Nadgodziny
+              </h2>
+              <p className="text-xs text-gray-500">
+                Złóż wniosek urlopowy lub zarejestruj wypracowane nadgodziny.
               </p>
             </div>
-
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Zatwierdzone nadgodziny
-                </span>
-                <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                  <Clock className="size-5" />
-                </div>
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-gray-900">
-                  {summary?.mySummary.approvedOvertimeHours ?? 0}
-                </span>
-                <span className="text-sm font-medium text-gray-500">godz.</span>
-              </div>
-              <p className="mt-2 text-xs text-gray-500">
-                Suma zaakceptowanych godzin dodatkowych
-              </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setFormError(null);
+                  setIsLeaveModalOpen(true);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-brand/90 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
+              >
+                <Calendar className="size-4" />
+                Wniosek o urlop
+              </button>
+              <button
+                onClick={() => {
+                  setFormError(null);
+                  setIsOvertimeModalOpen(true);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2"
+              >
+                <Clock className="size-4" />
+                Wpisz nadgodziny
+              </button>
             </div>
-
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Moje w trakcie rozpatrywania
-                </span>
-                <div className="flex size-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-                  <AlertCircle className="size-5" />
-                </div>
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-gray-900">
-                  {(summary?.mySummary.pendingLeavesCount ?? 0) +
-                    (summary?.mySummary.pendingOvertimeHours ? 1 : 0)}
-                </span>
-                <span className="text-sm font-medium text-gray-500">wnioski</span>
-              </div>
-              <p className="mt-2 text-xs text-gray-500">
-                Czekające na akceptację przełożonego
-              </p>
-            </div>
-
-            {isAdmin && (
-              <div className="overflow-hidden rounded-xl border border-purple-200 bg-purple-50/50 p-5 shadow-sm transition hover:shadow-md">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-purple-700">
-                    Oczekujące z całego zespołu
-                  </span>
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-purple-100 text-purple-700">
-                    <Building2 className="size-5" />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-purple-900">
-                    {(summary?.companySummary?.pendingLeavesCount ?? 0) +
-                      (summary?.companySummary?.pendingOvertimeCount ?? 0)}
-                  </span>
-                  <span className="text-sm font-medium text-purple-700">do decyzji</span>
-                </div>
-                <p className="mt-2 text-xs text-purple-600 font-medium">
-                  Wymagają Twojej akceptacji (Admin)
-                </p>
-              </div>
-            )}
           </div>
 
-          {/* Nawigacja po podzakładkach: Moje zgłoszenia vs Zarządzanie HR */}
-          <div className="mt-8 border-b border-gray-200">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <nav className="-mb-px flex space-x-6">
+          {/* Opcje pod-przełącznika dla Admina (Zarządzanie Pracownikami vs Moje Osobiste) */}
+          {isAdmin && (
+            <div className="mt-4 flex items-center justify-between rounded-xl bg-purple-50 p-3 border border-purple-100">
+              <div className="flex items-center gap-2 text-sm font-semibold text-purple-900">
+                <Building2 className="size-5 text-purple-600" />
+                Tryb wyświetlania:
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActiveTab("admin")}
+                  className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
+                    activeTab === "admin"
+                      ? "bg-purple-600 text-white shadow-sm"
+                      : "bg-white text-purple-700 hover:bg-purple-100"
+                  }`}
+                >
+                  <Users className="inline size-3.5 mr-1.5" />
+                  Zarządzanie Pracownikami ({assignableUsers?.length ?? 0})
+                </button>
                 <button
                   onClick={() => setActiveTab("my")}
-                  className={`flex items-center gap-2 border-b-2 pb-4 text-sm font-semibold transition ${
+                  className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
                     activeTab === "my"
-                      ? "border-brand text-brand"
-                      : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                      ? "bg-purple-600 text-white shadow-sm"
+                      : "bg-white text-purple-700 hover:bg-purple-100"
                   }`}
                 >
-                  <User className="size-4" />
-                  Moje Zgłoszenia
-                </button>
-
-                {isAdmin && (
-                  <button
-                    onClick={() => setActiveTab("admin")}
-                    className={`flex items-center gap-2 border-b-2 pb-4 text-sm font-semibold transition ${
-                      activeTab === "admin"
-                        ? "border-brand text-brand"
-                        : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-                    }`}
-                  >
-                    <Building2 className="size-4" />
-                    Zarządzanie HR (Wszyscy pracownicy)
-                    {((summary?.companySummary?.pendingLeavesCount ?? 0) +
-                      (summary?.companySummary?.pendingOvertimeCount ?? 0)) > 0 && (
-                      <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-purple-600 px-2 py-0.5 text-xs font-bold text-white">
-                        {(summary?.companySummary?.pendingLeavesCount ?? 0) +
-                          (summary?.companySummary?.pendingOvertimeCount ?? 0)}
-                      </span>
-                    )}
-                  </button>
-                )}
-              </nav>
-
-              {/* Podzakładki: Urlopy / Nadgodziny */}
-              <div className="flex items-center rounded-lg bg-gray-100 p-1">
-                <button
-                  onClick={() => setSubTab("leaves")}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                    subTab === "leaves"
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  Urlopy
-                </button>
-                <button
-                  onClick={() => setSubTab("overtime")}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                    subTab === "overtime"
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  Nadgodziny
+                  <User className="inline size-3.5 mr-1.5" />
+                  Moje Osobiste HR
                 </button>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* TREŚĆ ZAKŁADKI: MOJE ZGŁOSZENIA */}
-          {activeTab === "my" && (
-            <div className="mt-6">
-              {subTab === "leaves" ? (
-                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                  <div className="border-b border-gray-200 px-6 py-4">
-                    <h3 className="text-base font-semibold text-gray-900">
-                      Moje wnioski urlopowe
-                    </h3>
+          {/* WIDOK DLA ADMINISTRATORA (ZARZĄDZANIE PRACOWNIKAMI) */}
+          {isAdmin && activeTab === "admin" && (
+            <div className="mt-6 space-y-8">
+              {/* Baner Podsumowania Zespołu */}
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="overflow-hidden rounded-xl border border-purple-200 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-purple-700">
+                      Wszyscy Pracownicy
+                    </span>
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
+                      <Users className="size-5" />
+                    </div>
                   </div>
-                  {myHrData?.leaves && myHrData.leaves.length > 0 ? (
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-gray-900">
+                      {employeesOverview?.length ?? 0}
+                    </span>
+                    <span className="text-sm font-medium text-gray-500">osób</span>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">Aktywne konta w systemie</p>
+                </div>
+
+                <div className="overflow-hidden rounded-xl border border-amber-200 bg-amber-50/40 p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-amber-700">
+                      Oczekujące Urlopy
+                    </span>
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+                      <Palmtree className="size-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-amber-900">
+                      {summary?.companySummary?.pendingLeavesCount ?? 0}
+                    </span>
+                    <span className="text-sm font-medium text-amber-700">wniosków</span>
+                  </div>
+                  <p className="mt-2 text-xs text-amber-700 font-medium">Czekają na akceptację</p>
+                </div>
+
+                <div className="overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                      Oczekujące Nadgodziny
+                    </span>
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                      <Clock className="size-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-emerald-900">
+                      {summary?.companySummary?.pendingOvertimeCount ?? 0}
+                    </span>
+                    <span className="text-sm font-medium text-emerald-700">zgłoszeń</span>
+                  </div>
+                  <p className="mt-2 text-xs text-emerald-700 font-medium">Do zatwierdzenia</p>
+                </div>
+
+                <div className="overflow-hidden rounded-xl border border-blue-200 bg-blue-50/40 p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                      Na urlopie dzisiaj
+                    </span>
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                      <CalendarDays className="size-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-blue-900">
+                      {employeesOverview?.filter((e) => e.onLeaveToday).length ?? 0}
+                    </span>
+                    <span className="text-sm font-medium text-blue-700">pracowników</span>
+                  </div>
+                  <p className="mt-2 text-xs text-blue-600 font-medium">Aktualnie nieobecni</p>
+                </div>
+              </div>
+
+              {/* Tabela Przeglądu Pracowników dla Admina */}
+              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                  <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <Users className="size-5 text-brand" />
+                    Zbiorczy Stan Pracowników
+                  </h3>
+                  <span className="text-xs text-gray-500">
+                    Kliknij pracownika, aby przefiltrować wnioski
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-gray-600">
+                    <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                      <tr>
+                        <th className="px-6 py-3.5 font-semibold">Pracownik</th>
+                        <th className="px-6 py-3.5 font-semibold">Urlop (wykorzystany)</th>
+                        <th className="px-6 py-3.5 font-semibold">Nadgodziny (zatwierdzone)</th>
+                        <th className="px-6 py-3.5 font-semibold">Oczekujące decyzje</th>
+                        <th className="px-6 py-3.5 text-right font-semibold">Filtruj</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {employeesOverview?.map((emp) => (
+                        <tr key={emp._id} className="hover:bg-purple-50/30 transition">
+                          <td className="whitespace-nowrap px-6 py-4 font-bold text-gray-900 flex items-center gap-3">
+                            <span
+                              className="size-3 rounded-full shrink-0"
+                              style={{ backgroundColor: emp.color || "#6b7280" }}
+                            />
+                            <div>
+                              <div>{emp.displayName}</div>
+                              <div className="text-xs font-normal text-gray-400">{emp.email}</div>
+                            </div>
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
+                            {emp.approvedVacationDays} dn.
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 font-bold text-emerald-600">
+                            +{emp.approvedOvertimeHours}h
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4">
+                            {emp.pendingLeavesCount + emp.pendingOvertimeCount > 0 ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800 animate-pulse">
+                                {emp.pendingLeavesCount + emp.pendingOvertimeCount} do akceptacji
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">Brak</span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-right">
+                            <button
+                              onClick={() => {
+                                setAdminUserFilter(emp._id);
+                                setSubTab("leaves");
+                              }}
+                              className="text-xs font-semibold text-brand hover:underline"
+                            >
+                              Pokaż wnioski →
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Sekcja Zarządzania Wnioskami (Urlopy i Nadgodziny) */}
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSubTab("leaves")}
+                      className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+                        subTab === "leaves"
+                          ? "bg-brand text-white shadow-sm"
+                          : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                      }`}
+                    >
+                      Wnioski Urlopowe Zespołu ({allHrData?.leaves.length ?? 0})
+                    </button>
+                    <button
+                      onClick={() => setSubTab("overtime")}
+                      className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+                        subTab === "overtime"
+                          ? "bg-brand text-white shadow-sm"
+                          : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                      }`}
+                    >
+                      Godziny Dodatkowe Zespołu ({allHrData?.overtime.length ?? 0})
+                    </button>
+                  </div>
+
+                  {/* Pasek Filtrów */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <select
+                      value={adminUserFilter}
+                      onChange={(e) => setAdminUserFilter(e.target.value)}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-700 focus:border-brand focus:outline-none"
+                    >
+                      <option value="">Wszyscy pracownicy</option>
+                      {assignableUsers?.filter((u) => u.showInPickers !== false).map((u) => (
+                        <option key={u._id} value={u._id}>
+                          {u.displayName || u.login}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={adminStatusFilter}
+                      onChange={(e) => setAdminStatusFilter(e.target.value)}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-700 focus:border-brand focus:outline-none"
+                    >
+                      <option value="all">Wszystkie statusy</option>
+                      <option value="pending">Oczekujące</option>
+                      <option value="approved">Zatwierdzone</option>
+                      <option value="rejected">Odrzucone</option>
+                    </select>
+
+                    <input
+                      type="month"
+                      value={adminMonthFilter}
+                      onChange={(e) => setAdminMonthFilter(e.target.value)}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-700 focus:border-brand focus:outline-none"
+                      title="Filtruj wg miesiąca"
+                    />
+
+                    {(adminUserFilter || adminStatusFilter !== "all" || adminMonthFilter) && (
+                      <button
+                        onClick={() => {
+                          setAdminUserFilter("");
+                          setAdminStatusFilter("all");
+                          setAdminMonthFilter("");
+                        }}
+                        className="text-xs font-semibold text-red-600 hover:underline"
+                      >
+                        Resetuj
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tabela zgłoszeń urlopowych w widoku Admina */}
+                {subTab === "leaves" ? (
+                  <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                    {allHrData?.leaves && allHrData.leaves.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm text-gray-600">
+                          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                            <tr>
+                              <th className="px-6 py-3.5 font-semibold">Pracownik</th>
+                              <th className="px-6 py-3.5 font-semibold">Typ urlopu</th>
+                              <th className="px-6 py-3.5 font-semibold">Okres</th>
+                              <th className="px-6 py-3.5 font-semibold">Dni</th>
+                              <th className="px-6 py-3.5 font-semibold">Status</th>
+                              <th className="px-6 py-3.5 font-semibold">Powód</th>
+                              <th className="px-6 py-3.5 text-right font-semibold">Decyzja Admina</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {allHrData.leaves.map((leave) => {
+                              const typeInfo = LEAVE_TYPES[leave.type] || LEAVE_TYPES.other;
+                              return (
+                                <tr key={leave._id} className="hover:bg-gray-50/50">
+                                  <td className="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
+                                    {leave.userName}
+                                  </td>
+                                  <td className="whitespace-nowrap px-6 py-4">
+                                    <span
+                                      className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ${typeInfo.bg} ${typeInfo.text}`}
+                                    >
+                                      {typeInfo.label}
+                                    </span>
+                                  </td>
+                                  <td className="whitespace-nowrap px-6 py-4 font-medium text-gray-900">
+                                    {leave.startDate} do {leave.endDate}
+                                  </td>
+                                  <td className="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
+                                    {leave.daysCount} dn.
+                                  </td>
+                                  <td className="whitespace-nowrap px-6 py-4">
+                                    <StatusBadge status={leave.status} />
+                                  </td>
+                                  <td className="max-w-xs truncate px-6 py-4 text-gray-500">
+                                    {leave.reason || "—"}
+                                  </td>
+                                  <td className="whitespace-nowrap px-6 py-4 text-right">
+                                    {leave.status === "pending" ? (
+                                      <div className="flex items-center justify-end gap-2">
+                                        <button
+                                          onClick={async () => {
+                                            await updateLeaveStatusMut({
+                                              leaveId: leave._id,
+                                              status: "approved",
+                                            });
+                                          }}
+                                          className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 shadow-sm"
+                                        >
+                                          <Check className="size-3.5" />
+                                          Zatwierdź
+                                        </button>
+                                        <button
+                                          onClick={async () => {
+                                            await updateLeaveStatusMut({
+                                              leaveId: leave._id,
+                                              status: "rejected",
+                                            });
+                                          }}
+                                          className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                                        >
+                                          <X className="size-3.5" />
+                                          Odrzuć
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-gray-400">Przetworzono</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center text-gray-500">
+                        Brak wniosków urlopowych spełniających kryteria.
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                    {allHrData?.overtime && allHrData.overtime.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm text-gray-600">
+                          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                            <tr>
+                              <th className="px-6 py-3.5 font-semibold">Pracownik</th>
+                              <th className="px-6 py-3.5 font-semibold">Data</th>
+                              <th className="px-6 py-3.5 font-semibold">Liczba godzin</th>
+                              <th className="px-6 py-3.5 font-semibold">Status</th>
+                              <th className="px-6 py-3.5 font-semibold">Opis prac</th>
+                              <th className="px-6 py-3.5 text-right font-semibold">Decyzja Admina</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {allHrData.overtime.map((ot) => (
+                              <tr key={ot._id} className="hover:bg-gray-50/50">
+                                <td className="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
+                                  {ot.userName}
+                                </td>
+                                <td className="whitespace-nowrap px-6 py-4 font-medium text-gray-900">
+                                  {ot.date}
+                                </td>
+                                <td className="whitespace-nowrap px-6 py-4 font-bold text-emerald-600">
+                                  +{ot.hours}h
+                                </td>
+                                <td className="whitespace-nowrap px-6 py-4">
+                                  <StatusBadge status={ot.status} />
+                                </td>
+                                <td className="max-w-md truncate px-6 py-4 text-gray-600">
+                                  {ot.description}
+                                </td>
+                                <td className="whitespace-nowrap px-6 py-4 text-right">
+                                  {ot.status === "pending" ? (
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        onClick={async () => {
+                                          await updateOvertimeStatusMut({
+                                            overtimeId: ot._id,
+                                            status: "approved",
+                                          });
+                                        }}
+                                        className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 shadow-sm"
+                                      >
+                                        <Check className="size-3.5" />
+                                        Zatwierdź
+                                      </button>
+                                      <button
+                                        onClick={async () => {
+                                          await updateOvertimeStatusMut({
+                                            overtimeId: ot._id,
+                                            status: "rejected",
+                                          });
+                                        }}
+                                        className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                                      >
+                                        <X className="size-3.5" />
+                                        Odrzuć
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-gray-400">Przetworzono</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center text-gray-500">
+                        Brak nadgodzin spełniających kryteria.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* WIDOK DLA PRACOWNIKA (LUB PRZEŁĄCZONE OSOBISTE DLA ADMINA) */}
+          {(!isAdmin || activeTab === "my") && (
+            <div className="mt-6 space-y-6">
+              {/* Baner Powitalny Pracownika */}
+              <div className="rounded-2xl bg-gradient-to-r from-brand/90 to-brand p-6 text-white shadow-md">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                      <Sparkles className="size-5 text-amber-300" />
+                      Twoje Centrum HR
+                    </h2>
+                    <p className="mt-1 text-sm text-blue-100">
+                      Przeglądaj swój wykorzystany urlop, godziny nadgodzin i status złożonych wniosków.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        setFormError(null);
+                        setIsLeaveModalOpen(true);
+                      }}
+                      className="rounded-lg bg-white/20 px-4 py-2 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/30"
+                    >
+                      + Wniosek urlopowy
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFormError(null);
+                        setIsOvertimeModalOpen(true);
+                      }}
+                      className="rounded-lg bg-emerald-500/80 px-4 py-2 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-emerald-500"
+                    >
+                      + Wpisz nadgodziny
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Karty Osobistych Statystyk Pracownika */}
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      Mój urlop (rok)
+                    </span>
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-blue-50 text-brand">
+                      <CalendarDays className="size-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-gray-900">
+                      {summary?.mySummary.approvedVacationDays ?? 0}
+                    </span>
+                    <span className="text-sm font-medium text-gray-500">dni</span>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">Zaakceptowane urlopy</p>
+                </div>
+
+                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      Moje Nadgodziny
+                    </span>
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                      <Clock className="size-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-gray-900">
+                      {summary?.mySummary.approvedOvertimeHours ?? 0}
+                    </span>
+                    <span className="text-sm font-medium text-gray-500">godz.</span>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">Zatwierdzone czasowo</p>
+                </div>
+
+                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      W trakcie rozpatrywania
+                    </span>
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                      <AlertCircle className="size-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-gray-900">
+                      {(summary?.mySummary.pendingLeavesCount ?? 0) +
+                        (summary?.mySummary.pendingOvertimeHours ? 1 : 0)}
+                    </span>
+                    <span className="text-sm font-medium text-gray-500">wnioski</span>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">Czekające na odpowiedź</p>
+                </div>
+              </div>
+
+              {/* Tabela historii osobistej pracownika */}
+              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSubTab("leaves")}
+                      className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition ${
+                        subTab === "leaves"
+                          ? "bg-brand text-white shadow-sm"
+                          : "bg-gray-100 text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      Moje Urlopy
+                    </button>
+                    <button
+                      onClick={() => setSubTab("overtime")}
+                      className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition ${
+                        subTab === "overtime"
+                          ? "bg-brand text-white shadow-sm"
+                          : "bg-gray-100 text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      Moje Nadgodziny
+                    </button>
+                  </div>
+                </div>
+
+                {subTab === "leaves" ? (
+                  myHrData?.leaves && myHrData.leaves.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-sm text-gray-600">
                         <thead className="bg-gray-50 text-xs uppercase text-gray-500">
@@ -522,16 +934,9 @@ export default function HrPage() {
                     <div className="p-8 text-center text-gray-500">
                       Brak zgłoszonych wniosków urlopowych.
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                  <div className="border-b border-gray-200 px-6 py-4">
-                    <h3 className="text-base font-semibold text-gray-900">
-                      Moje nadgodziny
-                    </h3>
-                  </div>
-                  {myHrData?.overtime && myHrData.overtime.length > 0 ? (
+                  )
+                ) : (
+                  myHrData?.overtime && myHrData.overtime.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-sm text-gray-600">
                         <thead className="bg-gray-50 text-xs uppercase text-gray-500">
@@ -581,247 +986,9 @@ export default function HrPage() {
                     <div className="p-8 text-center text-gray-500">
                       Brak zgłoszonych nadgodzin.
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TREŚĆ ZAKŁADKI: ZARZĄDZANIE HR (ADMIN) */}
-          {activeTab === "admin" && isAdmin && (
-            <div className="mt-6 space-y-6">
-              {/* PasekWyszukiwania / Filtrów Admina */}
-              <div className="flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  <Filter className="size-4 text-gray-400" />
-                  Filtry:
-                </div>
-
-                <select
-                  value={adminUserFilter}
-                  onChange={(e) => setAdminUserFilter(e.target.value)}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                >
-                  <option value="">Wszyscy pracownicy</option>
-                  {assignableUsers?.map((u) => (
-                    <option key={u._id} value={u._id}>
-                      {u.displayName || u.login} ({u.role})
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={adminStatusFilter}
-                  onChange={(e) => setAdminStatusFilter(e.target.value)}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                >
-                  <option value="all">Wszystkie statusy</option>
-                  <option value="pending">Oczekujące</option>
-                  <option value="approved">Zatwierdzone</option>
-                  <option value="rejected">Odrzucone</option>
-                  <option value="cancelled">Anulowane</option>
-                </select>
-
-                <input
-                  type="month"
-                  value={adminMonthFilter}
-                  onChange={(e) => setAdminMonthFilter(e.target.value)}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                />
-
-                {(adminUserFilter || adminStatusFilter !== "all" || adminMonthFilter) && (
-                  <button
-                    onClick={() => {
-                      setAdminUserFilter("");
-                      setAdminStatusFilter("all");
-                      setAdminMonthFilter("");
-                    }}
-                    className="text-xs font-medium text-gray-500 hover:text-gray-900 underline"
-                  >
-                    Wyczyść filtry
-                  </button>
+                  )
                 )}
               </div>
-
-              {/* Tabela zgłoszeń urlopowych w widoku Admina */}
-              {subTab === "leaves" ? (
-                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                  <div className="border-b border-gray-200 px-6 py-4">
-                    <h3 className="text-base font-semibold text-gray-900">
-                      Wnioski urlopowe pracowników ({allHrData?.leaves.length ?? 0})
-                    </h3>
-                  </div>
-                  {allHrData?.leaves && allHrData.leaves.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm text-gray-600">
-                        <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-                          <tr>
-                            <th className="px-6 py-3.5 font-semibold">Pracownik</th>
-                            <th className="px-6 py-3.5 font-semibold">Typ urlopu</th>
-                            <th className="px-6 py-3.5 font-semibold">Okres</th>
-                            <th className="px-6 py-3.5 font-semibold">Dni</th>
-                            <th className="px-6 py-3.5 font-semibold">Status</th>
-                            <th className="px-6 py-3.5 font-semibold">Powód</th>
-                            <th className="px-6 py-3.5 text-right font-semibold">Decyzja Admina</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {allHrData.leaves.map((leave) => {
-                            const typeInfo = LEAVE_TYPES[leave.type] || LEAVE_TYPES.other;
-                            return (
-                              <tr key={leave._id} className="hover:bg-gray-50/50">
-                                <td className="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
-                                  {leave.userName}
-                                </td>
-                                <td className="whitespace-nowrap px-6 py-4">
-                                  <span
-                                    className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ${typeInfo.bg} ${typeInfo.text}`}
-                                  >
-                                    {typeInfo.label}
-                                  </span>
-                                </td>
-                                <td className="whitespace-nowrap px-6 py-4 font-medium text-gray-900">
-                                  {leave.startDate} do {leave.endDate}
-                                </td>
-                                <td className="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
-                                  {leave.daysCount} dn.
-                                </td>
-                                <td className="whitespace-nowrap px-6 py-4">
-                                  <StatusBadge status={leave.status} />
-                                </td>
-                                <td className="max-w-xs truncate px-6 py-4 text-gray-500">
-                                  {leave.reason || "—"}
-                                </td>
-                                <td className="whitespace-nowrap px-6 py-4 text-right">
-                                  {leave.status === "pending" ? (
-                                    <div className="flex items-center justify-end gap-2">
-                                      <button
-                                        onClick={async () => {
-                                          await updateLeaveStatusMut({
-                                            leaveId: leave._id,
-                                            status: "approved",
-                                          });
-                                        }}
-                                        className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                                      >
-                                        <Check className="size-3.5" />
-                                        Zatwierdź
-                                      </button>
-                                      <button
-                                        onClick={async () => {
-                                          await updateLeaveStatusMut({
-                                            leaveId: leave._id,
-                                            status: "rejected",
-                                          });
-                                        }}
-                                        className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
-                                      >
-                                        <X className="size-3.5" />
-                                        Odrzuć
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-gray-400">
-                                      Przetworzono
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="p-8 text-center text-gray-500">
-                      Brak wniosków urlopowych spełniających kryteria.
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                  <div className="border-b border-gray-200 px-6 py-4">
-                    <h3 className="text-base font-semibold text-gray-900">
-                      Nadgodziny pracowników ({allHrData?.overtime.length ?? 0})
-                    </h3>
-                  </div>
-                  {allHrData?.overtime && allHrData.overtime.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm text-gray-600">
-                        <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-                          <tr>
-                            <th className="px-6 py-3.5 font-semibold">Pracownik</th>
-                            <th className="px-6 py-3.5 font-semibold">Data</th>
-                            <th className="px-6 py-3.5 font-semibold">Liczba godzin</th>
-                            <th className="px-6 py-3.5 font-semibold">Status</th>
-                            <th className="px-6 py-3.5 font-semibold">Opis prac</th>
-                            <th className="px-6 py-3.5 text-right font-semibold">Decyzja Admina</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {allHrData.overtime.map((ot) => (
-                            <tr key={ot._id} className="hover:bg-gray-50/50">
-                              <td className="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
-                                {ot.userName}
-                              </td>
-                              <td className="whitespace-nowrap px-6 py-4 font-medium text-gray-900">
-                                {ot.date}
-                              </td>
-                              <td className="whitespace-nowrap px-6 py-4 font-bold text-emerald-600">
-                                +{ot.hours}h
-                              </td>
-                              <td className="whitespace-nowrap px-6 py-4">
-                                <StatusBadge status={ot.status} />
-                              </td>
-                              <td className="max-w-md truncate px-6 py-4 text-gray-600">
-                                {ot.description}
-                              </td>
-                              <td className="whitespace-nowrap px-6 py-4 text-right">
-                                {ot.status === "pending" ? (
-                                  <div className="flex items-center justify-end gap-2">
-                                    <button
-                                      onClick={async () => {
-                                        await updateOvertimeStatusMut({
-                                          overtimeId: ot._id,
-                                          status: "approved",
-                                        });
-                                      }}
-                                      className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                                    >
-                                      <Check className="size-3.5" />
-                                      Zatwierdź
-                                    </button>
-                                    <button
-                                      onClick={async () => {
-                                        await updateOvertimeStatusMut({
-                                          overtimeId: ot._id,
-                                          status: "rejected",
-                                        });
-                                      }}
-                                      className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
-                                    >
-                                      <X className="size-3.5" />
-                                      Odrzuć
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className="text-xs text-gray-400">
-                                    Przetworzono
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="p-8 text-center text-gray-500">
-                      Brak nadgodzin spełniających kryteria.
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
         </>

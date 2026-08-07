@@ -210,6 +210,59 @@ export const getHrSummary = query({
 });
 
 /**
+ * Zwraca zestawienie wszystkich pracowników wraz ze statystykami urlopowymi i nadgodzin (tylko dla Admina).
+ */
+export const getEmployeesHrOverview = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireRole(ctx, "admin");
+
+    const users = await ctx.db.query("users").collect();
+    const activeUsers = users.filter((u) => u.isActive !== false && u.showInPickers !== false);
+
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    const allLeaves = await ctx.db.query("hrLeaves").collect();
+    const allOvertime = await ctx.db.query("hrOvertime").collect();
+
+    return activeUsers.map((user) => {
+      const userLeaves = allLeaves.filter((l) => l.userId === user._id);
+      const userOvertime = allOvertime.filter((o) => o.userId === user._id);
+
+      const approvedVacationDays = userLeaves
+        .filter((l) => l.type === "vacation" && l.status === "approved")
+        .reduce((sum, l) => sum + l.daysCount, 0);
+
+      const approvedOvertimeHours = userOvertime
+        .filter((o) => o.status === "approved")
+        .reduce((sum, o) => sum + o.hours, 0);
+
+      const pendingLeavesCount = userLeaves.filter((l) => l.status === "pending").length;
+      const pendingOvertimeCount = userOvertime.filter((o) => o.status === "pending").length;
+
+      const activeLeave = userLeaves.find(
+        (l) => l.status === "approved" && l.startDate <= todayStr && l.endDate >= todayStr
+      );
+
+      return {
+        _id: user._id,
+        displayName: user.displayName || user.email || "Bez nazwy",
+        email: user.email,
+        role: user.role,
+        color: user.color,
+        approvedVacationDays,
+        approvedOvertimeHours,
+        pendingLeavesCount,
+        pendingOvertimeCount,
+        onLeaveToday: !!activeLeave,
+        leaveUntil: activeLeave ? activeLeave.endDate : null,
+        leaveType: activeLeave ? activeLeave.type : null,
+      };
+    }).sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "", "pl"));
+  },
+});
+
+/**
  * Pracownik składa nowy wniosek urlopowy.
  */
 export const submitLeave = mutation({
