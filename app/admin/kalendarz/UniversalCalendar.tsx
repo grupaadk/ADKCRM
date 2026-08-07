@@ -76,14 +76,7 @@ export default function UniversalCalendar({
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [weekRange, setWeekRange] = useState<{ start: Date; end: Date } | null>(null);
-  const [view, setView] = useState<"dayGridMonth" | "timeGridWeek" | "timeGridDay">(() => {
-    if (initialTeamId) return initialView;
-    try {
-      const saved = localStorage.getItem("calendar_default_view") as "dayGridMonth" | "timeGridWeek" | "timeGridDay" | null;
-      if (saved && (saved === "dayGridMonth" || saved === "timeGridWeek" || saved === "timeGridDay")) return saved;
-    } catch {}
-    return initialView;
-  });
+  const [view, setView] = useState<"dayGridMonth" | "timeGridWeek" | "timeGridDay">("timeGridWeek");
   const [visibleRange, setVisibleRange] = useState<{ start: Date; end: Date }>({
     start: new Date(today.getFullYear(), today.getMonth(), 1),
     end: new Date(today.getFullYear(), today.getMonth() + 1, 0),
@@ -239,18 +232,6 @@ export default function UniversalCalendar({
       }
     } catch {}
   }, [currentUser?._id]);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("calendar_default_view") as typeof view | null;
-      if (saved && VIEW_LABELS[saved]) {
-        setTimeout(() => {
-          setView(saved);
-          calendarRef.current?.getApi().changeView(saved);
-        }, 0);
-      }
-    } catch {}
-  }, []);
 
 
   const toggleUserFilter = (id: string) => {
@@ -431,6 +412,8 @@ export default function UniversalCalendar({
       return matched;
     };
 
+    const userMap = new Map(allUsers?.map((u) => [u._id, u.displayName ?? u.login ?? "Użytkownik"]));
+
     // --- Calendar events ---
     if (calendarEvents) {
       for (const e of calendarEvents) {
@@ -444,11 +427,22 @@ export default function UniversalCalendar({
         const orderName = order?.orderName ?? order?.orderNumber;
 
         const assignedUserIds =
-          e.assignedUsers && e.assignedUsers.length > 0
-            ? e.assignedUsers
+          e.assignedUserIds && e.assignedUserIds.length > 0
+            ? e.assignedUserIds
             : e.createdBy
             ? [e.createdBy]
             : [];
+
+        const assignedUserNames: string[] = [];
+        for (const uid of assignedUserIds) {
+          const userName = userMap.get(uid as Id<"users">);
+          if (userName) assignedUserNames.push(userName);
+        }
+        if (assignedUserNames.length === 0 && Array.isArray(e.assignedUsers)) {
+          for (const u of e.assignedUsers as Array<{ name?: string }>) {
+            if (u?.name && u.name !== "?") assignedUserNames.push(u.name);
+          }
+        }
 
         if (
           !matchesFilters({
@@ -482,6 +476,7 @@ export default function UniversalCalendar({
             description: e.description,
             isPrivate: e.isPrivate,
             assignedUsers: e.assignedUsers,
+            assignedUserNames,
             clientId: e.clientId,
             orderId: e.orderId,
           },
@@ -557,6 +552,7 @@ export default function UniversalCalendar({
     cars,
     showPrivate,
     allOrders,
+    allUsers,
     eventTypes,
     searchQuery,
   ]);
@@ -787,6 +783,7 @@ export default function UniversalCalendar({
       customText?: string;
       investmentCity?: string;
       assignedUserName?: string;
+      assignedUserNames?: string[];
       assignedUserColor?: string;
       color?: string;
       eventTypeName?: string;
@@ -851,6 +848,11 @@ export default function UniversalCalendar({
                       🛠️ {props.installationTeamName}
                     </div>
                   )}
+                  {props.assignedUserNames && props.assignedUserNames.length > 0 && (
+                    <div style={{ fontSize: 10, color: "var(--text-mute)", marginTop: 2 }}>
+                      👤 {props.assignedUserNames.join(", ")}
+                    </div>
+                  )}
                 </div>
               ),
             })
@@ -873,7 +875,7 @@ export default function UniversalCalendar({
               fontSize: 10,
               color: color,
               flexShrink: 0,
-              letterSpacing: "0.02em",
+              letterSpacing: "0.04em",
             }}
           >
             {typeLabel}:
@@ -889,6 +891,11 @@ export default function UniversalCalendar({
           >
             {titleText}
           </span>
+          {props.assignedUserNames && props.assignedUserNames.length > 0 && (
+            <span style={{ fontSize: 9.5, color: "var(--text-mute)", flexShrink: 0 }}>
+              ({props.assignedUserNames.join(", ")})
+            </span>
+          )}
         </div>
       );
     }
@@ -1042,6 +1049,31 @@ export default function UniversalCalendar({
               <div style={{ fontSize: 10, color: "var(--text-mute)" }}>{endLabel}</div>
             );
           })()}
+          {/* Przypisany użytkownik / osoby */}
+          {props.assignedUserNames && props.assignedUserNames.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 2 }}>
+              {props.assignedUserNames.map((name: string, idx: number) => (
+                <span
+                  key={idx}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: color,
+                    background: `${color}18`,
+                    border: `1px solid ${color}33`,
+                    borderRadius: 4,
+                    padding: "1px 5px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 3,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  👤 {name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
