@@ -117,8 +117,10 @@ export default function UniversalCalendar({
   // New event form
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventTypeId, setNewEventTypeId] = useState<string>("");
+  const [newEventStartDate, setNewEventStartDate] = useState("");
+  const [newEventStartTime, setNewEventStartTime] = useState("09:00");
   const [newEventEndDate, setNewEventEndDate] = useState("");
-  const [newEventEndTime, setNewEventEndTime] = useState("09:00");
+  const [newEventEndTime, setNewEventEndTime] = useState("10:00");
   const [newEventIsAllDay, setNewEventIsAllDay] = useState(false);
   const [newEventIsPrivate, setNewEventIsPrivate] = useState(false);
   const [newEventDescription, setNewEventDescription] = useState("");
@@ -195,13 +197,6 @@ export default function UniversalCalendar({
       setCarsInitialized(true);
     }
   }, [cars, carsInitialized]);
-
-  const ensureWlasneType = useMutation(api.calendarEvents.ensureDefaultWlasneType);
-  useEffect(() => {
-    if (eventTypes && !eventTypes.some((t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne")) {
-      void ensureWlasneType();
-    }
-  }, [eventTypes, ensureWlasneType]);
 
   const wlasneType = eventTypes.find((t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne");
   const defaultEventTypeId = wlasneType ? wlasneType._id : (eventTypes[0]?._id || "");
@@ -735,19 +730,34 @@ export default function UniversalCalendar({
     setNewEventIsAllDay(false);
     setNewEventIsPrivate(false);
     setNewEventAssignedUserIds(currentUser?._id ? [currentUser._id as string] : []);
-    // Set default end date = same day, 1 hour later
-    const endD = new Date(info.date);
+
+    const startD = info.date;
+    const startYMD = `${startD.getFullYear()}-${(startD.getMonth() + 1).toString().padStart(2, "0")}-${startD.getDate().toString().padStart(2, "0")}`;
+    const startHM = `${startD.getHours().toString().padStart(2, "0")}:${startD.getMinutes().toString().padStart(2, "0")}`;
+
+    setNewEventStartDate(startYMD);
+    setNewEventStartTime(startHM);
+
+    const endD = new Date(startD);
     endD.setHours(endD.getHours() + 1);
-    setNewEventEndDate(endD.toISOString().slice(0, 10));
-    setNewEventEndTime(`${endD.getHours().toString().padStart(2, "0")}:${endD.getMinutes().toString().padStart(2, "0")}`);
+    const endYMD = `${endD.getFullYear()}-${(endD.getMonth() + 1).toString().padStart(2, "0")}-${endD.getDate().toString().padStart(2, "0")}`;
+    const endHM = `${endD.getHours().toString().padStart(2, "0")}:${endD.getMinutes().toString().padStart(2, "0")}`;
+
+    setNewEventEndDate(endYMD);
+    setNewEventEndTime(endHM);
     setDateModalOpen(true);
   };
 
   const handleCreateEvent = async () => {
-    if (!newEventTitle.trim() || !effectiveEventTypeId || !selectedDate) return;
+    if (!newEventTitle.trim() || !effectiveEventTypeId || !newEventStartDate) return;
+
+    const [startH, startM] = newEventStartTime.split(":").map(Number);
+    const startDate = new Date(newEventStartDate);
+    startDate.setHours(startH || 0, startM || 0, 0, 0);
+
     const [endH, endM] = newEventEndTime.split(":").map(Number);
-    const endDate = new Date(newEventEndDate);
-    endDate.setHours(endH, endM, 0, 0);
+    const endDate = new Date(newEventEndDate || newEventStartDate);
+    endDate.setHours(endH || 0, endM || 0, 0, 0);
 
     const finalAssignedIds = newEventAssignedUserIds.length > 0
       ? (newEventAssignedUserIds as Id<"users">[])
@@ -757,7 +767,7 @@ export default function UniversalCalendar({
       eventTypeId: effectiveEventTypeId as Id<"calendarEventTypes">,
       title: newEventTitle.trim(),
       description: newEventDescription || undefined,
-      startDate: selectedDate.getTime(),
+      startDate: startDate.getTime(),
       endDate: newEventIsAllDay ? undefined : endDate.getTime(),
       isAllDay: newEventIsAllDay,
       assignedUserIds: finalAssignedIds,
@@ -2269,63 +2279,50 @@ export default function UniversalCalendar({
                   />
                 </div>
 
-                {/* Event type */}
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Typ zdarzenia *</label>
-                  {eventTypes.length === 0 ? (
-                    <div style={{ fontSize: 12, color: "#e67e22", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 6, padding: "6px 10px" }}>
-                      Brak typów wydarzeń. Dodaj je w Ustawieniach → Typy Wydarzeń.
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {eventTypes.map((type) => (
-                        <button
-                          key={type._id}
-                          onClick={() => {
-                            setNewEventTypeId(type._id);
-                            if (type.defaultTimeMode === "all_day") setNewEventIsAllDay(true);
-                            if (type.defaultTimeMode === "timed") setNewEventIsAllDay(false);
-                          }}
-                          style={{
-                            display: "inline-flex", alignItems: "center", gap: 6,
-                            padding: "5px 12px", borderRadius: 20, fontSize: 12,
-                            background: newEventTypeId === type._id ? `${type.color}22` : "var(--panel)",
-                            color: newEventTypeId === type._id ? type.color : "var(--text-mute)",
-                            border: `1.5px solid ${newEventTypeId === type._id ? type.color : "var(--line)"}`,
-                            fontWeight: newEventTypeId === type._id ? 700 : 500,
-                            cursor: "pointer", fontFamily: "inherit",
-                          }}
-                        >
-                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color }} />
-                          {type.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
                 {/* All day toggle */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <input type="checkbox" id="allDay" checked={newEventIsAllDay} onChange={(e) => setNewEventIsAllDay(e.target.checked)} />
                   <label htmlFor="allDay" style={{ fontSize: 13, color: "var(--text)", cursor: "pointer" }}>Cały dzień</label>
                 </div>
 
-                {/* End date/time */}
-                {!newEventIsAllDay && (
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Koniec zdarzenia</label>
-                    <div style={{ display: "flex", gap: 8 }}>
+                {/* Początek zdarzenia */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Początek zdarzenia *</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      type="date" value={newEventStartDate} onChange={(e) => {
+                        setNewEventStartDate(e.target.value);
+                        if (!newEventEndDate || e.target.value > newEventEndDate) {
+                          setNewEventEndDate(e.target.value);
+                        }
+                      }}
+                      style={{ flex: 1, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
+                    />
+                    {!newEventIsAllDay && (
                       <input
-                        type="date" value={newEventEndDate} onChange={(e) => setNewEventEndDate(e.target.value)}
-                        style={{ flex: 1, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
+                        type="time" value={newEventStartTime} onChange={(e) => setNewEventStartTime(e.target.value)}
+                        style={{ width: 110, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
                       />
+                    )}
+                  </div>
+                </div>
+
+                {/* Koniec zdarzenia */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Koniec zdarzenia *</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      type="date" value={newEventEndDate} onChange={(e) => setNewEventEndDate(e.target.value)}
+                      style={{ flex: 1, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
+                    />
+                    {!newEventIsAllDay && (
                       <input
                         type="time" value={newEventEndTime} onChange={(e) => setNewEventEndTime(e.target.value)}
                         style={{ width: 110, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
                       />
-                    </div>
+                    )}
                   </div>
-                )}
+                </div>
 
                 {/* Description */}
                 <div>

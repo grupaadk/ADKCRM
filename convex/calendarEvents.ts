@@ -116,7 +116,9 @@ export const ensureSupplierEventTypes = mutation({
         });
         createdCount++;
       }
-    // 4. Własne
+    }
+
+    // 4. Własne (zawsze tworzone niezależnie od dostawców)
     const hasWlasne = existingTypes.some(
       (t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne"
     );
@@ -145,26 +147,6 @@ export const ensureSupplierEventTypes = mutation({
   },
 });
 
-export const ensureDefaultWlasneType = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const existing = await ctx.db.query("calendarEventTypes").collect();
-    const wlasne = existing.find(
-      (t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne"
-    );
-    if (!wlasne) {
-      return await ctx.db.insert("calendarEventTypes", {
-        name: "Własne",
-        color: "#6366f1",
-        isPrivate: false,
-        defaultTimeMode: "timed",
-        createdAt: Date.now(),
-      });
-    }
-    return wlasne._id;
-  },
-});
-
 export const getEventTypes = query({
   args: {},
   handler: async (ctx) => {
@@ -174,12 +156,35 @@ export const getEventTypes = query({
     const teams = await ctx.db.query("installationTeams").collect();
     const teamMap = new Map(teams.map((t) => [t._id, t]));
 
-    return types.map((t) => ({
+    const mapped = types.map((t) => ({
       ...t,
       linkedSupplierName: t.linkedSupplierId ? supplierMap.get(t.linkedSupplierId) ?? null : null,
       linkedInstallationTeamName: t.linkedInstallationTeamId ? teamMap.get(t.linkedInstallationTeamId)?.name ?? null : null,
       linkedInstallationTeamColor: t.linkedInstallationTeamId ? teamMap.get(t.linkedInstallationTeamId)?.color ?? null : null,
     }));
+
+    const hasWlasne = mapped.some(
+      (t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne"
+    );
+
+    if (!hasWlasne) {
+      // Wstawiamy pigułkę Własne jako domyślny typ na samej górze
+      const syntheticId = "wlasne_default_id" as unknown as typeof types[0]["_id"];
+      mapped.unshift({
+        _id: syntheticId,
+        _creationTime: Date.now(),
+        name: "Własne",
+        color: "#6366f1",
+        isPrivate: false,
+        defaultTimeMode: "timed",
+        createdAt: Date.now(),
+        linkedSupplierName: null,
+        linkedInstallationTeamName: null,
+        linkedInstallationTeamColor: null,
+      });
+    }
+
+    return mapped;
   },
 });
 
@@ -337,7 +342,7 @@ export const getLinkedOrderEvents = query({
 
     if (!linkedTypes.some((t) => t.linkedOrderField === "projectEndDate")) {
       linkedTypes.push({
-        _id: "builtin_montaz" as any,
+        _id: "builtin_montaz" as unknown as Id<"calendarEventTypes">,
         _creationTime: Date.now(),
         name: "Montaż",
         color: "#3b82f6",
@@ -350,7 +355,7 @@ export const getLinkedOrderEvents = query({
 
     if (!linkedTypes.some((t) => t.linkedOrderField === "complaintServiceDate")) {
       linkedTypes.push({
-        _id: "builtin_serwis" as any,
+        _id: "builtin_serwis" as unknown as Id<"calendarEventTypes">,
         _creationTime: Date.now(),
         name: "Serwis",
         color: "#f59e0b",
@@ -653,8 +658,29 @@ export const createEvent = mutation({
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
+
+    let realEventTypeId = args.eventTypeId;
+    if ((args.eventTypeId as string) === "wlasne_default_id") {
+      const existing = await ctx.db.query("calendarEventTypes").collect();
+      const wlasne = existing.find(
+        (t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne"
+      );
+      if (wlasne) {
+        realEventTypeId = wlasne._id;
+      } else {
+        realEventTypeId = await ctx.db.insert("calendarEventTypes", {
+          name: "Własne",
+          color: "#6366f1",
+          isPrivate: false,
+          defaultTimeMode: "timed",
+          createdAt: Date.now(),
+        });
+      }
+    }
+
     await ctx.db.insert("calendarEvents", {
       ...args,
+      eventTypeId: realEventTypeId,
       createdBy: user._id,
       createdAt: Date.now(),
     });
