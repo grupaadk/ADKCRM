@@ -1022,12 +1022,43 @@ export default function UniversalCalendar({
       : null);
 
     return (
-      <div className="calendar-event-card" style={{
-        display: "flex", flexDirection: "row", borderRadius: 8,
-        background: "var(--panel)", border: "1px solid var(--line)",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-        minWidth: 0, width: "100%", height: "100%", cursor: "pointer",
-      }}>
+      <div
+        className="calendar-event-card"
+        style={{
+          display: "flex", flexDirection: "row", borderRadius: 8,
+          background: "var(--panel)", border: "1px solid var(--line)",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+          minWidth: 0, width: "100%", height: "100%", cursor: "pointer",
+        }}
+        onMouseEnter={(e) =>
+          setTooltip({
+            visible: true,
+            x: e.clientX,
+            y: e.clientY,
+            content: (
+              <div style={{ padding: 2 }}>
+                <div style={{ fontWeight: 700, fontSize: 12, color }}>{props.eventTypeName}</div>
+                <div style={{ fontWeight: 600, fontSize: 11, marginTop: 2 }}>
+                  {arg.event.title}
+                  {props.isPrivate && " 🔒"}
+                </div>
+                {props.description && (
+                  <div style={{ fontSize: 10.5, color: "var(--text-mute)", marginTop: 4, maxWidth: 220 }}>
+                    {props.description}
+                  </div>
+                )}
+                {props.assignedUserNames && props.assignedUserNames.length > 0 && (
+                  <div style={{ fontSize: 10, color: "var(--text-mute)", marginTop: 4 }}>
+                    👤 {props.assignedUserNames.join(", ")}
+                  </div>
+                )}
+              </div>
+            ),
+          })
+        }
+        onMouseMove={(e) => setTooltip((t) => ({ ...t, x: e.clientX, y: e.clientY }))}
+        onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
+      >
         <div style={{ width: 5, minWidth: 5, background: color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
           {/* Typ zdarzenia — zawsze na górze */}
