@@ -315,7 +315,7 @@ export const getEvents = query({
     const userMap = new Map(
       allUsers.map((u) => [
         u._id,
-        { name: u.displayName ?? u.login ?? u.name ?? u.email ?? "Użytkownik", color: u.color ?? "#94a3b8" },
+        { name: u.displayName ?? u.name ?? u.email ?? "Użytkownik", color: u.color ?? "#94a3b8" },
       ]),
     );
 
