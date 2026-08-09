@@ -132,6 +132,8 @@ export default function UniversalCalendar({
     description?: string;
     isPrivate?: boolean;
     eventTypeName?: string;
+    assignedUserNames?: string[];
+    assignedUsers?: Array<{ id?: string; name?: string; color?: string }>;
   } | null>(null);
 
   // Supplier Dropdown state
@@ -695,6 +697,8 @@ export default function UniversalCalendar({
       description?: string;
       isPrivate?: boolean;
       eventTypeName?: string;
+      assignedUserNames?: string[];
+      assignedUsers?: Array<{ id?: string; name?: string; color?: string }>;
     };
 
     if (props.sourceType === "montaz" || props.sourceType === "order-linked") {
@@ -714,6 +718,8 @@ export default function UniversalCalendar({
         eventTypeName: props.eventTypeName,
         clientId: props.clientId,
         orderId: props.orderId,
+        assignedUserNames: props.assignedUserNames,
+        assignedUsers: props.assignedUsers as Array<{ id?: string; name?: string; color?: string }> | undefined,
       });
     }
   };
@@ -2439,6 +2445,34 @@ export default function UniversalCalendar({
                   )}
                   {detailEvent.description && (
                     <p style={{ fontSize: 13, color: "var(--text)", marginTop: 10, lineHeight: 1.5 }}>{detailEvent.description}</p>
+                  )}
+                  {detailEvent.assignedUserNames && detailEvent.assignedUserNames.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>
+                        Przypisane osoby ({detailEvent.assignedUserNames.length})
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {detailEvent.assignedUserNames.map((name, idx) => (
+                          <span
+                            key={idx}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: detailEvent.color,
+                              background: `${detailEvent.color}18`,
+                              border: `1px solid ${detailEvent.color}33`,
+                              borderRadius: 20,
+                              padding: "3px 10px",
+                            }}
+                          >
+                            👤 {name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
                 <button onClick={() => setDetailEvent(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", padding: 6, flexShrink: 0 }}>
