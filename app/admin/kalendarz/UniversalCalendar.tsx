@@ -705,21 +705,27 @@ export default function UniversalCalendar({
       assignedUsers?: Array<{ id?: string; name?: string; color?: string }>;
     };
 
-    setDetailEvent({
-      id: info.event.id,
-      type: props.sourceType === "montaz" || props.sourceType === "order-linked" ? "montaz" : "event",
-      title: info.event.title,
-      color: props.color ?? "#64748b",
-      start: info.event.start,
-      end: info.event.end,
-      description: props.description,
-      isPrivate: props.isPrivate,
-      eventTypeName: props.eventTypeName,
-      clientId: props.clientId,
-      orderId: props.orderId,
-      assignedUserNames: props.assignedUserNames,
-      assignedUsers: props.assignedUsers as Array<{ id?: string; name?: string; color?: string }> | undefined,
-    });
+    if (props.sourceType === "montaz" || props.sourceType === "order-linked") {
+      if (props.clientId && props.orderId) {
+        window.open(`/admin/klient/${props.clientId}/zlecenie/${props.orderId}`, "_blank");
+      }
+    } else {
+      setDetailEvent({
+        id: info.event.id,
+        type: "event",
+        title: info.event.title,
+        color: props.color ?? "#64748b",
+        start: info.event.start,
+        end: info.event.end,
+        description: props.description,
+        isPrivate: props.isPrivate,
+        eventTypeName: props.eventTypeName,
+        clientId: props.clientId,
+        orderId: props.orderId,
+        assignedUserNames: props.assignedUserNames,
+        assignedUsers: props.assignedUsers as Array<{ id?: string; name?: string; color?: string }> | undefined,
+      });
+    }
   };
 
   const handleDateClick = (info: DateClickArg) => {
@@ -2480,33 +2486,20 @@ export default function UniversalCalendar({
                 </button>
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
-                {detailEvent.clientId && detailEvent.orderId && (
-                  <button
-                    onClick={() => {
-                      window.open(`/admin/klient/${detailEvent.clientId}/zlecenie/${detailEvent.orderId}`, "_blank");
-                    }}
-                    className="btn primary btn-xs"
-                    style={{ fontSize: 12, padding: "6px 14px", fontWeight: 600 }}
-                  >
-                    Otwórz zlecenie 🔗
-                  </button>
-                )}
-                {detailEvent.type === "event" && (
-                  <button
-                    onClick={() => setConfirmDeleteOpen(true)}
-                    className="btn btn-xs"
-                    style={{
-                      fontSize: 12,
-                      padding: "6px 14px",
-                      color: "#ef4444",
-                      background: "#ef444415",
-                      border: "1px solid #ef444433",
-                      fontWeight: 600,
-                    }}
-                  >
-                    🗑️ Usuń zdarzenie
-                  </button>
-                )}
+                <button
+                  onClick={() => setConfirmDeleteOpen(true)}
+                  className="btn btn-xs"
+                  style={{
+                    fontSize: 12,
+                    padding: "6px 14px",
+                    color: "#ef4444",
+                    background: "#ef444415",
+                    border: "1px solid #ef444433",
+                    fontWeight: 600,
+                  }}
+                >
+                  🗑️ Usuń zdarzenie
+                </button>
                 <button onClick={() => setDetailEvent(null)} className="btn btn-xs" style={{ fontSize: 12, padding: "6px 14px" }}>Zamknij</button>
               </div>
             </div>
