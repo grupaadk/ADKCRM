@@ -379,7 +379,7 @@ export const getTeamFinancials = query({
           id: o._id,
           orderId: o._id,
           clientId: o.clientId,
-          title: o.name || `Zlecenie #${o.orderNumber || ""}`,
+          title: o.name || o.customText || "Zlecenie bez nazwy",
           clientName,
           type: "order",
           dateStr,
