@@ -317,19 +317,39 @@ export const getTeamFinancials = query({
       };
     }
 
-    // Liczba montaży po miesiącu (zlecenia ekipy + kalendarz)
+    // Liczba montaży i zestawienie elementów po miesiącu (zlecenia ekipy + kalendarz)
     const installationsByMonth: Record<string, number> = {};
+    const itemsByMonth: Record<
+      string,
+      Array<{
+        id: string;
+        orderId?: string;
+        clientId?: string;
+        title: string;
+        clientName: string;
+        type: "order" | "calendar_event";
+        dateStr?: string;
+      }>
+    > = {};
+
+    const clientMap = new Map((await ctx.db.query("clients").collect()).map((c) => [c._id, c]));
+
     for (const o of allTeamOrders) {
       let month: string | null = null;
+      let dateTs: number | undefined = undefined;
       const orderCalEvents = calendarEventsByOrder.get(o._id as string) ?? [];
       const firstCal = orderCalEvents.find((ev) => ev.startDate);
       if (firstCal?.startDate) {
+        dateTs = firstCal.startDate;
         month = getMonthFromTs(firstCal.startDate);
       } else if (o.projectEndDate) {
+        dateTs = o.projectEndDate;
         month = getMonthFromTs(o.projectEndDate);
       } else if (o.installationStartDate) {
+        dateTs = o.installationStartDate;
         month = getMonthFromTs(o.installationStartDate);
       } else if (o.projectStartDate) {
+        dateTs = o.projectStartDate;
         month = getMonthFromTs(o.projectStartDate);
       } else {
         const orderInvs = invoicesByOrder.get(o._id as string) ?? [];
@@ -341,12 +361,29 @@ export const getTeamFinancials = query({
           if (firstExp?.issueDate) {
             month = firstExp.issueDate.slice(0, 7);
           } else {
+            dateTs = o._creationTime;
             month = getMonthFromTs(o._creationTime);
           }
         }
       }
       if (month) {
         installationsByMonth[month] = (installationsByMonth[month] ?? 0) + 1;
+        const client = clientMap.get(o.clientId);
+        const clientName = client
+          ? client.companyName || `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || "Klient"
+          : "Klient";
+        const dateStr = dateTs ? new Date(dateTs).toLocaleDateString("pl-PL") : undefined;
+
+        itemsByMonth[month] = itemsByMonth[month] ?? [];
+        itemsByMonth[month].push({
+          id: o._id,
+          orderId: o._id,
+          clientId: o.clientId,
+          title: o.name || `Zlecenie #${o.orderNumber || ""}`,
+          clientName,
+          type: "order",
+          dateStr,
+        });
       }
     }
 
@@ -355,6 +392,15 @@ export const getTeamFinancials = query({
       if (!ev.orderId && ev.startDate) {
         const month = getMonthFromTs(ev.startDate);
         installationsByMonth[month] = (installationsByMonth[month] ?? 0) + 1;
+
+        itemsByMonth[month] = itemsByMonth[month] ?? [];
+        itemsByMonth[month].push({
+          id: ev._id,
+          title: ev.title,
+          clientName: "Brak przypisanego klienta",
+          type: "calendar_event",
+          dateStr: new Date(ev.startDate).toLocaleDateString("pl-PL"),
+        });
       }
     }
 
@@ -374,6 +420,7 @@ export const getTeamFinancials = query({
         : null;
       const earnings = earningsByMonth[month] ?? 0;
       const installationsCount = installationsByMonth[month] ?? 0;
+      const items = itemsByMonth[month] ?? [];
 
       return {
         month,
@@ -384,6 +431,7 @@ export const getTeamFinancials = query({
         earnings,
         margin: earnings - curr.net,
         installationsCount,
+        items,
       };
     });
 

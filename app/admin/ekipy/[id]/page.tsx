@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import React, { use, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -95,6 +95,7 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
   const [scheduleStatusFilter, setScheduleStatusFilter] = useState<"todo" | "done" | "all">("todo");
   const [editingInfo, setEditingInfo] = useState(false);
   const [updatingScheduleId, setUpdatingScheduleId] = useState<string | null>(null);
+  const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
 
   const [name, setName] = useState("");
   const [leaderName, setLeaderName] = useState("");
@@ -685,44 +686,137 @@ export default function EkipaDetailPage({ params }: { params: Promise<{ id: stri
                             const mom = row.momChange;
                             const momUp = mom !== null && mom > 0;
                             const momDown = mom !== null && mom < 0;
+                            const isExpanded = !!expandedMonths[row.month];
+                            const items = row.items ?? [];
+
                             return (
-                              <tr key={row.month} style={{ borderBottom: "1px solid var(--line)" }}>
-                                <td style={{ padding: "12px 20px", fontWeight: 700, color: "var(--text-strong)" }}>
-                                  {monthLabel(row.month)}
-                                </td>
-                                <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                                  <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe" }}>
-                                    🛠️ {row.installationsCount ?? 0}
-                                  </span>
-                                </td>
-                                <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "var(--text-strong)" }}>
-                                  {fmt(row.expenses)} zł
-                                </td>
-                                <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--text-mute)" }}>
-                                  {fmt(row.expensesGross)} zł
-                                </td>
-                                <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700, color: "#10b981" }}>
-                                  {row.earnings > 0 ? `${fmt(row.earnings)} zł` : <span style={{ color: "var(--text-mute)", fontWeight: 400 }}>—</span>}
-                                </td>
-                                <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                                  <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: "var(--panel-2)", color: "var(--text-strong)" }}>
-                                    {row.count}
-                                  </span>
-                                </td>
-                                <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                                  {mom === null ? (
-                                    <span style={{ color: "var(--text-mute)" }}>—</span>
-                                  ) : (
-                                    <span style={{
-                                      fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-                                      background: momUp ? "#fef2f2" : momDown ? "#ecfdf5" : "var(--panel)",
-                                      color: momUp ? "#ef4444" : momDown ? "#10b981" : "var(--text-mute)",
-                                    }}>
-                                      {momUp ? "▲" : momDown ? "▼" : "="} {Math.abs(mom).toFixed(0)}%
+                              <React.Fragment key={row.month}>
+                                <tr
+                                  style={{
+                                    borderBottom: "1px solid var(--line)",
+                                    background: isExpanded ? "var(--panel)" : "transparent",
+                                    cursor: items.length > 0 ? "pointer" : "default",
+                                  }}
+                                  onClick={() => {
+                                    if (items.length > 0) {
+                                      setExpandedMonths((prev) => ({ ...prev, [row.month]: !prev[row.month] }));
+                                    }
+                                  }}
+                                >
+                                  <td style={{ padding: "12px 20px", fontWeight: 700, color: "var(--text-strong)", display: "flex", alignItems: "center", gap: 8 }}>
+                                    {items.length > 0 && (
+                                      <ChevronRight
+                                        style={{
+                                          width: 15,
+                                          height: 15,
+                                          color: "var(--text-mute)",
+                                          transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                                          transition: "transform 0.15s ease",
+                                        }}
+                                      />
+                                    )}
+                                    {monthLabel(row.month)}
+                                  </td>
+                                  <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                                    <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe" }}>
+                                      🛠️ {row.installationsCount ?? 0}
                                     </span>
-                                  )}
-                                </td>
-                              </tr>
+                                  </td>
+                                  <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "var(--text-strong)" }}>
+                                    {fmt(row.expenses)} zł
+                                  </td>
+                                  <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--text-mute)" }}>
+                                    {fmt(row.expensesGross)} zł
+                                  </td>
+                                  <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700, color: "#10b981" }}>
+                                    {row.earnings > 0 ? `${fmt(row.earnings)} zł` : <span style={{ color: "var(--text-mute)", fontWeight: 400 }}>—</span>}
+                                  </td>
+                                  <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                                    <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: "var(--panel-2)", color: "var(--text-strong)" }}>
+                                      {row.count}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                                    {mom === null ? (
+                                      <span style={{ color: "var(--text-mute)" }}>—</span>
+                                    ) : (
+                                      <span style={{
+                                        fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+                                        background: momUp ? "#fef2f2" : momDown ? "#ecfdf5" : "var(--panel)",
+                                        color: momUp ? "#ef4444" : momDown ? "#10b981" : "var(--text-mute)",
+                                      }}>
+                                        {momUp ? "▲" : momDown ? "▼" : "="} {Math.abs(mom).toFixed(0)}%
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+
+                                {isExpanded && items.length > 0 && (
+                                  <tr style={{ background: "var(--panel)" }}>
+                                    <td colSpan={7} style={{ padding: "8px 20px 16px 44px", borderBottom: "1px solid var(--line)" }}>
+                                      <div style={{
+                                        background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10,
+                                        padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8,
+                                        boxShadow: "inset 0 1px 3px rgba(0,0,0,0.02)",
+                                      }}>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                          Montaże i zlecenia w miesiącu {monthLabel(row.month)} ({items.length})
+                                        </div>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                          {items.map((item, idx) => (
+                                            <div
+                                              key={item.id + idx}
+                                              style={{
+                                                display: "flex", alignItems: "center", justifyContent: "space-between",
+                                                gap: 12, fontSize: 12, padding: "6px 10px", borderRadius: 8,
+                                                background: "var(--panel)", border: "1px solid var(--line)",
+                                              }}
+                                            >
+                                              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                                                <span style={{
+                                                  fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
+                                                  background: item.type === "order" ? "#eff6ff" : "#fef3c7",
+                                                  color: item.type === "order" ? "#2563eb" : "#d97706",
+                                                  border: `1px solid ${item.type === "order" ? "#bfdbfe" : "#fde68a"}`,
+                                                }}>
+                                                  {item.type === "order" ? "Zlecenie" : "Kalendarz"}
+                                                </span>
+                                                <span style={{ fontWeight: 700, color: "var(--text-strong)" }}>
+                                                  {item.title}
+                                                </span>
+                                                <span style={{ color: "var(--text-mute)" }}>
+                                                  ({item.clientName})
+                                                </span>
+                                              </div>
+
+                                              <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                                                {item.dateStr && (
+                                                  <span style={{ fontSize: 11, color: "var(--text-mute)", display: "flex", alignItems: "center", gap: 4 }}>
+                                                    <Calendar style={{ width: 12, height: 12 }} />
+                                                    {item.dateStr}
+                                                  </span>
+                                                )}
+                                                {item.orderId && item.clientId && (
+                                                  <Link
+                                                    href={`/admin/klient/${item.clientId}/zlecenie/${item.orderId}`}
+                                                    style={{
+                                                      display: "inline-flex", alignItems: "center", gap: 4,
+                                                      fontSize: 11, fontWeight: 600, color: "var(--accent)",
+                                                      textDecoration: "none",
+                                                    }}
+                                                  >
+                                                    Zobacz <ExternalLink style={{ width: 12, height: 12 }} />
+                                                  </Link>
+                                                )}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
                             );
                           })}
                         </tbody>
