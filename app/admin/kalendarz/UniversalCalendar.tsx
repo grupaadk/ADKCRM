@@ -1031,9 +1031,14 @@ export default function UniversalCalendar({
                   <div style={{ fontWeight: 600, fontSize: 11, marginTop: 2 }}>
                     {props.orderName ?? "—"} {props.clientName ? `- ${props.clientName}` : ""}
                   </div>
+                  {props.serviceName && (
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-strong)", marginTop: 2 }}>
+                      🛠️ {props.serviceName}
+                    </div>
+                  )}
                   {props.installationTeamName && (
                     <div style={{ fontSize: 10, color: "var(--text-mute)", marginTop: 2 }}>
-                      🛠️ {props.installationTeamName}
+                      👷 {props.installationTeamName}
                     </div>
                   )}
                   {props.customText && (
