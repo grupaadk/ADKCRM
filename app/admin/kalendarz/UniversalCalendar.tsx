@@ -136,6 +136,10 @@ export default function UniversalCalendar({
     assignedUsers?: Array<{ id?: string; name?: string; color?: string }>;
   } | null>(null);
 
+  // Confirm delete modal state
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Supplier Dropdown state
   const [openSupplierDropdownId, setOpenSupplierDropdownId] = useState<string | null>(null);
 
@@ -2483,19 +2487,89 @@ export default function UniversalCalendar({
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
                 <button
-                  onClick={async () => {
-                    if (confirm("Usunąć to zdarzenie?")) {
-                      await deleteCalendarEvent({ id: detailEvent.id as Id<"calendarEvents"> });
-                      setDetailEvent(null);
-                    }
-                  }}
+                  onClick={() => setConfirmDeleteOpen(true)}
                   className="btn btn-xs"
-                  style={{ fontSize: 12, padding: "6px 14px", color: "#dc2626", border: "1px solid #fca5a5" }}
+                  style={{
+                    fontSize: 12,
+                    padding: "6px 14px",
+                    color: "#ef4444",
+                    background: "#ef444415",
+                    border: "1px solid #ef444433",
+                    fontWeight: 600,
+                  }}
                 >
-                  Usuń
+                  🗑️ Usuń zdarzenie
                 </button>
                 <button onClick={() => setDetailEvent(null)} className="btn btn-xs" style={{ fontSize: 12, padding: "6px 14px" }}>Zamknij</button>
               </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Custom Confirm Delete Modal */}
+      {confirmDeleteOpen && detailEvent && createPortal(
+        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }} onClick={() => !isDeleting && setConfirmDeleteOpen(false)} />
+          <div style={{
+            position: "relative", width: "100%", maxWidth: 380,
+            background: "var(--panel)", borderRadius: 14, border: "1px solid var(--line)",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)", padding: "24px",
+            display: "flex", flexDirection: "column", gap: 16,
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12, background: "#ef444415",
+                border: "1px solid #ef444433", display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 20, flexShrink: 0, color: "#ef4444",
+              }}>
+                🗑️
+              </div>
+              <div>
+                <h4 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
+                  Usunąć zdarzenie?
+                </h4>
+                <p style={{ fontSize: 12.5, color: "var(--text-mute)", margin: "4px 0 0", lineHeight: 1.4 }}>
+                  Czy na pewno chcesz usunąć <strong style={{ color: "var(--text-strong)" }}>„{detailEvent.title}”</strong>? Całkowite usunięcie tego wydarzenia jest nieodwracalne.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 6 }}>
+              <button
+                disabled={isDeleting}
+                onClick={() => setConfirmDeleteOpen(false)}
+                className="btn btn-xs"
+                style={{ fontSize: 13, padding: "8px 16px", fontWeight: 500 }}
+              >
+                Anuluj
+              </button>
+              <button
+                disabled={isDeleting}
+                onClick={async () => {
+                  setIsDeleting(true);
+                  try {
+                    await deleteCalendarEvent({ id: detailEvent.id as Id<"calendarEvents"> });
+                    setConfirmDeleteOpen(false);
+                    setDetailEvent(null);
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                className="btn primary btn-xs"
+                style={{
+                  fontSize: 13,
+                  padding: "8px 18px",
+                  background: "#ef4444",
+                  borderColor: "#dc2626",
+                  color: "#ffffff",
+                  fontWeight: 600,
+                  opacity: isDeleting ? 0.7 : 1,
+                }}
+              >
+                {isDeleting ? "Usuwanie..." : "Tak, usuń"}
+              </button>
             </div>
           </div>
         </div>,
