@@ -1467,27 +1467,57 @@ export const uploadUserDocumentPublic = action({
     let targetFolderId = order.folderId;
     const docType = getDocumentType(args.documentType);
     if (docType === "umowa" || docType === "gwarancja") {
-      const parentId = docType === "umowa" ? folders.umowyFolderId : folders.gwarancjeFolderId;
-      if (parentId) {
-        targetFolderId = await getOrCreateSubfolder(connection.accessToken, parentId, order.folderName);
-      }
+      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, folders.order.documents, order.folderId);
+    } else if (docType === "faktura") {
+      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, folders.order.invoices, order.folderId);
     }
 
-    const targetFileName = resolveTargetFileName(args.fileName, args.documentType, order.name, order.clientName);
+    const metadata = JSON.stringify({ name: args.fileName, parents: [targetFolderId] });
+    const boundary = `drive_upload_${Date.now()}`;
+    const encoder = new TextEncoder();
+    const preamble = encoder.encode(
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`,
+    );
+    const epilogue = encoder.encode(`\r\n--${boundary}--`);
 
-    const uploadRes = await uploadFileToDrive(connection.accessToken, targetFileName, contentType, fileBuffer, targetFolderId);
+    const body = new Uint8Array(preamble.byteLength + fileBuffer.byteLength + epilogue.byteLength);
+    body.set(preamble, 0);
+    body.set(new Uint8Array(fileBuffer), preamble.byteLength);
+    body.set(epilogue, preamble.byteLength + fileBuffer.byteLength);
 
-    await ctx.runMutation(internal.googleDrive.recordUploadedDocumentInternal, {
+    const uploadResponse = await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${connection.accessToken}`,
+          "Content-Type": `multipart/related; boundary=${boundary}`,
+        },
+        body,
+      },
+    );
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      throw new Error(`Błąd uploadu do Drive (${uploadResponse.status}): ${errorText}`);
+    }
+
+    const uploaded = await uploadResponse.json() as { id?: string };
+    if (!uploaded.id) throw new Error("Google Drive nie zwróciło ID pliku");
+
+    const driveFileUrl = `https://drive.google.com/file/d/${uploaded.id}/view`;
+
+    await ctx.runMutation(internal.orders.attachUploadedDocument, {
       orderId: args.orderId,
       documentType: args.documentType,
-      fileName: targetFileName,
-      fileUrl: uploadRes.webViewLink,
-      fileId: uploadRes.id,
-      uploadedBy: performedBy,
+      driveFileUrl,
+      performedBy,
       signatureStatus: args.signatureStatus,
     });
 
-    return uploadRes.webViewLink;
+    await ctx.storage.delete(args.storageId);
+
+    return driveFileUrl;
   },
 });
 
