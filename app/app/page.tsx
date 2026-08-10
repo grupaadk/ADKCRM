@@ -186,6 +186,78 @@ export default function AppPwaPage() {
     }
   }
 
+  // If loading user state
+  if (me === undefined) {
+    return (
+      <div className="flex min-h-[100dvh] w-full items-center justify-center bg-slate-50">
+        <RefreshCw className="size-6 text-[#4dbdc6] animate-spin" />
+      </div>
+    );
+  }
+
+  // If NOT logged in -> Show immediate mobile Login Screen
+  if (me === null) {
+    return (
+      <div className="flex flex-col min-h-[100dvh] w-full bg-slate-50 justify-center items-center p-6 max-w-md mx-auto select-none">
+        <div className="w-full bg-white rounded-3xl p-6 border border-gray-200 shadow-xl space-y-6">
+          <div className="text-center space-y-2">
+            <div className="size-14 rounded-2xl bg-[#4dbdc6] text-white flex items-center justify-center font-extrabold text-xl mx-auto shadow-md">
+              ADK
+            </div>
+            <h1 className="text-xl font-extrabold text-slate-800">Aplikacja ADK Okna</h1>
+            <p className="text-xs text-slate-400">Zaloguj się swoimi danymi z panelu /admin</p>
+          </div>
+
+          {loginError && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 text-rose-700 text-xs flex items-center gap-2">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{loginError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">E-mail / Login</label>
+              <input
+                type="email"
+                required
+                placeholder="admin@adkokna.pl"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 text-xs text-slate-800 focus:border-[#4dbdc6] focus:outline-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Hasło</label>
+              <input
+                type="password"
+                required
+                placeholder="••••••••"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 text-xs text-slate-800 focus:border-[#4dbdc6] focus:outline-none"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loginSubmitting}
+              className="w-full py-3.5 rounded-xl bg-[#4dbdc6] text-white font-bold text-xs shadow-md hover:bg-[#3caab3] disabled:opacity-50 transition flex items-center justify-center gap-2 mt-2"
+            >
+              {loginSubmitting ? (
+                <RefreshCw className="size-4 animate-spin" />
+              ) : (
+                <LogIn className="size-4" />
+              )}
+              Zaloguj się
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-[100dvh] w-full bg-slate-50 text-gray-900 select-none relative">
       {/* Top Mobile Bar */}
