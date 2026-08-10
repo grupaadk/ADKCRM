@@ -24,6 +24,7 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
   const [selectedClientId, setSelectedClientId] = useState<Id<"clients"> | null>(defaultClientId ?? null);
   const [selectedClientName, setSelectedClientName] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState<Id<"orders"> | null>(defaultOrderId ?? null);
+  const [orderDropdownOpen, setOrderDropdownOpen] = useState(false);
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [serviceDate, setServiceDate] = useState("");
   const [serviceTimeStart, setServiceTimeStart] = useState("");
@@ -405,39 +406,146 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
             </div>
           )}
 
-          {/* Zlecenie (opcjonalne) - ukryte jeśli przekazano defaultOrderId */}
+          {/* Zlecenie (opcjonalne) - customowy dropdown */}
           {selectedClientId && !defaultOrderId && (
-            <div>
+            <div style={{ position: "relative" }}>
               <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
                 Dotyczy zlecenia <span style={{ fontSize: 10.5, fontWeight: 400 }}>(opcjonalne)</span>
               </label>
-              <select
-                value={selectedOrderId ?? ""}
-                onChange={(e) => setSelectedOrderId(e.target.value ? (e.target.value as Id<"orders">) : null)}
+
+              {/* Trigger button */}
+              <button
+                type="button"
+                onClick={() => setOrderDropdownOpen((prev) => !prev)}
                 style={{
                   width: "100%",
+                  textAlign: "left",
                   fontSize: 12.5,
-                  padding: "7px 10px",
+                  padding: "8px 12px",
                   borderRadius: 7,
                   border: "1px solid var(--line)",
                   background: "var(--panel-2)",
-                  color: "var(--text)",
+                  color: "var(--text-strong)",
                   fontFamily: "inherit",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                   boxSizing: "border-box",
                 }}
               >
-                <option value="">— Brak zlecenia (reklamacja ogólna) —</option>
-                {clientOrders?.map((order) => {
-                  const dateStr = new Date(order._creationTime).toLocaleDateString("pl-PL");
-                  const custom = order.customText ? ` [${order.customText}]` : "";
-                  const total = order.totals?.totalGross ? ` (${order.totals.totalGross.toLocaleString("pl-PL")} zł)` : "";
+                {selectedOrderId ? (() => {
+                  const sel = clientOrders?.find((o) => o._id === selectedOrderId);
+                  if (!sel) return "— Brak zlecenia (reklamacja ogólna) —";
                   return (
-                    <option key={order._id} value={order._id}>
-                      {order.name ?? `Zlecenie z ${dateStr}`}{custom} — z dnia {dateStr}{total}
-                    </option>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
+                      <span style={{ fontWeight: 700 }}>{sel.name ?? "Zlecenie"}</span>
+                      {sel.customText && (
+                        <span style={{ fontSize: 11, color: "var(--accent)", fontStyle: "italic" }}>
+                          {sel.customText}
+                        </span>
+                      )}
+                    </div>
                   );
-                })}
-              </select>
+                })() : (
+                  <span style={{ color: "var(--text-mute)" }}>— Brak zlecenia (reklamacja ogólna) —</span>
+                )}
+                <span style={{ fontSize: 10, color: "var(--text-mute)", marginLeft: 6 }}>▼</span>
+              </button>
+
+              {/* Dropdown Menu */}
+              {orderDropdownOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    zIndex: 30,
+                    marginTop: 4,
+                    maxHeight: 220,
+                    overflowY: "auto",
+                    borderRadius: 8,
+                    border: "1px solid var(--line)",
+                    background: "var(--panel, #fff)",
+                    boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+                    padding: 4,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedOrderId(null);
+                      setOrderDropdownOpen(false);
+                    }}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background: !selectedOrderId ? "var(--panel-2)" : "transparent",
+                      color: "var(--text-mute)",
+                      fontSize: 12,
+                      cursor: "pointer",
+                      textAlign: "left",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    — Brak zlecenia (reklamacja ogólna) —
+                  </button>
+
+                  {(clientOrders ?? []).map((order) => {
+                    const selected = selectedOrderId === order._id;
+                    const dateStr = new Date(order._creationTime).toLocaleDateString("pl-PL");
+                    return (
+                      <button
+                        key={order._id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedOrderId(order._id);
+                          setOrderDropdownOpen(false);
+                        }}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "flex-start",
+                          gap: 2,
+                          padding: "8px 10px",
+                          borderRadius: 6,
+                          border: "none",
+                          background: selected ? "var(--accent-soft, #eff6ff)" : "transparent",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          transition: "background 0.1s",
+                          width: "100%",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!selected) e.currentTarget.style.background = "var(--panel-2)";
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!selected) e.currentTarget.style.background = "transparent";
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)" }}>
+                            {order.name ?? "Zlecenie"}
+                          </span>
+                          <span style={{ fontSize: 11, color: "var(--text-mute)" }}>
+                            {dateStr}
+                          </span>
+                        </div>
+                        {order.customText && (
+                          <span style={{ fontSize: 11, color: "var(--accent)", fontStyle: "italic" }}>
+                            {order.customText}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
