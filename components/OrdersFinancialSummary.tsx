@@ -3,7 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
-import { Search, TrendingUp, TrendingDown, DollarSign, ExternalLink } from "lucide-react";
+import { Search, TrendingUp, TrendingDown, DollarSign, ExternalLink, Calendar, X } from "lucide-react";
 import { useState, useMemo } from "react";
 
 export function OrdersFinancialSummary() {
@@ -12,6 +12,8 @@ export function OrdersFinancialSummary() {
   const allExpenses = useQuery(api.fakturownia.listCachedExpenses) ?? [];
 
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const ordersData = useMemo(() => {
     return allOrders.map((order) => {
@@ -28,8 +30,17 @@ export function OrdersFinancialSummary() {
       const balNet = invNet - expNet;
       const marginPct = invNet > 0 ? (balNet / invNet) * 100 : null;
 
+      // Data do filtrowania - z nazwy (np. "27/05/2026"), z pierwszego terminu montażu lub _creationTime
+      let orderTs = order._creationTime;
+      if (order.installationDates && order.installationDates.length > 0) {
+        orderTs = order.installationDates[0].date;
+      } else if (order.projectEndDate) {
+        orderTs = order.projectEndDate;
+      }
+
       return {
         ...order,
+        orderTs,
         estimateNet,
         invNet,
         expNet,
@@ -40,15 +51,32 @@ export function OrdersFinancialSummary() {
   }, [allOrders, allInvoices, allExpenses]);
 
   const filteredOrders = useMemo(() => {
-    if (!search.trim()) return ordersData;
-    const q = search.toLowerCase();
-    return ordersData.filter(
-      (o) =>
-        (o.name && o.name.toLowerCase().includes(q)) ||
-        (o.clientName && o.clientName.toLowerCase().includes(q)) ||
-        (o.customText && o.customText.toLowerCase().includes(q))
-    );
-  }, [ordersData, search]);
+    let result = ordersData;
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (o) =>
+          (o.name && o.name.toLowerCase().includes(q)) ||
+          (o.clientName && o.clientName.toLowerCase().includes(q)) ||
+          (o.customText && o.customText.toLowerCase().includes(q))
+      );
+    }
+
+    if (dateFrom) {
+      const fromTs = new Date(dateFrom).getTime();
+      result = result.filter((o) => o.orderTs >= fromTs);
+    }
+
+    if (dateTo) {
+      const toDate = new Date(dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      const toTs = toDate.getTime();
+      result = result.filter((o) => o.orderTs <= toTs);
+    }
+
+    return result;
+  }, [ordersData, search, dateFrom, dateTo]);
 
   const totals = useMemo(() => {
     const totalEstimate = filteredOrders.reduce((sum, o) => sum + o.estimateNet, 0);
@@ -120,19 +148,63 @@ export function OrdersFinancialSummary() {
 
       {/* Search and Table */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-2.5 size-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Szukaj zlecenia po nazwie, klencie lub tekście własnym..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white pl-9 pr-4 py-2 text-xs focus:border-blue-500 focus:outline-none"
-            />
+        <div className="p-4 border-b border-gray-200 bg-gray-50/50 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[300px]">
+            {/* Wyszukiwarka tekstowa */}
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="absolute left-3 top-2.5 size-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Szukaj zlecenia po nazwie, klencie..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white pl-9 pr-4 py-2 text-xs focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            {/* Filtr daty Od */}
+            <div className="flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs text-gray-600">
+              <Calendar className="size-3.5 text-gray-400 shrink-0" />
+              <span className="font-semibold text-gray-500">Od:</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="border-none bg-transparent p-0 text-xs text-gray-800 focus:outline-none font-medium"
+              />
+            </div>
+
+            {/* Filtr daty Do */}
+            <div className="flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs text-gray-600">
+              <Calendar className="size-3.5 text-gray-400 shrink-0" />
+              <span className="font-semibold text-gray-500">Do:</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="border-none bg-transparent p-0 text-xs text-gray-800 focus:outline-none font-medium"
+              />
+            </div>
+
+            {/* Reset filtrów */}
+            {(dateFrom || dateTo || search) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-200 transition"
+              >
+                <X className="size-3.5" />
+                Wyczyszcz
+              </button>
+            )}
           </div>
-          <span className="text-xs text-gray-500 font-medium">
-            Liczba zleceń: <strong>{filteredOrders.length}</strong>
+
+          <span className="text-xs text-gray-500 font-medium shrink-0">
+            Wyświetlane zlecenia: <strong>{filteredOrders.length}</strong>
           </span>
         </div>
 

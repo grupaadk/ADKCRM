@@ -213,6 +213,7 @@ export const listAllForFinanse = query({
           : "—";
         return {
           _id: order._id,
+          _creationTime: order._creationTime,
           clientId: order.clientId,
           name: order.name ?? null,
           customText: order.customText ?? null,
