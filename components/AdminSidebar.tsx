@@ -30,6 +30,8 @@ import {
   Calendar,
   Clock,
   CircleDollarSign,
+  AlertCircle,
+  Truck,
 } from "lucide-react"
 
 type NavItem = {
@@ -48,6 +50,8 @@ const mainItems: NavItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, exactMatch: true },
   { href: "/admin/panel", label: "Panel", icon: LayoutGrid },
   { href: "/admin/kalendarz", label: "Kalendarz", icon: Calendar },
+  { href: "/admin/reklamacje", label: "Reklamacje", icon: AlertCircle },
+  { href: "/admin/zamowienia-dostawcy", label: "Dostawcy", icon: Truck },
   { href: "/admin/hr", label: "HR (Urlopy, Ekipy, Flota)", icon: Clock, alsoActiveFor: ["/admin/hr/", "/admin/ekipy/", "/admin/flota/"] },
   { href: "/admin/faktury", label: "Faktury", icon: Receipt },
   { href: "/admin/wydatki", label: "Wydatki", icon: CircleDollarSign },

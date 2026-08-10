@@ -16,6 +16,7 @@ import {
   Receipt,
   CircleDollarSign,
   AlertCircle,
+  Truck,
 } from "lucide-react"
 
 type NavItem = {
@@ -40,6 +41,7 @@ const navItems: NavItem[] = [
   { href: "/admin/faktury", label: "Faktury", icon: Receipt },
   { href: "/admin/wydatki", label: "Wydatki", icon: CircleDollarSign },
   { href: "/admin/reklamacje", label: "Reklamacje", icon: AlertCircle },
+  { href: "/admin/zamowienia-dostawcy", label: "Dostawcy", icon: Truck },
   { href: "/admin/dokumenty", label: "Dodaj dokument", icon: Upload },
   { href: "/admin/ustawienia", label: "Ustawienia", icon: Settings },
 ]
