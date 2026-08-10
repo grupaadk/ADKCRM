@@ -1007,17 +1007,19 @@ export default function UniversalCalendar({
               flexShrink: 0,
             }}
           />
-          <span
-            style={{
-              fontWeight: 700,
-              fontSize: 10,
-              color: color,
-              flexShrink: 0,
-              letterSpacing: "0.04em",
-            }}
-          >
-            {typeLabel}:
-          </span>
+          {typeLabel && typeLabel.toLowerCase() !== "własne" && typeLabel.toLowerCase() !== "wlasne" && (
+            <span
+              style={{
+                fontWeight: 700,
+                fontSize: 10,
+                color: color,
+                flexShrink: 0,
+                letterSpacing: "0.04em",
+              }}
+            >
+              {typeLabel}:
+            </span>
+          )}
           <span
             style={{
               overflow: "hidden",
@@ -1041,6 +1043,10 @@ export default function UniversalCalendar({
     if (props.sourceType === "montaz") {
       const accentColor = props.assignedUserColor ?? statusColorByKey[props.status ?? ""] ?? "#64748b";
       const eventStart = arg.event.start;
+      const eventEnd = arg.event.end;
+      const durationMins = eventStart && eventEnd ? Math.round((eventEnd.getTime() - eventStart.getTime()) / 60000) : 60;
+      const isShort = durationMins < 45;
+
       const timeStr = eventStart
         ? `${eventStart.getHours().toString().padStart(2, "0")}:${eventStart.getMinutes().toString().padStart(2, "0")}`
         : null;
@@ -1070,10 +1076,11 @@ export default function UniversalCalendar({
         <div
           className="calendar-event-card"
           style={{
-            display: "flex", flexDirection: "row", borderRadius: 8,
+            display: "flex", flexDirection: "row", borderRadius: isShort ? 5 : 8,
             background: "var(--panel)", border: "1px solid var(--line)",
             boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
             minWidth: 0, width: "100%", height: "100%", cursor: "pointer",
+            alignItems: isShort ? "center" : "stretch",
           }}
           onMouseEnter={(e) =>
             setTooltip({
@@ -1103,50 +1110,77 @@ export default function UniversalCalendar({
           onMouseMove={(e) => setTooltip((t) => ({ ...t, x: e.clientX, y: e.clientY }))}
           onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
         >
-          <div style={{ width: 5, minWidth: 5, background: accentColor, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
-            {/* Typ zdarzenia */}
-            <span style={{ fontSize: 9, fontWeight: 700, color: accentColor, background: `${accentColor}18`, border: `1px solid ${accentColor}33`, borderRadius: 3, padding: "1px 5px", width: "fit-content", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-              🔧 Montaż
-            </span>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 5 }}>
+          <div style={{ width: isShort ? 4 : 5, minWidth: isShort ? 4 : 5, background: accentColor, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
+          
+          {isShort ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "2px 6px", minWidth: 0, flex: 1, overflow: "hidden", whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: accentColor, background: `${accentColor}18`, borderRadius: 3, padding: "0 4px", flexShrink: 0 }}>
+                🔧
+              </span>
               {timeStr && (
-                <span style={{ fontSize: 12, fontWeight: 800, color: "#fff", background: accentColor, borderRadius: 4, padding: "2px 6px", flexShrink: 0 }}>
+                <span style={{ fontSize: 10.5, fontWeight: 800, color: accentColor, flexShrink: 0 }}>
                   {timeStr}
                 </span>
               )}
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace" }}>
-                {props.orderName ?? "—"}
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {props.clientName}
-            </div>
-            {props.investmentCity && (
-              <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                📍 {props.investmentCity}
-              </div>
-            )}
-            {props.assignedUserName && (
-              <span style={{ fontSize: 10, fontWeight: 600, color: accentColor, background: `${accentColor}22`, border: `1px solid ${accentColor}44`, borderRadius: 4, padding: "1px 6px" }}>
-                {props.assignedUserName}
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {props.orderName ?? props.clientName ?? "Montaż"}
               </span>
-            )}
-          </div>
+              {props.clientName && props.orderName && (
+                <span style={{ fontSize: 10, color: "var(--text-mute)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  ({props.clientName})
+                </span>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: accentColor, background: `${accentColor}18`, border: `1px solid ${accentColor}33`, borderRadius: 3, padding: "1px 5px", width: "fit-content", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                🔧 Montaż
+              </span>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 5 }}>
+                {timeStr && (
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#fff", background: accentColor, borderRadius: 4, padding: "2px 6px", flexShrink: 0 }}>
+                    {timeStr}
+                  </span>
+                )}
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace" }}>
+                  {props.orderName ?? "—"}
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {props.clientName}
+              </div>
+              {props.investmentCity && (
+                <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  📍 {props.investmentCity}
+                </div>
+              )}
+              {props.assignedUserName && (
+                <span style={{ fontSize: 10, fontWeight: 600, color: accentColor, background: `${accentColor}22`, border: `1px solid ${accentColor}44`, borderRadius: 4, padding: "1px 6px" }}>
+                  {props.assignedUserName}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       );
     }
 
     if (props.sourceType === "order-linked") {
       const color = props.color ?? "#3b82f6";
+      const eventStart = arg.event.start;
+      const eventEnd = arg.event.end;
+      const durationMins = eventStart && eventEnd ? Math.round((eventEnd.getTime() - eventStart.getTime()) / 60000) : 60;
+      const isShort = durationMins < 45;
+
       return (
         <div
           className="calendar-event-card"
           style={{
-            display: "flex", flexDirection: "row", borderRadius: 8,
+            display: "flex", flexDirection: "row", borderRadius: isShort ? 5 : 8,
             background: "var(--panel)", border: "1px solid var(--line)",
             boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
             minWidth: 0, width: "100%", height: "100%", cursor: "pointer",
+            alignItems: isShort ? "center" : "stretch",
           }}
           onMouseEnter={(e) =>
             setTooltip({
@@ -1181,28 +1215,43 @@ export default function UniversalCalendar({
           onMouseMove={(e) => setTooltip((t) => ({ ...t, x: e.clientX, y: e.clientY }))}
           onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
         >
-          <div style={{ width: 5, minWidth: 5, background: color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color, background: `${color}18`, border: `1px solid ${color}33`, borderRadius: 3, padding: "1px 5px", width: "fit-content", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-              🔗 {props.eventTypeName}
-            </span>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {props.orderName ?? "—"}
+          <div style={{ width: isShort ? 4 : 5, minWidth: isShort ? 4 : 5, background: color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
+          
+          {isShort ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "2px 6px", minWidth: 0, flex: 1, overflow: "hidden", whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color, flexShrink: 0 }}>🔗</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {props.orderName ?? props.clientName}
+              </span>
+              {props.customText && (
+                <span style={{ fontSize: 10, color: "var(--text-mute)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  [{props.customText}]
+                </span>
+              )}
             </div>
-            <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {props.clientName}
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color, background: `${color}18`, border: `1px solid ${color}33`, borderRadius: 3, padding: "1px 5px", width: "fit-content", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                🔗 {props.eventTypeName}
+              </span>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {props.orderName ?? "—"}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {props.clientName}
+              </div>
+              {props.installationTeamName && (
+                <div style={{ fontSize: 10, fontWeight: 700, color: props.installationTeamColor ?? color, background: `${props.installationTeamColor ?? color}18`, border: `1px solid ${props.installationTeamColor ?? color}33`, borderRadius: 4, padding: "1px 5px", width: "fit-content", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  🛠️ {props.installationTeamName as string}
+                </div>
+              )}
+              {props.customText && (
+                <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-strong)", opacity: 0.9, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  💬 {props.customText as string}
+                </div>
+              )}
             </div>
-            {props.installationTeamName && (
-              <div style={{ fontSize: 10, fontWeight: 700, color: props.installationTeamColor ?? color, background: `${props.installationTeamColor ?? color}18`, border: `1px solid ${props.installationTeamColor ?? color}33`, borderRadius: 4, padding: "1px 5px", width: "fit-content", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                🛠️ {props.installationTeamName as string}
-              </div>
-            )}
-            {props.customText && (
-              <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-strong)", opacity: 0.9, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                💬 {props.customText as string}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       );
     }
@@ -1210,6 +1259,10 @@ export default function UniversalCalendar({
     // Custom calendar event
     const color = props.color ?? "#64748b";
     const eventStart = arg.event.start;
+    const eventEnd = arg.event.end;
+    const durationMins = eventStart && eventEnd ? Math.round((eventEnd.getTime() - eventStart.getTime()) / 60000) : 60;
+    const isShort = durationMins < 45;
+
     const timeStr = arg.event.allDay ? null : (eventStart
       ? `${eventStart.getHours().toString().padStart(2, "0")}:${eventStart.getMinutes().toString().padStart(2, "0")}`
       : null);
@@ -1218,10 +1271,11 @@ export default function UniversalCalendar({
       <div
         className="calendar-event-card"
         style={{
-          display: "flex", flexDirection: "row", borderRadius: 8,
+          display: "flex", flexDirection: "row", borderRadius: isShort ? 5 : 8,
           background: "var(--panel)", border: "1px solid var(--line)",
           boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
           minWidth: 0, width: "100%", height: "100%", cursor: "pointer",
+          alignItems: isShort ? "center" : "stretch",
         }}
         onMouseEnter={(e) =>
           setTooltip({
@@ -1252,63 +1306,85 @@ export default function UniversalCalendar({
         onMouseMove={(e) => setTooltip((t) => ({ ...t, x: e.clientX, y: e.clientY }))}
         onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
       >
-        <div style={{ width: 5, minWidth: 5, background: color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
-          {/* Typ zdarzenia — zawsze na górze */}
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color, background: `${color}18`, border: `1px solid ${color}33`, borderRadius: 3, padding: "1px 5px", letterSpacing: "0.04em", textTransform: "uppercase", flexShrink: 0 }}>
-              {props.eventTypeName}
-            </span>
-            {props.isPrivate && <span style={{ fontSize: 9, background: "#f1f5f9", color: "#64748b", borderRadius: 3, padding: "1px 4px", flexShrink: 0 }}>🔒</span>}
-          </div>
-          {/* Tytuł + godzina */}
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <div style={{ width: isShort ? 4 : 5, minWidth: isShort ? 4 : 5, background: color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
+        
+        {isShort ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "2px 6px", minWidth: 0, flex: 1, overflow: "hidden", whiteSpace: "nowrap" }}>
             {timeStr && (
-              <span style={{ fontSize: 12, fontWeight: 800, color: "#fff", background: color, borderRadius: 4, padding: "2px 6px", flexShrink: 0 }}>
+              <span style={{ fontSize: 10.5, fontWeight: 800, color, flexShrink: 0 }}>
                 {timeStr}
               </span>
             )}
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis" }}>
               {arg.event.title}
-            </div>
+            </span>
+            {props.isPrivate && <span style={{ fontSize: 9, flexShrink: 0 }}>🔒</span>}
           </div>
-          {/* Godzina zakończenia */}
-          {arg.event.end && !arg.event.allDay && (() => {
-            const endDate = arg.event.end!;
-            const startDate = arg.event.start;
-            const sameDay = startDate && endDate.toDateString() === startDate.toDateString();
-            const endTimeStr = `${endDate.getHours().toString().padStart(2, "0")}:${endDate.getMinutes().toString().padStart(2, "0")}`;
-            const endLabel = sameDay ? `do ${endTimeStr}` : `${endDate.getDate()}.${(endDate.getMonth()+1).toString().padStart(2,"0")} ${endTimeStr}`;
-            return (
-              <div style={{ fontSize: 10, color: "var(--text-mute)" }}>{endLabel}</div>
-            );
-          })()}
-          {/* Przypisany użytkownik / osoby */}
-          {props.assignedUserNames && props.assignedUserNames.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 2 }}>
-              {props.assignedUserNames.map((name: string, idx: number) => (
-                <span
-                  key={idx}
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: color,
-                    background: `${color}18`,
-                    border: `1px solid ${color}33`,
-                    borderRadius: 4,
-                    padding: "1px 5px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 3,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  👤 {name}
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
+            {/* Typ zdarzenia — jeśli inny niż Własne */}
+            {props.eventTypeName && props.eventTypeName.toLowerCase() !== "własne" && props.eventTypeName.toLowerCase() !== "wlasne" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color, background: `${color}18`, border: `1px solid ${color}33`, borderRadius: 3, padding: "1px 5px", letterSpacing: "0.04em", textTransform: "uppercase", flexShrink: 0 }}>
+                  {props.eventTypeName}
                 </span>
-              ))}
+                {props.isPrivate && <span style={{ fontSize: 9, background: "#f1f5f9", color: "#64748b", borderRadius: 3, padding: "1px 4px", flexShrink: 0 }}>🔒</span>}
+              </div>
+            )}
+            {(!props.eventTypeName || props.eventTypeName.toLowerCase() === "własne" || props.eventTypeName.toLowerCase() === "wlasne") && props.isPrivate && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ fontSize: 9, background: "#f1f5f9", color: "#64748b", borderRadius: 3, padding: "1px 4px", flexShrink: 0 }}>🔒 Prywatne</span>
+              </div>
+            )}
+            {/* Tytuł + godzina */}
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              {timeStr && (
+                <span style={{ fontSize: 12, fontWeight: 800, color: "#fff", background: color, borderRadius: 4, padding: "2px 6px", flexShrink: 0 }}>
+                  {timeStr}
+                </span>
+              )}
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {arg.event.title}
+              </div>
             </div>
-          )}
-        </div>
+            {/* Godzina zakończenia */}
+            {arg.event.end && !arg.event.allDay && (() => {
+              const endDate = arg.event.end!;
+              const startDate = arg.event.start;
+              const sameDay = startDate && endDate.toDateString() === startDate.toDateString();
+              const endTimeStr = `${endDate.getHours().toString().padStart(2, "0")}:${endDate.getMinutes().toString().padStart(2, "0")}`;
+              const endLabel = sameDay ? `do ${endTimeStr}` : `${endDate.getDate()}.${(endDate.getMonth()+1).toString().padStart(2,"0")} ${endTimeStr}`;
+              return (
+                <div style={{ fontSize: 10, color: "var(--text-mute)" }}>{endLabel}</div>
+              );
+            })()}
+            {/* Przypisany użytkownik / osoby */}
+            {props.assignedUserNames && props.assignedUserNames.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 2 }}>
+                {props.assignedUserNames.map((name: string, idx: number) => (
+                  <span
+                    key={idx}
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: color,
+                      background: `${color}18`,
+                      border: `1px solid ${color}33`,
+                      borderRadius: 4,
+                      padding: "1px 5px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 3,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    👤 {name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
