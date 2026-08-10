@@ -135,7 +135,7 @@ export default function AppPwaPage() {
 
       const { storageId } = await uploadResponse.json();
 
-      const driveResult = await uploadUserDocument({
+      const driveUrl = await uploadUserDocument({
         storageId,
         fileName: file.name,
         orderId: selectedOrderId,
@@ -143,11 +143,7 @@ export default function AppPwaPage() {
         signatureStatus,
       });
 
-      if (driveResult.ok) {
-        setResult({ ok: true, url: driveResult.url });
-      } else {
-        setResult({ ok: false, error: driveResult.error });
-      }
+      setResult({ ok: true, url: driveUrl });
     } catch (err) {
       setResult({
         ok: false,
