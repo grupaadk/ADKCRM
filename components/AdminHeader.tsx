@@ -25,6 +25,7 @@ type NavItem = {
   icon: React.ElementType
   countKey?: "clients"
   exactMatch?: boolean
+  roles?: Array<"admin" | "sales" | "montaz">
 }
 
 const navItems: NavItem[] = [
@@ -38,7 +39,7 @@ const navItems: NavItem[] = [
     countKey: "clients",
     exactMatch: true,
   },
-  { href: "/admin/finanse", label: "Finanse", icon: CircleDollarSign },
+  { href: "/admin/finanse", label: "Finanse", icon: CircleDollarSign, roles: ["admin"] },
   { href: "/admin/reklamacje", label: "Reklamacje", icon: AlertCircle },
   { href: "/admin/zamowienia-dostawcy", label: "Dostawcy", icon: Truck },
   { href: "/admin/dokumenty", label: "Dodaj dokument", icon: Upload },
@@ -55,6 +56,11 @@ function isNavItemActive(item: NavItem, pathname: string): boolean {
 export function AdminHeader() {
   const pathname = usePathname()
   const counts = useQuery(api.dashboard.getCounts)
+  const me = useQuery(api.users.me)
+
+  const visibleNavItems = navItems.filter(
+    (item) => !item.roles || (me?.role && item.roles.includes(me.role))
+  )
 
   return (
     <header className="sticky top-0 z-20 border-b border-gray-200 bg-white">
@@ -69,7 +75,7 @@ export function AdminHeader() {
 
         {/* Nav */}
         <nav className="flex flex-1 items-center gap-1 overflow-x-auto">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive = isNavItemActive(item, pathname)
             const count = item.countKey && counts ? counts[item.countKey] : undefined
 

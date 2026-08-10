@@ -53,7 +53,7 @@ const mainItems: NavItem[] = [
   { href: "/admin/reklamacje", label: "Reklamacje", icon: AlertCircle },
   { href: "/admin/zamowienia-dostawcy", label: "Dostawcy", icon: Truck },
   { href: "/admin/hr", label: "HR (Urlopy, Ekipy, Flota)", icon: Clock, alsoActiveFor: ["/admin/hr/", "/admin/ekipy/", "/admin/flota/"] },
-  { href: "/admin/finanse", label: "Finanse", icon: CircleDollarSign, alsoActiveFor: ["/admin/finanse", "/admin/faktury", "/admin/wydatki"] },
+  { href: "/admin/finanse", label: "Finanse", icon: CircleDollarSign, alsoActiveFor: ["/admin/finanse", "/admin/faktury", "/admin/wydatki"], roles: ["admin"] },
 ]
 
 const toolItems: NavItem[] = [
