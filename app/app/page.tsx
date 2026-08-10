@@ -27,7 +27,6 @@ const DOCUMENT_TYPES = [
   { id: "umowa", label: "Umowa" },
   { id: "gwarancja_alco", label: "Gwarancja ALCO" },
   { id: "odbior_inwestor", label: "Odbiór inwestorski" },
-  { id: "protokol_montaz", label: "Protokół montażu" },
   { id: "faktura", label: "Faktura" },
   { id: "reklamacja", label: "Reklamacja" },
 ] as const;
@@ -315,7 +314,7 @@ export default function AppPwaPage() {
                             <button
                               key={o._id}
                               type="button"
-                              onClick={() => setSelectedOrderId(o._id)}
+                              onClick={() => setSelectedOrderId(isSelected ? null : o._id)}
                               className={`w-full text-left p-3 rounded-xl border text-xs transition flex items-center justify-between ${
                                 isSelected
                                   ? "border-[#4dbdc6] bg-[#4dbdc6]/10 text-slate-900 font-semibold"
@@ -323,8 +322,10 @@ export default function AppPwaPage() {
                               }`}
                             >
                               <div>
-                                <div className="font-bold">{o.name ?? "Zlecenie bez nazwy"}</div>
-                                <div className="text-[10px] text-slate-400">{statusStr}</div>
+                                <div className="font-bold text-slate-800">{o.name ?? "Zlecenie bez nazwy"}</div>
+                                {o.customText && (
+                                  <div className="text-[11px] text-[#4dbdc6] font-medium mt-0.5">{o.customText}</div>
+                                )}
                               </div>
                               {isSelected && <CheckCircle className="size-4 text-[#4dbdc6]" />}
                             </button>
