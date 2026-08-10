@@ -1608,10 +1608,10 @@ export default function UniversalCalendar({
                     }}
                   >
                     <span>Więcej ({activeSuppliers.length - 3})</span>
-                    <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{openSupplierDropdownId === "more" ? "▲" : "▼"}</span>
+                    <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{openSupplierDropdownId?.startsWith("more") || openSupplierDropdownId?.startsWith("supplier_") ? "▲" : "▼"}</span>
                   </button>
 
-                  {openSupplierDropdownId === "more" && (
+                  {(openSupplierDropdownId === "more" || openSupplierDropdownId?.startsWith("supplier_")) && (
                     <div
                       style={{
                         position: "absolute", top: "calc(100% + 6px)", left: 0,
@@ -1835,10 +1835,10 @@ export default function UniversalCalendar({
                     }}
                   >
                     <span>Więcej ({installationTeams.length - 3})</span>
-                    <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{openTeamDropdownId === "more" ? "▲" : "▼"}</span>
+                    <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{openTeamDropdownId?.startsWith("more") || openTeamDropdownId?.startsWith("team_") ? "▲" : "▼"}</span>
                   </button>
 
-                  {openTeamDropdownId === "more" && (
+                  {(openTeamDropdownId === "more" || openTeamDropdownId?.startsWith("team_")) && (
                     <div
                       style={{
                         position: "absolute", top: "calc(100% + 6px)", left: 0,
