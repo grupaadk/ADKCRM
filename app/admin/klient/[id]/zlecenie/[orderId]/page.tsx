@@ -1607,6 +1607,7 @@ export default function OrderDetailPage({
   const initialTab = (searchParams.get("tab") as Tab) ?? "szczegoly";
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showClearInstallationConfirm, setShowClearInstallationConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [showSmsModal, setShowSmsModal] = useState(false);
@@ -3954,7 +3955,27 @@ export default function OrderDetailPage({
       {/* ── Tab: Montaż ── */}
       {activeTab === "montaz" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <SectionCard title="Terminy montażu">
+          <SectionCard
+            title="Terminy montażu"
+            action={
+              (order.installationDates && order.installationDates.length > 0) || order.projectEndDate || order.installationStartDate ? (
+                <button
+                  type="button"
+                  onClick={() => setShowClearInstallationConfirm(true)}
+                  className="btn btn-xs"
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--bad)",
+                    border: "1px solid var(--bad-line)",
+                    background: "transparent",
+                    fontWeight: 600,
+                  }}
+                >
+                  🗑️ Usuń wszystkie terminy
+                </button>
+              ) : undefined
+            }
+          >
             <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 20 }}>
               {/* Informacja / wprowadzenie */}
               <p style={{ fontSize: 13, color: "var(--text-mute)", margin: 0 }}>
@@ -4688,6 +4709,7 @@ export default function OrderDetailPage({
                 // Reset ekipy gdy zmienia się kategoria (nie-Montaż)
                 const catName = expenseCategories?.find((c) => c._id === e.target.value)?.name;
                 if (catName !== "Montaż") setCustomExpenseTeamId("");
+                
                 // Podpowiedz ekipę zlecenia gdy kategoria to Montaż
                 if (catName === "Montaż" && !customExpenseTeamId && order?.installationTeamId) {
                   setCustomExpenseTeamId(order.installationTeamId);
@@ -5498,6 +5520,95 @@ export default function OrderDetailPage({
         </div>
       )}
 
+      {/* Modal potwierdzenia usunięcia wszystkich terminów montażu */}
+      {showClearInstallationConfirm && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 999,
+            background: "rgba(0,0,0,0.45)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            animation: "fadeIn 0.15s ease",
+          }}
+          onClick={() => setShowClearInstallationConfirm(false)}
+        >
+          <div
+            style={{
+              width: 440,
+              maxWidth: "calc(100vw - 32px)",
+              background: "var(--panel, #ffffff)",
+              borderRadius: 16,
+              border: "1px solid var(--line)",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
+              padding: "24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: "#fee2e2",
+                  color: "#dc2626",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  fontSize: 20,
+                }}
+              >
+                ⚠️
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "var(--text-strong)" }}>
+                  Usunąć wszystkie terminy montażu?
+                </h3>
+                <p style={{ fontSize: 13, color: "var(--text-mute)", margin: 0, lineHeight: 1.45 }}>
+                  Czy na pewno chcesz usunąć wszystkie wyznaczone terminy montażu dla tego zlecenia? Wszystkie powiązane wydarzenia znikną z kalendarza.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => setShowClearInstallationConfirm(false)}
+                className="btn"
+                style={{ fontSize: 13, padding: "8px 16px" }}
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void clearInstallationDate({ orderId: orderIdTyped });
+                  setShowClearInstallationConfirm(false);
+                }}
+                className="btn primary"
+                style={{
+                  fontSize: 13,
+                  padding: "8px 18px",
+                  background: "var(--bad, #dc2626)",
+                  borderColor: "transparent",
+                  color: "#ffffff",
+                  fontWeight: 600,
+                }}
+              >
+                Tak, usuń terminy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
