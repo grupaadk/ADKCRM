@@ -2966,6 +2966,20 @@ export default function UniversalCalendar({
                   </div>
                 )}
 
+                {/* Private toggle */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "var(--panel-2)", border: "1px solid var(--line)" }}>
+                  <input
+                    type="checkbox"
+                    id="newEventPrivate"
+                    checked={newEventIsPrivate}
+                    onChange={(e) => setNewEventIsPrivate(e.target.checked)}
+                    style={{ cursor: "pointer" }}
+                  />
+                  <label htmlFor="newEventPrivate" style={{ fontSize: 13, fontWeight: 500, color: "var(--text-strong)", cursor: "pointer" }}>
+                    🔒 Wydarzenie prywatne (widoczne tylko dla mnie)
+                  </label>
+                </div>
+
                   </>
                 )}
               </div>
