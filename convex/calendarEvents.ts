@@ -506,11 +506,46 @@ export const getLinkedOrderEvents = query({
               assignedUserId: order.assignedUserId,
             });
           }
-        } else if (field === "projectEndDate" && order.projectEndDate) {
+        } else if (field === "projectEndDate") {
           if (type.linkedInstallationTeamId && order.installationTeamId !== type.linkedInstallationTeamId) {
             continue;
           }
-          if (order.projectEndDate >= args.startDate && order.projectEndDate <= args.endDate) {
+          // Multiple installation dates support
+          if (order.installationDates && order.installationDates.length > 0) {
+            order.installationDates.forEach((inst, idx) => {
+              const dateVal = inst.date;
+              if (dateVal >= args.startDate && dateVal <= args.endDate) {
+                const teamId = inst.installationTeamId ?? type.linkedInstallationTeamId ?? order.installationTeamId;
+                const specificTeam = teamId ? teamMap.get(teamId) : team;
+                const startMins = inst.startMins ?? 480; // 08:00
+                const endMins = inst.endMins ?? 960;   // 16:00
+                const computedStart = dateVal + startMins * 60 * 1000;
+                const computedEnd = dateVal + endMins * 60 * 1000;
+                const hasTime = timeMode === "timed";
+
+                results.push({
+                  id: `${type._id}_${order._id}_instDate_${idx}`,
+                  orderId: order._id,
+                  clientId: order.clientId,
+                  clientName,
+                  orderName: order.name,
+                  customText: inst.note ? `${order.customText ? order.customText + " - " : ""}${inst.note}` : order.customText,
+                  eventTypeId: type._id,
+                  eventTypeName: type.name,
+                  color: type.color,
+                  startDate: hasTime ? computedStart : dateVal,
+                  endDate: hasTime ? computedEnd : undefined,
+                  hasTime,
+                  supplierId: type.linkedSupplierId,
+                  installationTeamId: teamId,
+                  installationTeamName: specificTeam?.name,
+                  installationTeamColor: specificTeam?.color,
+                  field,
+                  assignedUserId: order.assignedUserId,
+                });
+              }
+            });
+          } else if (order.projectEndDate && order.projectEndDate >= args.startDate && order.projectEndDate <= args.endDate) {
             let hasTime = false;
             let computedStart = order.projectEndDate;
             if (timeMode === "timed") {

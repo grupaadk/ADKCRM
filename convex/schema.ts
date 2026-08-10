@@ -216,6 +216,13 @@ export default defineSchema({
     projectEndDate: v.optional(v.number()),
     installationStartDate: v.optional(v.number()),
     installationTeamId: v.optional(v.id("installationTeams")),
+    installationDates: v.optional(v.array(v.object({
+      date: v.number(),                        // timestamp początku dnia / daty (np. Poczatek dnia w ms)
+      startMins: v.optional(v.number()),      // minuty od początku dnia (np. 8 * 60 = 480)
+      endMins: v.optional(v.number()),        // minuty od początku dnia (np. 16 * 60 = 960)
+      installationTeamId: v.optional(v.id("installationTeams")), // opcjonalna ekipa na ten konkretny dzień
+      note: v.optional(v.string()),           // opcjonalna notatka
+    }))),
     orderDate: v.optional(v.number()), // legacy — przeniesione do serviceDeliveries
     serviceDeliveries: v.optional(v.array(v.object({
       serviceName: v.string(),

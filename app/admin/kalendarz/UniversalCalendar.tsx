@@ -10,7 +10,7 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import multiMonthPlugin from "@fullcalendar/multimonth";
 import interactionPlugin from "@fullcalendar/interaction";
 import plLocale from "@fullcalendar/core/locales/pl";
-import type { EventClickArg, EventDropArg, EventContentArg, DatesSetArg } from "@fullcalendar/core";
+import type { EventClickArg, EventDropArg, EventContentArg, DatesSetArg, DateSelectArg } from "@fullcalendar/core";
 import type { DateClickArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useStatuses } from "@/components/StatusLabelsContext";
@@ -107,8 +107,13 @@ export default function UniversalCalendar({
   const [dateModalOpen, setDateModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  // New event form
+  // New event / installation date state
   const [newEventTitle, setNewEventTitle] = useState("");
+  const [newEventMode, setNewEventMode] = useState<"event" | "montaz">("event");
+  const [selectedOrderIdForMontaz, setSelectedOrderIdForMontaz] = useState<string>("");
+  const [orderSearchQueryForMontaz, setOrderSearchQueryForMontaz] = useState<string>("");
+  const [selectedTeamIdForMontaz, setSelectedTeamIdForMontaz] = useState<string>("");
+  const [montazNote, setMontazNote] = useState<string>("");
   const [newEventTypeId, setNewEventTypeId] = useState<string>("");
   const [newEventStartDate, setNewEventStartDate] = useState("");
   const [newEventStartTime, setNewEventStartTime] = useState("09:00");
@@ -425,12 +430,12 @@ export default function UniversalCalendar({
       for (const e of calendarEvents) {
         if (!showPrivate && e.isPrivate) continue;
 
+        const order = e.orderId ? allOrders?.find((o) => o._id === e.orderId) : undefined;
         const teamId =
           e.installationTeamId ??
-          (e.orderId ? allOrders?.find((o) => o._id === e.orderId)?.installationTeamId : undefined);
+          (order ? (order as { installationTeamId?: string }).installationTeamId : undefined);
         const supplierId = e.eventType?.linkedSupplierId;
-        const order = e.orderId ? allOrders?.find((o) => o._id === e.orderId) : undefined;
-        const orderName = order?.orderName ?? order?.orderNumber;
+        const orderName = (order as { name?: string | null })?.name ?? undefined;
 
         const assignedUserIds =
           e.assignedUserIds && e.assignedUserIds.length > 0
@@ -728,8 +733,43 @@ export default function UniversalCalendar({
     }
   };
 
+  const handleSelect = (info: DateSelectArg) => {
+    setSelectedDate(info.start);
+    setNewEventMode("event");
+    setSelectedOrderIdForMontaz("");
+    setOrderSearchQueryForMontaz("");
+    setSelectedTeamIdForMontaz("");
+    setMontazNote("");
+    setNewEventTitle("");
+    setNewEventTypeId(defaultEventTypeId);
+    setNewEventDescription("");
+    setNewEventIsAllDay(info.allDay);
+    setNewEventIsPrivate(false);
+    setNewEventAssignedUserIds(currentUser?._id ? [currentUser._id as string] : []);
+
+    const startD = info.start;
+    const startYMD = `${startD.getFullYear()}-${(startD.getMonth() + 1).toString().padStart(2, "0")}-${startD.getDate().toString().padStart(2, "0")}`;
+    const startHM = `${startD.getHours().toString().padStart(2, "0")}:${startD.getMinutes().toString().padStart(2, "0")}`;
+
+    setNewEventStartDate(startYMD);
+    setNewEventStartTime(startHM);
+
+    const endD = info.end ?? new Date(startD.getTime() + 3600000);
+    const endYMD = `${endD.getFullYear()}-${(endD.getMonth() + 1).toString().padStart(2, "0")}-${endD.getDate().toString().padStart(2, "0")}`;
+    const endHM = `${endD.getHours().toString().padStart(2, "0")}:${endD.getMinutes().toString().padStart(2, "0")}`;
+
+    setNewEventEndDate(endYMD);
+    setNewEventEndTime(endHM);
+    setDateModalOpen(true);
+  };
+
   const handleDateClick = (info: DateClickArg) => {
     setSelectedDate(info.date);
+    setNewEventMode("event");
+    setSelectedOrderIdForMontaz("");
+    setOrderSearchQueryForMontaz("");
+    setSelectedTeamIdForMontaz("");
+    setMontazNote("");
     setNewEventTitle("");
     setNewEventTypeId(defaultEventTypeId);
     setNewEventDescription("");
@@ -755,6 +795,64 @@ export default function UniversalCalendar({
   };
 
   const handleCreateEvent = async () => {
+    if (newEventMode === "montaz") {
+      if (!selectedOrderIdForMontaz || !selectedTeamIdForMontaz || !newEventStartDate) return;
+
+      const [startH, startM] = newEventStartTime.split(":").map(Number);
+      const startMins = (startH || 8) * 60 + (startM || 0);
+
+      const [endH, endM] = newEventEndTime.split(":").map(Number);
+      const endMins = (endH || 16) * 60 + (endM || 0);
+
+      const dateTs = new Date(newEventStartDate).getTime();
+
+      // Pobieramy wybrane zlecenie z listy allOrders
+      const targetOrder = allOrders?.find((o) => o._id === selectedOrderIdForMontaz);
+      if (!targetOrder) return;
+
+      const targetOrderObj = targetOrder as unknown as {
+        projectEndDate?: number;
+        installationStartDate?: number;
+        installationTeamId?: Id<"installationTeams">;
+        installationDates?: Array<{ date: number; startMins?: number; endMins?: number; installationTeamId?: Id<"installationTeams">; note?: string }>;
+      };
+
+      let existingDates: Array<{ date: number; startMins?: number; endMins?: number; installationTeamId?: Id<"installationTeams">; note?: string }> = [];
+
+      if (targetOrderObj.installationDates && targetOrderObj.installationDates.length > 0) {
+        existingDates = [...targetOrderObj.installationDates];
+      } else if (targetOrderObj.projectEndDate || (targetOrderObj.installationStartDate && targetOrderObj.installationStartDate > 10000000)) {
+        existingDates = [{
+          date: targetOrderObj.projectEndDate ?? (targetOrderObj.installationStartDate! > 10000000 ? targetOrderObj.installationStartDate! : Date.now()),
+          startMins: (targetOrderObj.installationStartDate && targetOrderObj.installationStartDate <= 1440) ? targetOrderObj.installationStartDate : 480,
+          endMins: 960,
+          installationTeamId: targetOrderObj.installationTeamId,
+        }];
+      }
+
+      const newDateObj = {
+        date: dateTs,
+        startMins,
+        endMins,
+        installationTeamId: selectedTeamIdForMontaz ? (selectedTeamIdForMontaz as Id<"installationTeams">) : undefined,
+        note: montazNote.trim() || undefined,
+      };
+
+      const nextDates = [...existingDates, newDateObj].sort((a, b) => a.date - b.date);
+      const first = nextDates[0];
+
+      await updateOrder({
+        orderId: selectedOrderIdForMontaz as Id<"orders">,
+        installationDates: nextDates,
+        projectEndDate: first?.date ?? undefined,
+        installationStartDate: first?.startMins ?? undefined,
+        installationTeamId: first?.installationTeamId ?? selectedTeamIdForMontaz ? (selectedTeamIdForMontaz as Id<"installationTeams">) : undefined,
+      });
+
+      setDateModalOpen(false);
+      return;
+    }
+
     if (!newEventTitle.trim() || !effectiveEventTypeId || !newEventStartDate) return;
 
     const [startH, startM] = newEventStartTime.split(":").map(Number);
@@ -791,6 +889,8 @@ export default function UniversalCalendar({
       orderName?: string;
       status?: string;
       customText?: string;
+      description?: string;
+      serviceName?: string;
       investmentCity?: string;
       assignedUserName?: string;
       assignedUserNames?: string[];
@@ -2140,6 +2240,9 @@ export default function UniversalCalendar({
           headerToolbar={false}
           events={events}
           editable={true}
+          selectable={true}
+          selectMirror={true}
+          select={handleSelect}
           eventDurationEditable={true}
           eventResizableFromStart={true}
           eventClick={handleEventClick}
@@ -2542,7 +2645,9 @@ export default function UniversalCalendar({
             {/* Header */}
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)" }}>Nowe wydarzenie</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)" }}>
+                  {newEventMode === "montaz" ? "Dodaj termin montażu" : "Nowe wydarzenie"}
+                </div>
                 <div style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 2 }}>{fmtDateTime(selectedDate)}</div>
               </div>
               <button onClick={() => setDateModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", padding: 6 }}>
@@ -2555,15 +2660,220 @@ export default function UniversalCalendar({
             {/* Content */}
             <div style={{ flex: 1, overflowY: "auto" }}>
               <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-                {/* Title */}
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Tytuł *</label>
-                  <input
-                    type="text" value={newEventTitle} onChange={(e) => setNewEventTitle(e.target.value)}
-                    placeholder="Nazwa zdarzenia…" autoFocus
-                    style={{ width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
-                  />
+                {/* Mode Selector Tabs */}
+                <div style={{ display: "flex", borderRadius: 8, background: "var(--panel-2)", padding: 3, border: "1px solid var(--line)" }}>
+                  <button
+                    type="button"
+                    onClick={() => setNewEventMode("event")}
+                    style={{
+                      flex: 1, padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+                      background: newEventMode === "event" ? "var(--card)" : "transparent",
+                      color: newEventMode === "event" ? "var(--text-strong)" : "var(--text-mute)",
+                      border: "none", cursor: "pointer", transition: "all 0.1s",
+                      boxShadow: newEventMode === "event" ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                    }}
+                  >
+                    Standardowe wydarzenie
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewEventMode("montaz")}
+                    style={{
+                      flex: 1, padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+                      background: newEventMode === "montaz" ? "var(--accent)" : "transparent",
+                      color: newEventMode === "montaz" ? "#ffffff" : "var(--text-mute)",
+                      border: "none", cursor: "pointer", transition: "all 0.1s",
+                      boxShadow: newEventMode === "montaz" ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
+                    }}
+                  >
+                    🛠️ Termin montażu
+                  </button>
                 </div>
+
+                {newEventMode === "montaz" ? (
+                  <>
+                    {/* Wybór zlecenia z wyszukiwarką */}
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+                        Szukaj i wybierz zlecenie *
+                      </label>
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type="text"
+                          value={
+                            selectedOrderIdForMontaz
+                              ? (() => {
+                                  const sel = (allOrders ?? []).find((o) => o._id === selectedOrderIdForMontaz);
+                                  if (!sel) return orderSearchQueryForMontaz;
+                                  const custom = sel.customText ? ` [${sel.customText}]` : "";
+                                  return `${sel.name ?? "Zlecenie"} - ${sel.clientName}${custom}`;
+                                })()
+                              : orderSearchQueryForMontaz
+                          }
+                          onChange={(e) => {
+                            setSelectedOrderIdForMontaz("");
+                            setOrderSearchQueryForMontaz(e.target.value);
+                          }}
+                          placeholder="Szukaj po numerze zlecenia, klienta lub tekście własnym…"
+                          style={{
+                            width: "100%", fontSize: 13, padding: "8px 30px 8px 12px", borderRadius: 6,
+                            border: "1px solid var(--line)", background: "var(--panel-2)",
+                            color: "var(--text-strong)", fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+                          }}
+                        />
+                        {selectedOrderIdForMontaz && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedOrderIdForMontaz("");
+                              setOrderSearchQueryForMontaz("");
+                            }}
+                            style={{
+                              position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                              border: "none", background: "none", color: "var(--text-mute)", cursor: "pointer", fontSize: 14,
+                            }}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Lista podpowiedzi wyszukiwania */}
+                      {!selectedOrderIdForMontaz && (
+                        <div
+                          style={{
+                            marginTop: 4, maxHeight: 180, overflowY: "auto",
+                            borderRadius: 8, border: "1px solid var(--line)", background: "var(--card)",
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.1)", display: "flex", flexDirection: "column", gap: 2, padding: 4,
+                          }}
+                        >
+                          {(allOrders ?? [])
+                            .filter((o) => {
+                              const q = orderSearchQueryForMontaz.trim().toLowerCase();
+                              if (!q) return true;
+                              const nameStr = (o.name ?? "").toLowerCase();
+                              const clientStr = (o.clientName ?? "").toLowerCase();
+                              const customStr = (o.customText ?? "").toLowerCase();
+                              return nameStr.includes(q) || clientStr.includes(q) || customStr.includes(q);
+                            })
+                            .slice(0, 50)
+                            .map((o) => (
+                              <button
+                                key={o._id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedOrderIdForMontaz(o._id);
+                                  setOrderSearchQueryForMontaz("");
+                                }}
+                                style={{
+                                  display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2,
+                                  padding: "6px 10px", borderRadius: 6, border: "none", background: "transparent",
+                                  cursor: "pointer", textAlign: "left", transition: "background 0.1s", width: "100%",
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel-2)")}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)" }}>
+                                    {o.name ?? "Zlecenie"}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: "var(--text-mute)", fontWeight: 500 }}>
+                                    {o.clientName}
+                                  </span>
+                                </div>
+                                {o.customText && (
+                                  <span style={{ fontSize: 11, color: "var(--accent)", fontStyle: "italic" }}>
+                                    {o.customText}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Data montażu & Godziny */}
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+                        Data i godziny montażu *
+                      </label>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input
+                          type="date"
+                          value={newEventStartDate}
+                          onChange={(e) => setNewEventStartDate(e.target.value)}
+                          style={{ flex: 1, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
+                        />
+                        <input
+                          type="time"
+                          value={newEventStartTime}
+                          onChange={(e) => setNewEventStartTime(e.target.value)}
+                          title="Godzina rozpoczęcia"
+                          style={{ width: 100, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
+                        />
+                        <span style={{ display: "flex", alignItems: "center", fontSize: 12, color: "var(--text-mute)" }}>do</span>
+                        <input
+                          type="time"
+                          value={newEventEndTime}
+                          onChange={(e) => setNewEventEndTime(e.target.value)}
+                          title="Godzina zakończenia"
+                          style={{ width: 100, fontSize: 13, padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit" }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Ekipa montażowa */}
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+                        Ekipa montażowa *
+                      </label>
+                      <select
+                        value={selectedTeamIdForMontaz}
+                        onChange={(e) => setSelectedTeamIdForMontaz(e.target.value)}
+                        style={{
+                          width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 6,
+                          border: "1px solid var(--line)", background: "var(--panel-2)",
+                          color: "var(--text-strong)", fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+                        }}
+                      >
+                        <option value="">— Wybierz ekipę montażową —</option>
+                        {installationTeams.map((team) => (
+                          <option key={team._id} value={team._id}>
+                            🛠️ {team.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Notatka */}
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
+                        Notatka do terminu (opcjonalnie)
+                      </label>
+                      <input
+                        type="text"
+                        value={montazNote}
+                        onChange={(e) => setMontazNote(e.target.value)}
+                        placeholder="np. montaż parapetów / dokończenie obróbki..."
+                        style={{
+                          width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 6,
+                          border: "1px solid var(--line)", background: "var(--panel-2)",
+                          color: "var(--text-strong)", fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Title */}
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>Tytuł *</label>
+                      <input
+                        type="text" value={newEventTitle} onChange={(e) => setNewEventTitle(e.target.value)}
+                        placeholder="Nazwa zdarzenia…" autoFocus
+                        style={{ width: "100%", fontSize: 13, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+                      />
+                    </div>
 
                 {/* All day toggle */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -2650,18 +2960,26 @@ export default function UniversalCalendar({
                   </div>
                 )}
 
-                {/* Private */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <input type="checkbox" id="private" checked={newEventIsPrivate} onChange={(e) => setNewEventIsPrivate(e.target.checked)} />
-                  <label htmlFor="private" style={{ fontSize: 13, color: "var(--text)", cursor: "pointer" }}>🔒 Prywatne (widoczne tylko dla mnie)</label>
-                </div>
+                  </>
+                )}
               </div>
             </div>
 
             {/* Footer */}
             <div style={{ padding: "12px 20px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "flex-end", gap: 8, flexShrink: 0 }}>
               <button onClick={() => setDateModalOpen(false)} className="btn btn-xs" style={{ fontSize: 13, padding: "7px 16px" }}>Anuluj</button>
-              <button onClick={handleCreateEvent} disabled={!newEventTitle.trim() || !effectiveEventTypeId} className="btn primary btn-xs" style={{ fontSize: 13, padding: "7px 16px", opacity: newEventTitle.trim() && effectiveEventTypeId ? 1 : 0.45 }}>Zapisz zdarzenie</button>
+              <button
+                onClick={handleCreateEvent}
+                disabled={newEventMode === "montaz" ? (!selectedOrderIdForMontaz || !selectedTeamIdForMontaz || !newEventStartDate) : (!newEventTitle.trim() || !effectiveEventTypeId)}
+                className="btn primary btn-xs"
+                style={{
+                  fontSize: 13,
+                  padding: "7px 16px",
+                  opacity: (newEventMode === "montaz" ? (selectedOrderIdForMontaz && selectedTeamIdForMontaz && newEventStartDate) : (newEventTitle.trim() && effectiveEventTypeId)) ? 1 : 0.45,
+                }}
+              >
+                {newEventMode === "montaz" ? "Zapisz termin montażu" : "Zapisz zdarzenie"}
+              </button>
             </div>
           </div>
         </div>,

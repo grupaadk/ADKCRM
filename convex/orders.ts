@@ -187,6 +187,10 @@ export const listForPicker = query({
           customText: order.customText ?? null,
           status: order.status,
           clientName,
+          projectEndDate: order.projectEndDate,
+          installationStartDate: order.installationStartDate,
+          installationTeamId: order.installationTeamId,
+          installationDates: order.installationDates,
         };
       }),
     );
@@ -331,6 +335,13 @@ export const update = mutation({
     projectEndDate: v.optional(v.number()),
     installationStartDate: v.optional(v.number()),
     installationTeamId: v.optional(v.id("installationTeams")),
+    installationDates: v.optional(v.array(v.object({
+      date: v.number(),
+      startMins: v.optional(v.number()),
+      endMins: v.optional(v.number()),
+      installationTeamId: v.optional(v.id("installationTeams")),
+      note: v.optional(v.string()),
+    }))),
     serviceDeliveries: v.optional(v.array(v.object({
       serviceName: v.string(),
       supplierId: v.id("suppliers"),
@@ -454,6 +465,7 @@ export const clearInstallationDate = mutation({
     await ctx.db.patch(args.orderId, {
       projectEndDate: undefined,
       installationStartDate: undefined,
+      installationDates: undefined,
     });
 
     await ctx.db.insert("clientEvents", {

@@ -113,7 +113,7 @@ type CachedExpense = {
 
 
 
-type Tab = "szczegoly" | "dokumenty" | "finanse" | "faktury" | "koszty" | "wycena" | "reklamacja" | "notatki";
+type Tab = "szczegoly" | "montaz" | "wycena" | "finanse" | "dokumenty" | "reklamacja" | "faktury" | "koszty" | "notatki";
 
 function getProjectFileLinks(projectFiles: string | undefined) {
   if (!projectFiles) return [];
@@ -2064,6 +2064,7 @@ export default function OrderDetailPage({
 
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "szczegoly", label: "Szczegóły" },
+    { key: "montaz", label: "Montaż" },
     { key: "wycena", label: "Wycena" },
     { key: "finanse", label: "Finanse" },
     { key: "dokumenty", label: "Dokumenty" },
@@ -2797,311 +2798,34 @@ export default function OrderDetailPage({
                   investmentCity={order.investmentCity}
                 />
 
-                {/* Termin montażu — popover approach to avoid layout disruption */}
-                <div style={{ position: "relative", display: "inline-flex" }}>
-                  {/* Pill view or "add" button — always in flow */}
-                  {confirmDeleteDate ? (
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 12, background: "var(--panel-2)", border: "1px solid var(--line)" }}>
-                      <span style={{ fontSize: 12, color: "var(--bad)", fontWeight: 600 }}>Usunąć termin montażu?</span>
-                      <button type="button" onClick={() => void deleteCompletionDate()} className="btn btn-xs" style={{ fontSize: 11, padding: "3px 10px", background: "var(--bad)", color: "#fff", borderColor: "var(--bad)" }}>Tak, usuń</button>
-                      <button type="button" onClick={() => setConfirmDeleteDate(false)} className="btn btn-xs" style={{ fontSize: 11, padding: "3px 10px" }}>Anuluj</button>
-                    </div>
-                  ) : (order.projectEndDate || (order.installationStartDate && order.installationStartDate > 10000000)) ? (
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 10,
-                        padding: "6px 8px 6px 6px",
-                        borderRadius: 12,
-                        border: editingCompletionDate ? "1px solid var(--accent-line)" : "1px solid var(--line)",
-                        background: "var(--card)",
-                        maxWidth: "100%",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          width: 32,
-                          height: 32,
-                          borderRadius: 9,
-                          background: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          flexShrink: 0,
-                        }}
-                      >
-                        <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" />
-                        </svg>
-                      </span>
+                {/* Podsumowanie terminów montażu z szybkim przejściem do zakładki Montaż */}
+                {(() => {
+                  const datesCount = order.installationDates?.length ?? ((order.projectEndDate || (order.installationStartDate && order.installationStartDate > 10000000)) ? 1 : 0);
+                  if (datesCount === 0) return null;
 
-                      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, lineHeight: 1.25 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7, color: "var(--text-mute)" }}>
-                          Termin montażu
-                        </span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-strong)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {(() => {
-                            if (order.installationStartDate && order.installationStartDate > 10000000) {
-                              return fmtLocalDate(order.installationStartDate);
-                            }
-                            return order.projectEndDate ? fmtLocalDate(order.projectEndDate) : "Brak daty";
-                          })()}
-                        </span>
-                        <span style={{ fontSize: 11.5, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {(() => {
-                            if (order.installationStartDate && order.installationStartDate > 10000000) {
-                              const d = new Date(order.installationStartDate);
-                              return `${d.toLocaleDateString("pl-PL", { weekday: "short" })}, godz. ${d.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}`;
-                            }
-                            if (order.projectEndDate) {
-                              const d = new Date(order.projectEndDate);
-                              let timeStr = "08:00";
-                              if (order.installationStartDate !== undefined && order.installationStartDate <= 1440) {
-                                const h = Math.floor(order.installationStartDate / 60).toString().padStart(2, "0");
-                                const m = (order.installationStartDate % 60).toString().padStart(2, "0");
-                                timeStr = `${h}:${m}`;
-                              }
-                              return `${d.toLocaleDateString("pl-PL", { weekday: "short" })}, godz. ${timeStr}`;
-                            }
-                            return "";
-                          })()}
-                        </span>
-                        {(() => {
-                          if (!order.installationTeamId) return null;
-                          const team = installationTeams.find((t) => t._id === order.installationTeamId);
-                          if (!team) return null;
-                          return (
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 4,
-                                marginTop: 3,
-                                padding: "1px 6px",
-                                borderRadius: 4,
-                                background: `${team.color ?? "#10b981"}18`,
-                                border: `1px solid ${team.color ?? "#10b981"}44`,
-                                fontSize: 10.5,
-                                fontWeight: 700,
-                                color: team.color ?? "#10b981",
-                                width: "fit-content",
-                              }}
-                            >
-                              🛠️ {team.name}
-                            </span>
-                          );
-                        })()}
-                      </div>
-
-                      <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0, marginLeft: 2 }}>
-                        <button
-                          type="button"
-                          onClick={editingCompletionDate ? cancelEditCompletionDate : startEditCompletionDate}
-                          title="Edytuj termin montażu"
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            width: 28,
-                            height: 28,
-                            borderRadius: 8,
-                            color: editingCompletionDate ? "var(--accent)" : "var(--text-mute)",
-                            background: "transparent",
-                            border: "none",
-                            cursor: "pointer",
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.background = "var(--panel)"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = editingCompletionDate ? "var(--accent)" : "var(--text-mute)"; e.currentTarget.style.background = "transparent"; }}
-                        >
-                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteDate(true)}
-                          title="Usuń termin montażu"
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            width: 28,
-                            height: 28,
-                            borderRadius: 8,
-                            color: "var(--text-mute)",
-                            background: "transparent",
-                            border: "none",
-                            cursor: "pointer",
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--bad)"; e.currentTarget.style.background = "var(--panel)"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-mute)"; e.currentTarget.style.background = "transparent"; }}
-                        >
-                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
+                  return (
                     <button
                       type="button"
-                      onClick={startEditCompletionDate}
-                      title="Ustaw termin montażu"
+                      onClick={() => setActiveTab("montaz")}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
-                        gap: 7,
-                        padding: "6px 12px",
-                        borderRadius: 999,
-                        border: "1px dashed var(--line)",
-                        background: "transparent",
-                        color: "var(--text-mute)",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
+                        gap: 6,
+                        padding: "5px 10px",
+                        borderRadius: 10,
+                        background: "var(--card)",
+                        border: "1px solid var(--line)",
                         fontSize: 12,
-                        fontWeight: 500,
+                        fontWeight: 600,
+                        color: "var(--text-strong)",
+                        cursor: "pointer",
                       }}
                     >
-                      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" />
-                      </svg>
-                      Ustaw termin montażu
-                      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                      </svg>
+                      <span style={{ color: "var(--accent)" }}>🛠️</span>
+                      <span>Montaż: {datesCount} {datesCount === 1 ? "termin" : "terminy"}</span>
                     </button>
-                  )}
-
-                  {/* Popover edit form — floats below pill */}
-                  {editingCompletionDate && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "calc(100% + 6px)",
-                        right: 0,
-                        zIndex: 50,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 10,
-                        padding: 16,
-                        borderRadius: 14,
-                        border: "1px solid #e2e8f0",
-                        background: "#ffffff",
-                        boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)",
-                        width: 320,
-                        minWidth: 280,
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              width: 24,
-                              height: 24,
-                              borderRadius: 7,
-                              background: "var(--accent-soft)",
-                              color: "var(--accent)",
-                              flexShrink: 0,
-                            }}
-                          >
-                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" />
-                            </svg>
-                          </span>
-                          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7, color: "var(--text-mute)" }}>
-                            Edytuj termin
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={cancelEditCompletionDate}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            width: 24,
-                            height: 24,
-                            borderRadius: 6,
-                            border: "none",
-                            background: "transparent",
-                            color: "var(--text-mute)",
-                            cursor: "pointer",
-                          }}
-                        >
-                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <input
-                          type="date"
-                          value={tsToDateStr(draftCompletionDate)}
-                          onChange={(e) => setDraftCompletionDate(dateStrToTs(e.target.value))}
-                          style={{
-                            fontSize: 13, padding: "6px 10px", borderRadius: 8,
-                            border: "1px solid var(--line)", background: "var(--panel-2)",
-                            color: "var(--text-strong)", fontFamily: "inherit", fontWeight: 600, flex: 1,
-                          }}
-                        />
-                        <select
-                          value={minsToHour(draftInstallationStart) ?? ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setDraftInstallationStart(val !== "" ? parseInt(val) * 60 : undefined);
-                          }}
-                          style={{
-                            fontSize: 13, padding: "6px 10px", borderRadius: 8,
-                            border: "1px solid var(--line)", background: "var(--panel-2)",
-                            color: "var(--text-strong)", fontFamily: "inherit", width: 100,
-                          }}
-                        >
-                          <option value="">— godz.</option>
-                          {Array.from({ length: 24 }, (_, i) => (
-                            <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                          Ekipa montażowa
-                        </label>
-                        <select
-                          value={draftInstallationTeamId ?? ""}
-                          onChange={(e) => setDraftInstallationTeamId(e.target.value ? (e.target.value as Id<"installationTeams">) : undefined)}
-                          style={{
-                            fontSize: 12.5, padding: "6px 10px", borderRadius: 8,
-                            border: "1px solid var(--line)", background: "var(--panel-2)",
-                            color: "var(--text-strong)", fontFamily: "inherit", width: "100%", fontWeight: 500,
-                          }}
-                        >
-                          <option value="">— Brak przypisanej ekipy —</option>
-                          {installationTeams.map((team) => (
-                            <option key={team._id} value={team._id}>
-                              🛠️ {team.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                        <button type="button" onClick={cancelEditCompletionDate} className="btn" style={{ fontSize: 11, padding: "5px 12px" }}>
-                          Anuluj
-                        </button>
-                        <button type="button" onClick={() => void saveCompletionDate()} className="btn primary" style={{ fontSize: 11, padding: "5px 14px" }}>
-                          Zapisz
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  );
+                })()}
 
 
               </div>
@@ -4227,6 +3951,301 @@ export default function OrderDetailPage({
 
 
       
+      {/* ── Tab: Montaż ── */}
+      {activeTab === "montaz" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <SectionCard title="Terminy montażu">
+            <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 20 }}>
+              {/* Informacja / wprowadzenie */}
+              <p style={{ fontSize: 13, color: "var(--text-mute)", margin: 0 }}>
+                Możesz dodać jeden lub wiele terminów montażu dla tego zlecenia (np. montaż w różnych dniach lub różnych godzinach).
+              </p>
+
+              {/* Lista zdefiniowanych dat montażu */}
+              {(() => {
+                const datesList = (order.installationDates && order.installationDates.length > 0)
+                  ? order.installationDates
+                  : (order.projectEndDate || (order.installationStartDate && order.installationStartDate > 10000000))
+                  ? [{
+                      date: order.projectEndDate ?? (order.installationStartDate! > 10000000 ? order.installationStartDate! : Date.now()),
+                      startMins: (order.installationStartDate && order.installationStartDate <= 1440) ? order.installationStartDate : 480,
+                      endMins: 960,
+                      installationTeamId: order.installationTeamId,
+                    }]
+                  : [];
+
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {datesList.length === 0 ? (
+                      <div style={{ padding: 16, borderRadius: 10, background: "var(--panel-2)", border: "1px dashed var(--line)", textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>
+                        Brak wyznaczonych terminów montażu. Dodaj pierwszy termin poniżej.
+                      </div>
+                    ) : (
+                      datesList.map((inst, idx) => {
+                        const team = inst.installationTeamId
+                          ? installationTeams.find((t) => t._id === inst.installationTeamId)
+                          : order.installationTeamId
+                          ? installationTeams.find((t) => t._id === order.installationTeamId)
+                          : null;
+                        const dateObj = new Date(inst.date);
+                        const dateFormatted = dateObj.toLocaleDateString("pl-PL", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+                        const startH = Math.floor((inst.startMins ?? 480) / 60).toString().padStart(2, "0");
+                        const startM = ((inst.startMins ?? 480) % 60).toString().padStart(2, "0");
+                        const endH = Math.floor((inst.endMins ?? 960) / 60).toString().padStart(2, "0");
+                        const endM = ((inst.endMins ?? 960) % 60).toString().padStart(2, "0");
+
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 16,
+                              padding: "12px 16px",
+                              borderRadius: 12,
+                              background: "var(--card)",
+                              border: "1px solid var(--line)",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                              <div
+                                style={{
+                                  width: 38,
+                                  height: 38,
+                                  borderRadius: 10,
+                                  background: "var(--accent-soft)",
+                                  color: "var(--accent)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontWeight: 700,
+                                  fontSize: 14,
+                                }}
+                              >
+                                {idx + 1}
+                              </div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-strong)", textTransform: "capitalize" }}>
+                                  {dateFormatted}
+                                </span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-mute)" }}>
+                                  <span>⏰ godz. {startH}:{startM} - {endH}:{endM}</span>
+                                  {team && (
+                                    <span
+                                      style={{
+                                        padding: "1px 6px",
+                                        borderRadius: 4,
+                                        background: `${team.color ?? "#10b981"}18`,
+                                        border: `1px solid ${team.color ?? "#10b981"}44`,
+                                        color: team.color ?? "#10b981",
+                                        fontWeight: 600,
+                                        fontSize: 11,
+                                      }}
+                                    >
+                                      🛠️ {team.name}
+                                    </span>
+                                  )}
+                                  {inst.note && <span style={{ fontStyle: "italic" }}>„{inst.note}”</span>}
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextDates = datesList.filter((_, i) => i !== idx);
+                                const first = nextDates[0];
+                                void updateOrder({
+                                  orderId: orderIdTyped,
+                                  installationDates: nextDates,
+                                  projectEndDate: first?.date ?? undefined,
+                                  installationStartDate: first?.startMins ?? undefined,
+                                  installationTeamId: first?.installationTeamId ?? order.installationTeamId,
+                                });
+                              }}
+                              style={{
+                                padding: "6px 10px",
+                                borderRadius: 8,
+                                border: "1px solid var(--bad-line)",
+                                background: "transparent",
+                                color: "var(--bad)",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                cursor: "pointer",
+                              }}
+                            >
+                              Usuń
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Formularz dodawania nowego terminu */}
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: 16,
+                  borderRadius: 14,
+                  background: "var(--panel-2)",
+                  border: "1px solid var(--line)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 14,
+                  maxWidth: 600,
+                }}
+              >
+                <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7, color: "var(--text-strong)" }}>
+                  + Dodaj termin montażu
+                </span>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)" }}>Data montażu *</label>
+                    <input
+                      type="date"
+                      value={tsToDateStr(draftCompletionDate)}
+                      onChange={(e) => setDraftCompletionDate(dateStrToTs(e.target.value))}
+                      style={{
+                        fontSize: 13, padding: "8px 10px", borderRadius: 8,
+                        border: "1px solid var(--line)", background: "var(--card)",
+                        color: "var(--text-strong)", fontFamily: "inherit", fontWeight: 600,
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)" }}>Od godziny</label>
+                    <select
+                      value={minsToHour(draftInstallationStart) ?? 8}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDraftInstallationStart(val !== "" ? parseInt(val) * 60 : 480);
+                      }}
+                      style={{
+                        fontSize: 13, padding: "8px 10px", borderRadius: 8,
+                        border: "1px solid var(--line)", background: "var(--card)",
+                        color: "var(--text-strong)", fontFamily: "inherit",
+                      }}
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)" }}>Do godziny</label>
+                    <select
+                      defaultValue={16}
+                      id="draftInstallationEndSelect"
+                      style={{
+                        fontSize: 13, padding: "8px 10px", borderRadius: 8,
+                        border: "1px solid var(--line)", background: "var(--card)",
+                        color: "var(--text-strong)", fontFamily: "inherit",
+                      }}
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)" }}>Ekipa montażowa</label>
+                    <select
+                      value={draftInstallationTeamId ?? ""}
+                      onChange={(e) => setDraftInstallationTeamId(e.target.value ? (e.target.value as Id<"installationTeams">) : undefined)}
+                      style={{
+                        fontSize: 13, padding: "8px 10px", borderRadius: 8,
+                        border: "1px solid var(--line)", background: "var(--card)",
+                        color: "var(--text-strong)", fontFamily: "inherit", fontWeight: 500,
+                      }}
+                    >
+                      <option value="">— Brak (użyj ekipy domyślnej) —</option>
+                      {installationTeams.map((team) => (
+                        <option key={team._id} value={team._id}>
+                          🛠️ {team.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)" }}>Notatka (opcjonalnie)</label>
+                    <input
+                      type="text"
+                      id="draftInstallationNote"
+                      placeholder="np. dokończenie obróbki..."
+                      style={{
+                        fontSize: 13, padding: "8px 10px", borderRadius: 8,
+                        border: "1px solid var(--line)", background: "var(--card)",
+                        color: "var(--text-strong)", fontFamily: "inherit",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!draftCompletionDate) return;
+                      const endSelect = document.getElementById("draftInstallationEndSelect") as HTMLSelectElement | null;
+                      const endHour = endSelect ? parseInt(endSelect.value, 10) : 16;
+                      const noteInput = document.getElementById("draftInstallationNote") as HTMLInputElement | null;
+                      const noteVal = noteInput?.value.trim() || undefined;
+
+                      const existingDates = (order.installationDates && order.installationDates.length > 0)
+                        ? [...order.installationDates]
+                        : (order.projectEndDate || (order.installationStartDate && order.installationStartDate > 10000000))
+                        ? [{
+                            date: order.projectEndDate ?? (order.installationStartDate! > 10000000 ? order.installationStartDate! : Date.now()),
+                            startMins: (order.installationStartDate && order.installationStartDate <= 1440) ? order.installationStartDate : 480,
+                            endMins: 960,
+                            installationTeamId: order.installationTeamId,
+                          }]
+                        : [];
+
+                      const newDateObj = {
+                        date: draftCompletionDate,
+                        startMins: draftInstallationStart ?? 480,
+                        endMins: endHour * 60,
+                        installationTeamId: draftInstallationTeamId,
+                        note: noteVal,
+                      };
+
+                      const nextDates = [...existingDates, newDateObj].sort((a, b) => a.date - b.date);
+                      const first = nextDates[0];
+
+                      await updateOrder({
+                        orderId: orderIdTyped,
+                        installationDates: nextDates,
+                        projectEndDate: first?.date ?? undefined,
+                        installationStartDate: first?.startMins ?? undefined,
+                        installationTeamId: first?.installationTeamId ?? order.installationTeamId,
+                      });
+
+                      if (noteInput) noteInput.value = "";
+                    }}
+                    className="btn primary"
+                    style={{ fontSize: 13, padding: "8px 20px" }}
+                  >
+                    + Dodaj ten termin
+                  </button>
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+      )}
+
       {/* ── Tab: Wycena ── */}
       {activeTab === "wycena" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
