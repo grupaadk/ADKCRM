@@ -217,11 +217,11 @@ export default function AppPwaPage() {
 
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">E-mail / Login</label>
+              <label className="text-xs font-bold text-slate-700">Login / E-mail</label>
               <input
-                type="email"
+                type="text"
                 required
-                placeholder="admin@adkokna.pl"
+                placeholder="Wpisz login..."
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 text-xs text-slate-800 focus:border-[#4dbdc6] focus:outline-none"
