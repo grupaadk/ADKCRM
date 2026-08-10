@@ -664,24 +664,31 @@ export const updateLinkedOrderDate = mutation({
     } else if (args.field === "projectEndDate") {
       const startD = new Date(args.newDate);
       const startMins = startD.getHours() * 60 + startD.getMinutes();
-      const midnightTs = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate()).getTime();
+      const midnightTs = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate(), 0, 0, 0, 0).getTime();
 
       let endMins: number | undefined;
       if (args.endDate) {
         const endD = new Date(args.endDate);
-        endMins = endD.getHours() * 60 + endD.getMinutes();
+        if (endD.getDate() !== startD.getDate()) {
+          // If resized across days, cap endMins to 1440
+          endMins = 1440;
+        } else {
+          endMins = endD.getHours() * 60 + endD.getMinutes();
+        }
       }
 
       if (args.installationIndex !== undefined && order.installationDates && order.installationDates[args.installationIndex]) {
         const updatedDates = [...order.installationDates];
         const existingItem = updatedDates[args.installationIndex];
+        const currentDuration = (existingItem.endMins ?? 960) - (existingItem.startMins ?? 480);
+        const finalEndMins = endMins !== undefined ? endMins : Math.min(1440, startMins + currentDuration);
+
         updatedDates[args.installationIndex] = {
           ...existingItem,
           date: midnightTs,
           startMins,
-          ...(endMins !== undefined ? { endMins } : {}),
+          endMins: finalEndMins,
         };
-        updatedDates.sort((a, b) => a.date - b.date);
         const first = updatedDates[0];
         await ctx.db.patch(args.orderId, {
           installationDates: updatedDates,

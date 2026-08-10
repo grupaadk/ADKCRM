@@ -543,6 +543,7 @@ export default function UniversalCalendar({
             installationTeamColor: le.installationTeamColor,
             field: le.field,
             deliveryIndex: le.deliveryIndex,
+            installationIndex: (le as { installationIndex?: number }).installationIndex,
             eventTypeId: le.eventTypeId,
             eventTypeName: le.eventTypeName,
             color: le.color,
