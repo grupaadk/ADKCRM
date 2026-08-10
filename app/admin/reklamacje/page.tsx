@@ -819,7 +819,7 @@ export default function ReklamacjePage() {
                           <span style={{ color: "var(--text-mute)" }}>—</span>
                         )}
                       </td>
-                      <td style={{ padding: "14px 16px", textAlign: "right", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
+                      <td style={{ padding: "14px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
                         {(() => {
                           const isClosed = c.status === "zamknieta" || c.status === "rozwiazana" || c.status === "zakonczona";
                           const isUpdating = updatingId === c._id;
