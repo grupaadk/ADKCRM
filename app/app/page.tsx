@@ -33,16 +33,53 @@ const DOCUMENT_TYPES = [
 
 type DocumentType = (typeof DOCUMENT_TYPES)[number]["id"];
 
-import { useStatuses } from "@/components/StatusLabelsContext";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { LogOut, LogIn, ShieldCheck } from "lucide-react";
 
 export default function AppPwaPage() {
   const [activeTab, setActiveTab] = useState<Tab>("home");
+  const { signIn, signOut } = useAuthActions();
+
+  // Auth User Query
+  const me = useQuery(api.users.me);
+
+  // Login Form state for PWA
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
 
   const statuses = useStatuses();
   const statusMap = useMemo(
     () => Object.fromEntries(statuses.map((s) => [s.key, s.label])),
     [statuses]
   );
+
+  async function handleLoginSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoginError(null);
+    setLoginSubmitting(true);
+    try {
+      await signIn("password", {
+        flow: "signIn",
+        email: loginEmail.trim().toLowerCase(),
+        password: loginPassword,
+      });
+      setLoginEmail("");
+      setLoginPassword("");
+    } catch {
+      setLoginError("Nieprawidłowy login lub hasło.");
+    } finally {
+      setLoginSubmitting(false);
+    }
+  }
+
+  // Get user's first name for greeting
+  const userFirstName = me?.displayName
+    ? me.displayName.split(" ")[0]
+    : me?.email
+    ? me.email.split("@")[0]
+    : null;
 
   // Form State
   const [clientSearch, setClientSearch] = useState("");
@@ -181,7 +218,9 @@ export default function AppPwaPage() {
         {activeTab === "home" && (
           <div className="space-y-4">
             <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm space-y-2">
-              <h2 className="text-base font-bold text-slate-800">Witaj w ADK App 👋</h2>
+              <h2 className="text-lg font-extrabold text-slate-800">
+                {userFirstName ? `Cześć, ${userFirstName}! 👋` : "Cześć! 👋"}
+              </h2>
               <p className="text-xs text-slate-500 leading-relaxed">
                 Użyj dolnego przycisku <span className="font-bold text-[#4dbdc6]">+</span> aby przejść do pełnego widoku dodawania dokumentów lub zdjęć.
               </p>
@@ -206,7 +245,88 @@ export default function AppPwaPage() {
         {activeTab === "profile" && (
           <div className="space-y-4">
             <h1 className="text-lg font-bold text-slate-800">Mój Profil</h1>
-            <p className="text-xs text-slate-500">Ustawienia konta PWA.</p>
+
+            {me ? (
+              <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="size-12 rounded-2xl bg-[#4dbdc6] text-white font-extrabold text-lg flex items-center justify-center">
+                    {userFirstName ? userFirstName[0].toUpperCase() : "U"}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-sm">{me.displayName ?? "Użytkownik"}</h3>
+                    <p className="text-xs text-slate-400">{me.email}</p>
+                    <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold">
+                      <ShieldCheck className="size-3" />
+                      Zalogowany (rola: {me.role ?? "użytkownik"})
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => signOut()}
+                  className="w-full py-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 font-bold text-xs hover:bg-rose-100 transition flex items-center justify-center gap-2"
+                >
+                  <LogOut className="size-4" />
+                  Wyloguj się
+                </button>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-4">
+                <div className="space-y-1">
+                  <h3 className="font-bold text-slate-800 text-sm">Zaloguj się danymi z /admin</h3>
+                  <p className="text-xs text-slate-400">
+                    Zaloguj się swoim e-mailem i hasłem administratora/pracownika.
+                  </p>
+                </div>
+
+                {loginError && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-rose-700 text-xs flex items-center gap-2">
+                    <AlertCircle className="size-4 shrink-0" />
+                    <span>{loginError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleLoginSubmit} className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">E-mail / Login</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="admin@adkokna.pl"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-xs text-slate-800 focus:border-[#4dbdc6] focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">Hasło</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-xs text-slate-800 focus:border-[#4dbdc6] focus:outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loginSubmitting}
+                    className="w-full py-3 rounded-xl bg-[#4dbdc6] text-white font-bold text-xs shadow-md hover:bg-[#3caab3] disabled:opacity-50 transition flex items-center justify-center gap-2"
+                  >
+                    {loginSubmitting ? (
+                      <RefreshCw className="size-4 animate-spin" />
+                    ) : (
+                      <LogIn className="size-4" />
+                    )}
+                    Zaloguj się
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         )}
 
