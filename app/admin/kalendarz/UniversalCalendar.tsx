@@ -592,6 +592,7 @@ export default function UniversalCalendar({
       deliveryIndex?: number;
     };
     const newStart = info.event.start;
+    const newEnd = info.event.end;
     if (!newStart) return;
 
     if (props.sourceType === "montaz") {
@@ -612,11 +613,12 @@ export default function UniversalCalendar({
         complaintId: props.complaintId ? (props.complaintId as Id<"complaints">) : undefined,
         field: props.field,
         deliveryIndex: props.deliveryIndex,
+        installationIndex: props.installationIndex,
         newDate: newStart.getTime(),
+        endDate: newEnd ? newEnd.getTime() : undefined,
         serviceDateEnd: newServiceDateEnd,
       });
     } else {
-      const newEnd = info.event.end;
       await updateCalendarEvent({
         id: info.event.id as Id<"calendarEvents">,
         startDate: newStart.getTime(),
@@ -633,6 +635,7 @@ export default function UniversalCalendar({
       complaintId?: string;
       field?: string;
       deliveryIndex?: number;
+      installationIndex?: number;
     };
     const newStart = info.event.start;
     const newEnd = info.event.end;
@@ -650,7 +653,9 @@ export default function UniversalCalendar({
         complaintId: props.complaintId ? (props.complaintId as Id<"complaints">) : undefined,
         field: props.field,
         deliveryIndex: props.deliveryIndex,
+        installationIndex: props.installationIndex,
         newDate: newStart.getTime(),
+        endDate: newEnd ? newEnd.getTime() : undefined,
         serviceDateEnd: newEnd ? newEnd.getTime() : undefined,
       });
     } else {

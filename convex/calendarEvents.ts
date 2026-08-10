@@ -541,6 +541,7 @@ export const getLinkedOrderEvents = query({
                   installationTeamName: specificTeam?.name,
                   installationTeamColor: specificTeam?.color,
                   field,
+                  installationIndex: idx,
                   assignedUserId: order.assignedUserId,
                 });
               }
@@ -636,7 +637,9 @@ export const updateLinkedOrderDate = mutation({
     complaintId: v.optional(v.id("complaints")),
     field: v.string(),
     deliveryIndex: v.optional(v.number()),
+    installationIndex: v.optional(v.number()),
     newDate: v.number(),
+    endDate: v.optional(v.number()),
     serviceDateEnd: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -658,13 +661,38 @@ export const updateLinkedOrderDate = mutation({
     if (args.field === "projectStartDate") {
       await ctx.db.patch(args.orderId, { projectStartDate: args.newDate });
     } else if (args.field === "projectEndDate") {
-      const d = new Date(args.newDate);
-      const mins = d.getHours() * 60 + d.getMinutes();
-      const midnightTs = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-      await ctx.db.patch(args.orderId, {
-        projectEndDate: midnightTs,
-        installationStartDate: mins,
-      });
+      const startD = new Date(args.newDate);
+      const startMins = startD.getHours() * 60 + startD.getMinutes();
+      const midnightTs = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate()).getTime();
+
+      let endMins: number | undefined;
+      if (args.endDate) {
+        const endD = new Date(args.endDate);
+        endMins = endD.getHours() * 60 + endD.getMinutes();
+      }
+
+      if (args.installationIndex !== undefined && order.installationDates && order.installationDates[args.installationIndex]) {
+        const updatedDates = [...order.installationDates];
+        const existingItem = updatedDates[args.installationIndex];
+        updatedDates[args.installationIndex] = {
+          ...existingItem,
+          date: midnightTs,
+          startMins,
+          ...(endMins !== undefined ? { endMins } : {}),
+        };
+        updatedDates.sort((a, b) => a.date - b.date);
+        const first = updatedDates[0];
+        await ctx.db.patch(args.orderId, {
+          installationDates: updatedDates,
+          projectEndDate: first?.date,
+          installationStartDate: first?.startMins,
+        });
+      } else {
+        await ctx.db.patch(args.orderId, {
+          projectEndDate: midnightTs,
+          installationStartDate: startMins,
+        });
+      }
     } else if (args.field.startsWith("serviceDeliveries.") && args.deliveryIndex !== undefined) {
       const deliveryField = args.field.split(".")[1] as "deliveryDate" | "orderDate" | "confirmedDate" | "receivedDate";
       const deliveries = [...(order.serviceDeliveries ?? [])];
