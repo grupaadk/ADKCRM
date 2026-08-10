@@ -1417,6 +1417,80 @@ export const createClientFolder = action({
   },
 });
 
+export const uploadUserDocumentPublic = action({
+  args: {
+    orderId: v.id("orders"),
+    documentType: v.union(
+      v.literal("pomiar"),
+      v.literal("umowa"),
+      v.literal("gwarancja_alco"),
+      v.literal("rekojmia_adk"),
+      v.literal("odbior_inwestor"),
+      v.literal("protokol_montaz"),
+      v.literal("faktura"),
+      v.literal("reklamacja"),
+    ),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    signatureStatus: v.union(v.literal("signed"), v.literal("not_applicable")),
+  },
+  handler: async (ctx, args): Promise<string> => {
+    const currentUserId = await getAuthUserId(ctx);
+    let performedBy = "PWA App User";
+    if (currentUserId) {
+      const user = (await ctx.runQuery(internal.users._internalGetUser, {
+        userId: currentUserId,
+      })) as Doc<"users"> | null;
+      if (user && user.isActive === true) {
+        performedBy = user.email ?? user._id;
+      }
+    }
+
+    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+    if (!order) throw new Error("Zlecenie nie znalezione");
+    if (!order.folderId) throw new Error("To zlecenie nie ma folderu w Google Drive. Zmień status zlecenia (np. na 'Pomiar'), aby automatycznie utworzyć folder.");
+
+    const fileUrl = await ctx.storage.getUrl(args.storageId);
+    if (!fileUrl) throw new Error("Nie znaleziono pliku w storage");
+
+    const fileResponse = await fetch(fileUrl);
+    if (!fileResponse.ok) throw new Error(`Nie udało się pobrać pliku: ${fileResponse.status}`);
+
+    const contentType = fileResponse.headers.get("content-type") || "application/octet-stream";
+    const fileBuffer = await fileResponse.arrayBuffer();
+
+    const connection = await getAuthorizedConnection(ctx);
+
+    const config = await ctx.runQuery(api.crmConfig.getConfig);
+    const folders = resolveFoldersConfig(config);
+
+    let targetFolderId = order.folderId;
+    const docType = getDocumentType(args.documentType);
+    if (docType === "umowa" || docType === "gwarancja") {
+      const parentId = docType === "umowa" ? folders.umowyFolderId : folders.gwarancjeFolderId;
+      if (parentId) {
+        targetFolderId = await getOrCreateSubfolder(connection.accessToken, parentId, order.folderName);
+      }
+    }
+
+    const targetFileName = resolveTargetFileName(args.fileName, args.documentType, order.name, order.clientName);
+
+    const uploadRes = await uploadFileToDrive(connection.accessToken, targetFileName, contentType, fileBuffer, targetFolderId);
+
+    await ctx.runMutation(internal.googleDrive.recordUploadedDocumentInternal, {
+      orderId: args.orderId,
+      documentType: args.documentType,
+      fileName: targetFileName,
+      fileUrl: uploadRes.webViewLink,
+      fileId: uploadRes.id,
+      uploadedBy: performedBy,
+      signatureStatus: args.signatureStatus,
+    });
+
+    return uploadRes.webViewLink;
+  },
+});
+
 export const uploadUserDocument = action({
   args: {
     orderId: v.id("orders"),

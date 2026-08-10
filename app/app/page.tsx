@@ -62,7 +62,7 @@ export default function AppPwaPage() {
 
   // Convex Hooks
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
-  const uploadUserDocument = useAction(api.googleDrive.uploadUserDocument);
+  const uploadUserDocument = useAction(api.googleDrive.uploadUserDocumentPublic);
 
   const searchResults = useQuery(
     api.clients.search,
