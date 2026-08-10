@@ -164,8 +164,8 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
   };
 
   return (
-    <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={modalStyle}>
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div
           style={{
@@ -409,7 +409,7 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
           {selectedClientId && !defaultOrderId && (
             <div>
               <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
-                Zlecenie <span style={{ fontSize: 10.5, fontWeight: 400 }}>(opcjonalne)</span>
+                Dotyczy zlecenia <span style={{ fontSize: 10.5, fontWeight: 400 }}>(opcjonalne)</span>
               </label>
               <select
                 value={selectedOrderId ?? ""}
@@ -426,12 +426,17 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
                   boxSizing: "border-box",
                 }}
               >
-                <option value="">— Bez zlecenia —</option>
-                {clientOrders?.map((order) => (
-                  <option key={order._id} value={order._id}>
-                    {order.name ?? new Date(order._creationTime).toLocaleDateString("pl-PL")}
-                  </option>
-                ))}
+                <option value="">— Brak zlecenia (reklamacja ogólna) —</option>
+                {clientOrders?.map((order) => {
+                  const dateStr = new Date(order._creationTime).toLocaleDateString("pl-PL");
+                  const custom = order.customText ? ` [${order.customText}]` : "";
+                  const total = order.totals?.totalGross ? ` (${order.totals.totalGross.toLocaleString("pl-PL")} zł)` : "";
+                  return (
+                    <option key={order._id} value={order._id}>
+                      {order.name ?? `Zlecenie z ${dateStr}`}{custom} — z dnia {dateStr}{total}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
