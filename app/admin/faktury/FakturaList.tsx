@@ -301,6 +301,7 @@ export default function FakturaList() {
   const [reminderInvoiceId, setReminderInvoiceId] = useState<Id<"fakturowniaInvoicesCache"> | null>(null);
   const [kindFilter, setKindFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("");
+  const [textSearch, setTextSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("issueDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const autoSyncDone = useRef(false);
@@ -374,6 +375,18 @@ export default function FakturaList() {
     if (!invoices) return undefined;
     let list = invoices;
     if (kindFilter) list = list.filter((i) => i.kind === kindFilter);
+    if (textSearch.trim()) {
+      const q = textSearch.toLowerCase();
+      list = list.filter((i) => {
+        const numMatch = i.number?.toLowerCase().includes(q);
+        const buyerMatch = i.buyerName?.toLowerCase().includes(q);
+        const order = i.orderId ? orders?.find((o) => o._id === i.orderId) : null;
+        const orderNameMatch = order?.name?.toLowerCase().includes(q);
+        const orderCustomMatch = order?.customText?.toLowerCase().includes(q);
+        const clientNameMatch = order?.client ? `${order.client.lastName} ${order.client.firstName}`.toLowerCase().includes(q) || (order.client.companyName ?? "").toLowerCase().includes(q) : false;
+        return numMatch || buyerMatch || orderNameMatch || orderCustomMatch || clientNameMatch;
+      });
+    }
     if (paymentFilter === "overdue") {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -456,8 +469,31 @@ export default function FakturaList() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Toolbar */}
-      <div className="panel" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+      <div className="panel" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+        {/* Search & Sync Row */}
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ position: "relative", flex: 1, minWidth: 260, maxWidth: 420 }}>
+            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-mute)", pointerEvents: "none" }} />
+            <input
+              type="text"
+              value={textSearch}
+              onChange={(e) => setTextSearch(e.target.value)}
+              placeholder="Szukaj po numerze faktury, kupującym lub zleceniu…"
+              style={{
+                width: "100%", fontSize: 12.5, padding: "6px 28px 6px 30px", borderRadius: 6,
+                border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--text-strong)",
+                fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+              }}
+            />
+            {textSearch && (
+              <button
+                onClick={() => setTextSearch("")}
+                style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", padding: 2 }}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
           {/* Kind filters */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {[{ key: "", label: "Wszystkie", count: invoices?.length ?? 0 }, ...allKinds.map((k) => ({ key: k, label: KIND_LABELS[k] ?? k, count: kindCounts[k] ?? 0 }))].map(({ key, label, count }) => {
