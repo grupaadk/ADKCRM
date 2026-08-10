@@ -198,7 +198,7 @@ export function OrdersFinancialSummary() {
                 className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-200 transition"
               >
                 <X className="size-3.5" />
-                Wyczyszcz
+                Wyczyść
               </button>
             )}
           </div>
