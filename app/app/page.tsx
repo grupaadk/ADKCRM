@@ -34,21 +34,16 @@ const DOCUMENT_TYPES = [
 
 type DocumentType = (typeof DOCUMENT_TYPES)[number]["id"];
 
-const STATUS_LABELS: Record<string, string> = {
-  lead: "Lead",
-  inquiry: "Zapytanie",
-  measurement: "Pomiar",
-  offer: "Oferta",
-  contract: "Umowa",
-  production: "Produkcja",
-  installation: "Montaż",
-  completed: "Zakończone",
-  complaint: "Reklamacja",
-  archived: "Archiwum",
-};
+import { useStatuses } from "@/components/StatusLabelsContext";
 
 export default function AppPwaPage() {
   const [activeTab, setActiveTab] = useState<Tab>("home");
+
+  const statuses = useStatuses();
+  const statusMap = useMemo(
+    () => Object.fromEntries(statuses.map((s) => [s.key, s.label])),
+    [statuses]
+  );
 
   // Form State
   const [clientSearch, setClientSearch] = useState("");
@@ -315,7 +310,7 @@ export default function AppPwaPage() {
                       <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                         {orders.map((o) => {
                           const isSelected = selectedOrderId === o._id;
-                          const statusStr = STATUS_LABELS[o.status] ?? o.status;
+                          const statusStr = statusMap[o.status] ?? o.status;
                           return (
                             <button
                               key={o._id}
