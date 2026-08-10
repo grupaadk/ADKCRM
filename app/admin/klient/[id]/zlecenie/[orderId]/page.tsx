@@ -2064,11 +2064,10 @@ export default function OrderDetailPage({
 
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "szczegoly", label: "Szczegóły" },
-    { key: "dokumenty", label: "Dokumenty" },
-    { key: "finanse", label: "Finanse" },
     { key: "wycena", label: "Wycena" },
-
-    { key: "reklamacja", label: "Reklamacja" },
+    { key: "finanse", label: "Finanse" },
+    { key: "dokumenty", label: "Dokumenty" },
+    { key: "reklamacja", label: "Reklamacje" },
   ];
 
   const warrantyEvent = (events ?? []).find(
