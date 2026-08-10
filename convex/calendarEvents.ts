@@ -402,6 +402,7 @@ export const getLinkedOrderEvents = query({
       installationTeamName?: string;
       installationTeamColor?: string;
       deliveryIndex?: number;
+      installationIndex?: number;
       serviceName?: string;
       field: string;
       assignedUserId?: string;
