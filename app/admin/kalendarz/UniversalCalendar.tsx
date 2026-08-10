@@ -1625,26 +1625,100 @@ export default function UniversalCalendar({
                           Pozostali dostawcy
                         </span>
                       </div>
-                      {activeSuppliers.slice(3).map(supplier => {
+                      {activeSuppliers.slice(3).map((supplier) => {
                         const active = activeSupplierFilters.has(supplier._id);
+                        const linkedTypes = eventTypes.filter((t) => t.linkedSupplierId === supplier._id);
+                        const hasLinkedTypes = linkedTypes.length > 0;
+                        const subOpen = openSupplierDropdownId === `supplier_${supplier._id}`;
+
                         return (
-                          <button
+                          <div
                             key={supplier._id}
-                            onClick={(e) => { e.stopPropagation(); toggleSupplierFilter(supplier._id); }}
-                            style={{
-                              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                              padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
-                              background: active ? "var(--accent)22" : "transparent",
-                              color: active ? "var(--accent)" : "var(--text)",
-                              border: `1px solid ${active ? "var(--accent)44" : "transparent"}`,
-                              cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
-                            }}
+                            style={{ position: "relative" }}
+                            onMouseEnter={() => setOpenSupplierDropdownId(`supplier_${supplier._id}`)}
+                            onMouseLeave={() => setOpenSupplierDropdownId("more")}
                           >
-                            <span style={{ fontWeight: active ? 700 : 500 }}>{supplier.name}</span>
-                            <span style={{ fontSize: 12, color: active ? "var(--accent)" : "var(--text-mute)" }}>
-                              {active ? "✓" : "+"}
-                            </span>
-                          </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleSupplierFilter(supplier._id); }}
+                              style={{
+                                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                                padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
+                                background: active ? "var(--accent)22" : "transparent",
+                                color: active ? "var(--accent)" : "var(--text)",
+                                border: `1px solid ${active ? "var(--accent)44" : "transparent"}`,
+                                cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                                <span style={{ fontWeight: active ? 700 : 500 }}>{supplier.name}</span>
+                                {hasLinkedTypes && (
+                                  <span style={{ fontSize: 9, opacity: 0.7 }}>{subOpen ? "◀" : "▶"}</span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: 12, color: active ? "var(--accent)" : "var(--text-mute)" }}>
+                                {active ? "✓" : "+"}
+                              </span>
+                            </button>
+
+                            {hasLinkedTypes && subOpen && (
+                              <div
+                                style={{
+                                  position: "absolute", top: 0, left: "100%", marginLeft: 6,
+                                  background: "var(--card)", border: "1px solid var(--line)",
+                                  borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                                  zIndex: 60, minWidth: 200, display: "flex", flexDirection: "column", gap: 4,
+                                }}
+                              >
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
+                                    Typy wydarzeń
+                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const allActive = linkedTypes.every((t) => activeEventTypeFilters.has(t._id));
+                                      setActiveEventTypeFilters((prev) => {
+                                        const next = new Set(prev);
+                                        linkedTypes.forEach((t) => {
+                                          if (allActive) next.delete(t._id);
+                                          else next.add(t._id);
+                                        });
+                                        return next;
+                                      });
+                                    }}
+                                    style={{ fontSize: 10, color: "var(--accent)", cursor: "pointer", background: "none", border: "none" }}
+                                  >
+                                    {linkedTypes.every((t) => activeEventTypeFilters.has(t._id)) ? "Odznacz" : "Zaznacz"}
+                                  </button>
+                                </div>
+                                {linkedTypes.map((type) => {
+                                  const typeActive = activeEventTypeFilters.has(type._id);
+                                  return (
+                                    <button
+                                      key={type._id}
+                                      onClick={(e) => { e.stopPropagation(); toggleEventTypeFilter(type._id); }}
+                                      style={{
+                                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                                        padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
+                                        background: typeActive ? `${type.color}18` : "transparent",
+                                        color: typeActive ? "var(--text-strong)" : "var(--text)",
+                                        border: `1px solid ${typeActive ? `${type.color}44` : "transparent"}`,
+                                        cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
+                                      }}
+                                    >
+                                      <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
+                                        <span style={{ fontWeight: typeActive ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{type.name}</span>
+                                      </div>
+                                      <span style={{ fontSize: 12, color: typeActive ? type.color : "var(--text-mute)" }}>
+                                        {typeActive ? "✓" : "+"}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -1778,26 +1852,100 @@ export default function UniversalCalendar({
                           Pozostałe ekipy
                         </span>
                       </div>
-                      {installationTeams.slice(3).map(team => {
+                      {installationTeams.slice(3).map((team) => {
                         const active = activeTeamFilters.has(team._id as string);
+                        const linkedTypes = eventTypes.filter((t) => t.linkedInstallationTeamId === team._id);
+                        const hasLinkedTypes = linkedTypes.length > 0;
+                        const subOpen = openTeamDropdownId === `team_${team._id}`;
+
                         return (
-                          <button
+                          <div
                             key={team._id}
-                            onClick={(e) => { e.stopPropagation(); toggleTeamFilter(team._id as string); }}
-                            style={{
-                              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                              padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
-                              background: active ? `${team.color}22` : "transparent",
-                              color: active ? team.color : "var(--text)",
-                              border: `1px solid ${active ? `${team.color}44` : "transparent"}`,
-                              cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
-                            }}
+                            style={{ position: "relative" }}
+                            onMouseEnter={() => setOpenTeamDropdownId(`team_${team._id}`)}
+                            onMouseLeave={() => setOpenTeamDropdownId("more")}
                           >
-                            <span style={{ fontWeight: active ? 700 : 500 }}>{team.name}</span>
-                            <span style={{ fontSize: 12, color: active ? team.color : "var(--text-mute)" }}>
-                              {active ? "✓" : "+"}
-                            </span>
-                          </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleTeamFilter(team._id as string); }}
+                              style={{
+                                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                                padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
+                                background: active ? `${team.color}22` : "transparent",
+                                color: active ? team.color : "var(--text)",
+                                border: `1px solid ${active ? `${team.color}44` : "transparent"}`,
+                                cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                                <span style={{ fontWeight: active ? 700 : 500 }}>{team.name}</span>
+                                {hasLinkedTypes && (
+                                  <span style={{ fontSize: 9, opacity: 0.7 }}>{subOpen ? "◀" : "▶"}</span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: 12, color: active ? team.color : "var(--text-mute)" }}>
+                                {active ? "✓" : "+"}
+                              </span>
+                            </button>
+
+                            {hasLinkedTypes && subOpen && (
+                              <div
+                                style={{
+                                  position: "absolute", top: 0, left: "100%", marginLeft: 6,
+                                  background: "var(--card)", border: "1px solid var(--line)",
+                                  borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                                  zIndex: 60, minWidth: 200, display: "flex", flexDirection: "column", gap: 4,
+                                }}
+                              >
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
+                                    Typy wydarzeń
+                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const allActive = linkedTypes.every((t) => activeEventTypeFilters.has(t._id));
+                                      setActiveEventTypeFilters((prev) => {
+                                        const next = new Set(prev);
+                                        linkedTypes.forEach((t) => {
+                                          if (allActive) next.delete(t._id);
+                                          else next.add(t._id);
+                                        });
+                                        return next;
+                                      });
+                                    }}
+                                    style={{ fontSize: 10, color: "var(--accent)", cursor: "pointer", background: "none", border: "none" }}
+                                  >
+                                    {linkedTypes.every((t) => activeEventTypeFilters.has(t._id)) ? "Odznacz" : "Zaznacz"}
+                                  </button>
+                                </div>
+                                {linkedTypes.map((type) => {
+                                  const typeActive = activeEventTypeFilters.has(type._id);
+                                  return (
+                                    <button
+                                      key={type._id}
+                                      onClick={(e) => { e.stopPropagation(); toggleEventTypeFilter(type._id); }}
+                                      style={{
+                                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                                        padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
+                                        background: typeActive ? `${type.color}18` : "transparent",
+                                        color: typeActive ? "var(--text-strong)" : "var(--text)",
+                                        border: `1px solid ${typeActive ? `${type.color}44` : "transparent"}`,
+                                        cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
+                                      }}
+                                    >
+                                      <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
+                                        <span style={{ fontWeight: typeActive ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{type.name}</span>
+                                      </div>
+                                      <span style={{ fontSize: 12, color: typeActive ? type.color : "var(--text-mute)" }}>
+                                        {typeActive ? "✓" : "+"}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
