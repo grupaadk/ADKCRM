@@ -197,6 +197,37 @@ export const listForPicker = query({
   },
 });
 
+export const listAllForFinanse = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireUser(ctx);
+    const orders = await ctx.db.query("orders").order("desc").take(1000);
+    const nonArchived = orders.filter((o) => o.status !== "archived");
+    return Promise.all(
+      nonArchived.map(async (order) => {
+        const client = await ctx.db.get(order.clientId);
+        const clientName = client
+          ? client.clientType === "business" && client.companyName
+            ? client.companyName
+            : `${client.lastName} ${client.firstName}`.trim()
+          : "—";
+        return {
+          _id: order._id,
+          clientId: order.clientId,
+          name: order.name ?? null,
+          customText: order.customText ?? null,
+          status: order.status,
+          clientName,
+          projectEndDate: order.projectEndDate,
+          installationStartDate: order.installationStartDate,
+          installationTeamId: order.installationTeamId,
+          installationDates: order.installationDates,
+        };
+      }),
+    );
+  },
+});
+
 export const assignOrder = mutation({
   args: {
     orderId: v.id("orders"),

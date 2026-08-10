@@ -7,7 +7,7 @@ import { Search, TrendingUp, TrendingDown, DollarSign, ExternalLink } from "luci
 import { useState, useMemo } from "react";
 
 export function OrdersFinancialSummary() {
-  const allOrders = useQuery(api.orders.listForPicker) ?? [];
+  const allOrders = useQuery(api.orders.listAllForFinanse) ?? [];
   const allInvoices = useQuery(api.fakturownia.listCachedInvoices) ?? [];
   const allExpenses = useQuery(api.fakturownia.listCachedExpenses) ?? [];
 
