@@ -35,6 +35,7 @@ type DocumentType = (typeof DOCUMENT_TYPES)[number]["id"];
 
 import { useAuthActions } from "@convex-dev/auth/react";
 import { LogOut, LogIn, ShieldCheck } from "lucide-react";
+import { useStatuses } from "@/components/StatusLabelsContext";
 
 export default function AppPwaPage() {
   const [activeTab, setActiveTab] = useState<Tab>("home");
