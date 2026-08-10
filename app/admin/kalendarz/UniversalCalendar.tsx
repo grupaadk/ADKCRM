@@ -428,6 +428,7 @@ export default function UniversalCalendar({
     };
 
     const userMap = new Map(allUsers?.map((u) => [u._id, u.displayName ?? u.login ?? "Użytkownik"]));
+    const userColorMap = new Map(allUsers?.map((u) => [u._id, u.color]).filter(([, col]) => Boolean(col)));
 
     // --- Calendar events ---
     if (calendarEvents) {
@@ -449,9 +450,13 @@ export default function UniversalCalendar({
             : [];
 
         const assignedUserNames: string[] = [];
+        let assignedUserColor: string | undefined = undefined;
         for (const uid of assignedUserIds) {
           const userName = userMap.get(uid as Id<"users">);
           if (userName) assignedUserNames.push(userName);
+          if (!assignedUserColor) {
+            assignedUserColor = userColorMap.get(uid as Id<"users">);
+          }
         }
         if (assignedUserNames.length === 0 && Array.isArray(e.assignedUsers)) {
           for (const u of e.assignedUsers as Array<{ name?: string }>) {
@@ -474,7 +479,7 @@ export default function UniversalCalendar({
           continue;
         }
 
-        const color = e.eventType?.color ?? "#64748b";
+        const color = assignedUserColor ?? e.eventType?.color ?? "#64748b";
         result.push({
           id: e._id,
           title: e.title,
