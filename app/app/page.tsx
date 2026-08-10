@@ -138,7 +138,6 @@ export default function AppPwaPage() {
       const driveResult = await uploadUserDocument({
         storageId,
         fileName: file.name,
-        mimeType: file.type || "application/octet-stream",
         orderId: selectedOrderId,
         documentType,
         signatureStatus,
