@@ -138,8 +138,12 @@ export default function UniversalCalendar({
     isPrivate?: boolean;
     eventTypeName?: string;
     assignedUserNames?: string[];
+    eventTypeId?: string;
+    assignedUserIds?: string[];
     assignedUsers?: Array<{ id?: string; name?: string; color?: string }>;
   } | null>(null);
+
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
   // Confirm delete modal state
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -487,6 +491,7 @@ export default function UniversalCalendar({
             description: e.description,
             isPrivate: e.isPrivate,
             assignedUsers: e.assignedUsers,
+            assignedUserIds: e.assignedUserIds,
             assignedUserNames,
             clientId: e.clientId,
             orderId: e.orderId,
@@ -731,9 +736,11 @@ export default function UniversalCalendar({
         description: props.description,
         isPrivate: props.isPrivate,
         eventTypeName: props.eventTypeName,
+        eventTypeId: (props as { eventTypeId?: string }).eventTypeId,
         clientId: props.clientId,
         orderId: props.orderId,
         assignedUserNames: props.assignedUserNames,
+        assignedUserIds: (props as { assignedUserIds?: string[] }).assignedUserIds,
         assignedUsers: props.assignedUsers as Array<{ id?: string; name?: string; color?: string }> | undefined,
       });
     }
@@ -873,16 +880,31 @@ export default function UniversalCalendar({
       ? (newEventAssignedUserIds as Id<"users">[])
       : (currentUser?._id ? [currentUser._id as Id<"users">] : undefined);
 
-    await createCalendarEvent({
-      eventTypeId: effectiveEventTypeId as Id<"calendarEventTypes">,
-      title: newEventTitle.trim(),
-      description: newEventDescription || undefined,
-      startDate: startDate.getTime(),
-      endDate: newEventIsAllDay ? undefined : endDate.getTime(),
-      isAllDay: newEventIsAllDay,
-      assignedUserIds: finalAssignedIds,
-      isPrivate: newEventIsPrivate,
-    });
+    if (editingEventId) {
+      await updateCalendarEvent({
+        id: editingEventId as Id<"calendarEvents">,
+        eventTypeId: effectiveEventTypeId as Id<"calendarEventTypes">,
+        title: newEventTitle.trim(),
+        description: newEventDescription || undefined,
+        startDate: startDate.getTime(),
+        endDate: newEventIsAllDay ? undefined : endDate.getTime(),
+        isAllDay: newEventIsAllDay,
+        assignedUserIds: finalAssignedIds,
+        isPrivate: newEventIsPrivate,
+      });
+      setEditingEventId(null);
+    } else {
+      await createCalendarEvent({
+        eventTypeId: effectiveEventTypeId as Id<"calendarEventTypes">,
+        title: newEventTitle.trim(),
+        description: newEventDescription || undefined,
+        startDate: startDate.getTime(),
+        endDate: newEventIsAllDay ? undefined : endDate.getTime(),
+        isAllDay: newEventIsAllDay,
+        assignedUserIds: finalAssignedIds,
+        isPrivate: newEventIsPrivate,
+      });
+    }
     setDateModalOpen(false);
   };
 
@@ -2652,7 +2674,7 @@ export default function UniversalCalendar({
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)" }}>
-                  {newEventMode === "montaz" ? "Dodaj termin montażu" : "Nowe wydarzenie"}
+                  {editingEventId ? "Edycja wydarzenia" : newEventMode === "montaz" ? "Dodaj termin montażu" : "Nowe wydarzenie"}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 2 }}>{fmtDateTime(selectedDate)}</div>
               </div>
@@ -3068,6 +3090,51 @@ export default function UniversalCalendar({
                 </button>
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
+                <button
+                  onClick={() => {
+                    if (!detailEvent) return;
+                    setEditingEventId(detailEvent.id);
+                    setNewEventMode("event");
+                    setNewEventTitle(detailEvent.title);
+                    setNewEventTypeId(detailEvent.eventTypeId ?? defaultEventTypeId);
+                    setNewEventDescription(detailEvent.description ?? "");
+                    setNewEventIsPrivate(detailEvent.isPrivate ?? false);
+                    setNewEventAssignedUserIds(detailEvent.assignedUserIds ?? (currentUser?._id ? [currentUser._id as string] : []));
+
+                    if (detailEvent.start) {
+                      const startD = detailEvent.start;
+                      const startYMD = `${startD.getFullYear()}-${(startD.getMonth() + 1).toString().padStart(2, "0")}-${startD.getDate().toString().padStart(2, "0")}`;
+                      const startHM = `${startD.getHours().toString().padStart(2, "0")}:${startD.getMinutes().toString().padStart(2, "0")}`;
+                      setNewEventStartDate(startYMD);
+                      setNewEventStartTime(startHM);
+                      setSelectedDate(startD);
+                    }
+
+                    if (detailEvent.end) {
+                      const endD = detailEvent.end;
+                      const endYMD = `${endD.getFullYear()}-${(endD.getMonth() + 1).toString().padStart(2, "0")}-${endD.getDate().toString().padStart(2, "0")}`;
+                      const endHM = `${endD.getHours().toString().padStart(2, "0")}:${endD.getMinutes().toString().padStart(2, "0")}`;
+                      setNewEventEndDate(endYMD);
+                      setNewEventEndTime(endHM);
+                      setNewEventIsAllDay(false);
+                    } else {
+                      setNewEventEndDate(newEventStartDate);
+                      setNewEventEndTime("10:00");
+                      setNewEventIsAllDay(true);
+                    }
+
+                    setDetailEvent(null);
+                    setDateModalOpen(true);
+                  }}
+                  className="btn primary btn-xs"
+                  style={{
+                    fontSize: 12,
+                    padding: "6px 14px",
+                    fontWeight: 600,
+                  }}
+                >
+                  ✏️ Edytuj
+                </button>
                 <button
                   onClick={() => setConfirmDeleteOpen(true)}
                   className="btn btn-xs"
