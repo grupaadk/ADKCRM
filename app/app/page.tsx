@@ -264,18 +264,18 @@ export default function AppPwaPage() {
 
   async function handleCreateComplaintSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!complaintSelectedClientId || !complaintSelectedOrderId || !complaintDescription.trim()) return;
+    if (!complaintSelectedClientId || !complaintSelectedOrderId) return;
     setComplaintSubmitting(true);
     setComplaintError(null);
     try {
       await createComplaint({
-
         clientId: complaintSelectedClientId,
         orderId: complaintSelectedOrderId,
         startDate: Date.now(),
-        description: complaintDescription.trim(),
+        description: complaintDescription.trim() || (complaintMediaFiles.length > 0 ? "Załączono pliki zdjęć/wideo" : "Zgłoszenie reklamacyjne"),
         createdBy: userFirstName ?? me?.email ?? "Pracownik ekipy PWA",
       });
+
 
       // Upload any attached photos/videos for this new complaint
       if (complaintMediaFiles.length > 0) {
@@ -425,24 +425,27 @@ export default function AppPwaPage() {
 
       </header>
 
-      {/* MODAL 1: Zgłoś Reklamację */}
+      {/* MODAL 1: Zgłoś Reklamację (Full Screen Top-aligned for Mobile Keyboards) */}
       {showNewComplaintModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 overflow-hidden">
-          <div className="bg-white rounded-t-3xl sm:rounded-3xl p-5 w-full max-w-md shadow-2xl border border-gray-100 space-y-4 max-h-[85dvh] overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5 animate-in slide-in-from-bottom duration-200">
-
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2 text-amber-600">
-                <AlertCircle className="size-5" />
-                <h3 className="font-extrabold text-slate-900 text-base">Zgłoszenie Reklamacji</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowNewComplaintModal(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-600"
-              >
-                <X className="size-5" />
-              </button>
+        <div className="fixed inset-0 z-50 bg-white flex flex-col h-[100dvh] w-full overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] border-b border-gray-200 bg-slate-50 shrink-0">
+            <div className="flex items-center gap-2 text-amber-600">
+              <AlertCircle className="size-5" />
+              <h3 className="font-extrabold text-slate-900 text-base">Zgłoszenie Reklamacji</h3>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowNewComplaintModal(false)}
+              className="p-1 rounded-full text-slate-400 hover:text-slate-600 bg-white border border-gray-200"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+
+          {/* Form Content Scrollable Area starting from top */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-[calc(2rem+env(safe-area-inset-bottom,0px))]">
+
 
             {complaintSuccess ? (
               <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center text-emerald-800 text-xs font-bold space-y-2">
@@ -522,6 +525,17 @@ export default function AppPwaPage() {
                     )}
                   </div>
                 )}
+                {/* Step 3: Description (Optional) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">3. Opis Usterki (Opcjonalnie)</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Opisz problem (np. pęknięta szyba, nieszczelność...)..."
+                    value={complaintDescription}
+                    onChange={(e) => setComplaintDescription(e.target.value)}
+                    className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-xs text-slate-800 focus:border-[#4dbdc6] focus:outline-none"
+                  />
+                </div>
 
                 {/* Step 4: Optional Media (Photos / Video) */}
                 <div className="space-y-1.5">
@@ -610,7 +624,11 @@ export default function AppPwaPage() {
 
                 <button
                   type="submit"
-                  disabled={!complaintSelectedClientId || !complaintSelectedOrderId || !complaintDescription.trim() || complaintSubmitting}
+                  disabled={
+                    !complaintSelectedClientId ||
+                    !complaintSelectedOrderId ||
+                    complaintSubmitting
+                  }
                   className="w-full py-3.5 rounded-xl bg-amber-500 text-white font-bold text-xs shadow-md hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-2"
                 >
                   {complaintSubmitting ? <RefreshCw className="size-4 animate-spin" /> : <AlertCircle className="size-4" />}
