@@ -660,10 +660,10 @@ export const getScheduleForUser = query({
     );
 
     const orders = await ctx.db.query("orders").collect();
-    const complaints = await ctx.db.query("complaints").collect();
     const calendarEvents = await ctx.db.query("calendarEvents").collect();
     const clients = await ctx.db.query("clients").collect();
     const clientMap = new Map(clients.map((c) => [c._id, c]));
+
 
     // Filter orders for target user or target user's team ONLY IF explicit installation dates exist
     const relevantOrders = orders.filter((o) => {
@@ -682,20 +682,6 @@ export const getScheduleForUser = query({
       return assignedToUser || assignedToTeam;
     });
 
-    // Filter complaints for target user or target user's team that HAVE an explicit service date
-    const relevantComplaints = complaints.filter((c) => {
-      const hasDate = !!c.serviceDate;
-      if (!hasDate) return false;
-
-      const assignedToUser =
-        (targetUserEmail && c.assignedTo?.toLowerCase() === targetUserEmail) ||
-        (targetUserEmail && c.createdBy?.toLowerCase() === targetUserEmail) ||
-        (targetUserName && c.assignedTo?.toLowerCase() === targetUserName.toLowerCase()) ||
-        (targetUserName && c.createdBy?.toLowerCase() === targetUserName.toLowerCase());
-      const assignedToTeam = team && c.installationTeamId === team._id;
-      return assignedToUser || assignedToTeam;
-    });
-
     // Filter personal calendar events for target user
     const relevantEvents = calendarEvents.filter((ev) => {
       const isCreatedByTarget = matchingUserIds.has(ev.createdBy);
@@ -704,6 +690,7 @@ export const getScheduleForUser = query({
 
       return isCreatedByTarget || isAssignedToTarget || isTeamEvent;
     });
+
 
     const formattedOrders: Array<{
       id: string;
@@ -759,8 +746,6 @@ export const getScheduleForUser = query({
         timeStr,
         status: o.status,
         clientName,
-        phone: client?.phone,
-        email: client?.email,
         address: fullAddress || "Brak adresu",
         comment: o.comment,
       };
@@ -779,51 +764,8 @@ export const getScheduleForUser = query({
       }
     });
 
-
-
-    const formattedComplaints = relevantComplaints.map((c) => {
-      const client = clientMap.get(c.clientId);
-      const clientName = client
-        ? client.companyName || `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || "Klient"
-        : "Klient";
-
-      const fullAddress = [
-        client?.street,
-        client?.buildingNumber,
-        client?.apartmentNumber ? `m. ${client.apartmentNumber}` : undefined,
-        client?.postalCode,
-        client?.city,
-      ].filter(Boolean).join(" ");
-
-      let timeStr: string | undefined;
-      if (c.serviceDate) {
-        const d = new Date(c.serviceDate);
-        if (d.getHours() !== 0 || d.getMinutes() !== 0 || !!c.serviceDateEnd) {
-          timeStr = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
-        }
-      }
-
-      return {
-        id: c._id,
-        clientId: c.clientId,
-        orderId: c.orderId,
-        complaintFolderId: c.complaintFolderId,
-        type: "serwis" as const,
-        title: "Serwis",
-        description: c.description || c.clientDescription,
-        date: c.serviceDate ?? c.startDate,
-        serviceDateEnd: c.serviceDateEnd,
-        timeStr,
-        status: c.status,
-        clientName,
-        phone: client?.phone,
-        email: client?.email,
-        address: fullAddress || "Brak adresu",
-        todos: c.todos ?? [],
-      };
-    });
-
     const formattedCustomEvents = relevantEvents.map((ev) => {
+
       const d = new Date(ev.startDate);
       const timeStr = ev.isAllDay
         ? "Cały dzień"
@@ -842,7 +784,8 @@ export const getScheduleForUser = query({
       };
     });
 
-    const items = [...formattedOrders, ...formattedComplaints, ...formattedCustomEvents].sort((a, b) => a.date - b.date);
+    const items = [...formattedOrders, ...formattedCustomEvents].sort((a, b) => a.date - b.date);
+
 
     return {
       teamName: team?.name ?? targetUser?.displayName ?? targetUserName ?? userName ?? "Moje Wydarzenia",
