@@ -440,7 +440,6 @@ export const listAssignable = query({
 export const listAllActive = query({
   args: {},
   handler: async (ctx) => {
-    await requireUser(ctx);
     const users = await ctx.db.query("users").collect();
     return users
       .filter((u) => u.isActive !== false && u.role != null && u.showInPickers !== false)
@@ -454,6 +453,7 @@ export const listAllActive = query({
       .sort((a, b) => (a.displayName ?? a.login ?? "").localeCompare(b.displayName ?? b.login ?? ""));
   },
 });
+
 
 /**
  * Podstawowe info wszystkich userów — do wyświetlania autora notatek.

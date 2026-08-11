@@ -689,7 +689,9 @@ export const getScheduleForUser = query({
 
       const assignedToUser =
         (targetUserEmail && c.assignedTo?.toLowerCase() === targetUserEmail) ||
-        (targetUserEmail && c.createdBy?.toLowerCase() === targetUserEmail);
+        (targetUserEmail && c.createdBy?.toLowerCase() === targetUserEmail) ||
+        (targetUserName && c.assignedTo?.toLowerCase() === targetUserName.toLowerCase()) ||
+        (targetUserName && c.createdBy?.toLowerCase() === targetUserName.toLowerCase());
       const assignedToTeam = team && c.installationTeamId === team._id;
       return assignedToUser || assignedToTeam;
     });
