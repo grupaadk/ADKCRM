@@ -86,9 +86,10 @@ export default function AppPwaPage() {
   // Get user's first name for greeting
   const userFirstName = me?.displayName
     ? me.displayName.split(" ")[0]
-    : me?.email
-    ? me.email.split("@")[0]
+    : me?.login
+    ? me.login.split("@")[0]
     : null;
+
 
   // Schedule / Calendar State
   const [selectedScheduleDate, setSelectedScheduleDate] = useState<Date | null>(new Date());
@@ -285,8 +286,9 @@ export default function AppPwaPage() {
         orderId: targetOrderId,
         startDate: Date.now(),
         description: complaintDescription.trim() || (complaintMediaFiles.length > 0 ? "Załączono pliki zdjęć/wideo" : "Zgłoszenie reklamacyjne"),
-        createdBy: userFirstName ?? me?.email ?? "Pracownik ekipy PWA",
+        createdBy: userFirstName ?? me?.login ?? "Pracownik ekipy PWA",
       });
+
 
 
 
@@ -842,8 +844,9 @@ export default function AppPwaPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-slate-800 text-sm">{me.displayName ?? "Użytkownik"}</h3>
-                    <p className="text-xs text-slate-400">{me.email}</p>
+                    <p className="text-xs text-slate-400">{me.login}</p>
                     <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold">
+
                       <ShieldCheck className="size-3" />
                       Zalogowany (rola: {me.role ?? "użytkownik"})
                     </div>
