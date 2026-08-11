@@ -606,6 +606,124 @@ export const getScheduleByPin = query({
   },
 });
 
+export const getScheduleForUser = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const userEmail = identity.email?.toLowerCase();
+    const userName = identity.name;
+
+    const teams = await ctx.db.query("installationTeams").collect();
+    // Match team by member email or leader name
+    let team = teams.find(
+      (t) =>
+        t.isActive &&
+        (t.leaderName?.toLowerCase() === userName?.toLowerCase() ||
+          t.members?.some((m) => m.toLowerCase() === userEmail))
+    );
+
+    // Fallback: if no specific team found by email/name, use active team or return all assigned orders
+    const orders = await ctx.db.query("orders").collect();
+    const complaints = await ctx.db.query("complaints").collect();
+    const clients = await ctx.db.query("clients").collect();
+    const clientMap = new Map(clients.map((c) => [c._id, c]));
+
+    const relevantOrders = team
+      ? orders.filter((o) => o.installationTeamId === team._id)
+      : orders;
+    const relevantComplaints = team
+      ? complaints.filter((c) => c.installationTeamId === team._id)
+      : complaints;
+
+    const formattedOrders = relevantOrders.map((o) => {
+      const client = clientMap.get(o.clientId);
+      const clientName = client
+        ? client.companyName || `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || "Klient"
+        : "Klient";
+
+      const fullAddress = [
+        o.investmentStreet || client?.street,
+        o.investmentBuildingNumber || client?.buildingNumber,
+        o.investmentApartmentNumber ? `m. ${o.investmentApartmentNumber}` : client?.apartmentNumber ? `m. ${client.apartmentNumber}` : undefined,
+        o.investmentPostalCode || client?.postalCode,
+        o.investmentCity || client?.city,
+      ].filter(Boolean).join(" ");
+
+      return {
+        id: o._id,
+        type: "montaz" as const,
+        title: o.name ?? "Montaż stolarki",
+        customText: o.customText,
+        services: o.services ?? [],
+        date: o.projectEndDate ?? o.statusChangedAt ?? Date.now(),
+        startDate: o.projectStartDate,
+        endDate: o.projectEndDate,
+        timeStr: o.installationStartDate
+          ? `${Math.floor(o.installationStartDate / 60).toString().padStart(2, "0")}:${(o.installationStartDate % 60).toString().padStart(2, "0")}`
+          : undefined,
+        status: o.status,
+        clientName,
+        phone: client?.phone,
+        email: client?.email,
+        address: fullAddress || "Brak adresu",
+        comment: o.comment,
+      };
+    });
+
+    const formattedComplaints = relevantComplaints.map((c) => {
+      const client = clientMap.get(c.clientId);
+      const clientName = client
+        ? client.companyName || `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || "Klient"
+        : "Klient";
+
+      const fullAddress = [
+        client?.street,
+        client?.buildingNumber,
+        client?.apartmentNumber ? `m. ${client.apartmentNumber}` : undefined,
+        client?.postalCode,
+        client?.city,
+      ].filter(Boolean).join(" ");
+
+      let timeStr: string | undefined;
+      if (c.serviceDate) {
+        const d = new Date(c.serviceDate);
+        if (d.getHours() !== 0 || d.getMinutes() !== 0 || !!c.serviceDateEnd) {
+          timeStr = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+        }
+      }
+
+      return {
+        id: c._id,
+        clientId: c.clientId,
+        orderId: c.orderId,
+        complaintFolderId: c.complaintFolderId,
+        type: "serwis" as const,
+        title: "Serwis",
+        description: c.description || c.clientDescription,
+        date: c.serviceDate ?? c.startDate,
+        serviceDateEnd: c.serviceDateEnd,
+        timeStr,
+        status: c.status,
+        clientName,
+        phone: client?.phone,
+        email: client?.email,
+        address: fullAddress || "Brak adresu",
+        todos: c.todos ?? [],
+      };
+    });
+
+    const items = [...formattedOrders, ...formattedComplaints].sort((a, b) => a.date - b.date);
+
+    return {
+      teamName: team?.name ?? "Wszystkie Zlecenia",
+      items,
+    };
+  },
+});
+
+
 export const updateOrderStatusByPin = mutation({
   args: {
     pin: v.string(),

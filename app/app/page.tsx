@@ -19,7 +19,13 @@ import {
   ArrowLeft,
   RefreshCw,
   Video,
+  MapPin,
+  Clock,
+  Wrench,
 } from "lucide-react";
+
+import { DateStrip } from "@/components/ekipa/DateStrip";
+
 
 
 type Tab = "home" | "search" | "notifications" | "profile" | "add-document";
@@ -84,7 +90,12 @@ export default function AppPwaPage() {
     ? me.email.split("@")[0]
     : null;
 
+  // Schedule / Calendar State
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState<Date | null>(new Date());
+  const userSchedule = useQuery(api.installationTeams.getScheduleForUser);
+
   // Form State
+
   const [clientSearch, setClientSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<Id<"clients"> | null>(null);
   const [, setSelectedClientName] = useState("");
@@ -102,7 +113,6 @@ export default function AppPwaPage() {
 
   // Complaint Form Modals state
   const [showNewComplaintModal, setShowNewComplaintModal] = useState(false);
-  const [showComplaintPhotoModal, setShowComplaintPhotoModal] = useState(false);
 
   // Complaint Form Data
   const [complaintClientSearch, setComplaintClientSearch] = useState("");
@@ -115,7 +125,7 @@ export default function AppPwaPage() {
 
   // Photo/Video Upload Complaint Data
   const [complaintMediaFiles, setComplaintMediaFiles] = useState<File[]>([]);
-  const [complaintPhotoUploading, setComplaintPhotoUploading] = useState(false);
+
   const complaintCameraRef = useRef<HTMLInputElement>(null);
   const complaintVideoRef = useRef<HTMLInputElement>(null);
   const complaintFileRef = useRef<HTMLInputElement>(null);
@@ -140,12 +150,8 @@ export default function AppPwaPage() {
     selectedClientId ? { clientId: selectedClientId } : "skip"
   );
 
-  const getComplaintsByOrder = useQuery(
-    api.complaints.getAllByOrder,
-    complaintSelectedOrderId ? { orderId: complaintSelectedOrderId } : "skip"
-  );
-
   const complaintSearchResults = useQuery(
+
     api.clients.search,
     complaintClientSearch.trim().length >= 1 ? { searchTerm: complaintClientSearch.trim() } : "skip"
   );
@@ -229,7 +235,18 @@ export default function AppPwaPage() {
     }
   }
 
+  function handleAddMediaFiles(files: FileList | null) {
+    if (!files) return;
+    const newArr = Array.from(files);
+    setComplaintMediaFiles((prev) => [...prev, ...newArr]);
+  }
+
+  function handleRemoveMediaFile(index: number) {
+    setComplaintMediaFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   function startLongPress() {
+
     longPressTimerRef.current = setTimeout(() => {
       if (typeof window !== "undefined" && "vibrate" in navigator) {
         navigator.vibrate(50);
@@ -304,56 +321,7 @@ export default function AppPwaPage() {
   }
 
 
-  async function handleComplaintPhotoSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!complaintSelectedClientId || !complaintSelectedOrderId || complaintMediaFiles.length === 0) return;
-    setComplaintPhotoUploading(true);
-    setComplaintError(null);
-    try {
-      // Find active complaint folder or use order folder
-      const activeComplaint = getComplaintsByOrder && getComplaintsByOrder.length > 0 ? getComplaintsByOrder[0] : null;
-      const targetFolderId = activeComplaint?.complaintFolderId;
 
-      for (let i = 0; i < complaintMediaFiles.length; i++) {
-        const fileToUpload = complaintMediaFiles[i];
-        const uploadUrl = await generateUploadUrl();
-        const uploadResponse = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": fileToUpload.type || "application/octet-stream" },
-          body: fileToUpload,
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error(`Błąd przesyłania pliku ${fileToUpload.name} do pamięci tymczasowej.`);
-        }
-
-        const { storageId } = await uploadResponse.json();
-
-        const isVideo = fileToUpload.type.startsWith("video/");
-        const prefix = isVideo ? "VIDEO_REKLAMACJA" : "REKLAMACJA";
-
-        await uploadManualOrderFile({
-          orderId: complaintSelectedOrderId,
-          clientId: complaintSelectedClientId,
-          storageId,
-          fileName: `${prefix}_${Date.now()}_${fileToUpload.name}`,
-          mimeType: fileToUpload.type || undefined,
-          targetFolderId,
-        });
-      }
-
-      setComplaintSuccess(`Pomyślnie dodano ${complaintMediaFiles.length} ${complaintMediaFiles.length === 1 ? "plik" : "pliki/plików"} na Dysk Google!`);
-      setComplaintMediaFiles([]);
-      setTimeout(() => {
-        setShowComplaintPhotoModal(false);
-        setComplaintSuccess(null);
-      }, 2000);
-    } catch (err) {
-      setComplaintError(err instanceof Error ? err.message : "Błąd podczas wgrywania mediów reklamacji.");
-    } finally {
-      setComplaintPhotoUploading(false);
-    }
-  }
 
   // If loading user state
   if (me === undefined) {
@@ -459,8 +427,9 @@ export default function AppPwaPage() {
 
       {/* MODAL 1: Zgłoś Reklamację */}
       {showNewComplaintModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start justify-center p-3 pt-6 sm:items-center overflow-y-auto">
-          <div className="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl border border-gray-100 space-y-4 max-h-[85vh] overflow-y-auto my-auto">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 overflow-hidden">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl p-5 w-full max-w-md shadow-2xl border border-gray-100 space-y-4 max-h-[85dvh] overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5 animate-in slide-in-from-bottom duration-200">
+
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2 text-amber-600">
                 <AlertCircle className="size-5" />
@@ -654,217 +623,129 @@ export default function AppPwaPage() {
         </div>
       )}
 
-      {/* MODAL 2: Zdjęcie do Reklamacji */}
-      {showComplaintPhotoModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start justify-center p-3 pt-6 sm:items-center overflow-y-auto">
-          <div className="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl border border-gray-100 space-y-4 max-h-[85vh] overflow-y-auto my-auto">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2 text-purple-700">
-                <Camera className="size-5" />
-                <h3 className="font-extrabold text-slate-900 text-base">Dodaj Zdjęcie Reklamacji</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowComplaintPhotoModal(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-600"
-              >
-                <X className="size-5" />
-              </button>
-            </div>
 
-            {complaintSuccess ? (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center text-emerald-800 text-xs font-bold space-y-2">
-                <CheckCircle className="size-8 text-emerald-500 mx-auto" />
-                <p>{complaintSuccess}</p>
-              </div>
-            ) : (
-              <form onSubmit={handleComplaintPhotoSubmit} className="space-y-4">
-                {complaintError && (
-                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-rose-700 text-xs flex items-center gap-2">
-                    <AlertCircle className="size-4 shrink-0" />
-                    <span>{complaintError}</span>
-                  </div>
-                )}
-
-                {/* Step 1: Select Client */}
-                <div className="space-y-1.5 relative">
-                  <label className="text-xs font-bold text-slate-700">1. Wybierz Klienta *</label>
-                  <input
-                    type="text"
-                    placeholder="Szukaj po nazwisku..."
-                    value={complaintClientSearch}
-                    onChange={(e) => {
-                      setComplaintClientSearch(e.target.value);
-                      if (complaintSelectedClientId) setComplaintSelectedClientId(null);
-                    }}
-                    className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-xs text-slate-800 focus:border-[#9B62EC] focus:outline-none"
-                  />
-
-                  {complaintSearchResults && complaintSearchResults.length > 0 && !complaintSelectedClientId && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-40 overflow-y-auto z-50">
-                      {complaintSearchResults.map((c) => {
-                        const name = c.clientType === "business" && c.companyName ? c.companyName : `${c.lastName} ${c.firstName}`;
-                        return (
-                          <button
-                            key={c._id}
-                            type="button"
-                            onClick={() => {
-                              setComplaintSelectedClientId(c._id);
-                              setComplaintClientSearch(name);
-                              setComplaintSelectedOrderId(null);
-                            }}
-                            className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-100 border-b border-gray-100 font-semibold text-slate-800"
-                          >
-                            {name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Step 2: Select Order */}
-                {complaintSelectedClientId && (
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">2. Wybierz Zlecenie *</label>
-                    {complaintOrders && complaintOrders.length > 0 ? (
-                      <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                        {complaintOrders.map((o) => (
-                          <button
-                            key={o._id}
-                            type="button"
-                            onClick={() => setComplaintSelectedOrderId(o._id)}
-                            className={`w-full text-left p-2.5 rounded-xl border text-xs flex items-center justify-between ${
-                              complaintSelectedOrderId === o._id
-                                ? "border-purple-500 bg-purple-50 font-bold text-purple-900"
-                                : "border-gray-200 bg-white hover:bg-slate-50 text-slate-700"
-                            }`}
-                          >
-                            <span>{o.name ?? "Zlecenie bez nazwy"}</span>
-                            {complaintSelectedOrderId === o._id && <CheckCircle className="size-4 text-purple-600" />}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-400 italic">Brak zleceń dla wybranego klienta.</p>
-                    )}
-                  </div>
-                )}
-
-                {/* Step 3: Photo / Video Input */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">3. Wybierz Zdjęcia lub Wideo Usterki *</label>
-                  <input
-                    ref={complaintFileRef}
-                    type="file"
-                    multiple
-                    accept="image/*,video/*"
-                    onChange={(e) => handleAddMediaFiles(e.target.files)}
-                    className="hidden"
-                  />
-                  <input
-                    ref={complaintCameraRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={(e) => handleAddMediaFiles(e.target.files)}
-                    className="hidden"
-                  />
-                  <input
-                    ref={complaintVideoRef}
-                    type="file"
-                    accept="video/*"
-                    capture="environment"
-                    onChange={(e) => handleAddMediaFiles(e.target.files)}
-                    className="hidden"
-                  />
-
-                  {/* Multiselect buttons */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => complaintCameraRef.current?.click()}
-                      className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-purple-50/50 text-slate-600 gap-1 transition"
-                    >
-                      <Camera className="size-5 text-[#9B62EC]" />
-                      <span className="text-[10px] font-bold">Zdjęcie</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => complaintVideoRef.current?.click()}
-                      className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-purple-50/50 text-slate-600 gap-1 transition"
-                    >
-                      <Video className="size-5 text-purple-600" />
-                      <span className="text-[10px] font-bold">Wideo</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => complaintFileRef.current?.click()}
-                      className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-purple-50/50 text-slate-600 gap-1 transition"
-                    >
-                      <Upload className="size-5 text-purple-600" />
-                      <span className="text-[10px] font-bold">Z pliku / kilka</span>
-                    </button>
-                  </div>
-
-                  {/* List of selected media files */}
-                  {complaintMediaFiles.length > 0 && (
-                    <div className="space-y-1.5 pt-2 max-h-36 overflow-y-auto">
-                      <div className="text-[10px] font-bold text-slate-500">Wybrane pliki ({complaintMediaFiles.length}):</div>
-                      {complaintMediaFiles.map((f, idx) => (
-                        <div key={`${f.name}-${idx}`} className="flex items-center justify-between p-2.5 bg-purple-50/80 rounded-xl border border-purple-200">
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            {f.type.startsWith("video/") ? (
-                              <Video className="size-4 text-purple-600 shrink-0" />
-                            ) : (
-                              <FileText className="size-4 text-[#9B62EC] shrink-0" />
-                            )}
-                            <span className="text-xs font-semibold text-slate-800 truncate">{f.name}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveMediaFile(idx)}
-                            className="text-slate-400 hover:text-rose-600 p-1"
-                          >
-                            <X className="size-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={!complaintSelectedClientId || !complaintSelectedOrderId || complaintMediaFiles.length === 0 || complaintPhotoUploading}
-                  className="w-full py-3.5 rounded-xl bg-[#9B62EC] text-white font-bold text-xs shadow-md hover:bg-purple-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
-                >
-                  {complaintPhotoUploading ? <RefreshCw className="size-4 animate-spin" /> : <Upload className="size-4" />}
-                  Wgraj Media Reklamacji ({complaintMediaFiles.length})
-                </button>
-
-              </form>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col p-4 pb-24 overflow-y-auto">
         {activeTab === "home" && (
-          <div className="space-y-4">
-            <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-sm space-y-2">
-              <h2 className="text-lg font-extrabold text-slate-800">
-                {userFirstName ? `Cześć, ${userFirstName}! 👋` : "Cześć! 👋"}
-              </h2>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Użyj dolnego przycisku <span className="font-bold text-[#4dbdc6]">+</span> aby przejść do pełnego widoku dodawania dokumentów lub zdjęć.
-              </p>
+          <div className="flex-1 flex flex-col justify-between space-y-4">
+            {/* Top Area: Events schedule for the selected date */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <div>
+                  <h2 className="text-base font-extrabold text-slate-800">Harmonogram prac</h2>
+                  <p className="text-[11px] font-medium text-slate-500">
+                    {selectedScheduleDate
+                      ? selectedScheduleDate.toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+                      : "Wszystkie nadchodzące"}
+                  </p>
+                </div>
+                {userSchedule?.teamName && (
+                  <span className="px-2.5 py-1 rounded-full bg-teal-50 text-[#2ca6b0] border border-teal-200 text-[10px] font-extrabold">
+                    {userSchedule.teamName}
+                  </span>
+                )}
+              </div>
+
+              {/* Events List */}
+              {(() => {
+                if (userSchedule === undefined) {
+                  return (
+                    <div className="flex items-center justify-center p-8 bg-white rounded-2xl border border-gray-200">
+                      <RefreshCw className="size-5 text-[#4dbdc6] animate-spin" />
+                    </div>
+                  );
+                }
+
+                const items = userSchedule?.items ?? [];
+                const filtered = items.filter((item) => {
+                  if (!selectedScheduleDate) return true;
+                  const d = new Date(item.date);
+                  return (
+                    d.getFullYear() === selectedScheduleDate.getFullYear() &&
+                    d.getMonth() === selectedScheduleDate.getMonth() &&
+                    d.getDate() === selectedScheduleDate.getDate()
+                  );
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="bg-white rounded-2xl p-6 border border-gray-200 text-center space-y-2">
+                      <div className="size-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                        <Wrench className="size-5" />
+                      </div>
+                      <p className="text-xs font-bold text-slate-700">Brak zaplanowanych prac w tym dniu</p>
+                      <p className="text-[11px] text-slate-400">Przesuń kalendarz poniżej, aby wybrać inny dzień.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2.5">
+                    {filtered.map((item) => (
+                      <div
+                        key={item.id}
+                        className="bg-white rounded-2xl p-4 border border-gray-200 shadow-xs space-y-2 hover:border-[#4dbdc6] transition"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
+                                item.type === "montaz"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-purple-100 text-purple-800"
+                              }`}
+                            >
+                              {item.type === "montaz" ? "Montaż" : "Serwis"}
+                            </span>
+                            {item.timeStr && (
+                              <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                                <Clock className="size-3 text-slate-400" />
+                                {item.timeStr}
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              item.status === "completed" || item.status === "rozwiazana"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-amber-50 text-amber-700"
+                            }`}
+                          >
+                            {item.status}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h3 className="font-extrabold text-slate-800 text-sm">{item.clientName}</h3>
+                          <p className="text-xs text-slate-600 font-semibold">{item.title}</p>
+                        </div>
+
+                        {item.address && (
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium pt-1 border-t border-gray-100">
+                            <MapPin className="size-3 text-[#4dbdc6] shrink-0" />
+                            <span className="truncate">{item.address}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Bottom Swipeable Calendar Strip right above the bottom navigation */}
+            <div className="sticky bottom-0 z-10 pt-2 pb-1 bg-slate-50">
+              <DateStrip
+                selectedDate={selectedScheduleDate}
+                onSelectDate={setSelectedScheduleDate}
+                markedDates={(userSchedule?.items ?? []).map((i) => i.date)}
+              />
             </div>
           </div>
         )}
+
+
 
         {activeTab === "search" && (
           <div className="space-y-4">
@@ -1267,26 +1148,10 @@ export default function AppPwaPage() {
                     </div>
                     <div>
                       <div className="font-extrabold">Zgłoś Reklamację</div>
-                      <div className="text-[10px] font-normal text-amber-700">Nowy wpis usterki</div>
+                      <div className="text-[10px] font-normal text-amber-700">Nowy wpis + wideo/zdjęcia</div>
                     </div>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowBubbleMenu(false);
-                      setShowComplaintPhotoModal(true);
-                    }}
-                    className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-purple-50 text-purple-900 hover:bg-purple-100 font-bold text-xs transition text-left"
-                  >
-                    <div className="size-8 rounded-xl bg-[#9B62EC] text-[#ffffff] flex items-center justify-center shrink-0 shadow-sm">
-                      <Camera className="size-4" />
-                    </div>
-                    <div>
-                      <div className="font-extrabold">Zdjęcie Reklamacji</div>
-                      <div className="text-[10px] font-normal text-purple-700">Aparat lub z pliku</div>
-                    </div>
-                  </button>
                 </div>
               </>
             )}
