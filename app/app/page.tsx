@@ -78,6 +78,7 @@ export default function AppPwaPage() {
       });
       setLoginEmail("");
       setLoginPassword("");
+      setActiveTab("home");
     } catch {
       setLoginError("Nieprawidłowy login lub hasło.");
     } finally {
