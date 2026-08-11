@@ -261,7 +261,7 @@ export default function AppPwaPage() {
   return (
     <div className="flex flex-col min-h-[100dvh] w-full bg-slate-50 text-gray-900 select-none relative">
       {/* Top Mobile Bar */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-30 flex items-center justify-between">
+      <header className="bg-white border-b border-gray-200 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] sticky top-0 z-30 flex items-center justify-between">
         {activeTab === "add-document" ? (
           <div className="flex items-center gap-3 w-full">
             <button
