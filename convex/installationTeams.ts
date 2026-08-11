@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { getCurrentUser } from "./lib/auth";
+
 
 export const listAll = query({
   args: {},
@@ -701,7 +703,30 @@ export const getScheduleForUser = query({
       return isCreatedByTarget || isAssignedToTarget || isTeamEvent;
     });
 
-    const formattedOrders: typeof items = [];
+    const formattedOrders: Array<{
+      id: string;
+      type: "montaz" | "serwis" | "wlasne";
+      title: string;
+      customText?: string;
+      services?: string[];
+      description?: string;
+      date: number;
+      startDate?: number;
+      endDate?: number;
+      timeStr?: string;
+      serviceDateEnd?: number;
+      status: string;
+      clientName: string;
+      phone?: string;
+      email?: string;
+      address: string;
+      comment?: string;
+      todos?: Array<{ id: string; text: string; completed: boolean }>;
+      clientId?: Id<"clients">;
+      orderId?: Id<"orders">;
+      complaintFolderId?: string;
+    }> = [];
+
 
     relevantOrders.forEach((o) => {
       const client = clientMap.get(o.clientId);
