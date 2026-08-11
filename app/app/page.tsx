@@ -978,6 +978,17 @@ export default function AppPwaPage() {
                                 : "Wydarzenie"}
                             </span>
 
+                            {item.date && (
+                              <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                                <Calendar className="size-3 text-slate-400" />
+                                {new Date(item.date).toLocaleDateString("pl-PL", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </span>
+                            )}
+
                             {item.timeStr && (
                               <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
                                 <Clock className="size-3 text-slate-400" />
