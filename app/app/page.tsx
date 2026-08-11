@@ -117,7 +117,9 @@ export default function AppPwaPage() {
   const [complaintMediaFiles, setComplaintMediaFiles] = useState<File[]>([]);
   const [complaintPhotoUploading, setComplaintPhotoUploading] = useState(false);
   const complaintCameraRef = useRef<HTMLInputElement>(null);
+  const complaintVideoRef = useRef<HTMLInputElement>(null);
   const complaintFileRef = useRef<HTMLInputElement>(null);
+
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
