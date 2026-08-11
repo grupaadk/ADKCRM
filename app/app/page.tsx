@@ -354,11 +354,23 @@ export default function AppPwaPage() {
     }
   }
 
+  const eventTypes = useQuery(api.calendarEvents.getEventTypes);
+
   async function handleCreateEventSubmit(e: React.FormEvent) {
 
     e.preventDefault();
     if (!eventTitle.trim()) {
       setEventError("Podaj tytuł wydarzenia.");
+      return;
+    }
+
+    const wlasneType = eventTypes?.find(
+      (t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne"
+    );
+    const targetEventTypeId = wlasneType?._id ?? eventTypes?.[0]?._id;
+
+    if (!targetEventTypeId) {
+      setEventError("Brak dostępnego typu wydarzenia.");
       return;
     }
 
@@ -384,7 +396,7 @@ export default function AppPwaPage() {
       }
 
       await createCalendarEvent({
-        eventTypeId: "wlasne_default_id" as Id<"calendarEventTypes">,
+        eventTypeId: targetEventTypeId,
         title: eventTitle.trim(),
         description: eventDescription.trim() || undefined,
         startDate: startD.getTime(),
