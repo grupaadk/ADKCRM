@@ -611,44 +611,43 @@ export const getScheduleForUser = query({
     userId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
+    const currentUser = await getCurrentUser(ctx);
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
+    if (!identity && !currentUser) return null;
 
-    const userEmail = identity.email?.toLowerCase();
-    const userName = identity.name;
-    const subject = identity.subject;
+    const userEmail = (currentUser?.email ?? identity?.email)?.toLowerCase();
+    const userName = currentUser?.displayName ?? currentUser?.name ?? identity?.name;
 
-
-    // Find Convex User document matching identity
+    // Find target user from database
     const allUsers = await ctx.db.query("users").collect();
+    let targetUser = args.userId ? allUsers.find((u) => u._id === args.userId) : currentUser;
 
-    // Collect all user IDs associated with target user (email/name match)
-    let targetUser = args.userId ? allUsers.find((u) => u._id === args.userId) : undefined;
-
-    if (!targetUser) {
+    if (!targetUser && (userEmail || userName)) {
       targetUser = allUsers.find(
         (u) =>
           (u.email && u.email.toLowerCase() === userEmail) ||
           (u.name && u.name.toLowerCase() === userName?.toLowerCase()) ||
-          (u.displayName && u.displayName.toLowerCase() === userName?.toLowerCase()) ||
-          (u._id === (subject as unknown))
+          (u.displayName && u.displayName.toLowerCase() === userName?.toLowerCase())
       );
     }
 
     const targetUserEmail = targetUser?.email?.toLowerCase() ?? userEmail;
     const targetUserName = targetUser?.displayName ?? targetUser?.name ?? userName;
 
-    // Matching user IDs (all user records with same email or name)
-    const matchingUserIds = new Set(
-      allUsers
-        .filter(
-          (u) =>
-            (targetUserEmail && u.email?.toLowerCase() === targetUserEmail) ||
-            (targetUserName && (u.displayName?.toLowerCase() === targetUserName.toLowerCase() || u.name?.toLowerCase() === targetUserName.toLowerCase())) ||
-            (targetUser && u._id === targetUser._id)
-        )
-        .map((u) => u._id)
-    );
+    // Matching user IDs (all user records with same email, name or _id)
+    const matchingUserIds = new Set<string>();
+    if (targetUser) matchingUserIds.add(targetUser._id);
+    if (currentUser && !args.userId) matchingUserIds.add(currentUser._id);
+
+    allUsers.forEach((u) => {
+      if (
+        (targetUserEmail && u.email?.toLowerCase() === targetUserEmail) ||
+        (targetUserName && (u.displayName?.toLowerCase() === targetUserName.toLowerCase() || u.name?.toLowerCase() === targetUserName.toLowerCase()))
+      ) {
+        matchingUserIds.add(u._id);
+      }
+    });
+
 
     const teams = await ctx.db.query("installationTeams").collect();
     const team = teams.find(
@@ -664,8 +663,15 @@ export const getScheduleForUser = query({
     const clients = await ctx.db.query("clients").collect();
     const clientMap = new Map(clients.map((c) => [c._id, c]));
 
-    // Filter orders for target user or target user's team
+    // Filter orders for target user or target user's team ONLY IF explicit installation dates exist
     const relevantOrders = orders.filter((o) => {
+      const hasExplicitDates = !!(
+        o.installationDates &&
+        o.installationDates.length > 0 &&
+        o.installationDates.some((d) => !!d.date)
+      );
+      if (!hasExplicitDates) return false;
+
       const assignedToUser =
         (o.assignedUserId && matchingUserIds.has(o.assignedUserId)) ||
         o.assignedUserIds?.some((id) => matchingUserIds.has(id)) ||
@@ -674,8 +680,11 @@ export const getScheduleForUser = query({
       return assignedToUser || assignedToTeam;
     });
 
-    // Filter complaints for target user or target user's team
+    // Filter complaints for target user or target user's team that HAVE an explicit service date
     const relevantComplaints = complaints.filter((c) => {
+      const hasDate = !!c.serviceDate;
+      if (!hasDate) return false;
+
       const assignedToUser =
         (targetUserEmail && c.assignedTo?.toLowerCase() === targetUserEmail) ||
         (targetUserEmail && c.createdBy?.toLowerCase() === targetUserEmail);
@@ -692,10 +701,9 @@ export const getScheduleForUser = query({
       return isCreatedByTarget || isAssignedToTarget || isTeamEvent;
     });
 
+    const formattedOrders: typeof items = [];
 
-
-
-    const formattedOrders = relevantOrders.map((o) => {
+    relevantOrders.forEach((o) => {
       const client = clientMap.get(o.clientId);
       const clientName = client
         ? client.companyName || `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || "Klient"
@@ -709,18 +717,19 @@ export const getScheduleForUser = query({
         o.investmentCity || client?.city,
       ].filter(Boolean).join(" ");
 
-      return {
+      const timeStr = o.installationStartDate
+        ? `${Math.floor(o.installationStartDate / 60).toString().padStart(2, "0")}:${(o.installationStartDate % 60).toString().padStart(2, "0")}`
+        : undefined;
+
+      const baseItem = {
         id: o._id,
         type: "montaz" as const,
         title: o.name ?? "Montaż stolarki",
         customText: o.customText,
         services: o.services ?? [],
-        date: o.projectEndDate ?? o.statusChangedAt ?? Date.now(),
         startDate: o.projectStartDate,
         endDate: o.projectEndDate,
-        timeStr: o.installationStartDate
-          ? `${Math.floor(o.installationStartDate / 60).toString().padStart(2, "0")}:${(o.installationStartDate % 60).toString().padStart(2, "0")}`
-          : undefined,
+        timeStr,
         status: o.status,
         clientName,
         phone: client?.phone,
@@ -728,7 +737,22 @@ export const getScheduleForUser = query({
         address: fullAddress || "Brak adresu",
         comment: o.comment,
       };
+
+      // Only iterate explicit installation dates added by user
+      if (o.installationDates && o.installationDates.length > 0) {
+        o.installationDates.forEach((instDate, idx) => {
+          if (instDate.date) {
+            formattedOrders.push({
+              ...baseItem,
+              id: `${o._id}_inst_${idx}`,
+              date: instDate.date,
+            });
+          }
+        });
+      }
     });
+
+
 
     const formattedComplaints = relevantComplaints.map((c) => {
       const client = clientMap.get(c.clientId);
