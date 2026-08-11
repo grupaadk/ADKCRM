@@ -510,7 +510,9 @@ export const getScheduleByPin = query({
     const orders = await ctx.db.query("orders").collect();
     const complaints = await ctx.db.query("complaints").collect();
     const clients = await ctx.db.query("clients").collect();
+
     const clientMap = new Map(clients.map((c) => [c._id, c]));
+    const orderMap = new Map(orders.map((o) => [o._id, o]));
 
     const teamOrders = orders.filter((o) => o.installationTeamId === team._id);
     const teamComplaints = complaints.filter((c) => c.installationTeamId === team._id);
@@ -556,6 +558,9 @@ export const getScheduleByPin = query({
         ? client.companyName || `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || "Klient"
         : "Klient";
 
+      const linkedOrder = c.orderId ? orderMap.get(c.orderId) : undefined;
+      const orderName = linkedOrder?.name ?? linkedOrder?.customText ?? undefined;
+
       const fullAddress = [
         client?.street,
         client?.buildingNumber,
@@ -576,9 +581,10 @@ export const getScheduleByPin = query({
         id: c._id,
         clientId: c.clientId,
         orderId: c.orderId,
+        orderName,
         complaintFolderId: c.complaintFolderId,
         type: "serwis" as const,
-        title: "Serwis",
+        title: orderName ?? "Serwis",
         description: c.description || c.clientDescription,
         date: c.serviceDate ?? c.startDate,
         serviceDateEnd: c.serviceDateEnd,
