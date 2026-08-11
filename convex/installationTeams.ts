@@ -607,32 +607,40 @@ export const getScheduleByPin = query({
 });
 
 export const getScheduleForUser = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    userId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
 
     const userEmail = identity.email?.toLowerCase();
     const userName = identity.name;
+    const tokenIdentifier = identity.tokenIdentifier;
+    const subject = identity.subject;
 
     // Find Convex User document matching identity
     const allUsers = await ctx.db.query("users").collect();
-    const currentUser = allUsers.find(
+    const selfUser = allUsers.find(
       (u) =>
         (u.email && u.email.toLowerCase() === userEmail) ||
-        (u.name && u.name.toLowerCase() === userName?.toLowerCase())
+        (u.name && u.name.toLowerCase() === userName?.toLowerCase()) ||
+        (u._id === (subject as unknown))
     );
 
-    const currentUserId = currentUser?._id;
+    // Selected user or self
+    const targetUser = args.userId ? allUsers.find((u) => u._id === args.userId) : selfUser;
+    const targetUserId = targetUser?._id;
+    const targetUserEmail = targetUser?.email?.toLowerCase();
+    const targetUserName = targetUser?.displayName ?? targetUser?.name;
 
     const teams = await ctx.db.query("installationTeams").collect();
     const team = teams.find(
       (t) =>
         t.isActive &&
-        (t.leaderName?.toLowerCase() === userName?.toLowerCase() ||
-          t.members?.some((m) => m.toLowerCase() === userEmail))
+        ((targetUserName && t.leaderName?.toLowerCase() === targetUserName.toLowerCase()) ||
+          (targetUserEmail && t.members?.some((m) => m.toLowerCase() === targetUserEmail)))
     );
-
 
     const orders = await ctx.db.query("orders").collect();
     const complaints = await ctx.db.query("complaints").collect();
@@ -640,31 +648,41 @@ export const getScheduleForUser = query({
     const clients = await ctx.db.query("clients").collect();
     const clientMap = new Map(clients.map((c) => [c._id, c]));
 
-    // Filter orders explicitly assigned to user OR assigned to user's team
+    // Filter orders for target user or target user's team
     const relevantOrders = orders.filter((o) => {
       const assignedToUser =
-        (currentUserId && (o.assignedUserId === currentUserId || o.assignedUserIds?.includes(currentUserId))) ||
-        (userEmail && o.createdBy?.toLowerCase() === userEmail);
+        (targetUserId && (o.assignedUserId === targetUserId || o.assignedUserIds?.includes(targetUserId))) ||
+        (targetUserEmail && o.createdBy?.toLowerCase() === targetUserEmail);
       const assignedToTeam = team && o.installationTeamId === team._id;
       return assignedToUser || assignedToTeam;
     });
 
-    // Filter complaints assigned to user OR user's team
+    // Filter complaints for target user or target user's team
     const relevantComplaints = complaints.filter((c) => {
       const assignedToUser =
-        (userEmail && c.assignedTo?.toLowerCase() === userEmail) ||
-        (userEmail && c.createdBy?.toLowerCase() === userEmail);
+        (targetUserEmail && c.assignedTo?.toLowerCase() === targetUserEmail) ||
+        (targetUserEmail && c.createdBy?.toLowerCase() === targetUserEmail);
       const assignedToTeam = team && c.installationTeamId === team._id;
       return assignedToUser || assignedToTeam;
     });
 
-    // Filter personal calendar events
+    // Filter personal calendar events for target user
     const relevantEvents = calendarEvents.filter((ev) => {
-      return (
-        (currentUserId && (ev.createdBy === currentUserId || ev.assignedUserIds?.includes(currentUserId))) ||
-        (team && ev.installationTeamId === team._id)
-      );
+      const isCreatedByTarget =
+        (targetUserId && ev.createdBy === targetUserId) ||
+        (targetUserId === selfUser?._id &&
+          ((tokenIdentifier && ev.createdBy === (tokenIdentifier as unknown)) ||
+            (subject && ev.createdBy === (subject as unknown))));
+
+      const isAssignedToTarget =
+        targetUserId && ev.assignedUserIds?.includes(targetUserId);
+
+      const isTeamEvent = team && ev.installationTeamId === team._id;
+
+      return isCreatedByTarget || isAssignedToTarget || isTeamEvent;
     });
+
+
 
     const formattedOrders = relevantOrders.map((o) => {
       const client = clientMap.get(o.clientId);

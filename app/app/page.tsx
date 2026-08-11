@@ -92,7 +92,13 @@ export default function AppPwaPage() {
 
   // Schedule / Calendar State
   const [selectedScheduleDate, setSelectedScheduleDate] = useState<Date | null>(new Date());
-  const userSchedule = useQuery(api.installationTeams.getScheduleForUser);
+  const [selectedScheduleUserId, setSelectedScheduleUserId] = useState<Id<"users"> | null>(null);
+  const allUsersForFilter = useQuery(api.users.listForNotes);
+  const userSchedule = useQuery(
+    api.installationTeams.getScheduleForUser,
+    selectedScheduleUserId ? { userId: selectedScheduleUserId } : {}
+  );
+
 
   // Form State
 
@@ -264,17 +270,24 @@ export default function AppPwaPage() {
 
   async function handleCreateComplaintSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!complaintSelectedClientId || !complaintSelectedOrderId) return;
+    if (!complaintSelectedClientId) return;
+    const targetOrderId = complaintSelectedOrderId ?? (complaintOrders && complaintOrders[0] ? complaintOrders[0]._id : null);
+    if (!targetOrderId) {
+      setComplaintError("Wybierz zlecenie klienta lub upewnij się, że klient posiada zlecenia.");
+      return;
+    }
+
     setComplaintSubmitting(true);
     setComplaintError(null);
     try {
       await createComplaint({
         clientId: complaintSelectedClientId,
-        orderId: complaintSelectedOrderId,
+        orderId: targetOrderId,
         startDate: Date.now(),
         description: complaintDescription.trim() || (complaintMediaFiles.length > 0 ? "Załączono pliki zdjęć/wideo" : "Zgłoszenie reklamacyjne"),
         createdBy: userFirstName ?? me?.email ?? "Pracownik ekipy PWA",
       });
+
 
 
       // Upload any attached photos/videos for this new complaint
@@ -297,12 +310,13 @@ export default function AppPwaPage() {
           const prefix = isVideo ? "VIDEO_REKLAMACJA" : "REKLAMACJA";
 
           await uploadManualOrderFile({
-            orderId: complaintSelectedOrderId,
+            orderId: targetOrderId,
             clientId: complaintSelectedClientId,
             storageId,
             fileName: `${prefix}_${Date.now()}_${fileToUpload.name}`,
             mimeType: fileToUpload.type || undefined,
           });
+
         }
       }
 
@@ -509,7 +523,7 @@ export default function AppPwaPage() {
                             key={o._id}
                             type="button"
                             onClick={() => setComplaintSelectedOrderId(o._id)}
-                            className={`w-full text-left p-2.5 rounded-xl border text-xs flex items-center justify-between ${
+                            className={`w-full text-left p-2.5 rounded-xl border text-xs flex items-center justify-between transition ${
                               complaintSelectedOrderId === o._id
                                 ? "border-amber-500 bg-amber-50 font-bold text-amber-900"
                                 : "border-gray-200 bg-white hover:bg-slate-50 text-slate-700"
@@ -520,11 +534,19 @@ export default function AppPwaPage() {
                           </button>
                         ))}
                       </div>
+                    ) : complaintOrders === undefined ? (
+                      <div className="p-2 text-xs text-slate-400 flex items-center gap-2">
+                        <RefreshCw className="size-3 animate-spin text-amber-500" />
+                        <span>Ładowanie zleceń...</span>
+                      </div>
                     ) : (
-                      <p className="text-xs text-slate-400 italic">Brak zleceń dla wybranego klienta.</p>
+                      <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-xl border border-amber-200">
+                        Ten klient nie ma aktywnych zleceń w systemie. (Reklamacja zostanie powiązana z klientem).
+                      </p>
                     )}
                   </div>
                 )}
+
                 {/* Step 3: Description (Optional) */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700">3. Opis Usterki (Opcjonalnie)</label>
@@ -626,14 +648,15 @@ export default function AppPwaPage() {
                   type="submit"
                   disabled={
                     !complaintSelectedClientId ||
-                    !complaintSelectedOrderId ||
-                    complaintSubmitting
+                    complaintSubmitting ||
+                    (!complaintSelectedOrderId && (!complaintOrders || complaintOrders.length === 0))
                   }
                   className="w-full py-3.5 rounded-xl bg-amber-500 text-white font-bold text-xs shadow-md hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-2"
                 >
                   {complaintSubmitting ? <RefreshCw className="size-4 animate-spin" /> : <AlertCircle className="size-4" />}
                   Zarejestruj Reklamację {complaintMediaFiles.length > 0 ? `(${complaintMediaFiles.length} media)` : ""}
                 </button>
+
 
               </form>
             )}
@@ -649,7 +672,7 @@ export default function AppPwaPage() {
           <div className="flex-1 flex flex-col justify-between space-y-4">
             {/* Top Area: Events schedule for the selected date */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between px-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
                 <div>
                   <h2 className="text-base font-extrabold text-slate-800">Harmonogram prac</h2>
                   <p className="text-[11px] font-medium text-slate-500">
@@ -658,12 +681,33 @@ export default function AppPwaPage() {
                       : "Wszystkie nadchodzące"}
                   </p>
                 </div>
-                {userSchedule?.teamName && (
-                  <span className="px-2.5 py-1 rounded-full bg-teal-50 text-[#2ca6b0] border border-teal-200 text-[10px] font-extrabold">
-                    {userSchedule.teamName}
-                  </span>
-                )}
+
+                <div className="flex items-center gap-2">
+                  {/* Select Filter User */}
+                  <select
+                    value={selectedScheduleUserId ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedScheduleUserId(val ? (val as Id<"users">) : null);
+                    }}
+                    className="text-xs bg-white border border-gray-200 font-semibold text-slate-700 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#4dbdc6] shadow-xs"
+                  >
+                    <option value="">Moje wydarzenia (zalogowany)</option>
+                    {allUsersForFilter?.map((u) => (
+                      <option key={u._id} value={u._id}>
+                        {u.displayName ?? u.login ?? "Użytkownik"}
+                      </option>
+                    ))}
+                  </select>
+
+                  {userSchedule?.teamName && (
+                    <span className="px-2.5 py-1.5 rounded-xl bg-teal-50 text-[#2ca6b0] border border-teal-200 text-[10px] font-extrabold shrink-0">
+                      {userSchedule.teamName}
+                    </span>
+                  )}
+                </div>
               </div>
+
 
               {/* Events List */}
               {(() => {

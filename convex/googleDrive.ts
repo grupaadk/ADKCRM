@@ -2998,19 +2998,28 @@ export const uploadManualOrderFile = action({
     storageId: v.id("_storage"),
     fileName: v.string(),
     mimeType: v.optional(v.string()),
-    targetFolderId: v.string(),
+    targetFolderId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ fileId: string; name: string; url: string }> => {
     await requireUserIdentifierInAction(ctx);
 
-    if (args.orderId) {
-      const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
-      if (!order) throw new Error("Zlecenie nie znalezione");
-    } else if (args.clientId) {
-      const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
-      if (!client) throw new Error("Klient nie znaleziony");
-    } else {
-      throw new Error("Wymagane jest podanie orderId lub clientId");
+    let orderFolderId: string | undefined = args.targetFolderId;
+
+    if (!orderFolderId) {
+      if (args.orderId) {
+        const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+        if (!order) throw new Error("Zlecenie nie znalezione");
+        orderFolderId = order.folderId;
+      }
+      if (!orderFolderId && args.clientId) {
+        const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
+        if (!client) throw new Error("Klient nie znaleziony");
+        orderFolderId = client.clientFolderId;
+      }
+    }
+
+    if (!orderFolderId) {
+      throw new Error("Nie można ustalić docelowego folderu Google Drive dla plików.");
     }
 
     const connection = await getAuthorizedConnection(ctx);
@@ -3025,7 +3034,8 @@ export const uploadManualOrderFile = action({
     const contentType = args.mimeType || fileResponse.headers.get("content-type") || "application/octet-stream";
     const fileBuffer = await fileResponse.arrayBuffer();
 
-    const metadata = JSON.stringify({ name: args.fileName, parents: [args.targetFolderId] });
+    const metadata = JSON.stringify({ name: args.fileName, parents: [orderFolderId] });
+
     const boundary = `drive_upload_${Date.now()}`;
     const encoder = new TextEncoder();
     const preamble = encoder.encode(
