@@ -621,18 +621,34 @@ export const getScheduleForUser = query({
 
     // Find Convex User document matching identity
     const allUsers = await ctx.db.query("users").collect();
-    const selfUser = allUsers.find(
-      (u) =>
-        (u.email && u.email.toLowerCase() === userEmail) ||
-        (u.name && u.name.toLowerCase() === userName?.toLowerCase()) ||
-        (u._id === (subject as unknown))
-    );
 
-    // Selected user or self
-    const targetUser = args.userId ? allUsers.find((u) => u._id === args.userId) : selfUser;
-    const targetUserId = targetUser?._id;
-    const targetUserEmail = targetUser?.email?.toLowerCase();
-    const targetUserName = targetUser?.displayName ?? targetUser?.name;
+    // Collect all user IDs associated with target user (email/name match)
+    let targetUser = args.userId ? allUsers.find((u) => u._id === args.userId) : undefined;
+
+    if (!targetUser) {
+      targetUser = allUsers.find(
+        (u) =>
+          (u.email && u.email.toLowerCase() === userEmail) ||
+          (u.name && u.name.toLowerCase() === userName?.toLowerCase()) ||
+          (u.displayName && u.displayName.toLowerCase() === userName?.toLowerCase()) ||
+          (u._id === (subject as unknown))
+      );
+    }
+
+    const targetUserEmail = targetUser?.email?.toLowerCase() ?? userEmail;
+    const targetUserName = targetUser?.displayName ?? targetUser?.name ?? userName;
+
+    // Matching user IDs (all user records with same email or name)
+    const matchingUserIds = new Set(
+      allUsers
+        .filter(
+          (u) =>
+            (targetUserEmail && u.email?.toLowerCase() === targetUserEmail) ||
+            (targetUserName && (u.displayName?.toLowerCase() === targetUserName.toLowerCase() || u.name?.toLowerCase() === targetUserName.toLowerCase())) ||
+            (targetUser && u._id === targetUser._id)
+        )
+        .map((u) => u._id)
+    );
 
     const teams = await ctx.db.query("installationTeams").collect();
     const team = teams.find(
@@ -651,7 +667,8 @@ export const getScheduleForUser = query({
     // Filter orders for target user or target user's team
     const relevantOrders = orders.filter((o) => {
       const assignedToUser =
-        (targetUserId && (o.assignedUserId === targetUserId || o.assignedUserIds?.includes(targetUserId))) ||
+        (o.assignedUserId && matchingUserIds.has(o.assignedUserId)) ||
+        o.assignedUserIds?.some((id) => matchingUserIds.has(id)) ||
         (targetUserEmail && o.createdBy?.toLowerCase() === targetUserEmail);
       const assignedToTeam = team && o.installationTeamId === team._id;
       return assignedToUser || assignedToTeam;
@@ -669,17 +686,17 @@ export const getScheduleForUser = query({
     // Filter personal calendar events for target user
     const relevantEvents = calendarEvents.filter((ev) => {
       const isCreatedByTarget =
-        (targetUserId && ev.createdBy === targetUserId) ||
-        (targetUserId === selfUser?._id &&
-          ((tokenIdentifier && ev.createdBy === (tokenIdentifier as unknown)) ||
-            (subject && ev.createdBy === (subject as unknown))));
+        matchingUserIds.has(ev.createdBy) ||
+        (tokenIdentifier && ev.createdBy === (tokenIdentifier as unknown)) ||
+        (subject && ev.createdBy === (subject as unknown));
 
       const isAssignedToTarget =
-        targetUserId && ev.assignedUserIds?.includes(targetUserId);
+        ev.assignedUserIds?.some((id) => matchingUserIds.has(id));
 
       const isTeamEvent = team && ev.installationTeamId === team._id;
+      const isPublicEvent = !ev.isPrivate;
 
-      return isCreatedByTarget || isAssignedToTarget || isTeamEvent;
+      return isCreatedByTarget || isAssignedToTarget || isTeamEvent || isPublicEvent;
     });
 
 
