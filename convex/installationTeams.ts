@@ -616,8 +616,8 @@ export const getScheduleForUser = query({
 
     const userEmail = identity.email?.toLowerCase();
     const userName = identity.name;
-    const tokenIdentifier = identity.tokenIdentifier;
     const subject = identity.subject;
+
 
     // Find Convex User document matching identity
     const allUsers = await ctx.db.query("users").collect();
@@ -685,19 +685,13 @@ export const getScheduleForUser = query({
 
     // Filter personal calendar events for target user
     const relevantEvents = calendarEvents.filter((ev) => {
-      const isCreatedByTarget =
-        matchingUserIds.has(ev.createdBy) ||
-        (tokenIdentifier && ev.createdBy === (tokenIdentifier as unknown)) ||
-        (subject && ev.createdBy === (subject as unknown));
-
-      const isAssignedToTarget =
-        ev.assignedUserIds?.some((id) => matchingUserIds.has(id));
-
+      const isCreatedByTarget = matchingUserIds.has(ev.createdBy);
+      const isAssignedToTarget = ev.assignedUserIds?.some((id) => matchingUserIds.has(id));
       const isTeamEvent = team && ev.installationTeamId === team._id;
-      const isPublicEvent = !ev.isPrivate;
 
-      return isCreatedByTarget || isAssignedToTarget || isTeamEvent || isPublicEvent;
+      return isCreatedByTarget || isAssignedToTarget || isTeamEvent;
     });
+
 
 
 
