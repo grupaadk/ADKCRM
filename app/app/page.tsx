@@ -1363,24 +1363,15 @@ export default function AppPwaPage() {
             <span className="text-[11px] font-medium mt-1">Search</span>
           </button>
 
-          {/* Center Floating (+) Button with Long Press for Bubble Menu */}
+          {/* Center Floating (+) Button for Quick Choice Menu */}
           <div className="flex-1 flex items-center justify-center relative -top-5">
             <button
               type="button"
-              onTouchStart={startLongPress}
-              onTouchEnd={cancelLongPress}
-              onTouchMove={cancelLongPress}
-              onMouseDown={startLongPress}
-              onMouseUp={cancelLongPress}
-              onMouseLeave={cancelLongPress}
-              onClick={() => {
-                setActiveTab("add-document");
-                resetForm();
-              }}
+              onClick={() => setShowBubbleMenu((prev) => !prev)}
               className={`size-13 rounded-2xl text-white flex items-center justify-center shadow-lg active:scale-95 transition-all ${
-                activeTab === "add-document" ? "bg-slate-800" : "bg-[#4dbdc6] hover:bg-[#3caab3]"
+                showBubbleMenu ? "bg-slate-800 rotate-45" : "bg-[#4dbdc6] hover:bg-[#3caab3]"
               }`}
-              title="Kliknij, aby dodać dokument. Przytrzymaj, aby otworzyć menu reklamacji."
+              title="Otwórz menu Szybki wybór"
             >
               <Plus className="size-7 stroke-[2.5]" />
             </button>
@@ -1397,6 +1388,23 @@ export default function AppPwaPage() {
                     Szybki wybór
                   </div>
 
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBubbleMenu(false);
+                      setActiveTab("add-document");
+                      resetForm();
+                    }}
+                    className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-teal-50 text-teal-900 hover:bg-teal-100 font-bold text-xs transition text-left"
+                  >
+                    <div className="size-8 rounded-xl bg-[#4dbdc6] text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <FileText className="size-4" />
+                    </div>
+                    <div>
+                      <div className="font-extrabold">Dodaj Dokument / Zdjęcie</div>
+                      <div className="text-[10px] font-normal text-teal-700">Skan, umowa, protokół...</div>
+                    </div>
+                  </button>
 
                   <button
                     type="button"
@@ -1431,6 +1439,7 @@ export default function AppPwaPage() {
                       <div className="text-[10px] font-normal text-amber-700">Nowy wpis + wideo/zdjęcia</div>
                     </div>
                   </button>
+
 
 
                 </div>
