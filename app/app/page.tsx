@@ -22,7 +22,9 @@ import {
   MapPin,
   Clock,
   Wrench,
+  Calendar,
 } from "lucide-react";
+
 
 import { DateStrip } from "@/components/ekipa/DateStrip";
 
@@ -119,8 +121,19 @@ export default function AppPwaPage() {
   const [showBubbleMenu, setShowBubbleMenu] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Complaint Form Modals state
-  const [showNewComplaintModal, setShowNewComplaintModal] = useState(false);
+  // Custom Event Form State
+  const [showNewEventModal, setShowNewEventModal] = useState(false);
+  const [eventTitle, setEventTitle] = useState("");
+  const [eventDescription, setEventDescription] = useState("");
+  const [eventDate, setEventDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [eventStartTime, setEventStartTime] = useState("09:00");
+  const [eventEndTime, setEventEndTime] = useState("10:00");
+  const [eventIsAllDay, setEventIsAllDay] = useState(false);
+  const [eventSubmitting, setEventSubmitting] = useState(false);
+  const [eventSuccess, setEventSuccess] = useState<string | null>(null);
+  const [eventError, setEventError] = useState<string | null>(null);
+  const createCalendarEvent = useMutation(api.calendarEvents.createEvent);
+
 
   // Complaint Form Data
   const [complaintClientSearch, setComplaintClientSearch] = useState("");
@@ -335,6 +348,60 @@ export default function AppPwaPage() {
       setComplaintSubmitting(false);
     }
   }
+
+  async function handleCreateEventSubmit(e: React.FormEvent) {
+
+    e.preventDefault();
+    if (!eventTitle.trim()) {
+      setEventError("Podaj tytuł wydarzenia.");
+      return;
+    }
+
+    setEventSubmitting(true);
+    setEventError(null);
+    try {
+      const [year, month, day] = eventDate.split("-").map(Number);
+      const startD = new Date(year, month - 1, day);
+
+      if (!eventIsAllDay && eventStartTime) {
+        const [h, m] = eventStartTime.split(":").map(Number);
+        startD.setHours(h, m, 0, 0);
+      } else {
+        startD.setHours(0, 0, 0, 0);
+      }
+
+      const endD = new Date(year, month - 1, day);
+      if (!eventIsAllDay && eventEndTime) {
+        const [h, m] = eventEndTime.split(":").map(Number);
+        endD.setHours(h, m, 0, 0);
+      } else {
+        endD.setHours(23, 59, 59, 999);
+      }
+
+      await createCalendarEvent({
+        eventTypeId: "wlasne_default_id" as Id<"calendarEventTypes">,
+        title: eventTitle.trim(),
+        description: eventDescription.trim() || undefined,
+        startDate: startD.getTime(),
+        endDate: endD.getTime(),
+        isAllDay: eventIsAllDay,
+        isPrivate: false,
+      });
+
+      setEventSuccess("Wydarzenie dodane do kalendarza!");
+      setEventTitle("");
+      setEventDescription("");
+      setTimeout(() => {
+        setShowNewEventModal(false);
+        setEventSuccess(null);
+      }, 1500);
+    } catch (err) {
+      setEventError(err instanceof Error ? err.message : "Błąd przy dodawaniu wydarzenia.");
+    } finally {
+      setEventSubmitting(false);
+    }
+  }
+
 
 
 
@@ -658,13 +725,143 @@ export default function AppPwaPage() {
                   {complaintSubmitting ? <RefreshCw className="size-4 animate-spin" /> : <AlertCircle className="size-4" />}
                   Zarejestruj Reklamację {complaintMediaFiles.length > 0 ? `(${complaintMediaFiles.length} media)` : ""}
                 </button>
-
-
               </form>
             )}
           </div>
         </div>
       )}
+
+
+
+      {/* Modal: Formularz Dodawania Wydarzenia Własnego */}
+      {showNewEventModal && (
+        <div className="fixed inset-0 z-50 bg-white flex flex-col h-[100dvh] w-full overflow-hidden animate-in fade-in slide-in-from-bottom duration-200">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="size-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                <Calendar className="size-4" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-800 text-sm">Nowe Wydarzenie Własne</h3>
+                <p className="text-[11px] text-slate-400">Dodaj osobisty wpis w kalendarzu</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowNewEventModal(false)}
+              className="size-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          {/* Modal Body */}
+          <div className="flex-1 p-4 overflow-y-auto space-y-4">
+            {eventSuccess ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center space-y-3 my-auto">
+                <CheckCircle className="size-12 text-emerald-500 mx-auto" />
+                <h4 className="font-extrabold text-emerald-800 text-base">{eventSuccess}</h4>
+                <p className="text-xs text-emerald-600">Wydarzenie pojawi się w Twoim harmonogramie prac.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleCreateEventSubmit} className="space-y-4">
+                {eventError && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-center gap-2 text-rose-700 text-xs">
+                    <AlertCircle className="size-4 shrink-0" />
+                    <span>{eventError}</span>
+                  </div>
+                )}
+
+                {/* Event Title */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Tytuł wydarzenia *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="np. Spotkanie z dostawcą, Przegląd narzędzi..."
+                    value={eventTitle}
+                    onChange={(e) => setEventTitle(e.target.value)}
+                    className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* Event Date & All Day Toggle */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">Data *</label>
+                    <input
+                      type="date"
+                      required
+                      value={eventDate}
+                      onChange={(e) => setEventDate(e.target.value)}
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1 flex flex-col justify-end">
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer py-2.5">
+                      <input
+                        type="checkbox"
+                        checked={eventIsAllDay}
+                        onChange={(e) => setEventIsAllDay(e.target.checked)}
+                        className="rounded text-indigo-600 focus:ring-indigo-500 size-4"
+                      />
+                      <span>Cały dzień</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Hours if not All Day */}
+                {!eventIsAllDay && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700">Od godziny</label>
+                      <input
+                        type="time"
+                        value={eventStartTime}
+                        onChange={(e) => setEventStartTime(e.target.value)}
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700">Do godziny</label>
+                      <input
+                        type="time"
+                        value={eventEndTime}
+                        onChange={(e) => setEventEndTime(e.target.value)}
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Description */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Opis (Opcjonalnie)</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Szczegóły wydarzenia..."
+                    value={eventDescription}
+                    onChange={(e) => setEventDescription(e.target.value)}
+                    className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={eventSubmitting || !eventTitle.trim()}
+                  className="w-full py-3.5 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-md hover:bg-indigo-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
+                >
+                  {eventSubmitting ? <RefreshCw className="size-4 animate-spin" /> : <Calendar className="size-4" />}
+                  Zapisz Wydarzenie
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
 
 
 
@@ -775,9 +972,12 @@ export default function AppPwaPage() {
 
 
                         <div>
-                          <h3 className="font-extrabold text-slate-800 text-sm">{item.clientName}</h3>
+                          {item.clientName !== "Wydarzenie własne" && (
+                            <h3 className="font-extrabold text-slate-800 text-sm">{item.clientName}</h3>
+                          )}
                           <p className="text-xs text-slate-600 font-semibold">{item.title}</p>
                         </div>
+
 
                         {item.address && (
                           <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium pt-1 border-t border-gray-100">
@@ -1198,6 +1398,23 @@ export default function AppPwaPage() {
                     type="button"
                     onClick={() => {
                       setShowBubbleMenu(false);
+                      setShowNewEventModal(true);
+                    }}
+                    className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-indigo-50 text-indigo-900 hover:bg-indigo-100 font-bold text-xs transition text-left"
+                  >
+                    <div className="size-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Calendar className="size-4" />
+                    </div>
+                    <div>
+                      <div className="font-extrabold">Wydarzenie własne</div>
+                      <div className="text-[10px] font-normal text-indigo-700">Dodaj do kalendarza</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBubbleMenu(false);
                       setShowNewComplaintModal(true);
                     }}
                     className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-amber-50 text-amber-900 hover:bg-amber-100 font-bold text-xs transition text-left"
@@ -1210,6 +1427,7 @@ export default function AppPwaPage() {
                       <div className="text-[10px] font-normal text-amber-700">Nowy wpis + wideo/zdjęcia</div>
                     </div>
                   </button>
+
 
                 </div>
               </>
