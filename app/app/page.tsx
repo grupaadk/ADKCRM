@@ -94,7 +94,8 @@ export default function AppPwaPage() {
   // Schedule / Calendar State
   const [selectedScheduleDate, setSelectedScheduleDate] = useState<Date | null>(new Date());
   const [selectedScheduleUserId, setSelectedScheduleUserId] = useState<Id<"users"> | null>(null);
-  const allUsersForFilter = useQuery(api.users.listForNotes);
+  const allUsersForFilter = useQuery(api.users.listAllActive);
+
   const userSchedule = useQuery(
     api.installationTeams.getScheduleForUser,
     selectedScheduleUserId ? { userId: selectedScheduleUserId } : {}
@@ -281,7 +282,7 @@ export default function AppPwaPage() {
     setComplaintSubmitting(true);
     setComplaintError(null);
     try {
-      await createComplaint({
+      const newComplaintId = await createComplaint({
         clientId: complaintSelectedClientId,
         orderId: targetOrderId,
         startDate: Date.now(),
@@ -289,10 +290,7 @@ export default function AppPwaPage() {
         createdBy: userFirstName ?? me?.login ?? "Pracownik ekipy PWA",
       });
 
-
-
-
-      // Upload any attached photos/videos for this new complaint
+      // Upload any attached photos/videos directly to the new complaint's folder
       if (complaintMediaFiles.length > 0) {
         for (let i = 0; i < complaintMediaFiles.length; i++) {
           const fileToUpload = complaintMediaFiles[i];
@@ -314,6 +312,7 @@ export default function AppPwaPage() {
           await uploadManualOrderFile({
             orderId: targetOrderId,
             clientId: complaintSelectedClientId,
+            complaintId: newComplaintId,
             storageId,
             fileName: `${prefix}_${Date.now()}_${fileToUpload.name}`,
             mimeType: fileToUpload.type || undefined,
@@ -321,6 +320,7 @@ export default function AppPwaPage() {
 
         }
       }
+
 
       setComplaintSuccess("Reklamacja została zarejestrowana" + (complaintMediaFiles.length > 0 ? ` wraz z ${complaintMediaFiles.length} plikiem/plikami!` : "!"));
       setComplaintDescription("");
@@ -701,14 +701,9 @@ export default function AppPwaPage() {
                       </option>
                     ))}
                   </select>
-
-                  {userSchedule?.teamName && (
-                    <span className="px-2.5 py-1.5 rounded-xl bg-teal-50 text-[#2ca6b0] border border-teal-200 text-[10px] font-extrabold shrink-0">
-                      {userSchedule.teamName}
-                    </span>
-                  )}
                 </div>
               </div>
+
 
 
               {/* Events List */}
@@ -776,16 +771,8 @@ export default function AppPwaPage() {
                               </span>
                             )}
                           </div>
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              item.status === "completed" || item.status === "rozwiazana"
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "bg-amber-50 text-amber-700"
-                            }`}
-                          >
-                            {item.status}
-                          </span>
                         </div>
+
 
                         <div>
                           <h3 className="font-extrabold text-slate-800 text-sm">{item.clientName}</h3>

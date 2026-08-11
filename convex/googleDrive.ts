@@ -2995,6 +2995,7 @@ export const uploadManualOrderFile = action({
   args: {
     orderId: v.optional(v.id("orders")),
     clientId: v.optional(v.id("clients")),
+    complaintId: v.optional(v.id("complaints")),
     storageId: v.id("_storage"),
     fileName: v.string(),
     mimeType: v.optional(v.string()),
@@ -3005,25 +3006,38 @@ export const uploadManualOrderFile = action({
 
     let orderFolderId: string | undefined = args.targetFolderId;
 
-    if (!orderFolderId) {
-      if (args.orderId) {
-        const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
-        if (!order) throw new Error("Zlecenie nie znalezione");
-        orderFolderId = order.folderId;
+    if (!orderFolderId && args.complaintId) {
+      const complaint = await ctx.runQuery(api.complaints.getById, { complaintId: args.complaintId });
+      if (complaint?.complaintFolderId) {
+        orderFolderId = complaint.complaintFolderId;
       }
-      if (!orderFolderId && args.clientId) {
-        const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
-        if (!client) throw new Error("Klient nie znaleziony");
-        orderFolderId = client.clientFolderId;
-      }
-    }
-
-    if (!orderFolderId) {
-      throw new Error("Nie można ustalić docelowego folderu Google Drive dla plików.");
     }
 
     const connection = await getAuthorizedConnection(ctx);
     const { accessToken } = connection;
+
+    if (!orderFolderId) {
+      if (args.orderId) {
+        const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+        if (!order) throw new Error("Zlecenie nie znalezione");
+        if (order.folderId) {
+          // Find or create "Reklamacja" subfolder in order folder
+          orderFolderId = await findOrCreateDriveFolder(accessToken, "Reklamacja", order.folderId);
+        }
+      }
+      if (!orderFolderId && args.clientId) {
+        const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
+        if (!client) throw new Error("Klient nie znaleziony");
+        if (client.clientFolderId) {
+          orderFolderId = await findOrCreateDriveFolder(accessToken, "Reklamacja", client.clientFolderId);
+        }
+      }
+    }
+
+    if (!orderFolderId) {
+      throw new Error("Nie można ustalić docelowego folderu Google Drive dla plików reklamacji.");
+    }
+
 
     const fileUrl = await ctx.storage.getUrl(args.storageId);
     if (!fileUrl) throw new Error("Nie znaleziono pliku w storage");
