@@ -766,10 +766,13 @@ export const getScheduleForUser = query({
 
     const formattedCustomEvents = relevantEvents.map((ev) => {
 
-      const d = new Date(ev.startDate);
       const timeStr = ev.isAllDay
         ? "Cały dzień"
-        : `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+        : new Intl.DateTimeFormat("pl-PL", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "Europe/Warsaw",
+          }).format(new Date(ev.startDate));
 
       return {
         id: ev._id,
