@@ -18,7 +18,9 @@ import {
   FileText,
   ArrowLeft,
   RefreshCw,
+  Video,
 } from "lucide-react";
+
 
 type Tab = "home" | "search" | "notifications" | "profile" | "add-document";
 
@@ -111,8 +113,8 @@ export default function AppPwaPage() {
   const [complaintSuccess, setComplaintSuccess] = useState<string | null>(null);
   const [complaintError, setComplaintError] = useState<string | null>(null);
 
-  // Photo Upload Complaint Data
-  const [complaintPhotoFile, setComplaintPhotoFile] = useState<File | null>(null);
+  // Photo/Video Upload Complaint Data
+  const [complaintMediaFiles, setComplaintMediaFiles] = useState<File[]>([]);
   const [complaintPhotoUploading, setComplaintPhotoUploading] = useState(false);
   const complaintCameraRef = useRef<HTMLInputElement>(null);
   const complaintFileRef = useRef<HTMLInputElement>(null);
@@ -269,44 +271,50 @@ export default function AppPwaPage() {
 
   async function handleComplaintPhotoSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!complaintSelectedClientId || !complaintSelectedOrderId || !complaintPhotoFile) return;
+    if (!complaintSelectedClientId || !complaintSelectedOrderId || complaintMediaFiles.length === 0) return;
     setComplaintPhotoUploading(true);
     setComplaintError(null);
     try {
-      const uploadUrl = await generateUploadUrl();
-      const uploadResponse = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": complaintPhotoFile.type || "application/octet-stream" },
-        body: complaintPhotoFile,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error("Błąd podczas przesyłania zdjęcia do pamięci tymczasowej.");
-      }
-
-      const { storageId } = await uploadResponse.json();
-
       // Find active complaint folder or use order folder
       const activeComplaint = getComplaintsByOrder && getComplaintsByOrder.length > 0 ? getComplaintsByOrder[0] : null;
       const targetFolderId = activeComplaint?.complaintFolderId;
 
-      await uploadManualOrderFile({
-        orderId: complaintSelectedOrderId,
-        clientId: complaintSelectedClientId,
-        storageId,
-        fileName: `REKLAMACJA_${Date.now()}_${complaintPhotoFile.name}`,
-        mimeType: complaintPhotoFile.type || undefined,
-        targetFolderId,
-      });
+      for (let i = 0; i < complaintMediaFiles.length; i++) {
+        const fileToUpload = complaintMediaFiles[i];
+        const uploadUrl = await generateUploadUrl();
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": fileToUpload.type || "application/octet-stream" },
+          body: fileToUpload,
+        });
 
-      setComplaintSuccess("Zdjęcie reklamacji zostało pomyślnie dodane na Dysk Google!");
-      setComplaintPhotoFile(null);
+        if (!uploadResponse.ok) {
+          throw new Error(`Błąd przesyłania pliku ${fileToUpload.name} do pamięci tymczasowej.`);
+        }
+
+        const { storageId } = await uploadResponse.json();
+
+        const isVideo = fileToUpload.type.startsWith("video/");
+        const prefix = isVideo ? "VIDEO_REKLAMACJA" : "REKLAMACJA";
+
+        await uploadManualOrderFile({
+          orderId: complaintSelectedOrderId,
+          clientId: complaintSelectedClientId,
+          storageId,
+          fileName: `${prefix}_${Date.now()}_${fileToUpload.name}`,
+          mimeType: fileToUpload.type || undefined,
+          targetFolderId,
+        });
+      }
+
+      setComplaintSuccess(`Pomyślnie dodano ${complaintMediaFiles.length} ${complaintMediaFiles.length === 1 ? "plik" : "pliki/plików"} na Dysk Google!`);
+      setComplaintMediaFiles([]);
       setTimeout(() => {
         setShowComplaintPhotoModal(false);
         setComplaintSuccess(null);
       }, 2000);
     } catch (err) {
-      setComplaintError(err instanceof Error ? err.message : "Błąd podczas wgrywania zdjęcia reklamacji.");
+      setComplaintError(err instanceof Error ? err.message : "Błąd podczas wgrywania mediów reklamacji.");
     } finally {
       setComplaintPhotoUploading(false);
     }
@@ -635,14 +643,15 @@ export default function AppPwaPage() {
                   </div>
                 )}
 
-                {/* Step 3: Photo Input */}
+                {/* Step 3: Photo / Video Input */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">3. Wybierz Zdjęcie Usterki *</label>
+                  <label className="text-xs font-bold text-slate-700">3. Wybierz Zdjęcia lub Wideo Usterki *</label>
                   <input
                     ref={complaintFileRef}
                     type="file"
-                    accept="image/*"
-                    onChange={(e) => e.target.files?.[0] && setComplaintPhotoFile(e.target.files[0])}
+                    multiple
+                    accept="image/*,video/*"
+                    onChange={(e) => handleAddMediaFiles(e.target.files)}
                     className="hidden"
                   />
                   <input
@@ -650,55 +659,84 @@ export default function AppPwaPage() {
                     type="file"
                     accept="image/*"
                     capture="environment"
-                    onChange={(e) => e.target.files?.[0] && setComplaintPhotoFile(e.target.files[0])}
+                    onChange={(e) => handleAddMediaFiles(e.target.files)}
+                    className="hidden"
+                  />
+                  <input
+                    ref={complaintVideoRef}
+                    type="file"
+                    accept="video/*"
+                    capture="environment"
+                    onChange={(e) => handleAddMediaFiles(e.target.files)}
                     className="hidden"
                   />
 
-                  {complaintPhotoFile ? (
-                    <div className="flex items-center justify-between p-3.5 bg-purple-50 rounded-xl border border-purple-200">
-                      <div className="flex items-center gap-2.5 overflow-hidden">
-                        <FileText className="size-5 text-[#9B62EC] shrink-0" />
-                        <span className="text-xs font-semibold text-slate-700 truncate">{complaintPhotoFile.name}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setComplaintPhotoFile(null)}
-                        className="text-slate-400 hover:text-slate-600 p-1"
-                      >
-                        <X className="size-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => complaintCameraRef.current?.click()}
-                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 gap-1.5 transition"
-                      >
-                        <Camera className="size-6 text-[#9B62EC]" />
-                        <span className="text-xs font-bold">Zrób zdjęcie</span>
-                      </button>
+                  {/* Multiselect buttons */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => complaintCameraRef.current?.click()}
+                      className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-purple-50/50 text-slate-600 gap-1 transition"
+                    >
+                      <Camera className="size-5 text-[#9B62EC]" />
+                      <span className="text-[10px] font-bold">Zdjęcie</span>
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={() => complaintFileRef.current?.click()}
-                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 gap-1.5 transition"
-                      >
-                        <Upload className="size-6 text-[#9B62EC]" />
-                        <span className="text-xs font-bold">Wybierz plik</span>
-                      </button>
+                    <button
+                      type="button"
+                      onClick={() => complaintVideoRef.current?.click()}
+                      className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-purple-50/50 text-slate-600 gap-1 transition"
+                    >
+                      <Video className="size-5 text-purple-600" />
+                      <span className="text-[10px] font-bold">Wideo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => complaintFileRef.current?.click()}
+                      className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-purple-50/50 text-slate-600 gap-1 transition"
+                    >
+                      <Upload className="size-5 text-purple-600" />
+                      <span className="text-[10px] font-bold">Z pliku / kilka</span>
+                    </button>
+                  </div>
+
+                  {/* List of selected media files */}
+                  {complaintMediaFiles.length > 0 && (
+                    <div className="space-y-1.5 pt-2 max-h-36 overflow-y-auto">
+                      <div className="text-[10px] font-bold text-slate-500">Wybrane pliki ({complaintMediaFiles.length}):</div>
+                      {complaintMediaFiles.map((f, idx) => (
+                        <div key={`${f.name}-${idx}`} className="flex items-center justify-between p-2.5 bg-purple-50/80 rounded-xl border border-purple-200">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            {f.type.startsWith("video/") ? (
+                              <Video className="size-4 text-purple-600 shrink-0" />
+                            ) : (
+                              <FileText className="size-4 text-[#9B62EC] shrink-0" />
+                            )}
+                            <span className="text-xs font-semibold text-slate-800 truncate">{f.name}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMediaFile(idx)}
+                            className="text-slate-400 hover:text-rose-600 p-1"
+                          >
+                            <X className="size-4" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
 
                 <button
                   type="submit"
-                  disabled={!complaintSelectedClientId || !complaintSelectedOrderId || !complaintPhotoFile || complaintPhotoUploading}
-                  className="w-full py-3 rounded-xl bg-[#9B62EC] text-white font-bold text-xs shadow-md hover:bg-purple-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
+                  disabled={!complaintSelectedClientId || !complaintSelectedOrderId || complaintMediaFiles.length === 0 || complaintPhotoUploading}
+                  className="w-full py-3.5 rounded-xl bg-[#9B62EC] text-white font-bold text-xs shadow-md hover:bg-purple-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
                 >
                   {complaintPhotoUploading ? <RefreshCw className="size-4 animate-spin" /> : <Upload className="size-4" />}
-                  Wgraj Zdjęcie do Reklamacji
+                  Wgraj Media Reklamacji ({complaintMediaFiles.length})
                 </button>
+
               </form>
             )}
           </div>
