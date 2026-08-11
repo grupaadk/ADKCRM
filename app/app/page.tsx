@@ -250,24 +250,57 @@ export default function AppPwaPage() {
     setComplaintError(null);
     try {
       await createComplaint({
+
         clientId: complaintSelectedClientId,
         orderId: complaintSelectedOrderId,
         startDate: Date.now(),
         description: complaintDescription.trim(),
         createdBy: userFirstName ?? me?.email ?? "Pracownik ekipy PWA",
       });
-      setComplaintSuccess("Reklamacja została zarejestrowana i folder na Google Drive tworzy się w tle!");
+
+      // Upload any attached photos/videos for this new complaint
+      if (complaintMediaFiles.length > 0) {
+        for (let i = 0; i < complaintMediaFiles.length; i++) {
+          const fileToUpload = complaintMediaFiles[i];
+          const uploadUrl = await generateUploadUrl();
+          const uploadResponse = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": fileToUpload.type || "application/octet-stream" },
+            body: fileToUpload,
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error(`Błąd przesyłania pliku ${fileToUpload.name} do pamięci tymczasowej.`);
+          }
+
+          const { storageId } = await uploadResponse.json();
+          const isVideo = fileToUpload.type.startsWith("video/");
+          const prefix = isVideo ? "VIDEO_REKLAMACJA" : "REKLAMACJA";
+
+          await uploadManualOrderFile({
+            orderId: complaintSelectedOrderId,
+            clientId: complaintSelectedClientId,
+            storageId,
+            fileName: `${prefix}_${Date.now()}_${fileToUpload.name}`,
+            mimeType: fileToUpload.type || undefined,
+          });
+        }
+      }
+
+      setComplaintSuccess("Reklamacja została zarejestrowana" + (complaintMediaFiles.length > 0 ? ` wraz z ${complaintMediaFiles.length} plikiem/plikami!` : "!"));
       setComplaintDescription("");
+      setComplaintMediaFiles([]);
       setTimeout(() => {
         setShowNewComplaintModal(false);
         setComplaintSuccess(null);
-      }, 2000);
+      }, 2500);
     } catch (err) {
       setComplaintError(err instanceof Error ? err.message : "Wystąpił błąd przy tworzeniu reklamacji.");
     } finally {
       setComplaintSubmitting(false);
     }
   }
+
 
   async function handleComplaintPhotoSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -424,8 +457,8 @@ export default function AppPwaPage() {
 
       {/* MODAL 1: Zgłoś Reklamację */}
       {showNewComplaintModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl border border-gray-100 space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start justify-center p-3 pt-6 sm:items-center overflow-y-auto">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl border border-gray-100 space-y-4 max-h-[85vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2 text-amber-600">
                 <AlertCircle className="size-5" />
@@ -519,27 +552,100 @@ export default function AppPwaPage() {
                   </div>
                 )}
 
-                {/* Step 3: Description */}
+                {/* Step 4: Optional Media (Photos / Video) */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">3. Opis Usterki / Reklamacji *</label>
-                  <textarea
-                    required
-                    rows={3}
-                    placeholder="Opisz problem (np. pęknięta szyba, nieszczelność...)..."
-                    value={complaintDescription}
-                    onChange={(e) => setComplaintDescription(e.target.value)}
-                    className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-xs text-slate-800 focus:border-[#4dbdc6] focus:outline-none"
+                  <label className="text-xs font-bold text-slate-700">4. Załącz Zdjęcia lub Wideo (Opcjonalnie)</label>
+                  <input
+                    ref={complaintFileRef}
+                    type="file"
+                    multiple
+                    accept="image/*,video/*"
+                    onChange={(e) => handleAddMediaFiles(e.target.files)}
+                    className="hidden"
                   />
+                  <input
+                    ref={complaintCameraRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => handleAddMediaFiles(e.target.files)}
+                    className="hidden"
+                  />
+                  <input
+                    ref={complaintVideoRef}
+                    type="file"
+                    accept="video/*"
+                    capture="environment"
+                    onChange={(e) => handleAddMediaFiles(e.target.files)}
+                    className="hidden"
+                  />
+
+                  {/* Buttons for Camera, Video, File */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => complaintCameraRef.current?.click()}
+                      className="flex flex-col items-center justify-center p-2.5 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-amber-50/50 text-slate-600 gap-1 transition"
+                    >
+                      <Camera className="size-4 text-amber-600" />
+                      <span className="text-[10px] font-bold">Zdjęcie</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => complaintVideoRef.current?.click()}
+                      className="flex flex-col items-center justify-center p-2.5 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-amber-50/50 text-slate-600 gap-1 transition"
+                    >
+                      <Video className="size-4 text-amber-600" />
+                      <span className="text-[10px] font-bold">Wideo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => complaintFileRef.current?.click()}
+                      className="flex flex-col items-center justify-center p-2.5 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-amber-50/50 text-slate-600 gap-1 transition"
+                    >
+                      <Upload className="size-4 text-amber-600" />
+                      <span className="text-[10px] font-bold">Plik / Kilka</span>
+                    </button>
+                  </div>
+
+                  {/* Selected media files list */}
+                  {complaintMediaFiles.length > 0 && (
+                    <div className="space-y-1.5 pt-1.5 max-h-32 overflow-y-auto">
+                      <div className="text-[10px] font-bold text-slate-500">Załączone media ({complaintMediaFiles.length}):</div>
+                      {complaintMediaFiles.map((f, idx) => (
+                        <div key={`complaint-media-${idx}`} className="flex items-center justify-between p-2 bg-amber-50/80 rounded-xl border border-amber-200">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            {f.type.startsWith("video/") ? (
+                              <Video className="size-4 text-amber-600 shrink-0" />
+                            ) : (
+                              <FileText className="size-4 text-amber-600 shrink-0" />
+                            )}
+                            <span className="text-xs font-semibold text-slate-800 truncate">{f.name}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMediaFile(idx)}
+                            className="text-slate-400 hover:text-rose-600 p-1"
+                          >
+                            <X className="size-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <button
                   type="submit"
                   disabled={!complaintSelectedClientId || !complaintSelectedOrderId || !complaintDescription.trim() || complaintSubmitting}
-                  className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold text-xs shadow-md hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-2"
+                  className="w-full py-3.5 rounded-xl bg-amber-500 text-white font-bold text-xs shadow-md hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-2"
                 >
                   {complaintSubmitting ? <RefreshCw className="size-4 animate-spin" /> : <AlertCircle className="size-4" />}
-                  Zarejestruj Reklamację
+                  Zarejestruj Reklamację {complaintMediaFiles.length > 0 ? `(${complaintMediaFiles.length} media)` : ""}
                 </button>
+
               </form>
             )}
           </div>
@@ -548,8 +654,8 @@ export default function AppPwaPage() {
 
       {/* MODAL 2: Zdjęcie do Reklamacji */}
       {showComplaintPhotoModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl border border-gray-100 space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start justify-center p-3 pt-6 sm:items-center overflow-y-auto">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl border border-gray-100 space-y-4 max-h-[85vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2 text-purple-700">
                 <Camera className="size-5" />
@@ -1142,8 +1248,9 @@ export default function AppPwaPage() {
                 />
                 <div className="absolute bottom-16 z-50 bg-white rounded-3xl p-3 shadow-2xl border border-gray-100 flex flex-col gap-2 min-w-[220px] animate-in fade-in slide-in-from-bottom-4 zoom-in-95 duration-200">
                   <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-2 pt-1 text-center">
-                    Szybka Reklamacja
+                    Szybki wybór
                   </div>
+
 
                   <button
                     type="button"
