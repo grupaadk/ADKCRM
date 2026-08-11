@@ -615,27 +615,56 @@ export const getScheduleForUser = query({
     const userEmail = identity.email?.toLowerCase();
     const userName = identity.name;
 
+    // Find Convex User document matching identity
+    const allUsers = await ctx.db.query("users").collect();
+    const currentUser = allUsers.find(
+      (u) =>
+        (u.email && u.email.toLowerCase() === userEmail) ||
+        (u.name && u.name.toLowerCase() === userName?.toLowerCase())
+    );
+
+    const currentUserId = currentUser?._id;
+
     const teams = await ctx.db.query("installationTeams").collect();
-    // Match team by member email or leader name
-    let team = teams.find(
+    const team = teams.find(
       (t) =>
         t.isActive &&
         (t.leaderName?.toLowerCase() === userName?.toLowerCase() ||
           t.members?.some((m) => m.toLowerCase() === userEmail))
     );
 
-    // Fallback: if no specific team found by email/name, use active team or return all assigned orders
+
     const orders = await ctx.db.query("orders").collect();
     const complaints = await ctx.db.query("complaints").collect();
+    const calendarEvents = await ctx.db.query("calendarEvents").collect();
     const clients = await ctx.db.query("clients").collect();
     const clientMap = new Map(clients.map((c) => [c._id, c]));
 
-    const relevantOrders = team
-      ? orders.filter((o) => o.installationTeamId === team._id)
-      : orders;
-    const relevantComplaints = team
-      ? complaints.filter((c) => c.installationTeamId === team._id)
-      : complaints;
+    // Filter orders explicitly assigned to user OR assigned to user's team
+    const relevantOrders = orders.filter((o) => {
+      const assignedToUser =
+        (currentUserId && (o.assignedUserId === currentUserId || o.assignedUserIds?.includes(currentUserId))) ||
+        (userEmail && o.createdBy?.toLowerCase() === userEmail);
+      const assignedToTeam = team && o.installationTeamId === team._id;
+      return assignedToUser || assignedToTeam;
+    });
+
+    // Filter complaints assigned to user OR user's team
+    const relevantComplaints = complaints.filter((c) => {
+      const assignedToUser =
+        (userEmail && c.assignedTo?.toLowerCase() === userEmail) ||
+        (userEmail && c.createdBy?.toLowerCase() === userEmail);
+      const assignedToTeam = team && c.installationTeamId === team._id;
+      return assignedToUser || assignedToTeam;
+    });
+
+    // Filter personal calendar events
+    const relevantEvents = calendarEvents.filter((ev) => {
+      return (
+        (currentUserId && (ev.createdBy === currentUserId || ev.assignedUserIds?.includes(currentUserId))) ||
+        (team && ev.installationTeamId === team._id)
+      );
+    });
 
     const formattedOrders = relevantOrders.map((o) => {
       const client = clientMap.get(o.clientId);
@@ -714,14 +743,34 @@ export const getScheduleForUser = query({
       };
     });
 
-    const items = [...formattedOrders, ...formattedComplaints].sort((a, b) => a.date - b.date);
+    const formattedCustomEvents = relevantEvents.map((ev) => {
+      const d = new Date(ev.startDate);
+      const timeStr = ev.isAllDay
+        ? "Cały dzień"
+        : `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+
+      return {
+        id: ev._id,
+        type: "wlasne" as const,
+        title: ev.title,
+        description: ev.description,
+        date: ev.startDate,
+        timeStr,
+        status: "zaplanowane",
+        clientName: "Wydarzenie własne",
+        address: "",
+      };
+    });
+
+    const items = [...formattedOrders, ...formattedComplaints, ...formattedCustomEvents].sort((a, b) => a.date - b.date);
 
     return {
-      teamName: team?.name ?? "Wszystkie Zlecenia",
+      teamName: team?.name ?? currentUser?.displayName ?? userName ?? "Moje Wydarzenia",
       items,
     };
   },
 });
+
 
 
 export const updateOrderStatusByPin = mutation({

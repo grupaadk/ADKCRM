@@ -693,11 +693,18 @@ export default function AppPwaPage() {
                               className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
                                 item.type === "montaz"
                                   ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-purple-100 text-purple-800"
+                                  : item.type === "serwis"
+                                  ? "bg-purple-100 text-purple-800"
+                                  : "bg-blue-100 text-blue-800"
                               }`}
                             >
-                              {item.type === "montaz" ? "Montaż" : "Serwis"}
+                              {item.type === "montaz"
+                                ? "Montaż"
+                                : item.type === "serwis"
+                                ? "Serwis"
+                                : "Wydarzenie"}
                             </span>
+
                             {item.timeStr && (
                               <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
                                 <Clock className="size-3 text-slate-400" />
