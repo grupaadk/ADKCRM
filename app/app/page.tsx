@@ -404,66 +404,14 @@ export default function AppPwaPage() {
             <span className="font-bold text-slate-800 text-sm">Dodaj dokument / zdjęcie</span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 relative">
-            {/* ADK Signet with Long-press event handlers */}
-            <div
-              onTouchStart={startLongPress}
-              onTouchEnd={cancelLongPress}
-              onTouchMove={cancelLongPress}
-              onMouseDown={startLongPress}
-              onMouseUp={cancelLongPress}
-              onMouseLeave={cancelLongPress}
-              className="size-8 rounded-xl bg-gradient-to-br from-[#4dbdc6] to-[#2ca6b0] text-white flex items-center justify-center font-extrabold text-xs shadow-md cursor-pointer active:scale-95 transition-transform select-none"
-              title="Przytrzymaj, aby otworzyć szybkie menu reklamacji"
-            >
+          <div className="flex items-center gap-2">
+            <div className="size-7 rounded-lg bg-[#4dbdc6] text-white flex items-center justify-center font-bold text-xs">
               ADK
             </div>
             <span className="font-bold text-slate-800 text-sm">Aplikacja Mobilna</span>
-
-            {/* Animated Bubble Pop-over Menu */}
-            {showBubbleMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
-                  onClick={() => setShowBubbleMenu(false)}
-                />
-                <div className="absolute top-10 left-0 z-50 bg-white rounded-3xl p-3 shadow-2xl border border-gray-100 flex flex-col gap-2 min-w-[210px] animate-in fade-in zoom-in-95 duration-200">
-                  <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-2 pt-1">
-                    Szybka Reklamacja
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowBubbleMenu(false);
-                      setShowNewComplaintModal(true);
-                    }}
-                    className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-amber-50 text-amber-900 hover:bg-amber-100 font-bold text-xs transition text-left"
-                  >
-                    <div className="size-7 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-                      <AlertCircle className="size-4" />
-                    </div>
-                    <span>Zgłoś Reklamację</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowBubbleMenu(false);
-                      setShowComplaintPhotoModal(true);
-                    }}
-                    className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-purple-50 text-purple-900 hover:bg-purple-100 font-bold text-xs transition text-left"
-                  >
-                    <div className="size-7 rounded-xl bg-[#9B62EC] text-white flex items-center justify-center shrink-0 shadow-sm">
-                      <Camera className="size-4" />
-                    </div>
-                    <span>Zdjęcie do Reklamacji</span>
-                  </button>
-                </div>
-              </>
-            )}
           </div>
         )}
+
       </header>
 
       {/* MODAL 1: Zgłoś Reklamację */}
@@ -1125,10 +1073,16 @@ export default function AppPwaPage() {
             <span className="text-[11px] font-medium mt-1">Search</span>
           </button>
 
-          {/* Center Floating (+) Button -> FULL PAGE VIEW */}
+          {/* Center Floating (+) Button with Long Press for Bubble Menu */}
           <div className="flex-1 flex items-center justify-center relative -top-5">
             <button
               type="button"
+              onTouchStart={startLongPress}
+              onTouchEnd={cancelLongPress}
+              onTouchMove={cancelLongPress}
+              onMouseDown={startLongPress}
+              onMouseUp={cancelLongPress}
+              onMouseLeave={cancelLongPress}
               onClick={() => {
                 setActiveTab("add-document");
                 resetForm();
@@ -1136,9 +1090,59 @@ export default function AppPwaPage() {
               className={`size-13 rounded-2xl text-white flex items-center justify-center shadow-lg active:scale-95 transition-all ${
                 activeTab === "add-document" ? "bg-slate-800" : "bg-[#4dbdc6] hover:bg-[#3caab3]"
               }`}
+              title="Kliknij, aby dodać dokument. Przytrzymaj, aby otworzyć menu reklamacji."
             >
               <Plus className="size-7 stroke-[2.5]" />
             </button>
+
+            {/* Animated Bubble Pop-over Menu attached to (+) button */}
+            {showBubbleMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px]"
+                  onClick={() => setShowBubbleMenu(false)}
+                />
+                <div className="absolute bottom-16 z-50 bg-white rounded-3xl p-3 shadow-2xl border border-gray-100 flex flex-col gap-2 min-w-[220px] animate-in fade-in slide-in-from-bottom-4 zoom-in-95 duration-200">
+                  <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-2 pt-1 text-center">
+                    Szybka Reklamacja
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBubbleMenu(false);
+                      setShowNewComplaintModal(true);
+                    }}
+                    className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-amber-50 text-amber-900 hover:bg-amber-100 font-bold text-xs transition text-left"
+                  >
+                    <div className="size-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <AlertCircle className="size-4" />
+                    </div>
+                    <div>
+                      <div className="font-extrabold">Zgłoś Reklamację</div>
+                      <div className="text-[10px] font-normal text-amber-700">Nowy wpis usterki</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBubbleMenu(false);
+                      setShowComplaintPhotoModal(true);
+                    }}
+                    className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-purple-50 text-purple-900 hover:bg-purple-100 font-bold text-xs transition text-left"
+                  >
+                    <div className="size-8 rounded-xl bg-[#9B62EC] text-[#ffffff] flex items-center justify-center shrink-0 shadow-sm">
+                      <Camera className="size-4" />
+                    </div>
+                    <div>
+                      <div className="font-extrabold">Zdjęcie Reklamacji</div>
+                      <div className="text-[10px] font-normal text-purple-700">Aparat lub z pliku</div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Notifications */}
