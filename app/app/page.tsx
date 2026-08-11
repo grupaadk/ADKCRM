@@ -85,14 +85,37 @@ export default function AppPwaPage() {
   // Form State
   const [clientSearch, setClientSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<Id<"clients"> | null>(null);
-  const [selectedClientName, setSelectedClientName] = useState("");
+  const [, setSelectedClientName] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<Id<"orders"> | null>(null);
   const [documentType, setDocumentType] = useState<DocumentType>("pomiar");
   const [file, setFile] = useState<File | null>(null);
-  const [signatureStatus, setSignatureStatus] = useState<"signed" | "not_applicable" | null>("not_applicable");
+  const [signatureStatus] = useState<"signed" | "not_applicable" | null>("not_applicable");
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ ok: true; url: string } | { ok: false; error: string } | null>(null);
+
+  // Long Press State for Signet Bubble Menu
+  const [showBubbleMenu, setShowBubbleMenu] = useState(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Complaint Form Modals state
+  const [showNewComplaintModal, setShowNewComplaintModal] = useState(false);
+  const [showComplaintPhotoModal, setShowComplaintPhotoModal] = useState(false);
+
+  // Complaint Form Data
+  const [complaintClientSearch, setComplaintClientSearch] = useState("");
+  const [complaintSelectedClientId, setComplaintSelectedClientId] = useState<Id<"clients"> | null>(null);
+  const [complaintSelectedOrderId, setComplaintSelectedOrderId] = useState<Id<"orders"> | null>(null);
+  const [complaintDescription, setComplaintDescription] = useState("");
+  const [complaintSubmitting, setComplaintSubmitting] = useState(false);
+  const [complaintSuccess, setComplaintSuccess] = useState<string | null>(null);
+  const [complaintError, setComplaintError] = useState<string | null>(null);
+
+  // Photo Upload Complaint Data
+  const [complaintPhotoFile, setComplaintPhotoFile] = useState<File | null>(null);
+  const [complaintPhotoUploading, setComplaintPhotoUploading] = useState(false);
+  const complaintCameraRef = useRef<HTMLInputElement>(null);
+  const complaintFileRef = useRef<HTMLInputElement>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -100,6 +123,8 @@ export default function AppPwaPage() {
   // Convex Hooks
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadUserDocument = useAction(api.googleDrive.uploadUserDocumentPublic);
+  const createComplaint = useMutation(api.complaints.create);
+  const uploadManualOrderFile = useAction(api.googleDrive.uploadManualOrderFile);
 
   const searchResults = useQuery(
     api.clients.search,
@@ -109,6 +134,21 @@ export default function AppPwaPage() {
   const orders = useQuery(
     api.orders.listByClient,
     selectedClientId ? { clientId: selectedClientId } : "skip"
+  );
+
+  const getComplaintsByOrder = useQuery(
+    api.complaints.getAllByOrder,
+    complaintSelectedOrderId ? { orderId: complaintSelectedOrderId } : "skip"
+  );
+
+  const complaintSearchResults = useQuery(
+    api.clients.search,
+    complaintClientSearch.trim().length >= 1 ? { searchTerm: complaintClientSearch.trim() } : "skip"
+  );
+
+  const complaintOrders = useQuery(
+    api.orders.listByClient,
+    complaintSelectedClientId ? { clientId: complaintSelectedClientId } : "skip"
   );
 
   useEffect(() => {
@@ -127,7 +167,6 @@ export default function AppPwaPage() {
     setSelectedOrderId(null);
     setDocumentType("pomiar");
     setFile(null);
-    setSignatureStatus("not_applicable");
     setResult(null);
   }
 
@@ -183,6 +222,93 @@ export default function AppPwaPage() {
       });
     } finally {
       setUploading(false);
+    }
+  }
+
+  function startLongPress() {
+    longPressTimerRef.current = setTimeout(() => {
+      if (typeof window !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate(50);
+      }
+      setShowBubbleMenu(true);
+    }, 500);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  async function handleCreateComplaintSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!complaintSelectedClientId || !complaintSelectedOrderId || !complaintDescription.trim()) return;
+    setComplaintSubmitting(true);
+    setComplaintError(null);
+    try {
+      await createComplaint({
+        clientId: complaintSelectedClientId,
+        orderId: complaintSelectedOrderId,
+        startDate: Date.now(),
+        description: complaintDescription.trim(),
+        createdBy: userFirstName ?? me?.email ?? "Pracownik ekipy PWA",
+      });
+      setComplaintSuccess("Reklamacja została zarejestrowana i folder na Google Drive tworzy się w tle!");
+      setComplaintDescription("");
+      setTimeout(() => {
+        setShowNewComplaintModal(false);
+        setComplaintSuccess(null);
+      }, 2000);
+    } catch (err) {
+      setComplaintError(err instanceof Error ? err.message : "Wystąpił błąd przy tworzeniu reklamacji.");
+    } finally {
+      setComplaintSubmitting(false);
+    }
+  }
+
+  async function handleComplaintPhotoSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!complaintSelectedClientId || !complaintSelectedOrderId || !complaintPhotoFile) return;
+    setComplaintPhotoUploading(true);
+    setComplaintError(null);
+    try {
+      const uploadUrl = await generateUploadUrl();
+      const uploadResponse = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": complaintPhotoFile.type || "application/octet-stream" },
+        body: complaintPhotoFile,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("Błąd podczas przesyłania zdjęcia do pamięci tymczasowej.");
+      }
+
+      const { storageId } = await uploadResponse.json();
+
+      // Find active complaint folder or use order folder
+      const activeComplaint = getComplaintsByOrder && getComplaintsByOrder.length > 0 ? getComplaintsByOrder[0] : null;
+      const targetFolderId = activeComplaint?.complaintFolderId;
+
+      await uploadManualOrderFile({
+        orderId: complaintSelectedOrderId,
+        clientId: complaintSelectedClientId,
+        storageId,
+        fileName: `REKLAMACJA_${Date.now()}_${complaintPhotoFile.name}`,
+        mimeType: complaintPhotoFile.type || undefined,
+        targetFolderId,
+      });
+
+      setComplaintSuccess("Zdjęcie reklamacji zostało pomyślnie dodane na Dysk Google!");
+      setComplaintPhotoFile(null);
+      setTimeout(() => {
+        setShowComplaintPhotoModal(false);
+        setComplaintSuccess(null);
+      }, 2000);
+    } catch (err) {
+      setComplaintError(err instanceof Error ? err.message : "Błąd podczas wgrywania zdjęcia reklamacji.");
+    } finally {
+      setComplaintPhotoUploading(false);
     }
   }
 
@@ -258,6 +384,7 @@ export default function AppPwaPage() {
     );
   }
 
+
   return (
     <div className="flex flex-col h-[100dvh] w-full bg-slate-50 text-gray-900 select-none relative overflow-hidden">
       {/* Top Mobile Bar - Fixed/Static Header */}
@@ -277,14 +404,358 @@ export default function AppPwaPage() {
             <span className="font-bold text-slate-800 text-sm">Dodaj dokument / zdjęcie</span>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <div className="size-7 rounded-lg bg-[#4dbdc6] text-white flex items-center justify-center font-bold text-xs">
+          <div className="flex items-center gap-2 relative">
+            {/* ADK Signet with Long-press event handlers */}
+            <div
+              onTouchStart={startLongPress}
+              onTouchEnd={cancelLongPress}
+              onTouchMove={cancelLongPress}
+              onMouseDown={startLongPress}
+              onMouseUp={cancelLongPress}
+              onMouseLeave={cancelLongPress}
+              className="size-8 rounded-xl bg-gradient-to-br from-[#4dbdc6] to-[#2ca6b0] text-white flex items-center justify-center font-extrabold text-xs shadow-md cursor-pointer active:scale-95 transition-transform select-none"
+              title="Przytrzymaj, aby otworzyć szybkie menu reklamacji"
+            >
               ADK
             </div>
             <span className="font-bold text-slate-800 text-sm">Aplikacja Mobilna</span>
+
+            {/* Animated Bubble Pop-over Menu */}
+            {showBubbleMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
+                  onClick={() => setShowBubbleMenu(false)}
+                />
+                <div className="absolute top-10 left-0 z-50 bg-white rounded-3xl p-3 shadow-2xl border border-gray-100 flex flex-col gap-2 min-w-[210px] animate-in fade-in zoom-in-95 duration-200">
+                  <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-2 pt-1">
+                    Szybka Reklamacja
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBubbleMenu(false);
+                      setShowNewComplaintModal(true);
+                    }}
+                    className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-amber-50 text-amber-900 hover:bg-amber-100 font-bold text-xs transition text-left"
+                  >
+                    <div className="size-7 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <AlertCircle className="size-4" />
+                    </div>
+                    <span>Zgłoś Reklamację</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBubbleMenu(false);
+                      setShowComplaintPhotoModal(true);
+                    }}
+                    className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-purple-50 text-purple-900 hover:bg-purple-100 font-bold text-xs transition text-left"
+                  >
+                    <div className="size-7 rounded-xl bg-[#9B62EC] text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Camera className="size-4" />
+                    </div>
+                    <span>Zdjęcie do Reklamacji</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </header>
+
+      {/* MODAL 1: Zgłoś Reklamację */}
+      {showNewComplaintModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl border border-gray-100 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2 text-amber-600">
+                <AlertCircle className="size-5" />
+                <h3 className="font-extrabold text-slate-900 text-base">Zgłoszenie Reklamacji</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewComplaintModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {complaintSuccess ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center text-emerald-800 text-xs font-bold space-y-2">
+                <CheckCircle className="size-8 text-emerald-500 mx-auto" />
+                <p>{complaintSuccess}</p>
+              </div>
+            ) : (
+              <form onSubmit={handleCreateComplaintSubmit} className="space-y-4">
+                {complaintError && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-rose-700 text-xs flex items-center gap-2">
+                    <AlertCircle className="size-4 shrink-0" />
+                    <span>{complaintError}</span>
+                  </div>
+                )}
+
+                {/* Step 1: Select Client */}
+                <div className="space-y-1.5 relative">
+                  <label className="text-xs font-bold text-slate-700">1. Wybierz Klienta *</label>
+                  <input
+                    type="text"
+                    placeholder="Szukaj po nazwisku..."
+                    value={complaintClientSearch}
+                    onChange={(e) => {
+                      setComplaintClientSearch(e.target.value);
+                      if (complaintSelectedClientId) setComplaintSelectedClientId(null);
+                    }}
+                    className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-xs text-slate-800 focus:border-[#4dbdc6] focus:outline-none"
+                  />
+
+                  {complaintSearchResults && complaintSearchResults.length > 0 && !complaintSelectedClientId && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-40 overflow-y-auto z-50">
+                      {complaintSearchResults.map((c) => {
+                        const name = c.clientType === "business" && c.companyName ? c.companyName : `${c.lastName} ${c.firstName}`;
+                        return (
+                          <button
+                            key={c._id}
+                            type="button"
+                            onClick={() => {
+                              setComplaintSelectedClientId(c._id);
+                              setComplaintClientSearch(name);
+                              setComplaintSelectedOrderId(null);
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-100 border-b border-gray-100 font-semibold text-slate-800"
+                          >
+                            {name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 2: Select Order */}
+                {complaintSelectedClientId && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">2. Wybierz Zlecenie *</label>
+                    {complaintOrders && complaintOrders.length > 0 ? (
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                        {complaintOrders.map((o) => (
+                          <button
+                            key={o._id}
+                            type="button"
+                            onClick={() => setComplaintSelectedOrderId(o._id)}
+                            className={`w-full text-left p-2.5 rounded-xl border text-xs flex items-center justify-between ${
+                              complaintSelectedOrderId === o._id
+                                ? "border-amber-500 bg-amber-50 font-bold text-amber-900"
+                                : "border-gray-200 bg-white hover:bg-slate-50 text-slate-700"
+                            }`}
+                          >
+                            <span>{o.name ?? "Zlecenie bez nazwy"}</span>
+                            {complaintSelectedOrderId === o._id && <CheckCircle className="size-4 text-amber-600" />}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">Brak zleceń dla wybranego klienta.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Step 3: Description */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">3. Opis Usterki / Reklamacji *</label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="Opisz problem (np. pęknięta szyba, nieszczelność...)..."
+                    value={complaintDescription}
+                    onChange={(e) => setComplaintDescription(e.target.value)}
+                    className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-xs text-slate-800 focus:border-[#4dbdc6] focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!complaintSelectedClientId || !complaintSelectedOrderId || !complaintDescription.trim() || complaintSubmitting}
+                  className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold text-xs shadow-md hover:bg-amber-600 disabled:opacity-50 transition flex items-center justify-center gap-2"
+                >
+                  {complaintSubmitting ? <RefreshCw className="size-4 animate-spin" /> : <AlertCircle className="size-4" />}
+                  Zarejestruj Reklamację
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: Zdjęcie do Reklamacji */}
+      {showComplaintPhotoModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl border border-gray-100 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2 text-purple-700">
+                <Camera className="size-5" />
+                <h3 className="font-extrabold text-slate-900 text-base">Dodaj Zdjęcie Reklamacji</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowComplaintPhotoModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {complaintSuccess ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center text-emerald-800 text-xs font-bold space-y-2">
+                <CheckCircle className="size-8 text-emerald-500 mx-auto" />
+                <p>{complaintSuccess}</p>
+              </div>
+            ) : (
+              <form onSubmit={handleComplaintPhotoSubmit} className="space-y-4">
+                {complaintError && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-rose-700 text-xs flex items-center gap-2">
+                    <AlertCircle className="size-4 shrink-0" />
+                    <span>{complaintError}</span>
+                  </div>
+                )}
+
+                {/* Step 1: Select Client */}
+                <div className="space-y-1.5 relative">
+                  <label className="text-xs font-bold text-slate-700">1. Wybierz Klienta *</label>
+                  <input
+                    type="text"
+                    placeholder="Szukaj po nazwisku..."
+                    value={complaintClientSearch}
+                    onChange={(e) => {
+                      setComplaintClientSearch(e.target.value);
+                      if (complaintSelectedClientId) setComplaintSelectedClientId(null);
+                    }}
+                    className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-xs text-slate-800 focus:border-[#9B62EC] focus:outline-none"
+                  />
+
+                  {complaintSearchResults && complaintSearchResults.length > 0 && !complaintSelectedClientId && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-40 overflow-y-auto z-50">
+                      {complaintSearchResults.map((c) => {
+                        const name = c.clientType === "business" && c.companyName ? c.companyName : `${c.lastName} ${c.firstName}`;
+                        return (
+                          <button
+                            key={c._id}
+                            type="button"
+                            onClick={() => {
+                              setComplaintSelectedClientId(c._id);
+                              setComplaintClientSearch(name);
+                              setComplaintSelectedOrderId(null);
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-100 border-b border-gray-100 font-semibold text-slate-800"
+                          >
+                            {name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 2: Select Order */}
+                {complaintSelectedClientId && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">2. Wybierz Zlecenie *</label>
+                    {complaintOrders && complaintOrders.length > 0 ? (
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                        {complaintOrders.map((o) => (
+                          <button
+                            key={o._id}
+                            type="button"
+                            onClick={() => setComplaintSelectedOrderId(o._id)}
+                            className={`w-full text-left p-2.5 rounded-xl border text-xs flex items-center justify-between ${
+                              complaintSelectedOrderId === o._id
+                                ? "border-purple-500 bg-purple-50 font-bold text-purple-900"
+                                : "border-gray-200 bg-white hover:bg-slate-50 text-slate-700"
+                            }`}
+                          >
+                            <span>{o.name ?? "Zlecenie bez nazwy"}</span>
+                            {complaintSelectedOrderId === o._id && <CheckCircle className="size-4 text-purple-600" />}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">Brak zleceń dla wybranego klienta.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Step 3: Photo Input */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">3. Wybierz Zdjęcie Usterki *</label>
+                  <input
+                    ref={complaintFileRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => e.target.files?.[0] && setComplaintPhotoFile(e.target.files[0])}
+                    className="hidden"
+                  />
+                  <input
+                    ref={complaintCameraRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => e.target.files?.[0] && setComplaintPhotoFile(e.target.files[0])}
+                    className="hidden"
+                  />
+
+                  {complaintPhotoFile ? (
+                    <div className="flex items-center justify-between p-3.5 bg-purple-50 rounded-xl border border-purple-200">
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        <FileText className="size-5 text-[#9B62EC] shrink-0" />
+                        <span className="text-xs font-semibold text-slate-700 truncate">{complaintPhotoFile.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setComplaintPhotoFile(null)}
+                        className="text-slate-400 hover:text-slate-600 p-1"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => complaintCameraRef.current?.click()}
+                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 gap-1.5 transition"
+                      >
+                        <Camera className="size-6 text-[#9B62EC]" />
+                        <span className="text-xs font-bold">Zrób zdjęcie</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => complaintFileRef.current?.click()}
+                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 gap-1.5 transition"
+                      >
+                        <Upload className="size-6 text-[#9B62EC]" />
+                        <span className="text-xs font-bold">Wybierz plik</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!complaintSelectedClientId || !complaintSelectedOrderId || !complaintPhotoFile || complaintPhotoUploading}
+                  className="w-full py-3 rounded-xl bg-[#9B62EC] text-white font-bold text-xs shadow-md hover:bg-purple-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
+                >
+                  {complaintPhotoUploading ? <RefreshCw className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                  Wgraj Zdjęcie do Reklamacji
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col p-4 pb-24 overflow-y-auto">
