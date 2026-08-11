@@ -135,7 +135,11 @@ export default function AppPwaPage() {
   const createCalendarEvent = useMutation(api.calendarEvents.createEvent);
 
 
+  // Complaint Form Modals state
+  const [showNewComplaintModal, setShowNewComplaintModal] = useState(false);
+
   // Complaint Form Data
+
   const [complaintClientSearch, setComplaintClientSearch] = useState("");
   const [complaintSelectedClientId, setComplaintSelectedClientId] = useState<Id<"clients"> | null>(null);
   const [complaintSelectedOrderId, setComplaintSelectedOrderId] = useState<Id<"orders"> | null>(null);
