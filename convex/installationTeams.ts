@@ -783,9 +783,10 @@ export const getScheduleForUser = query({
     const items = [...formattedOrders, ...formattedComplaints, ...formattedCustomEvents].sort((a, b) => a.date - b.date);
 
     return {
-      teamName: team?.name ?? currentUser?.displayName ?? userName ?? "Moje Wydarzenia",
+      teamName: team?.name ?? targetUser?.displayName ?? targetUserName ?? userName ?? "Moje Wydarzenia",
       items,
     };
+
   },
 });
 
