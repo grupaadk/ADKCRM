@@ -33,7 +33,7 @@ export default function AppLayout({
   return (
     <StatusLabelsProvider>
       <div
-        className="min-h-[100dvh] w-full flex flex-col font-sans select-none antialiased bg-slate-50 text-gray-900 overflow-x-hidden font-medium"
+        className="min-h-[100dvh] w-full flex flex-col font-sans select-none antialiased bg-slate-50 text-gray-900 overflow-x-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] font-medium"
       >
         {children}
       </div>
