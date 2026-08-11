@@ -510,12 +510,15 @@ export default function DocumentCheckboxes({
                   }
                 }
 
-                const dotColor = isGenerated
-                  ? "#22c55e"
-                  : hasError
-                    ? "#ef4444"
-                    : isGenerating
-                      ? "#3b82f6"
+                const isSigned = doc?.signatureStatus === "signed";
+                const dotColor = isGenerating
+                  ? "#3b82f6"
+                  : isGenerated
+                    ? isSigned
+                      ? "#22c55e"
+                      : "#ef4444"
+                    : hasError
+                      ? "#ef4444"
                       : "var(--line)";
 
                 const statusText = isGenerating
