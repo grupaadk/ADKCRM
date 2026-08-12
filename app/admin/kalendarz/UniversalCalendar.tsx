@@ -1932,18 +1932,18 @@ export default function UniversalCalendar({
                   </button>
 
                   {(openSupplierDropdownId === "more" || openSupplierDropdownId?.startsWith("supplier_")) && (
-                    <div
-                      style={{
-                        position: "absolute", top: "calc(100% + 6px)", left: 0,
-                        background: "var(--card)", border: "1px solid var(--line)",
-                        borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                        zIndex: 50, minWidth: 200, display: "flex", flexDirection: "column", gap: 4,
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
-                          Pozostali dostawcy
-                        </span>
+                    <div style={{ position: "absolute", top: "100%", left: 0, paddingTop: 6, zIndex: 50 }}>
+                      <div
+                        style={{
+                          background: "var(--card)", border: "1px solid var(--line)",
+                          borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                          minWidth: 200, display: "flex", flexDirection: "column", gap: 4,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
+                            Pozostali dostawcy
+                          </span>
                       </div>
                       {activeSuppliers.slice(3).map((supplier) => {
                         const active = activeSupplierFilters.has(supplier._id);
@@ -2042,8 +2042,9 @@ export default function UniversalCalendar({
                         );
                       })}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+              </div>
               )}
             </>
           )}
@@ -2159,18 +2160,18 @@ export default function UniversalCalendar({
                   </button>
 
                   {(openTeamDropdownId === "more" || openTeamDropdownId?.startsWith("team_")) && (
-                    <div
-                      style={{
-                        position: "absolute", top: "calc(100% + 6px)", left: 0,
-                        background: "var(--card)", border: "1px solid var(--line)",
-                        borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                        zIndex: 50, minWidth: 200, display: "flex", flexDirection: "column", gap: 4,
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
-                          Pozostałe ekipy
-                        </span>
+                    <div style={{ position: "absolute", top: "100%", left: 0, paddingTop: 6, zIndex: 50 }}>
+                      <div
+                        style={{
+                          background: "var(--card)", border: "1px solid var(--line)",
+                          borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                          minWidth: 200, display: "flex", flexDirection: "column", gap: 4,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
+                            Pozostałe ekipy
+                          </span>
                       </div>
                       {installationTeams.slice(3).map((team) => {
                         const active = activeTeamFilters.has(team._id as string);
@@ -2269,8 +2270,9 @@ export default function UniversalCalendar({
                         );
                       })}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+              </div>
               )}
             </>
           )}
