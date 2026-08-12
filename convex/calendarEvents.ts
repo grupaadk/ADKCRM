@@ -185,6 +185,38 @@ export const getEventTypes = query({
       });
     }
 
+    if (!mapped.some((t) => t.linkedOrderField === "projectEndDate")) {
+      mapped.push({
+        _id: "builtin_montaz" as unknown as typeof types[0]["_id"],
+        _creationTime: Date.now(),
+        name: "Montaż",
+        color: "#3b82f6",
+        isPrivate: false,
+        linkedOrderField: "projectEndDate",
+        defaultTimeMode: "timed",
+        createdAt: Date.now(),
+        linkedSupplierName: null,
+        linkedInstallationTeamName: null,
+        linkedInstallationTeamColor: null,
+      });
+    }
+
+    if (!mapped.some((t) => t.linkedOrderField === "complaintServiceDate")) {
+      mapped.push({
+        _id: "builtin_serwis" as unknown as typeof types[0]["_id"],
+        _creationTime: Date.now(),
+        name: "Serwis",
+        color: "#f59e0b",
+        isPrivate: false,
+        linkedOrderField: "complaintServiceDate",
+        defaultTimeMode: "timed",
+        createdAt: Date.now(),
+        linkedSupplierName: null,
+        linkedInstallationTeamName: null,
+        linkedInstallationTeamColor: null,
+      });
+    }
+
     return mapped;
   },
 });
@@ -420,9 +452,11 @@ export const getLinkedOrderEvents = query({
             continue;
           }
           const order = complaint.orderId ? orderMap.get(complaint.orderId) : null;
-          if (order && (order.status === "completed" || order.status === "archived")) {
+          
+          if (complaint.status === "rozwiazana" || complaint.status === "zamknieta" || complaint.status === "zakonczona") {
             continue;
           }
+
           if (complaint.serviceDate >= args.startDate && complaint.serviceDate <= args.endDate) {
             const clientName = clientMap.get(complaint.clientId) ?? "Klient";
             const teamId = complaint.installationTeamId ?? type.linkedInstallationTeamId;
