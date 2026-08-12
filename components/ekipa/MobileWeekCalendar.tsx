@@ -60,7 +60,7 @@ export default function MobileWeekCalendar({ items, onEventClick }: MobileWeekCa
   }, [items]);
 
   return (
-    <div className="w-full h-full bg-white rounded-xl shadow-xs overflow-hidden p-2 flex flex-col">
+    <div className="w-full h-full bg-white rounded-xl shadow-xs overflow-hidden p-2">
       <style>{`
         .fc-theme-standard td, .fc-theme-standard th {
           border-color: #f1f5f9;

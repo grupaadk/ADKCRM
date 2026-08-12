@@ -956,7 +956,10 @@ export default function AppPwaPage() {
 
               {/* Events List / Calendar View */}
               {scheduleView === "calendar" ? (
-                <div className="flex-1 flex flex-col min-h-[300px] sm:min-h-[400px] overflow-hidden -mx-2 sm:mx-0">
+                <div 
+                  className="w-full overflow-hidden -mx-2 sm:mx-0 px-2 sm:px-0" 
+                  style={{ height: "max(350px, calc(100vh - 220px))" }}
+                >
                   <MobileWeekCalendar items={userSchedule?.items ?? []} />
                 </div>
               ) : (() => {
