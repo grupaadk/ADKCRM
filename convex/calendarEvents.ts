@@ -751,7 +751,7 @@ export const updateLinkedOrderDate = mutation({
 
 export const createEvent = mutation({
   args: {
-    eventTypeId: v.id("calendarEventTypes"),
+    eventTypeId: v.string(), // changed from v.id to allow synthetic IDs like "wlasne_default_id"
     title: v.string(),
     description: v.optional(v.string()),
     startDate: v.number(),
@@ -766,7 +766,7 @@ export const createEvent = mutation({
     const user = await requireUser(ctx);
 
     let realEventTypeId = args.eventTypeId;
-    if ((args.eventTypeId as string) === "wlasne_default_id") {
+    if (args.eventTypeId === "wlasne_default_id") {
       const existing = await ctx.db.query("calendarEventTypes").collect();
       const wlasne = existing.find(
         (t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne"
@@ -786,7 +786,7 @@ export const createEvent = mutation({
 
     await ctx.db.insert("calendarEvents", {
       ...args,
-      eventTypeId: realEventTypeId,
+      eventTypeId: realEventTypeId as Id<"calendarEventTypes">,
       createdBy: user._id,
       createdAt: Date.now(),
     });
