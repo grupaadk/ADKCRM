@@ -276,6 +276,9 @@ export const updateOpportunity = mutation({
     services: v.optional(v.array(v.string())),
     comment: v.optional(v.string()),
     customText: v.optional(v.string()),
+    cost: v.optional(v.number()),
+    price: v.optional(v.number()),
+    profit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { opportunityId, ...rest } = args;

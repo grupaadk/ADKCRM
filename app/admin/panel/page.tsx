@@ -857,6 +857,13 @@ export default function PanelPage() {
   const totalActive = items?.filter((i) => i.type === "order").length ?? 0
   const totalPending = items?.filter((i) => i.type === "pending").length ?? 0
 
+  const opportunitiesProfit = useMemo(() => {
+    if (activeTab !== "opportunities") return 0
+    return displayItems
+      .filter((i) => i.type === "pending" && i.status === "inquiry" && typeof (i as any).profit === "number")
+      .reduce((sum, i) => sum + ((i as any).profit || 0), 0)
+  }, [activeTab, displayItems])
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0, height: "100%", minHeight: 0 }}>
       {/* Header */}
@@ -1159,6 +1166,18 @@ export default function PanelPage() {
             }} />
             Bez przypisania
           </button>
+        </div>
+      )}
+
+      {/* Zestawienie finansowe (tylko Szanse sprzedaży) */}
+      {activeTab === "opportunities" && (
+        <div style={{ marginBottom: 12, padding: "8px 16px", background: "var(--panel)", borderRadius: 8, border: "1px solid var(--line)", display: "inline-block" }}>
+          <span style={{ fontSize: 12, color: "var(--text-mute)", marginRight: 8 }}>
+            Zarobek w szansach (Oferta wysłana):
+          </span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)" }}>
+            {opportunitiesProfit.toLocaleString("pl-PL", { style: "currency", currency: "PLN" })}
+          </span>
         </div>
       )}
 

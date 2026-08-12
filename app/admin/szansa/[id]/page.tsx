@@ -526,6 +526,53 @@ export default function OpportunityDetailPage({
         </div>
       </div>
 
+      {/* Finanse */}
+      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+        <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
+          Finanse
+        </h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          <InlineEdit
+            label="Koszt (PLN)"
+            value={opp.cost !== undefined ? String(opp.cost) : ""}
+            placeholder="np. 1500"
+            onSave={(v) => {
+              const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+              if (num !== undefined && !isNaN(num)) {
+                save("cost", num);
+                if (opp.price !== undefined) save("profit", opp.price - num);
+              } else if (!v) {
+                save("cost", undefined);
+              }
+            }}
+          />
+          <InlineEdit
+            label="Cena (PLN)"
+            value={opp.price !== undefined ? String(opp.price) : ""}
+            placeholder="np. 3000"
+            onSave={(v) => {
+              const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+              if (num !== undefined && !isNaN(num)) {
+                save("price", num);
+                if (opp.cost !== undefined) save("profit", num - opp.cost);
+              } else if (!v) {
+                save("price", undefined);
+              }
+            }}
+          />
+          <InlineEdit
+            label="Zarobek (PLN)"
+            value={opp.profit !== undefined ? String(opp.profit) : ""}
+            placeholder="np. 1500"
+            onSave={(v) => {
+              const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+              if (num !== undefined && !isNaN(num)) save("profit", num);
+              else if (!v) save("profit", undefined);
+            }}
+          />
+        </div>
+      </div>
+
       {/* Lista zadań */}
       <TaskKanban opportunityId={opportunityId} />
 

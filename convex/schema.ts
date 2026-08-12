@@ -438,6 +438,9 @@ export default defineSchema({
     otherFilesFolderId: v.optional(v.string()),
     assignedUserId: v.optional(v.id("users")), // legacy
     assignedUserIds: v.optional(v.array(v.id("users"))),
+    cost: v.optional(v.number()),
+    price: v.optional(v.number()),
+    profit: v.optional(v.number()),
   })
     .index("by_client", ["clientId"])
     .index("by_submission", ["submissionId"])
