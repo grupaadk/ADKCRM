@@ -34,6 +34,7 @@ export default function MobileWeekCalendar({ items, onEventClick }: MobileWeekCa
       let color = "#3b82f6"; // blue
       if (item.type === "montaz") color = "#10b981"; // emerald
       if (item.type === "serwis") color = "#a855f7"; // purple
+      if ((item as any).userColor) color = (item as any).userColor;
 
       const d = new Date(item.date);
       let endD = new Date(d.getTime() + 60 * 60 * 1000); // domyślnie +1h

@@ -721,6 +721,7 @@ export const getScheduleForUser = query({
       clientId?: Id<"clients">;
       orderId?: Id<"orders">;
       complaintFolderId?: string;
+      userColor?: string;
     }> = [];
 
 
@@ -742,6 +743,13 @@ export const getScheduleForUser = query({
         ? `${Math.floor(o.installationStartDate / 60).toString().padStart(2, "0")}:${(o.installationStartDate % 60).toString().padStart(2, "0")}`
         : undefined;
 
+      let userColor: string | undefined;
+      const primaryUserId = o.assignedUserId || (o.assignedUserIds?.[0]) || o.createdBy;
+      if (primaryUserId) {
+        const u = allUsers.find((u) => u._id === primaryUserId);
+        if (u && u.color) userColor = u.color;
+      }
+
       const baseItem = {
         id: o._id,
         type: "montaz" as const,
@@ -755,6 +763,7 @@ export const getScheduleForUser = query({
         clientName,
         address: fullAddress || "Brak adresu",
         comment: o.comment,
+        userColor,
       };
 
       // Only iterate explicit installation dates added by user
@@ -781,6 +790,13 @@ export const getScheduleForUser = query({
             timeZone: "Europe/Warsaw",
           }).format(new Date(ev.startDate));
 
+      let userColor: string | undefined;
+      const primaryUserId = ev.assignedUserIds?.[0] || ev.createdBy;
+      if (primaryUserId) {
+        const u = allUsers.find((u) => u._id === primaryUserId);
+        if (u && u.color) userColor = u.color;
+      }
+
       return {
         id: ev._id,
         type: "wlasne" as const,
@@ -791,6 +807,7 @@ export const getScheduleForUser = query({
         status: "zaplanowane",
         clientName: "Wydarzenie własne",
         address: "",
+        userColor,
       };
     });
 
