@@ -530,6 +530,7 @@ export default function UniversalCalendar({
             assignedUserNames,
             clientId: e.clientId,
             orderId: e.orderId,
+            labels: (e as any).labels,
           },
         });
       }
@@ -963,6 +964,7 @@ export default function UniversalCalendar({
       isPrivate?: boolean;
       installationTeamName?: string;
       installationTeamColor?: string;
+      labels?: { title: string; color: string }[];
     };
 
     const isMonthView = arg.view.type === "dayGridMonth";
@@ -1026,6 +1028,15 @@ export default function UniversalCalendar({
                       👤 {props.assignedUserNames.join(", ")}
                     </div>
                   )}
+                  {props.labels && props.labels.length > 0 && (
+                    <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+                      {props.labels.map((lbl, i) => (
+                        <span key={i} style={{ background: lbl.color, color: "#fff", fontSize: 9, padding: "2px 4px", borderRadius: 4, fontWeight: 600 }}>
+                          {lbl.title}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ),
             })
@@ -1070,6 +1081,26 @@ export default function UniversalCalendar({
             <span style={{ fontSize: 9.5, color: "var(--text-mute)", flexShrink: 0 }}>
               ({props.assignedUserNames.join(", ")})
             </span>
+          )}
+          {props.labels && props.labels.length > 0 && (
+            <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+              {props.labels.map((lbl, i) => (
+                <span
+                  key={i}
+                  style={{
+                    background: lbl.color,
+                    color: "#fff",
+                    fontSize: 8,
+                    padding: "1px 4px",
+                    borderRadius: 4,
+                    lineHeight: 1,
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  {lbl.title}
+                </span>
+              ))}
+            </div>
           )}
         </div>
       );
@@ -1334,6 +1365,15 @@ export default function UniversalCalendar({
                     👤 {props.assignedUserNames.join(", ")}
                   </div>
                 )}
+                {props.labels && props.labels.length > 0 && (
+                  <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+                    {props.labels.map((lbl, i) => (
+                      <span key={i} style={{ background: lbl.color, color: "#fff", fontSize: 9, padding: "2px 4px", borderRadius: 4, fontWeight: 600 }}>
+                        {lbl.title}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ),
           })
@@ -1354,6 +1394,18 @@ export default function UniversalCalendar({
               {arg.event.title}
             </span>
             {props.isPrivate && <span style={{ fontSize: 9, flexShrink: 0 }}>🔒</span>}
+            {props.labels && props.labels.length > 0 && (
+              <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                {props.labels.map((lbl, i) => (
+                  <span
+                    key={i}
+                    style={{ background: lbl.color, color: "#fff", fontSize: 8, padding: "1px 4px", borderRadius: 4, lineHeight: 1 }}
+                  >
+                    {lbl.title}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 7px 5px", minWidth: 0, flex: 1, overflow: "hidden" }}>
@@ -1382,6 +1434,18 @@ export default function UniversalCalendar({
                 {arg.event.title}
               </div>
             </div>
+            {props.labels && props.labels.length > 0 && (
+              <div style={{ display: "flex", gap: 2, flexWrap: "wrap", marginTop: 2 }}>
+                {props.labels.map((lbl, i) => (
+                  <span
+                    key={i}
+                    style={{ background: lbl.color, color: "#fff", fontSize: 8, padding: "1px 4px", borderRadius: 4, lineHeight: 1 }}
+                  >
+                    {lbl.title}
+                  </span>
+                ))}
+              </div>
+            )}
             {/* Godzina zakończenia */}
             {arg.event.end && !arg.event.allDay && (() => {
               const endDate = arg.event.end!;

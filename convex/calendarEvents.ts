@@ -351,10 +351,16 @@ export const getEvents = query({
       ]),
     );
 
+    const allLabels = await ctx.db.query("taskLabels").collect();
+    const labelMap = new Map(allLabels.map((l) => [l._id, l]));
+
     return visible.map((e) => ({
       ...e,
       carId: e.carId ?? calendarEventToCarMap.get(e._id) ?? null,
       eventType: typeMap.get(e.eventTypeId) ?? null,
+      labels: (e.labelIds ?? [])
+        .map((lid) => labelMap.get(lid))
+        .filter(Boolean),
       assignedUsers: (e.assignedUserIds ?? [])
         .map((uid) => userMap.get(uid))
         .filter(Boolean),
@@ -758,6 +764,7 @@ export const createEvent = mutation({
     endDate: v.optional(v.number()),
     isAllDay: v.boolean(),
     assignedUserIds: v.optional(v.array(v.id("users"))),
+    labelIds: v.optional(v.array(v.id("taskLabels"))),
     clientId: v.optional(v.id("clients")),
     orderId: v.optional(v.id("orders")),
     isPrivate: v.boolean(),
@@ -805,6 +812,7 @@ export const updateEvent = mutation({
     clientId: v.optional(v.union(v.id("clients"), v.null())),
     orderId: v.optional(v.union(v.id("orders"), v.null())),
     isPrivate: v.optional(v.boolean()),
+    labelIds: v.optional(v.array(v.id("taskLabels"))),
     eventTypeId: v.optional(v.id("calendarEventTypes")),
   },
   handler: async (ctx, args) => {

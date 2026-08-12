@@ -1259,6 +1259,7 @@ function TaskCard({
                 orderId: task.orderId as Id<"orders"> | undefined,
                 clientId: task.clientId as Id<"clients"> | undefined,
                 assignedUserIds: task.assignedUserId ? [task.assignedUserId as Id<"users">] : undefined,
+                labelIds: task.labelIds as Id<"taskLabels">[] | undefined,
               });
               void updateTask({ taskId: task._id as Id<"orderTasks">, addedToCalendar: true });
               toast.success("Dodano wydarzenie własne do kalendarza");

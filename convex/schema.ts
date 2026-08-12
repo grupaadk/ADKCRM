@@ -835,6 +835,7 @@ export default defineSchema({
     carId: v.optional(v.id("cars")),
     clientId: v.optional(v.id("clients")),
     orderId: v.optional(v.id("orders")),
+    labelIds: v.optional(v.array(v.id("taskLabels"))),
     createdBy: v.id("users"),
     isPrivate: v.boolean(),
     createdAt: v.number(),
