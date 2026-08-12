@@ -369,7 +369,7 @@ export default function UniversalCalendar({
           userMatch =
             params.assignedUserIds.some((uid) => activeUserFilters.has(uid)) ||
             (params.assignedUserIds.length === 0 && activeUserFilters.has("__none__"));
-        } else if (params.assignedUserId !== undefined) {
+        } else {
           userMatch = params.assignedUserId
             ? activeUserFilters.has(params.assignedUserId)
             : activeUserFilters.has("__none__");

@@ -838,3 +838,11 @@ export const deleteEvent = mutation({
     await ctx.db.delete(args.id);
   },
 });
+
+export const getDebugComplaints = query({
+  args: { orderId: v.string() },
+  handler: async (ctx, args) => {
+    const complaints = await ctx.db.query("complaints").collect();
+    return complaints.filter(c => c.orderId === args.orderId);
+  }
+});
