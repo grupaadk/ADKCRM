@@ -1246,11 +1246,15 @@ function TaskCard({
           <button
             onClick={(e) => {
               e.stopPropagation();
+              const now = new Date();
+              const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 6, 0, 0, 0).getTime();
+              const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 7, 0, 0, 0).getTime();
               void createCalendarEvent({
                 eventTypeId: "wlasne_default_id" as Id<"calendarEventTypes">,
                 title: `Wydarzenie: ${task.clientName || task.title}`,
-                startDate: Date.now(),
-                isAllDay: true,
+                startDate: start,
+                endDate: end,
+                isAllDay: false,
                 isPrivate: false,
                 orderId: task.orderId as Id<"orders"> | undefined,
                 clientId: task.clientId as Id<"clients"> | undefined,
