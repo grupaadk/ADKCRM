@@ -479,13 +479,14 @@ export default function UniversalCalendar({
         const assignedUserNames: string[] = [];
         const assignedUserColors: string[] = [];
         let assignedUserColor: string | undefined = undefined;
-        for (const uid of assignedUserIds) {
+        const uniqueAssignedIds = Array.from(new Set(assignedUserIds));
+        for (const uid of uniqueAssignedIds) {
           const userName = userMap.get(uid as Id<"users">);
           if (userName) assignedUserNames.push(userName);
-          const uCol = userColorMap.get(uid as Id<"users">);
-          if (uCol) assignedUserColors.push(uCol);
+          const uCol = userColorMap.get(uid as Id<"users">) ?? "#94a3b8";
+          assignedUserColors.push(uCol);
           if (!assignedUserColor) {
-            assignedUserColor = uCol;
+            assignedUserColor = userColorMap.get(uid as Id<"users">);
           }
         }
         if (assignedUserNames.length === 0 && Array.isArray(e.assignedUsers)) {
@@ -560,11 +561,11 @@ export default function UniversalCalendar({
         const servicePart = le.serviceName ? ` (${le.serviceName})` : "";
         const titleText = `${baseText}${customPart}${servicePart}`;
 
-        const assignedUserIds = le.assignedUserIds ?? (le.assignedUserId ? [le.assignedUserId] : []);
+        const assignedUserIds = Array.from(new Set(le.assignedUserIds ?? (le.assignedUserId ? [le.assignedUserId] : [])));
         const assignedUserColors: string[] = [];
         for (const uid of assignedUserIds) {
-          const uCol = userColorMap.get(uid as Id<"users">);
-          if (uCol) assignedUserColors.push(uCol);
+          const uCol = userColorMap.get(uid as Id<"users">) ?? "#94a3b8";
+          assignedUserColors.push(uCol);
         }
         const assignedUserColor = assignedUserColors.length > 0 ? assignedUserColors[0] : undefined;
         const color = assignedUserColor ?? le.color;

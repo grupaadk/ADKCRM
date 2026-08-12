@@ -444,6 +444,7 @@ export const getLinkedOrderEvents = query({
       serviceName?: string;
       field: string;
       assignedUserId?: string;
+      assignedUserIds?: string[];
       serviceDateOffset?: number;
     }> = [];
 
