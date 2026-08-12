@@ -1795,7 +1795,15 @@ export default function UniversalCalendar({
           <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
 
           {/* General Event type filters (unlinked) */}
-          {eventTypes.filter(t => !t.linkedSupplierId && !t.linkedInstallationTeamId && t.name !== "Administracja").map((type) => {
+          {eventTypes.filter(t => {
+            const n = t.name.toLowerCase();
+            return !t.linkedSupplierId && 
+                   !t.linkedInstallationTeamId && 
+                   n !== "administracja" &&
+                   n !== "własne" && n !== "wlasne" &&
+                   n !== "montaż" && n !== "montaz" &&
+                   n !== "serwis";
+          }).map((type) => {
             const active = activeEventTypeFilters.has(type._id);
             return (
               <button
