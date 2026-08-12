@@ -30,7 +30,7 @@ import { DateStrip } from "@/components/ekipa/DateStrip";
 import dynamic from "next/dynamic";
 
 const MobileWeekCalendar = dynamic(() => import("@/components/ekipa/MobileWeekCalendar"), { ssr: false });
-type Tab = "home" | "search" | "notifications" | "profile" | "add-document";
+type Tab = "home" | "calendar" | "search" | "notifications" | "profile" | "add-document";
 
 const DOCUMENT_TYPES = [
   { id: "pomiar", label: "Pomiar" },
@@ -60,16 +60,6 @@ export default function AppPwaPage() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSubmitting, setLoginSubmitting] = useState(false);
 
-  // Landscape Mode for Calendar
-  const [isLandscape, setIsLandscape] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mql = window.matchMedia("(orientation: landscape)");
-    const onChange = (e: MediaQueryListEvent) => setIsLandscape(e.matches);
-    setIsLandscape(mql.matches);
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
   const statuses = useStatuses();
   const statusMap = useMemo(
     () => Object.fromEntries(statuses.map((s) => [s.key, s.label])),
@@ -936,11 +926,7 @@ export default function AppPwaPage() {
 
 
               {/* Events List */}
-              {isLandscape ? (
-                <div className="h-[calc(100vh-140px)]">
-                  <MobileWeekCalendar items={userSchedule?.items ?? []} />
-                </div>
-              ) : (() => {
+              {(() => {
                 if (userSchedule === undefined) {
                   return (
                     <div className="flex items-center justify-center p-8 bg-white rounded-2xl border border-gray-200">
@@ -1051,6 +1037,15 @@ export default function AppPwaPage() {
         )}
 
 
+
+        {activeTab === "calendar" && (
+          <div className="flex-1 flex flex-col p-4 pb-24 overflow-hidden h-[calc(100vh-80px)]">
+            <h2 className="text-base font-extrabold text-slate-800 mb-2">Kalendarz</h2>
+            <div className="flex-1">
+              <MobileWeekCalendar items={userSchedule?.items ?? []} />
+            </div>
+          </div>
+        )}
 
         {activeTab === "search" && (
           <div className="space-y-4">
@@ -1489,6 +1484,18 @@ export default function AppPwaPage() {
               </>
             )}
           </div>
+
+          {/* Calendar */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("calendar")}
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+              activeTab === "calendar" ? "text-[#4dbdc6]" : "text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            <Calendar className="size-6 stroke-[1.75]" />
+            <span className="text-[11px] font-medium mt-1">Kalendarz</span>
+          </button>
 
           {/* Notifications */}
           <button
