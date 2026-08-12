@@ -27,9 +27,9 @@ import {
 
 
 import { DateStrip } from "@/components/ekipa/DateStrip";
+import dynamic from "next/dynamic";
 
-
-
+const MobileWeekCalendar = dynamic(() => import("@/components/ekipa/MobileWeekCalendar"), { ssr: false });
 type Tab = "home" | "search" | "notifications" | "profile" | "add-document";
 
 const DOCUMENT_TYPES = [
@@ -60,6 +60,16 @@ export default function AppPwaPage() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSubmitting, setLoginSubmitting] = useState(false);
 
+  // Landscape Mode for Calendar
+  const [isLandscape, setIsLandscape] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia("(orientation: landscape)");
+    const onChange = (e: MediaQueryListEvent) => setIsLandscape(e.matches);
+    setIsLandscape(mql.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
   const statuses = useStatuses();
   const statusMap = useMemo(
     () => Object.fromEntries(statuses.map((s) => [s.key, s.label])),
@@ -926,7 +936,11 @@ export default function AppPwaPage() {
 
 
               {/* Events List */}
-              {(() => {
+              {isLandscape ? (
+                <div className="h-[calc(100vh-140px)]">
+                  <MobileWeekCalendar items={userSchedule?.items ?? []} />
+                </div>
+              ) : (() => {
                 if (userSchedule === undefined) {
                   return (
                     <div className="flex items-center justify-center p-8 bg-white rounded-2xl border border-gray-200">
