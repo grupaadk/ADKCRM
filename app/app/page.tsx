@@ -24,7 +24,8 @@ import {
   Wrench,
   Calendar,
   List,
-  LayoutGrid
+  LayoutGrid,
+  Smartphone
 } from "lucide-react";
 
 
@@ -62,11 +63,15 @@ export default function AppPwaPage() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSubmitting, setLoginSubmitting] = useState(false);
   const [scheduleView, setScheduleView] = useState<"list" | "calendar">("list");
+  const [isLandscape, setIsLandscape] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mql = window.matchMedia("(orientation: landscape)");
+    setIsLandscape(mql.matches);
+    
     const onChange = (e: MediaQueryListEvent) => {
+      setIsLandscape(e.matches);
       if (activeTab === "home") {
         setScheduleView(e.matches ? "calendar" : "list");
       }
@@ -514,6 +519,27 @@ export default function AppPwaPage() {
     );
   }
 
+  // Force portrait mode except for the calendar view
+  if (isLandscape && (activeTab !== "home" || scheduleView !== "calendar")) {
+    return (
+      <div className="fixed inset-0 bg-slate-900 text-white flex flex-col items-center justify-center z-[100] p-6 text-center">
+        <Smartphone className="size-16 mb-6 text-[#4dbdc6] animate-pulse" style={{ transform: "rotate(-90deg)" }} />
+        <h2 className="text-2xl font-bold mb-3">Obróć urządzenie</h2>
+        <p className="text-slate-400 max-w-xs mx-auto mb-8">
+          Ten widok jest dostępny tylko w trybie pionowym.
+        </p>
+        <button 
+          onClick={() => {
+            setActiveTab("home");
+            setScheduleView("calendar");
+          }} 
+          className="px-6 py-3.5 bg-[#4dbdc6] text-white rounded-2xl font-bold shadow-lg hover:bg-teal-500 transition"
+        >
+          Przejdź do kalendarza
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[100dvh] w-full bg-slate-50 text-gray-900 select-none relative overflow-hidden">

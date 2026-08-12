@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/ekipa",
     display: "fullscreen",
     display_override: ["fullscreen", "standalone"],
-    orientation: "portrait",
+    orientation: "any",
     background_color: "#f6f7f9",
     theme_color: "#f6f7f9",
     icons: [
@@ -17,7 +17,7 @@ export default function manifest(): MetadataRoute.Manifest {
         src: "/convex.svg",
         sizes: "any",
         type: "image/svg+xml",
-        purpose: "any maskable",
+        purpose: "maskable",
       },
     ],
   };
