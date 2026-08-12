@@ -1260,10 +1260,15 @@ function TaskCard({
                 clientId: task.clientId as Id<"clients"> | undefined,
                 assignedUserIds: task.assignedUserId ? [task.assignedUserId as Id<"users">] : undefined,
               });
+              void updateTask({ taskId: task._id as Id<"orderTasks">, addedToCalendar: true });
               toast.success("Dodano wydarzenie własne do kalendarza");
             }}
-            title="Dodaj wydarzenie do kalendarza (Własne)"
-            className="rounded p-1 text-gray-400 opacity-100 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
+            title={task.addedToCalendar ? "Dodano do kalendarza" : "Dodaj wydarzenie do kalendarza (Własne)"}
+            className={`rounded p-1 transition-colors ${
+              task.addedToCalendar
+                ? "bg-indigo-50 text-indigo-600 opacity-100 hover:bg-indigo-100"
+                : "text-gray-400 opacity-100 hover:bg-indigo-50 hover:text-indigo-600"
+            }`}
           >
             <CalendarPlus className="size-3.5" />
           </button>

@@ -746,6 +746,7 @@ export default defineSchema({
     archivedAt: v.optional(v.number()),
     assignedUserId: v.optional(v.id("users")), // legacy
     assignedUserIds: v.optional(v.array(v.id("users"))),
+    addedToCalendar: v.optional(v.boolean()),
     createdBy: v.string(),
     position: v.optional(v.number()),
     labelIds: v.optional(v.array(v.id("taskLabels"))),

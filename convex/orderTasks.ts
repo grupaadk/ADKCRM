@@ -129,6 +129,7 @@ export const update = mutation({
     columnId: v.optional(v.id("taskColumns")),
     clearColumnId: v.optional(v.boolean()),
     archived: v.optional(v.boolean()),
+    addedToCalendar: v.optional(v.boolean()),
     position: v.optional(v.number()),
     labelIds: v.optional(v.array(v.id("taskLabels"))),
   },
@@ -146,6 +147,7 @@ export const update = mutation({
       patch.archived = rest.archived;
       patch.archivedAt = rest.archived ? Date.now() : undefined;
     }
+    if (rest.addedToCalendar !== undefined) patch.addedToCalendar = rest.addedToCalendar;
     if (rest.dueDate !== undefined) patch.dueDate = rest.dueDate;
     if (clearDueDate) patch.dueDate = undefined;
     if (rest.priority !== undefined) patch.priority = rest.priority;

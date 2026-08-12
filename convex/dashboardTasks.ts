@@ -14,6 +14,7 @@ export type DashboardTask = {
   archived?: boolean;
   archivedAt?: number;
   dueDate?: number;
+  addedToCalendar?: boolean;
   position?: number;
   // Źródło zadania: zlecenie, szansa sprzedaży albo reklamacja.
   source: TaskType;
@@ -178,6 +179,7 @@ export const list = query({
             archived: task.archived,
             archivedAt: task.archivedAt,
             dueDate: task.dueDate,
+        addedToCalendar: task.addedToCalendar,
             source: "opportunity",
             opportunityId: task.opportunityId,
             orderName: null,
@@ -232,6 +234,7 @@ export const list = query({
             archived: task.archived,
             archivedAt: task.archivedAt,
             dueDate: task.dueDate,
+        addedToCalendar: task.addedToCalendar,
             source: "complaint",
             complaintId: task.complaintId,
             orderId: complaint.orderId,
@@ -269,6 +272,7 @@ export const list = query({
               archived: task.archived,
               archivedAt: task.archivedAt,
               dueDate: task.dueDate,
+        addedToCalendar: task.addedToCalendar,
               source: "order",
               orderId: task.orderId,
               clientId: order.clientId,
@@ -293,6 +297,7 @@ export const list = query({
           archived: task.archived,
           archivedAt: task.archivedAt,
           dueDate: task.dueDate,
+        addedToCalendar: task.addedToCalendar,
           source: "general",
           orderName: null,
           customText: null,
@@ -374,6 +379,7 @@ export const getOne = query({
         archived: task.archived,
         archivedAt: task.archivedAt,
         dueDate: task.dueDate,
+        addedToCalendar: task.addedToCalendar,
         source: "opportunity",
         opportunityId: task.opportunityId,
         orderName: null,
@@ -400,6 +406,7 @@ export const getOne = query({
         archived: task.archived,
         archivedAt: task.archivedAt,
         dueDate: task.dueDate,
+        addedToCalendar: task.addedToCalendar,
         source: "complaint",
         complaintId: task.complaintId,
         orderId: complaint.orderId,
@@ -427,6 +434,7 @@ export const getOne = query({
         archived: task.archived,
         archivedAt: task.archivedAt,
         dueDate: task.dueDate,
+        addedToCalendar: task.addedToCalendar,
         source: "order",
         orderId: task.orderId,
         clientId: order.clientId,
@@ -448,6 +456,7 @@ export const getOne = query({
       archived: task.archived,
       archivedAt: task.archivedAt,
       dueDate: task.dueDate,
+        addedToCalendar: task.addedToCalendar,
       source: "general",
       orderName: null,
       customText: null,
