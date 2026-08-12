@@ -839,25 +839,3 @@ export const deleteEvent = mutation({
   },
 });
 
-export const getDebugComplaints = query({
-  args: { orderId: v.string() },
-  handler: async (ctx, args) => {
-    const complaints = await ctx.db.query("complaints").collect();
-    return complaints.filter(c => c.orderId === args.orderId);
-  }
-});
-
-export const getDebugOrder = query({
-  args: { orderId: v.id("orders") },
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
-  }
-});
-
-export const getDebugLinkedEvents = query({
-  args: { startDate: v.number(), endDate: v.number() },
-  handler: async (ctx, args) => {
-    // Just copy the whole body of getLinkedOrderEvents minus requireUser?
-    // Let's just run it locally by removing requireUser temporarily from getLinkedOrderEvents.
-  }
-});
