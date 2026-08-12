@@ -227,7 +227,6 @@ export const list = query({
           investmentStreet: pending.investmentStreet,
           comment: pending.comment,
           clientCity: clientCity ?? pending.city,
-          statusChangedAt: pending.stageChangedAt ?? pending._creationTime,
           cost: pending.cost,
           price: pending.price,
           profit: pending.profit,

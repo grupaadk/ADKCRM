@@ -154,9 +154,12 @@ export default function OpportunityDetailPage({
     );
   }
 
-  function save<K extends string>(field: K, value: string | string[] | undefined) {
-    void updateField({ opportunityId, [field]: value });
-  }
+  const save = (field: string, value: string | string[] | number | undefined) => {
+    updateField({ opportunityId, [field]: value }).catch((err) => {
+      setError(err instanceof Error ? err.message : "Wystąpił błąd");
+      setTimeout(() => setError(null), 3000);
+    });
+  };
 
   function handleAddress(a: AddressData) {
     const patch: Record<string, string> = {};
