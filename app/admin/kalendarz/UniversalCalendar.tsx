@@ -2478,6 +2478,7 @@ export default function UniversalCalendar({
           eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotDuration="01:00:00"
+          snapDuration="00:15:00"
           slotMinTime="06:00:00"
           slotMaxTime="17:00:00"
           allDaySlot={true}
