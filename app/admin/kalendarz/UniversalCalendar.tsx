@@ -14,6 +14,7 @@ import type { EventClickArg, EventDropArg, EventContentArg, DatesSetArg, DateSel
 import type { DateClickArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useStatuses } from "@/components/StatusLabelsContext";
+import toast from "react-hot-toast";
 import { FilterX, CheckCheck, Search, X, Car } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -637,12 +638,13 @@ export default function UniversalCalendar({
     const newEnd = info.event.end;
     if (!newStart) return;
 
-    if (props.sourceType === "montaz") {
-      await updateOrder({
-        orderId: info.event.id as Id<"orders">,
-        projectEndDate: localMidnight(newStart),
-        installationStartDate: dateToMins(newStart),
-      });
+    try {
+      if (props.sourceType === "montaz") {
+        await updateOrder({
+          orderId: info.event.id as Id<"orders">,
+          projectEndDate: localMidnight(newStart),
+          installationStartDate: dateToMins(newStart),
+        });
     } else if (props.sourceType === "order-linked" && (props.orderId || props.complaintId) && props.field) {
       // Compute new serviceDateEnd if this is a complaint service event with a known duration
       const newServiceDateEnd =
@@ -660,13 +662,18 @@ export default function UniversalCalendar({
         endDate: newEnd ? newEnd.getTime() : undefined,
         serviceDateEnd: newServiceDateEnd,
       });
-    } else {
-      await updateCalendarEvent({
-        id: info.event.id as Id<"calendarEvents">,
-        startDate: newStart.getTime(),
-        endDate: newEnd ? newEnd.getTime() : undefined,
-        isAllDay: info.event.allDay,
-      });
+      } else {
+        await updateCalendarEvent({
+          id: info.event.id as Id<"calendarEvents">,
+          startDate: newStart.getTime(),
+          endDate: newEnd ? newEnd.getTime() : null, // explicit null to clear if needed
+          isAllDay: info.event.allDay,
+        });
+      }
+    } catch (err) {
+      console.error("Drop event error:", err);
+      toast.error("Błąd podczas przenoszenia wydarzenia!");
+      info.revert();
     }
   };
 
@@ -683,30 +690,36 @@ export default function UniversalCalendar({
     const newEnd = info.event.end;
     if (!newStart) return;
 
-    if (props.sourceType === "montaz") {
-      await updateOrder({
-        orderId: info.event.id as Id<"orders">,
-        projectEndDate: localMidnight(newStart),
-        installationStartDate: dateToMins(newStart),
-      });
-    } else if (props.sourceType === "order-linked" && (props.orderId || props.complaintId) && props.field) {
-      await updateLinkedOrderDate({
-        orderId: props.orderId ? (props.orderId as Id<"orders">) : undefined,
-        complaintId: props.complaintId ? (props.complaintId as Id<"complaints">) : undefined,
-        field: props.field,
-        deliveryIndex: props.deliveryIndex,
-        installationIndex: props.installationIndex,
-        newDate: newStart.getTime(),
-        endDate: newEnd ? newEnd.getTime() : undefined,
-        serviceDateEnd: newEnd ? newEnd.getTime() : undefined,
-      });
-    } else {
-      await updateCalendarEvent({
-        id: info.event.id as Id<"calendarEvents">,
-        startDate: newStart.getTime(),
-        endDate: newEnd ? newEnd.getTime() : undefined,
-        isAllDay: info.event.allDay,
-      });
+    try {
+      if (props.sourceType === "montaz") {
+        await updateOrder({
+          orderId: info.event.id as Id<"orders">,
+          projectEndDate: localMidnight(newStart),
+          installationStartDate: dateToMins(newStart),
+        });
+      } else if (props.sourceType === "order-linked" && (props.orderId || props.complaintId) && props.field) {
+        await updateLinkedOrderDate({
+          orderId: props.orderId ? (props.orderId as Id<"orders">) : undefined,
+          complaintId: props.complaintId ? (props.complaintId as Id<"complaints">) : undefined,
+          field: props.field,
+          deliveryIndex: props.deliveryIndex,
+          installationIndex: props.installationIndex,
+          newDate: newStart.getTime(),
+          endDate: newEnd ? newEnd.getTime() : undefined,
+          serviceDateEnd: newEnd ? newEnd.getTime() : undefined,
+        });
+      } else {
+        await updateCalendarEvent({
+          id: info.event.id as Id<"calendarEvents">,
+          startDate: newStart.getTime(),
+          endDate: newEnd ? newEnd.getTime() : null, // explicit null to clear if needed
+          isAllDay: info.event.allDay,
+        });
+      }
+    } catch (err) {
+      console.error("Resize event error:", err);
+      toast.error("Błąd podczas zmiany czasu wydarzenia!");
+      info.revert();
     }
   };
 
