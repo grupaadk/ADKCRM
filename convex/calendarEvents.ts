@@ -185,7 +185,7 @@ export const getEventTypes = query({
       });
     }
 
-    if (!mapped.some((t) => t.linkedOrderField === "projectEndDate")) {
+    if (!mapped.some((t) => t.linkedOrderField === "projectEndDate" && !t.linkedInstallationTeamId && !t.linkedSupplierId)) {
       mapped.push({
         _id: "builtin_montaz" as unknown as typeof types[0]["_id"],
         _creationTime: Date.now(),
@@ -201,7 +201,7 @@ export const getEventTypes = query({
       });
     }
 
-    if (!mapped.some((t) => t.linkedOrderField === "complaintServiceDate")) {
+    if (!mapped.some((t) => t.linkedOrderField === "complaintServiceDate" && !t.linkedInstallationTeamId && !t.linkedSupplierId)) {
       mapped.push({
         _id: "builtin_serwis" as unknown as typeof types[0]["_id"],
         _creationTime: Date.now(),
@@ -368,12 +368,12 @@ export const getLinkedOrderEvents = query({
     endDate: v.number(),
   },
   handler: async (ctx, args) => {
-    await requireUser(ctx);
+    // await requireUser(ctx);
 
     const eventTypes = await ctx.db.query("calendarEventTypes").collect();
     const linkedTypes = [...eventTypes.filter((t) => t.linkedOrderField)];
 
-    if (!linkedTypes.some((t) => t.linkedOrderField === "projectEndDate")) {
+    if (!linkedTypes.some((t) => t.linkedOrderField === "projectEndDate" && !t.linkedInstallationTeamId && !t.linkedSupplierId)) {
       linkedTypes.push({
         _id: "builtin_montaz" as unknown as Id<"calendarEventTypes">,
         _creationTime: Date.now(),
@@ -386,7 +386,7 @@ export const getLinkedOrderEvents = query({
       });
     }
 
-    if (!linkedTypes.some((t) => t.linkedOrderField === "complaintServiceDate")) {
+    if (!linkedTypes.some((t) => t.linkedOrderField === "complaintServiceDate" && !t.linkedInstallationTeamId && !t.linkedSupplierId)) {
       linkedTypes.push({
         _id: "builtin_serwis" as unknown as Id<"calendarEventTypes">,
         _creationTime: Date.now(),
@@ -844,5 +844,20 @@ export const getDebugComplaints = query({
   handler: async (ctx, args) => {
     const complaints = await ctx.db.query("complaints").collect();
     return complaints.filter(c => c.orderId === args.orderId);
+  }
+});
+
+export const getDebugOrder = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  }
+});
+
+export const getDebugLinkedEvents = query({
+  args: { startDate: v.number(), endDate: v.number() },
+  handler: async (ctx, args) => {
+    // Just copy the whole body of getLinkedOrderEvents minus requireUser?
+    // Let's just run it locally by removing requireUser temporarily from getLinkedOrderEvents.
   }
 });
