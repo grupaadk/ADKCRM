@@ -616,7 +616,8 @@ export const getScheduleByPin = query({
 
 export const getScheduleForUser = query({
   args: {
-    userId: v.optional(v.id("users")),
+    userId: v.optional(v.union(v.id("users"), v.literal("all"))),
+    allUsers: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const currentUser = await getCurrentUser(ctx);
@@ -685,7 +686,7 @@ export const getScheduleForUser = query({
         o.assignedUserIds?.some((id) => matchingUserIds.has(id)) ||
         (targetUserEmail && o.createdBy?.toLowerCase() === targetUserEmail);
       const assignedToTeam = team && o.installationTeamId === team._id;
-      return assignedToUser || assignedToTeam;
+      return args.allUsers || assignedToUser || assignedToTeam;
     });
 
     // Filter personal calendar events for target user
@@ -694,7 +695,7 @@ export const getScheduleForUser = query({
       const isAssignedToTarget = ev.assignedUserIds?.some((id) => matchingUserIds.has(id));
       const isTeamEvent = team && ev.installationTeamId === team._id;
 
-      return isCreatedByTarget || isAssignedToTarget || isTeamEvent;
+      return args.allUsers || isCreatedByTarget || isAssignedToTarget || isTeamEvent;
     });
 
 
@@ -797,7 +798,7 @@ export const getScheduleForUser = query({
 
 
     return {
-      teamName: team?.name ?? targetUser?.displayName ?? targetUserName ?? userName ?? "Moje Wydarzenia",
+      teamName: args.allUsers ? "Wszyscy pracownicy" : (team?.name ?? targetUser?.displayName ?? targetUserName ?? userName ?? "Moje Wydarzenia"),
       items,
     };
 

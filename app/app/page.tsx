@@ -96,12 +96,16 @@ export default function AppPwaPage() {
 
   // Schedule / Calendar State
   const [selectedScheduleDate, setSelectedScheduleDate] = useState<Date | null>(new Date());
-  const [selectedScheduleUserId, setSelectedScheduleUserId] = useState<Id<"users"> | null>(null);
+  const [selectedScheduleUserId, setSelectedScheduleUserId] = useState<Id<"users"> | "all" | null>(null);
   const allUsersForFilter = useQuery(api.users.listAllActive);
 
   const userSchedule = useQuery(
     api.installationTeams.getScheduleForUser,
-    selectedScheduleUserId ? { userId: selectedScheduleUserId } : {}
+    selectedScheduleUserId === "all" 
+      ? { allUsers: true, userId: "all" } 
+      : selectedScheduleUserId 
+      ? { userId: selectedScheduleUserId } 
+      : {}
   );
 
 
@@ -904,11 +908,12 @@ export default function AppPwaPage() {
                     value={selectedScheduleUserId ?? ""}
                     onChange={(e) => {
                       const val = e.target.value;
-                      setSelectedScheduleUserId(val ? (val as Id<"users">) : null);
+                      setSelectedScheduleUserId(val === "all" ? "all" : val ? (val as Id<"users">) : null);
                     }}
                     className="text-xs bg-white border border-gray-200 font-semibold text-slate-700 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#4dbdc6] shadow-xs"
                   >
                     <option value="">Moje wydarzenia (zalogowany)</option>
+                    <option value="all">Wszyscy użytkownicy</option>
                     {allUsersForFilter?.map((u) => (
                       <option key={u._id} value={u._id}>
                         {u.displayName ?? u.login ?? "Użytkownik"}
