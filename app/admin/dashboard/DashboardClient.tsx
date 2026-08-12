@@ -1251,7 +1251,7 @@ function TaskCard({
               const end = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 7, 0, 0, 0).getTime();
               void createCalendarEvent({
                 eventTypeId: "wlasne_default_id" as Id<"calendarEventTypes">,
-                title: `Wydarzenie: ${task.clientName || task.title}`,
+                title: task.title,
                 startDate: start,
                 endDate: end,
                 isAllDay: false,
