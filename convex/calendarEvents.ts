@@ -495,7 +495,7 @@ export const getLinkedOrderEvents = query({
               installationTeamName: team?.name,
               installationTeamColor: team?.color,
               field,
-              assignedUserId: complaint.assignedTo ? undefined : order?.assignedUserId,
+              assignedUserId: complaint.assignedTo ? undefined : (order?.assignedUserId ?? order?.assignedUserIds?.[0]),
               // Duration offset so frontend can compute new serviceDateEnd when dragging
               serviceDateOffset:
                 complaint.serviceDate && complaint.serviceDateEnd
@@ -544,7 +544,7 @@ export const getLinkedOrderEvents = query({
               installationTeamName: team?.name,
               installationTeamColor: team?.color,
               field,
-              assignedUserId: order.assignedUserId,
+              assignedUserId: order.assignedUserId ?? order.assignedUserIds?.[0],
             });
           }
         } else if (field === "projectEndDate") {
@@ -583,7 +583,7 @@ export const getLinkedOrderEvents = query({
                   installationTeamColor: specificTeam?.color,
                   field,
                   installationIndex: idx,
-                  assignedUserId: order.assignedUserId,
+                  assignedUserId: order.assignedUserId ?? order.assignedUserIds?.[0],
                 });
               }
             });
@@ -614,7 +614,7 @@ export const getLinkedOrderEvents = query({
               installationTeamName: team?.name,
               installationTeamColor: team?.color,
               field,
-              assignedUserId: order.assignedUserId,
+              assignedUserId: order.assignedUserId ?? order.assignedUserIds?.[0],
             });
           }
         } else if (field.startsWith("serviceDeliveries.")) {
@@ -658,7 +658,7 @@ export const getLinkedOrderEvents = query({
                   deliveryIndex: idx,
                   serviceName: label,
                   field,
-                  assignedUserId: order.assignedUserId,
+                  assignedUserId: order.assignedUserId ?? order.assignedUserIds?.[0],
                   installationTeamId: order.installationTeamId,
                 });
               }
