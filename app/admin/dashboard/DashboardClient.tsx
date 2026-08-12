@@ -6,7 +6,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { DashboardTask } from "@/convex/dashboardTasks";
 import type { Id } from "@/convex/_generated/dataModel";
-import { ExternalLink, Plus, Clock, CalendarDays, ChevronRight, ChevronLeft, Lock, Unlock, Flame, Check, Archive, ArchiveRestore, ShoppingBag, ArrowLeft, Trash2 } from "lucide-react";
+import { ExternalLink, Plus, Clock, CalendarDays, CalendarPlus, ChevronRight, ChevronLeft, Lock, Unlock, Flame, Check, Archive, ArchiveRestore, ShoppingBag, ArrowLeft, Trash2 } from "lucide-react";
+import toast from "react-hot-toast";
 import TaskDrawer from "@/components/TaskDrawer";
 import AddTaskDrawer from "@/components/AddTaskDrawer";
 import ModalPortal from "@/components/ModalPortal";
@@ -1106,6 +1107,7 @@ function TaskCard({
 }) {
   const router = useRouter();
   const updateTask = useMutation(api.orderTasks.update);
+  const createCalendarEvent = useMutation(api.calendarEvents.createEvent);
 
   // Typ zadania (źródło)
   const taskType: TaskType =
@@ -1240,6 +1242,26 @@ function TaskCard({
             }`}
           >
             <Flame className="size-3.5" fill={task.priority === "high" ? "#f97316" : "none"} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              void createCalendarEvent({
+                eventTypeId: "wlasne_default_id" as Id<"calendarEventTypes">,
+                title: `Wydarzenie: ${task.clientName || task.title}`,
+                startDate: Date.now(),
+                isAllDay: true,
+                isPrivate: false,
+                orderId: task.orderId as Id<"orders"> | undefined,
+                clientId: task.clientId as Id<"clients"> | undefined,
+                assignedUserIds: task.assignedUserId ? [task.assignedUserId as Id<"users">] : undefined,
+              });
+              toast.success("Dodano wydarzenie własne do kalendarza");
+            }}
+            title="Dodaj wydarzenie do kalendarza (Własne)"
+            className="rounded p-1 text-gray-400 opacity-100 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
+          >
+            <CalendarPlus className="size-3.5" />
           </button>
           {openHref !== "#" && (
             <button
