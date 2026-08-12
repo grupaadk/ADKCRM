@@ -170,12 +170,42 @@ export default function UniversalCalendar({
 
   const [eventTypesInitialized, setEventTypesInitialized] = useState(false);
   useEffect(() => {
-    if (eventTypes && eventTypes.length > 0 && !eventTypesInitialized) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setActiveEventTypeFilters(new Set(eventTypes.map((t) => t._id)));
-      setEventTypesInitialized(true);
+    if (eventTypes && eventTypes.length > 0) {
+      if (!eventTypesInitialized) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setActiveEventTypeFilters(new Set(eventTypes.map((t) => t._id)));
+        setEventTypesInitialized(true);
+      } else {
+        // Migracja syntetycznego ID na prawdziwe
+        let changed = false;
+        const nextFilters = new Set(activeEventTypeFilters);
+        const realWlasne = eventTypes.find(t => (t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne") && t._id !== "wlasne_default_id");
+        if (realWlasne && nextFilters.has("wlasne_default_id")) {
+          nextFilters.delete("wlasne_default_id");
+          nextFilters.add(realWlasne._id);
+          changed = true;
+        }
+
+        const realMontaz = eventTypes.find(t => t.linkedOrderField === "projectEndDate" && !t.linkedInstallationTeamId && !t.linkedSupplierId && t._id !== "builtin_montaz");
+        if (realMontaz && nextFilters.has("builtin_montaz")) {
+          nextFilters.delete("builtin_montaz");
+          nextFilters.add(realMontaz._id);
+          changed = true;
+        }
+
+        const realSerwis = eventTypes.find(t => t.linkedOrderField === "complaintServiceDate" && !t.linkedInstallationTeamId && !t.linkedSupplierId && t._id !== "builtin_serwis");
+        if (realSerwis && nextFilters.has("builtin_serwis")) {
+          nextFilters.delete("builtin_serwis");
+          nextFilters.add(realSerwis._id);
+          changed = true;
+        }
+        if (changed) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setActiveEventTypeFilters(nextFilters);
+        }
+      }
     }
-  }, [eventTypes, eventTypesInitialized]);
+  }, [eventTypes, eventTypesInitialized, activeEventTypeFilters, setActiveEventTypeFilters]);
 
   const [suppliersInitialized, setSuppliersInitialized] = useState(false);
   useEffect(() => {
