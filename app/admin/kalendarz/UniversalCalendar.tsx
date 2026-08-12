@@ -556,6 +556,9 @@ export default function UniversalCalendar({
         const servicePart = le.serviceName ? ` (${le.serviceName})` : "";
         const titleText = `${baseText}${customPart}${servicePart}`;
 
+        const assignedUserColor = le.assignedUserId ? userColorMap.get(le.assignedUserId as Id<"users">) : undefined;
+        const color = assignedUserColor ?? le.color;
+
         result.push({
           id: le.id,
           title: titleText,
@@ -584,7 +587,7 @@ export default function UniversalCalendar({
             installationIndex: (le as { installationIndex?: number }).installationIndex,
             eventTypeId: le.eventTypeId,
             eventTypeName: le.eventTypeName,
-            color: le.color,
+            color,
           },
         });
       }
