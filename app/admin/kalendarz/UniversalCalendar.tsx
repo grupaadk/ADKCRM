@@ -390,10 +390,9 @@ export default function UniversalCalendar({
         }
       }
 
-      // Sprawdź czy wydarzenie pasuje do przynajmniej jednego aktywnego kryterium
-      let matched = false;
+      // EXCLUSION LOGIC (AND-based filters)
 
-      // Filtr użytkownika (jeśli aktywny)
+      // 1. Filtr użytkownika
       if (hasActiveUserFilters) {
         let userMatch = false;
         if (params.assignedUserIds) {
@@ -406,56 +405,53 @@ export default function UniversalCalendar({
             : activeUserFilters.has("__none__");
         }
         if (!userMatch) return false;
-        matched = true;
-      }
-      if (!matched && hasActiveEventTypeFilters && activeEventTypeFilters.has(params.eventTypeId)) {
-        matched = true;
       }
 
-      // 2. Pasuje do aktywnego dostawcy
-      if (!matched && hasActiveSupplierFilters) {
-        if (params.supplierId && activeSupplierFilters.has(params.supplierId)) {
-          matched = true;
+      // 2. Filtr Typu Wydarzenia
+      if (hasActiveEventTypeFilters && !activeEventTypeFilters.has(params.eventTypeId)) {
+        return false;
+      }
+
+      // 3. Filtr Ekipy Montażowej
+      if (installationTeams && activeTeamFilters.size < installationTeams.length) {
+        const et = eventTypes.find((t) => t._id === params.eventTypeId);
+        const teamId = params.installationTeamId || et?.linkedInstallationTeamId;
+        // Zdarzenia przypisane do ekipy, która została odznaczona -> ukryj
+        if (teamId && !activeTeamFilters.has(teamId)) return false;
+      }
+
+      // 4. Filtr Dostawcy
+      if (activeSuppliers && activeSupplierFilters.size < activeSuppliers.length) {
+        const et = eventTypes.find((t) => t._id === params.eventTypeId);
+        const supplierId = params.supplierId || et?.linkedSupplierId;
+        // Zdarzenia przypisane do dostawcy, który został odznaczony -> ukryj
+        if (supplierId && !activeSupplierFilters.has(supplierId)) return false;
+      }
+
+      // 5. Filtr Samochodów
+      if (cars && activeCarFilters.size < cars.length) {
+        if (params.carId) {
+          if (!activeCarFilters.has(params.carId)) return false;
         } else {
-          const et = eventTypes.find((t) => t._id === params.eventTypeId);
-          if (et?.linkedSupplierId && activeSupplierFilters.has(et.linkedSupplierId)) {
-            matched = true;
-          }
-        }
-      }
-
-      // 3. Pasuje do aktywnej ekipy montażowej
-      if (!matched && hasActiveTeamFilters) {
-        if (params.installationTeamId && activeTeamFilters.has(params.installationTeamId)) {
-          matched = true;
-        } else {
-          const et = eventTypes.find((t) => t._id === params.eventTypeId);
-          if (et?.linkedInstallationTeamId && activeTeamFilters.has(et.linkedInstallationTeamId)) {
-            matched = true;
-          }
-        }
-      }
-
-      // 4. Pasuje do aktywnej floty samochodów
-      if (!matched && hasActiveCarFilters) {
-        if (params.carId && activeCarFilters.has(params.carId)) {
-          matched = true;
-        } else if (cars) {
+          // Fallback text search for cars as in original logic
           const titleAndDesc = `${params.title ?? ""} ${params.customText ?? ""}`.toLowerCase();
+          let carMatch = false;
+          let hasAnyCarMention = false;
           for (const car of cars) {
-            if (
-              activeCarFilters.has(car._id) &&
-              car.registrationNumber &&
-              titleAndDesc.includes(car.registrationNumber.toLowerCase())
-            ) {
-              matched = true;
-              break;
+            if (car.registrationNumber && titleAndDesc.includes(car.registrationNumber.toLowerCase())) {
+              hasAnyCarMention = true;
+              if (activeCarFilters.has(car._id)) {
+                carMatch = true;
+                break;
+              }
             }
           }
+          if (hasAnyCarMention && !carMatch) return false;
         }
       }
 
-      return matched;
+      // Passed all active exclusion filters
+      return true;
     };
 
     const userMap = new Map(allUsers?.map((u) => [u._id, u.displayName ?? u.login ?? "Użytkownik"]));
