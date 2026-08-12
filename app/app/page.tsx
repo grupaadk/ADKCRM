@@ -23,6 +23,8 @@ import {
   Clock,
   Wrench,
   Calendar,
+  List,
+  LayoutGrid
 } from "lucide-react";
 
 
@@ -30,7 +32,7 @@ import { DateStrip } from "@/components/ekipa/DateStrip";
 import dynamic from "next/dynamic";
 
 const MobileWeekCalendar = dynamic(() => import("@/components/ekipa/MobileWeekCalendar"), { ssr: false });
-type Tab = "home" | "calendar" | "search" | "notifications" | "profile" | "add-document";
+type Tab = "home" | "search" | "notifications" | "profile" | "add-document";
 
 const DOCUMENT_TYPES = [
   { id: "pomiar", label: "Pomiar" },
@@ -59,6 +61,7 @@ export default function AppPwaPage() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSubmitting, setLoginSubmitting] = useState(false);
+  const [scheduleView, setScheduleView] = useState<"list" | "calendar">("list");
 
   const statuses = useStatuses();
   const statusMap = useMemo(
@@ -903,6 +906,20 @@ export default function AppPwaPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <div className="flex bg-slate-100 p-0.5 rounded-xl border border-gray-200">
+                    <button
+                      onClick={() => setScheduleView("list")}
+                      className={`px-3 py-1.5 rounded-lg flex items-center justify-center transition-colors ${scheduleView === "list" ? "bg-white shadow-sm text-[#4dbdc6]" : "text-slate-400 hover:text-slate-600"}`}
+                    >
+                      <List className="size-4" />
+                    </button>
+                    <button
+                      onClick={() => setScheduleView("calendar")}
+                      className={`px-3 py-1.5 rounded-lg flex items-center justify-center transition-colors ${scheduleView === "calendar" ? "bg-white shadow-sm text-[#4dbdc6]" : "text-slate-400 hover:text-slate-600"}`}
+                    >
+                      <LayoutGrid className="size-4" />
+                    </button>
+                  </div>
                   {/* Select Filter User */}
                   <select
                     value={selectedScheduleUserId ?? ""}
@@ -925,8 +942,12 @@ export default function AppPwaPage() {
 
 
 
-              {/* Events List */}
-              {(() => {
+              {/* Events List / Calendar View */}
+              {scheduleView === "calendar" ? (
+                <div className="flex-1 overflow-hidden h-[calc(100vh-230px)] min-h-[400px]">
+                  <MobileWeekCalendar items={userSchedule?.items ?? []} />
+                </div>
+              ) : (() => {
                 if (userSchedule === undefined) {
                   return (
                     <div className="flex items-center justify-center p-8 bg-white rounded-2xl border border-gray-200">
@@ -1014,7 +1035,7 @@ export default function AppPwaPage() {
 
                         {item.address && (
                           <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium pt-1 border-t border-gray-100">
-                            <MapPin className="size-3 text-[#4dbdc6] shrink-0" />
+                      <MapPin className="size-3 text-[#4dbdc6] shrink-0" />
                             <span className="truncate">{item.address}</span>
                           </div>
                         )}
@@ -1026,26 +1047,20 @@ export default function AppPwaPage() {
             </div>
 
             {/* Bottom Swipeable Calendar Strip right above the bottom navigation */}
-            <div className="sticky bottom-0 z-10 pt-2 pb-1 bg-slate-50">
-              <DateStrip
-                selectedDate={selectedScheduleDate}
-                onSelectDate={setSelectedScheduleDate}
-                markedDates={(userSchedule?.items ?? []).map((i) => i.date)}
-              />
-            </div>
+            {scheduleView === "list" && (
+              <div className="sticky bottom-0 z-10 pt-2 pb-1 bg-slate-50">
+                <DateStrip
+                  selectedDate={selectedScheduleDate}
+                  onSelectDate={setSelectedScheduleDate}
+                  markedDates={(userSchedule?.items ?? []).map((i) => i.date)}
+                />
+              </div>
+            )}
           </div>
         )}
 
 
 
-        {activeTab === "calendar" && (
-          <div className="flex-1 flex flex-col p-4 pb-24 overflow-hidden h-[calc(100vh-80px)]">
-            <h2 className="text-base font-extrabold text-slate-800 mb-2">Kalendarz</h2>
-            <div className="flex-1">
-              <MobileWeekCalendar items={userSchedule?.items ?? []} />
-            </div>
-          </div>
-        )}
 
         {activeTab === "search" && (
           <div className="space-y-4">
@@ -1485,17 +1500,6 @@ export default function AppPwaPage() {
             )}
           </div>
 
-          {/* Calendar */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("calendar")}
-            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-              activeTab === "calendar" ? "text-[#4dbdc6]" : "text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            <Calendar className="size-6 stroke-[1.75]" />
-            <span className="text-[11px] font-medium mt-1">Kalendarz</span>
-          </button>
 
           {/* Notifications */}
           <button
