@@ -63,6 +63,18 @@ export default function AppPwaPage() {
   const [loginSubmitting, setLoginSubmitting] = useState(false);
   const [scheduleView, setScheduleView] = useState<"list" | "calendar">("list");
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia("(orientation: landscape)");
+    const onChange = (e: MediaQueryListEvent) => {
+      if (activeTab === "home") {
+        setScheduleView(e.matches ? "calendar" : "list");
+      }
+    };
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, [activeTab]);
+
   const statuses = useStatuses();
   const statusMap = useMemo(
     () => Object.fromEntries(statuses.map((s) => [s.key, s.label])),
@@ -944,7 +956,7 @@ export default function AppPwaPage() {
 
               {/* Events List / Calendar View */}
               {scheduleView === "calendar" ? (
-                <div className="flex-1 overflow-hidden h-[calc(100vh-230px)] min-h-[400px]">
+                <div className="flex-1 flex flex-col min-h-[300px] sm:min-h-[400px] overflow-hidden -mx-2 sm:mx-0">
                   <MobileWeekCalendar items={userSchedule?.items ?? []} />
                 </div>
               ) : (() => {

@@ -60,7 +60,7 @@ export default function MobileWeekCalendar({ items, onEventClick }: MobileWeekCa
   }, [items]);
 
   return (
-    <div className="w-full h-[calc(100vh-200px)] min-h-[400px] bg-white rounded-xl shadow-xs overflow-hidden p-2">
+    <div className="w-full h-full bg-white rounded-xl shadow-xs overflow-hidden p-2 flex flex-col">
       <style>{`
         .fc-theme-standard td, .fc-theme-standard th {
           border-color: #f1f5f9;
@@ -135,6 +135,9 @@ export default function MobileWeekCalendar({ items, onEventClick }: MobileWeekCa
           if (onEventClick) {
             onEventClick(info.event.extendedProps.item as ScheduleItem);
           }
+        }}
+        windowResize={(arg) => {
+          arg.view.calendar.updateSize();
         }}
       />
     </div>
