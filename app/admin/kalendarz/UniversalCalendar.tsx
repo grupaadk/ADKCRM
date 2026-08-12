@@ -477,12 +477,15 @@ export default function UniversalCalendar({
             : [];
 
         const assignedUserNames: string[] = [];
+        const assignedUserColors: string[] = [];
         let assignedUserColor: string | undefined = undefined;
         for (const uid of assignedUserIds) {
           const userName = userMap.get(uid as Id<"users">);
           if (userName) assignedUserNames.push(userName);
+          const uCol = userColorMap.get(uid as Id<"users">);
+          if (uCol) assignedUserColors.push(uCol);
           if (!assignedUserColor) {
-            assignedUserColor = userColorMap.get(uid as Id<"users">);
+            assignedUserColor = uCol;
           }
         }
         if (assignedUserNames.length === 0 && Array.isArray(e.assignedUsers)) {
@@ -525,6 +528,7 @@ export default function UniversalCalendar({
             assignedUsers: e.assignedUsers,
             assignedUserIds: e.assignedUserIds,
             assignedUserNames,
+            assignedUserColors,
             clientId: e.clientId,
             orderId: e.orderId,
             labels: (e as any).labels,
@@ -556,7 +560,13 @@ export default function UniversalCalendar({
         const servicePart = le.serviceName ? ` (${le.serviceName})` : "";
         const titleText = `${baseText}${customPart}${servicePart}`;
 
-        const assignedUserColor = le.assignedUserId ? userColorMap.get(le.assignedUserId as Id<"users">) : undefined;
+        const assignedUserIds = le.assignedUserIds ?? (le.assignedUserId ? [le.assignedUserId] : []);
+        const assignedUserColors: string[] = [];
+        for (const uid of assignedUserIds) {
+          const uCol = userColorMap.get(uid as Id<"users">);
+          if (uCol) assignedUserColors.push(uCol);
+        }
+        const assignedUserColor = assignedUserColors.length > 0 ? assignedUserColors[0] : undefined;
         const color = assignedUserColor ?? le.color;
 
         result.push({
@@ -588,6 +598,7 @@ export default function UniversalCalendar({
             eventTypeId: le.eventTypeId,
             eventTypeName: le.eventTypeName,
             color,
+            assignedUserColors,
           },
         });
       }
@@ -979,6 +990,14 @@ export default function UniversalCalendar({
       labels?: { title: string; color: string }[];
     };
 
+    const gradientStr = props.assignedUserColors && props.assignedUserColors.length > 1
+      ? (() => {
+          const step = 100 / props.assignedUserColors.length;
+          const stops = props.assignedUserColors.map((c, i) => `${c} ${i * step}%, ${c} ${(i + 1) * step}%`);
+          return `linear-gradient(to bottom, ${stops.join(", ")})`;
+        })()
+      : undefined;
+
     const isMonthView = arg.view.type === "dayGridMonth";
     if (isMonthView) {
       const color =
@@ -996,6 +1015,10 @@ export default function UniversalCalendar({
           ? `${props.orderName} - ${props.clientName}`
           : props.orderName ?? props.clientName ?? arg.event.title ?? "—";
 
+      const bgStyle = props.assignedUserColors && props.assignedUserColors.length > 1
+        ? `linear-gradient(to right, ${props.assignedUserColors.map((c, i) => `${c}18 ${i * (100 / props.assignedUserColors!.length)}%, ${c}18 ${(i + 1) * (100 / props.assignedUserColors!.length)}%`).join(", ")})`
+        : `${color}18`;
+
       return (
         <div
           style={{
@@ -1004,7 +1027,7 @@ export default function UniversalCalendar({
             gap: 4,
             padding: "2px 6px",
             borderRadius: 4,
-            background: `${color}18`,
+            background: bgStyle,
             border: `1px solid ${color}44`,
             fontSize: 11,
             fontWeight: 600,
@@ -1061,7 +1084,7 @@ export default function UniversalCalendar({
               width: 6,
               height: 6,
               borderRadius: "50%",
-              background: color,
+              background: gradientStr ?? color,
               flexShrink: 0,
             }}
           />
@@ -1135,7 +1158,7 @@ export default function UniversalCalendar({
           <div
             style={{
               display: "flex", alignItems: "center", gap: 1,
-              borderRadius: 2, background: accentColor, padding: "0px 2px",
+              borderRadius: 2, background: gradientStr ?? accentColor, padding: "0px 2px",
               fontSize: 7, fontWeight: 600, color: "#fff",
               overflow: "hidden", whiteSpace: "nowrap", cursor: "pointer",
               lineHeight: 1.2, maxHeight: "14px",
@@ -1293,7 +1316,7 @@ export default function UniversalCalendar({
           onMouseMove={(e) => setTooltip((t) => ({ ...t, x: e.clientX, y: e.clientY }))}
           onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
         >
-          <div style={{ width: isShort ? 4 : 5, minWidth: isShort ? 4 : 5, background: color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
+          <div style={{ width: isShort ? 4 : 5, minWidth: isShort ? 4 : 5, background: gradientStr ?? color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
           
           {isShort ? (
             <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "2px 6px", minWidth: 0, flex: 1, overflow: "hidden", whiteSpace: "nowrap" }}>
@@ -1393,7 +1416,7 @@ export default function UniversalCalendar({
         onMouseMove={(e) => setTooltip((t) => ({ ...t, x: e.clientX, y: e.clientY }))}
         onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
       >
-        <div style={{ width: isShort ? 4 : 5, minWidth: isShort ? 4 : 5, background: color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
+        <div style={{ width: isShort ? 4 : 5, minWidth: isShort ? 4 : 5, background: gradientStr ?? color, borderRadius: "5px 0 0 5px", alignSelf: "stretch" }} />
         
         {isShort ? (
           <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "2px 6px", minWidth: 0, flex: 1, overflow: "hidden", whiteSpace: "nowrap" }}>

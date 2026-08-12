@@ -496,6 +496,7 @@ export const getLinkedOrderEvents = query({
               installationTeamColor: team?.color,
               field,
               assignedUserId: complaint.assignedTo ? undefined : (order?.assignedUserId ?? order?.assignedUserIds?.[0]),
+              assignedUserIds: complaint.assignedTo ? undefined : (order?.assignedUserIds ?? (order?.assignedUserId ? [order.assignedUserId] : undefined)),
               // Duration offset so frontend can compute new serviceDateEnd when dragging
               serviceDateOffset:
                 complaint.serviceDate && complaint.serviceDateEnd
@@ -545,6 +546,7 @@ export const getLinkedOrderEvents = query({
               installationTeamColor: team?.color,
               field,
               assignedUserId: order.assignedUserId ?? order.assignedUserIds?.[0],
+              assignedUserIds: order.assignedUserIds ?? (order.assignedUserId ? [order.assignedUserId] : undefined),
             });
           }
         } else if (field === "projectEndDate") {
@@ -584,6 +586,7 @@ export const getLinkedOrderEvents = query({
                   field,
                   installationIndex: idx,
                   assignedUserId: order.assignedUserId ?? order.assignedUserIds?.[0],
+                  assignedUserIds: order.assignedUserIds ?? (order.assignedUserId ? [order.assignedUserId] : undefined),
                 });
               }
             });
@@ -615,6 +618,7 @@ export const getLinkedOrderEvents = query({
               installationTeamColor: team?.color,
               field,
               assignedUserId: order.assignedUserId ?? order.assignedUserIds?.[0],
+              assignedUserIds: order.assignedUserIds ?? (order.assignedUserId ? [order.assignedUserId] : undefined),
             });
           }
         } else if (field.startsWith("serviceDeliveries.")) {
@@ -659,6 +663,7 @@ export const getLinkedOrderEvents = query({
                   serviceName: label,
                   field,
                   assignedUserId: order.assignedUserId ?? order.assignedUserIds?.[0],
+                  assignedUserIds: order.assignedUserIds ?? (order.assignedUserId ? [order.assignedUserId] : undefined),
                   installationTeamId: order.installationTeamId,
                 });
               }
