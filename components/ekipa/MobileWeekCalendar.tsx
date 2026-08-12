@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import plLocale from "@fullcalendar/core/locales/pl";
@@ -29,6 +29,8 @@ interface MobileWeekCalendarProps {
 }
 
 export default function MobileWeekCalendar({ items, onEventClick }: MobileWeekCalendarProps) {
+  const [isForcedLandscape, setIsForcedLandscape] = useState(false);
+
   const events = useMemo<EventInput[]>(() => {
     return items.map((item) => {
       let color = "#3b82f6"; // blue
@@ -60,8 +62,24 @@ export default function MobileWeekCalendar({ items, onEventClick }: MobileWeekCa
     });
   }, [items]);
 
+  const forcedLandscapeStyles = isForcedLandscape
+    ? {
+        position: "fixed" as const,
+        top: 0,
+        left: 0,
+        width: "100vh",
+        height: "100dvw",
+        transformOrigin: "top left",
+        transform: "rotate(90deg) translateY(-100%)",
+        zIndex: 9999,
+      }
+    : {};
+
   return (
-    <div className="w-full h-full bg-white rounded-xl shadow-xs overflow-hidden p-2">
+    <div 
+      className={isForcedLandscape ? "bg-white p-2" : "w-full h-full bg-white rounded-xl shadow-xs overflow-hidden p-2"}
+      style={forcedLandscapeStyles}
+    >
       <style>{`
         .fc-theme-standard td, .fc-theme-standard th {
           border-color: #f1f5f9;
@@ -120,15 +138,21 @@ export default function MobileWeekCalendar({ items, onEventClick }: MobileWeekCa
         initialView="timeGridWeek"
         locales={[plLocale]}
         locale="pl"
+        customButtons={{
+          rotateView: {
+            text: isForcedLandscape ? "Zamknij" : "Obróć",
+            click: () => setIsForcedLandscape(!isForcedLandscape),
+          }
+        }}
         headerToolbar={{
           left: "prev,next",
           center: "title",
-          right: "today"
+          right: "rotateView today"
         }}
         events={events}
         allDaySlot={true}
-        slotMinTime="06:00:00"
-        slotMaxTime="22:00:00"
+        slotMinTime="07:00:00"
+        slotMaxTime="16:00:00"
         expandRows={true}
         height="100%"
         nowIndicator={true}
