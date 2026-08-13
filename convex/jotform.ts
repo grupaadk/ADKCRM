@@ -342,23 +342,6 @@ export const webhook = httpAction(async (ctx, request) => {
     { ...mapped, clientId },
   );
 
-  // Triggeruj tworzenie pełnej struktury folderów szansy na Google Drive:
-  // folder klienta → Szanse sprzedaży → folder szansy (+ 5 podfolderów) + upload plików
-  const driveConnection = await ctx.runQuery(api.googleDrive.getConnectionStatus);
-  if (driveConnection?.connectionStatus === "connected" || driveConnection?.connectionStatus === "token_expiring") {
-    await ctx.scheduler.runAfter(0, api.googleDrive.createClientFolderForOpportunity, {
-      opportunityId: pendingId,
-    });
-  }
-
-  // Wyślij SMS potwierdzający przyjęcie prośby o wycenę
-  if (mapped.phone) {
-    await ctx.scheduler.runAfter(0, internal.sms.sendQuoteConfirmation, {
-      phone: mapped.phone,
-      firstName: mapped.firstName,
-    });
-  }
-
   console.info("[jotform] client created and pending submission saved", {
     clientId,
     pendingId,

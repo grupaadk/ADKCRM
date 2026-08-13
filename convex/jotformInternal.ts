@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { api } from "./_generated/api";
+import { internal } from "./_generated/internal";
 import { Id } from "./_generated/dataModel";
 import { DEFAULT_DOCUMENTS, nextOrderNumber } from "./orders";
 
@@ -98,12 +99,36 @@ export const savePendingSubmission = mutation({
       }
     }
 
-    return await ctx.db.insert("pendingJotformSubmissions", {
+    const pendingId = await ctx.db.insert("pendingJotformSubmissions", {
       ...args,
       stage: "lead",
       stageChangedAt: Date.now(),
       processed: false,
     });
+
+    // Automatycznie triggeruj tworzenie folderów szansy na Google Drive
+    const driveConnection = await ctx.db.query("driveConnection").first();
+    if (
+      driveConnection &&
+      (driveConnection.connectionStatus === "connected" ||
+        driveConnection.connectionStatus === "token_expiring")
+    ) {
+      await ctx.scheduler.runAfter(
+        0,
+        api.googleDrive.createClientFolderForOpportunity,
+        { opportunityId: pendingId },
+      );
+    }
+
+    // Automatycznie wyślij SMS potwierdzający przyjęcie prośby o wycenę
+    if (args.phone) {
+      await ctx.scheduler.runAfter(0, internal.sms.sendQuoteConfirmation, {
+        phone: args.phone,
+        firstName: args.firstName,
+      });
+    }
+
+    return pendingId;
   },
 });
 

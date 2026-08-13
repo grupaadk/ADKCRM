@@ -59,6 +59,7 @@ import type * as taskComments from "../taskComments.js";
 import type * as taskLabels from "../taskLabels.js";
 import type * as users from "../users.js";
 import type * as viewConfig from "../viewConfig.js";
+import type * as websiteWebhook from "../websiteWebhook.js";
 import type * as whitelist from "../whitelist.js";
 
 import type {
@@ -119,6 +120,7 @@ declare const fullApi: ApiFromModules<{
   taskLabels: typeof taskLabels;
   users: typeof users;
   viewConfig: typeof viewConfig;
+  websiteWebhook: typeof websiteWebhook;
   whitelist: typeof whitelist;
 }>;
 

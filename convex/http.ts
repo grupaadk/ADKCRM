@@ -45,4 +45,18 @@ http.route({
   handler: gmailOauthCallback,
 });
 
+import { websiteWebhook, websiteWebhookOptions } from "./websiteWebhook";
+
+http.route({
+  path: "/api/webhooks/website",
+  method: "POST",
+  handler: websiteWebhook,
+});
+
+http.route({
+  path: "/api/webhooks/website",
+  method: "OPTIONS",
+  handler: websiteWebhookOptions,
+});
+
 export default http;
