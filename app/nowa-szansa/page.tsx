@@ -200,7 +200,7 @@ export default function NowaSzansaPage() {
         {/* Logo + Tytuł */}
         <div className="text-center mb-8">
           <img
-            src="https://www.jotform.com/uploads/ventureboxpl/form_files/logi_JPG_BIALE_tlo_czarne.69b20918b5b911.80911729.jpg"
+            src="/logo.jpg"
             alt="ADKokna"
             width={80}
             className="mx-auto mb-4 object-contain"
