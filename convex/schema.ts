@@ -483,6 +483,7 @@ export default defineSchema({
     isActive: v.boolean(),
     sortOrder: v.number(),
     description: v.optional(v.string()),
+    icon: v.optional(v.string()),
     supplierIds: v.optional(v.array(v.id("suppliers"))),
     defaultTasks: v.optional(v.array(v.object({
       title: v.string(),

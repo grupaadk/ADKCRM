@@ -31,6 +31,7 @@ export const create = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
+    icon: v.optional(v.string()),
     defaultTasks: v.optional(v.array(v.object({
       title: v.string(),
       daysToComplete: v.optional(v.number()),
@@ -56,6 +57,7 @@ export const create = mutation({
       isActive: true,
       sortOrder: (last?.sortOrder ?? 0) + 1,
       description: args.description,
+      icon: args.icon,
       defaultTasks: args.defaultTasks,
       createdBy: userIdentifier(user),
     });
@@ -67,6 +69,7 @@ export const update = mutation({
     id: v.id("services"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
+    icon: v.optional(v.string()),
     defaultTasks: v.optional(v.array(v.object({
       title: v.string(),
       daysToComplete: v.optional(v.number()),

@@ -8,10 +8,53 @@ import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import type { Id } from "@/convex/_generated/dataModel";
 import ModalPortal from "@/components/ModalPortal";
-import { X } from "lucide-react";
+import {
+  X,
+  AppWindow,
+  DoorClosed,
+  Warehouse,
+  Building2,
+  Maximize,
+  Sun,
+  Umbrella,
+  Layers,
+  AlignJustify,
+  Sliders,
+  ChevronDown,
+  Home,
+  Hammer,
+  Wrench,
+  ShieldCheck,
+  Settings
+} from "lucide-react";
 import { ITKanbanTab } from "./ITKanbanTab";
 import { EventTypesTab } from "./EventTypesTab";
 import { InstallationTeamsTab } from "./InstallationTeamsTab";
+
+const IconMap: Record<string, React.ComponentType<any>> = {
+  AppWindow,
+  DoorClosed,
+  Warehouse,
+  Building2,
+  Maximize,
+  Sun,
+  Umbrella,
+  Layers,
+  AlignJustify,
+  Sliders,
+  ChevronDown,
+  Home,
+  Hammer,
+  Wrench,
+  ShieldCheck,
+  Settings
+};
+
+function ServiceIcon({ name, className = "h-4 w-4" }: { name?: string; className?: string }) {
+  const IconComponent = name ? IconMap[name] : null;
+  if (!IconComponent) return <Settings className={className} />;
+  return <IconComponent className={className} />;
+}
 
 type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe";
 
@@ -2960,7 +3003,7 @@ function ServicesTab() {
   const seedServices = useMutation(api.services.seed);
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "" });
+  const [form, setForm] = useState({ name: "", description: "", icon: "Settings" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -2981,8 +3024,13 @@ function ServicesTab() {
     setError(null);
     setBusy(true);
     try {
-      await createService({ name: form.name, description: form.description || undefined, defaultTasks: [] });
-      setForm({ name: "", description: "" });
+      await createService({ 
+        name: form.name, 
+        description: form.description || undefined, 
+        icon: form.icon || undefined,
+        defaultTasks: [] 
+      });
+      setForm({ name: "", description: "", icon: "Settings" });
       setShowForm(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Błąd zapisu");
@@ -2991,7 +3039,7 @@ function ServicesTab() {
     }
   }
 
-  async function handleSave(id: Id<"services">, data: { name?: string; description?: string; defaultTasks?: { title: string; daysToComplete?: number }[] }) {
+  async function handleSave(id: Id<"services">, data: { name?: string; description?: string; icon?: string; defaultTasks?: { title: string; daysToComplete?: number }[] }) {
     await updateService({ id, ...data });
   }
 
@@ -3069,6 +3117,25 @@ function ServicesTab() {
                 placeholder="opcjonalny opis"
               />
             </div>
+            <div className="col-span-4">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Ikonka</label>
+              <div className="flex flex-wrap gap-1.5 rounded-lg border border-slate-200 p-2 bg-white max-h-24 overflow-y-auto">
+                {Object.keys(IconMap).map((iconName) => {
+                  const isSelected = form.icon === iconName;
+                  return (
+                    <button
+                      key={iconName}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, icon: iconName }))}
+                      className={`p-1.5 rounded-lg border hover:bg-slate-50 transition-all ${isSelected ? "border-[#3DAAB3] bg-[#3DAAB3]/10 text-[#3DAAB3]" : "border-slate-100 text-slate-500"}`}
+                      title={iconName}
+                    >
+                      <ServiceIcon name={iconName} className="h-5 w-5" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
           {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
           <div className="mt-4 flex gap-2">
@@ -3076,7 +3143,7 @@ function ServicesTab() {
               className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
               Dodaj
             </button>
-            <button type="button" onClick={() => { setShowForm(false); setForm({ name: "", description: "" }); setError(null); }}
+            <button type="button" onClick={() => { setShowForm(false); setForm({ name: "", description: "", icon: "Settings" }); setError(null); }}
               className="rounded-lg border border-slate-300 px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
               Anuluj
             </button>
@@ -3142,6 +3209,7 @@ function ServicesRow({
     _id: Id<"services">;
     name: string;
     description?: string;
+    icon?: string;
     supplierIds?: Id<"suppliers">[];
     isActive: boolean;
     sortOrder: number;
@@ -3149,7 +3217,7 @@ function ServicesRow({
   };
   supplierMap: Map<string, string>;
   allSuppliers: { _id: Id<"suppliers">; name: string }[];
-  onSave: (id: Id<"services">, data: { name?: string; description?: string; defaultTasks?: { title: string; daysToComplete?: number }[] }) => Promise<void>;
+  onSave: (id: Id<"services">, data: { name?: string; description?: string; icon?: string; defaultTasks?: { title: string; daysToComplete?: number }[] }) => Promise<void>;
   onToggle: (id: Id<"services">) => Promise<void>;
   onDelete: (id: Id<"services">) => Promise<void>;
   onAssignSuppliers: (id: Id<"services">, supplierIds: Id<"suppliers">[]) => Promise<void>;
@@ -3160,6 +3228,7 @@ function ServicesRow({
   const [draft, setDraft] = useState({
     name: service.name,
     description: service.description ?? "",
+    icon: service.icon ?? "Settings",
     supplierIds: service.supplierIds ?? [] as Id<"suppliers">[],
     defaultTasks: service.defaultTasks ?? [],
   });
@@ -3170,7 +3239,12 @@ function ServicesRow({
     setBusy(true);
     setError(null);
     try {
-      await onSave(service._id, { name: draft.name, description: draft.description || undefined, defaultTasks: draft.defaultTasks });
+      await onSave(service._id, { 
+        name: draft.name, 
+        description: draft.description || undefined, 
+        icon: draft.icon || undefined,
+        defaultTasks: draft.defaultTasks 
+      });
       await onAssignSuppliers(service._id, draft.supplierIds);
       setEditing(false);
     } catch (e) {
@@ -3214,6 +3288,25 @@ function ServicesRow({
                   value={draft.description}
                   onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
                 />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Ikonka</label>
+              <div className="flex flex-wrap gap-1.5 rounded-lg border border-slate-200 p-2 bg-white max-h-24 overflow-y-auto">
+                {Object.keys(IconMap).map((iconName) => {
+                  const isSelected = draft.icon === iconName;
+                  return (
+                    <button
+                      key={iconName}
+                      type="button"
+                      onClick={() => setDraft(d => ({ ...d, icon: iconName }))}
+                      className={`p-1.5 rounded-lg border hover:bg-slate-50 transition-all ${isSelected ? "border-[#3DAAB3] bg-[#3DAAB3]/10 text-[#3DAAB3]" : "border-slate-100 text-slate-500"}`}
+                      title={iconName}
+                    >
+                      <ServiceIcon name={iconName} className="h-5 w-5" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div>
@@ -3353,8 +3446,15 @@ function ServicesRow({
         </div>
       </td>
       <td className="px-4 py-3 text-sm font-medium text-slate-800">
-        {service.name}
-        {service.description && <span className="ml-1.5 text-xs text-slate-400">{service.description}</span>}
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+            <ServiceIcon name={service.icon} className="h-4 w-4" />
+          </div>
+          <div>
+            <span className="font-medium">{service.name}</span>
+            {service.description && <span className="ml-1.5 text-xs text-slate-400">{service.description}</span>}
+          </div>
+        </div>
       </td>
       <td className="px-4 py-3">
         {assignedNames.length > 0 ? (
