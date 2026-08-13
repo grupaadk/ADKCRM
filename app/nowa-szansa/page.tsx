@@ -272,7 +272,7 @@ export default function NowaSzansaPage() {
             const isActive = step.id === currentStep;
             return (
               <div key={step.id} className="flex items-center flex-1">
-                <div className="flex flex-col items-center gap-1">
+                <div className="flex flex-col items-center gap-1 flex-1">
                   <div
                     className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                       isDone
@@ -284,12 +284,12 @@ export default function NowaSzansaPage() {
                   >
                     {isDone ? <CheckCircle2 className="w-4 h-4" /> : <StepIcon className="w-4 h-4" />}
                   </div>
-                  <span className={`text-[11px] font-medium hidden sm:block ${isActive ? "text-[#3DAAB3]" : isDone ? "text-[#3DAAB3]/80" : "text-gray-400"}`}>
+                  <span className={`text-[11px] font-medium text-center leading-tight ${isActive ? "text-[#3DAAB3]" : isDone ? "text-[#3DAAB3]/80" : "text-gray-400"}`}>
                     {step.label}
                   </span>
                 </div>
                 {idx < STEPS.length - 1 && (
-                  <div className={`flex-1 h-px mx-2 mt-[-14px] transition-colors ${idx < stepIndex ? "bg-[#3DAAB3]/40" : "bg-gray-200"}`} />
+                  <div className={`w-6 h-px mx-1 mb-4 flex-shrink-0 transition-colors ${idx < stepIndex ? "bg-[#3DAAB3]/40" : "bg-gray-200"}`} />
                 )}
               </div>
             );
