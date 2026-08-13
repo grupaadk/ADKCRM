@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { CheckCircle2, Loader2, Upload, X, User, Mail, Phone, MapPin, Briefcase, MessageSquare, Paperclip, ChevronRight, ChevronLeft } from "lucide-react";
@@ -15,6 +15,11 @@ const STEPS = [
 type Step = "dane" | "adres" | "usluga" | "szczegoly";
 
 export default function NowaSzansaPage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const [currentStep, setCurrentStep] = useState<Step>("dane");
 
   // Dane osobowe
@@ -168,6 +173,8 @@ export default function NowaSzansaPage() {
     `w-full rounded-lg border px-4 py-3 text-sm text-gray-900 outline-none transition-all placeholder:text-gray-400 focus:border-[#3DAAB3] focus:ring-2 focus:ring-[#3DAAB3]/10 ${
       errors[field] ? "border-red-400 focus:border-red-400 focus:ring-red-50" : "border-gray-200 hover:border-gray-300"
     }`;
+
+  if (!mounted) return null;
 
   // Success screen
   if (success) {
