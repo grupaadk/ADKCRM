@@ -30,6 +30,7 @@ import {
 import { ITKanbanTab } from "./ITKanbanTab";
 import { EventTypesTab } from "./EventTypesTab";
 import { InstallationTeamsTab } from "./InstallationTeamsTab";
+import { TaskTemplatesTab } from "./TaskTemplatesTab";
 
 const IconMap: Record<string, React.ComponentType<any>> = {
   AppWindow,
@@ -56,7 +57,7 @@ function ServiceIcon({ name, className = "h-4 w-4" }: { name?: string; className
   return <IconComponent className={className} />;
 }
 
-type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe" | "szablony-zadan";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -4066,6 +4067,7 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "it-kanban", label: "IT Kanban" },
   { key: "typy-wydarzen", label: "Typy Wydarzeń" },
   { key: "ekipy-montazowe", label: "Ekipy Montażowe" },
+  { key: "szablony-zadan", label: "Szablony Zadań" },
 ];
 
 // --- Main Page ---
@@ -4114,6 +4116,7 @@ export default function UstawieniaPage() {
       {activeTab === "it-kanban" && <ITKanbanTab />}
       {activeTab === "typy-wydarzen" && <EventTypesTab />}
       {activeTab === "ekipy-montazowe" && <InstallationTeamsTab />}
+      {activeTab === "szablony-zadan" && <TaskTemplatesTab />}
 
       {/* ── TEST SENTRY — odkomentuj żeby sprawdzić czy błędy docierają do Sentry ──
       <div className="mt-8 p-4 border border-dashed border-red-300 rounded-lg">

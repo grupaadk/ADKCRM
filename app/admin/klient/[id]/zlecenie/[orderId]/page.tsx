@@ -765,6 +765,10 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
   const updateTask = useMutation(api.orderTasks.update);
   const removeTask = useMutation(api.orderTasks.remove);
 
+  const taskTemplates = useQuery(api.taskTemplates.list) ?? [];
+  const applyTemplate = useMutation(api.taskTemplates.applyToOrder);
+  const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
+
   const [createInStatus, setCreateInStatus] = useState<
     "todo" | "in_progress" | "done" | null
   >(null);
@@ -785,6 +789,11 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
     if (aDone !== bDone) return aDone - bDone;
     return (a.dueDate ?? Infinity) - (b.dueDate ?? Infinity);
   });
+
+  async function handleApplyTemplate(templateId: Id<"taskTemplates">) {
+    setTemplateDropdownOpen(false);
+    await applyTemplate({ templateId, orderId });
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -808,17 +817,96 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setCreateInStatus("todo")}
-          className="btn btn-xs"
-          style={{ fontSize: 11, padding: "3px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}
-        >
-          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Dodaj zadanie
-        </button>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {/* Zastosuj szablon dropdown */}
+          {taskTemplates.length > 0 && (
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => setTemplateDropdownOpen((v) => !v)}
+                className="btn btn-xs"
+                style={{ fontSize: 11, padding: "3px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                </svg>
+                Szablon
+                <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </button>
+              {templateDropdownOpen && (
+                <>
+                  <div
+                    style={{ position: "fixed", inset: 0, zIndex: 40 }}
+                    onClick={() => setTemplateDropdownOpen(false)}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: 0,
+                      top: "calc(100% + 4px)",
+                      zIndex: 50,
+                      minWidth: 220,
+                      background: "#fff",
+                      border: "1px solid var(--line)",
+                      borderRadius: 10,
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+                      padding: "4px 0",
+                    }}
+                  >
+                    <div style={{ padding: "6px 12px 4px", fontSize: 10, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      Zastosuj szablon
+                    </div>
+                    {taskTemplates.map((tpl) => (
+                      <button
+                        key={tpl._id}
+                        onClick={() => void handleApplyTemplate(tpl._id)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          width: "100%",
+                          padding: "7px 12px",
+                          fontSize: 12.5,
+                          color: "var(--text)",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel-2)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                      >
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ flexShrink: 0, color: "#3b82f6" }}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                        </svg>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600 }}>{tpl.name}</div>
+                          <div style={{ fontSize: 10, color: "var(--text-mute)" }}>
+                            {tpl.items.length} {tpl.items.length === 1 ? "zadanie" : tpl.items.length < 5 ? "zadania" : "zadań"}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setCreateInStatus("todo")}
+            className="btn btn-xs"
+            style={{ fontSize: 11, padding: "3px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}
+          >
+            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Dodaj zadanie
+          </button>
+        </div>
       </div>
 
       {/* Lista zadań */}

@@ -228,6 +228,7 @@ export default function DocumentCheckboxes({
   const toggleDocument = useMutation(api.orders.toggleDocument);
   const generateWarrantyDoc = useMutation(api.orders.generateWarrantyDoc);
   const removeWarrantyDoc = useMutation(api.orders.removeWarrantyDoc);
+  const setDocumentSignatureStatus = useMutation(api.orders.setDocumentSignatureStatus);
   const templates = useQuery(api.documentTemplates.list);
   const [generating, setGenerating] = useState<Record<string, boolean>>({});
   const [pendingDocType, setPendingDocType] = useState<string | null>(null);
@@ -599,9 +600,24 @@ export default function DocumentCheckboxes({
                     {/* Actions */}
                     {isGenerated ? (
                       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                        {doc.signatureStatus === "signed" && (
+                        {doc.signatureStatus === "signed" ? (
                           <span style={{ fontSize: 10, color: "#15803d", fontWeight: 600 }}>✓ Podp.</span>
-                        )}
+                        ) : !useWarrantyDocs ? (
+                          <button
+                            onClick={() =>
+                              void setDocumentSignatureStatus({
+                                orderId,
+                                documentType: docKey as DocumentType,
+                                signatureStatus: "signed",
+                              })
+                            }
+                            className="btn"
+                            style={{ fontSize: 10, padding: "2px 7px", color: "#15803d" }}
+                            title="Oznacz jako podpisana"
+                          >
+                            Podpisana
+                          </button>
+                        ) : null}
                         <a
                           href={doc.url}
                           target="_blank"

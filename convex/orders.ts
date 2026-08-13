@@ -1077,6 +1077,49 @@ export const attachUploadedDocument = internalMutation({
   },
 });
 
+export const setDocumentSignatureStatus = mutation({
+  args: {
+    orderId: v.id("orders"),
+    documentType: v.union(
+      v.literal("pomiar"),
+      v.literal("umowa"),
+      v.literal("gwarancja_alco"),
+      v.literal("rekojmia_adk"),
+      v.literal("odbior_inwestor"),
+      v.literal("protokol_montaz"),
+      v.literal("faktura"),
+      v.literal("reklamacja"),
+    ),
+    signatureStatus: v.union(v.literal("signed"), v.literal("not_applicable")),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie znalezione");
+
+    const documents = { ...order.documents };
+    const existing = documents[args.documentType];
+    if (!existing?.url) throw new Error("Dokument nie ma jeszcze URL — najpierw wygeneruj lub wgraj dokument.");
+
+    documents[args.documentType] = {
+      ...existing,
+      signatureStatus: args.signatureStatus,
+    };
+
+    await ctx.db.patch(args.orderId, { documents });
+
+    await ctx.db.insert("clientEvents", {
+      clientId: order.clientId,
+      orderId: args.orderId,
+      type: "document_signed",
+      details: { documentType: args.documentType, signatureStatus: args.signatureStatus },
+      performedBy: userId,
+    });
+  },
+});
+
 export const listByCompletionDateRange = query({
   args: { startDate: v.number(), endDate: v.number() },
   handler: async (ctx, args) => {

@@ -760,6 +760,15 @@ export default defineSchema({
     .index("by_complaint", ["complaintId"])
     .index("by_assignee", ["assignedUserId"]),
 
+  // 3.20.c Szablony list zadań (task list templates)
+  taskTemplates: defineTable({
+    name: v.string(),
+    items: v.array(v.object({
+      title: v.string(),
+    })),
+    createdBy: v.string(),
+  }),
+
   // 3.20.b Etykiety dla zadań (Trello-like labels)
   taskLabels: defineTable({
     title: v.string(),
