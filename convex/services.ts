@@ -153,7 +153,7 @@ export const assignSuppliers = mutation({
   },
 });
 
-// Seed — wstawia domyślne 8 usług jeśli tabela jest pusta
+// Seed — wstawia domyślne 8 usług z ikonami jeśli tabela jest pusta
 export const seed = mutation({
   args: {},
   handler: async (ctx) => {
@@ -161,8 +161,14 @@ export const seed = mutation({
     if (existing) return { seeded: false };
 
     const defaults = [
-      "Okna", "Drzwi", "Brama", "Zabudowa tarasu",
-      "Konstrukcja aluminiowa", "Ogrodzenie", "System przeciwsłoneczny", "Inne",
+      { name: "Okna", icon: "AppWindow" },
+      { name: "Drzwi", icon: "DoorClosed" },
+      { name: "Brama", icon: "Warehouse" },
+      { name: "Zabudowa tarasu", icon: "Sun" },
+      { name: "Konstrukcja aluminiowa", icon: "Building2" },
+      { name: "Ogrodzenie", icon: "ShieldCheck" },
+      { name: "System przeciwsłoneczny", icon: "Umbrella" },
+      { name: "Inne", icon: "Settings" },
     ];
 
     const user = await requireUser(ctx);
@@ -170,7 +176,8 @@ export const seed = mutation({
 
     for (let i = 0; i < defaults.length; i++) {
       await ctx.db.insert("services", {
-        name: defaults[i],
+        name: defaults[i].name,
+        icon: defaults[i].icon,
         isActive: true,
         sortOrder: i + 1,
         createdBy: uid,
@@ -178,5 +185,49 @@ export const seed = mutation({
     }
 
     return { seeded: true };
+  },
+});
+
+// migrateIcons — przypisuje domyślne ikony do istniejących usług w bazie
+export const migrateIcons = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const list = await ctx.db.query("services").collect();
+    const mapping: Record<string, string> = {
+      "Okna": "AppWindow",
+      "Okna PCV": "AppWindow",
+      "Drzwi": "DoorClosed",
+      "Brama": "Warehouse",
+      "Bramy garażowe": "Warehouse",
+      "Zabudowa tarasu": "Sun",
+      "Ogrody letnie/zimowe": "Sun",
+      "Ogród Letni": "Sun",
+      "Konstrukcja aluminiowa": "Building2",
+      "Fasady": "Building2",
+      "Witryny": "Maximize",
+      "Ogrodzenie": "ShieldCheck",
+      "System przeciwsłoneczny": "Umbrella",
+      "Zadaszenia": "Umbrella",
+      "Systemy całokształtne": "Layers",
+      "Belki aluminiowe": "AlignJustify",
+      "Pergole": "AlignJustify",
+      "Lamele": "Sliders",
+      "Żaluzje fasadowe": "Sliders",
+      "Rolety": "ChevronDown",
+      "Inne": "Settings"
+    };
+
+    let count = 0;
+    for (const svc of list) {
+      const match = mapping[svc.name];
+      if (match) {
+        await ctx.db.patch(svc._id, { icon: match });
+        count++;
+      } else {
+        await ctx.db.patch(svc._id, { icon: "Settings" });
+        count++;
+      }
+    }
+    return { migrated: count };
   },
 });

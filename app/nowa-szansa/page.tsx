@@ -3,7 +3,62 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { CheckCircle2, Loader2, Upload, X, User, Mail, Phone, MapPin, Briefcase, MessageSquare, Paperclip, ChevronRight, ChevronLeft } from "lucide-react";
+import {
+  CheckCircle2,
+  Loader2,
+  Upload,
+  X,
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Briefcase,
+  MessageSquare,
+  Paperclip,
+  ChevronRight,
+  ChevronLeft,
+  AppWindow,
+  DoorClosed,
+  Warehouse,
+  Building2,
+  Maximize,
+  Sun,
+  Umbrella,
+  Layers,
+  AlignJustify,
+  Sliders,
+  ChevronDown,
+  Home,
+  Hammer,
+  Wrench,
+  ShieldCheck,
+  Settings
+} from "lucide-react";
+
+const IconMap: Record<string, React.ComponentType<any>> = {
+  AppWindow,
+  DoorClosed,
+  Warehouse,
+  Building2,
+  Maximize,
+  Sun,
+  Umbrella,
+  Layers,
+  AlignJustify,
+  Sliders,
+  ChevronDown,
+  Home,
+  Hammer,
+  Wrench,
+  ShieldCheck,
+  Settings
+};
+
+function ServiceIcon({ name, className = "h-5 w-5" }: { name?: string; className?: string }) {
+  const IconComponent = name ? IconMap[name] : null;
+  if (!IconComponent) return <Settings className={className} />;
+  return <IconComponent className={className} />;
+}
 
 const STEPS = [
   { id: "dane", label: "Twoje dane", icon: User },
@@ -405,7 +460,7 @@ export default function NowaSzansaPage() {
                     <Loader2 className="w-4 h-4 animate-spin" /> Ładowanie usług...
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {activeServices.map((service) => {
                       const selected = selectedServices.includes(service.name);
                       return (
@@ -413,22 +468,38 @@ export default function NowaSzansaPage() {
                           key={service._id}
                           type="button"
                           onClick={() => handleServiceToggle(service.name)}
-                          className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 text-sm font-semibold text-left transition-all ${
+                          className={`relative flex flex-col items-center justify-center gap-2.5 px-3 py-5 rounded-2xl border-2 text-center transition-all duration-150 focus:outline-none ${
                             selected
-                              ? "border-[#3DAAB3] bg-[#3DAAB3]/5 text-[#3DAAB3]"
-                              : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                              ? "border-[#3DAAB3] bg-[#3DAAB3]/8 shadow-md shadow-[#3DAAB3]/15"
+                              : "border-gray-200 bg-white hover:border-[#3DAAB3]/40 hover:bg-[#3DAAB3]/3 hover:shadow-sm"
                           }`}
                         >
-                          <div className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-colors ${
-                            selected ? "border-[#3DAAB3] bg-[#3DAAB3]" : "border-gray-300 bg-white"
+                          {/* Check badge */}
+                          <div className={`absolute top-2.5 right-2.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                            selected ? "border-[#3DAAB3] bg-[#3DAAB3]" : "border-gray-200 bg-white"
                           }`}>
                             {selected && (
                               <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none">
-                                <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
                             )}
                           </div>
-                          {service.name}
+
+                          {/* Icon */}
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                            selected
+                              ? "bg-[#3DAAB3] text-white"
+                              : "bg-gray-100 text-gray-500"
+                          }`}>
+                            <ServiceIcon name={service.icon} className="h-6 w-6" />
+                          </div>
+
+                          {/* Name */}
+                          <span className={`text-xs font-semibold leading-tight transition-colors ${
+                            selected ? "text-[#3DAAB3]" : "text-gray-700"
+                          }`}>
+                            {service.name}
+                          </span>
                         </button>
                       );
                     })}
