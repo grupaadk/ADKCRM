@@ -2895,8 +2895,20 @@ export const uploadSalesOpportunityFiles = action({
 
       for (const url of fileUrls) {
         try {
-          const result = await uploadFileToDrive(ctx, url, valuationFilesFolderId, {
-            jotformApiKey: await getJotformApiKeyForActions(ctx),
+          let downloadUrl = url;
+          const isStorageId = !url.startsWith("http://") && !url.startsWith("https://");
+          if (isStorageId) {
+            const resolvedUrl = await ctx.storage.getUrl(url);
+            if (!resolvedUrl) {
+              await log("error", "File URL not found in storage", { storageId: url });
+              failed++;
+              continue;
+            }
+            downloadUrl = resolvedUrl;
+          }
+
+          const result = await uploadFileToDrive(ctx, downloadUrl, valuationFilesFolderId, {
+            jotformApiKey: !isStorageId ? await getJotformApiKeyForActions(ctx) : null,
           });
           if (result) {
             uploaded++;
