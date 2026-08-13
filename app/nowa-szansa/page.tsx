@@ -446,7 +446,7 @@ export default function NowaSzansaPage() {
                     onChange={(e) => setComment(e.target.value)}
                     rows={4}
                     placeholder="Opisz czego potrzebujesz, np. rodzaj okien, kolor, wymiary..."
-                    className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition-all placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 hover:border-gray-300 resize-none"
+                    className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition-all placeholder:text-gray-400 focus:border-[#3DAAB3] focus:ring-2 focus:ring-[#3DAAB3]/10 hover:border-gray-300 resize-none"
                   />
                 </div>
 
