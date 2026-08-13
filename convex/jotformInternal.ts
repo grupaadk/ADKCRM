@@ -1,9 +1,9 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { api } from "./_generated/api";
-import { internal } from "./_generated/internal";
+import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { DEFAULT_DOCUMENTS, nextOrderNumber } from "./orders";
+import { normalizePhoneForDb } from "./lib/phone";
 
 // Znajdź istniejącego klienta lub utwórz nowego na podstawie danych z Jotform.
 // Wywoływane od razu przy przychodzącej odpowiedzi z formularza.
@@ -21,6 +21,8 @@ export const createOrFindClient = mutation({
     submissionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const normalizedPhone = normalizePhoneForDb(args.phone);
+
     // Dopasowanie po emailu + imieniu + nazwisku
     let existingClient = null;
     if (args.email) {
@@ -33,7 +35,7 @@ export const createOrFindClient = mutation({
           (c) =>
             c.firstName === args.firstName &&
             c.lastName === args.lastName &&
-            (!args.phone || !c.phone || c.phone === args.phone),
+            (!normalizedPhone || !c.phone || c.phone === normalizedPhone),
         ) ?? null;
     }
 
@@ -45,7 +47,7 @@ export const createOrFindClient = mutation({
       firstName: args.firstName,
       lastName: args.lastName,
       email: args.email,
-      phone: args.phone,
+      phone: normalizedPhone,
       street: args.street,
       buildingNumber: args.buildingNumber,
       apartmentNumber: args.apartmentNumber,
@@ -99,8 +101,11 @@ export const savePendingSubmission = mutation({
       }
     }
 
+    const phone = normalizePhoneForDb(args.phone);
+
     const pendingId = await ctx.db.insert("pendingJotformSubmissions", {
       ...args,
+      phone,
       stage: "lead",
       stageChangedAt: Date.now(),
       processed: false,
@@ -207,7 +212,7 @@ export const promoteToMeasurement = mutation({
           firstName: pending.firstName,
           lastName: pending.lastName,
           email: pending.email,
-          phone: pending.phone,
+          phone: normalizePhoneForDb(pending.phone),
           street: pending.street,
           buildingNumber: pending.buildingNumber,
           apartmentNumber: pending.apartmentNumber,
@@ -305,7 +310,7 @@ export const repairPendingSubmission = mutation({
         firstName: pending.firstName,
         lastName: pending.lastName,
         email: pending.email,
-        phone: pending.phone,
+        phone: normalizePhoneForDb(pending.phone),
         street: pending.street,
         buildingNumber: pending.buildingNumber,
         apartmentNumber: pending.apartmentNumber,

@@ -37,6 +37,7 @@ import type * as jotformInternal from "../jotformInternal.js";
 import type * as kanban from "../kanban.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_crypto from "../lib/crypto.js";
+import type * as lib_phone from "../lib/phone.js";
 import type * as lib_sentry from "../lib/sentry.js";
 import type * as migrations from "../migrations.js";
 import type * as notes from "../notes.js";
@@ -98,6 +99,7 @@ declare const fullApi: ApiFromModules<{
   kanban: typeof kanban;
   "lib/auth": typeof lib_auth;
   "lib/crypto": typeof lib_crypto;
+  "lib/phone": typeof lib_phone;
   "lib/sentry": typeof lib_sentry;
   migrations: typeof migrations;
   notes: typeof notes;

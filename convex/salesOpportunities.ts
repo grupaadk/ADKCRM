@@ -4,6 +4,7 @@ import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { DEFAULT_DOCUMENTS, nextOrderNumber } from "./orders";
 import { requireUser } from "./lib/auth";
+import { normalizePhoneForDb } from "./lib/phone";
 
 // Zapis nowej szansy sprzedaży (z webhooka Jotform lub ręcznie z panelu).
 // Klient NIE jest tworzony — powstaje dopiero przy konwersji do zlecenia.
@@ -35,8 +36,11 @@ export const createSalesOpportunity = mutation({
       if (existing) return existing._id;
     }
 
+    const phone = normalizePhoneForDb(args.phone);
+
     const opportunityId = await ctx.db.insert("pendingJotformSubmissions", {
       ...args,
+      phone,
       stage: "lead",
       stageChangedAt: Date.now(),
       processed: false,
@@ -83,8 +87,10 @@ export const createManualOpportunity = mutation({
       throw new Error("Imię i nazwisko są wymagane");
     }
     const { uploadedFileIds, ...rest } = args;
+    const phone = normalizePhoneForDb(rest.phone);
     const opportunityId = await ctx.db.insert("pendingJotformSubmissions", {
       ...rest,
+      phone,
       stage: "lead",
       stageChangedAt: Date.now(),
       processed: false,
@@ -373,12 +379,13 @@ export const convertToOrder = mutation({
           .query("clients")
           .withIndex("by_email", (q) => q.eq("email", opp.email!))
           .collect();
+        const normalizedPhone = normalizePhoneForDb(opp.phone);
         existingClient =
           byEmail.find(
             (c) =>
               c.firstName === opp.firstName &&
               c.lastName === opp.lastName &&
-              (!opp.phone || !c.phone || c.phone === opp.phone),
+              (!normalizedPhone || !c.phone || c.phone === normalizedPhone),
           ) ?? null;
       }
 
@@ -394,7 +401,7 @@ export const convertToOrder = mutation({
           firstName: opp.firstName,
           lastName: opp.lastName,
           email: opp.email,
-          phone: opp.phone,
+          phone: normalizePhoneForDb(opp.phone),
           street: opp.street,
           buildingNumber: opp.buildingNumber,
           apartmentNumber: opp.apartmentNumber,

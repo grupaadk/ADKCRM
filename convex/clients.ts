@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query, mutation, action, internalMutation } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { requireUser, userIdentifier } from "./lib/auth";
+import { normalizePhoneForDb } from "./lib/phone";
 
 // Lista wszystkich klientów
 export const list = query({
@@ -59,8 +60,11 @@ export const create = mutation({
     const user = await requireUser(ctx);
     const userId = userIdentifier(user);
 
+    const phone = normalizePhoneForDb(args.phone);
+
     const clientId = await ctx.db.insert("clients", {
       ...args,
+      phone,
       source: "manual",
       createdBy: userId,
     });
@@ -102,6 +106,11 @@ export const update = mutation({
     const userId = userIdentifier(user);
 
     const { clientId, ...updates } = args;
+    
+    if (updates.phone !== undefined) {
+      updates.phone = normalizePhoneForDb(updates.phone);
+    }
+
     const filtered: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined) filtered[key] = value;
@@ -324,5 +333,39 @@ export const deleteClient = action({
     await ctx.runMutation(internal.clients.deleteClientData, {
       clientId: args.clientId,
     });
+  },
+});
+
+// Migracja do ujednolicenia formatu numerów telefonów w bazie
+export const normalizeAllPhonesMigration = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // 1. Klienci
+    const clients = await ctx.db.query("clients").collect();
+    let updatedClients = 0;
+    for (const client of clients) {
+      if (client.phone) {
+        const normalized = normalizePhoneForDb(client.phone);
+        if (normalized !== client.phone) {
+          await ctx.db.patch(client._id, { phone: normalized });
+          updatedClients++;
+        }
+      }
+    }
+
+    // 2. Szanse sprzedaży
+    const submissions = await ctx.db.query("pendingJotformSubmissions").collect();
+    let updatedSubmissions = 0;
+    for (const sub of submissions) {
+      if (sub.phone) {
+        const normalized = normalizePhoneForDb(sub.phone);
+        if (normalized !== sub.phone) {
+          await ctx.db.patch(sub._id, { phone: normalized });
+          updatedSubmissions++;
+        }
+      }
+    }
+
+    return { updatedClients, updatedSubmissions };
   },
 });
