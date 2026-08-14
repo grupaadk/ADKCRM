@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { use, useState, useRef, useEffect } from "react";
+import { use, useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -92,6 +92,7 @@ type CachedInvoice = {
   grossAmount?: number;
   currency?: string;
   orderId?: Id<"orders">;
+  syncedAt?: number;
 };
 
 type CachedExpense = {
@@ -108,6 +109,7 @@ type CachedExpense = {
   orderId?: Id<"orders">;
   categoryId?: Id<"expenseCategories">;
   installationTeamId?: Id<"installationTeams">;
+  syncedAt?: number;
 };
 
 
@@ -1812,6 +1814,40 @@ export default function OrderDetailPage({
   const [editingFinanceSvc, setEditingFinanceSvc] = useState<string | null>(null);
   const [draftEarnings, setDraftEarnings] = useState<string>("");
   const [draftWorkDays, setDraftWorkDays] = useState<string>("");
+
+  const syncFakturowniaInvoices = useAction(api.fakturownia.syncInvoicesFromFakturownia);
+  const syncFakturowniaExpenses = useAction(api.fakturownia.syncExpensesFromFakturownia);
+  const [syncingFakturownia, setSyncingFakturownia] = useState(false);
+
+  const fakturowniaLastSyncAt = useMemo(() => {
+    const invTimes = allInvoices
+      ? allInvoices
+          .map((i) => i.syncedAt)
+          .filter((t): t is number => typeof t === "number" && !isNaN(t) && isFinite(t))
+      : [];
+    const expTimes = allExpenses
+      ? allExpenses
+          .map((e) => e.syncedAt)
+          .filter((t): t is number => typeof t === "number" && !isNaN(t) && isFinite(t))
+      : [];
+    const allTimes = [...invTimes, ...expTimes];
+    return allTimes.length > 0 ? Math.max(...allTimes) : 0;
+  }, [allInvoices, allExpenses]);
+
+  const handleSyncFakturownia = async () => {
+    setSyncingFakturownia(true);
+    try {
+      await Promise.all([
+        syncFakturowniaInvoices({}),
+        syncFakturowniaExpenses({}),
+      ]);
+    } catch (e) {
+      alert(`Błąd synchronizacji: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSyncingFakturownia(false);
+    }
+  };
+
 
   useEffect(() => {
     if (!showAssignDropdown) return;
@@ -3804,27 +3840,67 @@ export default function OrderDetailPage({
           <SectionCard
             title="Faktury z Fakturowni"
             action={
-              <button
-                onClick={() => setShowInvoiceModal(true)}
-                className="btn"
-                style={{ fontSize: 11 }}
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {fakturowniaLastSyncAt > 0 && (
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      color: "var(--text-mute)",
+                      marginRight: 4,
+                    }}
+                  >
+                    Zsynchronizowano o {new Date(fakturowniaLastSyncAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleSyncFakturownia}
+                  disabled={syncingFakturownia}
+                  className="btn"
+                  style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4.5v15m7.5-7.5h-15"
-                  />
-                </svg>
-                Przypisz fakturę
-              </button>
+                  <svg
+                    width="12"
+                    height="12"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    className={syncingFakturownia ? "animate-spin" : ""}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
+                    />
+                  </svg>
+                  {syncingFakturownia ? "Synchronizacja..." : "Synchronizuj"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowInvoiceModal(true)}
+                  className="btn"
+                  style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 4.5v15m7.5-7.5h-15"
+                    />
+                  </svg>
+                  Przypisz fakturę
+                </button>
+              </div>
             }
           >
             {assignedInvoices && assignedInvoices.length > 0 ? (
