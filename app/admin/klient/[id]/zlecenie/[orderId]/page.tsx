@@ -2153,9 +2153,9 @@ export default function OrderDetailPage({
 
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "szczegoly", label: "Szczegóły" },
-    { key: "montaz", label: "Montaż" },
     { key: "wycena", label: "Wycena" },
     { key: "finanse", label: "Finanse" },
+    { key: "montaz", label: "Montaż" },
     { key: "dokumenty", label: "Dokumenty" },
     { key: "reklamacja", label: "Reklamacje" },
   ];
