@@ -39,7 +39,9 @@ export function resolveFoldersConfig(config: Doc<"crmConfig"> | null | undefined
       customSubfolders: config?.googleDriveFolders?.order?.customSubfolders ?? legacyCustomFolders ?? [
         "Zdjęcia budowy",
         "Rysunki konstrukcji do zamówienia"
-      ]
+      ],
+      // document type → subfolder name mapping (set in admin settings)
+      documentTypeRoutes: (config?.googleDriveFolders?.order?.documentTypeRoutes ?? {}) as Record<string, string>,
     }
   };
 }
@@ -1466,10 +1468,21 @@ export const uploadUserDocumentPublic = action({
 
     let targetFolderId = order.folderId;
     const docType = getDocumentType(args.documentType);
-    if (docType === "umowa" || docType === "gwarancja") {
-      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, folders.order.documents, order.folderId);
-    } else if (docType === "faktura") {
-      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, folders.order.invoices, order.folderId);
+
+    // Priority 1: explicit folder route configured in admin settings for this document type
+    const configuredFolderName = folders.order.documentTypeRoutes[args.documentType];
+    if (configuredFolderName) {
+      targetFolderId = await findOrCreateDriveFolder(connection.accessToken, configuredFolderName, order.folderId);
+    } else {
+      // Priority 2: legacy fallback by broad document type
+      if (docType === "umowa" || docType === "gwarancja") {
+        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, folders.order.documents, order.folderId);
+      } else if (docType === "faktura") {
+        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, folders.order.invoices, order.folderId);
+      } else if (docType === "pomiar") {
+        targetFolderId = await findOrCreateDriveFolder(connection.accessToken, folders.order.measurements, order.folderId);
+      }
+      // otherwise: root order folder
     }
 
     const metadata = JSON.stringify({ name: args.fileName, parents: [targetFolderId] });

@@ -142,6 +142,10 @@ export default function AppPwaPage() {
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ ok: true; url: string } | { ok: false; error: string } | null>(null);
 
+  // Scanner state — multi-page photo → PDF
+  const [scanPages, setScanPages] = useState<File[]>([]);
+  const [scanPreviews, setScanPreviews] = useState<string[]>([]);
+
   // Long Press State for Signet Bubble Menu
   const [showBubbleMenu, setShowBubbleMenu] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -183,6 +187,7 @@ export default function AppPwaPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const scanCameraAddRef = useRef<HTMLInputElement>(null);
 
   // Convex Hooks
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
@@ -227,6 +232,8 @@ export default function AppPwaPage() {
     setSelectedOrderId(null);
     setDocumentType("pomiar");
     setFile(null);
+    setScanPages([]);
+    setScanPreviews([]);
     setResult(null);
   }
 
@@ -240,24 +247,74 @@ export default function AppPwaPage() {
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files && e.target.files[0]) {
+      // Selecting a file clears any scan pages
+      setScanPages([]);
+      setScanPreviews([]);
       setFile(e.target.files[0]);
     }
   }
 
+  function handleScanPhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    // Reset the input so the same photo can be re-added if needed
+    e.target.value = "";
+    // Clear single-file mode
+    setFile(null);
+    const preview = URL.createObjectURL(selected);
+    setScanPages((prev) => [...prev, selected]);
+    setScanPreviews((prev) => [...prev, preview]);
+  }
+
+  function handleRemoveScanPage(index: number) {
+    setScanPages((prev) => prev.filter((_, i) => i !== index));
+    setScanPreviews((prev) => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
+  }
+
+  function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function buildPdfFromPages(pages: File[]): Promise<File> {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    for (let i = 0; i < pages.length; i++) {
+      if (i > 0) doc.addPage();
+      const dataUrl = await fileToDataUrl(pages[i]);
+      // Stretch full A4 page (classic scanner style), MEDIUM quality
+      doc.addImage(dataUrl, "JPEG", 0, 0, 210, 297, undefined, "MEDIUM");
+    }
+    const blob = doc.output("blob");
+    const date = new Date().toISOString().slice(0, 10);
+    return new File([blob], `skan_${date}.pdf`, { type: "application/pdf" });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedClientId || !selectedOrderId || !file || !signatureStatus) return;
+    const hasScanPages = scanPages.length > 0;
+    if (!selectedClientId || !selectedOrderId || (!file && !hasScanPages) || !signatureStatus) return;
 
     setUploading(true);
     setResult(null);
 
     try {
+      // Determine file to upload: merge scan pages into PDF or use single file
+      const fileToUpload = hasScanPages ? await buildPdfFromPages(scanPages) : file!;
+
       const uploadUrl = await generateUploadUrl();
 
       const uploadResponse = await fetch(uploadUrl, {
         method: "POST",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        body: file,
+        headers: { "Content-Type": fileToUpload.type || "application/octet-stream" },
+        body: fileToUpload,
       });
 
       if (!uploadResponse.ok) {
@@ -268,7 +325,7 @@ export default function AppPwaPage() {
 
       const driveUrl = await uploadUserDocument({
         storageId,
-        fileName: file.name,
+        fileName: fileToUpload.name,
         orderId: selectedOrderId,
         documentType,
         signatureStatus,
@@ -1332,6 +1389,8 @@ export default function AppPwaPage() {
                 {/* Step 4: Photo / File Input buttons */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700">4. Wybierz Plik lub Zrób Zdjęcie *</label>
+
+                  {/* Hidden inputs */}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -1344,11 +1403,21 @@ export default function AppPwaPage() {
                     type="file"
                     accept="image/*"
                     capture="environment"
-                    onChange={handleFileSelect}
+                    onChange={handleScanPhotoSelect}
+                    className="hidden"
+                  />
+                  {/* Hidden input for adding extra scan pages */}
+                  <input
+                    ref={scanCameraAddRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleScanPhotoSelect}
                     className="hidden"
                   />
 
-                  {file ? (
+                  {/* Mode A: single file selected from disk */}
+                  {file && scanPages.length === 0 ? (
                     <div className="flex items-center justify-between p-3.5 bg-slate-100 rounded-xl border border-slate-200">
                       <div className="flex items-center gap-2.5 overflow-hidden">
                         <FileText className="size-5 text-[#4dbdc6] shrink-0" />
@@ -1362,7 +1431,58 @@ export default function AppPwaPage() {
                         <X className="size-4" />
                       </button>
                     </div>
+
+                  ) : scanPages.length > 0 ? (
+                    /* Mode B: scanner — one or more photos */
+                    <div className="space-y-2">
+                      {/* Page thumbnails grid */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {scanPreviews.map((src, idx) => (
+                          <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-200 aspect-[3/4] bg-slate-100">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={src}
+                              alt={`Strona ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-0 left-0 bg-black/40 text-white text-[9px] font-bold px-1 py-0.5 rounded-br-md">
+                              {idx + 1}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveScanPage(idx)}
+                              className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition"
+                            >
+                              <X className="size-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Add page button (max 20 pages) */}
+                      {scanPages.length < 20 && (
+                        <button
+                          type="button"
+                          onClick={() => scanCameraAddRef.current?.click()}
+                          className="w-full flex items-center justify-center gap-1.5 py-2.5 border-2 border-dashed border-[#4dbdc6] rounded-xl text-[#4dbdc6] text-xs font-bold hover:bg-[#4dbdc6]/5 transition"
+                        >
+                          <Camera className="size-4" />
+                          + Dodaj stronę ({scanPages.length}/20)
+                        </button>
+                      )}
+
+                      {/* Clear all */}
+                      <button
+                        type="button"
+                        onClick={() => { setScanPages([]); setScanPreviews([]); }}
+                        className="w-full text-[10px] text-slate-400 hover:text-red-500 transition py-1"
+                      >
+                        ✕ Usuń wszystkie strony i zacznij od nowa
+                      </button>
+                    </div>
+
                   ) : (
+                    /* Mode C: initial — no file, no pages */
                     <div className="grid grid-cols-2 gap-2.5">
                       <button
                         type="button"
@@ -1371,6 +1491,7 @@ export default function AppPwaPage() {
                       >
                         <Camera className="size-6 text-[#4dbdc6]" />
                         <span className="text-xs font-bold">Zrób zdjęcie</span>
+                        <span className="text-[9px] text-slate-400">wiele stron → PDF</span>
                       </button>
 
                       <button
@@ -1380,6 +1501,7 @@ export default function AppPwaPage() {
                       >
                         <Upload className="size-6 text-[#4dbdc6]" />
                         <span className="text-xs font-bold">Wybierz plik</span>
+                        <span className="text-[9px] text-slate-400">PDF lub obraz</span>
                       </button>
                     </div>
                   )}
@@ -1388,18 +1510,18 @@ export default function AppPwaPage() {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={!selectedClientId || !selectedOrderId || !file || uploading}
+                  disabled={!selectedClientId || !selectedOrderId || (!file && scanPages.length === 0) || uploading}
                   className="w-full py-3.5 rounded-xl bg-[#4dbdc6] text-white font-bold text-xs shadow-md hover:bg-[#3caab3] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 mt-4"
                 >
                   {uploading ? (
                     <>
                       <RefreshCw className="size-4 animate-spin" />
-                      Wgrywanie do Dysk Google...
+                      {scanPages.length > 0 ? `Łączenie ${scanPages.length} str. w PDF...` : "Wgrywanie do Dysk Google..."}
                     </>
                   ) : (
                     <>
                       <Upload className="size-4" />
-                      Wyślij dokument
+                      {scanPages.length > 0 ? `Wyślij PDF (${scanPages.length} str.)` : "Wyślij dokument"}
                     </>
                   )}
                 </button>

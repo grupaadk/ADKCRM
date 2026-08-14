@@ -589,6 +589,8 @@ export default defineSchema({
           documents: v.string(),
           measurements: v.string(),
           customSubfolders: v.array(v.string()),
+          // Maps document type IDs to subfolder names, e.g. { "pomiar": "Pomiary - ustalenia" }
+          documentTypeRoutes: v.optional(v.record(v.string(), v.string())),
         }),
       })
     ),

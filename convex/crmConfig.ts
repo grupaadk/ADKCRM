@@ -174,6 +174,7 @@ export const saveGoogleDriveFoldersConfig = mutation({
         documents: v.string(),
         measurements: v.string(),
         customSubfolders: v.array(v.string()),
+        documentTypeRoutes: v.optional(v.record(v.string(), v.string())),
       }),
     }),
   },

@@ -288,6 +288,17 @@ function GoogleDriveTab() {
   const [customOppFolders, setCustomOppFolders] = useState<string[]>([]);
   const [foldersNotice, setFoldersNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [savingFolders, setSavingFolders] = useState(false);
+  // document type → folder name routing (persisted in crmConfig)
+  const [documentTypeRoutes, setDocumentTypeRoutes] = useState<Record<string, string>>({});
+
+  const DOCUMENT_TYPE_OPTIONS = [
+    { id: "pomiar", label: "Pomiar" },
+    { id: "umowa", label: "Umowa" },
+    { id: "gwarancja_alco", label: "Gwarancja ALCO" },
+    { id: "odbior_inwestor", label: "Odbiór inwestorski" },
+    { id: "faktura", label: "Faktura" },
+    { id: "reklamacja", label: "Reklamacja" },
+  ] as const;
 
   const templatesByFolder = useMemo(() => {
     const groups: Record<string, typeof templates> = {};
@@ -411,6 +422,68 @@ function GoogleDriveTab() {
     );
   };
 
+  // Renders dropdown to assign a document type to a folder (only for Order folders)
+  const renderAssignDocTypeDropdown = (folderName: string) => {
+    const alreadyAssigned = DOCUMENT_TYPE_OPTIONS.filter(
+      (dt) => documentTypeRoutes[dt.id]?.trim() === folderName.trim()
+    );
+    const available = DOCUMENT_TYPE_OPTIONS.filter(
+      (dt) => documentTypeRoutes[dt.id]?.trim() !== folderName.trim()
+    );
+    if (available.length === 0) return null;
+    return (
+      <select
+        value=""
+        onChange={(e) => {
+          const dtId = e.target.value;
+          if (!dtId) return;
+          setDocumentTypeRoutes((prev) => ({ ...prev, [dtId]: folderName }));
+        }}
+        className="ml-2 text-[9px] font-sans text-violet-700 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded px-1.5 py-0.5 transition-all cursor-pointer focus:outline-none opacity-0 group-hover:opacity-100 font-medium"
+      >
+        <option value="">+ Przypisz typ</option>
+        {available.map((dt) => (
+          <option key={dt.id} value={dt.id}>{dt.label}</option>
+        ))}
+      </select>
+    );
+    void alreadyAssigned; // used below in renderDocTypeChips
+  };
+
+  // Renders chips for document types already routed to this folder
+  const renderDocTypeChips = (folderName: string) => {
+    const assigned = DOCUMENT_TYPE_OPTIONS.filter(
+      (dt) => documentTypeRoutes[dt.id]?.trim() === folderName.trim()
+    );
+    if (assigned.length === 0) return null;
+    return (
+      <span className="flex items-center gap-1 flex-wrap">
+        {assigned.map((dt) => (
+          <span
+            key={dt.id}
+            className="inline-flex items-center gap-0.5 text-[9px] font-medium bg-violet-100 text-violet-700 border border-violet-200 rounded px-1.5 py-0.5"
+          >
+            {dt.label}
+            <button
+              type="button"
+              onClick={() =>
+                setDocumentTypeRoutes((prev) => {
+                  const next = { ...prev };
+                  delete next[dt.id];
+                  return next;
+                })
+              }
+              className="ml-0.5 text-violet-400 hover:text-red-500 transition-colors focus:outline-none"
+              title={`Odpiń typ ${dt.label}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </span>
+    );
+  };
+
   const handleAddCustomFolder = () => {
     setCustomFolders((prev) => [...prev, "Nowy folder"]);
   };
@@ -490,6 +563,7 @@ function GoogleDriveTab() {
       setOrderDocs(orderFolders.documents);
       setOrderMeasurements(orderFolders.measurements);
       setCustomFolders(orderFolders.customSubfolders ?? legacyCustomFolders ?? []);
+      setDocumentTypeRoutes((orderFolders as Record<string, unknown>).documentTypeRoutes as Record<string, string> ?? {});
     }
   }, [config]);
 
@@ -511,6 +585,7 @@ function GoogleDriveTab() {
             documents: orderDocs.trim() || "Dokumenty - gwarancje, protokoły, umowy",
             measurements: orderMeasurements.trim() || "Pomiary - ustalenia",
             customSubfolders: customFolders.map((f) => f.trim()).filter((f) => f.length > 0),
+            documentTypeRoutes: Object.keys(documentTypeRoutes).length > 0 ? documentTypeRoutes : undefined,
           },
         },
       });
@@ -1266,8 +1341,10 @@ function GoogleDriveTab() {
                       placeholder="Folder faktur..."
                     />
                     {renderAssignTemplateDropdown(orderInvoices)}
+                    {renderAssignDocTypeDropdown(orderInvoices)}
                     <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                   </div>
+                  {renderDocTypeChips(orderInvoices)}
                   {/* Templates inside Invoices */}
                   {templatesByFolder[orderInvoices.trim()]?.map((t) => (
                     <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
@@ -1297,8 +1374,10 @@ function GoogleDriveTab() {
                       placeholder="Folder dokumentów..."
                     />
                     {renderAssignTemplateDropdown(orderDocs)}
+                    {renderAssignDocTypeDropdown(orderDocs)}
                     <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                   </div>
+                  {renderDocTypeChips(orderDocs)}
                   {/* Templates inside Documents */}
                   {templatesByFolder[orderDocs.trim()]?.map((t) => (
                     <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
@@ -1328,8 +1407,10 @@ function GoogleDriveTab() {
                       placeholder="Folder pomiarów..."
                     />
                     {renderAssignTemplateDropdown(orderMeasurements)}
+                    {renderAssignDocTypeDropdown(orderMeasurements)}
                     <span className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 font-sans transition-opacity ml-1">(kliknij aby edytować)</span>
                   </div>
+                  {renderDocTypeChips(orderMeasurements)}
                   {/* Templates inside Measurements */}
                   {templatesByFolder[orderMeasurements.trim()]?.map((t) => (
                     <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
@@ -1364,6 +1445,7 @@ function GoogleDriveTab() {
                           autoFocus={cf === "Nowy folder"}
                         />
                         {renderAssignTemplateDropdown(cf)}
+                        {renderAssignDocTypeDropdown(cf)}
                         <button
                           type="button"
                           onClick={() => handleDeleteCustomFolder(idx)}
@@ -1375,7 +1457,8 @@ function GoogleDriveTab() {
                           </svg>
                         </button>
                       </div>
-                      {/* Templates inside Custom Order Folder */}
+                      {/* Doc type chips and templates inside Custom Order Folder */}
+                      {folderNameTrimmed && renderDocTypeChips(folderNameTrimmed)}
                       {folderNameTrimmed && templatesByFolder[folderNameTrimmed]?.map((t) => (
                         <div key={t._id} className="flex items-center gap-1.5 py-0.5 pl-6 border-l border-slate-300 ml-4">
                           <span className="text-slate-400">├──</span>
