@@ -613,9 +613,9 @@ export default function DocumentCheckboxes({
                             }
                             className="btn"
                             style={{ fontSize: 10, padding: "2px 7px", color: "#15803d" }}
-                            title="Oznacz jako podpisana"
+                            title="Potwierdź"
                           >
-                            Podpisana
+                            Potwierdź
                           </button>
                         ) : null}
                         <a
