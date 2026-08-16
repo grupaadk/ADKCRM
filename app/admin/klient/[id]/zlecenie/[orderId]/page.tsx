@@ -4037,11 +4037,49 @@ export default function OrderDetailPage({
           <SectionCard
             title="Zamówienia u dostawców"
             action={
-              (order.services ?? []).length > 0 ? (
-                <span className="text-xs text-gray-500">
-                  Suma usług: {(order.services ?? []).length}
-                </span>
-              ) : null
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      setSendingCrm(true);
+                      const alcoSupplier = allSuppliers.find((s) => s.name.toUpperCase().includes("ALCO"));
+                      if (!alcoSupplier) {
+                        alert("Nie znaleziono dostawcy ALCO w systemie.");
+                        return;
+                      }
+                      const currentDeliveries = [...(order.serviceDeliveries ?? [])];
+                      const targetIndex = currentDeliveries.length;
+                      currentDeliveries.push({
+                        serviceName: (order.services && order.services[0]) ? order.services[0] : "Okna ALU",
+                        supplierId: alcoSupplier._id,
+                        orderDate: Date.now(),
+                        netAmount: 12500,
+                        notes: "Testowe automatyczne zamówienie z integracji ADK -> CRM Exalco",
+                      });
+                      await updateOrder({ orderId: orderIdTyped, serviceDeliveries: currentDeliveries });
+                      const res = await sendCrmOrder({ orderId: orderIdTyped, deliveryIndex: targetIndex });
+                      alert(`Sukces! Zlecenie utworzone w CRM Exalco. Numer zlecenia: ${res.externalOrderNumber}`);
+                    } catch (err) {
+                      alert(`Błąd tworzenia zamówienia: ${err instanceof Error ? err.message : String(err)}`);
+                    } finally {
+                      setSendingCrm(false);
+                    }
+                  }}
+                  disabled={sendingCrm}
+                  className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  {sendingCrm ? "Wysyłanie do CRM..." : "Test wysłania do CRM ALCO"}
+                </button>
+                {(order.services ?? []).length > 0 ? (
+                  <span className="text-xs text-gray-500">
+                    Suma usług: {(order.services ?? []).length}
+                  </span>
+                ) : null}
+              </div>
             }
           >
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
