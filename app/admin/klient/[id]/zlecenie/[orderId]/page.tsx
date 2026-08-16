@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { use, useState, useRef, useEffect, useMemo } from "react";
+import { use, useState, useRef, useEffect, useMemo, Fragment } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -115,7 +115,7 @@ type CachedExpense = {
 
 
 
-type Tab = "szczegoly" | "montaz" | "wycena" | "finanse" | "dokumenty" | "reklamacja" | "faktury" | "koszty" | "notatki";
+type Tab = "szczegoly" | "zamowienia" | "montaz" | "wycena" | "finanse" | "dokumenty" | "reklamacja" | "faktury" | "koszty" | "notatki";
 
 function getProjectFileLinks(projectFiles: string | undefined) {
   if (!projectFiles) return [];
@@ -1804,8 +1804,73 @@ export default function OrderDetailPage({
   const [editingServices, setEditingServices] = useState(false);
   const [draftServices, setDraftServices] = useState<string[]>([]);
   const [editingDeliverySvc, setEditingDeliverySvc] = useState<string | null>(null);
-  // Edycja jednej usługi = lista wpisów (po jednym na zaznaczonego dostawcę).
-  const [draftDeliveries, setDraftDeliveries] = useState<NonNullable<NonNullable<typeof order>["serviceDeliveries"]> | null>(null);
+  const [editingSupplierId, setEditingSupplierId] = useState<Id<"suppliers"> | null>(null);
+  const [editingDeliveryIndex, setEditingDeliveryIndex] = useState<number | null>(null);
+  const [draftDeliveryEntry, setDraftDeliveryEntry] = useState<{
+    serviceName: string;
+    supplierId: Id<"suppliers">;
+    orderDate?: number;
+    confirmedDate?: number;
+    deliveryDate?: number;
+    receivedDate?: number;
+    netAmount?: number;
+    notes?: string;
+  } | null>(null);
+
+  function startEditDelivery(svcName: string, supplierId?: Id<"suppliers">, index?: number) {
+    setEditingDeliverySvc(svcName);
+    if (supplierId && index !== undefined) {
+      const existing = (order?.serviceDeliveries ?? [])[index];
+      if (existing) {
+        setEditingSupplierId(supplierId);
+        setEditingDeliveryIndex(index);
+        setDraftDeliveryEntry({ ...existing });
+        return;
+      }
+    }
+    // Nowe zamówienie u dostawcy
+    const svc = servicesList.find((s) => s.name === svcName);
+    const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
+    const firstSupplierId = availableSuppliers[0]?._id ?? (allSuppliers[0]?._id as Id<"suppliers">);
+    setEditingSupplierId(firstSupplierId);
+    setEditingDeliveryIndex(null);
+    setDraftDeliveryEntry({
+      serviceName: svcName,
+      supplierId: firstSupplierId,
+      orderDate: undefined,
+      confirmedDate: undefined,
+      deliveryDate: undefined,
+      receivedDate: undefined,
+      netAmount: undefined,
+      notes: undefined,
+    });
+  }
+
+  function cancelEditDelivery() {
+    setEditingDeliverySvc(null);
+    setEditingSupplierId(null);
+    setEditingDeliveryIndex(null);
+    setDraftDeliveryEntry(null);
+  }
+
+  async function saveDelivery() {
+    if (!draftDeliveryEntry) return;
+    const currentDeliveries = [...(order?.serviceDeliveries ?? [])];
+    if (editingDeliveryIndex !== null && editingDeliveryIndex >= 0) {
+      currentDeliveries[editingDeliveryIndex] = draftDeliveryEntry;
+    } else {
+      currentDeliveries.push(draftDeliveryEntry);
+    }
+    await updateOrder({ orderId: orderIdTyped, serviceDeliveries: currentDeliveries });
+    cancelEditDelivery();
+  }
+
+  async function deleteDeliveryEntry(indexToDelete: number) {
+    const currentDeliveries = [...(order?.serviceDeliveries ?? [])];
+    currentDeliveries.splice(indexToDelete, 1);
+    await updateOrder({ orderId: orderIdTyped, serviceDeliveries: currentDeliveries });
+    cancelEditDelivery();
+  }
   const [editingCompletionDate, setEditingCompletionDate] = useState(false);
   const [draftCompletionDate, setDraftCompletionDate] = useState<number | undefined>(undefined);
   const [draftInstallationStart, setDraftInstallationStart] = useState<number | undefined>(undefined);
@@ -2008,60 +2073,11 @@ export default function OrderDetailPage({
     setDraftServices([]);
   }
 
-  function startEditDelivery(svcName: string) {
-    const existing = (order?.serviceDeliveries ?? []).filter((x) => x.serviceName === svcName);
-    setDraftDeliveries(existing.map((e) => ({ ...e })));
-    setEditingDeliverySvc(svcName);
-  }
-
-  function cancelEditDelivery() {
-    setEditingDeliverySvc(null);
-    setDraftDeliveries(null);
-  }
-
-  // Zaznaczenie/odznaczenie dostawcy dla edytowanej usługi.
-  function toggleDraftSupplier(svcName: string, supplierId: Id<"suppliers">, checked: boolean) {
-    setDraftDeliveries((prev) => {
-      if (!prev) return prev;
-      if (checked) {
-        if (prev.some((x) => x.supplierId === supplierId)) return prev;
-        return [...prev, { serviceName: svcName, supplierId, orderDate: undefined, confirmedDate: undefined, deliveryDate: undefined, receivedDate: undefined }];
-      }
-      return prev.filter((x) => x.supplierId !== supplierId);
-    });
-  }
-
-  function updateDraftSupplierDate(
-    supplierId: Id<"suppliers">,
-    field: "orderDate" | "confirmedDate" | "deliveryDate" | "receivedDate",
-    ts: number | undefined,
+  function updateDraftSingleField<K extends keyof NonNullable<typeof draftDeliveryEntry>>(
+    field: K,
+    val: NonNullable<typeof draftDeliveryEntry>[K],
   ) {
-    setDraftDeliveries((prev) =>
-      prev ? prev.map((x) => (x.supplierId === supplierId ? { ...x, [field]: ts } : x)) : prev,
-    );
-  }
-
-  // Wyczyść wszystkie trzy terminy danego dostawcy (zachowując przypisanie).
-  function clearDraftSupplierDates(supplierId: Id<"suppliers">) {
-    setDraftDeliveries((prev) =>
-      prev
-        ? prev.map((x) =>
-            x.supplierId === supplierId
-              ? { ...x, orderDate: undefined, confirmedDate: undefined, deliveryDate: undefined, receivedDate: undefined }
-              : x,
-          )
-        : prev,
-    );
-  }
-
-  async function saveDelivery() {
-    if (!editingDeliverySvc || !draftDeliveries) return;
-    // Zachowaj wpisy pozostałych usług; zastąp wpisy edytowanej usługi draftem.
-    const others = (order?.serviceDeliveries ?? []).filter((x) => x.serviceName !== editingDeliverySvc);
-    const next = [...others, ...draftDeliveries];
-    await updateOrder({ orderId: orderIdTyped, serviceDeliveries: next });
-    setEditingDeliverySvc(null);
-    setDraftDeliveries(null);
+    setDraftDeliveryEntry((prev) => (prev ? { ...prev, [field]: val } : prev));
   }
 
   // Szybki odbiór (jak w /admin/zamowienia-dostawcy): oznacz/wyczyść datę odbioru
@@ -2191,6 +2207,7 @@ export default function OrderDetailPage({
     { key: "szczegoly", label: "Szczegóły" },
     { key: "wycena", label: "Wycena" },
     { key: "finanse", label: "Finanse" },
+    { key: "zamowienia", label: "Zamówienia" },
     { key: "montaz", label: "Montaż" },
     { key: "dokumenty", label: "Dokumenty" },
     { key: "reklamacja", label: "Reklamacje" },
@@ -3261,118 +3278,39 @@ export default function OrderDetailPage({
 
         {/* Zamówienia u dostawców oraz Lista zadań */}
         <div className="grid grid-cols-3 gap-4" style={{ padding: "16px 20px" }}>
-          {/* Lewa kolumna: Zamówienia u dostawców */}
+          {/* Lewa kolumna: Zamówienia u dostawców (Podgląd) */}
           <div style={{ background: "var(--accent-soft)", borderRadius: 12, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ width: 4, height: 20, borderRadius: 3, background: "#f59e0b", flexShrink: 0 }} />
-              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#f59e0b" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
-              </svg>
-              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
-                Zamówienia u dostawców
-              </span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ width: 4, height: 20, borderRadius: 3, background: "#f59e0b", flexShrink: 0 }} />
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#f59e0b" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                </svg>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+                  Zamówienia u dostawców
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab("zamowienia")}
+                className="btn btn-xs"
+                style={{ fontSize: 11, padding: "3px 10px", display: "flex", alignItems: "center", gap: 4 }}
+              >
+                Zarządzaj w zakładce
+                <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+              </button>
             </div>
 
             {(order.services ?? []).length === 0 ? (
               <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "10px 12px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
-                Brak usług w zleceniu — dodaj usługi powyżej, aby przypisać dostawców.
+                Brak usług w zleceniu.
               </div>
             ) : (
               (order.services ?? []).map((svcName) => {
-                const svc = servicesList.find((s) => s.name === svcName);
-                const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
                 const assigned = (order.serviceDeliveries ?? []).filter((x) => x.serviceName === svcName);
-                const isEditing = editingDeliverySvc === svcName;
 
-                // ── Tryb edycji ──
-                if (isEditing && draftDeliveries) {
-                  return (
-                    <div key={svcName} style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      borderRadius: 10,
-                      background: "#fff",
-                      border: "1px solid var(--accent-line)",
-                      overflow: "hidden",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-                    }}>
-                      <div style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "10px 12px", background: "var(--accent-soft)", borderBottom: "1px solid var(--line)",
-                      }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                          <span style={{ width: 4, height: 16, borderRadius: 2, background: "var(--accent)", flexShrink: 0 }} />
-                          <span style={{ fontWeight: 700, fontSize: 13.5, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.4 }}>{svcName}</span>
-                        </span>
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <button onClick={saveDelivery} className="btn primary btn-xs">Zapisz</button>
-                          <button onClick={cancelEditDelivery} className="btn btn-xs">Anuluj</button>
-                        </div>
-                      </div>
-
-                      <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-                        {availableSuppliers.length === 0 ? (
-                          <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
-                            Brak dostawców skonfigurowanych dla tej usługi.
-                          </span>
-                        ) : (
-                          availableSuppliers.map((s) => {
-                            const entry = draftDeliveries.find((x) => x.supplierId === s._id);
-                            const checked = !!entry;
-                            const hasAnyDate = !!(entry && (entry.orderDate || entry.confirmedDate || entry.deliveryDate || entry.receivedDate));
-                            return (
-                              <div key={s._id} style={{
-                                borderRadius: 8,
-                                border: `1px solid ${checked ? "var(--line)" : "transparent"}`,
-                                background: checked ? "var(--panel-2)" : "transparent",
-                                padding: checked ? "8px 10px" : "2px 0",
-                              }}>
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={(e) => toggleDraftSupplier(svcName, s._id, e.target.checked)}
-                                    />
-                                    <span style={{ fontSize: 13, fontWeight: checked ? 600 : 400, color: checked ? "var(--text-strong)" : "var(--text-mute)" }}>
-                                      {s.name}
-                                    </span>
-                                  </label>
-                                  {checked && hasAnyDate && (
-                                    <button
-                                      type="button"
-                                      onClick={() => clearDraftSupplierDates(s._id)}
-                                      className="btn btn-xs"
-                                      style={{ fontSize: 10, padding: "2px 8px", color: "var(--bad)" }}
-                                      title="Wyczyść wszystkie terminy tego dostawcy"
-                                    >
-                                      Wyczyść terminy
-                                    </button>
-                                  )}
-                                </div>
-                                {checked && entry && (
-                                  <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", paddingLeft: 24, marginTop: 8 }}>
-                                    {DELIVERY_MILESTONES.map((m) => (
-                                      <EditDateField
-                                        key={m.key}
-                                        label={m.label}
-                                        tone={m.tone}
-                                        value={entry[m.key]}
-                                        onChange={(ts) => updateDraftSupplierDate(s._id, m.key, ts)}
-                                      />
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  );
-                }
-
-                // ── Tryb widoku ──
                 return (
                   <div key={svcName} style={{
                     display: "flex",
@@ -3384,28 +3322,17 @@ export default function OrderDetailPage({
                   }}>
                     <div style={{
                       display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                      padding: "10px 12px", borderBottom: "1px solid var(--line)",
+                      padding: "8px 12px", borderBottom: "1px solid var(--line)",
                       background: "var(--panel-2)",
                     }}>
                       <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                        <span style={{ width: 4, height: 16, borderRadius: 2, background: "var(--accent)", flexShrink: 0 }} />
-                        <span style={{ fontWeight: 700, fontSize: 13.5, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.4 }}>{svcName}</span>
+                        <span style={{ width: 4, height: 14, borderRadius: 2, background: "var(--accent)", flexShrink: 0 }} />
+                        <span style={{ fontWeight: 700, fontSize: 12.5, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.4 }}>{svcName}</span>
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => startEditDelivery(svcName)}
-                        className="btn"
-                        style={{ fontSize: 10, padding: "2px 8px", flexShrink: 0 }}
-                      >
-                        <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-                        </svg>
-                        Edytuj
-                      </button>
                     </div>
 
                     {assigned.length === 0 ? (
-                      <div style={{ padding: "10px 12px", fontSize: 12.5, color: "var(--text-mute)" }}>
+                      <div style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-mute)" }}>
                         Brak przypisanych dostawców.
                       </div>
                     ) : (
@@ -3413,33 +3340,28 @@ export default function OrderDetailPage({
                         {assigned.map((d, i) => {
                           const supplier = allSuppliers.find((s) => s._id === d.supplierId);
                           const status = deliveryStatusBadge(d);
-                          const deliveryIndex = (order.serviceDeliveries ?? []).findIndex((x) => x === d);
-                          
                           const isOrdered = d.orderDate != null;
                           const isConfirmed = d.confirmedDate != null;
                           const isDelivered = d.receivedDate != null;
-                          
+
                           let rowBg = "transparent";
                           if (!isDelivered) {
-                            if (isConfirmed) rowBg = "#f0fdf4"; // zielony - potwierdzone
-                            else if (isOrdered) rowBg = "#fffbeb"; // żółty - zamówione, brak potwierdzenia
+                            if (isConfirmed) rowBg = "#f0fdf4";
+                            else if (isOrdered) rowBg = "#fffbeb";
                           }
 
                           return (
                             <div
                               key={`${d.supplierId}:${i}`}
                               style={{
-                                display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-                                padding: "10px 12px",
+                                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap",
+                                padding: "8px 12px",
                                 borderTop: i > 0 ? "1px solid var(--line)" : "none",
                                 background: rowBg,
                               }}
                             >
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 150, flex: "0 0 auto" }}>
-                                <span style={{
-                                  fontSize: 12.5, fontWeight: 600,
-                                  color: supplier ? "var(--text-strong)" : "var(--text-mute)",
-                                }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 12.5, fontWeight: 600, color: supplier ? "var(--text-strong)" : "var(--text-mute)" }}>
                                   {supplier?.name ?? "— nieznany dostawca"}
                                 </span>
                                 <span style={{
@@ -3452,45 +3374,17 @@ export default function OrderDetailPage({
                                 </span>
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                {DELIVERY_MILESTONES.map((m) =>
-                                  m.key === "receivedDate" ? (
-                                    <OdbiorMilestone
-                                      key={m.key}
-                                      tone={m.tone}
-                                      soft={m.soft}
-                                      border={m.border}
-                                      date={d[m.key]}
-                                      fmt={fmtLocalDate}
-                                      onMark={() => markReceived(deliveryIndex)}
-                                      onClear={() => clearReceived(deliveryIndex)}
-                                    />
-                                  ) : m.key === "confirmedDate" ? (
-                                    <OdbiorMilestone
-                                      key={m.key}
-                                      tone={m.tone}
-                                      soft={m.soft}
-                                      border={m.border}
-                                      date={d[m.key]}
-                                      fmt={fmtLocalDate}
-                                      onMark={() => markConfirmed(deliveryIndex)}
-                                      onClear={() => clearConfirmed(deliveryIndex)}
-                                      label="Potwierdzenie"
-                                      buttonLabel="Potwierdź zamówienie"
-                                      titleClear="Usuń datę potwierdzenia"
-                                      titleMark="Potwierdź otrzymanie potwierdzenia od dostawcy"
-                                    />
-                                  ) : (
-                                    <MilestonePill
-                                      key={m.key}
-                                      label={m.label}
-                                      tone={m.tone}
-                                      soft={m.soft}
-                                      border={m.border}
-                                      date={d[m.key]}
-                                      fmt={fmtLocalDate}
-                                    />
-                                  )
-                                )}
+                                {DELIVERY_MILESTONES.map((m) => (
+                                  <MilestonePill
+                                    key={m.key}
+                                    label={m.label}
+                                    tone={m.tone}
+                                    soft={m.soft}
+                                    border={m.border}
+                                    date={d[m.key]}
+                                    fmt={fmtLocalDate}
+                                  />
+                                ))}
                               </div>
                             </div>
                           );
@@ -4116,6 +4010,310 @@ export default function OrderDetailPage({
 
 
       
+      {/* ── Tab: Zamówienia u dostawców ── */}
+      {activeTab === "zamowienia" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <SectionCard
+            title="Zamówienia u dostawców"
+            action={
+              (order.services ?? []).length > 0 ? (
+                <span className="text-xs text-gray-500">
+                  Suma usług: {(order.services ?? []).length}
+                </span>
+              ) : null
+            }
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <p style={{ fontSize: 13, color: "var(--text-mute)", margin: 0 }}>
+                Zarządzaj przypisaniem dostawców oraz etapami realizacji (zamówienie, potwierdzenie, dostawa, odbiór) w formie przejrzystej tabeli.
+              </p>
+
+              {(order.services ?? []).length === 0 ? (
+                <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "14px 16px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
+                  Brak usług w zleceniu — dodaj usługi w zakładce "Szczegóły", aby przypisać dostawców.
+                </div>
+              ) : (
+                <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+                  <TableRoot>
+                    <Table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+                      <TableHead>
+                        <TableRow className="bg-slate-50/80 border-b border-gray-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                          <TableHeaderCell style={{ padding: "12px 16px", width: "15%" }}>Usługa</TableHeaderCell>
+                          <TableHeaderCell style={{ padding: "12px 16px", width: "15%" }}>Dostawca</TableHeaderCell>
+                          <TableHeaderCell style={{ padding: "12px 16px", width: "11%" }}>Kwota netto</TableHeaderCell>
+                          <TableHeaderCell style={{ padding: "12px 16px", width: "10%" }}>Status</TableHeaderCell>
+                          <TableHeaderCell style={{ padding: "12px 16px", width: "12%" }}>Zamówiono</TableHeaderCell>
+                          <TableHeaderCell style={{ padding: "12px 16px", width: "13%" }}>Potwierdzono</TableHeaderCell>
+                          <TableHeaderCell style={{ padding: "12px 16px", width: "12%" }}>Dostawa</TableHeaderCell>
+                          <TableHeaderCell style={{ padding: "12px 16px", width: "12%" }}>Odbiór</TableHeaderCell>
+                          <TableHeaderCell className="text-right" style={{ padding: "12px 16px", width: "10%" }}>Akcja</TableHeaderCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(order.services ?? []).map((svcName) => {
+                          const assigned = (order.serviceDeliveries ?? []).filter((x) => x.serviceName === svcName);
+
+                          if (assigned.length === 0) {
+                            return (
+                              <TableRow key={svcName} className="hover:bg-slate-50/50 transition-colors border-b border-gray-100">
+                                <TableCell className="font-semibold text-sm text-slate-900" style={{ padding: "14px 16px" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                    <ServiceIcon name={svcName} size={18} />
+                                    <span>{svcName}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-sm text-gray-400 italic" colSpan={7} style={{ padding: "14px 16px" }}>
+                                  Brak przypisanych dostawców
+                                </TableCell>
+                                <TableCell className="text-right whitespace-nowrap" style={{ padding: "14px 16px" }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditDelivery(svcName)}
+                                    className="btn btn-xs primary"
+                                    style={{ fontSize: 12, padding: "5px 12px", display: "inline-flex", alignItems: "center", gap: 6 }}
+                                  >
+                                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                    </svg>
+                                    Dodaj zamówienie
+                                  </button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          }
+
+                          return (
+                            <Fragment key={svcName}>
+                              {assigned.map((d, i) => {
+                                const supplier = allSuppliers.find((s) => s._id === d.supplierId);
+                                const status = deliveryStatusBadge(d);
+                                const deliveryIndex = (order.serviceDeliveries ?? []).findIndex((x) => x === d);
+
+                                return (
+                                  <TableRow key={`${svcName}:${d.supplierId}:${i}`} className="hover:bg-slate-50/50 transition-colors border-b border-gray-100">
+                                    {i === 0 ? (
+                                      <TableCell className="font-semibold text-sm text-slate-900 align-top" rowSpan={assigned.length} style={{ padding: "16px", borderRight: "1px solid var(--line)" }}>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 2 }}>
+                                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                            <ServiceIcon name={svcName} size={18} />
+                                            <span style={{ fontSize: 13.5, fontWeight: 700 }}>{svcName}</span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => startEditDelivery(svcName)}
+                                            className="btn btn-xs"
+                                            style={{ fontSize: 11, padding: "3px 8px", alignSelf: "flex-start", marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}
+                                          >
+                                            <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                            </svg>
+                                            Dodaj zamówienie
+                                          </button>
+                                        </div>
+                                      </TableCell>
+                                    ) : null}
+                                    <TableCell className="text-sm font-semibold text-slate-800 whitespace-nowrap" style={{ padding: "14px 16px" }}>
+                                      {supplier?.name ?? "— nieznany dostawca"}
+                                    </TableCell>
+                                    <TableCell className="text-sm font-bold text-slate-900 whitespace-nowrap tabular-nums" style={{ padding: "14px 16px" }}>
+                                      {d.netAmount != null ? `${d.netAmount.toLocaleString("pl-PL", { minimumFractionDigits: 2 })} PLN` : "—"}
+                                    </TableCell>
+                                    <TableCell className="whitespace-nowrap" style={{ padding: "14px 16px" }}>
+                                      <span style={{
+                                        fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
+                                        padding: "4px 10px", borderRadius: 999,
+                                        background: status.bg, color: status.fg, border: `1px solid ${status.border}`,
+                                        whiteSpace: "nowrap", display: "inline-block"
+                                      }}>
+                                        {status.label}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="whitespace-nowrap" style={{ padding: "14px 16px" }}>
+                                      <MilestonePill
+                                        label="Zamówienie"
+                                        tone="#2563eb"
+                                        soft="#eff6ff"
+                                        border="#bfdbfe"
+                                        date={d.orderDate}
+                                        fmt={fmtLocalDate}
+                                      />
+                                    </TableCell>
+                                    <TableCell className="whitespace-nowrap" style={{ padding: "14px 16px" }}>
+                                      <OdbiorMilestone
+                                        tone="#7c3aed"
+                                        soft="#f5f3ff"
+                                        border="#ddd6fe"
+                                        date={d.confirmedDate}
+                                        fmt={fmtLocalDate}
+                                        onMark={() => markConfirmed(deliveryIndex)}
+                                        onClear={() => clearConfirmed(deliveryIndex)}
+                                        label="Potwierdzenie"
+                                        buttonLabel="Potwierdź"
+                                        titleClear="Usuń datę potwierdzenia"
+                                        titleMark="Potwierdź otrzymanie zamówienia od dostawcy"
+                                      />
+                                    </TableCell>
+                                    <TableCell className="whitespace-nowrap" style={{ padding: "14px 16px" }}>
+                                      <MilestonePill
+                                        label="Dostawa"
+                                        tone="#b45309"
+                                        soft="#fffbeb"
+                                        border="#fde68a"
+                                        date={d.deliveryDate}
+                                        fmt={fmtLocalDate}
+                                      />
+                                    </TableCell>
+                                    <TableCell className="whitespace-nowrap" style={{ padding: "14px 16px" }}>
+                                      <OdbiorMilestone
+                                        tone="#15803d"
+                                        soft="#f0fdf4"
+                                        border="#bbf7d0"
+                                        date={d.receivedDate}
+                                        fmt={fmtLocalDate}
+                                        onMark={() => markReceived(deliveryIndex)}
+                                        onClear={() => clearReceived(deliveryIndex)}
+                                      />
+                                    </TableCell>
+                                    <TableCell className="text-right whitespace-nowrap align-middle" style={{ padding: "14px 16px" }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => startEditDelivery(svcName, d.supplierId, deliveryIndex)}
+                                        className="btn btn-xs primary"
+                                        style={{ fontSize: 11.5, padding: "5px 12px", display: "inline-flex", alignItems: "center", gap: 5 }}
+                                      >
+                                        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.573 16.49 16.638 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                        Szczegóły
+                                      </button>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </Fragment>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableRoot>
+                </div>
+              )}
+
+            </div>
+          </SectionCard>
+
+          {/* Drawer szczegółów / edycji pojedynczego zamówienia u dostawcy */}
+          <SideDrawer
+            open={!!editingDeliverySvc && !!draftDeliveryEntry}
+            onClose={cancelEditDelivery}
+            title={
+              <div className="flex items-center gap-2">
+                <ServiceIcon name={editingDeliverySvc ?? ""} size={18} />
+                <span>
+                  {editingDeliveryIndex !== null ? "Szczegóły zamówienia u dostawcy" : "Nowe zamówienie u dostawcy"} ({editingDeliverySvc})
+                </span>
+              </div>
+            }
+            width={620}
+            footer={
+              <div className="flex items-center justify-between gap-3 w-full">
+                {editingDeliveryIndex !== null ? (
+                  <button
+                    type="button"
+                    onClick={() => deleteDeliveryEntry(editingDeliveryIndex)}
+                    className="btn btn-xs"
+                    style={{ color: "var(--bad)", border: "1px solid var(--bad-line)" }}
+                  >
+                    Usuń zamówienie
+                  </button>
+                ) : <div />}
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={cancelEditDelivery} className="btn">
+                    Anuluj
+                  </button>
+                  <button type="button" onClick={saveDelivery} className="btn primary">
+                    Zapisz zamówienie
+                  </button>
+                </div>
+              </div>
+            }
+          >
+            <div className="flex flex-col gap-5 p-1">
+              {draftDeliveryEntry && (() => {
+                const svc = servicesList.find((s) => s.name === editingDeliverySvc);
+                const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
+
+                return (
+                  <div className="flex flex-col gap-5">
+                    {/* Wybór dostawcy */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-gray-700">Dostawca realizujący zamówienie</label>
+                      <select
+                        value={draftDeliveryEntry.supplierId}
+                        onChange={(e) => updateDraftSingleField("supplierId", e.target.value as Id<"suppliers">)}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-900 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      >
+                        {(availableSuppliers.length > 0 ? availableSuppliers : allSuppliers).map((s) => (
+                          <option key={s._id} value={s._id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Kwota netto */}
+                    <div className="flex flex-col gap-1.5 max-w-[260px]">
+                      <label className="text-xs font-bold text-gray-700">Kwota netto zamówienia (PLN)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={draftDeliveryEntry.netAmount ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                          updateDraftSingleField("netAmount", val);
+                        }}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-900 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                    </div>
+
+                    {/* Daty etapów zamówienia */}
+                    <div className="flex flex-col gap-2 pt-2 border-t border-gray-200">
+                      <span className="text-xs font-bold text-gray-700">Etapy i terminy realizacji</span>
+                      <div className="grid grid-cols-2 gap-3">
+                        {DELIVERY_MILESTONES.map((m) => (
+                          <EditDateField
+                            key={m.key}
+                            label={m.label}
+                            tone={m.tone}
+                            value={draftDeliveryEntry[m.key]}
+                            onChange={(ts) => updateDraftSingleField(m.key, ts)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Notatki / Uwagi (Textarea) */}
+                    <div className="flex flex-col gap-1.5 pt-2 border-t border-gray-200">
+                      <label className="text-xs font-bold text-gray-700">Notatki / Uwagi do zamówienia</label>
+                      <textarea
+                        rows={4}
+                        placeholder="Wpisz uwagi, numer zamówienia u dostawcy, wymiary, specyfikację lub dodatkowe ustalenia..."
+                        value={draftDeliveryEntry.notes ?? ""}
+                        onChange={(e) => updateDraftSingleField("notes", e.target.value)}
+                        className="rounded-lg border border-gray-300 p-3 text-xs text-gray-900 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-y"
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </SideDrawer>
+        </div>
+      )}
+
       {/* ── Tab: Montaż ── */}
       {activeTab === "montaz" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

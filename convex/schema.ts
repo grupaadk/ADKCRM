@@ -231,6 +231,8 @@ export default defineSchema({
       confirmedDate: v.optional(v.number()), // potwierdzenie złożenia zamówienia
       deliveryDate: v.optional(v.number()),  // planowana data dostawy
       receivedDate: v.optional(v.number()),  // faktyczna data odbioru (fizycznie dostarczone)
+      netAmount: v.optional(v.number()),     // kwota netto zamówienia u dostawcy
+      notes: v.optional(v.string()),         // opcjonalne notatki / uwagi do zamówienia
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),

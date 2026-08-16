@@ -381,6 +381,8 @@ export const update = mutation({
       confirmedDate: v.optional(v.number()),
       deliveryDate: v.optional(v.number()),
       receivedDate: v.optional(v.number()),
+      netAmount: v.optional(v.number()),
+      notes: v.optional(v.string()),
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),
