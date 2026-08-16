@@ -35,7 +35,8 @@ export const sendDeliveryOrderToCrm = action({
     const clientName = client ? (client.companyName ? `${client.companyName} (${client.firstName} ${client.lastName})` : `${client.firstName} ${client.lastName}`) : "Brak danych klienta";
     const clientPhone = client?.phone ? ` | Tel: ${client.phone}` : "";
     const clientEmail = client?.email ? ` | Email: ${client.email}` : "";
-    const investmentAddress = order.investmentLocation?.address ? ` | Inwestycja: ${order.investmentLocation.address}` : "";
+    const investmentParts = [order.investmentStreet, order.investmentBuildingNumber, order.investmentCity].filter(Boolean);
+    const investmentAddress = investmentParts.length > 0 ? ` | Inwestycja: ${investmentParts.join(" ")}` : "";
 
     const notesCombined = [
       `Zlecenie ADK: ${order.name || order.customText || order._id}`,
