@@ -51,7 +51,15 @@ export const sendDeliveryOrderToCrm = action({
     };
 
     // 4. Wyślij żądanie HTTP POST do API CRM
-    const response = await fetch(supplier.apiEndpoint, {
+    let targetUrl = supplier.apiEndpoint.trim();
+    if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+      targetUrl = `https://${targetUrl}`;
+    }
+    if (!targetUrl.includes("/api/partner/orders")) {
+      targetUrl = targetUrl.replace(/\/+$/, "") + "/api/partner/orders";
+    }
+
+    const response = await fetch(targetUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
