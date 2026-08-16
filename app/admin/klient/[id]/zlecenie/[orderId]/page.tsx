@@ -4239,50 +4239,51 @@ export default function OrderDetailPage({
               </div>
             }
           >
-            <div className="flex flex-col gap-5 p-1">
+            <div className="flex flex-col gap-6 p-2">
               {draftDeliveryEntry && (() => {
                 const svc = servicesList.find((s) => s.name === editingDeliverySvc);
                 const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
 
                 return (
                   <div className="flex flex-col gap-5">
-                    {/* Wybór dostawcy */}
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-bold text-gray-700">Dostawca realizujący zamówienie</label>
-                      <select
-                        value={draftDeliveryEntry.supplierId}
-                        onChange={(e) => updateDraftSingleField("supplierId", e.target.value as Id<"suppliers">)}
-                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-900 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                      >
-                        {(availableSuppliers.length > 0 ? availableSuppliers : allSuppliers).map((s) => (
-                          <option key={s._id} value={s._id}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    {/* Wybór dostawcy i Kwota netto w 2 kolumnach */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-700">Dostawca realizujący zamówienie</label>
+                        <select
+                          value={draftDeliveryEntry.supplierId}
+                          onChange={(e) => updateDraftSingleField("supplierId", e.target.value as Id<"suppliers">)}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm"
+                        >
+                          {(availableSuppliers.length > 0 ? availableSuppliers : allSuppliers).map((s) => (
+                            <option key={s._id} value={s._id}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                    {/* Kwota netto */}
-                    <div className="flex flex-col gap-1.5 max-w-[260px]">
-                      <label className="text-xs font-bold text-gray-700">Kwota netto zamówienia (PLN)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        value={draftDeliveryEntry.netAmount ?? ""}
-                        onChange={(e) => {
-                          const val = e.target.value ? parseFloat(e.target.value) : undefined;
-                          updateDraftSingleField("netAmount", val);
-                        }}
-                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-900 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                      />
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-700">Kwota netto zamówienia (PLN)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={draftDeliveryEntry.netAmount ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                            updateDraftSingleField("netAmount", val);
+                          }}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm"
+                        />
+                      </div>
                     </div>
 
                     {/* Daty etapów zamówienia */}
-                    <div className="flex flex-col gap-2 pt-2 border-t border-gray-200">
-                      <span className="text-xs font-bold text-gray-700">Etapy i terminy realizacji</span>
-                      <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-3 pt-3 border-t border-slate-200">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Etapy i terminy realizacji</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {DELIVERY_MILESTONES.map((m) => (
                           <EditDateField
                             key={m.key}
@@ -4296,14 +4297,14 @@ export default function OrderDetailPage({
                     </div>
 
                     {/* Notatki / Uwagi (Textarea) */}
-                    <div className="flex flex-col gap-1.5 pt-2 border-t border-gray-200">
-                      <label className="text-xs font-bold text-gray-700">Notatki / Uwagi do zamówienia</label>
+                    <div className="flex flex-col gap-1.5 pt-3 border-t border-slate-200">
+                      <label className="text-xs font-bold text-slate-700">Notatki / Uwagi do zamówienia</label>
                       <textarea
                         rows={4}
                         placeholder="Wpisz uwagi, numer zamówienia u dostawcy, wymiary, specyfikację lub dodatkowe ustalenia..."
                         value={draftDeliveryEntry.notes ?? ""}
                         onChange={(e) => updateDraftSingleField("notes", e.target.value)}
-                        className="rounded-lg border border-gray-300 p-3 text-xs text-gray-900 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-y"
+                        className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm resize-y"
                       />
                     </div>
                   </div>
