@@ -7,7 +7,7 @@ export const sendDeliveryOrderToCrm = action({
     orderId: v.id("orders"),
     deliveryIndex: v.number(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     // 1. Pobierz zlecenie
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) {
@@ -106,19 +106,19 @@ export const addNoteToCrmOrder = action({
     deliveryIndex: v.number(),
     noteText: v.string(),
   },
-  handler: async (ctx, args) => {
-    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+  handler: async (ctx, args): Promise<unknown> => {
+    const order: any = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) throw new Error("Nie znaleziono zlecenia.");
     const delivery = order.serviceDeliveries?.[args.deliveryIndex];
     if (!delivery || !delivery.externalOrderNumber) {
       throw new Error("Zamówienie nie zostało jeszcze utworzone w CRM Exalco.");
     }
-    const supplier = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: delivery.supplierId });
+    const supplier: any = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: delivery.supplierId });
     if (!supplier || !supplier.apiEndpoint || !supplier.apiKey) {
       throw new Error("Dostawca nie posiada skonfigurowanego API.");
     }
 
-    let rawEndpoint = supplier.apiEndpoint.trim();
+    let rawEndpoint: string = supplier.apiEndpoint.trim();
     if (!rawEndpoint.startsWith("http://") && !rawEndpoint.startsWith("https://")) {
       rawEndpoint = `https://${rawEndpoint}`;
     }
@@ -154,19 +154,19 @@ export const uploadFileToCrmOrder = action({
     fileName: v.string(),
     fileBase64: v.string(),
   },
-  handler: async (ctx, args) => {
-    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+  handler: async (ctx, args): Promise<unknown> => {
+    const order: any = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) throw new Error("Nie znaleziono zlecenia.");
     const delivery = order.serviceDeliveries?.[args.deliveryIndex];
     if (!delivery || !delivery.externalOrderNumber) {
       throw new Error("Zamówienie nie zostało jeszcze utworzone w CRM Exalco.");
     }
-    const supplier = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: delivery.supplierId });
+    const supplier: any = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: delivery.supplierId });
     if (!supplier || !supplier.apiEndpoint || !supplier.apiKey) {
       throw new Error("Dostawca nie posiada skonfigurowanego API.");
     }
 
-    let rawEndpoint = supplier.apiEndpoint.trim();
+    let rawEndpoint: string = supplier.apiEndpoint.trim();
     if (!rawEndpoint.startsWith("http://") && !rawEndpoint.startsWith("https://")) {
       rawEndpoint = `https://${rawEndpoint}`;
     }
