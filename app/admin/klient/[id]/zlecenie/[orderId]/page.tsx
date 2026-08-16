@@ -4280,19 +4280,58 @@ export default function OrderDetailPage({
                       </div>
                     </div>
 
-                    {/* Daty etapów zamówienia */}
+                    {/* Daty etapów zamówienia w formie eleganckiej tabeli */}
                     <div className="flex flex-col gap-3 pt-3 border-t border-slate-200">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Etapy i terminy realizacji</span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {DELIVERY_MILESTONES.map((m) => (
-                          <EditDateField
-                            key={m.key}
-                            label={m.label}
-                            tone={m.tone}
-                            value={draftDeliveryEntry[m.key]}
-                            onChange={(ts) => updateDraftSingleField(m.key, ts)}
-                          />
-                        ))}
+                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                        <table className="w-full border-collapse text-left text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                              <th className="py-2.5 px-3.5 w-1/3">Etap</th>
+                              <th className="py-2.5 px-3.5 w-1/2">Data</th>
+                              <th className="py-2.5 px-3.5 text-right w-1/6">Akcje</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {DELIVERY_MILESTONES.map((m) => {
+                              const val = draftDeliveryEntry[m.key];
+                              const isSet = val != null;
+
+                              return (
+                                <tr key={m.key} className="hover:bg-slate-50/50 transition-colors">
+                                  <td className="py-2.5 px-3.5 font-bold align-middle">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-2 height-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.tone, width: 8, height: 8 }} />
+                                      <span style={{ color: isSet ? m.tone : "var(--text-strong)" }}>{m.label}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-3.5 align-middle">
+                                    <input
+                                      type="date"
+                                      value={tsToDateStr(val)}
+                                      onChange={(e) => updateDraftSingleField(m.key, dateStrToTs(e.target.value))}
+                                      className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                    />
+                                  </td>
+                                  <td className="py-2.5 px-3.5 text-right align-middle">
+                                    {isSet ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => updateDraftSingleField(m.key, undefined)}
+                                        className="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded text-xs transition-colors"
+                                        title={`Wyczyść datę dla ${m.label}`}
+                                      >
+                                        ✕
+                                      </button>
+                                    ) : (
+                                      <span className="text-slate-300 text-xs">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
 
