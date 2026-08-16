@@ -82,6 +82,9 @@ export const update = mutation({
   args: {
     id: v.id("suppliers"),
     name: v.optional(v.string()),
+    apiEndpoint: v.optional(v.string()),
+    apiKey: v.optional(v.string()),
+    isApiEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;
@@ -121,5 +124,12 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(args.id);
+  },
+});
+
+export const getByIdInternal = query({
+  args: { supplierId: v.id("suppliers") },
+  handler: async (ctx, args) => {
+    return ctx.db.get(args.supplierId);
   },
 });

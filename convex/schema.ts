@@ -233,6 +233,8 @@ export default defineSchema({
       receivedDate: v.optional(v.number()),  // faktyczna data odbioru (fizycznie dostarczone)
       netAmount: v.optional(v.number()),     // kwota netto zamówienia u dostawcy
       notes: v.optional(v.string()),         // opcjonalne notatki / uwagi do zamówienia
+      externalOrderId: v.optional(v.string()),     // ID zlecenia zwrócone z zewnętrznego CRM (np. pd79ddwdn...)
+      externalOrderNumber: v.optional(v.string()), // Numer zlecenia w CRM (np. ZL-260802416)
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),
@@ -505,6 +507,9 @@ export default defineSchema({
     name: v.string(),
     isActive: v.boolean(),
     createdBy: v.string(),
+    apiEndpoint: v.optional(v.string()), // URL punktu końcowego API (np. https://...convex.site/api/partner/orders)
+    apiKey: v.optional(v.string()),      // Klucz API partnera (np. pk_live_...)
+    isApiEnabled: v.optional(v.boolean()), // Czy automatyczne przesyłanie zamówień przez API jest aktywne
   })
     .index("by_active", ["isActive"]),
 

@@ -3693,13 +3693,16 @@ function SupplierRow({
   onToggle,
   onDelete,
 }: {
-  supplier: { _id: Id<"suppliers">; name: string; isActive: boolean };
-  onSave: (id: Id<"suppliers">, data: { name?: string }) => Promise<unknown>;
+  supplier: { _id: Id<"suppliers">; name: string; isActive: boolean; apiEndpoint?: string; apiKey?: string; isApiEnabled?: boolean };
+  onSave: (id: Id<"suppliers">, data: { name?: string; apiEndpoint?: string; apiKey?: string; isApiEnabled?: boolean }) => Promise<unknown>;
   onToggle: (id: Id<"suppliers">) => Promise<unknown>;
   onDelete: (id: Id<"suppliers">) => Promise<unknown>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(supplier.name);
+  const [draftEndpoint, setDraftEndpoint] = useState(supplier.apiEndpoint ?? "");
+  const [draftKey, setDraftKey] = useState(supplier.apiKey ?? "");
+  const [draftEnabled, setDraftEnabled] = useState(supplier.isApiEnabled ?? false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -3707,7 +3710,12 @@ function SupplierRow({
     setBusy(true);
     setError(null);
     try {
-      await onSave(supplier._id, { name: draftName });
+      await onSave(supplier._id, {
+        name: draftName,
+        apiEndpoint: draftEndpoint.trim() || undefined,
+        apiKey: draftKey.trim() || undefined,
+        isApiEnabled: draftEnabled,
+      });
       setEditing(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Błąd zapisu");
@@ -3718,47 +3726,115 @@ function SupplierRow({
 
   if (editing) {
     return (
-      <tr className="bg-blue-50">
-        <td className="px-4 py-3" colSpan={3}>
-          <div className="flex items-center gap-2">
-            <input
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
-            />
-            <button onClick={save} disabled={busy || !draftName.trim()}
-              className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
-              Zapisz
-            </button>
-            <button onClick={() => setEditing(false)}
-              className="rounded-lg border border-slate-300 px-4 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
-              Anuluj
-            </button>
+      <tr className="bg-blue-50/70 border-b border-blue-100">
+        <td className="px-4 py-4" colSpan={3}>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nazwa dostawcy</label>
+                <input
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-800"
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-2 pt-5">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+                  <input
+                    type="checkbox"
+                    checked={draftEnabled}
+                    onChange={(e) => setDraftEnabled(e.target.checked)}
+                    className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                  />
+                  <span>Integracja API aktywna</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-blue-100">
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Endpoint API (URL)</label>
+                <input
+                  placeholder="https://...convex.site/api/partner/orders"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-800 bg-white font-mono"
+                  value={draftEndpoint}
+                  onChange={(e) => setDraftEndpoint(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Klucz API (X-Api-Key)</label>
+                <input
+                  type="password"
+                  placeholder="pk_live_..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-800 bg-white font-mono"
+                  value={draftKey}
+                  onChange={(e) => setDraftKey(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                onClick={save}
+                disabled={busy || !draftName.trim()}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+              >
+                Zapisz
+              </button>
+            </div>
           </div>
-          {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
         </td>
       </tr>
     );
   }
 
   return (
-    <tr className={`group border-b border-slate-100 hover:bg-slate-50 ${!supplier.isActive ? "opacity-50" : ""}`}>
-      <td className="px-4 py-3 text-sm font-medium text-slate-800">{supplier.name}</td>
-      <td className="px-4 py-3">
-        <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${supplier.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
+    <tr className="border-b border-slate-100 hover:bg-slate-50/50">
+      <td className="px-4 py-3 text-sm font-semibold text-slate-800">
+        <div className="flex items-center gap-2">
+          <span>{supplier.name}</span>
+          {supplier.isApiEnabled && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
+              API Active
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-3 text-xs">
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+            supplier.isActive
+              ? "bg-emerald-100 text-emerald-800"
+              : "bg-slate-100 text-slate-500"
+          }`}
+        >
           {supplier.isActive ? "Aktywny" : "Nieaktywny"}
         </span>
       </td>
       <td className="px-4 py-3 text-right">
-        <div className="invisible flex justify-end gap-1 group-hover:visible">
-          <button onClick={() => setEditing(true)}
-            className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200">Edytuj</button>
-          <button onClick={() => onToggle(supplier._id)} disabled={busy}
-            className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200">
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => setEditing(true)}
+            className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+          >
+            Edytuj
+          </button>
+          <button
+            onClick={() => onToggle(supplier._id)}
+            className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+          >
             {supplier.isActive ? "Dezaktywuj" : "Aktywuj"}
           </button>
-          <button onClick={() => onDelete(supplier._id)} disabled={busy}
-            className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">Usuń</button>
         </div>
       </td>
     </tr>

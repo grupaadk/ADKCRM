@@ -15,6 +15,7 @@ import type * as cars from "../cars.js";
 import type * as clients from "../clients.js";
 import type * as complaints from "../complaints.js";
 import type * as crmConfig from "../crmConfig.js";
+import type * as crmIntegration from "../crmIntegration.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
 import type * as dashboardTasks from "../dashboardTasks.js";
@@ -78,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   clients: typeof clients;
   complaints: typeof complaints;
   crmConfig: typeof crmConfig;
+  crmIntegration: typeof crmIntegration;
   crons: typeof crons;
   dashboard: typeof dashboard;
   dashboardTasks: typeof dashboardTasks;

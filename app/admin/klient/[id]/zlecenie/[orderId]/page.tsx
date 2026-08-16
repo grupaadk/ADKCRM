@@ -1815,6 +1815,8 @@ export default function OrderDetailPage({
     receivedDate?: number;
     netAmount?: number;
     notes?: string;
+    externalOrderId?: string;
+    externalOrderNumber?: string;
   } | null>(null);
 
   function startEditDelivery(svcName: string, supplierId?: Id<"suppliers">, index?: number) {
@@ -1853,15 +1855,34 @@ export default function OrderDetailPage({
     setDraftDeliveryEntry(null);
   }
 
+  const sendCrmOrder = useAction(api.crmIntegration.sendDeliveryOrderToCrm);
+  const [sendingCrm, setSendingCrm] = useState(false);
+
   async function saveDelivery() {
     if (!draftDeliveryEntry) return;
     const currentDeliveries = [...(order?.serviceDeliveries ?? [])];
-    if (editingDeliveryIndex !== null && editingDeliveryIndex >= 0) {
-      currentDeliveries[editingDeliveryIndex] = draftDeliveryEntry;
+    let targetIndex = editingDeliveryIndex;
+    if (targetIndex !== null && targetIndex >= 0) {
+      currentDeliveries[targetIndex] = draftDeliveryEntry;
     } else {
+      targetIndex = currentDeliveries.length;
       currentDeliveries.push(draftDeliveryEntry);
     }
     await updateOrder({ orderId: orderIdTyped, serviceDeliveries: currentDeliveries });
+
+    // Automatyczne wywołanie integracji CRM jeśli dostawca ma aktywne API
+    const supplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+    if (supplier?.isApiEnabled && targetIndex !== null && targetIndex >= 0) {
+      try {
+        setSendingCrm(true);
+        await sendCrmOrder({ orderId: orderIdTyped, deliveryIndex: targetIndex });
+      } catch (err) {
+        console.error("Błąd podczas automatycznego wysyłania do CRM:", err);
+      } finally {
+        setSendingCrm(false);
+      }
+    }
+
     cancelEditDelivery();
   }
 
@@ -4113,7 +4134,14 @@ export default function OrderDetailPage({
                                       </TableCell>
                                     ) : null}
                                     <TableCell className="text-sm font-semibold text-slate-800 whitespace-nowrap" style={{ padding: "14px 16px" }}>
-                                      {supplier?.name ?? "— nieznany dostawca"}
+                                      <div className="flex flex-col gap-1 items-start">
+                                        <span>{supplier?.name ?? "— nieznany dostawca"}</span>
+                                        {d.externalOrderNumber && (
+                                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md tracking-wider">
+                                            {d.externalOrderNumber}
+                                          </span>
+                                        )}
+                                      </div>
                                     </TableCell>
                                     <TableCell className="text-sm font-bold text-slate-900 whitespace-nowrap tabular-nums" style={{ padding: "14px 16px" }}>
                                       {d.netAmount != null ? `${d.netAmount.toLocaleString("pl-PL", { minimumFractionDigits: 2 })} PLN` : "—"}

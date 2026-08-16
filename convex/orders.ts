@@ -383,6 +383,8 @@ export const update = mutation({
       receivedDate: v.optional(v.number()),
       netAmount: v.optional(v.number()),
       notes: v.optional(v.string()),
+      externalOrderId: v.optional(v.string()),
+      externalOrderNumber: v.optional(v.string()),
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),
@@ -1293,6 +1295,46 @@ export const updateServiceDeliveryDate = mutation({
       orderId: args.orderId,
       type: "data_updated",
       details: { fields: [`serviceDeliveries.${args.deliveryIndex}.${args.field}`] },
+      performedBy: userId,
+    });
+  },
+});
+
+export const updateExternalOrderInfo = mutation({
+  args: {
+    orderId: v.id("orders"),
+    deliveryIndex: v.number(),
+    externalOrderId: v.optional(v.string()),
+    externalOrderNumber: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new ConvexError("Zlecenie nie istnieje.");
+
+    const deliveries = order.serviceDeliveries ?? [];
+    if (args.deliveryIndex < 0 || args.deliveryIndex >= deliveries.length) {
+      throw new ConvexError("Nieprawidłowa pozycja dostawy.");
+    }
+
+    const next = deliveries.map((d, i) => {
+      if (i !== args.deliveryIndex) return d;
+      return {
+        ...d,
+        externalOrderId: args.externalOrderId,
+        externalOrderNumber: args.externalOrderNumber,
+      };
+    });
+
+    await ctx.db.patch(args.orderId, { serviceDeliveries: next });
+
+    await ctx.db.insert("clientEvents", {
+      clientId: order.clientId,
+      orderId: args.orderId,
+      type: "data_updated",
+      details: { fields: [`serviceDeliveries.${args.deliveryIndex}.externalOrderNumber`] },
       performedBy: userId,
     });
   },
