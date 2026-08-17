@@ -134,6 +134,7 @@ export const saveStatusLabels = mutation({
       installation: v.optional(v.string()),
       completed: v.optional(v.string()),
       complaint: v.optional(v.string()),
+      kitting: v.optional(v.string()),
       archived: v.optional(v.string()),
     }),
   },

@@ -31,10 +31,11 @@ export const DEFAULT_STATUSES: StatusDef[] = [
   { key: "offer",        label: "Oferta po pomiarze",  color: "#f97316", sortOrder: 3, hidden: false, isCore: true, kind: "order" },
   { key: "contract",     label: "Umowa",               color: "#16a34a", sortOrder: 4, hidden: false, isCore: true, kind: "order" },
   { key: "production",   label: "Produkcja",           color: "#7c3aed", sortOrder: 5, hidden: false, isCore: true, kind: "order" },
-  { key: "installation", label: "Montaż",              color: "#14b8a6", sortOrder: 6, hidden: false, isCore: true, kind: "order" },
-  { key: "complaint",    label: "Reklamacja",          color: "#dc2626", sortOrder: 7, hidden: false, isCore: true, kind: "order" },
-  { key: "completed",    label: "Zakończone",          color: "#059669", sortOrder: 8, hidden: false, isCore: true, kind: "order" },
-  { key: "archived",     label: "Archiwum",            color: "#6b7280", sortOrder: 9, hidden: true,  isCore: true, kind: "order" },
+  { key: "kitting",      label: "Kompletacja",         color: "#0284c7", sortOrder: 6, hidden: false, isCore: true, kind: "order" },
+  { key: "installation", label: "Montaż",              color: "#14b8a6", sortOrder: 7, hidden: false, isCore: true, kind: "order" },
+  { key: "complaint",    label: "Reklamacja",          color: "#dc2626", sortOrder: 8, hidden: false, isCore: true, kind: "order" },
+  { key: "completed",    label: "Zakończone",          color: "#059669", sortOrder: 9, hidden: false, isCore: true, kind: "order" },
+  { key: "archived",     label: "Archiwum",            color: "#6b7280", sortOrder: 10, hidden: true,  isCore: true, kind: "order" },
 ];
 
 export const CORE_STATUSES: ReadonlyArray<StatusDef> = DEFAULT_STATUSES;
@@ -133,29 +134,36 @@ export function resolveStatuses(
   persisted?: StatusDef[] | null,
   legacyLabels?: Record<string, string> | null,
 ): StatusDef[] {
+  let list: StatusDef[];
+
   if (persisted && persisted.length > 0) {
-    return persisted
-      .map((s) => {
-        const coreKind = CORE_KIND_BY_KEY[s.key];
-        const isCore = coreKind !== undefined;
-        return {
-          ...s,
-          isCore,
-          // dla kluczy bazowych wymuszamy kind z kodu (nie da się go zmienić)
-          kind: isCore ? coreKind : (s.kind === "opportunity" ? "order" : s.kind),
-        } as StatusDef;
-      })
-      .sort((a, b) => a.sortOrder - b.sortOrder);
+    const listMap = new Map(persisted.map((s) => [s.key, s]));
+    for (const coreDef of DEFAULT_STATUSES) {
+      if (!listMap.has(coreDef.key)) {
+        listMap.set(coreDef.key, { ...coreDef });
+      }
+    }
+    list = Array.from(listMap.values()).map((s) => {
+      const coreKind = CORE_KIND_BY_KEY[s.key];
+      const isCore = coreKind !== undefined;
+      return {
+        ...s,
+        isCore,
+        // dla kluczy bazowych wymuszamy kind z kodu (nie da się go zmienić)
+        kind: isCore ? coreKind : (s.kind === "opportunity" ? "order" : s.kind),
+      } as StatusDef;
+    });
+  } else {
+    list = DEFAULT_STATUSES.map((s) => {
+      const overriddenLabel = legacyLabels?.[s.key];
+      return {
+        ...s,
+        label: overriddenLabel && overriddenLabel.trim() ? overriddenLabel : s.label,
+      };
+    });
   }
 
-  // brak zapisanego rejestru → seed z domyślnych + migracja nazw
-  return DEFAULT_STATUSES.map((s) => {
-    const overriddenLabel = legacyLabels?.[s.key];
-    return {
-      ...s,
-      label: overriddenLabel && overriddenLabel.trim() ? overriddenLabel : s.label,
-    };
-  });
+  return list.sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 /** Slug klucza dla nowego własnego statusu (a-z0-9_), z prefiksem custom_. */

@@ -60,7 +60,6 @@ import type * as taskColumns from "../taskColumns.js";
 import type * as taskComments from "../taskComments.js";
 import type * as taskLabels from "../taskLabels.js";
 import type * as taskTemplates from "../taskTemplates.js";
-import type * as testCrm from "../testCrm.js";
 import type * as users from "../users.js";
 import type * as viewConfig from "../viewConfig.js";
 import type * as websiteWebhook from "../websiteWebhook.js";
@@ -125,7 +124,6 @@ declare const fullApi: ApiFromModules<{
   taskComments: typeof taskComments;
   taskLabels: typeof taskLabels;
   taskTemplates: typeof taskTemplates;
-  testCrm: typeof testCrm;
   users: typeof users;
   viewConfig: typeof viewConfig;
   websiteWebhook: typeof websiteWebhook;
