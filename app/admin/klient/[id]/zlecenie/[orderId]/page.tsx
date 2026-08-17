@@ -1795,6 +1795,7 @@ export default function OrderDetailPage({
   const allSuppliers = useQuery(api.suppliers.listActive) ?? [];
   const installationTeams = useQuery(api.installationTeams.listActive) ?? [];
   const updateOrder = useMutation(api.orders.update);
+  const updateSupplier = useMutation(api.suppliers.update);
   const refreshOrderNumber = useMutation(api.orders.refreshOrderNumber);
   const setCustomText = useMutation(api.orders.setCustomText);
   const updateDeliveryDate = useMutation(api.orders.updateServiceDeliveryDate);
@@ -4048,6 +4049,15 @@ export default function OrderDetailPage({
                         alert("Nie znaleziono dostawcy ALCO w systemie.");
                         return;
                       }
+
+                      // Automatyczne ustawienie poprawnego URL oraz API key dla ALCO
+                      await updateSupplier({
+                        id: alcoSupplier._id,
+                        apiEndpoint: "https://woozy-gnat-639.eu-west-1.convex.site/api/partner/orders",
+                        apiKey: "pk_live_df801aab1453b4b5e09e4eae30409aad043050d31030dc50",
+                        isApiEnabled: true,
+                      });
+
                       const currentDeliveries = [...(order.serviceDeliveries ?? [])];
                       const targetIndex = currentDeliveries.length;
                       currentDeliveries.push({

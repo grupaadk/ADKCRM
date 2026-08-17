@@ -15,6 +15,15 @@ export const addAlcoDeliveryOrder = mutation({
     const alcoSupplier = allSuppliers.find((s) => s.name.toUpperCase().includes("ALCO"));
     if (!alcoSupplier) throw new Error("Nie znaleziono dostawcy ALCO.");
 
+    // Upewnij się, że dostawca ALCO ma ustawiony poprawny endpoint API oraz włączoną integrację
+    const apiEndpoint = "https://woozy-gnat-639.eu-west-1.convex.site/api/partner/orders";
+    const apiKey = "pk_live_df801aab1453b4b5e09e4eae30409aad043050d31030dc50";
+    await ctx.db.patch(alcoSupplier._id, {
+      apiEndpoint,
+      apiKey,
+      isApiEnabled: true,
+    });
+
     const currentDeliveries = order.serviceDeliveries ?? [];
     const newEntry = {
       serviceName: (order.services && order.services[0]) ? order.services[0] : "Okna ALU",
