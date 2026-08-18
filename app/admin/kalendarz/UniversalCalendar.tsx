@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -15,7 +15,7 @@ import type { DateClickArg, EventResizeDoneArg } from "@fullcalendar/interaction
 import type { Id } from "@/convex/_generated/dataModel";
 import { useStatuses } from "@/components/StatusLabelsContext";
 import toast from "react-hot-toast";
-import { FilterX, CheckCheck, Search, X, Car } from "lucide-react";
+import { FilterX, CheckCheck, Search, X } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -94,10 +94,7 @@ export default function UniversalCalendar({
   const [expandedSupplierId, setExpandedSupplierId] = useState<string | null>(null);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [showMoreSuppliersDropdown, setShowMoreSuppliersDropdown] = useState(false);
-  const [showMoreTeamsDropdown, setShowMoreTeamsDropdown] = useState(false);
-  const [activeCarFilters, setActiveCarFilters] = useState<Set<string>>(new Set());
-  const [carsInitialized, setCarsInitialized] = useState(false);
-  const [showCarFilterDropdown, setShowCarFilterDropdown] = useState(false);
+  const [disabledTeamEventTypes, setDisabledTeamEventTypes] = useState<Set<string>>(new Set());
   const [showUserFilterDropdown, setShowUserFilterDropdown] = useState(false);
   const [showPrivate, setShowPrivate] = useState(true);
 
@@ -228,14 +225,6 @@ export default function UniversalCalendar({
       setTeamsInitialized(true);
     }
   }, [initialTeamId, installationTeams, teamsInitialized]);
-  const cars = useQuery(api.cars.getCars);
-  useEffect(() => {
-    if (cars && cars.length > 0 && !carsInitialized) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setActiveCarFilters(new Set(cars.map((c) => c._id)));
-      setCarsInitialized(true);
-    }
-  }, [cars, carsInitialized]);
 
   const wlasneType = eventTypes.find((t) => t.name.toLowerCase() === "własne" || t.name.toLowerCase() === "wlasne");
   const defaultEventTypeId = wlasneType ? wlasneType._id : (eventTypes[0]?._id || "");
@@ -276,9 +265,66 @@ export default function UniversalCalendar({
         const arr = JSON.parse(saved);
         if (Array.isArray(arr)) setTimeout(() => setActiveUserFilters(new Set(arr)), 0);
       }
+      const savedTeamEvents = localStorage.getItem(`montaz_disabled_team_event_types_${currentUser._id}`);
+      if (savedTeamEvents) {
+        const arr = JSON.parse(savedTeamEvents);
+        if (Array.isArray(arr)) setTimeout(() => setDisabledTeamEventTypes(new Set(arr)), 0);
+      }
     } catch {}
   }, [currentUser?._id]);
 
+  const montazType = useMemo(
+    () =>
+      eventTypes.find(
+        (t) =>
+          t.linkedOrderField === "projectEndDate" ||
+          t.name.toLowerCase() === "montaż" ||
+          t.name.toLowerCase() === "montaz"
+      ),
+    [eventTypes]
+  );
+
+  const serwisType = useMemo(
+    () =>
+      eventTypes.find(
+        (t) =>
+          t.linkedOrderField === "complaintServiceDate" ||
+          t.name.toLowerCase() === "serwis"
+      ),
+    [eventTypes]
+  );
+
+  const getCanonicalEventTypeId = useCallback(
+    (eventTypeId: string) => {
+      if ((eventTypeId === "builtin_montaz" || eventTypeId === montazType?._id) && montazType) {
+        return montazType._id;
+      }
+      if ((eventTypeId === "builtin_serwis" || eventTypeId === serwisType?._id) && serwisType) {
+        return serwisType._id;
+      }
+      return eventTypeId;
+    },
+    [montazType, serwisType]
+  );
+
+  const getTeamEventTypes = useCallback(
+    (teamId: string) => {
+      const types: typeof eventTypes = [];
+      if (montazType) types.push(montazType);
+      if (serwisType) types.push(serwisType);
+      for (const t of eventTypes) {
+        if (
+          t.linkedInstallationTeamId === teamId &&
+          t._id !== montazType?._id &&
+          t._id !== serwisType?._id
+        ) {
+          types.push(t);
+        }
+      }
+      return types;
+    },
+    [eventTypes, montazType, serwisType]
+  );
 
   const toggleUserFilter = (id: string) => {
     setActiveUserFilters((prev) => {
@@ -295,8 +341,31 @@ export default function UniversalCalendar({
   const toggleEventTypeFilter = (id: string) => {
     setActiveEventTypeFilters((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const isMontaz = (montazType && id === montazType._id) || id === "builtin_montaz";
+      const isSerwis = (serwisType && id === serwisType._id) || id === "builtin_serwis";
+
+      if (isMontaz) {
+        const hasIt = next.has("builtin_montaz") || (montazType && next.has(montazType._id));
+        if (hasIt) {
+          next.delete("builtin_montaz");
+          if (montazType) next.delete(montazType._id);
+        } else {
+          next.add("builtin_montaz");
+          if (montazType) next.add(montazType._id);
+        }
+      } else if (isSerwis) {
+        const hasIt = next.has("builtin_serwis") || (serwisType && next.has(serwisType._id));
+        if (hasIt) {
+          next.delete("builtin_serwis");
+          if (serwisType) next.delete(serwisType._id);
+        } else {
+          next.add("builtin_serwis");
+          if (serwisType) next.add(serwisType._id);
+        }
+      } else {
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+      }
       return next;
     });
   };
@@ -340,8 +409,6 @@ export default function UniversalCalendar({
 
   // ─── Build unified events ───────────────────────────────────────────────────
 
-  // ─── Build unified events ───────────────────────────────────────────────────
-
   const events = useMemo(() => {
     const result: object[] = [];
 
@@ -349,15 +416,13 @@ export default function UniversalCalendar({
     const hasActiveSupplierFilters = activeSupplierFilters.size > 0;
     const hasActiveTeamFilters = activeTeamFilters.size > 0;
     const hasActiveUserFilters = activeUserFilters.size > 0;
-    const hasActiveCarFilters = activeCarFilters.size > 0;
 
     // Jeśli żaden filtr nie jest zaznaczony, kalendarz jest pusty
     const isAnyFilterActive =
       hasActiveEventTypeFilters ||
       hasActiveSupplierFilters ||
       hasActiveTeamFilters ||
-      hasActiveUserFilters ||
-      hasActiveCarFilters;
+      hasActiveUserFilters;
 
     if (!isAnyFilterActive) {
       return result;
@@ -408,8 +473,29 @@ export default function UniversalCalendar({
       }
 
       // 2. Filtr Typu Wydarzenia
-      if (hasActiveEventTypeFilters && !activeEventTypeFilters.has(params.eventTypeId)) {
-        return false;
+      if (hasActiveEventTypeFilters) {
+        const canonicalId = getCanonicalEventTypeId(params.eventTypeId);
+        const isMontazEvent =
+          (montazType && (params.eventTypeId === montazType._id || canonicalId === montazType._id)) ||
+          params.eventTypeId === "builtin_montaz";
+        const isSerwisEvent =
+          (serwisType && (params.eventTypeId === serwisType._id || canonicalId === serwisType._id)) ||
+          params.eventTypeId === "builtin_serwis";
+
+        let isActive = activeEventTypeFilters.has(params.eventTypeId) || activeEventTypeFilters.has(canonicalId);
+        if (isMontazEvent) {
+          isActive =
+            activeEventTypeFilters.has("builtin_montaz") ||
+            (montazType ? activeEventTypeFilters.has(montazType._id) : false);
+        } else if (isSerwisEvent) {
+          isActive =
+            activeEventTypeFilters.has("builtin_serwis") ||
+            (serwisType ? activeEventTypeFilters.has(serwisType._id) : false);
+        }
+
+        if (!isActive) {
+          return false;
+        }
       }
 
       // 3. Filtr Ekipy Montażowej
@@ -420,34 +506,25 @@ export default function UniversalCalendar({
         if (teamId && !activeTeamFilters.has(teamId)) return false;
       }
 
+      // 3b. Filtr konkretnego zadania ekipy (np. Montaż lub Serwis danej ekipy)
+      const etForTeam = eventTypes.find((t) => t._id === params.eventTypeId);
+      const teamIdForTask = params.installationTeamId || etForTeam?.linkedInstallationTeamId;
+      if (teamIdForTask) {
+        const canonicalId = getCanonicalEventTypeId(params.eventTypeId);
+        if (
+          disabledTeamEventTypes.has(`${teamIdForTask}:${canonicalId}`) ||
+          disabledTeamEventTypes.has(`${teamIdForTask}:${params.eventTypeId}`)
+        ) {
+          return false;
+        }
+      }
+
       // 4. Filtr Dostawcy
       if (activeSuppliers && activeSupplierFilters.size < activeSuppliers.length) {
         const et = eventTypes.find((t) => t._id === params.eventTypeId);
         const supplierId = params.supplierId || et?.linkedSupplierId;
         // Zdarzenia przypisane do dostawcy, który został odznaczony -> ukryj
         if (supplierId && !activeSupplierFilters.has(supplierId)) return false;
-      }
-
-      // 5. Filtr Samochodów
-      if (cars && activeCarFilters.size < cars.length) {
-        if (params.carId) {
-          if (!activeCarFilters.has(params.carId)) return false;
-        } else {
-          // Fallback text search for cars as in original logic
-          const titleAndDesc = `${params.title ?? ""} ${params.customText ?? ""}`.toLowerCase();
-          let carMatch = false;
-          let hasAnyCarMention = false;
-          for (const car of cars) {
-            if (car.registrationNumber && titleAndDesc.includes(car.registrationNumber.toLowerCase())) {
-              hasAnyCarMention = true;
-              if (activeCarFilters.has(car._id)) {
-                carMatch = true;
-                break;
-              }
-            }
-          }
-          if (hasAnyCarMention && !carMatch) return false;
-        }
       }
 
       // Passed all active exclusion filters
@@ -613,8 +690,7 @@ export default function UniversalCalendar({
     activeEventTypeFilters,
     activeSupplierFilters,
     activeTeamFilters,
-    activeCarFilters,
-    cars,
+    disabledTeamEventTypes,
     showPrivate,
     allOrders,
     allUsers,
@@ -1759,61 +1835,158 @@ export default function UniversalCalendar({
               setActiveSupplierFilters(new Set());
               setActiveTeamFilters(new Set());
               setActiveUserFilters(new Set());
-              setActiveCarFilters(new Set());
+              setDisabledTeamEventTypes(new Set());
             }}
             title="Wyczyść wszystkie filtry"
             style={{
-              display: "inline-flex", alignItems: "center", gap: 5,
-              padding: "4px 12px", borderRadius: 20, fontSize: 11.5,
+              display: "inline-flex", alignItems: "center", gap: 3,
+              padding: "3px 8px", borderRadius: 12, fontSize: 11,
               background: "#fef2f2", color: "#ef4444",
-              border: "1.5px solid #fecaca", fontWeight: 700,
+              border: "1px solid #fecaca", fontWeight: 700,
               cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-              boxShadow: "0 1px 3px rgba(239, 68, 68, 0.08)",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = "#fee2e2";
-              e.currentTarget.style.borderColor = "#fca5a5";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = "#fef2f2";
-              e.currentTarget.style.borderColor = "#fecaca";
             }}
           >
-            <FilterX style={{ width: 13, height: 13 }} />
-            <span>Wyczyść filtry</span>
+            <FilterX style={{ width: 12, height: 12 }} />
+            <span>Wyczyść</span>
           </button>
 
           {/* CTA Select All Filters Button */}
           <button
             type="button"
             onClick={() => {
-              if (eventTypes) setActiveEventTypeFilters(new Set(eventTypes.map((t) => t._id)));
+              if (eventTypes) {
+                const allTypeIds = new Set<string>(eventTypes.map((t) => t._id as string));
+                allTypeIds.add("builtin_montaz");
+                allTypeIds.add("builtin_serwis");
+                if (montazType) allTypeIds.add(montazType._id as string);
+                if (serwisType) allTypeIds.add(serwisType._id as string);
+                setActiveEventTypeFilters(allTypeIds as any);
+              }
               if (activeSuppliers) setActiveSupplierFilters(new Set(activeSuppliers.map((s) => s._id)));
               if (installationTeams) setActiveTeamFilters(new Set(installationTeams.map((t) => t._id)));
-              if (cars) setActiveCarFilters(new Set(cars.map((c) => c._id)));
               setActiveUserFilters(new Set());
+              setDisabledTeamEventTypes(new Set());
             }}
             title="Zaznacz wszystkie filtry"
             style={{
-              display: "inline-flex", alignItems: "center", gap: 5,
-              padding: "4px 12px", borderRadius: 20, fontSize: 11.5,
+              display: "inline-flex", alignItems: "center", gap: 3,
+              padding: "3px 8px", borderRadius: 12, fontSize: 11,
               background: "#ecfdf5", color: "#047857",
-              border: "1.5px solid #a7f3d0", fontWeight: 700,
+              border: "1px solid #a7f3d0", fontWeight: 700,
               cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-              boxShadow: "0 1px 3px rgba(16, 185, 129, 0.08)",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = "#d1fae5";
-              e.currentTarget.style.borderColor = "#6ee7b7";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = "#ecfdf5";
-              e.currentTarget.style.borderColor = "#a7f3d0";
             }}
           >
-            <CheckCheck style={{ width: 13, height: 13 }} />
-            <span>Zaznacz wszystkie</span>
+            <CheckCheck style={{ width: 12, height: 12 }} />
+            <span>Wszystkie</span>
           </button>
+
+          {/* CTA Tylko Montaże */}
+          {montazType && (
+            <button
+              type="button"
+              onClick={() => {
+                const targetCanon = getCanonicalEventTypeId(montazType._id);
+                const ids = new Set<string>(["builtin_montaz", montazType._id, targetCanon]);
+                setActiveEventTypeFilters(ids);
+
+                if (installationTeams) {
+                  setActiveTeamFilters(new Set(installationTeams.map((t) => t._id as string)));
+                }
+                setDisabledTeamEventTypes(() => {
+                  const next = new Set<string>();
+                  if (installationTeams) {
+                    installationTeams.forEach((team) => {
+                      const tTypes = getTeamEventTypes(team._id as string);
+                      tTypes.forEach((t) => {
+                        const cId = getCanonicalEventTypeId(t._id);
+                        if (t._id !== montazType._id && cId !== targetCanon && t._id !== "builtin_montaz") {
+                          next.add(`${team._id}:${cId}`);
+                          next.add(`${team._id}:${t._id}`);
+                        }
+                      });
+                    });
+                  }
+                  return next;
+                });
+              }}
+              title="Pokaż tylko Montaże dla wszystkich ekip"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 3,
+                padding: "3px 8px", borderRadius: 12, fontSize: 11,
+                background: "#eff6ff", color: "#2563eb",
+                border: "1px solid #bfdbfe", fontWeight: 700,
+                cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#dbeafe";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#eff6ff";
+              }}
+            >
+              <span>🛠️ Montaże</span>
+            </button>
+          )}
+
+          {/* CTA Tylko Serwisy */}
+          {serwisType && (
+            <button
+              type="button"
+              onClick={() => {
+                const targetCanon = getCanonicalEventTypeId(serwisType._id);
+                const ids = new Set<string>(["builtin_serwis", serwisType._id, targetCanon]);
+                setActiveEventTypeFilters(ids);
+
+                if (installationTeams) {
+                  setActiveTeamFilters(new Set(installationTeams.map((t) => t._id as string)));
+                }
+                setDisabledTeamEventTypes(() => {
+                  const next = new Set<string>();
+                  if (installationTeams) {
+                    installationTeams.forEach((team) => {
+                      const tTypes = getTeamEventTypes(team._id as string);
+                      tTypes.forEach((t) => {
+                        const cId = getCanonicalEventTypeId(t._id);
+                        if (t._id !== serwisType._id && cId !== targetCanon && t._id !== "builtin_serwis") {
+                          next.add(`${team._id}:${cId}`);
+                          next.add(`${team._id}:${t._id}`);
+                        }
+                      });
+                    });
+                  }
+                  return next;
+                });
+              }}
+              title="Pokaż tylko Serwisy dla wszystkich ekip"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 3,
+                padding: "3px 8px", borderRadius: 12, fontSize: 11,
+                background: "#fffbeb", color: "#d97706",
+                border: "1px solid #fde68a", fontWeight: 700,
+                cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#fef3c7";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#fffbeb";
+              }}
+            >
+              <span>⚠️ Serwisy</span>
+            </button>
+          )}
 
           <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
 
@@ -2083,10 +2256,18 @@ export default function UniversalCalendar({
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                 Ekipy:
               </span>
-              {installationTeams.slice(0, 3).map((team) => {
+              {installationTeams.slice(0, 3).map((team, index) => {
                 const active = activeTeamFilters.has(team._id as string);
-                const linkedTypes = eventTypes.filter(t => t.linkedInstallationTeamId === team._id);
-                const hasLinkedTypes = linkedTypes.length > 0;
+                const teamTypes = getTeamEventTypes(team._id as string);
+                const hasLinkedTypes = teamTypes.length > 0;
+                const isDropdownOpen = openTeamDropdownId === team._id;
+
+                const disabledCount = teamTypes.filter((t) => {
+                  const cId = getCanonicalEventTypeId(t._id);
+                  return disabledTeamEventTypes.has(`${team._id}:${cId}`) || disabledTeamEventTypes.has(`${team._id}:${t._id}`);
+                }).length;
+                const totalCount = teamTypes.length;
+                const filterBadge = disabledCount > 0 ? ` (${totalCount - disabledCount}/${totalCount})` : "";
 
                 return (
                   <div key={team._id} style={{ position: "relative" }} onMouseEnter={() => setOpenTeamDropdownId(team._id)} onMouseLeave={() => setOpenTeamDropdownId(null)}>
@@ -2103,64 +2284,155 @@ export default function UniversalCalendar({
                       }}
                     >
                       <span style={{ fontSize: 11 }}>👷</span>
-                      <span>{team.name}</span>
-                      {hasLinkedTypes && <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{openTeamDropdownId === team._id ? "▲" : "▼"}</span>}
+                      <span>{team.name}{filterBadge}</span>
+                      {hasLinkedTypes && <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{isDropdownOpen ? "▲" : "▼"}</span>}
                     </button>
 
-                    {hasLinkedTypes && openTeamDropdownId === team._id && (
+                    {hasLinkedTypes && isDropdownOpen && (
                       <div
                         style={{
-                          position: "absolute", top: "calc(100% + 6px)", left: 0,
+                          position: "absolute", top: "calc(100% + 6px)",
+                          left: index >= 2 ? "auto" : 0,
+                          right: index >= 2 ? 0 : "auto",
                           background: "var(--card)", border: "1px solid var(--line)",
                           borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                          zIndex: 50, minWidth: 200, display: "flex", flexDirection: "column", gap: 4,
+                          zIndex: 50, minWidth: 220, display: "flex", flexDirection: "column", gap: 4,
                         }}
                       >
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
                           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
-                            Typy wydarzeń dla {team.name}
+                            Zadania: {team.name}
                           </span>
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              const allActive = linkedTypes.every(t => activeEventTypeFilters.has(t._id));
-                              setActiveEventTypeFilters(prev => {
+                              const allActive = teamTypes.every((t) => {
+                                const cId = getCanonicalEventTypeId(t._id);
+                                return activeEventTypeFilters.has(t._id) && !disabledTeamEventTypes.has(`${team._id}:${cId}`) && !disabledTeamEventTypes.has(`${team._id}:${t._id}`);
+                              });
+                              setDisabledTeamEventTypes((prev) => {
                                 const next = new Set(prev);
-                                linkedTypes.forEach(t => {
-                                  if (allActive) next.delete(t._id);
-                                  else next.add(t._id);
+                                teamTypes.forEach((t) => {
+                                  const cId = getCanonicalEventTypeId(t._id);
+                                  if (allActive) {
+                                    next.add(`${team._id}:${cId}`);
+                                    next.add(`${team._id}:${t._id}`);
+                                  } else {
+                                    next.delete(`${team._id}:${cId}`);
+                                    next.delete(`${team._id}:${t._id}`);
+                                  }
                                 });
                                 return next;
                               });
                             }}
-                            style={{ fontSize: 10, color: "var(--accent)", cursor: "pointer", background: "none", border: "none" }}
+                            style={{ fontSize: 10, color: "var(--accent)", cursor: "pointer", background: "none", border: "none", fontWeight: 600 }}
                           >
-                            {linkedTypes.every(t => activeEventTypeFilters.has(t._id)) ? "Odznacz wszystkie" : "Zaznacz wszystkie"}
+                            {teamTypes.every((t) => {
+                              const cId = getCanonicalEventTypeId(t._id);
+                              return activeEventTypeFilters.has(t._id) && !disabledTeamEventTypes.has(`${team._id}:${cId}`) && !disabledTeamEventTypes.has(`${team._id}:${t._id}`);
+                            }) ? "Odznacz wszystkie" : "Zaznacz wszystkie"}
                           </button>
                         </div>
-                        {linkedTypes.map((type) => {
-                          const typeActive = activeEventTypeFilters.has(type._id);
+                        {teamTypes.map((type) => {
+                          const canonicalId = getCanonicalEventTypeId(type._id);
+                          const isGlobalActive = activeEventTypeFilters.has(type._id) || activeEventTypeFilters.has(canonicalId);
+                          const isTeamDisabled = disabledTeamEventTypes.has(`${team._id}:${type._id}`) || disabledTeamEventTypes.has(`${team._id}:${canonicalId}`);
+                          const typeActive = isGlobalActive && !isTeamDisabled;
+                          const icon = (type._id === montazType?._id || canonicalId === montazType?._id) ? "🛠️ " : (type._id === serwisType?._id || canonicalId === serwisType?._id) ? "⚠️ " : "";
+
                           return (
-                            <button
+                            <div
                               key={type._id}
-                              onClick={(e) => { e.stopPropagation(); toggleEventTypeFilter(type._id); }}
                               style={{
-                                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                                padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
-                                background: typeActive ? `${type.color}18` : "transparent",
-                                color: typeActive ? "var(--text-strong)" : "var(--text)",
-                                border: `1px solid ${typeActive ? `${type.color}44` : "transparent"}`,
-                                cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
+                                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6,
+                                padding: "4px 8px", borderRadius: 6, fontSize: 11.5,
+                                background: typeActive ? `${type.color}15` : "transparent",
+                                border: `1px solid ${typeActive ? `${type.color}40` : "transparent"}`,
+                                transition: "all 0.1s",
                               }}
                             >
-                              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                                <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
-                                <span style={{ fontWeight: typeActive ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{type.name}</span>
-                              </div>
-                              <span style={{ fontSize: 12, color: typeActive ? type.color : "var(--text-mute)" }}>
-                                {typeActive ? "✓" : "+"}
-                              </span>
-                            </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDisabledTeamEventTypes((prev) => {
+                                    const next = new Set(prev);
+                                    const key = `${team._id}:${canonicalId}`;
+                                    const keyAlt = `${team._id}:${type._id}`;
+                                    if (next.has(key) || next.has(keyAlt)) {
+                                      next.delete(key);
+                                      next.delete(keyAlt);
+                                    } else {
+                                      next.add(key);
+                                      next.add(keyAlt);
+                                    }
+                                    return next;
+                                  });
+                                  if (!isGlobalActive) {
+                                    setActiveEventTypeFilters((prev) => new Set([...prev, type._id, canonicalId]));
+                                  }
+                                  if (!activeTeamFilters.has(team._id as string)) {
+                                    setActiveTeamFilters((prev) => new Set([...prev, team._id as string]));
+                                  }
+                                }}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1,
+                                  background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0,
+                                  color: typeActive ? "var(--text-strong)" : "var(--text-mute)",
+                                  fontFamily: "inherit",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: 14, height: 14, borderRadius: 4,
+                                    border: `1.5px solid ${typeActive ? type.color : "var(--text-mute)"}`,
+                                    background: typeActive ? type.color : "transparent",
+                                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                    fontSize: 10, color: "#fff", fontWeight: 900, flexShrink: 0,
+                                  }}
+                                >
+                                  {typeActive ? "✓" : ""}
+                                </span>
+                                <span style={{ fontWeight: typeActive ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {icon}{type.name}
+                                </span>
+                              </button>
+
+                              <button
+                                type="button"
+                                title={`Pokaż tylko ${type.name} dla ${team.name}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDisabledTeamEventTypes((prev) => {
+                                    const next = new Set(prev);
+                                    teamTypes.forEach((t) => {
+                                      const cId = getCanonicalEventTypeId(t._id);
+                                      const k1 = `${team._id}:${cId}`;
+                                      const k2 = `${team._id}:${t._id}`;
+                                      if (t._id === type._id || cId === canonicalId) {
+                                        next.delete(k1);
+                                        next.delete(k2);
+                                      } else {
+                                        next.add(k1);
+                                        next.add(k2);
+                                      }
+                                    });
+                                    return next;
+                                  });
+                                  setActiveEventTypeFilters((prev) => new Set([...prev, type._id, canonicalId]));
+                                  setActiveTeamFilters((prev) => new Set([...prev, team._id as string]));
+                                }}
+                                style={{
+                                  fontSize: 10, padding: "2px 6px", borderRadius: 4,
+                                  background: "var(--panel)", color: "var(--text-mute)",
+                                  border: "1px solid var(--line)", cursor: "pointer", fontWeight: 600,
+                                  fontFamily: "inherit", flexShrink: 0,
+                                }}
+                              >
+                                Tylko
+                              </button>
+                            </div>
                           );
                         })}
                       </div>
@@ -2187,7 +2459,7 @@ export default function UniversalCalendar({
                   </button>
 
                   {(openTeamDropdownId === "more" || openTeamDropdownId?.startsWith("team_")) && (
-                    <div style={{ position: "absolute", top: "100%", left: 0, paddingTop: 6, zIndex: 50 }}>
+                    <div style={{ position: "absolute", top: "100%", right: 0, paddingTop: 6, zIndex: 50 }}>
                       <div
                         style={{
                           background: "var(--card)", border: "1px solid var(--line)",
@@ -2202,9 +2474,15 @@ export default function UniversalCalendar({
                       </div>
                       {installationTeams.slice(3).map((team) => {
                         const active = activeTeamFilters.has(team._id as string);
-                        const linkedTypes = eventTypes.filter((t) => t.linkedInstallationTeamId === team._id);
-                        const hasLinkedTypes = linkedTypes.length > 0;
+                        const teamTypes = getTeamEventTypes(team._id as string);
+                        const hasLinkedTypes = teamTypes.length > 0;
                         const subOpen = openTeamDropdownId === `team_${team._id}`;
+
+                        const disabledCount = teamTypes.filter((t) => {
+                          const cId = getCanonicalEventTypeId(t._id);
+                          return disabledTeamEventTypes.has(`${team._id}:${cId}`) || disabledTeamEventTypes.has(`${team._id}:${t._id}`);
+                        }).length;
+                        const filterBadge = disabledCount > 0 ? ` (${teamTypes.length - disabledCount}/${teamTypes.length})` : "";
 
                         return (
                           <div
@@ -2220,14 +2498,14 @@ export default function UniversalCalendar({
                                 padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
                                 background: active ? `${team.color}22` : "transparent",
                                 color: active ? team.color : "var(--text)",
-                                border: `1px solid ${active ? `${team.color}44` : "transparent"}`,
+                                border: `1.5px solid ${active ? `${team.color}44` : "transparent"}`,
                                 cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
                               }}
                             >
                               <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                                <span style={{ fontWeight: active ? 700 : 500 }}>{team.name}</span>
+                                <span style={{ fontWeight: active ? 700 : 500 }}>{team.name}{filterBadge}</span>
                                 {hasLinkedTypes && (
-                                  <span style={{ fontSize: 9, opacity: 0.7 }}>{subOpen ? "◀" : "▶"}</span>
+                                  <span style={{ fontSize: 9, opacity: 0.7 }}>{subOpen ? "▶" : "◀"}</span>
                                 )}
                               </div>
                               <span style={{ fontSize: 12, color: active ? team.color : "var(--text-mute)" }}>
@@ -2238,57 +2516,146 @@ export default function UniversalCalendar({
                             {hasLinkedTypes && subOpen && (
                               <div
                                 style={{
-                                  position: "absolute", top: 0, left: "100%", marginLeft: 6,
+                                  position: "absolute", top: 0, right: "100%", marginRight: 6,
                                   background: "var(--card)", border: "1px solid var(--line)",
                                   borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                                  zIndex: 60, minWidth: 200, display: "flex", flexDirection: "column", gap: 4,
+                                  zIndex: 60, minWidth: 220, display: "flex", flexDirection: "column", gap: 4,
                                 }}
                               >
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
                                   <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
-                                    Typy wydarzeń
+                                    Zadania: {team.name}
                                   </span>
                                   <button
+                                    type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      const allActive = linkedTypes.every((t) => activeEventTypeFilters.has(t._id));
-                                      setActiveEventTypeFilters((prev) => {
+                                      const allActive = teamTypes.every((t) => {
+                                        const cId = getCanonicalEventTypeId(t._id);
+                                        return activeEventTypeFilters.has(t._id) && !disabledTeamEventTypes.has(`${team._id}:${cId}`) && !disabledTeamEventTypes.has(`${team._id}:${t._id}`);
+                                      });
+                                      setDisabledTeamEventTypes((prev) => {
                                         const next = new Set(prev);
-                                        linkedTypes.forEach((t) => {
-                                          if (allActive) next.delete(t._id);
-                                          else next.add(t._id);
+                                        teamTypes.forEach((t) => {
+                                          const cId = getCanonicalEventTypeId(t._id);
+                                          if (allActive) {
+                                            next.add(`${team._id}:${cId}`);
+                                            next.add(`${team._id}:${t._id}`);
+                                          } else {
+                                            next.delete(`${team._id}:${cId}`);
+                                            next.delete(`${team._id}:${t._id}`);
+                                          }
                                         });
                                         return next;
                                       });
                                     }}
-                                    style={{ fontSize: 10, color: "var(--accent)", cursor: "pointer", background: "none", border: "none" }}
+                                    style={{ fontSize: 10, color: "var(--accent)", cursor: "pointer", background: "none", border: "none", fontWeight: 600 }}
                                   >
-                                    {linkedTypes.every((t) => activeEventTypeFilters.has(t._id)) ? "Odznacz" : "Zaznacz"}
+                                    {teamTypes.every((t) => {
+                                      const cId = getCanonicalEventTypeId(t._id);
+                                      return activeEventTypeFilters.has(t._id) && !disabledTeamEventTypes.has(`${team._id}:${cId}`) && !disabledTeamEventTypes.has(`${team._id}:${t._id}`);
+                                    }) ? "Odznacz wszystkie" : "Zaznacz wszystkie"}
                                   </button>
                                 </div>
-                                {linkedTypes.map((type) => {
-                                  const typeActive = activeEventTypeFilters.has(type._id);
+                                {teamTypes.map((type) => {
+                                  const canonicalId = getCanonicalEventTypeId(type._id);
+                                  const isGlobalActive = activeEventTypeFilters.has(type._id) || activeEventTypeFilters.has(canonicalId);
+                                  const isTeamDisabled = disabledTeamEventTypes.has(`${team._id}:${type._id}`) || disabledTeamEventTypes.has(`${team._id}:${canonicalId}`);
+                                  const typeActive = isGlobalActive && !isTeamDisabled;
+                                  const icon = (type._id === montazType?._id || canonicalId === montazType?._id) ? "🛠️ " : (type._id === serwisType?._id || canonicalId === serwisType?._id) ? "⚠️ " : "";
+
                                   return (
-                                    <button
+                                    <div
                                       key={type._id}
-                                      onClick={(e) => { e.stopPropagation(); toggleEventTypeFilter(type._id); }}
                                       style={{
-                                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                                        padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
-                                        background: typeActive ? `${type.color}18` : "transparent",
-                                        color: typeActive ? "var(--text-strong)" : "var(--text)",
-                                        border: `1px solid ${typeActive ? `${type.color}44` : "transparent"}`,
-                                        cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
+                                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6,
+                                        padding: "4px 8px", borderRadius: 6, fontSize: 11.5,
+                                        background: typeActive ? `${type.color}15` : "transparent",
+                                        border: `1px solid ${typeActive ? `${type.color}40` : "transparent"}`,
+                                        transition: "all 0.1s",
                                       }}
                                     >
-                                      <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
-                                        <span style={{ fontWeight: typeActive ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{type.name}</span>
-                                      </div>
-                                      <span style={{ fontSize: 12, color: typeActive ? type.color : "var(--text-mute)" }}>
-                                        {typeActive ? "✓" : "+"}
-                                      </span>
-                                    </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDisabledTeamEventTypes((prev) => {
+                                            const next = new Set(prev);
+                                            const key = `${team._id}:${canonicalId}`;
+                                            const keyAlt = `${team._id}:${type._id}`;
+                                            if (next.has(key) || next.has(keyAlt)) {
+                                              next.delete(key);
+                                              next.delete(keyAlt);
+                                            } else {
+                                              next.add(key);
+                                              next.add(keyAlt);
+                                            }
+                                            return next;
+                                          });
+                                          if (!isGlobalActive) {
+                                            setActiveEventTypeFilters((prev) => new Set([...prev, type._id, canonicalId]));
+                                          }
+                                          if (!activeTeamFilters.has(team._id as string)) {
+                                            setActiveTeamFilters((prev) => new Set([...prev, team._id as string]));
+                                          }
+                                        }}
+                                        style={{
+                                          display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1,
+                                          background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0,
+                                          color: typeActive ? "var(--text-strong)" : "var(--text-mute)",
+                                          fontFamily: "inherit",
+                                        }}
+                                      >
+                                        <span
+                                          style={{
+                                            width: 14, height: 14, borderRadius: 4,
+                                            border: `1.5px solid ${typeActive ? type.color : "var(--text-mute)"}`,
+                                            background: typeActive ? type.color : "transparent",
+                                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                            fontSize: 10, color: "#fff", fontWeight: 900, flexShrink: 0,
+                                          }}
+                                        >
+                                          {typeActive ? "✓" : ""}
+                                        </span>
+                                        <span style={{ fontWeight: typeActive ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                          {icon}{type.name}
+                                        </span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        title={`Pokaż tylko ${type.name} dla ${team.name}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDisabledTeamEventTypes((prev) => {
+                                            const next = new Set(prev);
+                                            teamTypes.forEach((t) => {
+                                              const cId = getCanonicalEventTypeId(t._id);
+                                              const k1 = `${team._id}:${cId}`;
+                                              const k2 = `${team._id}:${t._id}`;
+                                              if (t._id === type._id || cId === canonicalId) {
+                                                next.delete(k1);
+                                                next.delete(k2);
+                                              } else {
+                                                next.add(k1);
+                                                next.add(k2);
+                                              }
+                                            });
+                                            return next;
+                                          });
+                                          setActiveEventTypeFilters((prev) => new Set([...prev, type._id, canonicalId]));
+                                          setActiveTeamFilters((prev) => new Set([...prev, team._id as string]));
+                                        }}
+                                        style={{
+                                          fontSize: 10, padding: "2px 6px", borderRadius: 4,
+                                          background: "var(--panel)", color: "var(--text-mute)",
+                                          border: "1px solid var(--line)", cursor: "pointer", fontWeight: 600,
+                                          fontFamily: "inherit", flexShrink: 0,
+                                        }}
+                                      >
+                                        Tylko
+                                      </button>
+                                    </div>
                                   );
                                 })}
                               </div>
@@ -2303,113 +2670,7 @@ export default function UniversalCalendar({
               )}
             </>
           )}
-          {/* Dynamic Cars Fleet Filter (Filtrowanie po Flocie aut) */}
-          {cars && cars.length > 0 && (
-            <>
-              <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                Flota:
-              </span>
-              <div style={{ position: "relative" }}>
-                <button
-                  type="button"
-                  onClick={() => setShowCarFilterDropdown((prev) => !prev)}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-                    background: activeCarFilters.size > 0 ? "var(--accent)22" : "var(--panel)",
-                    color: activeCarFilters.size > 0 ? "var(--accent)" : "var(--text-mute)",
-                    border: `1.5px solid ${activeCarFilters.size > 0 ? "var(--accent)" : "var(--line)"}`,
-                    fontWeight: activeCarFilters.size > 0 ? 700 : 500,
-                    cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-                  }}
-                >
-                  <Car style={{ width: 13, height: 13 }} />
-                  <span>
-                    {activeCarFilters.size === 0
-                      ? "Brak wybranych aut"
-                      : activeCarFilters.size === cars.length
-                      ? "Wszystkie auta"
-                      : `${activeCarFilters.size} z ${cars.length} aut`}
-                  </span>
-                  <span style={{ fontSize: 9, opacity: 0.7, marginLeft: 2 }}>{showCarFilterDropdown ? "▲" : "▼"}</span>
-                </button>
 
-                {showCarFilterDropdown && (
-                  <div
-                    style={{
-                      position: "absolute", top: "calc(100% + 6px)", left: 0,
-                      background: "var(--card)", border: "1px solid var(--line)",
-                      borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                      zIndex: 50, minWidth: 240, display: "flex", flexDirection: "column", gap: 4,
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
-                        Samochody we flocie
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (activeCarFilters.size === cars.length) {
-                            setActiveCarFilters(new Set());
-                          } else {
-                            setActiveCarFilters(new Set(cars.map((c) => c._id)));
-                          }
-                        }}
-                        style={{ fontSize: 10, color: "var(--accent)", cursor: "pointer", background: "none", border: "none", fontWeight: 600 }}
-                      >
-                        {activeCarFilters.size === cars.length ? "Odznacz wszystkie" : "Zaznacz wszystkie"}
-                      </button>
-                    </div>
-
-                    {cars.map((car) => {
-                      const active = activeCarFilters.has(car._id);
-                      return (
-                        <button
-                          key={car._id}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveCarFilters((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(car._id)) next.delete(car._id);
-                              else next.add(car._id);
-                              return next;
-                            });
-                          }}
-                          style={{
-                            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                            padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
-                            background: active ? "var(--accent)18" : "transparent",
-                            color: active ? "var(--text-strong)" : "var(--text)",
-                            border: `1px solid ${active ? "var(--accent)44" : "transparent"}`,
-                            cursor: "pointer", textAlign: "left", transition: "all 0.1s", width: "100%",
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                            <Car style={{ width: 13, height: 13, color: active ? "var(--accent)" : "var(--text-mute)", flexShrink: 0 }} />
-                            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                              <span style={{ fontWeight: active ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {car.registrationNumber} ({car.make} {car.model})
-                              </span>
-                              {car.teamName && (
-                                <span style={{ fontSize: 10, color: "var(--text-mute)" }}>🛠️ {car.teamName}</span>
-                              )}
-                            </div>
-                          </div>
-                          <span style={{ fontSize: 12, color: active ? "var(--accent)" : "var(--text-mute)" }}>
-                            {active ? "✓" : "+"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
         </div>
       )}
 
