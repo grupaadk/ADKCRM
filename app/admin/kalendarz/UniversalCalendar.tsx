@@ -326,6 +326,40 @@ export default function UniversalCalendar({
     [eventTypes, montazType, serwisType]
   );
 
+  const isMontazActiveForAllTeams = useMemo(() => {
+    if (!montazType || !installationTeams || installationTeams.length === 0) return false;
+    const targetCanon = getCanonicalEventTypeId(montazType._id);
+    const isGlobalActive =
+      activeEventTypeFilters.has(montazType._id) ||
+      activeEventTypeFilters.has("builtin_montaz") ||
+      activeEventTypeFilters.has(targetCanon);
+    if (!isGlobalActive) return false;
+    return installationTeams.every((team) => {
+      return (
+        !disabledTeamEventTypes.has(`${team._id}:${targetCanon}`) &&
+        !disabledTeamEventTypes.has(`${team._id}:${montazType._id}`) &&
+        !disabledTeamEventTypes.has(`${team._id}:builtin_montaz`)
+      );
+    });
+  }, [montazType, installationTeams, activeEventTypeFilters, disabledTeamEventTypes, getCanonicalEventTypeId]);
+
+  const isSerwisActiveForAllTeams = useMemo(() => {
+    if (!serwisType || !installationTeams || installationTeams.length === 0) return false;
+    const targetCanon = getCanonicalEventTypeId(serwisType._id);
+    const isGlobalActive =
+      activeEventTypeFilters.has(serwisType._id) ||
+      activeEventTypeFilters.has("builtin_serwis") ||
+      activeEventTypeFilters.has(targetCanon);
+    if (!isGlobalActive) return false;
+    return installationTeams.every((team) => {
+      return (
+        !disabledTeamEventTypes.has(`${team._id}:${targetCanon}`) &&
+        !disabledTeamEventTypes.has(`${team._id}:${serwisType._id}`) &&
+        !disabledTeamEventTypes.has(`${team._id}:builtin_serwis`)
+      );
+    });
+  }, [serwisType, installationTeams, activeEventTypeFilters, disabledTeamEventTypes, getCanonicalEventTypeId]);
+
   const toggleUserFilter = (id: string) => {
     setActiveUserFilters((prev) => {
       const next = new Set(prev);
@@ -1892,96 +1926,114 @@ export default function UniversalCalendar({
             <span>Wszystkie</span>
           </button>
 
-          {/* CTA Tylko Montaże */}
+          {/* CTA Montaże */}
           {montazType && (
             <button
               type="button"
               onClick={() => {
                 const targetCanon = getCanonicalEventTypeId(montazType._id);
-                const ids = new Set<string>(["builtin_montaz", montazType._id, targetCanon]);
-                setActiveEventTypeFilters(ids);
-
-                if (installationTeams) {
-                  setActiveTeamFilters(new Set(installationTeams.map((t) => t._id as string)));
-                }
-                setDisabledTeamEventTypes(() => {
-                  const next = new Set<string>();
-                  if (installationTeams) {
-                    installationTeams.forEach((team) => {
-                      const tTypes = getTeamEventTypes(team._id as string);
-                      tTypes.forEach((t) => {
-                        const cId = getCanonicalEventTypeId(t._id);
-                        if (t._id !== montazType._id && cId !== targetCanon && t._id !== "builtin_montaz") {
-                          next.add(`${team._id}:${cId}`);
-                          next.add(`${team._id}:${t._id}`);
-                        }
+                if (isMontazActiveForAllTeams) {
+                  setDisabledTeamEventTypes((prev) => {
+                    const next = new Set(prev);
+                    if (installationTeams) {
+                      installationTeams.forEach((team) => {
+                        next.add(`${team._id}:${targetCanon}`);
+                        next.add(`${team._id}:${montazType._id}`);
+                        next.add(`${team._id}:builtin_montaz`);
                       });
-                    });
+                    }
+                    return next;
+                  });
+                } else {
+                  setActiveEventTypeFilters((prev) => {
+                    const next = new Set(prev);
+                    next.add("builtin_montaz");
+                    next.add(montazType._id);
+                    next.add(targetCanon);
+                    return next;
+                  });
+                  if (installationTeams) {
+                    setActiveTeamFilters(new Set(installationTeams.map((t) => t._id as string)));
                   }
-                  return next;
-                });
+                  setDisabledTeamEventTypes((prev) => {
+                    const next = new Set(prev);
+                    if (installationTeams) {
+                      installationTeams.forEach((team) => {
+                        next.delete(`${team._id}:${targetCanon}`);
+                        next.delete(`${team._id}:${montazType._id}`);
+                        next.delete(`${team._id}:builtin_montaz`);
+                      });
+                    }
+                    return next;
+                  });
+                }
               }}
-              title="Pokaż tylko Montaże dla wszystkich ekip"
+              title={isMontazActiveForAllTeams ? "Wyłącz Montaże" : "Włącz Montaże dla wszystkich ekip"}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 3,
                 padding: "3px 8px", borderRadius: 12, fontSize: 11,
-                background: "#eff6ff", color: "#2563eb",
-                border: "1px solid #bfdbfe", fontWeight: 700,
+                background: isMontazActiveForAllTeams ? "#dbeafe" : "#f1f5f9",
+                color: isMontazActiveForAllTeams ? "#1e40af" : "#64748b",
+                border: `1px solid ${isMontazActiveForAllTeams ? "#3b82f6" : "#cbd5e1"}`,
+                fontWeight: isMontazActiveForAllTeams ? 800 : 500,
                 cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#dbeafe";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#eff6ff";
               }}
             >
               <span>🛠️ Montaże</span>
             </button>
           )}
 
-          {/* CTA Tylko Serwisy */}
+          {/* CTA Serwisy */}
           {serwisType && (
             <button
               type="button"
               onClick={() => {
                 const targetCanon = getCanonicalEventTypeId(serwisType._id);
-                const ids = new Set<string>(["builtin_serwis", serwisType._id, targetCanon]);
-                setActiveEventTypeFilters(ids);
-
-                if (installationTeams) {
-                  setActiveTeamFilters(new Set(installationTeams.map((t) => t._id as string)));
-                }
-                setDisabledTeamEventTypes(() => {
-                  const next = new Set<string>();
-                  if (installationTeams) {
-                    installationTeams.forEach((team) => {
-                      const tTypes = getTeamEventTypes(team._id as string);
-                      tTypes.forEach((t) => {
-                        const cId = getCanonicalEventTypeId(t._id);
-                        if (t._id !== serwisType._id && cId !== targetCanon && t._id !== "builtin_serwis") {
-                          next.add(`${team._id}:${cId}`);
-                          next.add(`${team._id}:${t._id}`);
-                        }
+                if (isSerwisActiveForAllTeams) {
+                  setDisabledTeamEventTypes((prev) => {
+                    const next = new Set(prev);
+                    if (installationTeams) {
+                      installationTeams.forEach((team) => {
+                        next.add(`${team._id}:${targetCanon}`);
+                        next.add(`${team._id}:${serwisType._id}`);
+                        next.add(`${team._id}:builtin_serwis`);
                       });
-                    });
+                    }
+                    return next;
+                  });
+                } else {
+                  setActiveEventTypeFilters((prev) => {
+                    const next = new Set(prev);
+                    next.add("builtin_serwis");
+                    next.add(serwisType._id);
+                    next.add(targetCanon);
+                    return next;
+                  });
+                  if (installationTeams) {
+                    setActiveTeamFilters(new Set(installationTeams.map((t) => t._id as string)));
                   }
-                  return next;
-                });
+                  setDisabledTeamEventTypes((prev) => {
+                    const next = new Set(prev);
+                    if (installationTeams) {
+                      installationTeams.forEach((team) => {
+                        next.delete(`${team._id}:${targetCanon}`);
+                        next.delete(`${team._id}:${serwisType._id}`);
+                        next.delete(`${team._id}:builtin_serwis`);
+                      });
+                    }
+                    return next;
+                  });
+                }
               }}
-              title="Pokaż tylko Serwisy dla wszystkich ekip"
+              title={isSerwisActiveForAllTeams ? "Wyłącz Serwisy" : "Włącz Serwisy dla wszystkich ekip"}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 3,
                 padding: "3px 8px", borderRadius: 12, fontSize: 11,
-                background: "#fffbeb", color: "#d97706",
-                border: "1px solid #fde68a", fontWeight: 700,
+                background: isSerwisActiveForAllTeams ? "#fef3c7" : "#f1f5f9",
+                color: isSerwisActiveForAllTeams ? "#92400e" : "#64748b",
+                border: `1px solid ${isSerwisActiveForAllTeams ? "#f59e0b" : "#cbd5e1"}`,
+                fontWeight: isSerwisActiveForAllTeams ? 800 : 500,
                 cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#fef3c7";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#fffbeb";
               }}
             >
               <span>⚠️ Serwisy</span>
