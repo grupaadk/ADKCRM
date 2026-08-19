@@ -121,6 +121,50 @@ export const saveStatuses = mutation({
   },
 });
 
+const DESIRED_ORDER: Record<string, number> = {
+  lead: 0,
+  inquiry: 1,
+  measurement: 2,
+  offer: 3,
+  contract: 4,
+  production: 5,
+  kitting: 6,
+  installation: 7,
+  custom_nowy_status: 8,
+  complaint: 9,
+  acceptance: 10,
+  invoicing: 11,
+  completed: 12,
+  archived: 13,
+};
+
+export const syncStatuses = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const existing = await ctx.db.query("crmConfig").first();
+    const resolved = resolveStatuses(
+      existing?.statuses as StatusDef[] | undefined,
+      existing?.statusLabels,
+    );
+    const sorted = resolved
+      .sort((a, b) => {
+        const orderA = DESIRED_ORDER[a.key] ?? 99;
+        const orderB = DESIRED_ORDER[b.key] ?? 99;
+        return orderA - orderB;
+      })
+      .map((s, index) => ({
+        ...s,
+        sortOrder: index,
+      }));
+    if (existing) {
+      await ctx.db.patch(existing._id, { statuses: sorted });
+    } else {
+      await ctx.db.insert("crmConfig", { statuses: sorted });
+    }
+    return sorted;
+  },
+});
+
 // ── Legacy (deprecated — do usunięcia po pełnej migracji na `statuses`) ──
 export const saveStatusLabels = mutation({
   args: {

@@ -33,9 +33,11 @@ export const DEFAULT_STATUSES: StatusDef[] = [
   { key: "kitting",      label: "Kompletacja",         color: "#0284c7", sortOrder: 5, hidden: false, isCore: true, kind: "order" },
   { key: "production",   label: "Produkcja",           color: "#7c3aed", sortOrder: 6, hidden: false, isCore: true, kind: "order" },
   { key: "installation", label: "Montaż",              color: "#14b8a6", sortOrder: 7, hidden: false, isCore: true, kind: "order" },
-  { key: "complaint",    label: "Reklamacja",          color: "#dc2626", sortOrder: 8, hidden: false, isCore: true, kind: "order" },
-  { key: "completed",    label: "Zakończone",          color: "#059669", sortOrder: 9, hidden: false, isCore: true, kind: "order" },
-  { key: "archived",     label: "Archiwum",            color: "#6b7280", sortOrder: 10, hidden: true,  isCore: true, kind: "order" },
+  { key: "complaint",    label: "Reklamacja",          color: "#dc2626", sortOrder: 8,  hidden: false, isCore: true, kind: "order" },
+  { key: "acceptance",   label: "Odbiór",              color: "#0ea5e9", sortOrder: 9,  hidden: false, isCore: true, kind: "order" },
+  { key: "invoicing",    label: "Fakturowanie",        color: "#8b5cf6", sortOrder: 10, hidden: false, isCore: true, kind: "order" },
+  { key: "completed",    label: "Zakończone",          color: "#059669", sortOrder: 11, hidden: false, isCore: true, kind: "order" },
+  { key: "archived",     label: "Archiwum",            color: "#6b7280", sortOrder: 12, hidden: true,  isCore: true, kind: "order" },
 ];
 
 export const CORE_STATUSES: ReadonlyArray<StatusDef> = DEFAULT_STATUSES;
@@ -138,9 +140,16 @@ export function resolveStatuses(
 
   if (persisted && persisted.length > 0) {
     const listMap = new Map(persisted.map((s) => [s.key, s]));
+    const completedSortOrder = listMap.get("completed")?.sortOrder ?? 11;
     for (const coreDef of DEFAULT_STATUSES) {
       if (!listMap.has(coreDef.key)) {
-        listMap.set(coreDef.key, { ...coreDef });
+        let sortOrder = coreDef.sortOrder;
+        if (coreDef.key === "acceptance") {
+          sortOrder = completedSortOrder - 0.2;
+        } else if (coreDef.key === "invoicing") {
+          sortOrder = completedSortOrder - 0.1;
+        }
+        listMap.set(coreDef.key, { ...coreDef, sortOrder });
       }
     }
     list = Array.from(listMap.values()).map((s) => {

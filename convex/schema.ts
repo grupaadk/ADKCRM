@@ -21,6 +21,8 @@ export const CLIENT_STATUSES = [
   "production",
   "installation",
   "complaint",
+  "acceptance",
+  "invoicing",
   "completed",
   "archived",
 ] as const;
@@ -34,9 +36,11 @@ export const STATUS_TRANSITIONS: Record<string, string[]> = {
   offer: ["contract", "lead", "archived"],
   contract: ["production", "archived"],
   production: ["installation", "archived"],
-  installation: ["completed", "complaint", "archived"],
+  installation: ["completed", "complaint", "acceptance", "archived"],
+  acceptance: ["invoicing", "complaint", "archived"],
+  invoicing: ["completed", "complaint", "archived"],
   completed: ["archived"],
-  complaint: ["completed", "archived"],
+  complaint: ["completed", "acceptance", "invoicing", "archived"],
   archived: ["completed"],
 };
 
