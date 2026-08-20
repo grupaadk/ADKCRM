@@ -231,44 +231,16 @@ export default function NowaSzansaPage() {
 
   if (!mounted) return null;
 
-  // ─── Success screen ───────────────────────────────
+  // Success screen
   if (success) {
     return (
-      <div style={{
-        minHeight: "100vh",
-        background: "radial-gradient(ellipse 80% 60% at 20% 30%, rgba(30,80,200,0.35) 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 80% 70%, rgba(100,30,180,0.25) 0%, transparent 55%), #0a0a1a",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "24px",
-        fontFamily: "'Inter', system-ui, sans-serif",
-      }}>
-        <div style={{
-          background: "rgba(15,20,40,0.7)",
-          backdropFilter: "blur(24px)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: "24px",
-          padding: "48px 40px",
-          maxWidth: "480px",
-          width: "100%",
-          textAlign: "center",
-          boxShadow: "0 25px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)",
-        }}>
-          <div style={{
-            width: 80, height: 80,
-            background: "rgba(16,185,129,0.15)",
-            border: "2px solid rgba(16,185,129,0.4)",
-            borderRadius: "50%",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            margin: "0 auto 24px",
-            boxShadow: "0 0 40px rgba(16,185,129,0.25)",
-          }}>
-            <CheckCircle2 style={{ width: 40, height: 40, color: "#34d399" }} />
+      <div className="min-h-screen bg-[#f3f3fe] flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-lg max-w-lg w-full p-12 text-center">
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 className="w-10 h-10 text-green-600" />
           </div>
-          <h2 style={{ fontSize: 24, fontWeight: 800, color: "#fff", margin: "0 0 12px" }}>
-            Dziękujemy za zapytanie!
-          </h2>
-          <p style={{ color: "rgba(255,255,255,0.5)", lineHeight: 1.7, margin: 0, fontSize: 15 }}>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">Dziękujemy za zapytanie!</h2>
+          <p className="text-gray-500 leading-relaxed">
             Twoje zgłoszenie zostało pomyślnie przesłane. Skontaktujemy się z Tobą tak szybko jak to możliwe w celu przygotowania bezpłatnej wyceny.
           </p>
         </div>
@@ -276,212 +248,200 @@ export default function NowaSzansaPage() {
     );
   }
 
-  // ─── Hero styles (inline, no external CSS needed) ─
-  const heroStyle: React.CSSProperties = {
-    minHeight: "100vh",
-    background: "radial-gradient(ellipse 80% 60% at 20% 30%, rgba(30,80,200,0.35) 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 80% 70%, rgba(100,30,180,0.25) 0%, transparent 55%), #0a0a1a",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "48px 16px 64px",
-    fontFamily: "'Inter', system-ui, sans-serif",
-    position: "relative",
-    overflow: "hidden",
-  };
-
-  const cardStyle: React.CSSProperties = {
-    background: "rgba(15,20,40,0.72)",
-    backdropFilter: "blur(24px)",
-    WebkitBackdropFilter: "blur(24px)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: "24px",
-    overflow: "hidden",
-    boxShadow: "0 0 0 1px rgba(99,179,237,0.06), 0 25px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)",
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: "0.06em",
-    textTransform: "uppercase",
-    color: "rgba(255,255,255,0.45)",
-    marginBottom: 6,
-  };
-
-  const inputStyle = (field: string): React.CSSProperties => ({
-    width: "100%",
-    background: "rgba(255,255,255,0.05)",
-    border: `1.5px solid ${errors[field] ? "#f87171" : "rgba(255,255,255,0.10)"}`,
-    borderRadius: 12,
-    padding: "12px 16px",
-    color: "#fff",
-    fontSize: 15,
-    fontFamily: "inherit",
-    outline: "none",
-    boxSizing: "border-box",
-    transition: "border-color 0.2s, box-shadow 0.2s",
-  });
-
-  const inputWithIconStyle = (field: string): React.CSSProperties => ({
-    ...inputStyle(field),
-    paddingLeft: 42,
-  });
-
-  const iconWrapStyle: React.CSSProperties = {
-    position: "absolute",
-    left: 14,
-    top: "50%",
-    transform: "translateY(-50%)",
-    color: "rgba(255,255,255,0.3)",
-    pointerEvents: "none",
-  };
-
   return (
-    <div style={heroStyle}>
-      {/* Animated grid overlay */}
-      <div style={{
-        position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
-        backgroundImage: "linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px)",
-        backgroundSize: "60px 60px",
-      }} />
-      {/* Orbs */}
-      <div style={{ position:"absolute", width:500, height:500, borderRadius:"50%", background:"rgba(37,99,235,0.15)", filter:"blur(80px)", top:-100, left:-100, zIndex:0, pointerEvents:"none" }} />
-      <div style={{ position:"absolute", width:400, height:400, borderRadius:"50%", background:"rgba(124,58,237,0.12)", filter:"blur(80px)", bottom:-80, right:-80, zIndex:0, pointerEvents:"none" }} />
+    <div className="min-h-screen bg-[#f3f3fe] py-10 px-4 font-sans">
+      <div className="max-w-xl mx-auto">
 
-      <div style={{ position:"relative", zIndex:10, width:"100%", maxWidth:600, margin:"0 auto", display:"flex", flexDirection:"column", gap:32, alignItems:"center" }}>
-
-        {/* Badge */}
-        <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"6px 16px", borderRadius:100, border:"1px solid rgba(99,179,237,0.3)", background:"rgba(99,179,237,0.08)", color:"#93c5fd", fontSize:11, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase" }}>
-          <span style={{ width:6, height:6, borderRadius:"50%", background:"#60a5fa", boxShadow:"0 0 8px #60a5fa" }} />
-          Bezpłatna wycena · Odpowiedź w 24h
+        {/* Logo + Tytuł */}
+        <div className="text-center mb-8">
+          <img
+            src="/logo.jpg"
+            alt="ADKokna"
+            width={80}
+            className="mx-auto mb-4 object-contain"
+          />
+          <h1 className="text-2xl font-bold text-gray-900">Formularz bezpłatnej wyceny</h1>
+          <p className="text-sm text-gray-500 mt-1">Wypełnij poniższe pola — to zajmie tylko chwilę!</p>
         </div>
 
-        {/* Headline */}
-        <div style={{ textAlign:"center" }}>
-          <h1 style={{ margin:"0 0 12px", fontSize:"clamp(28px, 5vw, 48px)", fontWeight:800, lineHeight:1.1, color:"#fff", letterSpacing:"-0.02em" }}>
-            Ty wybierasz,{" "}
-            <span style={{ background:"linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #34d399 100%)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
-              my robimy resztę.
-            </span>
-          </h1>
-          <p style={{ margin:0, fontSize:16, color:"rgba(255,255,255,0.5)", lineHeight:1.6 }}>
-            Wypełnij formularz — oddzwonimy i przygotujemy bezpłatną wycenę.
-          </p>
-        </div>
-
-        {/* ─── FORM CARD ─── */}
-        <div style={{ ...cardStyle, width:"100%" }}>
-
-          {/* Stepper */}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"28px 32px 0", gap:0 }}>
-            {STEPS.map((step, idx) => {
-              const StepIcon = step.icon;
-              const isDone = idx < stepIndex;
-              const isActive = step.id === currentStep;
-              return (
-                <div key={step.id} style={{ display:"flex", alignItems:"center", flex:1, position:"relative" }}>
-                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, flex:1 }}>
-                    <div style={{
-                      width:34, height:34, borderRadius:"50%",
-                      display:"flex", alignItems:"center", justifyContent:"center",
-                      fontSize:12, fontWeight:700,
-                      background: isDone ? "#3b82f6" : isActive ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.05)",
-                      border: `2px solid ${isDone ? "#3b82f6" : isActive ? "#3b82f6" : "rgba(255,255,255,0.12)"}`,
-                      color: isDone ? "#fff" : isActive ? "#60a5fa" : "rgba(255,255,255,0.3)",
-                      boxShadow: isActive ? "0 0 16px rgba(59,130,246,0.4)" : "none",
-                      transition: "all 0.3s",
-                      position: "relative", zIndex: 2, flexShrink: 0,
-                    }}>
-                      {isDone ? <CheckCircle2 style={{ width:14, height:14 }} /> : <StepIcon style={{ width:14, height:14 }} />}
-                    </div>
-                    <span style={{ fontSize:10, fontWeight:700, letterSpacing:"0.06em", textTransform:"uppercase", color: isActive ? "#93c5fd" : isDone ? "#6ee7b7" : "rgba(255,255,255,0.25)", whiteSpace:"nowrap" }}>
-                      {step.label}
-                    </span>
+        {/* Stepper */}
+        <div className="flex items-center justify-between mb-8 px-2">
+          {STEPS.map((step, idx) => {
+            const StepIcon = step.icon;
+            const isDone = idx < stepIndex;
+            const isActive = step.id === currentStep;
+            return (
+              <div key={step.id} className="flex items-center flex-1">
+                <div className="flex flex-col items-center gap-1 flex-1">
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      isDone
+                        ? "bg-[#3DAAB3] text-white shadow-sm"
+                        : isActive
+                        ? "bg-white text-[#3DAAB3] border-2 border-[#3DAAB3] shadow-sm"
+                        : "bg-white text-gray-400 border-2 border-gray-200"
+                    }`}
+                  >
+                    {isDone ? <CheckCircle2 className="w-4 h-4" /> : <StepIcon className="w-4 h-4" />}
                   </div>
-                  {idx < STEPS.length - 1 && (
-                    <div style={{ height:2, flex:1, maxWidth:40, background: isDone ? "linear-gradient(90deg, #3b82f6, #8b5cf6)" : "rgba(255,255,255,0.08)", marginBottom:20, flexShrink:0 }} />
-                  )}
+                  <span className={`text-[11px] font-medium text-center leading-tight ${isActive ? "text-[#3DAAB3]" : isDone ? "text-[#3DAAB3]/80" : "text-gray-400"}`}>
+                    {step.label}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+                {idx < STEPS.length - 1 && (
+                  <div className={`w-6 h-px mx-1 mb-4 flex-shrink-0 transition-colors ${idx < stepIndex ? "bg-[#3DAAB3]/40" : "bg-gray-200"}`} />
+                )}
+              </div>
+            );
+          })}
+        </div>
 
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <form onSubmit={handleSubmit}>
+
             {/* Global error */}
             {errors.form && (
-              <div style={{ margin:"16px 24px 0", padding:"12px 16px", borderRadius:10, background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", fontSize:13, color:"#f87171", fontWeight:600 }}>
+              <div className="mx-6 mt-6 p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700 font-medium">
                 {errors.form}
               </div>
             )}
 
             {/* ─── Krok 1: Dane ─── */}
             {currentStep === "dane" && (
-              <div style={{ padding:"28px 32px", display:"flex", flexDirection:"column", gap:20 }}>
+              <div className="p-6 sm:p-8 space-y-5">
                 <div>
-                  <div style={{ fontSize:18, fontWeight:800, color:"#fff", marginBottom:4 }}>Twoje dane kontaktowe</div>
-                  <div style={{ fontSize:13, color:"rgba(255,255,255,0.4)" }}>Podaj swoje dane, abyśmy mogli się z Tobą skontaktować.</div>
+                  <h2 className="text-lg font-bold text-gray-900">Twoje dane kontaktowe</h2>
+                  <p className="text-sm text-gray-400 mt-0.5">Podaj swoje dane, abyśmy mogli się z Tobą skontaktować.</p>
                 </div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label style={labelStyle}>Imię <span style={{ color:"#f87171" }}>*</span></label>
-                    <input type="text" value={firstName} onChange={(e) => { setFirstName(e.target.value); clearError("firstName"); }} placeholder="Jan" style={inputStyle("firstName")} autoFocus />
-                    {errors.firstName && <p style={{ margin:"4px 0 0", fontSize:11, color:"#f87171" }}>{errors.firstName}</p>}
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Imię <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => { setFirstName(e.target.value); clearError("firstName"); }}
+                      placeholder="Jan"
+                      className={inputCls("firstName")}
+                      autoFocus
+                    />
+                    {errors.firstName && <p className="mt-1 text-xs text-red-500">{errors.firstName}</p>}
                   </div>
                   <div>
-                    <label style={labelStyle}>Nazwisko <span style={{ color:"#f87171" }}>*</span></label>
-                    <input type="text" value={lastName} onChange={(e) => { setLastName(e.target.value); clearError("lastName"); }} placeholder="Kowalski" style={inputStyle("lastName")} />
-                    {errors.lastName && <p style={{ margin:"4px 0 0", fontSize:11, color:"#f87171" }}>{errors.lastName}</p>}
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Nazwisko <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => { setLastName(e.target.value); clearError("lastName"); }}
+                      placeholder="Kowalski"
+                      className={inputCls("lastName")}
+                    />
+                    {errors.lastName && <p className="mt-1 text-xs text-red-500">{errors.lastName}</p>}
                   </div>
                 </div>
+
                 <div>
-                  <label style={labelStyle}>Adres e-mail <span style={{ color:"#f87171" }}>*</span></label>
-                  <div style={{ position:"relative" }}>
-                    <span style={iconWrapStyle}><Mail style={{ width:16, height:16 }} /></span>
-                    <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); clearError("email"); }} placeholder="jan@example.com" style={inputWithIconStyle("email")} />
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Adres e-mail <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); clearError("email"); }}
+                      placeholder="jan@example.com"
+                      className={`${inputCls("email")} pl-10`}
+                    />
                   </div>
-                  {errors.email && <p style={{ margin:"4px 0 0", fontSize:11, color:"#f87171" }}>{errors.email}</p>}
+                  {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
                 </div>
+
                 <div>
-                  <label style={labelStyle}>Numer telefonu <span style={{ color:"#f87171" }}>*</span></label>
-                  <div style={{ position:"relative" }}>
-                    <span style={iconWrapStyle}><Phone style={{ width:16, height:16 }} /></span>
-                    <input type="tel" value={phone} onChange={(e) => { setPhone(e.target.value); clearError("phone"); }} placeholder="000 000 000" style={inputWithIconStyle("phone")} />
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Numer telefonu <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => { setPhone(e.target.value); clearError("phone"); }}
+                      placeholder="000 000 000"
+                      className={`${inputCls("phone")} pl-10`}
+                    />
                   </div>
-                  {errors.phone && <p style={{ margin:"4px 0 0", fontSize:11, color:"#f87171" }}>{errors.phone}</p>}
+                  {errors.phone && <p className="mt-1 text-xs text-red-500">{errors.phone}</p>}
                 </div>
               </div>
             )}
 
             {/* ─── Krok 2: Adres ─── */}
             {currentStep === "adres" && (
-              <div style={{ padding:"28px 32px", display:"flex", flexDirection:"column", gap:20 }}>
+              <div className="p-6 sm:p-8 space-y-5">
                 <div>
-                  <div style={{ fontSize:18, fontWeight:800, color:"#fff", marginBottom:4 }}>Adres</div>
-                  <div style={{ fontSize:13, color:"rgba(255,255,255,0.4)" }}>Opcjonalnie — możesz pominąć ten krok.</div>
+                  <h2 className="text-lg font-bold text-gray-900">Adres</h2>
+                  <p className="text-sm text-gray-400 mt-0.5">Opcjonalnie — możesz pominąć ten krok.</p>
                 </div>
+
                 <div>
-                  <label style={labelStyle}>Ulica</label>
-                  <input type="text" value={street} onChange={(e) => setStreet(e.target.value)} placeholder="np. ul. Lipowa" style={inputStyle("")} />
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Ulica</label>
+                  <input
+                    type="text"
+                    value={street}
+                    onChange={(e) => setStreet(e.target.value)}
+                    placeholder="np. ul. Lipowa"
+                    className={inputCls("")}
+                  />
                 </div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label style={labelStyle}>Nr budynku</label>
-                    <input type="text" value={buildingNumber} onChange={(e) => setBuildingNumber(e.target.value)} placeholder="12A" style={inputStyle("")} />
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nr budynku</label>
+                    <input
+                      type="text"
+                      value={buildingNumber}
+                      onChange={(e) => setBuildingNumber(e.target.value)}
+                      placeholder="12A"
+                      className={inputCls("")}
+                    />
                   </div>
                   <div>
-                    <label style={labelStyle}>Kod pocztowy</label>
-                    <input type="text" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="00-000" style={inputStyle("")} />
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Kod pocztowy</label>
+                    <input
+                      type="text"
+                      value={postalCode}
+                      onChange={(e) => setPostalCode(e.target.value)}
+                      placeholder="00-000"
+                      className={inputCls("")}
+                    />
                   </div>
                 </div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label style={labelStyle}>Miasto</label>
-                    <input type="text" value={city} onChange={(e) => setCity(e.target.value)} placeholder="np. Warszawa" style={inputStyle("")} />
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Miasto</label>
+                    <input
+                      type="text"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="np. Warszawa"
+                      className={inputCls("")}
+                    />
                   </div>
                   <div>
-                    <label style={labelStyle}>Województwo</label>
-                    <input type="text" value={stateRegion} onChange={(e) => setStateRegion(e.target.value)} placeholder="np. Mazowieckie" style={inputStyle("")} />
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Województwo</label>
+                    <input
+                      type="text"
+                      value={stateRegion}
+                      onChange={(e) => setStateRegion(e.target.value)}
+                      placeholder="np. Mazowieckie"
+                      className={inputCls("")}
+                    />
                   </div>
                 </div>
               </div>
@@ -489,17 +449,18 @@ export default function NowaSzansaPage() {
 
             {/* ─── Krok 3: Usługi ─── */}
             {currentStep === "usluga" && (
-              <div style={{ padding:"28px 32px", display:"flex", flexDirection:"column", gap:20 }}>
+              <div className="p-6 sm:p-8 space-y-5">
                 <div>
-                  <div style={{ fontSize:18, fontWeight:800, color:"#fff", marginBottom:4 }}>Jaką usługę chcesz wycenić?</div>
-                  <div style={{ fontSize:13, color:"rgba(255,255,255,0.4)" }}>Możesz wybrać więcej niż jedną opcję. <span style={{ color:"#f87171" }}>*</span></div>
+                  <h2 className="text-lg font-bold text-gray-900">Jaką usługę chcesz wycenić?</h2>
+                  <p className="text-sm text-gray-400 mt-0.5">Możesz wybrać więcej niż jedną opcję. <span className="text-red-500">*</span></p>
                 </div>
+
                 {activeServices === undefined ? (
-                  <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"rgba(255,255,255,0.4)" }}>
-                    <Loader2 style={{ width:16, height:16, animation:"spin 0.7s linear infinite" }} /> Ładowanie usług...
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Ładowanie usług...
                   </div>
                 ) : (
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(140px,1fr))", gap:12 }}>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {activeServices.map((service) => {
                       const selected = selectedServices.includes(service.name);
                       return (
@@ -507,36 +468,36 @@ export default function NowaSzansaPage() {
                           key={service._id}
                           type="button"
                           onClick={() => handleServiceToggle(service.name)}
-                          style={{
-                            position:"relative",
-                            display:"flex", flexDirection:"column", alignItems:"center", gap:10,
-                            padding:"16px 12px 14px",
-                            borderRadius:14,
-                            border: `1.5px solid ${selected ? "#3b82f6" : "rgba(255,255,255,0.08)"}`,
-                            background: selected ? "rgba(59,130,246,0.12)" : "rgba(255,255,255,0.03)",
-                            cursor:"pointer",
-                            transition:"all 0.2s",
-                            boxShadow: selected ? "0 0 0 3px rgba(59,130,246,0.15), 0 8px 20px rgba(59,130,246,0.12)" : "none",
-                          }}
+                          className={`relative flex flex-col items-center justify-center gap-2.5 px-3 py-5 rounded-2xl border-2 text-center transition-all duration-150 focus:outline-none ${
+                            selected
+                              ? "border-[#3DAAB3] bg-[#3DAAB3]/8 shadow-md shadow-[#3DAAB3]/15"
+                              : "border-gray-200 bg-white hover:border-[#3DAAB3]/40 hover:bg-[#3DAAB3]/3 hover:shadow-sm"
+                          }`}
                         >
-                          <div style={{
-                            position:"absolute", top:8, right:8,
-                            width:18, height:18, borderRadius:"50%",
-                            background: selected ? "#3b82f6" : "transparent",
-                            border: `2px solid ${selected ? "#3b82f6" : "rgba(255,255,255,0.15)"}`,
-                            display:"flex", alignItems:"center", justifyContent:"center",
-                          }}>
-                            {selected && <svg style={{ width:10, height:10 }} viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                          {/* Check badge */}
+                          <div className={`absolute top-2.5 right-2.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                            selected ? "border-[#3DAAB3] bg-[#3DAAB3]" : "border-gray-200 bg-white"
+                          }`}>
+                            {selected && (
+                              <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none">
+                                <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
                           </div>
-                          <div style={{
-                            width:44, height:44, borderRadius:12,
-                            background: selected ? "#3b82f6" : "rgba(255,255,255,0.07)",
-                            display:"flex", alignItems:"center", justifyContent:"center",
-                            color: selected ? "#fff" : "rgba(255,255,255,0.5)",
-                          }}>
-                            <ServiceIcon name={service.icon} className="h-5 w-5" />
+
+                          {/* Icon */}
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                            selected
+                              ? "bg-[#3DAAB3] text-white"
+                              : "bg-gray-100 text-gray-500"
+                          }`}>
+                            <ServiceIcon name={service.icon} className="h-6 w-6" />
                           </div>
-                          <span style={{ fontSize:11, fontWeight:700, color: selected ? "#93c5fd" : "rgba(255,255,255,0.6)", textAlign:"center", lineHeight:1.3 }}>
+
+                          {/* Name */}
+                          <span className={`text-xs font-semibold leading-tight transition-colors ${
+                            selected ? "text-[#3DAAB3]" : "text-gray-700"
+                          }`}>
                             {service.name}
                           </span>
                         </button>
@@ -544,110 +505,108 @@ export default function NowaSzansaPage() {
                     })}
                   </div>
                 )}
-                {errors.services && <p style={{ margin:0, fontSize:11, color:"#f87171", fontWeight:600 }}>{errors.services}</p>}
+                {errors.services && <p className="text-xs text-red-500 font-medium">{errors.services}</p>}
               </div>
             )}
 
             {/* ─── Krok 4: Szczegóły ─── */}
             {currentStep === "szczegoly" && (
-              <div style={{ padding:"28px 32px", display:"flex", flexDirection:"column", gap:20 }}>
+              <div className="p-6 sm:p-8 space-y-6">
                 <div>
-                  <div style={{ fontSize:18, fontWeight:800, color:"#fff", marginBottom:4 }}>Szczegóły i pliki</div>
-                  <div style={{ fontSize:13, color:"rgba(255,255,255,0.4)" }}>Komentarz i pliki są opcjonalne.</div>
+                  <h2 className="text-lg font-bold text-gray-900">Szczegóły i pliki</h2>
+                  <p className="text-sm text-gray-400 mt-0.5">Komentarz i pliki są opcjonalne.</p>
                 </div>
+
                 <div>
-                  <label style={labelStyle}>Komentarz</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Komentarz</label>
                   <textarea
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     rows={4}
                     placeholder="Opisz czego potrzebujesz, np. rodzaj okien, kolor, wymiary..."
-                    style={{ ...inputStyle(""), resize:"vertical", minHeight:80 } as React.CSSProperties}
+                    className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition-all placeholder:text-gray-400 focus:border-[#3DAAB3] focus:ring-2 focus:ring-[#3DAAB3]/10 hover:border-gray-300 resize-none"
                   />
                 </div>
+
                 <div>
-                  <label style={labelStyle}>Prześlij pliki z projektem</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Prześlij pliki z projektem</label>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
-                    style={{
-                      display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-                      width:"100%", padding:"12px 16px",
-                      borderRadius:12, border:"1.5px dashed rgba(255,255,255,0.12)",
-                      background:"rgba(255,255,255,0.03)",
-                      color:"rgba(255,255,255,0.4)", fontSize:13, fontWeight:600,
-                      cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s",
-                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-gray-200 text-sm font-medium text-gray-500 hover:border-[#3DAAB3]/50 hover:bg-[#3DAAB3]/5 hover:text-[#3DAAB3] transition-all disabled:opacity-50 w-full justify-center"
                   >
-                    {uploading ? <Loader2 style={{ width:16, height:16 }} /> : <Paperclip style={{ width:16, height:16 }} />}
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
                     {uploading ? "Wgrywanie..." : "Kliknij, aby dodać pliki"}
                   </button>
                   <input ref={fileInputRef} type="file" multiple onChange={handleFileUpload} disabled={uploading || submitting} className="hidden" />
+
                   {uploadedFiles.length > 0 && (
-                    <div style={{ marginTop:8, display:"flex", flexDirection:"column", gap:6 }}>
+                    <div className="mt-2 space-y-1.5">
                       {uploadedFiles.map((f) => (
-                        <div key={f.storageId} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(59,130,246,0.08)", border:"1px solid rgba(59,130,246,0.15)", borderRadius:8, padding:"8px 12px" }}>
-                          <Upload style={{ width:13, height:13, color:"#60a5fa", flexShrink:0 }} />
-                          <span style={{ fontSize:12, color:"#93c5fd", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1 }}>{f.name}</span>
-                          <button type="button" onClick={() => setUploadedFiles(prev => prev.filter(x => x.storageId !== f.storageId))} style={{ background:"none", border:"none", cursor:"pointer", color:"rgba(99,179,237,0.5)", padding:0 }}>
-                            <X style={{ width:13, height:13 }} />
+                        <div key={f.storageId} className="flex items-center gap-2 bg-[#3DAAB3]/5 rounded-lg px-3 py-2 border border-[#3DAAB3]/10">
+                          <Upload className="w-3.5 h-3.5 text-[#3DAAB3] flex-shrink-0" />
+                          <span className="text-xs text-[#3DAAB3] truncate flex-1">{f.name}</span>
+                          <button type="button" onClick={() => setUploadedFiles(prev => prev.filter(x => x.storageId !== f.storageId))} className="text-[#3DAAB3]/60 hover:text-red-500 transition-colors">
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ))}
                     </div>
                   )}
-                  {errors.upload && <p style={{ margin:"4px 0 0", fontSize:11, color:"#f87171" }}>{errors.upload}</p>}
+                  {errors.upload && <p className="mt-1 text-xs text-red-500">{errors.upload}</p>}
                 </div>
-                <div style={{ paddingTop:16, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-                  <label style={{ display:"flex", alignItems:"flex-start", gap:12, cursor:"pointer" }}>
+
+                <div className="pt-2 border-t border-gray-100">
+                  <label className="flex items-start gap-3 cursor-pointer">
                     <div
                       onClick={() => { setConsent(!consent); clearError("consent"); }}
-                      style={{
-                        width:20, height:20, borderRadius:5, flexShrink:0, marginTop:2,
-                        display:"flex", alignItems:"center", justifyContent:"center",
-                        background: consent ? "#3b82f6" : "transparent",
-                        border: `2px solid ${consent ? "#3b82f6" : errors.consent ? "#f87171" : "rgba(255,255,255,0.2)"}`,
-                        cursor:"pointer", transition:"all 0.2s",
-                      }}
+                      className={`w-5 h-5 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-all cursor-pointer ${
+                        consent ? "bg-[#3DAAB3] border-[#3DAAB3]" : errors.consent ? "border-red-400" : "border-gray-300"
+                      }`}
                     >
-                      {consent && <svg style={{ width:11, height:11 }} viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                      {consent && (
+                        <svg className="w-3 h-3 text-white" viewBox="0 0 10 10" fill="none">
+                          <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
                     </div>
-                    <span style={{ fontSize:12, color:"rgba(255,255,255,0.4)", lineHeight:1.6 }}>
-                      Administratorem Twoich danych jest ADK ARKADIUSZ MARCHEWKA (NIP: 8222266889). Twoje dane przetwarzamy wyłącznie w celu przygotowania wyceny.{" "}
-                      <span style={{ color:"#f87171" }}>*</span>
+                    <span className="text-[12.5px] text-gray-500 leading-relaxed">
+                      Administratorem Twoich danych jest ADK ARKADIUSZ MARCHEWKA (NIP: 8222266889). 
+                      Twoje dane przetwarzamy wyłącznie w celu przygotowania wyceny. Przysługuje Ci prawo 
+                      do wglądu, poprawienia lub usunięcia danych.{" "}
+                      <span className="text-red-500">*</span>
                     </span>
                   </label>
-                  {errors.consent && <p style={{ margin:"6px 0 0 32px", fontSize:11, color:"#f87171", fontWeight:600 }}>{errors.consent}</p>}
+                  {errors.consent && <p className="mt-1.5 ml-8 text-xs text-red-500 font-medium">{errors.consent}</p>}
                 </div>
               </div>
             )}
 
             {/* ─── Footer nawigacja ─── */}
-            <div style={{ padding:"20px 32px", borderTop:"1px solid rgba(255,255,255,0.06)", background:"rgba(0,0,0,0.2)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:16 }}>
+            <div className="px-6 sm:px-8 py-5 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between gap-4">
               {stepIndex > 0 ? (
                 <button
                   type="button"
                   onClick={handleBack}
-                  style={{ display:"flex", alignItems:"center", gap:6, background:"none", border:"1.5px solid rgba(255,255,255,0.12)", borderRadius:12, padding:"10px 18px", color:"rgba(255,255,255,0.5)", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s" }}
+                  className="flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-800 transition-colors"
                 >
-                  <ChevronLeft style={{ width:16, height:16 }} />
+                  <ChevronLeft className="w-4 h-4" />
                   Wstecz
                 </button>
-              ) : <div />}
+              ) : (
+                <div />
+              )}
 
-              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <div className="flex items-center gap-3">
                 {/* Dots */}
-                <div style={{ display:"flex", gap:4 }}>
+                <div className="flex gap-1">
                   {STEPS.map((_, idx) => (
                     <div
                       key={idx}
-                      style={{
-                        height:5, borderRadius:99,
-                        width: idx === stepIndex ? 20 : 6,
-                        background: idx === stepIndex ? "#3b82f6" : idx < stepIndex ? "rgba(59,130,246,0.4)" : "rgba(255,255,255,0.12)",
-                        transition: "all 0.3s",
-                      }}
+                      className={`h-1.5 rounded-full transition-all ${
+                        idx === stepIndex ? "w-5 bg-[#3DAAB3]" : idx < stepIndex ? "w-1.5 bg-[#3DAAB3]/50" : "w-1.5 bg-gray-200"
+                      }`}
                     />
                   ))}
                 </div>
@@ -656,38 +615,39 @@ export default function NowaSzansaPage() {
                   <button
                     type="button"
                     onClick={handleNext}
-                    style={{ display:"flex", alignItems:"center", gap:6, background:"linear-gradient(135deg, #2563eb, #7c3aed)", border:"none", borderRadius:12, padding:"12px 22px", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 8px 24px rgba(37,99,235,0.35)", transition:"all 0.2s" }}
+                    className="flex items-center gap-1.5 bg-[#3DAAB3] hover:bg-[#34939a] text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-colors shadow-sm"
                   >
                     Dalej
-                    <ChevronRight style={{ width:16, height:16 }} />
+                    <ChevronRight className="w-4 h-4" />
                   </button>
                 ) : (
                   <button
                     type="submit"
                     disabled={submitting || uploading}
-                    style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(135deg, #2563eb, #7c3aed)", border:"none", borderRadius:12, padding:"12px 24px", color:"#fff", fontSize:14, fontWeight:800, cursor: submitting || uploading ? "not-allowed" : "pointer", fontFamily:"inherit", opacity: submitting || uploading ? 0.6 : 1, boxShadow:"0 8px 24px rgba(37,99,235,0.35)", transition:"all 0.2s" }}
+                    className="flex items-center gap-2 bg-[#3DAAB3] hover:bg-[#34939a] text-white text-sm font-bold px-6 py-2.5 rounded-xl transition-colors disabled:opacity-70 shadow-sm"
                   >
                     {submitting ? (
-                      <><Loader2 style={{ width:16, height:16 }} /> Wysyłanie...</>
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Wysyłanie...
+                      </>
                     ) : (
-                      <><CheckCircle2 style={{ width:16, height:16 }} /> Wyślij formularz</>
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Wyślij formularz
+                      </>
                     )}
                   </button>
                 )}
               </div>
             </div>
+
           </form>
         </div>
 
-        {/* Trust bar */}
-        <div style={{ display:"flex", gap:24, flexWrap:"wrap", justifyContent:"center" }}>
-          {[["⏱️","Odpowiedź w 24h"],["🆓","Bezpłatna wycena"],["📍","Mińsk Mazowiecki"],["🔒","Dane bezpieczne"]].map(([icon, text]) => (
-            <div key={text} style={{ display:"flex", alignItems:"center", gap:8, color:"rgba(255,255,255,0.4)", fontSize:12, fontWeight:600 }}>
-              <span style={{ fontSize:15 }}>{icon}</span> {text}
-            </div>
-          ))}
-        </div>
-
+        <p className="text-center text-[11px] text-gray-400 mt-6">
+          Pola oznaczone <span className="text-red-500">*</span> są wymagane.
+        </p>
       </div>
     </div>
   );
