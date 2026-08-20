@@ -40,6 +40,11 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
   const [newClientFirstName, setNewClientFirstName] = useState("");
   const [newClientLastName, setNewClientLastName] = useState("");
   const [newClientCompanyName, setNewClientCompanyName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [newClientStreet, setNewClientStreet] = useState("");
+  const [newClientBuildingNumber, setNewClientBuildingNumber] = useState("");
+  const [newClientPostalCode, setNewClientPostalCode] = useState("");
+  const [newClientCity, setNewClientCity] = useState("");
   const [creatingClient, setCreatingClient] = useState(false);
 
   const me = useQuery(api.users.me);
@@ -371,9 +376,48 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
                   placeholder="Nazwa firmy"
                   value={newClientCompanyName}
                   onChange={(e) => setNewClientCompanyName(e.target.value)}
-                  style={{ width: "100%", padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)", outline: "none" }}
+                  style={{ width: "100%", padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)", outline: "none", background: "var(--panel, #fff)", color: "var(--text)" }}
                 />
               )}
+              <input
+                type="tel"
+                placeholder="Numer telefonu"
+                value={newClientPhone}
+                onChange={(e) => setNewClientPhone(e.target.value)}
+                style={{ width: "100%", padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)", outline: "none", background: "var(--panel, #fff)", color: "var(--text)" }}
+              />
+              <div style={{ display: "flex", gap: 10 }}>
+                <input
+                  type="text"
+                  placeholder="Ulica"
+                  value={newClientStreet}
+                  onChange={(e) => setNewClientStreet(e.target.value)}
+                  style={{ flex: 2, padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)", outline: "none", background: "var(--panel, #fff)", color: "var(--text)" }}
+                />
+                <input
+                  type="text"
+                  placeholder="Nr domu / lokalu"
+                  value={newClientBuildingNumber}
+                  onChange={(e) => setNewClientBuildingNumber(e.target.value)}
+                  style={{ flex: 1, padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)", outline: "none", background: "var(--panel, #fff)", color: "var(--text)" }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <input
+                  type="text"
+                  placeholder="Kod pocztowy"
+                  value={newClientPostalCode}
+                  onChange={(e) => setNewClientPostalCode(e.target.value)}
+                  style={{ width: "110px", padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)", outline: "none", background: "var(--panel, #fff)", color: "var(--text)" }}
+                />
+                <input
+                  type="text"
+                  placeholder="Miejscowość"
+                  value={newClientCity}
+                  onChange={(e) => setNewClientCity(e.target.value)}
+                  style={{ flex: 1, padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)", outline: "none", background: "var(--panel, #fff)", color: "var(--text)" }}
+                />
+              </div>
               <button
                 type="button"
                 disabled={creatingClient || (!newClientFirstName && !newClientLastName && !newClientCompanyName)}
@@ -386,6 +430,11 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
                       firstName: newClientFirstName.trim(),
                       lastName: newClientLastName.trim(),
                       companyName: newClientType === "business" ? newClientCompanyName.trim() : undefined,
+                      phone: newClientPhone.trim() || undefined,
+                      street: newClientStreet.trim() || undefined,
+                      buildingNumber: newClientBuildingNumber.trim() || undefined,
+                      postalCode: newClientPostalCode.trim() || undefined,
+                      city: newClientCity.trim() || undefined,
                     });
                     const name = [newClientFirstName, newClientLastName].filter(Boolean).join(" ") || newClientCompanyName;
                     setSelectedClientId(clientId);
