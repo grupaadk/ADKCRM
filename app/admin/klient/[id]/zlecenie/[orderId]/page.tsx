@@ -4421,7 +4421,7 @@ export default function OrderDetailPage({
 
               {/* Lista zdefiniowanych dat montażu */}
               {(() => {
-                const datesList = (order.installationDates && order.installationDates.length > 0)
+                const datesList = (order.installationDates !== undefined)
                   ? order.installationDates
                   : (order.projectEndDate || (order.installationStartDate && order.installationStartDate > 10000000))
                   ? [{
@@ -4701,16 +4701,20 @@ export default function OrderDetailPage({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={async () => {
                                   const nextDates = datesList.filter((_, i) => i !== idx);
-                                  const first = nextDates[0];
-                                  void updateOrder({
-                                    orderId: orderIdTyped,
-                                    installationDates: nextDates,
-                                    projectEndDate: first?.date ?? undefined,
-                                    installationStartDate: first?.startMins ?? undefined,
-                                    installationTeamId: first?.installationTeamId ?? order.installationTeamId,
-                                  });
+                                  if (nextDates.length === 0) {
+                                    await clearInstallationDate({ orderId: orderIdTyped });
+                                  } else {
+                                    const first = nextDates[0];
+                                    await updateOrder({
+                                      orderId: orderIdTyped,
+                                      installationDates: nextDates,
+                                      projectEndDate: first?.date ?? undefined,
+                                      installationStartDate: first?.startMins ?? undefined,
+                                      installationTeamId: first?.installationTeamId ?? order.installationTeamId,
+                                    });
+                                  }
                                 }}
                                 style={{
                                   padding: "6px 10px",
