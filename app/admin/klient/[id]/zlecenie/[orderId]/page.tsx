@@ -1897,6 +1897,12 @@ export default function OrderDetailPage({
   const [draftCompletionDate, setDraftCompletionDate] = useState<number | undefined>(undefined);
   const [draftInstallationStart, setDraftInstallationStart] = useState<number | undefined>(undefined);
   const [draftInstallationTeamId, setDraftInstallationTeamId] = useState<Id<"installationTeams"> | undefined>(undefined);
+  const [editingInstallationIdx, setEditingInstallationIdx] = useState<number | null>(null);
+  const [editInstallationDate, setEditInstallationDate] = useState<number | undefined>(undefined);
+  const [editInstallationStartMins, setEditInstallationStartMins] = useState<number>(480);
+  const [editInstallationEndMins, setEditInstallationEndMins] = useState<number>(960);
+  const [editInstallationTeamId, setEditInstallationTeamId] = useState<Id<"installationTeams"> | undefined>(undefined);
+  const [editInstallationNote, setEditInstallationNote] = useState<string>("");
   const [confirmDeleteDate, setConfirmDeleteDate] = useState(false);
   const [editingFinanceSvc, setEditingFinanceSvc] = useState<string | null>(null);
   const [draftEarnings, setDraftEarnings] = useState<string>("");
@@ -4446,6 +4452,172 @@ export default function OrderDetailPage({
                         const endH = Math.floor((inst.endMins ?? 960) / 60).toString().padStart(2, "0");
                         const endM = ((inst.endMins ?? 960) % 60).toString().padStart(2, "0");
 
+                        const isEditingThis = editingInstallationIdx === idx;
+
+                        if (isEditingThis) {
+                          return (
+                            <div
+                              key={idx}
+                              style={{
+                                padding: 16,
+                                borderRadius: 12,
+                                background: "var(--panel-2)",
+                                border: "1px solid var(--accent)",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 12,
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>
+                                  ✏️ Edycja terminu #{idx + 1}
+                                </span>
+                              </div>
+
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)" }}>Data montażu *</label>
+                                  <input
+                                    type="date"
+                                    value={tsToDateStr(editInstallationDate)}
+                                    onChange={(e) => setEditInstallationDate(dateStrToTs(e.target.value))}
+                                    style={{
+                                      fontSize: 13, padding: "8px 10px", borderRadius: 8,
+                                      border: "1px solid var(--line)", background: "var(--card)",
+                                      color: "var(--text-strong)", fontFamily: "inherit", fontWeight: 600,
+                                    }}
+                                  />
+                                </div>
+
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)" }}>Od godziny</label>
+                                  <select
+                                    value={minsToHour(editInstallationStartMins) ?? 8}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setEditInstallationStartMins(val !== "" ? parseInt(val, 10) * 60 : 480);
+                                    }}
+                                    style={{
+                                      fontSize: 13, padding: "8px 10px", borderRadius: 8,
+                                      border: "1px solid var(--line)", background: "var(--card)",
+                                      color: "var(--text-strong)", fontFamily: "inherit",
+                                    }}
+                                  >
+                                    {Array.from({ length: 24 }, (_, i) => (
+                                      <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)" }}>Do godziny</label>
+                                  <select
+                                    value={minsToHour(editInstallationEndMins) ?? 16}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setEditInstallationEndMins(val !== "" ? parseInt(val, 10) * 60 : 960);
+                                    }}
+                                    style={{
+                                      fontSize: 13, padding: "8px 10px", borderRadius: 8,
+                                      border: "1px solid var(--line)", background: "var(--card)",
+                                      color: "var(--text-strong)", fontFamily: "inherit",
+                                    }}
+                                  >
+                                    {Array.from({ length: 24 }, (_, i) => (
+                                      <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)" }}>Ekipa montażowa</label>
+                                  <select
+                                    value={editInstallationTeamId ?? ""}
+                                    onChange={(e) => setEditInstallationTeamId(e.target.value ? (e.target.value as Id<"installationTeams">) : undefined)}
+                                    style={{
+                                      fontSize: 13, padding: "8px 10px", borderRadius: 8,
+                                      border: "1px solid var(--line)", background: "var(--card)",
+                                      color: "var(--text-strong)", fontFamily: "inherit", fontWeight: 500,
+                                    }}
+                                  >
+                                    <option value="">— Brak (użyj ekipy domyślnej) —</option>
+                                    {installationTeams.map((t) => (
+                                      <option key={t._id} value={t._id}>
+                                        🛠️ {t.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-mute)" }}>Notatka (opcjonalnie)</label>
+                                  <input
+                                    type="text"
+                                    value={editInstallationNote}
+                                    onChange={(e) => setEditInstallationNote(e.target.value)}
+                                    placeholder="np. dokończenie obróbki..."
+                                    style={{
+                                      fontSize: 13, padding: "8px 10px", borderRadius: 8,
+                                      border: "1px solid var(--line)", background: "var(--card)",
+                                      color: "var(--text-strong)", fontFamily: "inherit",
+                                    }}
+                                  />
+                                </div>
+                              </div>
+
+                              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingInstallationIdx(null)}
+                                  style={{
+                                    padding: "6px 14px",
+                                    borderRadius: 8,
+                                    border: "1px solid var(--line)",
+                                    background: "transparent",
+                                    color: "var(--text-mute)",
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Anuluj
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!editInstallationDate) return;
+                                    const updatedDateObj = {
+                                      date: editInstallationDate,
+                                      startMins: editInstallationStartMins,
+                                      endMins: editInstallationEndMins,
+                                      installationTeamId: editInstallationTeamId,
+                                      note: editInstallationNote.trim() || undefined,
+                                    };
+                                    const nextDates = datesList.map((item, i) => (i === idx ? updatedDateObj : item)).sort((a, b) => a.date - b.date);
+                                    const first = nextDates[0];
+
+                                    await updateOrder({
+                                      orderId: orderIdTyped,
+                                      installationDates: nextDates,
+                                      projectEndDate: first?.date ?? undefined,
+                                      installationStartDate: first?.startMins ?? undefined,
+                                      installationTeamId: first?.installationTeamId ?? order.installationTeamId,
+                                    });
+
+                                    setEditingInstallationIdx(null);
+                                  }}
+                                  className="btn primary"
+                                  style={{ fontSize: 12, padding: "6px 16px" }}
+                                >
+                                  💾 Zapisz zmiany
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        }
+
                         return (
                           <div
                             key={idx}
@@ -4503,32 +4675,57 @@ export default function OrderDetailPage({
                               </div>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const nextDates = datesList.filter((_, i) => i !== idx);
-                                const first = nextDates[0];
-                                void updateOrder({
-                                  orderId: orderIdTyped,
-                                  installationDates: nextDates,
-                                  projectEndDate: first?.date ?? undefined,
-                                  installationStartDate: first?.startMins ?? undefined,
-                                  installationTeamId: first?.installationTeamId ?? order.installationTeamId,
-                                });
-                              }}
-                              style={{
-                                padding: "6px 10px",
-                                borderRadius: 8,
-                                border: "1px solid var(--bad-line)",
-                                background: "transparent",
-                                color: "var(--bad)",
-                                fontSize: 12,
-                                fontWeight: 500,
-                                cursor: "pointer",
-                              }}
-                            >
-                              Usuń
-                            </button>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingInstallationIdx(idx);
+                                  setEditInstallationDate(inst.date);
+                                  setEditInstallationStartMins(inst.startMins ?? 480);
+                                  setEditInstallationEndMins(inst.endMins ?? 960);
+                                  setEditInstallationTeamId(inst.installationTeamId ?? order.installationTeamId);
+                                  setEditInstallationNote(inst.note ?? "");
+                                }}
+                                style={{
+                                  padding: "6px 12px",
+                                  borderRadius: 8,
+                                  border: "1px solid var(--line)",
+                                  background: "var(--card)",
+                                  color: "var(--text-strong)",
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                ✏️ Edytuj
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextDates = datesList.filter((_, i) => i !== idx);
+                                  const first = nextDates[0];
+                                  void updateOrder({
+                                    orderId: orderIdTyped,
+                                    installationDates: nextDates,
+                                    projectEndDate: first?.date ?? undefined,
+                                    installationStartDate: first?.startMins ?? undefined,
+                                    installationTeamId: first?.installationTeamId ?? order.installationTeamId,
+                                  });
+                                }}
+                                style={{
+                                  padding: "6px 10px",
+                                  borderRadius: 8,
+                                  border: "1px solid var(--bad-line)",
+                                  background: "transparent",
+                                  color: "var(--bad)",
+                                  fontSize: 12,
+                                  fontWeight: 500,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Usuń
+                              </button>
+                            </div>
                           </div>
                         );
                       })
