@@ -46,6 +46,7 @@ http.route({
 });
 
 import { websiteWebhook, websiteWebhookOptions } from "./websiteWebhook";
+import { publicServices, publicServicesOptions } from "./publicApi";
 
 http.route({
   path: "/api/webhooks/website",
@@ -57,6 +58,19 @@ http.route({
   path: "/api/webhooks/website",
   method: "OPTIONS",
   handler: websiteWebhookOptions,
+});
+
+// Publiczny endpoint — aktywne usługi (dla strony głównej)
+http.route({
+  path: "/api/public/services",
+  method: "GET",
+  handler: publicServices,
+});
+
+http.route({
+  path: "/api/public/services",
+  method: "OPTIONS",
+  handler: publicServicesOptions,
 });
 
 export default http;
