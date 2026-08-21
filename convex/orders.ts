@@ -876,7 +876,7 @@ export const refreshOrderNumber = mutation({
     orderId: v.id("orders"),
   },
   handler: async (ctx, args) => {
-    const user = await requireRole(ctx, "admin");
+    const user = await requireUser(ctx);
     const userId = userIdentifier(user);
 
     const order = await ctx.db.get(args.orderId);

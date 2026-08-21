@@ -2299,36 +2299,34 @@ export default function OrderDetailPage({
             <span style={{ color: "#000000", fontWeight: 700 }}>
               {orderNumber}
             </span>
-            {me?.role === "admin" && (
-              <button
-                type="button"
-                title="Odśwież numer zlecenia (nowy numer z bieżącego miesiąca)"
-                onClick={async () => {
-                  if (!confirm(`Czy na pewno chcesz zmienić numer zlecenia z "${orderNumber}" na nowy numer z bieżącego miesiąca?`)) return;
-                  try {
-                    const result = await refreshOrderNumber({ orderId: orderIdTyped });
-                    alert(`Numer zmieniony: ${result.oldName} → ${result.newName}`);
-                  } catch (err) {
-                    alert(`Błąd: ${err instanceof Error ? err.message : String(err)}`);
-                  }
-                }}
-                style={{
-                  background: "rgba(255,255,255,0.35)",
-                  border: "1px solid rgba(0,0,0,0.15)",
-                  borderRadius: 4,
-                  padding: "2px 5px",
-                  cursor: "pointer",
-                  fontSize: 11,
-                  lineHeight: 1,
-                  color: "#000",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  marginLeft: 4,
-                }}
-              >
-                ↻
-              </button>
-            )}
+            <button
+              type="button"
+              title="Odśwież numer zlecenia (nowy numer z bieżącego miesiąca)"
+              onClick={async () => {
+                if (!confirm(`Czy na pewno chcesz zmienić numer zlecenia z "${orderNumber}" na nowy numer z bieżącego miesiąca?`)) return;
+                try {
+                  const result = await refreshOrderNumber({ orderId: orderIdTyped });
+                  alert(`Numer zmieniony: ${result.oldName} → ${result.newName}`);
+                } catch (err) {
+                  alert(`Błąd: ${err instanceof Error ? err.message : String(err)}`);
+                }
+              }}
+              style={{
+                background: "rgba(255,255,255,0.35)",
+                border: "1px solid rgba(0,0,0,0.15)",
+                borderRadius: 4,
+                padding: "2px 5px",
+                cursor: "pointer",
+                fontSize: 11,
+                lineHeight: 1,
+                color: "#000",
+                display: "inline-flex",
+                alignItems: "center",
+                marginLeft: 4,
+              }}
+            >
+              ↻
+            </button>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
