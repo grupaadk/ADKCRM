@@ -1382,7 +1382,8 @@ export const recordCrmNoteSent = mutation({
 export const confirmDeliveryByExalcoWebhook = mutation({
   args: {
     orderIdOrNumber: v.string(),
-    rawStatus: v.string(),
+    rawStatus: v.optional(v.string()),
+    deliveryDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const allOrders = await ctx.db.query("orders").collect();
@@ -1423,9 +1424,13 @@ export const confirmDeliveryByExalcoWebhook = mutation({
     const deliveries = [...(targetOrder.serviceDeliveries ?? [])];
     const delivery = deliveries[targetDeliveryIndex];
 
+    const nextConfirmedDate = args.rawStatus ? (delivery.confirmedDate ?? now) : delivery.confirmedDate;
+    const nextDeliveryDate = args.deliveryDate ?? delivery.deliveryDate;
+
     deliveries[targetDeliveryIndex] = {
       ...delivery,
-      confirmedDate: delivery.confirmedDate ?? now,
+      confirmedDate: nextConfirmedDate,
+      deliveryDate: nextDeliveryDate,
     };
 
     await ctx.db.patch(targetOrder._id, { serviceDeliveries: deliveries });

@@ -60,27 +60,51 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     );
   }
 
+  // Odczyt daty dostawy / odbioru z Exalco (np. deliveryDate, plannedDate, expectedDate, pickupDate, date)
+  const rawDateVal =
+    dataObj.deliveryDate ||
+    dataObj.plannedDate ||
+    dataObj.expectedDate ||
+    dataObj.pickupDate ||
+    dataObj.date ||
+    dataObj.completionDate ||
+    body.deliveryDate ||
+    body.plannedDate ||
+    body.expectedDate ||
+    body.date;
+
+  let deliveryDateTs: number | undefined;
+  if (rawDateVal) {
+    if (typeof rawDateVal === "number") {
+      deliveryDateTs = rawDateVal;
+    } else {
+      const parsed = Date.parse(String(rawDateVal));
+      if (!isNaN(parsed)) deliveryDateTs = parsed;
+    }
+  }
+
   const statusLower = rawStatus.toLowerCase();
   const isAcceptance =
     statusLower.includes("akceptacj") ||
     statusLower.includes("accept") ||
     statusLower.includes("potwierdz");
 
-  if (!isAcceptance) {
+  if (!isAcceptance && !deliveryDateTs) {
     return new Response(
       JSON.stringify({
         success: true,
         ignored: true,
-        message: `Status '${rawStatus}' does not trigger confirmation. Expected 'Akceptacja'.`,
+        message: `Status '${rawStatus}' does not trigger action and no date provided.`,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   }
 
-  // Wywołaj mutację ustawienia daty potwierdzenia (confirmedDate)
+  // Wywołaj mutację ustawienia daty potwierdzenia (confirmedDate) oraz daty dostawy/odbioru z Exalco (deliveryDate)
   const result = await ctx.runMutation(api.orders.confirmDeliveryByExalcoWebhook, {
     orderIdOrNumber: String(orderIdOrNumber),
-    rawStatus,
+    rawStatus: isAcceptance ? rawStatus : undefined,
+    deliveryDate: deliveryDateTs,
   });
 
   if (!result.success) {
@@ -95,7 +119,7 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
       success: true,
       orderId: result.orderId,
       confirmedDate: result.confirmedDate,
-      message: "Delivery status successfully updated to Confirmed (Potwierdzono)",
+      message: "Delivery status and/or Exalco delivery date successfully updated",
     }),
     { status: 200, headers: { "Content-Type": "application/json" } },
   );
