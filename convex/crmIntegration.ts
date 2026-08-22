@@ -92,6 +92,14 @@ export const sendDeliveryOrderToCrm = action({
       externalOrderNumber: result.orderNumber,
     });
 
+    if (delivery.notes?.trim()) {
+      await ctx.runMutation(api.orders.recordCrmNoteSent, {
+        orderId: args.orderId,
+        deliveryIndex: args.deliveryIndex,
+        noteText: delivery.notes.trim(),
+      });
+    }
+
     return {
       success: true,
       externalOrderId: result.orderId,
@@ -142,7 +150,15 @@ export const addNoteToCrmOrder = action({
       throw new Error(`Błąd dodawania notatki w CRM (${response.status}): ${errText}`);
     }
 
-    return await response.json();
+    const resJson = await response.json();
+
+    await ctx.runMutation(api.orders.recordCrmNoteSent, {
+      orderId: args.orderId,
+      deliveryIndex: args.deliveryIndex,
+      noteText: args.noteText.trim(),
+    });
+
+    return resJson;
   },
 });
 

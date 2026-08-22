@@ -73,4 +73,18 @@ http.route({
   handler: publicServicesOptions,
 });
 
+import { exalcoWebhook, exalcoWebhookOptions } from "./exalcoWebhook";
+
+http.route({
+  path: "/api/webhooks/exalco",
+  method: "POST",
+  handler: exalcoWebhook,
+});
+
+http.route({
+  path: "/api/webhooks/exalco",
+  method: "OPTIONS",
+  handler: exalcoWebhookOptions,
+});
+
 export default http;

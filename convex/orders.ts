@@ -385,6 +385,12 @@ export const update = mutation({
       notes: v.optional(v.string()),
       externalOrderId: v.optional(v.string()),
       externalOrderNumber: v.optional(v.string()),
+      lastCrmNoteSentAt: v.optional(v.number()),
+      crmNotesHistory: v.optional(v.array(v.object({
+        note: v.string(),
+        sentAt: v.number(),
+        sentBy: v.optional(v.string()),
+      }))),
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),
@@ -1337,5 +1343,112 @@ export const updateExternalOrderInfo = mutation({
       details: { fields: [`serviceDeliveries.${args.deliveryIndex}.externalOrderNumber`] },
       performedBy: userId,
     });
+  },
+});
+
+export const recordCrmNoteSent = mutation({
+  args: {
+    orderId: v.id("orders"),
+    deliveryIndex: v.number(),
+    noteText: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new ConvexError("Zlecenie nie istnieje.");
+
+    const deliveries = order.serviceDeliveries ?? [];
+    if (args.deliveryIndex < 0 || args.deliveryIndex >= deliveries.length) {
+      throw new ConvexError("Nieprawidłowa pozycja dostawy.");
+    }
+
+    const now = Date.now();
+    const next = deliveries.map((d, i) => {
+      if (i !== args.deliveryIndex) return d;
+      const history = d.crmNotesHistory ?? [];
+      return {
+        ...d,
+        lastCrmNoteSentAt: now,
+        crmNotesHistory: [...history, { note: args.noteText, sentAt: now, sentBy: userId }],
+      };
+    });
+
+    await ctx.db.patch(args.orderId, { serviceDeliveries: next });
+  },
+});
+
+export const confirmDeliveryByExalcoWebhook = mutation({
+  args: {
+    orderIdOrNumber: v.string(),
+    rawStatus: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const allOrders = await ctx.db.query("orders").collect();
+    let targetOrder = null;
+    let targetDeliveryIndex = -1;
+
+    const queryClean = args.orderIdOrNumber.trim().toLowerCase();
+
+    for (const order of allOrders) {
+      if (!order.serviceDeliveries) continue;
+      const idx = order.serviceDeliveries.findIndex((d) => {
+        const extNum = (d.externalOrderNumber ?? "").trim().toLowerCase();
+        const extId = (d.externalOrderId ?? "").trim().toLowerCase();
+        const ordId = String(order._id).trim().toLowerCase();
+        const ordName = (order.name ?? "").trim().toLowerCase();
+        const ordCustom = (order.customText ?? "").trim().toLowerCase();
+
+        return (
+          (extNum && (extNum === queryClean || queryClean.includes(extNum) || extNum.includes(queryClean))) ||
+          (extId && (extId === queryClean || queryClean.includes(extId) || extId.includes(queryClean))) ||
+          (ordId && ordId === queryClean) ||
+          (ordName && (ordName === queryClean || queryClean.includes(ordName))) ||
+          (ordCustom && (ordCustom === queryClean || queryClean.includes(ordCustom)))
+        );
+      });
+      if (idx !== -1) {
+        targetOrder = order;
+        targetDeliveryIndex = idx;
+        break;
+      }
+    }
+
+    if (!targetOrder || targetDeliveryIndex === -1) {
+      return { success: false, reason: `Nie znaleziono zlecenia z numerem/ID Exalco: ${args.orderIdOrNumber}` };
+    }
+
+    const now = Date.now();
+    const deliveries = [...(targetOrder.serviceDeliveries ?? [])];
+    const delivery = deliveries[targetDeliveryIndex];
+
+    deliveries[targetDeliveryIndex] = {
+      ...delivery,
+      confirmedDate: delivery.confirmedDate ?? now,
+    };
+
+    await ctx.db.patch(targetOrder._id, { serviceDeliveries: deliveries });
+
+    await ctx.db.insert("clientEvents", {
+      clientId: targetOrder.clientId,
+      orderId: targetOrder._id,
+      type: "data_updated",
+      details: {
+        action: "exalco_webhook_confirmed",
+        serviceName: delivery.serviceName,
+        externalOrderNumber: delivery.externalOrderNumber,
+        rawStatus: args.rawStatus,
+        confirmedDate: now,
+      },
+      performedBy: "Exalco Webhook",
+    });
+
+    return {
+      success: true,
+      orderId: targetOrder._id,
+      deliveryIndex: targetDeliveryIndex,
+      confirmedDate: now,
+    };
   },
 });

@@ -239,6 +239,12 @@ export default defineSchema({
       notes: v.optional(v.string()),         // opcjonalne notatki / uwagi do zamówienia
       externalOrderId: v.optional(v.string()),     // ID zlecenia zwrócone z zewnętrznego CRM (np. pd79ddwdn...)
       externalOrderNumber: v.optional(v.string()), // Numer zlecenia w CRM (np. ZL-260802416)
+      lastCrmNoteSentAt: v.optional(v.number()),  // Data ostatniej wysłanej notatki do Exalco
+      crmNotesHistory: v.optional(v.array(v.object({
+        note: v.string(),
+        sentAt: v.number(),
+        sentBy: v.optional(v.string()),
+      }))),
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),

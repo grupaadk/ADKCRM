@@ -1818,6 +1818,12 @@ export default function OrderDetailPage({
     notes?: string;
     externalOrderId?: string;
     externalOrderNumber?: string;
+    lastCrmNoteSentAt?: number;
+    crmNotesHistory?: Array<{
+      note: string;
+      sentAt: number;
+      sentBy?: string;
+    }>;
   } | null>(null);
 
   function startEditDelivery(svcName: string, supplierId?: Id<"suppliers">, index?: number) {
@@ -1857,6 +1863,7 @@ export default function OrderDetailPage({
   }
 
   const sendCrmOrder = useAction(api.crmIntegration.sendDeliveryOrderToCrm);
+  const addCrmNote = useAction(api.crmIntegration.addNoteToCrmOrder);
   const [sendingCrm, setSendingCrm] = useState(false);
 
   async function saveDelivery() {
@@ -1876,9 +1883,19 @@ export default function OrderDetailPage({
     if (supplier?.isApiEnabled && targetIndex !== null && targetIndex >= 0) {
       try {
         setSendingCrm(true);
-        await sendCrmOrder({ orderId: orderIdTyped, deliveryIndex: targetIndex });
+        if (!draftDeliveryEntry.externalOrderNumber) {
+          // Jeśli zamówienie u dostawcy nie zostało jeszcze utworzone w Exalco — stwórz je z notatką
+          await sendCrmOrder({ orderId: orderIdTyped, deliveryIndex: targetIndex });
+        } else if (draftDeliveryEntry.notes?.trim()) {
+          // Jeśli zamówienie istnieje w Exalco — przekaż notatkę przez API add-note
+          await addCrmNote({
+            orderId: orderIdTyped,
+            deliveryIndex: targetIndex,
+            noteText: draftDeliveryEntry.notes.trim(),
+          });
+        }
       } catch (err) {
-        console.error("Błąd podczas automatycznego wysyłania do CRM:", err);
+        console.error("Błąd podczas wysyłania do CRM:", err);
       } finally {
         setSendingCrm(false);
       }
@@ -4146,6 +4163,11 @@ export default function OrderDetailPage({
                                             {d.externalOrderNumber}
                                           </span>
                                         )}
+                                        {d.lastCrmNoteSentAt && (
+                                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md" title={`Wysłano notatkę do Exalco: ${new Date(d.lastCrmNoteSentAt).toLocaleString("pl-PL")}`}>
+                                            ✓ Notatka w Exalco
+                                          </span>
+                                        )}
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-sm font-bold text-slate-900 whitespace-nowrap tabular-nums" style={{ padding: "14px 16px" }}>
@@ -4276,6 +4298,7 @@ export default function OrderDetailPage({
               {draftDeliveryEntry && (() => {
                 const svc = servicesList.find((s) => s.name === editingDeliverySvc);
                 const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
+                const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
 
                 return (
                   <div className="flex flex-col gap-5">
@@ -4370,7 +4393,14 @@ export default function OrderDetailPage({
 
                     {/* Notatki / Uwagi (Textarea) */}
                     <div className="flex flex-col gap-1.5 pt-3 border-t border-slate-200">
-                      <label className="text-xs font-bold text-slate-700">Notatki / Uwagi do zamówienia</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-700">Notatki / Uwagi do zamówienia</label>
+                        {currentSupplier?.isApiEnabled && (
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            ⚡ Automatyczna synchronizacja z Exalco
+                          </span>
+                        )}
+                      </div>
                       <textarea
                         rows={4}
                         placeholder="Wpisz uwagi, numer zamówienia u dostawcy, wymiary, specyfikację lub dodatkowe ustalenia..."
@@ -4378,6 +4408,11 @@ export default function OrderDetailPage({
                         onChange={(e) => updateDraftSingleField("notes", e.target.value)}
                         className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm resize-y"
                       />
+                      {draftDeliveryEntry.lastCrmNoteSentAt && (
+                        <div className="flex items-center justify-between text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 p-2 rounded-lg mt-1 font-medium">
+                          <span>✓ Notatka wysłana do Exalco: {new Date(draftDeliveryEntry.lastCrmNoteSentAt).toLocaleString("pl-PL")}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
