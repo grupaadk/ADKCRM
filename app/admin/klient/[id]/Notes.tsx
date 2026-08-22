@@ -95,14 +95,25 @@ export default function Notes({ clientId, orderId }: NotesProps) {
     <div className="space-y-2">
       {/* Compact inline add form */}
       <form onSubmit={handleSubmit} className="flex items-center gap-2">
-        <input
-          type="text"
+        <textarea
+          ref={(el) => {
+            if (el) {
+              el.style.height = "auto";
+              el.style.height = `${Math.max(38, el.scrollHeight)}px`;
+            }
+          }}
+          rows={1}
           value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Dodaj notatke..."
-          className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500/20 transition-colors"
+          onChange={(e) => {
+            setContent(e.target.value);
+            e.target.style.height = "auto";
+            e.target.style.height = `${Math.max(38, e.target.scrollHeight)}px`;
+          }}
+          placeholder="Dodaj notatkę..."
+          className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500/20 transition-colors overflow-hidden resize-none"
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
               void handleSubmit(e);
             }
           }}
