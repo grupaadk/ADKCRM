@@ -4402,11 +4402,21 @@ export default function OrderDetailPage({
                         )}
                       </div>
                       <textarea
-                        rows={4}
+                        ref={(el) => {
+                          if (el) {
+                            el.style.height = "auto";
+                            el.style.height = `${Math.max(100, el.scrollHeight)}px`;
+                          }
+                        }}
+                        rows={3}
                         placeholder="Wpisz uwagi, numer zamówienia u dostawcy, wymiary, specyfikację lub dodatkowe ustalenia..."
                         value={draftDeliveryEntry.notes ?? ""}
-                        onChange={(e) => updateDraftSingleField("notes", e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm resize-y"
+                        onChange={(e) => {
+                          updateDraftSingleField("notes", e.target.value);
+                          e.target.style.height = "auto";
+                          e.target.style.height = `${Math.max(100, e.target.scrollHeight)}px`;
+                        }}
+                        className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm transition-[height] duration-150 overflow-hidden resize-none"
                       />
                       {draftDeliveryEntry.lastCrmNoteSentAt && (
                         <div className="flex items-center justify-between text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 p-2 rounded-lg mt-1 font-medium">
