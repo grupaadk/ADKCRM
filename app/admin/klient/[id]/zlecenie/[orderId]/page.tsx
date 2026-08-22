@@ -4163,11 +4163,6 @@ export default function OrderDetailPage({
                                             {d.externalOrderNumber}
                                           </span>
                                         )}
-                                        {d.lastCrmNoteSentAt && (
-                                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md" title={`Wysłano notatkę do Exalco: ${new Date(d.lastCrmNoteSentAt).toLocaleString("pl-PL")}`}>
-                                            ✓ Notatka w Exalco
-                                          </span>
-                                        )}
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-sm font-bold text-slate-900 whitespace-nowrap tabular-nums" style={{ padding: "14px 16px" }}>
@@ -4418,11 +4413,6 @@ export default function OrderDetailPage({
                         }}
                         className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm transition-[height] duration-150 overflow-hidden resize-none"
                       />
-                      {draftDeliveryEntry.lastCrmNoteSentAt && (
-                        <div className="flex items-center justify-between text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 p-2 rounded-lg mt-1 font-medium">
-                          <span>✓ Notatka wysłana do Exalco: {new Date(draftDeliveryEntry.lastCrmNoteSentAt).toLocaleString("pl-PL")}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
