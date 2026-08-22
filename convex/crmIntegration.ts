@@ -45,9 +45,14 @@ export const sendDeliveryOrderToCrm = action({
       delivery.notes ? `\nUwagi do zamówienia:\n${delivery.notes}` : "",
     ].filter(Boolean).join("\n");
 
+    const siteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL || "https://fearless-firefly-85.eu-west-1.convex.site";
+    const webhookUrl = `${siteUrl.replace(/\/+$/, "")}/api/webhooks/exalco`;
+
     const payload = {
       valueNetto: delivery.netAmount ?? 0,
       notes: notesCombined,
+      webhookUrl,
+      callbackUrl: webhookUrl,
     };
 
     // 4. Wyślij żądanie HTTP POST do API CRM
