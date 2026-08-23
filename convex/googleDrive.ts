@@ -3576,7 +3576,12 @@ export const downloadDriveFileBase64 = action({
     }
 
     const arrayBuffer = await res.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = typeof btoa === "function" ? btoa(binary) : (globalThis as any).Buffer?.from(arrayBuffer)?.toString("base64");
     return { base64 };
   },
 });
