@@ -14,6 +14,7 @@ import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext";
 import { deriveStatusStyle } from "@/lib/statuses";
 import ComplaintTab from "./ComplaintTab";
 import OrderDriveBrowser from "./OrderDriveBrowser";
+import OrderDriveFilePicker, { type SelectedFileItem } from "./OrderDriveFilePicker";
 import TaskDrawer from "@/components/TaskDrawer";
 import SideDrawer from "@/components/SideDrawer";
 import CreateOrderTaskDrawer from "@/components/CreateOrderTaskDrawer";
@@ -1865,42 +1866,13 @@ export default function OrderDetailPage({
   const sendCrmOrder = useAction(api.crmIntegration.sendDeliveryOrderToCrm);
   const sendCrmOrderWithFiles = useAction(api.crmIntegration.sendDeliveryOrderWithFilesToCrm);
   const addCrmNote = useAction(api.crmIntegration.addNoteToCrmOrder);
-  const listDrawingsFiles = useAction(api.googleDrive.listOrderConstructionDrawingsFiles);
 
   const [sendingCrm, setSendingCrm] = useState(false);
-  const [driveDrawingsFiles, setDriveDrawingsFiles] = useState<Array<{ id: string; name: string; mimeType?: string; url?: string; defaultType: "RW" | "Rysunek" }>>([]);
-  const [driveSourceFolderName, setDriveSourceFolderName] = useState<string>("");
-  const [selectedDriveFiles, setSelectedDriveFiles] = useState<Record<string, boolean>>({});
-  const [loadingDrawingsFiles, setLoadingDrawingsFiles] = useState(false);
+  const [selectedDriveFiles, setSelectedDriveFiles] = useState<Record<string, SelectedFileItem>>({});
 
   useEffect(() => {
-    if (editingDeliverySvc && draftDeliveryEntry) {
-      const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
-      if (currentSupplier?.isApiEnabled && orderIdTyped) {
-        setLoadingDrawingsFiles(true);
-        listDrawingsFiles({ orderId: orderIdTyped })
-          .then((res: any) => {
-            const files = Array.isArray(res) ? res : (res?.files || []);
-            const folderName = res?.sourceFolderName || "Rysunki konstrukcji do zamówienia";
-            setDriveDrawingsFiles(files);
-            setDriveSourceFolderName(folderName);
-            const initialMap: Record<string, boolean> = {};
-            files.forEach((f: any) => {
-              initialMap[f.id] = false;
-            });
-            setSelectedDriveFiles(initialMap);
-          })
-          .catch((e) => {
-            console.warn("Wczytywanie rysunków z Google Drive niedostępne lub akcja Convex oczekuje na sync:", e);
-            setDriveDrawingsFiles([]);
-            setDriveSourceFolderName("");
-          })
-          .finally(() => setLoadingDrawingsFiles(false));
-      }
-    } else {
-      setDriveDrawingsFiles([]);
+    if (!editingDeliverySvc || !draftDeliveryEntry) {
       setSelectedDriveFiles({});
-      setDriveSourceFolderName("");
     }
   }, [editingDeliverySvc, draftDeliveryEntry?.supplierId]);
 
@@ -1922,13 +1894,11 @@ export default function OrderDetailPage({
       try {
         setSendingCrm(true);
         if (!draftDeliveryEntry.externalOrderNumber) {
-          const filesToUpload = driveDrawingsFiles
-            .filter((f) => !!selectedDriveFiles[f.id])
-            .map((f) => ({
-              fileId: f.id,
-              fileName: f.name,
-              fileType: (f.defaultType || (f.name.toUpperCase().includes("RW") ? "RW" : "Rysunek")) as "RW" | "Rysunek",
-            }));
+          const filesToUpload = Object.values(selectedDriveFiles).map((f) => ({
+            fileId: f.id,
+            fileName: f.name,
+            fileType: (f.name.toUpperCase().includes("RW") ? "RW" : "Rysunek") as "RW" | "Rysunek",
+          }));
 
           try {
             await sendCrmOrderWithFiles({
@@ -4486,59 +4456,14 @@ export default function OrderDetailPage({
                       />
                     </div>
 
-                    {/* Pliki z Google Drive dla dostawcy z API (np. ALCO) */}
+                    {/* Przeglądarka plików Google Drive do przesyłania po API */}
                     {currentSupplier?.isApiEnabled && !draftDeliveryEntry.externalOrderNumber && (
-                      <div className="flex flex-col gap-2 pt-3 border-t border-slate-200">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                            <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                            </svg>
-                            Pliki z Google Drive do wysłania po API
-                          </label>
-                          {driveSourceFolderName && (
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                              driveSourceFolderName === "Główny folder zlecenia" 
-                                ? "bg-amber-50 text-amber-800 border-amber-200" 
-                                : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                            }`}>
-                              {driveSourceFolderName === "Główny folder zlecenia" ? "📁 Katalog główny zlecenia" : `📁 ${driveSourceFolderName}`}
-                            </span>
-                          )}
-                        </div>
-                        {loadingDrawingsFiles ? (
-                          <div className="text-xs text-slate-500 py-2 italic flex items-center gap-2">
-                            <span className="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
-                            Wczytywanie plików z Google Drive…
-                          </div>
-                        ) : driveDrawingsFiles.length === 0 ? (
-                          <div className="text-xs text-slate-400 py-2.5 px-3 italic bg-slate-50 rounded-md border border-slate-200">
-                            Brak plików w folderze Google Drive tego zlecenia.
-                          </div>
-                        ) : (
-                          <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                            {driveDrawingsFiles.map((file) => {
-                              const isSelected = !!selectedDriveFiles[file.id];
-                              return (
-                                <label key={file.id} className="flex items-center gap-2.5 p-2 bg-white rounded border border-slate-200 text-xs font-semibold text-slate-800 hover:bg-slate-50 transition-colors cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(e) => {
-                                      setSelectedDriveFiles((prev) => ({
-                                        ...prev,
-                                        [file.id]: e.target.checked,
-                                      }));
-                                    }}
-                                    className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4"
-                                  />
-                                  <span className="truncate" title={file.name}>{file.name}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
+                      <OrderDriveFilePicker
+                        orderId={orderIdTyped}
+                        rootFolderId={order?.folderId}
+                        selectedFiles={selectedDriveFiles}
+                        onSelectionChange={setSelectedDriveFiles}
+                      />
                     )}
                   </div>
                 );
