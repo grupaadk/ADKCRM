@@ -174,15 +174,21 @@ export const uploadFileToCrmOrder = action({
     fileType: v.union(v.literal("RW"), v.literal("Rysunek")),
     fileName: v.string(),
     fileBase64: v.string(),
+    externalOrderNumber: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<unknown> => {
     const order: any = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) throw new Error("Nie znaleziono zlecenia.");
     const delivery = order.serviceDeliveries?.[args.deliveryIndex];
-    if (!delivery || !delivery.externalOrderNumber) {
+    const orderNumberToUse = args.externalOrderNumber || delivery?.externalOrderNumber;
+    if (!orderNumberToUse) {
       throw new Error("Zamówienie nie zostało jeszcze utworzone w CRM Exalco.");
     }
-    const supplier: any = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: delivery.supplierId });
+    const supplierIdToUse = delivery?.supplierId;
+    if (!supplierIdToUse) {
+      throw new Error("Nie odnaleziono ID dostawcy w zamówieniu.");
+    }
+    const supplier: any = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: supplierIdToUse });
     if (!supplier || !supplier.apiEndpoint || !supplier.apiKey) {
       throw new Error("Dostawca nie posiada skonfigurowanego API.");
     }
@@ -201,7 +207,7 @@ export const uploadFileToCrmOrder = action({
         "X-Api-Key": supplier.apiKey,
       },
       body: JSON.stringify({
-        orderIdOrNumber: delivery.externalOrderNumber,
+        orderIdOrNumber: orderNumberToUse,
         fileType: args.fileType,
         fileName: args.fileName,
         fileBase64: args.fileBase64,
@@ -234,28 +240,39 @@ export const sendDeliveryOrderWithFilesToCrm = action({
   },
   handler: async (ctx, args): Promise<unknown> => {
     // 1. Send delivery order to CRM
-    const result = await ctx.runAction(api.crmIntegration.sendDeliveryOrderToCrm, {
+    const result = (await ctx.runAction(api.crmIntegration.sendDeliveryOrderToCrm, {
       orderId: args.orderId,
       deliveryIndex: args.deliveryIndex,
-    });
+    })) as { success: boolean; externalOrderId?: string; externalOrderNumber?: string };
 
     // 2. Upload selected files sequentially if provided
-    if (args.filesToUpload && args.filesToUpload.length > 0) {
+    if (args.filesToUpload && args.filesToUpload.length > 0 && result.externalOrderNumber) {
       for (const fileItem of args.filesToUpload) {
-        try {
-          const downloaded = await ctx.runAction(api.googleDrive.downloadDriveFileBase64, {
-            fileId: fileItem.fileId,
-          });
+        let uploaded = false;
+        let lastError: any = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const downloaded = await ctx.runAction(api.googleDrive.downloadDriveFileBase64, {
+              fileId: fileItem.fileId,
+            });
 
-          await ctx.runAction(api.crmIntegration.uploadFileToCrmOrder, {
-            orderId: args.orderId,
-            deliveryIndex: args.deliveryIndex,
-            fileType: fileItem.fileType,
-            fileName: fileItem.fileName,
-            fileBase64: downloaded.base64,
-          });
-        } catch (err) {
-          console.error(`Błąd przesyłania pliku ${fileItem.fileName} do CRM:`, err);
+            await ctx.runAction(api.crmIntegration.uploadFileToCrmOrder, {
+              orderId: args.orderId,
+              deliveryIndex: args.deliveryIndex,
+              fileType: fileItem.fileType,
+              fileName: fileItem.fileName,
+              fileBase64: downloaded.base64,
+              externalOrderNumber: result.externalOrderNumber,
+            });
+            uploaded = true;
+            break;
+          } catch (err) {
+            lastError = err;
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+        }
+        if (!uploaded) {
+          console.error(`Nie udało się przesłać pliku ${fileItem.fileName} po 3 próbach:`, lastError);
         }
       }
     }
