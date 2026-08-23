@@ -3590,7 +3590,7 @@ export const listOrderConstructionDrawingsFiles = action({
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) return [];
 
-    const orderFolderId = order.clientFolderId;
+    const orderFolderId = order.folderId;
     if (!orderFolderId) return [];
 
     // Find subfolder "Rysunki konstrukcji do zamówienia"
