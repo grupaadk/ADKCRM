@@ -1457,3 +1457,36 @@ export const confirmDeliveryByExalcoWebhook = mutation({
     };
   },
 });
+
+export const recordSentApiFilesInternal = internalMutation({
+  args: {
+    orderId: v.id("orders"),
+    deliveryIndex: v.number(),
+    files: v.array(
+      v.object({
+        fileId: v.string(),
+        fileName: v.string(),
+        fileType: v.string(),
+        sentAt: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const order = await ctx.db.get(args.orderId);
+    if (!order || !order.serviceDeliveries) return;
+    const deliveries = [...order.serviceDeliveries];
+    const delivery = deliveries[args.deliveryIndex];
+    if (!delivery) return;
+
+    const existingSent = delivery.sentApiFiles ?? [];
+    const updatedSent = [...existingSent, ...args.files];
+
+    deliveries[args.deliveryIndex] = {
+      ...delivery,
+      sentApiFiles: updatedSent,
+    };
+
+    await ctx.db.patch(args.orderId, { serviceDeliveries: deliveries });
+  },
+});
+

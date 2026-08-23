@@ -1,6 +1,6 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 export const sendDeliveryOrderToCrm = action({
   args: {
@@ -214,12 +214,25 @@ export const uploadFileToCrmOrder = action({
       }),
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Błąd wysyłania pliku do CRM (${response.status}): ${errText}`);
+    const resData = await response.json();
+    try {
+      await ctx.runMutation(internal.orders.recordSentApiFilesInternal, {
+        orderId: args.orderId,
+        deliveryIndex: args.deliveryIndex,
+        files: [
+          {
+            fileId: args.fileName,
+            fileName: args.fileName,
+            fileType: args.fileType,
+            sentAt: Date.now(),
+          },
+        ],
+      });
+    } catch (e) {
+      console.warn("Nie udało się zapisać historii wysłanych plików:", e);
     }
 
-    return await response.json();
+    return resData;
   },
 });
 

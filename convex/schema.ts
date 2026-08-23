@@ -245,6 +245,12 @@ export default defineSchema({
         sentAt: v.number(),
         sentBy: v.optional(v.string()),
       }))),
+      sentApiFiles: v.optional(v.array(v.object({
+        fileId: v.string(),
+        fileName: v.string(),
+        fileType: v.string(),
+        sentAt: v.number(),
+      }))),
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),

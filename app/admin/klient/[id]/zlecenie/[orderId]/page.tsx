@@ -4517,6 +4517,48 @@ export default function OrderDetailPage({
                       />
                     </div>
 
+                    {/* Lista plików wysłanych po API */}
+                    {draftDeliveryEntry.sentApiFiles && draftDeliveryEntry.sentApiFiles.length > 0 && (
+                      <div className="flex flex-col gap-2 pt-3 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Pliki wysłane do Exalco po API ({draftDeliveryEntry.sentApiFiles.length})
+                          </label>
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                            ✓ Potwierdzono w Exalco
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto p-2 bg-emerald-50/40 border border-emerald-200 rounded-lg">
+                          {draftDeliveryEntry.sentApiFiles.map((file, fIdx) => (
+                            <div key={fIdx} className="flex items-center justify-between p-2 bg-white rounded border border-emerald-200 text-xs shadow-xs">
+                              <div className="flex items-center gap-2 truncate min-w-0 flex-1">
+                                <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
+                                <span className="truncate font-semibold text-slate-800" title={file.fileName}>{file.fileName}</span>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                  {file.fileType}
+                                </span>
+                                <span className="text-[11px] text-slate-500 font-medium">
+                                  {new Date(file.sentAt).toLocaleString("pl-PL", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Przeglądarka plików Google Drive do przesyłania po API */}
                     {currentSupplier?.isApiEnabled && (
                       <div className="flex flex-col gap-3">
