@@ -1915,13 +1915,33 @@ export default function OrderDetailPage({
             console.warn("sendCrmOrderWithFiles w trakcie synchronizacji, używam sendCrmOrder:", errWithFiles);
             await sendCrmOrder({ orderId: orderIdTyped, deliveryIndex: targetIndex });
           }
-        } else if (draftDeliveryEntry.notes?.trim()) {
-          // Jeśli zamówienie istnieje w Exalco — przekaż notatkę przez API add-note
-          await addCrmNote({
-            orderId: orderIdTyped,
-            deliveryIndex: targetIndex,
-            noteText: draftDeliveryEntry.notes.trim(),
-          });
+        } else {
+          const fileList = Object.values(selectedDriveFiles);
+          if (fileList.length > 0) {
+            for (const fileItem of fileList) {
+              try {
+                const downloaded = await downloadDriveBase64({ fileId: fileItem.id });
+                await uploadFileToCrm({
+                  orderId: orderIdTyped,
+                  deliveryIndex: targetIndex,
+                  fileType: (fileItem.name.toUpperCase().includes("RW") ? "RW" : "Rysunek") as "RW" | "Rysunek",
+                  fileName: fileItem.name,
+                  fileBase64: downloaded.base64,
+                  externalOrderNumber: draftDeliveryEntry.externalOrderNumber,
+                });
+              } catch (errUpload) {
+                console.error(`Błąd przesyłu pliku ${fileItem.name}:`, errUpload);
+              }
+            }
+          }
+
+          if (draftDeliveryEntry.notes?.trim()) {
+            await addCrmNote({
+              orderId: orderIdTyped,
+              deliveryIndex: targetIndex,
+              noteText: draftDeliveryEntry.notes.trim(),
+            });
+          }
         }
       }
 
