@@ -1870,7 +1870,7 @@ export default function OrderDetailPage({
   const [sendingCrm, setSendingCrm] = useState(false);
   const [driveDrawingsFiles, setDriveDrawingsFiles] = useState<Array<{ id: string; name: string; mimeType?: string; url?: string; defaultType: "RW" | "Rysunek" }>>([]);
   const [driveSourceFolderName, setDriveSourceFolderName] = useState<string>("");
-  const [selectedDriveFiles, setSelectedDriveFiles] = useState<Record<string, { selected: boolean; fileType: "RW" | "Rysunek" }>>({});
+  const [selectedDriveFiles, setSelectedDriveFiles] = useState<Record<string, boolean>>({});
   const [loadingDrawingsFiles, setLoadingDrawingsFiles] = useState(false);
 
   useEffect(() => {
@@ -1884,9 +1884,9 @@ export default function OrderDetailPage({
             const folderName = res?.sourceFolderName || "Rysunki konstrukcji do zamówienia";
             setDriveDrawingsFiles(files);
             setDriveSourceFolderName(folderName);
-            const initialMap: Record<string, { selected: boolean; fileType: "RW" | "Rysunek" }> = {};
+            const initialMap: Record<string, boolean> = {};
             files.forEach((f: any) => {
-              initialMap[f.id] = { selected: true, fileType: f.defaultType };
+              initialMap[f.id] = true;
             });
             setSelectedDriveFiles(initialMap);
           })
@@ -1923,11 +1923,11 @@ export default function OrderDetailPage({
         setSendingCrm(true);
         if (!draftDeliveryEntry.externalOrderNumber) {
           const filesToUpload = driveDrawingsFiles
-            .filter((f) => selectedDriveFiles[f.id]?.selected)
+            .filter((f) => selectedDriveFiles[f.id] ?? true)
             .map((f) => ({
               fileId: f.id,
               fileName: f.name,
-              fileType: selectedDriveFiles[f.id]?.fileType || f.defaultType,
+              fileType: (f.defaultType || (f.name.toUpperCase().includes("RW") ? "RW" : "Rysunek")) as "RW" | "Rysunek",
             }));
 
           try {
@@ -4518,39 +4518,22 @@ export default function OrderDetailPage({
                         ) : (
                           <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-lg">
                             {driveDrawingsFiles.map((file) => {
-                              const fileState = selectedDriveFiles[file.id] || { selected: false, fileType: file.defaultType };
+                              const isSelected = selectedDriveFiles[file.id] ?? true;
                               return (
-                                <div key={file.id} className="flex items-center justify-between p-2 bg-white rounded border border-slate-200 text-xs">
-                                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800 flex-1 min-w-0">
-                                    <input
-                                      type="checkbox"
-                                      checked={fileState.selected}
-                                      onChange={(e) => {
-                                        setSelectedDriveFiles((prev) => ({
-                                          ...prev,
-                                          [file.id]: { selected: e.target.checked, fileType: fileState.fileType },
-                                        }));
-                                      }}
-                                      className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
-                                    />
-                                    <span className="truncate font-semibold" title={file.name}>{file.name}</span>
-                                  </label>
-                                  <div className="flex items-center gap-2 ml-2">
-                                    <select
-                                      value={fileState.fileType}
-                                      onChange={(e) => {
-                                        setSelectedDriveFiles((prev) => ({
-                                          ...prev,
-                                          [file.id]: { selected: fileState.selected, fileType: e.target.value as "RW" | "Rysunek" },
-                                        }));
-                                      }}
-                                      className="text-xs border border-slate-300 rounded px-2 py-0.5 bg-white text-slate-700 font-semibold focus:outline-none focus:border-amber-500"
-                                    >
-                                      <option value="RW">RW</option>
-                                      <option value="Rysunek">Rysunek</option>
-                                    </select>
-                                  </div>
-                                </div>
+                                <label key={file.id} className="flex items-center gap-2.5 p-2 bg-white rounded border border-slate-200 text-xs font-semibold text-slate-800 hover:bg-slate-50 transition-colors cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => {
+                                      setSelectedDriveFiles((prev) => ({
+                                        ...prev,
+                                        [file.id]: e.target.checked,
+                                      }));
+                                    }}
+                                    className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4"
+                                  />
+                                  <span className="truncate" title={file.name}>{file.name}</span>
+                                </label>
                               );
                             })}
                           </div>
