@@ -1886,7 +1886,7 @@ export default function OrderDetailPage({
             setDriveSourceFolderName(folderName);
             const initialMap: Record<string, boolean> = {};
             files.forEach((f: any) => {
-              initialMap[f.id] = true;
+              initialMap[f.id] = false;
             });
             setSelectedDriveFiles(initialMap);
           })
@@ -1923,7 +1923,7 @@ export default function OrderDetailPage({
         setSendingCrm(true);
         if (!draftDeliveryEntry.externalOrderNumber) {
           const filesToUpload = driveDrawingsFiles
-            .filter((f) => selectedDriveFiles[f.id] ?? true)
+            .filter((f) => !!selectedDriveFiles[f.id])
             .map((f) => ({
               fileId: f.id,
               fileName: f.name,
@@ -4518,7 +4518,7 @@ export default function OrderDetailPage({
                         ) : (
                           <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-lg">
                             {driveDrawingsFiles.map((file) => {
-                              const isSelected = selectedDriveFiles[file.id] ?? true;
+                              const isSelected = !!selectedDriveFiles[file.id];
                               return (
                                 <label key={file.id} className="flex items-center gap-2.5 p-2 bg-white rounded border border-slate-200 text-xs font-semibold text-slate-800 hover:bg-slate-50 transition-colors cursor-pointer">
                                   <input
