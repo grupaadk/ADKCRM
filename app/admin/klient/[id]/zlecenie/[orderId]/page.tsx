@@ -1869,6 +1869,7 @@ export default function OrderDetailPage({
 
   const [sendingCrm, setSendingCrm] = useState(false);
   const [driveDrawingsFiles, setDriveDrawingsFiles] = useState<Array<{ id: string; name: string; mimeType?: string; url?: string; defaultType: "RW" | "Rysunek" }>>([]);
+  const [driveSourceFolderName, setDriveSourceFolderName] = useState<string>("");
   const [selectedDriveFiles, setSelectedDriveFiles] = useState<Record<string, { selected: boolean; fileType: "RW" | "Rysunek" }>>({});
   const [loadingDrawingsFiles, setLoadingDrawingsFiles] = useState(false);
 
@@ -1878,10 +1879,13 @@ export default function OrderDetailPage({
       if (currentSupplier?.isApiEnabled && orderIdTyped) {
         setLoadingDrawingsFiles(true);
         listDrawingsFiles({ orderId: orderIdTyped })
-          .then((files) => {
-            setDriveDrawingsFiles(files || []);
+          .then((res: any) => {
+            const files = Array.isArray(res) ? res : (res?.files || []);
+            const folderName = res?.sourceFolderName || "Rysunki konstrukcji do zamówienia";
+            setDriveDrawingsFiles(files);
+            setDriveSourceFolderName(folderName);
             const initialMap: Record<string, { selected: boolean; fileType: "RW" | "Rysunek" }> = {};
-            (files || []).forEach((f) => {
+            files.forEach((f: any) => {
               initialMap[f.id] = { selected: true, fileType: f.defaultType };
             });
             setSelectedDriveFiles(initialMap);
@@ -1889,12 +1893,14 @@ export default function OrderDetailPage({
           .catch((e) => {
             console.warn("Wczytywanie rysunków z Google Drive niedostępne lub akcja Convex oczekuje na sync:", e);
             setDriveDrawingsFiles([]);
+            setDriveSourceFolderName("");
           })
           .finally(() => setLoadingDrawingsFiles(false));
       }
     } else {
       setDriveDrawingsFiles([]);
       setSelectedDriveFiles({});
+      setDriveSourceFolderName("");
     }
   }, [editingDeliverySvc, draftDeliveryEntry?.supplierId]);
 
@@ -4488,8 +4494,17 @@ export default function OrderDetailPage({
                             <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                             </svg>
-                            Pliki z Google Drive do wysłania po API (Rysunki konstrukcji do zamówienia)
+                            Pliki z Google Drive do wysłania po API
                           </label>
+                          {driveSourceFolderName && (
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                              driveSourceFolderName === "Główny folder zlecenia" 
+                                ? "bg-amber-50 text-amber-800 border-amber-200" 
+                                : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            }`}>
+                              {driveSourceFolderName === "Główny folder zlecenia" ? "📁 Katalog główny zlecenia" : `📁 ${driveSourceFolderName}`}
+                            </span>
+                          )}
                         </div>
                         {loadingDrawingsFiles ? (
                           <div className="text-xs text-slate-500 py-2 italic flex items-center gap-2">
@@ -4498,7 +4513,7 @@ export default function OrderDetailPage({
                           </div>
                         ) : driveDrawingsFiles.length === 0 ? (
                           <div className="text-xs text-slate-400 py-2.5 px-3 italic bg-slate-50 rounded-md border border-slate-200">
-                            Brak plików w podfolderze "Rysunki konstrukcji do zamówienia" w Google Drive zlecenia.
+                            Brak plików w folderze Google Drive tego zlecenia.
                           </div>
                         ) : (
                           <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-lg">

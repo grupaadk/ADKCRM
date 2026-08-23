@@ -3582,18 +3582,18 @@ export const downloadDriveFileBase64 = action({
   },
 });
 
-// Action for listing drawings in 'Rysunki konstrukcji do zamówienia' subfolder
+// Action for listing drawings in 'Rysunki konstrukcji do zamówienia' subfolder (or fallback to root order folder)
 export const listOrderConstructionDrawingsFiles = action({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
     await requireUserIdentifierInAction(ctx);
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
-    if (!order) return [];
+    if (!order) return { files: [], sourceFolderName: "Brak zlecenia" };
 
     const orderFolderId = order.folderId;
-    if (!orderFolderId) return [];
+    if (!orderFolderId) return { files: [], sourceFolderName: "Brak folderu w Google Drive" };
 
-    // Find subfolder "Rysunki konstrukcji do zamówienia"
+    // 1. Try finding subfolder "Rysunki konstrukcji do zamówienia"
     const params = new URLSearchParams({
       q: `'${orderFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and name='Rysunki konstrukcji do zamówienia' and trashed=false`,
       supportsAllDrives: "true",
@@ -3606,11 +3606,38 @@ export const listOrderConstructionDrawingsFiles = action({
     };
 
     const targetSubfolderId = data.files?.[0]?.id;
-    if (!targetSubfolderId) return [];
 
-    // List files inside targetSubfolderId
-    const fileParams = new URLSearchParams({
-      q: `'${targetSubfolderId}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false`,
+    if (targetSubfolderId) {
+      const fileParams = new URLSearchParams({
+        q: `'${targetSubfolderId}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false`,
+        supportsAllDrives: "true",
+        includeItemsFromAllDrives: "true",
+        fields: "files(id,name,mimeType,webViewLink)",
+        pageSize: "100",
+        orderBy: "name",
+      });
+
+      const filesData = (await driveApiFetchWithRetry(ctx, `/files?${fileParams.toString()}`)) as {
+        files?: Array<{ id: string; name: string; mimeType?: string; webViewLink?: string }>;
+      };
+
+      if (filesData.files && filesData.files.length > 0) {
+        return {
+          sourceFolderName: "Rysunki konstrukcji do zamówienia",
+          files: filesData.files.map((f) => ({
+            id: f.id,
+            name: f.name,
+            mimeType: f.mimeType,
+            url: f.webViewLink,
+            defaultType: (f.name.toUpperCase().includes("RW") ? "RW" : "Rysunek") as "RW" | "Rysunek",
+          })),
+        };
+      }
+    }
+
+    // 2. Fallback to root order folder if subfolder is empty or missing
+    const rootFileParams = new URLSearchParams({
+      q: `'${orderFolderId}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false`,
       supportsAllDrives: "true",
       includeItemsFromAllDrives: "true",
       fields: "files(id,name,mimeType,webViewLink)",
@@ -3618,19 +3645,19 @@ export const listOrderConstructionDrawingsFiles = action({
       orderBy: "name",
     });
 
-    const filesData = (await driveApiFetchWithRetry(ctx, `/files?${fileParams.toString()}`)) as {
+    const rootFilesData = (await driveApiFetchWithRetry(ctx, `/files?${rootFileParams.toString()}`)) as {
       files?: Array<{ id: string; name: string; mimeType?: string; webViewLink?: string }>;
     };
 
-    return (filesData.files ?? []).map((f) => {
-      const defaultType: "RW" | "Rysunek" = f.name.toUpperCase().includes("RW") ? "RW" : "Rysunek";
-      return {
+    return {
+      sourceFolderName: "Główny folder zlecenia",
+      files: (rootFilesData.files ?? []).map((f) => ({
         id: f.id,
         name: f.name,
         mimeType: f.mimeType,
         url: f.webViewLink,
-        defaultType,
-      };
-    });
+        defaultType: (f.name.toUpperCase().includes("RW") ? "RW" : "Rysunek") as "RW" | "Rysunek",
+      })),
+    };
   },
 });
