@@ -31,6 +31,7 @@ type Row = {
   deliveryIndex: number
   serviceName: string
   supplierName: string
+  isApiEnabled?: boolean
   orderDate?: number
   confirmedDate?: number
   deliveryDate?: number
@@ -222,6 +223,7 @@ export default function SupplierOrdersPage() {
         deliveryIndex: d.index,
         serviceName: d.serviceName,
         supplierName: d.supplierName,
+        isApiEnabled: d.isApiEnabled,
         orderDate: d.orderDate,
         confirmedDate: d.confirmedDate,
         deliveryDate: d.deliveryDate,
@@ -478,6 +480,7 @@ export default function SupplierOrdersPage() {
               {!isLoading && rows.map((r) => {
                 const status = rowStatus(r, todayStart)
                 const delivery = deliveryCellDecor(r, status, todayStart)
+                const isWebhookSupplier = !!r.isApiEnabled || r.supplierName.toUpperCase().includes("ALCO") || r.supplierName.toUpperCase().includes("EXALCO")
                 
                 const isOrdered = r.orderDate != null;
                 const isConfirmed = r.confirmedDate != null;
@@ -532,7 +535,20 @@ export default function SupplierOrdersPage() {
                       />
                     </td>
                     <td>
-                      {r.confirmedDate ? (
+                      {isWebhookSupplier ? (
+                        r.confirmedDate ? (
+                          <span className="mono" style={{
+                            fontSize: 12, fontWeight: 600,
+                            color: "var(--text-strong)",
+                          }}>
+                            {fmtDate(r.confirmedDate)}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: "var(--text-mute)", fontStyle: "italic" }}>
+                            Oczekuje na webhook
+                          </span>
+                        )
+                      ) : r.confirmedDate ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                           <span className="mono" style={{
                             fontSize: 12, fontWeight: 600,
@@ -564,19 +580,34 @@ export default function SupplierOrdersPage() {
                       )}
                     </td>
                     <td>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start" }}>
-                        <input
-                          type="date"
-                          value={tsToInputValue(r.deliveryDate)}
-                          onChange={(e) => handleDateChange(r, "deliveryDate", e.target.value)}
-                          style={delivery.style}
-                        />
-                        {delivery.label && (
-                          <span style={{ fontSize: 10.5, fontWeight: 700, color: delivery.labelColor }}>
-                            {delivery.label}
+                      {isWebhookSupplier ? (
+                        r.deliveryDate ? (
+                          <span className="mono" style={{
+                            fontSize: 12, fontWeight: 600,
+                            color: "var(--text-strong)",
+                          }}>
+                            {fmtDate(r.deliveryDate)}
                           </span>
-                        )}
-                      </div>
+                        ) : (
+                          <span style={{ fontSize: 11, color: "var(--text-mute)", fontStyle: "italic" }}>
+                            Oczekuje na webhook
+                          </span>
+                        )
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start" }}>
+                          <input
+                            type="date"
+                            value={tsToInputValue(r.deliveryDate)}
+                            onChange={(e) => handleDateChange(r, "deliveryDate", e.target.value)}
+                            style={delivery.style}
+                          />
+                          {delivery.label && (
+                            <span style={{ fontSize: 10.5, fontWeight: 700, color: delivery.labelColor }}>
+                              {delivery.label}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td>
                       {r.receivedDate ? (

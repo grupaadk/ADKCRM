@@ -1863,8 +1863,40 @@ export default function OrderDetailPage({
   }
 
   const sendCrmOrder = useAction(api.crmIntegration.sendDeliveryOrderToCrm);
+  const sendCrmOrderWithFiles = useAction(api.crmIntegration.sendDeliveryOrderWithFilesToCrm);
   const addCrmNote = useAction(api.crmIntegration.addNoteToCrmOrder);
+  const listDrawingsFiles = useAction(api.googleDrive.listOrderConstructionDrawingsFiles);
+
   const [sendingCrm, setSendingCrm] = useState(false);
+  const [driveDrawingsFiles, setDriveDrawingsFiles] = useState<Array<{ id: string; name: string; mimeType?: string; url?: string; defaultType: "RW" | "Rysunek" }>>([]);
+  const [selectedDriveFiles, setSelectedDriveFiles] = useState<Record<string, { selected: boolean; fileType: "RW" | "Rysunek" }>>({});
+  const [loadingDrawingsFiles, setLoadingDrawingsFiles] = useState(false);
+
+  useEffect(() => {
+    if (editingDeliverySvc && draftDeliveryEntry) {
+      const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+      if (currentSupplier?.isApiEnabled && orderIdTyped) {
+        setLoadingDrawingsFiles(true);
+        listDrawingsFiles({ orderId: orderIdTyped })
+          .then((files) => {
+            setDriveDrawingsFiles(files || []);
+            const initialMap: Record<string, { selected: boolean; fileType: "RW" | "Rysunek" }> = {};
+            (files || []).forEach((f) => {
+              initialMap[f.id] = { selected: true, fileType: f.defaultType };
+            });
+            setSelectedDriveFiles(initialMap);
+          })
+          .catch((e) => {
+            console.warn("Wczytywanie rysunków z Google Drive niedostępne lub akcja Convex oczekuje na sync:", e);
+            setDriveDrawingsFiles([]);
+          })
+          .finally(() => setLoadingDrawingsFiles(false));
+      }
+    } else {
+      setDriveDrawingsFiles([]);
+      setSelectedDriveFiles({});
+    }
+  }, [editingDeliverySvc, draftDeliveryEntry?.supplierId]);
 
   async function saveDelivery() {
     if (!draftDeliveryEntry) return;
@@ -1884,8 +1916,24 @@ export default function OrderDetailPage({
       try {
         setSendingCrm(true);
         if (!draftDeliveryEntry.externalOrderNumber) {
-          // Jeśli zamówienie u dostawcy nie zostało jeszcze utworzone w Exalco — stwórz je z notatką
-          await sendCrmOrder({ orderId: orderIdTyped, deliveryIndex: targetIndex });
+          const filesToUpload = driveDrawingsFiles
+            .filter((f) => selectedDriveFiles[f.id]?.selected)
+            .map((f) => ({
+              fileId: f.id,
+              fileName: f.name,
+              fileType: selectedDriveFiles[f.id]?.fileType || f.defaultType,
+            }));
+
+          try {
+            await sendCrmOrderWithFiles({
+              orderId: orderIdTyped,
+              deliveryIndex: targetIndex,
+              filesToUpload: filesToUpload.length > 0 ? filesToUpload : undefined,
+            });
+          } catch (errWithFiles) {
+            console.warn("sendCrmOrderWithFiles w trakcie synchronizacji, używam sendCrmOrder:", errWithFiles);
+            await sendCrmOrder({ orderId: orderIdTyped, deliveryIndex: targetIndex });
+          }
         } else if (draftDeliveryEntry.notes?.trim()) {
           // Jeśli zamówienie istnieje w Exalco — przekaż notatkę przez API add-note
           await addCrmNote({
@@ -4129,6 +4177,7 @@ export default function OrderDetailPage({
                             <Fragment key={svcName}>
                               {assigned.map((d, i) => {
                                 const supplier = allSuppliers.find((s) => s._id === d.supplierId);
+                                const isWebhookSupplier = !!supplier?.isApiEnabled || supplier?.name?.toUpperCase().includes("ALCO") || supplier?.name?.toUpperCase().includes("EXALCO");
                                 const status = deliveryStatusBadge(d);
                                 const deliveryIndex = (order.serviceDeliveries ?? []).findIndex((x) => x === d);
 
@@ -4189,19 +4238,30 @@ export default function OrderDetailPage({
                                       />
                                     </TableCell>
                                     <TableCell className="whitespace-nowrap" style={{ padding: "14px 16px" }}>
-                                      <OdbiorMilestone
-                                        tone="#7c3aed"
-                                        soft="#f5f3ff"
-                                        border="#ddd6fe"
-                                        date={d.confirmedDate}
-                                        fmt={fmtLocalDate}
-                                        onMark={() => markConfirmed(deliveryIndex)}
-                                        onClear={() => clearConfirmed(deliveryIndex)}
-                                        label="Potwierdzenie"
-                                        buttonLabel="Potwierdź"
-                                        titleClear="Usuń datę potwierdzenia"
-                                        titleMark="Potwierdź otrzymanie zamówienia od dostawcy"
-                                      />
+                                      {isWebhookSupplier ? (
+                                        <MilestonePill
+                                          label="Potwierdzenie"
+                                          tone="#7c3aed"
+                                          soft="#f5f3ff"
+                                          border="#ddd6fe"
+                                          date={d.confirmedDate}
+                                          fmt={fmtLocalDate}
+                                        />
+                                      ) : (
+                                        <OdbiorMilestone
+                                          tone="#7c3aed"
+                                          soft="#f5f3ff"
+                                          border="#ddd6fe"
+                                          date={d.confirmedDate}
+                                          fmt={fmtLocalDate}
+                                          onMark={() => markConfirmed(deliveryIndex)}
+                                          onClear={() => clearConfirmed(deliveryIndex)}
+                                          label="Potwierdzenie"
+                                          buttonLabel="Potwierdź"
+                                          titleClear="Usuń datę potwierdzenia"
+                                          titleMark="Potwierdź otrzymanie zamówienia od dostawcy"
+                                        />
+                                      )}
                                     </TableCell>
                                     <TableCell className="whitespace-nowrap" style={{ padding: "14px 16px" }}>
                                       <MilestonePill
@@ -4347,6 +4407,9 @@ export default function OrderDetailPage({
                             {DELIVERY_MILESTONES.map((m) => {
                               const val = draftDeliveryEntry[m.key];
                               const isSet = val != null;
+                              const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+                              const isWebhookSupplier = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("ALCO") || currentSupplier?.name?.toUpperCase().includes("EXALCO");
+                              const isLockedByWebhook = isWebhookSupplier && (m.key === "confirmedDate" || m.key === "deliveryDate");
 
                               return (
                                 <tr key={m.key} className="hover:bg-slate-50/50 transition-colors">
@@ -4360,12 +4423,14 @@ export default function OrderDetailPage({
                                     <input
                                       type="date"
                                       value={tsToDateStr(val)}
+                                      disabled={isLockedByWebhook}
+                                      title={isLockedByWebhook ? "Data pobierana automatycznie z webhooka (ALCO)" : undefined}
                                       onChange={(e) => updateDraftSingleField(m.key, dateStrToTs(e.target.value))}
-                                      className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                      className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                                     />
                                   </td>
                                   <td className="py-2.5 px-3.5 text-right align-middle">
-                                    {isSet ? (
+                                    {isSet && !isLockedByWebhook ? (
                                       <button
                                         type="button"
                                         onClick={() => updateDraftSingleField(m.key, undefined)}
@@ -4414,6 +4479,69 @@ export default function OrderDetailPage({
                         className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm transition-[height] duration-150 overflow-hidden resize-none"
                       />
                     </div>
+
+                    {/* Pliki z Google Drive dla dostawcy z API (np. ALCO) */}
+                    {currentSupplier?.isApiEnabled && !draftDeliveryEntry.externalOrderNumber && (
+                      <div className="flex flex-col gap-2 pt-3 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                            </svg>
+                            Pliki z Google Drive do wysłania po API (Rysunki konstrukcji do zamówienia)
+                          </label>
+                        </div>
+                        {loadingDrawingsFiles ? (
+                          <div className="text-xs text-slate-500 py-2 italic flex items-center gap-2">
+                            <span className="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                            Wczytywanie plików z Google Drive…
+                          </div>
+                        ) : driveDrawingsFiles.length === 0 ? (
+                          <div className="text-xs text-slate-400 py-2.5 px-3 italic bg-slate-50 rounded-md border border-slate-200">
+                            Brak plików w podfolderze "Rysunki konstrukcji do zamówienia" w Google Drive zlecenia.
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                            {driveDrawingsFiles.map((file) => {
+                              const fileState = selectedDriveFiles[file.id] || { selected: false, fileType: file.defaultType };
+                              return (
+                                <div key={file.id} className="flex items-center justify-between p-2 bg-white rounded border border-slate-200 text-xs">
+                                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800 flex-1 min-w-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={fileState.selected}
+                                      onChange={(e) => {
+                                        setSelectedDriveFiles((prev) => ({
+                                          ...prev,
+                                          [file.id]: { selected: e.target.checked, fileType: fileState.fileType },
+                                        }));
+                                      }}
+                                      className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                                    />
+                                    <span className="truncate font-semibold" title={file.name}>{file.name}</span>
+                                  </label>
+                                  <div className="flex items-center gap-2 ml-2">
+                                    <select
+                                      value={fileState.fileType}
+                                      onChange={(e) => {
+                                        setSelectedDriveFiles((prev) => ({
+                                          ...prev,
+                                          [file.id]: { selected: fileState.selected, fileType: e.target.value as "RW" | "Rysunek" },
+                                        }));
+                                      }}
+                                      className="text-xs border border-slate-300 rounded px-2 py-0.5 bg-white text-slate-700 font-semibold focus:outline-none focus:border-amber-500"
+                                    >
+                                      <option value="RW">RW</option>
+                                      <option value="Rysunek">Rysunek</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })()}

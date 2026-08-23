@@ -1230,16 +1230,16 @@ export const listSupplierOrders = query({
 
           const deliveries = await Promise.all(
             (order.serviceDeliveries ?? []).map(async (d, index) => {
-              let supplierName = supplierCache.get(d.supplierId as string);
-              if (!supplierName) {
-                const supplier = await ctx.db.get(d.supplierId);
-                supplierName = supplier?.name ?? "Nieznany";
-                supplierCache.set(d.supplierId as string, supplierName);
-              }
+              const supplier = await ctx.db.get(d.supplierId);
+              const supplierName = supplier?.name ?? "Nieznany";
+              const isApiEnabled = !!supplier?.isApiEnabled;
+
               return {
                 index, // pozycja w order.serviceDeliveries — identyfikator do edycji inline
                 serviceName: d.serviceName,
+                supplierId: d.supplierId,
                 supplierName,
+                isApiEnabled,
                 orderDate: d.orderDate,
                 confirmedDate: d.confirmedDate,
                 deliveryDate: d.deliveryDate,

@@ -3553,3 +3553,84 @@ export const checkFolderInfo = action({
     return data;
   },
 });
+
+export const downloadDriveFileBase64 = action({
+  args: { fileId: v.string() },
+  handler: async (ctx, args) => {
+    await requireUserIdentifierInAction(ctx);
+    let connection = await getAuthorizedConnection(ctx);
+
+    let res = await fetch(`${DRIVE_API_BASE}/files/${args.fileId}?alt=media&supportsAllDrives=true`, {
+      headers: { Authorization: `Bearer ${connection.accessToken}` },
+    });
+
+    if (res.status === 401) {
+      connection = await getAuthorizedConnection(ctx, { forceRefresh: true });
+      res = await fetch(`${DRIVE_API_BASE}/files/${args.fileId}?alt=media&supportsAllDrives=true`, {
+        headers: { Authorization: `Bearer ${connection.accessToken}` },
+      });
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Błąd pobierania pliku z Google Drive (${res.status}): ${errText}`);
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    return { base64 };
+  },
+});
+
+// Action for listing drawings in 'Rysunki konstrukcji do zamówienia' subfolder
+export const listOrderConstructionDrawingsFiles = action({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    await requireUserIdentifierInAction(ctx);
+    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+    if (!order) return [];
+
+    const orderFolderId = order.clientFolderId;
+    if (!orderFolderId) return [];
+
+    // Find subfolder "Rysunki konstrukcji do zamówienia"
+    const params = new URLSearchParams({
+      q: `'${orderFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and name='Rysunki konstrukcji do zamówienia' and trashed=false`,
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+      fields: "files(id,name)",
+    });
+
+    const data = (await driveApiFetchWithRetry(ctx, `/files?${params.toString()}`)) as {
+      files?: Array<{ id: string; name: string }>;
+    };
+
+    const targetSubfolderId = data.files?.[0]?.id;
+    if (!targetSubfolderId) return [];
+
+    // List files inside targetSubfolderId
+    const fileParams = new URLSearchParams({
+      q: `'${targetSubfolderId}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false`,
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+      fields: "files(id,name,mimeType,webViewLink)",
+      pageSize: "100",
+      orderBy: "name",
+    });
+
+    const filesData = (await driveApiFetchWithRetry(ctx, `/files?${fileParams.toString()}`)) as {
+      files?: Array<{ id: string; name: string; mimeType?: string; webViewLink?: string }>;
+    };
+
+    return (filesData.files ?? []).map((f) => {
+      const defaultType: "RW" | "Rysunek" = f.name.toUpperCase().includes("RW") ? "RW" : "Rysunek";
+      return {
+        id: f.id,
+        name: f.name,
+        mimeType: f.mimeType,
+        url: f.webViewLink,
+        defaultType,
+      };
+    });
+  },
+});

@@ -216,3 +216,50 @@ export const uploadFileToCrmOrder = action({
     return await response.json();
   },
 });
+
+// Action for sending delivery order with attached files to CRM
+export const sendDeliveryOrderWithFilesToCrm = action({
+  args: {
+    orderId: v.id("orders"),
+    deliveryIndex: v.number(),
+    filesToUpload: v.optional(
+      v.array(
+        v.object({
+          fileId: v.string(),
+          fileName: v.string(),
+          fileType: v.union(v.literal("RW"), v.literal("Rysunek")),
+        })
+      )
+    ),
+  },
+  handler: async (ctx, args): Promise<unknown> => {
+    // 1. Send delivery order to CRM
+    const result = await ctx.runAction(api.crmIntegration.sendDeliveryOrderToCrm, {
+      orderId: args.orderId,
+      deliveryIndex: args.deliveryIndex,
+    });
+
+    // 2. Upload selected files sequentially if provided
+    if (args.filesToUpload && args.filesToUpload.length > 0) {
+      for (const fileItem of args.filesToUpload) {
+        try {
+          const downloaded = await ctx.runAction(api.googleDrive.downloadDriveFileBase64, {
+            fileId: fileItem.fileId,
+          });
+
+          await ctx.runAction(api.crmIntegration.uploadFileToCrmOrder, {
+            orderId: args.orderId,
+            deliveryIndex: args.deliveryIndex,
+            fileType: fileItem.fileType,
+            fileName: fileItem.fileName,
+            fileBase64: downloaded.base64,
+          });
+        } catch (err) {
+          console.error(`Błąd przesyłania pliku ${fileItem.fileName} do CRM:`, err);
+        }
+      }
+    }
+
+    return result;
+  },
+});
