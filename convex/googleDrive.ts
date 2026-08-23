@@ -3557,7 +3557,6 @@ export const checkFolderInfo = action({
 export const downloadDriveFileBase64 = action({
   args: { fileId: v.string() },
   handler: async (ctx, args) => {
-    await requireUserIdentifierInAction(ctx);
     let connection = await getAuthorizedConnection(ctx);
 
     let res = await fetch(`${DRIVE_API_BASE}/files/${args.fileId}?alt=media&supportsAllDrives=true`, {
