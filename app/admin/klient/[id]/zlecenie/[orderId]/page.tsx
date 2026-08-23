@@ -1866,8 +1866,12 @@ export default function OrderDetailPage({
   const sendCrmOrder = useAction(api.crmIntegration.sendDeliveryOrderToCrm);
   const sendCrmOrderWithFiles = useAction(api.crmIntegration.sendDeliveryOrderWithFilesToCrm);
   const addCrmNote = useAction(api.crmIntegration.addNoteToCrmOrder);
+  const uploadFileToCrm = useAction(api.crmIntegration.uploadFileToCrmOrder);
+  const downloadDriveBase64 = useAction(api.googleDrive.downloadDriveFileBase64);
 
+  const [savingDelivery, setSavingDelivery] = useState(false);
   const [sendingCrm, setSendingCrm] = useState(false);
+  const [sendingFilesCrm, setSendingFilesCrm] = useState(false);
   const [selectedDriveFiles, setSelectedDriveFiles] = useState<Record<string, SelectedFileItem>>({});
 
   useEffect(() => {
@@ -1877,21 +1881,22 @@ export default function OrderDetailPage({
   }, [editingDeliverySvc, draftDeliveryEntry?.supplierId]);
 
   async function saveDelivery() {
-    if (!draftDeliveryEntry) return;
-    const currentDeliveries = [...(order?.serviceDeliveries ?? [])];
-    let targetIndex = editingDeliveryIndex;
-    if (targetIndex !== null && targetIndex >= 0) {
-      currentDeliveries[targetIndex] = draftDeliveryEntry;
-    } else {
-      targetIndex = currentDeliveries.length;
-      currentDeliveries.push(draftDeliveryEntry);
-    }
-    await updateOrder({ orderId: orderIdTyped, serviceDeliveries: currentDeliveries });
+    if (!draftDeliveryEntry || savingDelivery || sendingCrm) return;
+    try {
+      setSavingDelivery(true);
+      const currentDeliveries = [...(order?.serviceDeliveries ?? [])];
+      let targetIndex = editingDeliveryIndex;
+      if (targetIndex !== null && targetIndex >= 0) {
+        currentDeliveries[targetIndex] = draftDeliveryEntry;
+      } else {
+        targetIndex = currentDeliveries.length;
+        currentDeliveries.push(draftDeliveryEntry);
+      }
+      await updateOrder({ orderId: orderIdTyped, serviceDeliveries: currentDeliveries });
 
-    // Automatyczne wywołanie integracji CRM jeśli dostawca ma aktywne API
-    const supplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
-    if (supplier?.isApiEnabled && targetIndex !== null && targetIndex >= 0) {
-      try {
+      // Automatyczne wywołanie integracji CRM jeśli dostawca ma aktywne API
+      const supplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+      if (supplier?.isApiEnabled && targetIndex !== null && targetIndex >= 0) {
         setSendingCrm(true);
         if (!draftDeliveryEntry.externalOrderNumber) {
           const filesToUpload = Object.values(selectedDriveFiles).map((f) => ({
@@ -1918,14 +1923,55 @@ export default function OrderDetailPage({
             noteText: draftDeliveryEntry.notes.trim(),
           });
         }
-      } catch (err) {
-        console.error("Błąd podczas wysyłania do CRM:", err);
-      } finally {
-        setSendingCrm(false);
       }
+
+      cancelEditDelivery();
+    } catch (err) {
+      console.error("Błąd podczas zapisywania zamówienia:", err);
+      alert(err instanceof Error ? err.message : "Wystąpił błąd podczas zapisywania.");
+    } finally {
+      setSavingDelivery(false);
+      setSendingCrm(false);
+    }
+  }
+
+  async function sendSelectedFilesToExistingOrder() {
+    if (!draftDeliveryEntry || editingDeliveryIndex === null || savingDelivery || sendingFilesCrm) return;
+    const fileList = Object.values(selectedDriveFiles);
+    if (fileList.length === 0) {
+      alert("Proszę zaznaczyć przynajmniej jeden plik do przesłania.");
+      return;
     }
 
-    cancelEditDelivery();
+    try {
+      setSendingFilesCrm(true);
+      const filesToUpload = fileList.map((f) => ({
+        fileId: f.id,
+        fileName: f.name,
+        fileType: (f.name.toUpperCase().includes("RW") ? "RW" : "Rysunek") as "RW" | "Rysunek",
+      }));
+
+      let count = 0;
+      for (const fileItem of filesToUpload) {
+        const downloaded = await downloadDriveBase64({ fileId: fileItem.fileId });
+        await uploadFileToCrm({
+          orderId: orderIdTyped,
+          deliveryIndex: editingDeliveryIndex,
+          fileType: fileItem.fileType,
+          fileName: fileItem.fileName,
+          fileBase64: downloaded.base64,
+          externalOrderNumber: draftDeliveryEntry.externalOrderNumber,
+        });
+        count++;
+      }
+      alert(`Pomyślnie przesłano ${count} plików do zlecenia ${draftDeliveryEntry.externalOrderNumber} w Exalco!`);
+      setSelectedDriveFiles({});
+    } catch (err: any) {
+      console.error("Błąd przesyłania plików:", err);
+      alert(`Błąd podczas przesyłania plików: ${err.message || err}`);
+    } finally {
+      setSendingFilesCrm(false);
+    }
   }
 
   async function deleteDeliveryEntry(indexToDelete: number) {
@@ -4315,11 +4361,26 @@ export default function OrderDetailPage({
                   </button>
                 ) : <div />}
                 <div className="flex items-center gap-3">
-                  <button type="button" onClick={cancelEditDelivery} className="btn">
+                  <button
+                    type="button"
+                    onClick={cancelEditDelivery}
+                    className="btn"
+                    disabled={savingDelivery || sendingCrm || sendingFilesCrm}
+                  >
                     Anuluj
                   </button>
-                  <button type="button" onClick={saveDelivery} className="btn primary">
-                    Zapisz zamówienie
+                  <button
+                    type="button"
+                    onClick={saveDelivery}
+                    className="btn primary"
+                    disabled={savingDelivery || sendingCrm || sendingFilesCrm}
+                  >
+                    {(savingDelivery || sendingCrm) ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Zapisywanie...
+                      </span>
+                    ) : "Zapisz zamówienie"}
                   </button>
                 </div>
               </div>
@@ -4457,13 +4518,37 @@ export default function OrderDetailPage({
                     </div>
 
                     {/* Przeglądarka plików Google Drive do przesyłania po API */}
-                    {currentSupplier?.isApiEnabled && !draftDeliveryEntry.externalOrderNumber && (
-                      <OrderDriveFilePicker
-                        orderId={orderIdTyped}
-                        rootFolderId={order?.folderId}
-                        selectedFiles={selectedDriveFiles}
-                        onSelectionChange={setSelectedDriveFiles}
-                      />
+                    {currentSupplier?.isApiEnabled && (
+                      <div className="flex flex-col gap-3">
+                        <OrderDriveFilePicker
+                          orderId={orderIdTyped}
+                          rootFolderId={order?.folderId}
+                          selectedFiles={selectedDriveFiles}
+                          onSelectionChange={setSelectedDriveFiles}
+                        />
+                        {draftDeliveryEntry.externalOrderNumber && Object.keys(selectedDriveFiles).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={sendSelectedFilesToExistingOrder}
+                            disabled={sendingFilesCrm}
+                            className="btn primary text-xs w-full py-2 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm"
+                          >
+                            {sendingFilesCrm ? (
+                              <>
+                                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Wysyłanie plików do zlecenia w Exalco…
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                </svg>
+                                Wyślij zaznaczone pliki ({Object.keys(selectedDriveFiles).length}) do zlecenia w Exalco
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
