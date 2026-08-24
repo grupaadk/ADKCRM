@@ -468,14 +468,21 @@ export default function NowaSzansaPage() {
                           key={service._id}
                           type="button"
                           onClick={() => handleServiceToggle(service.name)}
-                          className={`relative flex flex-col items-center justify-center gap-2.5 px-3 py-5 rounded-2xl border-2 text-center transition-all duration-150 focus:outline-none ${
+                          className={`relative flex items-center justify-between gap-3 px-4 py-4 rounded-xl border-2 text-left transition-all duration-150 focus:outline-none ${
                             selected
-                              ? "border-[#3DAAB3] bg-[#3DAAB3]/8 shadow-md shadow-[#3DAAB3]/15"
-                              : "border-gray-200 bg-white hover:border-[#3DAAB3]/40 hover:bg-[#3DAAB3]/3 hover:shadow-sm"
+                              ? "border-[#3DAAB3] bg-[#3DAAB3]/8 shadow-sm"
+                              : "border-gray-200 bg-white hover:border-[#3DAAB3]/40 hover:bg-[#3DAAB3]/3"
                           }`}
                         >
+                          {/* Name */}
+                          <span className={`text-sm font-semibold leading-tight transition-colors ${
+                            selected ? "text-[#3DAAB3]" : "text-gray-800"
+                          }`}>
+                            {service.name}
+                          </span>
+
                           {/* Check badge */}
-                          <div className={`absolute top-2.5 right-2.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                             selected ? "border-[#3DAAB3] bg-[#3DAAB3]" : "border-gray-200 bg-white"
                           }`}>
                             {selected && (
@@ -484,22 +491,6 @@ export default function NowaSzansaPage() {
                               </svg>
                             )}
                           </div>
-
-                          {/* Icon */}
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
-                            selected
-                              ? "bg-[#3DAAB3] text-white"
-                              : "bg-gray-100 text-gray-500"
-                          }`}>
-                            <ServiceIcon name={service.icon} className="h-6 w-6" />
-                          </div>
-
-                          {/* Name */}
-                          <span className={`text-xs font-semibold leading-tight transition-colors ${
-                            selected ? "text-[#3DAAB3]" : "text-gray-700"
-                          }`}>
-                            {service.name}
-                          </span>
                         </button>
                       );
                     })}
