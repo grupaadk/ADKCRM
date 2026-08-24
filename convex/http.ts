@@ -45,8 +45,7 @@ http.route({
   handler: gmailOauthCallback,
 });
 
-import { websiteWebhook, websiteWebhookOptions } from "./websiteWebhook";
-import { publicServices, publicServicesOptions } from "./publicApi";
+import { publicServices, publicServicesOptions, publicGenerateUploadUrl, publicGenerateUploadUrlOptions } from "./publicApi";
 
 http.route({
   path: "/api/webhooks/website",
@@ -71,6 +70,19 @@ http.route({
   path: "/api/public/services",
   method: "OPTIONS",
   handler: publicServicesOptions,
+});
+
+// Publiczny endpoint — generowanie URL do uploadu plików
+http.route({
+  path: "/api/public/generate-upload-url",
+  method: "POST",
+  handler: publicGenerateUploadUrl,
+});
+
+http.route({
+  path: "/api/public/generate-upload-url",
+  method: "OPTIONS",
+  handler: publicGenerateUploadUrlOptions,
 });
 
 import { exalcoWebhook, exalcoWebhookOptions } from "./exalcoWebhook";

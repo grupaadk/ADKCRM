@@ -38,6 +38,7 @@ export const websiteWebhook = httpAction(async (ctx, request) => {
     stateRegion,
     services,
     comment,
+    projectFiles,
   } = payload as {
     firstName?: string;
     lastName?: string;
@@ -50,6 +51,7 @@ export const websiteWebhook = httpAction(async (ctx, request) => {
     stateRegion?: string;
     services?: string[];
     comment?: string;
+    projectFiles?: string;
   };
 
   if (!firstName && !lastName) {
@@ -85,6 +87,7 @@ export const websiteWebhook = httpAction(async (ctx, request) => {
     city: city ?? undefined,
     services: Array.isArray(services) ? services : [],
     comment: comment ?? undefined,
+    projectFiles: projectFiles ?? undefined,
     submissionId,
   });
 
