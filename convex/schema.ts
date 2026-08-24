@@ -501,6 +501,7 @@ export default defineSchema({
   services: defineTable({
     name: v.string(),
     isActive: v.boolean(),
+    showOnWebsite: v.optional(v.boolean()),
     sortOrder: v.number(),
     description: v.optional(v.string()),
     icon: v.optional(v.string()),

@@ -19,11 +19,12 @@ export const list = query({
 export const listActive = query({
   args: {},
   handler: async (ctx) => {
-    return ctx.db
+    const list = await ctx.db
       .query("services")
       .withIndex("by_active_sort", (q) => q.eq("isActive", true))
       .order("asc")
       .collect();
+    return list.filter((s) => s.showOnWebsite !== false);
   },
 });
 
@@ -32,6 +33,7 @@ export const create = mutation({
     name: v.string(),
     description: v.optional(v.string()),
     icon: v.optional(v.string()),
+    showOnWebsite: v.optional(v.boolean()),
     defaultTasks: v.optional(v.array(v.object({
       title: v.string(),
       daysToComplete: v.optional(v.number()),
@@ -55,6 +57,7 @@ export const create = mutation({
     return ctx.db.insert("services", {
       name: args.name,
       isActive: true,
+      showOnWebsite: args.showOnWebsite ?? true,
       sortOrder: (last?.sortOrder ?? 0) + 1,
       description: args.description,
       icon: args.icon,
@@ -70,6 +73,7 @@ export const update = mutation({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     icon: v.optional(v.string()),
+    showOnWebsite: v.optional(v.boolean()),
     defaultTasks: v.optional(v.array(v.object({
       title: v.string(),
       daysToComplete: v.optional(v.number()),
@@ -94,6 +98,16 @@ export const toggleActive = mutation({
     const existing = await ctx.db.get(args.id);
     if (!existing) throw new Error("Nie znaleziono usługi");
     await ctx.db.patch(args.id, { isActive: !existing.isActive });
+  },
+});
+
+export const toggleShowOnWebsite = mutation({
+  args: { id: v.id("services") },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Nie znaleziono usługi");
+    const current = existing.showOnWebsite ?? true;
+    await ctx.db.patch(args.id, { showOnWebsite: !current });
   },
 });
 

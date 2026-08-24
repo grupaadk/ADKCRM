@@ -3081,13 +3081,14 @@ function ServicesTab() {
   const createService = useMutation(api.services.create);
   const updateService = useMutation(api.services.update);
   const toggleActive = useMutation(api.services.toggleActive);
+  const toggleShowOnWebsite = useMutation(api.services.toggleShowOnWebsite);
   const removeService = useMutation(api.services.remove);
   const reorderService = useMutation(api.services.reorder);
   const assignSuppliers = useMutation(api.services.assignSuppliers);
   const seedServices = useMutation(api.services.seed);
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", icon: "Settings" });
+  const [form, setForm] = useState({ name: "", description: "", icon: "Settings", showOnWebsite: true });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -3112,9 +3113,10 @@ function ServicesTab() {
         name: form.name, 
         description: form.description || undefined, 
         icon: form.icon || undefined,
+        showOnWebsite: form.showOnWebsite,
         defaultTasks: [] 
       });
-      setForm({ name: "", description: "", icon: "Settings" });
+      setForm({ name: "", description: "", icon: "Settings", showOnWebsite: true });
       setShowForm(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Błąd zapisu");
@@ -3123,12 +3125,16 @@ function ServicesTab() {
     }
   }
 
-  async function handleSave(id: Id<"services">, data: { name?: string; description?: string; icon?: string; defaultTasks?: { title: string; daysToComplete?: number }[] }) {
+  async function handleSave(id: Id<"services">, data: { name?: string; description?: string; icon?: string; showOnWebsite?: boolean; defaultTasks?: { title: string; daysToComplete?: number }[] }) {
     await updateService({ id, ...data });
   }
 
   async function handleToggle(id: Id<"services">) {
     await toggleActive({ id });
+  }
+
+  async function handleToggleWebsite(id: Id<"services">) {
+    await toggleShowOnWebsite({ id });
   }
 
   async function handleDelete(id: Id<"services">) {
@@ -3165,7 +3171,7 @@ function ServicesTab() {
         <div>
           <h2 className="text-base font-semibold text-slate-900">Usługi</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            Lista usług oferowanych przez firmę. Zarządzaj nazwami i przypisanymi dostawcami.
+            Lista usług oferowanych przez firmę. Zarządzaj nazwami, przypisanymi dostawcami oraz widocznością na stronie WWW.
           </p>
         </div>
         {!showForm && (
@@ -3201,6 +3207,17 @@ function ServicesTab() {
                 placeholder="opcjonalny opis"
               />
             </div>
+            <div className="col-span-4 flex items-center gap-2 pt-1">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={form.showOnWebsite}
+                  onChange={(e) => setForm((f) => ({ ...f, showOnWebsite: e.target.checked }))}
+                  className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 h-4 w-4"
+                />
+                <span>Pokaż na stronie www (formularz wyceny)</span>
+              </label>
+            </div>
             <div className="col-span-4">
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Ikonka</label>
               <div className="flex flex-wrap gap-1.5 rounded-lg border border-slate-200 p-2 bg-white max-h-24 overflow-y-auto">
@@ -3227,7 +3244,7 @@ function ServicesTab() {
               className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
               Dodaj
             </button>
-            <button type="button" onClick={() => { setShowForm(false); setForm({ name: "", description: "", icon: "Settings" }); setError(null); }}
+            <button type="button" onClick={() => { setShowForm(false); setForm({ name: "", description: "", icon: "Settings", showOnWebsite: true }); setError(null); }}
               className="rounded-lg border border-slate-300 px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
               Anuluj
             </button>
@@ -3249,6 +3266,7 @@ function ServicesTab() {
                 <th className="w-8 px-2 py-3" />
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Usługa</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Dostawcy</th>
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">Pokaż na WWW</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
                 <th className="w-32" />
               </tr>
@@ -3264,6 +3282,7 @@ function ServicesTab() {
                     allSuppliers={allSuppliers}
                     onSave={handleSave}
                     onToggle={handleToggle}
+                    onToggleWebsite={handleToggleWebsite}
                     onDelete={handleDelete}
                     onAssignSuppliers={handleAssignSuppliers}
                     onMoveUp={handleMoveUp}
@@ -3284,6 +3303,7 @@ function ServicesRow({
   allSuppliers,
   onSave,
   onToggle,
+  onToggleWebsite,
   onDelete,
   onAssignSuppliers,
   onMoveUp,
@@ -3296,13 +3316,15 @@ function ServicesRow({
     icon?: string;
     supplierIds?: Id<"suppliers">[];
     isActive: boolean;
+    showOnWebsite?: boolean;
     sortOrder: number;
     defaultTasks?: { title: string; daysToComplete?: number }[];
   };
   supplierMap: Map<string, string>;
   allSuppliers: { _id: Id<"suppliers">; name: string }[];
-  onSave: (id: Id<"services">, data: { name?: string; description?: string; icon?: string; defaultTasks?: { title: string; daysToComplete?: number }[] }) => Promise<void>;
+  onSave: (id: Id<"services">, data: { name?: string; description?: string; icon?: string; showOnWebsite?: boolean; defaultTasks?: { title: string; daysToComplete?: number }[] }) => Promise<void>;
   onToggle: (id: Id<"services">) => Promise<void>;
+  onToggleWebsite: (id: Id<"services">) => Promise<void>;
   onDelete: (id: Id<"services">) => Promise<void>;
   onAssignSuppliers: (id: Id<"services">, supplierIds: Id<"suppliers">[]) => Promise<void>;
   onMoveUp: (id: Id<"services">, sortOrder: number) => Promise<void>;
@@ -3313,6 +3335,7 @@ function ServicesRow({
     name: service.name,
     description: service.description ?? "",
     icon: service.icon ?? "Settings",
+    showOnWebsite: service.showOnWebsite ?? true,
     supplierIds: service.supplierIds ?? [] as Id<"suppliers">[],
     defaultTasks: service.defaultTasks ?? [],
   });
@@ -3327,6 +3350,7 @@ function ServicesRow({
         name: draft.name, 
         description: draft.description || undefined, 
         icon: draft.icon || undefined,
+        showOnWebsite: draft.showOnWebsite,
         defaultTasks: draft.defaultTasks 
       });
       await onAssignSuppliers(service._id, draft.supplierIds);
@@ -3354,7 +3378,7 @@ function ServicesRow({
   if (editing) {
     return (
       <tr className="bg-blue-50">
-        <td className="px-4 py-3" colSpan={5}>
+        <td className="px-4 py-3" colSpan={6}>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -3373,6 +3397,17 @@ function ServicesRow({
                   onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
                 />
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={draft.showOnWebsite}
+                  onChange={(e) => setDraft((d) => ({ ...d, showOnWebsite: e.target.checked }))}
+                  className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 h-4 w-4"
+                />
+                <span>Pokaż na stronie www (formularz wyceny)</span>
+              </label>
             </div>
             <div>
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Ikonka</label>
@@ -3505,6 +3540,8 @@ function ServicesRow({
     );
   }
 
+  const isShown = service.showOnWebsite !== false;
+
   return (
     <tr className={`group border-b border-slate-100 hover:bg-slate-50 ${!service.isActive ? "opacity-50" : ""}`}>
       <td className="px-2 py-3">
@@ -3552,6 +3589,19 @@ function ServicesRow({
         ) : (
           <span className="text-xs text-slate-400">—</span>
         )}
+      </td>
+      <td className="px-4 py-3 text-center">
+        <button
+          onClick={() => onToggleWebsite(service._id)}
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border cursor-pointer transition-all ${
+            isShown
+              ? "bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100"
+              : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"
+          }`}
+          title="Kliknij, aby zmienić widoczność na formularzu WWW"
+        >
+          <span>{isShown ? "✓ Pokaż" : "✕ Ukryj"}</span>
+        </button>
       </td>
       <td className="px-4 py-3">
         <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${service.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
