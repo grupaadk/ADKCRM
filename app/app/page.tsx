@@ -456,19 +456,48 @@ export default function AppPwaPage() {
       maxSizeMB: 0.5,
       maxWidthOrHeight: 1600,
       useWebWorker: true,
-      exifOrientation: true // kluczowe dla telefonów: automatycznie obraca poziome zdjęcia na podstawie czujnika
+      exifOrientation: true // Wymusza odczytanie EXIF
     };
     
     const compressedFile = await imageCompression(file, options);
-    const dataUrl = await imageCompression.getDataUrlFromFile(compressedFile);
-
+    
     return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        resolve({ dataUrl, width: img.width, height: img.height });
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+
+          // Jeśli po kompresji (i rzekomej naprawie EXIF) obraz wciąż jest poziomy (horyzontalny),
+          // a chcemy go wstawić na pionową kartkę A4 - wymuszamy jego obrót o 90 stopni, 
+          // żeby był wertykalny i idealnie wypełniał format.
+          if (width > height) {
+            const canvas = document.createElement("canvas");
+            // Zamieniamy wymiary miejscami dla orientacji pionowej
+            canvas.width = height;
+            canvas.height = width;
+            const ctx = canvas.getContext("2d");
+            
+            if (ctx) {
+              // Obrót wokół środka o 90 stopni w prawo
+              ctx.translate(height / 2, width / 2);
+              ctx.rotate((90 * Math.PI) / 180);
+              ctx.drawImage(img, -width / 2, -height / 2, width, height);
+              
+              const rotatedDataUrl = canvas.toDataURL("image/jpeg", 0.8);
+              return resolve({ dataUrl: rotatedDataUrl, width: height, height: width });
+            }
+          }
+
+          // Jeśli obraz jest już pionowy (wertykalny), używamy go bez zmian
+          resolve({ dataUrl: img.src, width, height });
+        };
+        img.onerror = reject;
+        img.src = reader.result as string;
       };
-      img.onerror = reject;
-      img.src = dataUrl;
+      reader.onerror = reject;
+      reader.readAsDataURL(compressedFile);
     });
   }
 
