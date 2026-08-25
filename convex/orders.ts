@@ -1063,9 +1063,10 @@ export const attachUploadedDocument = internalMutation({
     if (!order) throw new Error("Zlecenie nie znalezione");
 
     if (LEGACY_DOCUMENT_KEYS.has(args.documentType)) {
+      const docType = args.documentType as keyof typeof order.documents;
       const documents = { ...order.documents };
-      documents[args.documentType] = {
-        ...documents[args.documentType],
+      documents[docType] = {
+        ...documents[docType],
         enabled: true,
         url: args.driveFileUrl,
         generatedAt: Date.now(),
@@ -1108,11 +1109,12 @@ export const setDocumentSignatureStatus = mutation({
     if (!order) throw new Error("Zlecenie nie znalezione");
 
     if (LEGACY_DOCUMENT_KEYS.has(args.documentType)) {
+      const docType = args.documentType as keyof typeof order.documents;
       const documents = { ...order.documents };
-      const existing = documents[args.documentType];
+      const existing = documents[docType];
       if (!existing?.url) throw new Error("Dokument nie ma jeszcze URL — najpierw wygeneruj lub wgraj dokument.");
 
-      documents[args.documentType] = {
+      documents[docType] = {
         ...existing,
         signatureStatus: args.signatureStatus,
       };
