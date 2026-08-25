@@ -450,17 +450,41 @@ export default function AppPwaPage() {
     });
   }
 
-  function fileToImageInfo(file: File): Promise<{ dataUrl: string; width: number; height: number }> {
+  function fileToCompressedImage(file: File): Promise<{ dataUrl: string; width: number; height: number }> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
-        const dataUrl = reader.result as string;
         const img = new Image();
         img.onload = () => {
-          resolve({ dataUrl, width: img.width, height: img.height });
+          // Maksymalny wymiar (zmniejsza pliki z 10MB do ~300KB na stronę i wypala rotację EXIF)
+          const MAX_SIZE = 1600;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height && width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          } else if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("Brak wsparcia dla canvas"));
+
+          // Rysujemy na płótnie, co automatycznie nakłada poprawną rotację EXIF (np. z iPhone'a)
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Kompresja do JPEG 80% jakości
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          resolve({ dataUrl, width, height });
         };
         img.onerror = reject;
-        img.src = dataUrl;
+        img.src = reader.result as string;
       };
       reader.onerror = reject;
       reader.readAsDataURL(file);
@@ -475,7 +499,7 @@ export default function AppPwaPage() {
 
     for (let i = 0; i < pages.length; i++) {
       if (i > 0) doc.addPage();
-      const { dataUrl, width, height } = await fileToImageInfo(pages[i]);
+      const { dataUrl, width, height } = await fileToCompressedImage(pages[i]);
       
       const imgRatio = width / height;
       const pageRatio = PAGE_WIDTH / PAGE_HEIGHT;
