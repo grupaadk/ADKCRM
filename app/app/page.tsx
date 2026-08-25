@@ -35,16 +35,28 @@ import dynamic from "next/dynamic";
 const MobileWeekCalendar = dynamic(() => import("@/components/ekipa/MobileWeekCalendar"), { ssr: false });
 type Tab = "home" | "search" | "notifications" | "profile" | "add-document";
 
-const DOCUMENT_TYPES = [
-  { id: "pomiar", label: "Pomiar" },
-  { id: "umowa", label: "Umowa" },
-  { id: "gwarancja_alco", label: "Gwarancja ALCO" },
-  { id: "odbior_inwestor", label: "Odbiór inwestorski" },
-  { id: "faktura", label: "Faktura" },
-  { id: "reklamacja", label: "Reklamacja" },
-] as const;
+const DOCUMENT_LABELS: Record<string, string> = {
+  pomiar: "Pomiar",
+  umowa: "Umowa",
+  gwarancja_alco: "Gwarancja ALCO",
+  odbior_inwestor: "Odbiór inwestorski",
+  protokol_montaz: "Protokół montażu",
+  reklamacja: "Reklamacja",
+};
 
-type DocumentType = (typeof DOCUMENT_TYPES)[number]["id"];
+const DOCUMENT_GROUPS = [
+  { title: "Pomiary", keys: ["pomiar"] },
+  { title: "Umowy", keys: ["umowa"] },
+  { title: "Protokoły odbioru", keys: ["odbior_inwestor", "protokol_montaz"] },
+  { title: "Gwarancje", keys: ["gwarancja_alco"] },
+  { title: "Inne", keys: ["reklamacja"] },
+];
+
+const LEGACY_DOCUMENT_KEYS = new Set([
+  "pomiar", "umowa", "gwarancja_alco",
+  "rekojmia_adk", "odbior_inwestor", "protokol_montaz",
+  "faktura", "reklamacja"
+]);
 
 import { useAuthActions } from "@convex-dev/auth/react";
 import { LogOut, LogIn, ShieldCheck } from "lucide-react";
@@ -136,11 +148,84 @@ export default function AppPwaPage() {
   const [, setSelectedClientName] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<Id<"orders"> | null>(null);
-  const [documentType, setDocumentType] = useState<DocumentType>("pomiar");
+  const [documentType, setDocumentType] = useState<string>("pomiar");
   const [file, setFile] = useState<File | null>(null);
-  const [signatureStatus] = useState<"signed" | "not_applicable" | null>("not_applicable");
+  const [signatureStatus] = useState<"signed" | "not_applicable" | null>("signed");
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ ok: true; url: string } | { ok: false; error: string } | null>(null);
+
+  const templates = useQuery(api.documentTemplates.list);
+  const dynamicDocumentTypes = useMemo(() => {
+    const list: Array<{ id: string, label: string, group: string }> = [];
+    
+    if (!templates) {
+      for (const group of DOCUMENT_GROUPS) {
+        group.keys.forEach(k => list.push({ id: k, label: DOCUMENT_LABELS[k] ?? k, group: group.title }));
+      }
+      return list;
+    }
+    
+    const templatesByKey: Record<string, typeof templates> = {};
+    for (const t of templates) {
+      if (!templatesByKey[t.key]) templatesByKey[t.key] = [];
+      templatesByKey[t.key].push(t);
+    }
+    
+    for (const group of DOCUMENT_GROUPS) {
+      if (group.title === "Gwarancje") {
+        const legacyTpls = group.keys.flatMap((k) =>
+          (templatesByKey[k] ?? []).filter((t) => t.isActive && !!t.googleDriveFileId)
+        );
+        const extraTpls = Object.entries(templatesByKey)
+          .filter(([k]) => k.startsWith("gwarancja_") && !LEGACY_DOCUMENT_KEYS.has(k))
+          .flatMap(([, tpls]) => (tpls ?? []).filter((t) => t.isActive && !!t.googleDriveFileId));
+        
+        const allTpls = [...legacyTpls, ...extraTpls];
+        if (allTpls.length > 0) {
+          allTpls.forEach(t => list.push({ id: t.key, label: t.name, group: group.title }));
+        } else {
+          group.keys.forEach(k => list.push({ id: k, label: DOCUMENT_LABELS[k] ?? k, group: group.title }));
+        }
+      } else {
+        group.keys.forEach(k => list.push({ id: k, label: DOCUMENT_LABELS[k] ?? k, group: group.title }));
+      }
+    }
+    return list;
+  }, [templates]);
+
+  // Find selected order to filter document types
+  const orders = useQuery(
+    api.orders.listByClient,
+    selectedClientId ? { clientId: selectedClientId } : "skip"
+  );
+
+  const selectedOrder = useMemo(() => {
+    return orders?.find(o => o._id === selectedOrderId);
+  }, [orders, selectedOrderId]);
+
+  const availableDocumentTypes = useMemo(() => {
+    if (!selectedOrder) return [];
+    
+    return dynamicDocumentTypes.filter(t => {
+      if (LEGACY_DOCUMENT_KEYS.has(t.id)) {
+        return !!selectedOrder.documents?.[t.id]?.url;
+      } else {
+        return !!selectedOrder.warrantyDocs?.[t.id]?.url;
+      }
+    });
+  }, [dynamicDocumentTypes, selectedOrder]);
+
+  // Auto-select first available document type if current is invalid
+  useEffect(() => {
+    if (availableDocumentTypes.length > 0) {
+      const isValid = availableDocumentTypes.some(t => t.id === documentType);
+      if (!isValid) {
+        setDocumentType(availableDocumentTypes[0].id);
+      }
+    } else {
+      setDocumentType("");
+    }
+  }, [availableDocumentTypes, documentType]);
 
   // Scanner state — multi-page photo → PDF
   const [scanPages, setScanPages] = useState<File[]>([]);
@@ -159,38 +244,33 @@ export default function AppPwaPage() {
   const [eventEndTime, setEventEndTime] = useState("10:00");
   const [eventIsAllDay, setEventIsAllDay] = useState(false);
   const [eventSubmitting, setEventSubmitting] = useState(false);
-  const [eventSuccess, setEventSuccess] = useState<string | null>(null);
   const [eventError, setEventError] = useState<string | null>(null);
-  const createCalendarEvent = useMutation(api.calendarEvents.createEvent);
+  const [eventSuccess, setEventSuccess] = useState<string | null>(null);
 
-
-  // Complaint Form Modals state
+  // Complaint form state
   const [showNewComplaintModal, setShowNewComplaintModal] = useState(false);
-
-  // Complaint Form Data
-
   const [complaintClientSearch, setComplaintClientSearch] = useState("");
   const [complaintSelectedClientId, setComplaintSelectedClientId] = useState<Id<"clients"> | null>(null);
+  const [showComplaintClientDropdown, setShowComplaintClientDropdown] = useState(false);
   const [complaintSelectedOrderId, setComplaintSelectedOrderId] = useState<Id<"orders"> | null>(null);
   const [complaintDescription, setComplaintDescription] = useState("");
   const [complaintSubmitting, setComplaintSubmitting] = useState(false);
-  const [complaintSuccess, setComplaintSuccess] = useState<string | null>(null);
   const [complaintError, setComplaintError] = useState<string | null>(null);
-
-  // Photo/Video Upload Complaint Data
+  const [complaintSuccess, setComplaintSuccess] = useState<string | null>(null);
   const [complaintMediaFiles, setComplaintMediaFiles] = useState<File[]>([]);
-
+  const complaintMediaInputRef = useRef<HTMLInputElement>(null);
+  const complaintCameraInputRef = useRef<HTMLInputElement>(null);
+  
   const complaintCameraRef = useRef<HTMLInputElement>(null);
   const complaintVideoRef = useRef<HTMLInputElement>(null);
   const complaintFileRef = useRef<HTMLInputElement>(null);
-
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const scanCameraAddRef = useRef<HTMLInputElement>(null);
 
-  // Convex Hooks
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
+  const createCalendarEvent = useMutation(api.calendarEvents.createEvent);
   const uploadUserDocument = useAction(api.googleDrive.uploadUserDocumentPublic);
   const createComplaint = useMutation(api.complaints.create);
   const uploadManualOrderFile = useAction(api.googleDrive.uploadManualOrderFile);
@@ -200,13 +280,7 @@ export default function AppPwaPage() {
     clientSearch.trim().length >= 1 ? { searchTerm: clientSearch.trim() } : "skip"
   );
 
-  const orders = useQuery(
-    api.orders.listByClient,
-    selectedClientId ? { clientId: selectedClientId } : "skip"
-  );
-
   const complaintSearchResults = useQuery(
-
     api.clients.search,
     complaintClientSearch.trim().length >= 1 ? { searchTerm: complaintClientSearch.trim() } : "skip"
   );
@@ -274,10 +348,18 @@ export default function AppPwaPage() {
     });
   }
 
-  function fileToDataUrl(file: File): Promise<string> {
+  function fileToImageInfo(file: File): Promise<{ dataUrl: string; width: number; height: number }> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const img = new Image();
+        img.onload = () => {
+          resolve({ dataUrl, width: img.width, height: img.height });
+        };
+        img.onerror = reject;
+        img.src = dataUrl;
+      };
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
@@ -286,11 +368,33 @@ export default function AppPwaPage() {
   async function buildPdfFromPages(pages: File[]): Promise<File> {
     const { jsPDF } = await import("jspdf");
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const PAGE_WIDTH = 210;
+    const PAGE_HEIGHT = 297;
+
     for (let i = 0; i < pages.length; i++) {
       if (i > 0) doc.addPage();
-      const dataUrl = await fileToDataUrl(pages[i]);
-      // Stretch full A4 page (classic scanner style), MEDIUM quality
-      doc.addImage(dataUrl, "JPEG", 0, 0, 210, 297, undefined, "MEDIUM");
+      const { dataUrl, width, height } = await fileToImageInfo(pages[i]);
+      
+      const imgRatio = width / height;
+      const pageRatio = PAGE_WIDTH / PAGE_HEIGHT;
+      
+      let finalWidth = PAGE_WIDTH;
+      let finalHeight = PAGE_HEIGHT;
+      
+      // Dopasowanie zdjęcia zachowując oryginalne proporcje
+      if (imgRatio > pageRatio) {
+        finalWidth = PAGE_WIDTH;
+        finalHeight = PAGE_WIDTH / imgRatio;
+      } else {
+        finalHeight = PAGE_HEIGHT;
+        finalWidth = PAGE_HEIGHT * imgRatio;
+      }
+      
+      // Wyśrodkowanie na stronie A4
+      const x = (PAGE_WIDTH - finalWidth) / 2;
+      const y = (PAGE_HEIGHT - finalHeight) / 2;
+      
+      doc.addImage(dataUrl, "JPEG", x, y, finalWidth, finalHeight, undefined, "MEDIUM");
     }
     const blob = doc.output("blob");
     const date = new Date().toISOString().slice(0, 10);
@@ -1372,18 +1476,29 @@ export default function AppPwaPage() {
 
                 {/* Step 3: Document Type */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">3. Typ Dokumentu *</label>
-                  <select
-                    value={documentType}
-                    onChange={(e) => setDocumentType(e.target.value as DocumentType)}
-                    className="w-full rounded-xl border border-gray-300 px-3.5 py-3 text-xs text-slate-800 focus:border-[#4dbdc6] focus:outline-none bg-white font-medium"
-                  >
-                    {DOCUMENT_TYPES.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="text-xs font-bold text-slate-700">3. Typ Dokumentu (Wybierz wygenerowany dokument do podmiany) *</label>
+                  {!selectedOrderId ? (
+                    <p className="text-xs text-slate-400 italic">Najpierw wybierz zlecenie.</p>
+                  ) : availableDocumentTypes.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">Brak wygenerowanych dokumentów w tym zleceniu.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {availableDocumentTypes.map(t => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setDocumentType(t.id)}
+                          className={`p-3 text-xs rounded-xl border text-left transition ${
+                            documentType === t.id
+                              ? "border-[#4dbdc6] bg-[#4dbdc6]/10 text-slate-900 font-bold"
+                              : "border-gray-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Step 4: Photo / File Input buttons */}

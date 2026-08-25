@@ -1044,21 +1044,16 @@ export const migrateClientsToOrders = internalMutation({
   },
 });
 
-const documentTypeValidator = v.union(
-  v.literal("pomiar"),
-  v.literal("umowa"),
-  v.literal("gwarancja_alco"),
-  v.literal("rekojmia_adk"),
-  v.literal("odbior_inwestor"),
-  v.literal("protokol_montaz"),
-  v.literal("faktura"),
-  v.literal("reklamacja"),
-);
+const LEGACY_DOCUMENT_KEYS = new Set([
+  "pomiar", "umowa", "gwarancja_alco",
+  "rekojmia_adk", "odbior_inwestor", "protokol_montaz",
+  "faktura", "reklamacja"
+]);
 
 export const attachUploadedDocument = internalMutation({
   args: {
     orderId: v.id("orders"),
-    documentType: documentTypeValidator,
+    documentType: v.string(),
     driveFileUrl: v.string(),
     performedBy: v.string(),
     signatureStatus: v.union(v.literal("signed"), v.literal("not_applicable")),
@@ -1067,15 +1062,27 @@ export const attachUploadedDocument = internalMutation({
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
 
-    const documents = { ...order.documents };
-    documents[args.documentType] = {
-      enabled: true,
-      url: args.driveFileUrl,
-      generatedAt: Date.now(),
-      signatureStatus: args.signatureStatus,
-    };
-
-    await ctx.db.patch(args.orderId, { documents });
+    if (LEGACY_DOCUMENT_KEYS.has(args.documentType)) {
+      const documents = { ...order.documents };
+      documents[args.documentType] = {
+        ...documents[args.documentType],
+        enabled: true,
+        url: args.driveFileUrl,
+        generatedAt: Date.now(),
+        signatureStatus: args.signatureStatus,
+      };
+      await ctx.db.patch(args.orderId, { documents });
+    } else {
+      const warrantyDocs = { ...(order.warrantyDocs ?? {}) };
+      warrantyDocs[args.documentType] = {
+        ...warrantyDocs[args.documentType],
+        enabled: true,
+        url: args.driveFileUrl,
+        generatedAt: Date.now(),
+        signatureStatus: args.signatureStatus,
+      };
+      await ctx.db.patch(args.orderId, { warrantyDocs });
+    }
 
     await ctx.db.insert("clientEvents", {
       clientId: order.clientId,
@@ -1090,16 +1097,7 @@ export const attachUploadedDocument = internalMutation({
 export const setDocumentSignatureStatus = mutation({
   args: {
     orderId: v.id("orders"),
-    documentType: v.union(
-      v.literal("pomiar"),
-      v.literal("umowa"),
-      v.literal("gwarancja_alco"),
-      v.literal("rekojmia_adk"),
-      v.literal("odbior_inwestor"),
-      v.literal("protokol_montaz"),
-      v.literal("faktura"),
-      v.literal("reklamacja"),
-    ),
+    documentType: v.string(),
     signatureStatus: v.union(v.literal("signed"), v.literal("not_applicable")),
   },
   handler: async (ctx, args) => {
@@ -1109,16 +1107,27 @@ export const setDocumentSignatureStatus = mutation({
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
 
-    const documents = { ...order.documents };
-    const existing = documents[args.documentType];
-    if (!existing?.url) throw new Error("Dokument nie ma jeszcze URL — najpierw wygeneruj lub wgraj dokument.");
+    if (LEGACY_DOCUMENT_KEYS.has(args.documentType)) {
+      const documents = { ...order.documents };
+      const existing = documents[args.documentType];
+      if (!existing?.url) throw new Error("Dokument nie ma jeszcze URL — najpierw wygeneruj lub wgraj dokument.");
 
-    documents[args.documentType] = {
-      ...existing,
-      signatureStatus: args.signatureStatus,
-    };
+      documents[args.documentType] = {
+        ...existing,
+        signatureStatus: args.signatureStatus,
+      };
+      await ctx.db.patch(args.orderId, { documents });
+    } else {
+      const warrantyDocs = { ...(order.warrantyDocs ?? {}) };
+      const existing = warrantyDocs[args.documentType];
+      if (!existing?.url) throw new Error("Dokument nie ma jeszcze URL — najpierw wygeneruj lub wgraj dokument.");
 
-    await ctx.db.patch(args.orderId, { documents });
+      warrantyDocs[args.documentType] = {
+        ...existing,
+        signatureStatus: args.signatureStatus,
+      };
+      await ctx.db.patch(args.orderId, { warrantyDocs });
+    }
 
     await ctx.db.insert("clientEvents", {
       clientId: order.clientId,

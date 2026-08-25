@@ -1422,16 +1422,7 @@ export const createClientFolder = action({
 export const uploadUserDocumentPublic = action({
   args: {
     orderId: v.id("orders"),
-    documentType: v.union(
-      v.literal("pomiar"),
-      v.literal("umowa"),
-      v.literal("gwarancja_alco"),
-      v.literal("rekojmia_adk"),
-      v.literal("odbior_inwestor"),
-      v.literal("protokol_montaz"),
-      v.literal("faktura"),
-      v.literal("reklamacja"),
-    ),
+    documentType: v.string(),
     storageId: v.id("_storage"),
     fileName: v.string(),
     signatureStatus: v.union(v.literal("signed"), v.literal("not_applicable")),
@@ -1537,16 +1528,7 @@ export const uploadUserDocumentPublic = action({
 export const uploadUserDocument = action({
   args: {
     orderId: v.id("orders"),
-    documentType: v.union(
-      v.literal("pomiar"),
-      v.literal("umowa"),
-      v.literal("gwarancja_alco"),
-      v.literal("rekojmia_adk"),
-      v.literal("odbior_inwestor"),
-      v.literal("protokol_montaz"),
-      v.literal("faktura"),
-      v.literal("reklamacja"),
-    ),
+    documentType: v.string(),
     storageId: v.id("_storage"),
     fileName: v.string(),
     signatureStatus: v.union(v.literal("signed"), v.literal("not_applicable")),
