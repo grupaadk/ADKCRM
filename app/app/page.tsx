@@ -44,7 +44,8 @@ import {
   Calendar,
   List,
   LayoutGrid,
-  Smartphone
+  Smartphone,
+  RotateCw
 } from "lucide-react";
 
 
@@ -82,7 +83,7 @@ import { LogOut, LogIn, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 
-function SortablePhotoItem({ id, src, index, onRemove }: { id: string; src: string; index: number; onRemove: (index: number) => void }) {
+function SortablePhotoItem({ id, src, index, rotation, onRemove, onRotate }: { id: string; src: string; index: number; rotation: number; onRemove: (index: number) => void; onRotate: (index: number) => void }) {
   const {
     attributes,
     listeners,
@@ -112,6 +113,7 @@ function SortablePhotoItem({ id, src, index, onRemove }: { id: string; src: stri
         src={src}
         alt={`Strona ${index + 1}`}
         className="w-full h-full object-cover pointer-events-none"
+        style={{ transform: `rotate(${rotation}deg)` }}
       />
       <div className="absolute top-0 left-0 bg-black/40 text-white text-[9px] font-bold px-1 py-0.5 rounded-br-md">
         {index + 1}
@@ -123,9 +125,20 @@ function SortablePhotoItem({ id, src, index, onRemove }: { id: string; src: stri
           e.stopPropagation();
           onRemove(index);
         }}
-        className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition z-10"
+        className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition z-10 shadow"
       >
         <X className="size-3" />
+      </button>
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()} // Prevent drag when clicking rotate
+        onClick={(e) => {
+          e.stopPropagation();
+          onRotate(index);
+        }}
+        className="absolute bottom-0.5 right-0.5 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-1.5 transition z-10 shadow"
+      >
+        <RotateCw className="size-3" />
       </button>
     </div>
   );
@@ -222,6 +235,9 @@ export default function AppPwaPage() {
   const [documentType, setDocumentType] = useState<string>("pomiar");
   const [file, setFile] = useState<File | null>(null);
   const [signatureStatus] = useState<"signed" | "not_applicable" | null>("signed");
+  const [scanPages, setScanPages] = useState<File[]>([]);
+  const [scanPreviews, setScanPreviews] = useState<string[]>([]);
+  const [scanRotations, setScanRotations] = useState<number[]>([]);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ ok: true; url: string } | { ok: false; error: string } | null>(null);
 
@@ -298,10 +314,6 @@ export default function AppPwaPage() {
     }
   }, [availableDocumentTypes, documentType]);
 
-  // Scanner state — multi-page photo → PDF
-  const [scanPages, setScanPages] = useState<File[]>([]);
-  const [scanPreviews, setScanPreviews] = useState<string[]>([]);
-
   // Long Press State for Signet Bubble Menu
   const [showBubbleMenu, setShowBubbleMenu] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -329,8 +341,6 @@ export default function AppPwaPage() {
   const [complaintError, setComplaintError] = useState<string | null>(null);
   const [complaintSuccess, setComplaintSuccess] = useState<string | null>(null);
   const [complaintMediaFiles, setComplaintMediaFiles] = useState<File[]>([]);
-  const complaintMediaInputRef = useRef<HTMLInputElement>(null);
-  const complaintCameraInputRef = useRef<HTMLInputElement>(null);
   
   const complaintCameraRef = useRef<HTMLInputElement>(null);
   const complaintVideoRef = useRef<HTMLInputElement>(null);
@@ -372,6 +382,7 @@ export default function AppPwaPage() {
         
         // Zaktualizuj pliki w tle zachowując nową kolejność
         setScanPages((pages) => arrayMove(pages, oldIndex, newIndex));
+        setScanRotations((rotations) => arrayMove(rotations, oldIndex, newIndex));
         
         return arrayMove(items, oldIndex, newIndex);
       });
@@ -411,6 +422,7 @@ export default function AppPwaPage() {
     setFile(null);
     setScanPages([]);
     setScanPreviews([]);
+    setScanRotations([]);
     setResult(null);
   }
 
@@ -427,6 +439,7 @@ export default function AppPwaPage() {
       // Selecting a file clears any scan pages
       setScanPages([]);
       setScanPreviews([]);
+      setScanRotations([]);
       setFile(e.target.files[0]);
     }
   }
@@ -441,6 +454,7 @@ export default function AppPwaPage() {
     const preview = URL.createObjectURL(selected);
     setScanPages((prev) => [...prev, selected]);
     setScanPreviews((prev) => [...prev, preview]);
+    setScanRotations((prev) => [...prev, 0]);
   }
 
   function handleRemoveScanPage(index: number) {
@@ -449,9 +463,18 @@ export default function AppPwaPage() {
       URL.revokeObjectURL(prev[index]);
       return prev.filter((_, i) => i !== index);
     });
+    setScanRotations((prev) => prev.filter((_, i) => i !== index));
   }
 
-  async function fileToCompressedImage(file: File): Promise<{ dataUrl: string; width: number; height: number }> {
+  function handleRotateScanPage(index: number) {
+    setScanRotations((prev) => {
+      const next = [...prev];
+      next[index] = (next[index] + 90) % 360;
+      return next;
+    });
+  }
+
+  async function fileToCompressedImage(file: File, additionalRotation: number): Promise<{ dataUrl: string; width: number; height: number }> {
     const options = {
       maxSizeMB: 0.5,
       maxWidthOrHeight: 1600,
@@ -469,28 +492,46 @@ export default function AppPwaPage() {
           let width = img.width;
           let height = img.height;
 
-          // Jeśli po kompresji (i rzekomej naprawie EXIF) obraz wciąż jest poziomy (horyzontalny),
-          // a chcemy go wstawić na pionową kartkę A4 - wymuszamy jego obrót o 90 stopni, 
-          // żeby był wertykalny i idealnie wypełniał format.
-          if (width > height) {
+          // Ręczny obrót jeśli użytkownik tak zażądał, ALBO
+          // automatyczny obrót poziomego obrazu (jeśli np. naturalnie jest landscape, ale chcemy portrait).
+          const needsAutoPortrait = (width > height);
+          
+          if (additionalRotation > 0 || needsAutoPortrait) {
             const canvas = document.createElement("canvas");
-            // Zamieniamy wymiary miejscami dla orientacji pionowej
-            canvas.width = height;
-            canvas.height = width;
+            
+            // Obliczamy ostateczne wymiary płótna (jeśli kąt 90 lub 270, zamieniamy width z height)
+            let finalCanvasWidth = width;
+            let finalCanvasHeight = height;
+            
+            // Dodajemy 90 stopni z automatu jeśli obraz był landscape
+            let totalRotation = additionalRotation;
+            if (needsAutoPortrait) {
+              totalRotation += 90;
+            }
+            
+            // Normalizujemy obrót do 0, 90, 180, 270
+            totalRotation = totalRotation % 360;
+            
+            if (totalRotation === 90 || totalRotation === 270) {
+              finalCanvasWidth = height;
+              finalCanvasHeight = width;
+            }
+            
+            canvas.width = finalCanvasWidth;
+            canvas.height = finalCanvasHeight;
             const ctx = canvas.getContext("2d");
             
             if (ctx) {
-              // Obrót wokół środka o 90 stopni w prawo
-              ctx.translate(height / 2, width / 2);
-              ctx.rotate((90 * Math.PI) / 180);
+              ctx.translate(finalCanvasWidth / 2, finalCanvasHeight / 2);
+              ctx.rotate((totalRotation * Math.PI) / 180);
               ctx.drawImage(img, -width / 2, -height / 2, width, height);
               
               const rotatedDataUrl = canvas.toDataURL("image/jpeg", 0.8);
-              return resolve({ dataUrl: rotatedDataUrl, width: height, height: width });
+              return resolve({ dataUrl: rotatedDataUrl, width: finalCanvasWidth, height: finalCanvasHeight });
             }
           }
 
-          // Jeśli obraz jest już pionowy (wertykalny), używamy go bez zmian
+          // Jeśli obraz jest już pionowy i nie ma dodatkowego obrotu, używamy go bez zmian
           resolve({ dataUrl: img.src, width, height });
         };
         img.onerror = reject;
@@ -501,7 +542,7 @@ export default function AppPwaPage() {
     });
   }
 
-  async function buildPdfFromPages(pages: File[]): Promise<File> {
+  async function buildPdfFromPages(pages: File[], rotations: number[]): Promise<File> {
     const { jsPDF } = await import("jspdf");
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const PAGE_WIDTH = 210;
@@ -509,7 +550,8 @@ export default function AppPwaPage() {
 
     for (let i = 0; i < pages.length; i++) {
       if (i > 0) doc.addPage();
-      const { dataUrl, width, height } = await fileToCompressedImage(pages[i]);
+      const userRotation = rotations[i] || 0;
+      const { dataUrl, width, height } = await fileToCompressedImage(pages[i], userRotation);
       
       const imgRatio = width / height;
       const pageRatio = PAGE_WIDTH / PAGE_HEIGHT;
@@ -547,7 +589,7 @@ export default function AppPwaPage() {
 
     try {
       // Determine file to upload: merge scan pages into PDF or use single file
-      const fileToUpload = hasScanPages ? await buildPdfFromPages(scanPages) : file!;
+      const fileToUpload = hasScanPages ? await buildPdfFromPages(scanPages, scanRotations) : file!;
 
       const uploadUrl = await generateUploadUrl();
 
@@ -593,7 +635,6 @@ export default function AppPwaPage() {
   }
 
   function startLongPress() {
-
     longPressTimerRef.current = setTimeout(() => {
       if (typeof window !== "undefined" && "vibrate" in navigator) {
         navigator.vibrate(50);
@@ -1703,7 +1744,9 @@ export default function AppPwaPage() {
                                 id={src}
                                 src={src}
                                 index={idx}
+                                rotation={scanRotations[idx] || 0}
                                 onRemove={handleRemoveScanPage}
+                                onRotate={handleRotateScanPage}
                               />
                             ))}
                           </div>
@@ -1725,7 +1768,7 @@ export default function AppPwaPage() {
                       {/* Clear all */}
                       <button
                         type="button"
-                        onClick={() => { setScanPages([]); setScanPreviews([]); }}
+                        onClick={() => { setScanPages([]); setScanPreviews([]); setScanRotations([]); }}
                         className="w-full text-[10px] text-slate-400 hover:text-red-500 transition py-1"
                       >
                         ✕ Usuń wszystkie strony i zacznij od nowa
