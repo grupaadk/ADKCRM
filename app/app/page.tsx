@@ -5,6 +5,24 @@ import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  TouchSensor,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Home,
   Search,
   Bell,
@@ -60,6 +78,58 @@ const LEGACY_DOCUMENT_KEYS = new Set([
 
 import { useAuthActions } from "@convex-dev/auth/react";
 import { LogOut, LogIn, ShieldCheck } from "lucide-react";
+import { format } from "date-fns";
+import { pl } from "date-fns/locale";
+
+function SortablePhotoItem({ id, src, index, onRemove }: { id: string; src: string; index: number; onRemove: (index: number) => void }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 1 : 0,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="relative rounded-lg overflow-hidden border border-slate-200 aspect-[3/4] bg-slate-100 touch-none"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={`Strona ${index + 1}`}
+        className="w-full h-full object-cover pointer-events-none"
+      />
+      <div className="absolute top-0 left-0 bg-black/40 text-white text-[9px] font-bold px-1 py-0.5 rounded-br-md">
+        {index + 1}
+      </div>
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()} // Prevent drag when clicking remove
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove(index);
+        }}
+        className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition z-10"
+      >
+        <X className="size-3" />
+      </button>
+    </div>
+  );
+}
+
 import { useStatuses } from "@/components/StatusLabelsContext";
 
 export default function AppPwaPage() {
@@ -274,6 +344,38 @@ export default function AppPwaPage() {
   const uploadUserDocument = useAction(api.googleDrive.uploadUserDocumentPublic);
   const createComplaint = useMutation(api.complaints.create);
   const uploadManualOrderFile = useAction(api.googleDrive.uploadManualOrderFile);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setScanPreviews((items) => {
+        const oldIndex = items.indexOf(active.id as string);
+        const newIndex = items.indexOf(over.id as string);
+        
+        // Zaktualizuj pliki w tle zachowując nową kolejność
+        setScanPages((pages) => arrayMove(pages, oldIndex, newIndex));
+        
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  }
 
   const searchResults = useQuery(
     api.clients.search,
@@ -1551,28 +1653,28 @@ export default function AppPwaPage() {
                     /* Mode B: scanner — one or more photos */
                     <div className="space-y-2">
                       {/* Page thumbnails grid */}
-                      <div className="grid grid-cols-3 gap-2">
-                        {scanPreviews.map((src, idx) => (
-                          <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-200 aspect-[3/4] bg-slate-100">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={src}
-                              alt={`Strona ${idx + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute top-0 left-0 bg-black/40 text-white text-[9px] font-bold px-1 py-0.5 rounded-br-md">
-                              {idx + 1}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveScanPage(idx)}
-                              className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition"
-                            >
-                              <X className="size-3" />
-                            </button>
+                      <DndContext 
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <SortableContext 
+                          items={scanPreviews}
+                          strategy={rectSortingStrategy}
+                        >
+                          <div className="grid grid-cols-3 gap-2">
+                            {scanPreviews.map((src, idx) => (
+                              <SortablePhotoItem
+                                key={src}
+                                id={src}
+                                src={src}
+                                index={idx}
+                                onRemove={handleRemoveScanPage}
+                              />
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </SortableContext>
+                      </DndContext>
 
                       {/* Add page button (max 20 pages) */}
                       {scanPages.length < 20 && (
