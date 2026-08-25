@@ -46,6 +46,7 @@ http.route({
 });
 
 import { publicServices, publicServicesOptions, publicGenerateUploadUrl, publicGenerateUploadUrlOptions } from "./publicApi";
+import { websiteWebhook, websiteWebhookOptions } from "./websiteWebhook";
 
 http.route({
   path: "/api/webhooks/website",
