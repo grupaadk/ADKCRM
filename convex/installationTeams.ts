@@ -515,7 +515,9 @@ export const getScheduleByPin = query({
     const orderMap = new Map(orders.map((o) => [o._id, o]));
 
     const teamOrders = orders.filter((o) => o.installationTeamId === team._id);
-    const teamComplaints = complaints.filter((c) => c.installationTeamId === team._id);
+    const teamComplaints = complaints.filter(
+      (c) => c.installationTeamId === team._id && c.serviceDate !== undefined
+    );
 
     const formattedOrders = teamOrders.map((o) => {
       const client = clientMap.get(o.clientId);
