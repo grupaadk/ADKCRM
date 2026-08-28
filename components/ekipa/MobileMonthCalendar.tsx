@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Wrench, Sparkles, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Wrench, Sparkles, CheckCircle2, X } from "lucide-react";
 
 interface ScheduleItem {
   id: string;
@@ -29,95 +29,69 @@ interface MobileMonthCalendarProps {
 
 const DAY_NAMES = ["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Nd"];
 
+const MONTH_NAMES = [
+  "Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec",
+  "Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień",
+];
+
 function isSameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
+  return a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+    a.getDate() === b.getDate();
 }
 
-/** Returns array of Date objects for a given month grid (Mon-Sun, padded with prev/next month days) */
 function buildMonthGrid(year: number, month: number): Date[] {
   const firstDay = new Date(year, month, 1);
-  // 0=Sun,1=Mon…6=Sat → convert so Mon=0
-  const startDow = (firstDay.getDay() + 6) % 7; // shift so Mon=0
+  const startDow = (firstDay.getDay() + 6) % 7; // Mon = 0
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-
   const grid: Date[] = [];
-  // Pad with prev month days
-  for (let i = startDow - 1; i >= 0; i--) {
-    grid.push(new Date(year, month, -i));
-  }
-  // Current month
-  for (let d = 1; d <= daysInMonth; d++) {
-    grid.push(new Date(year, month, d));
-  }
-  // Pad to complete last week
-  while (grid.length % 7 !== 0) {
-    grid.push(new Date(year, month + 1, grid.length - daysInMonth - startDow + 1));
-  }
+  for (let i = startDow - 1; i >= 0; i--) grid.push(new Date(year, month, -i));
+  for (let d = 1; d <= daysInMonth; d++) grid.push(new Date(year, month, d));
+  while (grid.length % 7 !== 0) grid.push(new Date(year, month + 1, grid.length - daysInMonth - startDow + 1));
   return grid;
 }
 
-const MONTH_NAMES = [
-  "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
-  "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień",
-];
+function dateKey(d: Date) {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
 
-export default function MobileMonthCalendar({
-  items,
-  filter,
-  search,
-  onEventClick,
-}: MobileMonthCalendarProps) {
+function isDone(item: ScheduleItem) {
+  return item.type === "montaz"
+    ? item.status === "completed"
+    : item.status === "rozwiazana" || item.status === "zamknieta" || item.status === "zakonczona";
+}
+
+export default function MobileMonthCalendar({ items, filter, search, onEventClick }: MobileMonthCalendarProps) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(today);
 
   const grid = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
 
-  // Filter items based on filter/search props
-  const visibleItems = useMemo(() => {
-    return items.filter((item) => {
-      const isMontaz = item.type === "montaz";
-      const isDone = isMontaz
-        ? item.status === "completed"
-        : item.status === "rozwiazana" || item.status === "zamknieta" || item.status === "zakonczona";
+  const visibleItems = useMemo(() => items.filter((item) => {
+    const done = isDone(item);
+    if (filter === "upcoming" && done) return false;
+    if (filter === "completed" && !done) return false;
+    if (search.trim()) {
+      const t = search.toLowerCase();
+      if (!item.title.toLowerCase().includes(t) &&
+          !item.clientName.toLowerCase().includes(t) &&
+          !item.address.toLowerCase().includes(t) &&
+          !(item.phone ?? "").includes(t)) return false;
+    }
+    return true;
+  }), [items, filter, search]);
 
-      if (filter === "upcoming" && isDone) return false;
-      if (filter === "completed" && !isDone) return false;
-
-      if (search.trim()) {
-        const term = search.toLowerCase();
-        if (
-          !item.title.toLowerCase().includes(term) &&
-          !item.clientName.toLowerCase().includes(term) &&
-          !item.address.toLowerCase().includes(term) &&
-          !(item.phone ?? "").includes(term)
-        )
-          return false;
-      }
-      return true;
-    });
-  }, [items, filter, search]);
-
-  // Build a map: dateKey → items[]
   const itemsByDate = useMemo(() => {
     const map = new Map<string, ScheduleItem[]>();
     for (const item of visibleItems) {
-      const d = new Date(item.date);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const key = dateKey(new Date(item.date));
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item);
     }
     return map;
   }, [visibleItems]);
-
-  function dateKey(d: Date) {
-    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-  }
 
   function prevMonth() {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
@@ -135,64 +109,59 @@ export default function MobileMonthCalendar({
     setSelectedDate(today);
   }
 
+  const thisMonthCount = visibleItems.filter(i => {
+    const d = new Date(i.date);
+    return d.getMonth() === viewMonth && d.getFullYear() === viewYear;
+  }).length;
+
   const selectedItems = selectedDate ? (itemsByDate.get(dateKey(selectedDate)) ?? []) : [];
 
   return (
     <div className="flex flex-col gap-3">
-      {/* ── Header ─────────────────────────────────────── */}
-      <div
-        className="flex items-center justify-between px-4 py-3 rounded-2xl border shadow-xs"
-        style={{ background: "var(--panel)", borderColor: "var(--line)" }}
-      >
+
+      {/* ── Month Header ─────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-2 px-1">
         <button
           onClick={prevMonth}
-          className="p-2 rounded-xl btn ghost cursor-pointer"
+          className="w-9 h-9 flex items-center justify-center rounded-xl btn ghost cursor-pointer active:scale-90 transition-transform"
           aria-label="Poprzedni miesiąc"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-5 h-5 dim" />
         </button>
 
-        <div className="text-center">
-          <p className="text-base font-extrabold strong tracking-tight">
-            {MONTH_NAMES[viewMonth]} {viewYear}
+        <button
+          onClick={goToday}
+          className="flex-1 text-center group cursor-pointer"
+        >
+          <p className="text-lg font-extrabold strong tracking-tight group-hover:text-[var(--accent)] transition-colors">
+            {MONTH_NAMES[viewMonth]} <span className="text-[var(--accent)]">{viewYear}</span>
           </p>
-          <p className="text-[10px] dim mt-0.5">
-            {visibleItems.filter(i => {
-              const d = new Date(i.date);
-              return d.getMonth() === viewMonth && d.getFullYear() === viewYear;
-            }).length} zleceń w miesiącu
-          </p>
-        </div>
+          {thisMonthCount > 0 && (
+            <p className="text-[11px] dim mt-0.5">
+              {thisMonthCount} {thisMonthCount === 1 ? "zlecenie" : thisMonthCount < 5 ? "zlecenia" : "zleceń"}
+            </p>
+          )}
+        </button>
 
-        <div className="flex items-center gap-1">
-          <button
-            onClick={goToday}
-            className="px-2.5 py-1.5 rounded-xl btn ghost text-xs font-bold cursor-pointer"
-          >
-            Dziś
-          </button>
-          <button
-            onClick={nextMonth}
-            className="p-2 rounded-xl btn ghost cursor-pointer"
-            aria-label="Następny miesiąc"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
+        <button
+          onClick={nextMonth}
+          className="w-9 h-9 flex items-center justify-center rounded-xl btn ghost cursor-pointer active:scale-90 transition-transform"
+          aria-label="Następny miesiąc"
+        >
+          <ChevronRight className="w-5 h-5 dim" />
+        </button>
       </div>
 
-      {/* ── Calendar Grid ──────────────────────────────── */}
-      <div
-        className="rounded-2xl border shadow-xs overflow-hidden"
-        style={{ background: "var(--panel)", borderColor: "var(--line)" }}
-      >
-        {/* Day-name header */}
-        <div className="grid grid-cols-7 border-b" style={{ borderColor: "var(--line)" }}>
+      {/* ── Calendar Grid ─────────────────────────────────── */}
+      <div className="rounded-2xl border overflow-hidden shadow-xs" style={{ background: "var(--panel)", borderColor: "var(--line)" }}>
+
+        {/* Day names row */}
+        <div className="grid grid-cols-7" style={{ borderBottom: "1px solid var(--line)", background: "var(--panel-2)" }}>
           {DAY_NAMES.map((name, i) => (
             <div
               key={name}
-              className={`py-2 text-center text-[10px] font-bold uppercase tracking-wide ${
-                i >= 5 ? "text-rose-400" : "dim"
+              className={`py-2.5 text-center text-[10px] font-bold uppercase tracking-widest ${
+                i >= 5 ? "text-rose-400" : "text-[var(--text-mute)]"
               }`}
             >
               {name}
@@ -201,79 +170,83 @@ export default function MobileMonthCalendar({
         </div>
 
         {/* Weeks */}
-        {Array.from({ length: grid.length / 7 }, (_, weekIdx) => (
+        {Array.from({ length: grid.length / 7 }, (_, wk) => (
           <div
-            key={weekIdx}
+            key={wk}
             className="grid grid-cols-7"
-            style={{ borderTop: weekIdx > 0 ? "1px solid var(--line)" : undefined }}
+            style={wk > 0 ? { borderTop: "1px solid var(--line)" } : undefined}
           >
-            {grid.slice(weekIdx * 7, weekIdx * 7 + 7).map((day, dayIdx) => {
-              const isCurrentMonth = day.getMonth() === viewMonth;
+            {grid.slice(wk * 7, wk * 7 + 7).map((day, di) => {
+              const inMonth = day.getMonth() === viewMonth;
               const isToday = isSameDay(day, today);
-              const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
+              const isSel = selectedDate ? isSameDay(day, selectedDate) : false;
               const dayItems = itemsByDate.get(dateKey(day)) ?? [];
-              const hasItems = dayItems.length > 0;
-              const isWeekend = dayIdx >= 5;
+              const isWeekend = di >= 5;
 
-              // Count types
               const montazCount = dayItems.filter(i => i.type === "montaz").length;
               const serwisCount = dayItems.filter(i => i.type === "serwis").length;
-              const doneCount = dayItems.filter(i => {
-                const isM = i.type === "montaz";
-                return isM ? i.status === "completed" : (i.status === "rozwiazana" || i.status === "zamknieta" || i.status === "zakonczona");
-              }).length;
+              const allDone = dayItems.length > 0 && dayItems.every(i => isDone(i));
+              const hasItems = dayItems.length > 0;
 
               return (
                 <button
                   key={day.toISOString()}
                   type="button"
-                  onClick={() => setSelectedDate(isSelected ? null : day)}
-                  style={
-                    dayIdx < 6
-                      ? { borderRight: "1px solid var(--line)" }
-                      : undefined
-                  }
-                  className={`
-                    relative flex flex-col items-center min-h-[72px] sm:min-h-[90px] p-1 pt-1.5 gap-0.5 transition-colors cursor-pointer text-left
-                    ${isSelected ? "bg-blue-50 ring-2 ring-inset ring-blue-400" : ""}
-                    ${!isSelected && hasItems && isCurrentMonth ? "hover:bg-slate-50" : ""}
-                    ${!isCurrentMonth ? "opacity-30" : ""}
-                  `}
+                  onClick={() => setSelectedDate(isSel ? null : day)}
+                  style={di < 6 ? { borderRight: "1px solid var(--line)" } : undefined}
+                  className={[
+                    "relative flex flex-col items-center min-h-[68px] sm:min-h-[82px] p-1 pt-1.5 gap-0.5 transition-all duration-150 cursor-pointer select-none focus:outline-none",
+                    isSel
+                      ? "bg-[var(--accent-soft)] ring-2 ring-inset ring-[var(--accent)]"
+                      : isToday && !isSel
+                      ? "bg-blue-50/60"
+                      : "",
+                    !inMonth ? "opacity-25 pointer-events-none" : "",
+                    !isSel && inMonth && hasItems ? "active:bg-slate-50" : "",
+                  ].filter(Boolean).join(" ")}
                 >
-                  {/* Day number */}
+                  {/* Day number bubble */}
                   <span
-                    className={`
-                      w-6 h-6 flex items-center justify-center rounded-full text-[11px] font-bold leading-none flex-shrink-0
-                      ${isToday ? "bg-blue-600 text-white shadow" : isWeekend && isCurrentMonth ? "text-rose-500" : "strong"}
-                    `}
+                    className={[
+                      "w-6 h-6 flex items-center justify-center rounded-full text-[11px] font-bold leading-none flex-shrink-0 transition-all",
+                      isToday
+                        ? "bg-[var(--accent)] text-white shadow-md"
+                        : isSel
+                        ? "bg-[var(--accent)] text-white"
+                        : isWeekend && inMonth
+                        ? "text-rose-500"
+                        : "text-[var(--text-strong)]",
+                    ].join(" ")}
                   >
                     {day.getDate()}
                   </span>
 
-                  {/* Event chips */}
-                  {isCurrentMonth && hasItems && (
-                    <div className="flex flex-col gap-0.5 w-full mt-0.5">
-                      {montazCount > 0 && (
-                        <div className="flex items-center gap-0.5 w-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
-                          <span className="text-[9px] font-bold text-blue-700 leading-none truncate">
-                            {montazCount > 1 ? `${montazCount}×` : ""} Montaż
-                          </span>
+                  {/* Event indicators */}
+                  {inMonth && hasItems && (
+                    <div className="flex flex-col gap-[3px] w-full mt-0.5 px-0.5">
+                      {allDone ? (
+                        <div className="flex items-center justify-center gap-0.5">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-500 flex-shrink-0" />
                         </div>
-                      )}
-                      {serwisCount > 0 && (
-                        <div className="flex items-center gap-0.5 w-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
-                          <span className="text-[9px] font-bold text-amber-700 leading-none truncate">
-                            {serwisCount > 1 ? `${serwisCount}×` : ""} Serwis
-                          </span>
-                        </div>
-                      )}
-                      {doneCount > 0 && doneCount === dayItems.length && (
-                        <div className="flex items-center gap-0.5 w-full">
-                          <Check className="w-2.5 h-2.5 text-emerald-500 flex-shrink-0" />
-                          <span className="text-[9px] font-bold text-emerald-600 leading-none">Wykonano</span>
-                        </div>
+                      ) : (
+                        <>
+                          {montazCount > 0 && (
+                            <div className="flex items-center gap-0.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+                              <span className="text-[9px] font-bold text-blue-700 leading-none truncate">
+                                {montazCount > 1 ? `${montazCount}×` : ""}M
+                              </span>
+                            </div>
+                          )}
+                          {serwisCount > 0 && (
+                            <div className="flex items-center gap-0.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                              <span className="text-[9px] font-bold text-amber-700 leading-none truncate">
+                                {serwisCount > 1 ? `${serwisCount}×` : ""}S
+                              </span>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
@@ -284,71 +257,96 @@ export default function MobileMonthCalendar({
         ))}
       </div>
 
-      {/* ── Day Detail Panel ───────────────────────────── */}
+      {/* ── Day Detail Panel ───────────────────────────────── */}
       {selectedDate && (
         <div
-          className="rounded-2xl border shadow-xs overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
+          className="rounded-2xl border shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200"
           style={{ background: "var(--panel)", borderColor: "var(--line)" }}
         >
-          <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--line)" }}>
-            <p className="font-bold strong text-sm">
-              {selectedDate.toLocaleDateString("pl-PL", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-              })}
-            </p>
-            <span className="pill">
-              {selectedItems.length} zlec.
-            </span>
+          {/* Panel header */}
+          <div
+            className="flex items-center justify-between px-4 py-3 border-b"
+            style={{ borderColor: "var(--line)", background: "var(--panel-2)" }}
+          >
+            <div>
+              <p className="font-extrabold strong text-sm capitalize">
+                {selectedDate.toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}
+              </p>
+              {selectedItems.length > 0 && (
+                <p className="text-[11px] dim mt-0.5">
+                  {selectedItems.length} {selectedItems.length === 1 ? "zlecenie" : "zlecenia/zleceń"}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedDate(null)}
+              className="w-7 h-7 flex items-center justify-center rounded-full btn ghost cursor-pointer"
+              aria-label="Zamknij"
+            >
+              <X className="w-4 h-4 dim" />
+            </button>
           </div>
 
-          {selectedItems.length === 0 ? (
-            <div className="py-10 text-center">
+          {/* Empty state */}
+          {selectedItems.length === 0 && (
+            <div className="py-10 flex flex-col items-center gap-2">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "var(--panel-3)" }}>
+                <CheckCircle2 className="w-5 h-5 text-[var(--text-mute)]" />
+              </div>
               <p className="text-sm font-semibold dim">Brak zleceń w tym dniu</p>
             </div>
-          ) : (
+          )}
+
+          {/* Item list */}
+          {selectedItems.length > 0 && (
             <div className="divide-y" style={{ borderColor: "var(--line)" }}>
               {selectedItems.map((item) => {
+                const done = isDone(item);
                 const isMontaz = item.type === "montaz";
-                const isDone = isMontaz
-                  ? item.status === "completed"
-                  : item.status === "rozwiazana" || item.status === "zamknieta" || item.status === "zakonczona";
 
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => onEventClick(item)}
-                    className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-slate-50 transition-colors cursor-pointer"
+                    className="w-full text-left px-4 py-3.5 flex items-center gap-3.5 hover:bg-[var(--panel-2)] active:bg-[var(--panel-3)] transition-colors cursor-pointer group"
                   >
-                    {/* Color strip */}
+                    {/* Type icon */}
                     <div
-                      className={`w-1 rounded-full self-stretch flex-shrink-0 ${
-                        isDone ? "bg-emerald-400" : isMontaz ? "bg-blue-500" : "bg-amber-500"
-                      }`}
-                    />
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        {isMontaz ? (
-                          <Wrench className="w-3 h-3 text-blue-500 flex-shrink-0" />
-                        ) : (
-                          <Sparkles className="w-3 h-3 text-amber-500 flex-shrink-0" />
-                        )}
-                        <span className={`text-xs font-bold truncate ${isDone ? "line-through text-slate-400" : "strong"}`}>
-                          {item.title}
-                        </span>
-                      </div>
-                      <p className="text-[11px] dim truncate">{item.clientName}</p>
-                      {item.timeStr && (
-                        <p className="text-[10px] text-blue-600 font-semibold mt-0.5">{item.timeStr}</p>
+                      className={[
+                        "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-active:scale-95",
+                        done
+                          ? "bg-emerald-100 text-emerald-600"
+                          : isMontaz
+                          ? "bg-blue-100 text-blue-600"
+                          : "bg-amber-100 text-amber-600",
+                      ].join(" ")}
+                    >
+                      {done ? (
+                        <CheckCircle2 className="w-4 h-4" />
+                      ) : isMontaz ? (
+                        <Wrench className="w-4 h-4" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
                       )}
                     </div>
 
-                    {isDone && (
-                      <Check className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                    )}
+                    {/* Details */}
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-bold truncate ${done ? "line-through text-[var(--text-mute)]" : "text-[var(--text-strong)]"}`}>
+                        {item.title}
+                      </p>
+                      <p className="text-[11px] dim truncate mt-0.5">{item.clientName}</p>
+                      {item.timeStr && (
+                        <span className="inline-flex items-center mt-1 text-[10px] font-bold text-[var(--accent)] bg-[var(--accent-soft)] px-1.5 py-0.5 rounded-md">
+                          {item.timeStr}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Arrow */}
+                    <ChevronRight className="w-4 h-4 text-[var(--text-mute)] group-hover:text-[var(--accent)] flex-shrink-0 transition-colors" />
                   </button>
                 );
               })}
