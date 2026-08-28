@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { X, Plus, Play, CheckCircle2, History } from "lucide-react";
+import { X, Plus, Play, CheckCircle2, History, Calendar, ChevronDown } from "lucide-react";
 
 export function ITKanbanTab() {
   const columns = useQuery(api.itKanban.getColumns) ?? [];
@@ -25,6 +25,7 @@ export function ITKanbanTab() {
   const [mode, setMode] = useState<"active-sprint" | "backlog" | "all-tasks" | "history">("all-tasks");
   const [viewType, setViewType] = useState<"board" | "list">("board");
   const [backlogSearchQuery, setBacklogSearchQuery] = useState("");
+  const [activeSprintDropdownTaskId, setActiveSprintDropdownTaskId] = useState<Id<"itKanbanTasks"> | null>(null);
 
   const [newColName, setNewColName] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -527,14 +528,69 @@ export function ITKanbanTab() {
                           </button>
                           <span className={`text-sm font-medium ${task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{task.title}</span>
                         </div>
-                        <button
-                          onClick={() => {
-                            if (confirm("Usunąć zadanie całkowicie?")) deleteTask({ id: task._id });
-                          }}
-                          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition-opacity"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1.5 relative">
+                          {/* Quick assign to sprint button */}
+                          {sprints.filter(s => s.status !== "completed").length > 0 && (
+                            <div className="relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveSprintDropdownTaskId(activeSprintDropdownTaskId === task._id ? null : task._id);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 text-xs font-semibold rounded-md border border-slate-200 transition-all flex items-center gap-1 cursor-pointer"
+                                title="Dodaj do sprintu..."
+                              >
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span>Do sprintu</span>
+                                <ChevronDown className="w-3 h-3" />
+                              </button>
+
+                              {activeSprintDropdownTaskId === task._id && (
+                                <>
+                                  <div 
+                                    className="fixed inset-0 z-40" 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveSprintDropdownTaskId(null);
+                                    }}
+                                  />
+                                  <div className="absolute right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 text-xs w-48 z-50 animate-in fade-in slide-in-from-top-1 duration-100">
+                                    <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+                                      Wybierz sprint
+                                    </div>
+                                    {sprints.filter(s => s.status !== "completed").map((sprint) => (
+                                      <button
+                                        key={sprint._id}
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          await updateTask({ id: task._id, sprintId: sprint._id });
+                                          setActiveSprintDropdownTaskId(null);
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 font-medium flex items-center justify-between cursor-pointer"
+                                      >
+                                        <span className="truncate">{sprint.name}</span>
+                                        {sprint.status === "active" && (
+                                          <span className="bg-blue-100 text-blue-700 px-1 py-0.5 rounded text-[9px] font-bold uppercase">
+                                            Aktywny
+                                          </span>
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() => {
+                              if (confirm("Usunąć zadanie całkowicie?")) deleteTask({ id: task._id });
+                            }}
+                            className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition-opacity p-1 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
