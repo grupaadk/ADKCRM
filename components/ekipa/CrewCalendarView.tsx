@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { CrewJobDetailModal } from "./CrewJobDetailModal";
 import { CrewVehicleModal } from "./CrewVehicleModal";
-import TUIMobileCalendarWrapper from "./TUIMobileCalendarWrapper";
+import MobileMonthCalendar from "./MobileMonthCalendar";
 import { DateStrip } from "./DateStrip";
 import { Truck } from "lucide-react";
 
@@ -210,17 +210,11 @@ export function CrewCalendarView({
         {/* CALENDAR VIEW MODE */}
         {viewMode === "calendar" && (
           <div className="animate-in fade-in zoom-in-95 duration-200">
-            <TUIMobileCalendarWrapper
+          <MobileMonthCalendar
               items={items}
               filter={filter}
               search={search}
               onEventClick={(item: ScheduleItem) => setSelectedItem(item)}
-              onEventDateChange={async (item: ScheduleItem, newDate: Date) => {
-                if (onChangeDate) {
-                  await onChangeDate(item, newDate);
-                }
-              }}
-              onToggleEventStatus={handleToggle}
             />
           </div>
         )}
