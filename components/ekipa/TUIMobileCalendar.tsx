@@ -57,9 +57,11 @@ export default function TUIMobileCalendar({
         eventView: ["allday", "time"],
         hourStart: 6,
         hourEnd: 17,
+        startDayOfWeek: 1, // Start on Monday
       },
       month: {
         isAlways6Weeks: false,
+        startDayOfWeek: 1, // Start on Monday
       },
       template: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
