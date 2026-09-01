@@ -414,80 +414,130 @@ function ArchivedLeadsTab() {
   const router = useRouter()
   const archivedLeads = useQuery(api.salesOpportunities.listArchivedOpportunities)
   const unarchive = useMutation(api.salesOpportunities.unarchiveOpportunity)
+  const [searchQuery, setSearchQuery] = useState("")
 
   if (!archivedLeads) {
     return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Ładowanie...</div>
   }
 
-  if (archivedLeads.length === 0) {
-    return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak zarchiwizowanych szans sprzedaży</div>
-  }
+  const q = searchQuery.toLowerCase().trim()
+  const filtered = q
+    ? archivedLeads.filter((opp) =>
+        `${opp.firstName} ${opp.lastName}`.toLowerCase().includes(q) ||
+        (opp.email ?? "").toLowerCase().includes(q) ||
+        (opp.services ?? []).some((s) => s.toLowerCase().includes(q))
+      )
+    : archivedLeads
 
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid var(--line)" }}>
-            {["Klient", "Etap", "Usługi", ""].map((h) => (
-              <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--text-mute)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {archivedLeads.map((opp) => (
-            <tr
-              key={opp._id}
-              style={{ borderBottom: "1px solid var(--line)", cursor: "pointer" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel-2)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-              onClick={() => router.push(`/admin/szansa/${opp._id}`)}
+    <div>
+      {/* Search bar */}
+      <div style={{ padding: "12px 12px 8px", borderBottom: "1px solid var(--line)" }}>
+        <div style={{ position: "relative", maxWidth: 360 }}>
+          <Search size={13} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--text-mute)", pointerEvents: "none" }} />
+          <input
+            type="text"
+            placeholder="Szukaj po kliencie, e-mailu, usłudze..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: "100%", paddingLeft: 30, paddingRight: searchQuery ? 28 : 10,
+              paddingTop: 6, paddingBottom: 6,
+              border: "1px solid var(--line-2)", borderRadius: 6,
+              fontSize: 12, outline: "none", background: "var(--panel)",
+              color: "var(--text)",
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", display: "flex", padding: 0 }}
             >
-              <td style={{ padding: "10px 12px", color: "var(--text-strong)", fontWeight: 600 }}>
-                {opp.firstName} {opp.lastName}
-                {opp.email && <div style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 400 }}>{opp.email}</div>}
-              </td>
-              <td style={{ padding: "10px 12px" }}>
-                <span style={{ fontSize: 10, fontWeight: 700, background: opp.stage === "inquiry" ? "#dbeafe" : "#fef3c7", color: opp.stage === "inquiry" ? "#1d4ed8" : "#b45309", borderRadius: 3, padding: "2px 6px" }}>
-                  {opp.stage === "inquiry" ? "Oferta wysłana" : "Oferty"}
-                </span>
-              </td>
-              <td style={{ padding: "10px 12px" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                  {(opp.services ?? []).slice(0, 3).map((s, i) => {
-                    const c = SERVICE_COLORS[i % SERVICE_COLORS.length]
-                    return (
-                      <span key={s} style={{ fontSize: 10, fontWeight: 600, background: c.bg, color: c.text, borderRadius: 3, padding: "2px 6px" }}>{s}</span>
-                    )
-                  })}
-                  {(opp.services ?? []).length > 3 && (
-                    <span style={{ fontSize: 10, fontWeight: 600, background: "#f1f5f9", color: "#64748b", borderRadius: 3, padding: "2px 6px" }}>+{(opp.services ?? []).length - 3}</span>
-                  )}
-                </div>
-              </td>
-              <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    void unarchive({ opportunityId: opp._id })
-                  }}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                    padding: "4px 10px", borderRadius: 5,
-                    border: "1px solid var(--line)", background: "var(--panel)",
-                    fontSize: 11, fontWeight: 500, color: "var(--text)",
-                    cursor: "pointer",
-                  }}
-                  title="Przywróć z archiwum"
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        {q && (
+          <div style={{ marginTop: 4, fontSize: 11, color: "var(--text-mute)" }}>
+            {filtered.length === 0 ? "Brak wyników" : `${filtered.length} wynik${filtered.length === 1 ? "" : filtered.length < 5 ? "i" : "ów"}`}
+          </div>
+        )}
+      </div>
+
+      {filtered.length === 0 && !q && (
+        <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak zarchiwizowanych szans sprzedaży</div>
+      )}
+      {filtered.length === 0 && q && (
+        <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak wyników dla &ldquo;{q}&rdquo;</div>
+      )}
+
+      {filtered.length > 0 && (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--line)" }}>
+                {["Klient", "Etap", "Usługi", ""].map((h) => (
+                  <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--text-mute)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((opp) => (
+                <tr
+                  key={opp._id}
+                  style={{ borderBottom: "1px solid var(--line)", cursor: "pointer" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel-2)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+                  onClick={() => router.push(`/admin/szansa/${opp._id}`)}
                 >
-                  <ArchiveRestore size={12} /> Przywróć
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  <td style={{ padding: "10px 12px", color: "var(--text-strong)", fontWeight: 600 }}>
+                    {opp.firstName} {opp.lastName}
+                    {opp.email && <div style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 400 }}>{opp.email}</div>}
+                  </td>
+                  <td style={{ padding: "10px 12px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, background: opp.stage === "inquiry" ? "#dbeafe" : "#fef3c7", color: opp.stage === "inquiry" ? "#1d4ed8" : "#b45309", borderRadius: 3, padding: "2px 6px" }}>
+                      {opp.stage === "inquiry" ? "Oferta wysłana" : "Oferty"}
+                    </span>
+                  </td>
+                  <td style={{ padding: "10px 12px" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                      {(opp.services ?? []).slice(0, 3).map((s, i) => {
+                        const c = SERVICE_COLORS[i % SERVICE_COLORS.length]
+                        return (
+                          <span key={s} style={{ fontSize: 10, fontWeight: 600, background: c.bg, color: c.text, borderRadius: 3, padding: "2px 6px" }}>{s}</span>
+                        )
+                      })}
+                      {(opp.services ?? []).length > 3 && (
+                        <span style={{ fontSize: 10, fontWeight: 600, background: "#f1f5f9", color: "#64748b", borderRadius: 3, padding: "2px 6px" }}>+{(opp.services ?? []).length - 3}</span>
+                      )}
+                    </div>
+                  </td>
+                  <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void unarchive({ opportunityId: opp._id })
+                      }}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        padding: "4px 10px", borderRadius: 5,
+                        border: "1px solid var(--line)", background: "var(--panel)",
+                        fontSize: 11, fontWeight: 500, color: "var(--text)",
+                        cursor: "pointer",
+                      }}
+                      title="Przywróć z archiwum"
+                    >
+                      <ArchiveRestore size={12} /> Przywróć
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
@@ -497,73 +547,127 @@ function ArchivedTab() {
   const statusLabels = useStatusLabels()
   const router = useRouter()
   const archived = useQuery(api.kanban.listArchived)
+  const [searchQuery, setSearchQuery] = useState("")
 
   if (!archived) {
     return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Ładowanie...</div>
   }
 
-  if (archived.length === 0) {
-    return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak zarchiwizowanych zleceń</div>
-  }
+  const q = searchQuery.toLowerCase().trim()
+  const filtered = q
+    ? archived.filter((order) =>
+        (order.name ?? "").toLowerCase().includes(q) ||
+        (order.customText ?? "").toLowerCase().includes(q) ||
+        (order.clientFirstName ?? "").toLowerCase().includes(q) ||
+        (order.clientLastName ?? "").toLowerCase().includes(q) ||
+        (order.companyName ?? "").toLowerCase().includes(q) ||
+        `${order.clientFirstName ?? ""} ${order.clientLastName ?? ""}`.toLowerCase().includes(q) ||
+        (order.services ?? []).some((s) => s.toLowerCase().includes(q))
+      )
+    : archived
 
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid var(--line)" }}>
-            {["Nr zlecenia", "Klient", "Usługi", "Status", ""].map((h) => (
-              <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--text-mute)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {archived.map((order) => (
-            <tr
-              key={order._id}
-              style={{ borderBottom: "1px solid var(--line)", cursor: "pointer" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel-2)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-              onClick={() => router.push(`/admin/klient/${order.clientId}/zlecenie/${order._id}`)}
+    <div>
+      {/* Search bar */}
+      <div style={{ padding: "12px 12px 8px", borderBottom: "1px solid var(--line)" }}>
+        <div style={{ position: "relative", maxWidth: 360 }}>
+          <Search size={13} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--text-mute)", pointerEvents: "none" }} />
+          <input
+            type="text"
+            placeholder="Szukaj po numerze, kliencie, usłudze..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: "100%", paddingLeft: 30, paddingRight: searchQuery ? 28 : 10,
+              paddingTop: 6, paddingBottom: 6,
+              border: "1px solid var(--line-2)", borderRadius: 6,
+              fontSize: 12, outline: "none", background: "var(--panel)",
+              color: "var(--text)",
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", display: "flex", padding: 0 }}
             >
-              <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "var(--text-strong)", fontWeight: 600 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
-                  <span>{order.name ?? "—"}</span>
-                  {order.customText && <span className="chip-custom">{order.customText}</span>}
-                </div>
-              </td>
-              <td style={{ padding: "10px 12px", color: "var(--text-strong)", fontWeight: 600 }}>
-                {order.clientType === "business" && order.companyName
-                  ? order.companyName
-                  : `${order.clientFirstName} ${order.clientLastName}`}
-              </td>
-              <td style={{ padding: "10px 12px" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                  {(order.services ?? []).map((s, i) => {
-                    const c = SERVICE_COLORS[i % SERVICE_COLORS.length]
-                    return (
-                      <span key={s} style={{
-                        fontSize: 10, fontWeight: 600,
-                        background: c.bg, color: c.text,
-                        borderRadius: 3, padding: "2px 6px",
-                      }}>{s}</span>
-                    )
-                  })}
-                </div>
-              </td>
-              <td style={{ padding: "10px 12px" }}>
-                <span style={{ fontSize: 10, fontWeight: 700, background: "#e2e8f0", color: "#475569", borderRadius: 3, padding: "2px 6px" }}>
-                  {statusLabels["archived"] ?? "Archiwalne"}
-                </span>
-              </td>
-              <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                <span style={{ fontSize: 11, color: "var(--accent)" }}>→</span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        {q && (
+          <div style={{ marginTop: 4, fontSize: 11, color: "var(--text-mute)" }}>
+            {filtered.length === 0 ? "Brak wyników" : `${filtered.length} wynik${filtered.length === 1 ? "" : filtered.length < 5 ? "i" : "ów"}`}
+          </div>
+        )}
+      </div>
+
+      {filtered.length === 0 && !q && (
+        <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak zarchiwizowanych zleceń</div>
+      )}
+      {filtered.length === 0 && q && (
+        <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak wyników dla &ldquo;{q}&rdquo;</div>
+      )}
+
+      {filtered.length > 0 && (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--line)" }}>
+                {["Nr zlecenia", "Klient", "Usługi", "Status", ""].map((h) => (
+                  <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--text-mute)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((order) => (
+                <tr
+                  key={order._id}
+                  style={{ borderBottom: "1px solid var(--line)", cursor: "pointer" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel-2)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+                  onClick={() => router.push(`/admin/klient/${order.clientId}/zlecenie/${order._id}`)}
+                >
+                  <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "var(--text-strong)", fontWeight: 600 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
+                      <span>{order.name ?? "—"}</span>
+                      {order.customText && <span className="chip-custom">{order.customText}</span>}
+                    </div>
+                  </td>
+                  <td style={{ padding: "10px 12px", color: "var(--text-strong)", fontWeight: 600 }}>
+                    {order.clientType === "business" && order.companyName
+                      ? order.companyName
+                      : `${order.clientFirstName} ${order.clientLastName}`}
+                  </td>
+                  <td style={{ padding: "10px 12px" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                      {(order.services ?? []).map((s, i) => {
+                        const c = SERVICE_COLORS[i % SERVICE_COLORS.length]
+                        return (
+                          <span key={s} style={{
+                            fontSize: 10, fontWeight: 600,
+                            background: c.bg, color: c.text,
+                            borderRadius: 3, padding: "2px 6px",
+                          }}>{s}</span>
+                        )
+                      })}
+                    </div>
+                  </td>
+                  <td style={{ padding: "10px 12px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, background: "#e2e8f0", color: "#475569", borderRadius: 3, padding: "2px 6px" }}>
+                      {statusLabels["archived"] ?? "Archiwalne"}
+                    </span>
+                  </td>
+                  <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                    <span style={{ fontSize: 11, color: "var(--accent)" }}>→</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
