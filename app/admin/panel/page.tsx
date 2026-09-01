@@ -431,36 +431,56 @@ function ArchivedLeadsTab() {
 
   return (
     <div>
-      {/* Search bar */}
-      <div style={{ padding: "12px 12px 8px", borderBottom: "1px solid var(--line)" }}>
-        <div style={{ position: "relative", maxWidth: 360 }}>
-          <Search size={13} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--text-mute)", pointerEvents: "none" }} />
+      {/* Search bar — styl jak w Zleceniach */}
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
+          <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)", pointerEvents: "none" }} />
           <input
             type="text"
-            placeholder="Szukaj po kliencie, e-mailu, usłudze..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Szukaj klienta, e-mailu, usługi…"
             style={{
-              width: "100%", paddingLeft: 30, paddingRight: searchQuery ? 28 : 10,
-              paddingTop: 6, paddingBottom: 6,
-              border: "1px solid var(--line-2)", borderRadius: 6,
-              fontSize: 12, outline: "none", background: "var(--panel)",
-              color: "var(--text)",
+              width: "100%",
+              padding: "8px 30px 8px 34px",
+              borderRadius: 999,
+              border: "1px solid var(--line)",
+              background: "#fff",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+              fontSize: 13,
+              fontWeight: 500,
+              fontFamily: "inherit",
+              color: "var(--text-strong)",
+              outline: "none",
+              transition: "border-color 0.15s, box-shadow 0.15s",
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = "var(--accent)";
+              e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = "var(--line)";
+              e.currentTarget.style.boxShadow = "none";
             }}
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", display: "flex", padding: 0 }}
+              style={{
+                position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                background: "var(--panel-3)", border: "none", borderRadius: "50%",
+                cursor: "pointer", color: "var(--text-mute)", width: 20, height: 20,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
             >
-              <X size={12} />
+              <X style={{ width: 12, height: 12 }} />
             </button>
           )}
         </div>
         {q && (
-          <div style={{ marginTop: 4, fontSize: 11, color: "var(--text-mute)" }}>
+          <span style={{ fontSize: 12, color: "var(--text-mute)", whiteSpace: "nowrap", flexShrink: 0 }}>
             {filtered.length === 0 ? "Brak wyników" : `${filtered.length} wynik${filtered.length === 1 ? "" : filtered.length < 5 ? "i" : "ów"}`}
-          </div>
+          </span>
         )}
       </div>
 
@@ -568,36 +588,56 @@ function ArchivedTab() {
 
   return (
     <div>
-      {/* Search bar */}
-      <div style={{ padding: "12px 12px 8px", borderBottom: "1px solid var(--line)" }}>
-        <div style={{ position: "relative", maxWidth: 360 }}>
-          <Search size={13} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--text-mute)", pointerEvents: "none" }} />
+      {/* Search bar — styl jak w Zleceniach */}
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
+          <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)", pointerEvents: "none" }} />
           <input
             type="text"
-            placeholder="Szukaj po numerze, kliencie, usłudze..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Szukaj zlecenia, klienta, usługi…"
             style={{
-              width: "100%", paddingLeft: 30, paddingRight: searchQuery ? 28 : 10,
-              paddingTop: 6, paddingBottom: 6,
-              border: "1px solid var(--line-2)", borderRadius: 6,
-              fontSize: 12, outline: "none", background: "var(--panel)",
-              color: "var(--text)",
+              width: "100%",
+              padding: "8px 30px 8px 34px",
+              borderRadius: 999,
+              border: "1px solid var(--line)",
+              background: "#fff",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+              fontSize: 13,
+              fontWeight: 500,
+              fontFamily: "inherit",
+              color: "var(--text-strong)",
+              outline: "none",
+              transition: "border-color 0.15s, box-shadow 0.15s",
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = "var(--accent)";
+              e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = "var(--line)";
+              e.currentTarget.style.boxShadow = "none";
             }}
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-mute)", display: "flex", padding: 0 }}
+              style={{
+                position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                background: "var(--panel-3)", border: "none", borderRadius: "50%",
+                cursor: "pointer", color: "var(--text-mute)", width: 20, height: 20,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
             >
-              <X size={12} />
+              <X style={{ width: 12, height: 12 }} />
             </button>
           )}
         </div>
         {q && (
-          <div style={{ marginTop: 4, fontSize: 11, color: "var(--text-mute)" }}>
+          <span style={{ fontSize: 12, color: "var(--text-mute)", whiteSpace: "nowrap", flexShrink: 0 }}>
             {filtered.length === 0 ? "Brak wyników" : `${filtered.length} wynik${filtered.length === 1 ? "" : filtered.length < 5 ? "i" : "ów"}`}
-          </div>
+          </span>
         )}
       </div>
 
