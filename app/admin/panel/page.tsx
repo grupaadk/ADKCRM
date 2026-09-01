@@ -410,11 +410,10 @@ function OrderCard({
 }
 
 // ─── Zakładka Archiwum LEAD ─────────────────────────────────────────
-function ArchivedLeadsTab() {
+function ArchivedLeadsTab({ searchQuery }: { searchQuery: string }) {
   const router = useRouter()
   const archivedLeads = useQuery(api.salesOpportunities.listArchivedOpportunities)
   const unarchive = useMutation(api.salesOpportunities.unarchiveOpportunity)
-  const [searchQuery, setSearchQuery] = useState("")
 
   if (!archivedLeads) {
     return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Ładowanie...</div>
@@ -431,64 +430,11 @@ function ArchivedLeadsTab() {
 
   return (
     <div>
-      {/* Search bar — styl jak w Zleceniach */}
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
-          <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)", pointerEvents: "none" }} />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Szukaj klienta, e-mailu, usługi…"
-            style={{
-              width: "100%",
-              padding: "8px 30px 8px 34px",
-              borderRadius: 999,
-              border: "1px solid var(--line)",
-              background: "#fff",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-              fontSize: 13,
-              fontWeight: 500,
-              fontFamily: "inherit",
-              color: "var(--text-strong)",
-              outline: "none",
-              transition: "border-color 0.15s, box-shadow 0.15s",
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = "var(--accent)";
-              e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = "var(--line)";
-              e.currentTarget.style.boxShadow = "none";
-            }}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              style={{
-                position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-                background: "var(--panel-3)", border: "none", borderRadius: "50%",
-                cursor: "pointer", color: "var(--text-mute)", width: 20, height: 20,
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}
-            >
-              <X style={{ width: 12, height: 12 }} />
-            </button>
-          )}
-        </div>
-        {q && (
-          <span style={{ fontSize: 12, color: "var(--text-mute)", whiteSpace: "nowrap", flexShrink: 0 }}>
-            {filtered.length === 0 ? "Brak wyników" : `${filtered.length} wynik${filtered.length === 1 ? "" : filtered.length < 5 ? "i" : "ów"}`}
-          </span>
-        )}
-      </div>
-
       {filtered.length === 0 && !q && (
         <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak zarchiwizowanych szans sprzedaży</div>
       )}
       {filtered.length === 0 && q && (
-        <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak wyników dla &ldquo;{q}&rdquo;</div>
+        <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak wyników dla „{q}”</div>
       )}
 
       {filtered.length > 0 && (
@@ -563,11 +509,10 @@ function ArchivedLeadsTab() {
 }
 
 // ─── Zakładka Archiwum ──────────────────────────────────────────────
-function ArchivedTab() {
+function ArchivedTab({ searchQuery }: { searchQuery: string }) {
   const statusLabels = useStatusLabels()
   const router = useRouter()
   const archived = useQuery(api.kanban.listArchived)
-  const [searchQuery, setSearchQuery] = useState("")
 
   if (!archived) {
     return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Ładowanie...</div>
@@ -588,64 +533,11 @@ function ArchivedTab() {
 
   return (
     <div>
-      {/* Search bar — styl jak w Zleceniach */}
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
-          <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)", pointerEvents: "none" }} />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Szukaj zlecenia, klienta, usługi…"
-            style={{
-              width: "100%",
-              padding: "8px 30px 8px 34px",
-              borderRadius: 999,
-              border: "1px solid var(--line)",
-              background: "#fff",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-              fontSize: 13,
-              fontWeight: 500,
-              fontFamily: "inherit",
-              color: "var(--text-strong)",
-              outline: "none",
-              transition: "border-color 0.15s, box-shadow 0.15s",
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = "var(--accent)";
-              e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = "var(--line)";
-              e.currentTarget.style.boxShadow = "none";
-            }}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              style={{
-                position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-                background: "var(--panel-3)", border: "none", borderRadius: "50%",
-                cursor: "pointer", color: "var(--text-mute)", width: 20, height: 20,
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}
-            >
-              <X style={{ width: 12, height: 12 }} />
-            </button>
-          )}
-        </div>
-        {q && (
-          <span style={{ fontSize: 12, color: "var(--text-mute)", whiteSpace: "nowrap", flexShrink: 0 }}>
-            {filtered.length === 0 ? "Brak wyników" : `${filtered.length} wynik${filtered.length === 1 ? "" : filtered.length < 5 ? "i" : "ów"}`}
-          </span>
-        )}
-      </div>
-
       {filtered.length === 0 && !q && (
         <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak zarchiwizowanych zleceń</div>
       )}
       {filtered.length === 0 && q && (
-        <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak wyników dla &ldquo;{q}&rdquo;</div>
+        <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak wyników dla „{q}”</div>
       )}
 
       {filtered.length > 0 && (
@@ -1114,55 +1006,57 @@ export default function PanelPage() {
           </p>
         </div>
 
-        {/* Center Search Bar */}
-        {(activeTab === "kanban" || activeTab === "opportunities") && (
-          <div style={{ flex: 1, display: "flex", justifyContent: "center", minWidth: 200 }}>
-            <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
-              <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)" }} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Szukaj zlecenia, klienta, miasta…"
+        {/* Center Search Bar — widoczna dla wszystkich zakładek */}
+        <div style={{ flex: 1, display: "flex", justifyContent: "center", minWidth: 200 }}>
+          <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
+            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)" }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={
+                activeTab === "archived" ? "Szukaj zlecenia, klienta, usługi…"
+                : activeTab === "archived-leads" ? "Szukaj klienta, e-mailu, usługi…"
+                : "Szukaj zlecenia, klienta, miasta…"
+              }
+              style={{
+                width: "100%",
+                padding: "8px 30px 8px 34px",
+                borderRadius: 999,
+                border: "1px solid var(--line)",
+                background: "#fff",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: "inherit",
+                color: "var(--text-strong)",
+                outline: "none",
+                transition: "border-color 0.15s, box-shadow 0.15s",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent-line)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
                 style={{
-                  width: "100%",
-                  padding: "8px 30px 8px 34px",
-                  borderRadius: 999,
-                  border: "1px solid var(--line)",
-                  background: "#fff",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  fontFamily: "inherit",
-                  color: "var(--text-strong)",
-                  outline: "none",
-                  transition: "border-color 0.15s, box-shadow 0.15s",
+                  position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                  background: "var(--panel-3)", border: "none", borderRadius: "50%",
+                  cursor: "pointer", color: "var(--text-mute)", width: 20, height: 20,
+                  display: "flex", alignItems: "center", justifyContent: "center",
                 }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent)";
-                  e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent-line)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  style={{
-                    position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-                    background: "var(--panel-3)", border: "none", borderRadius: "50%",
-                    cursor: "pointer", color: "var(--text-mute)", width: 20, height: 20,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}
-                >
-                  <X style={{ width: 12, height: 12 }} />
-                </button>
-              )}
-            </div>
+              >
+                <X style={{ width: 12, height: 12 }} />
+              </button>
+            )}
           </div>
-        )}
+        </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "flex-end" }}>
           {(activeTab === "kanban" || activeTab === "opportunities") && (items?.length ?? 0) > 0 && (
@@ -1457,10 +1351,10 @@ export default function PanelPage() {
       )}
 
       {/* Archiwum tab (zlecenia) */}
-      {activeTab === "archived" && <ArchivedTab />}
+      {activeTab === "archived" && <ArchivedTab searchQuery={searchQuery} />}
 
       {/* Archiwum LEAD tab (szanse sprzedaży) */}
-      {activeTab === "archived-leads" && <ArchivedLeadsTab />}
+      {activeTab === "archived-leads" && <ArchivedLeadsTab searchQuery={searchQuery} />}
 
       {showNewOrderModal && (
         <NewOrderModal
