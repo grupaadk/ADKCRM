@@ -192,7 +192,7 @@ export default function ClientList({ viewConfig, searchQuery }: { viewConfig?: V
             {!isLoading && displayClients?.length === 0 && (
               <tr>
                 <td colSpan={6}>
-                  <CrmEmptyState message={query ? "Brak klientów spełniających kryteria wyszukiwania." : "Brak klientów. Dodaj pierwszego klienta."} />
+                  <CrmEmptyState message={searchQuery ? "Brak klientów spełniających kryteria wyszukiwania." : "Brak klientów. Dodaj pierwszego klienta."} />
                 </td>
               </tr>
             )}
