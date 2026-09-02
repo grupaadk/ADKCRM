@@ -414,27 +414,117 @@ function ArchivedLeadsTab({ searchQuery }: { searchQuery: string }) {
   const router = useRouter()
   const archivedLeads = useQuery(api.salesOpportunities.listArchivedOpportunities)
   const unarchive = useMutation(api.salesOpportunities.unarchiveOpportunity)
+  const [activeServiceFilters, setActiveServiceFilters] = useState<Set<string>>(new Set())
 
   if (!archivedLeads) {
     return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Ładowanie...</div>
   }
 
   const q = searchQuery.toLowerCase().trim()
-  const filtered = q
-    ? archivedLeads.filter((opp) =>
-        `${opp.firstName} ${opp.lastName}`.toLowerCase().includes(q) ||
-        (opp.email ?? "").toLowerCase().includes(q) ||
-        (opp.services ?? []).some((s) => s.toLowerCase().includes(q))
-      )
-    : archivedLeads
+
+  // Liczba pozycji dla każdej usługi — bez wpływu aktywnych filtrów
+  const serviceCountMap: Record<string, number> = {}
+  for (const opp of archivedLeads) {
+    for (const s of opp.services ?? []) {
+      serviceCountMap[s] = (serviceCountMap[s] ?? 0) + 1
+    }
+  }
+  // Unikalne usługi posortowane malejąco po liczbie
+  const uniqueServices = Object.entries(serviceCountMap)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name)
+
+  const toggleService = (name: string) => {
+    setActiveServiceFilters(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  let filtered = archivedLeads
+
+  if (activeServiceFilters.size > 0) {
+    filtered = filtered.filter(opp =>
+      (opp.services ?? []).some(s => activeServiceFilters.has(s))
+    )
+  }
+
+  if (q) {
+    filtered = filtered.filter((opp) =>
+      `${opp.firstName} ${opp.lastName}`.toLowerCase().includes(q) ||
+      (opp.email ?? "").toLowerCase().includes(q) ||
+      (opp.services ?? []).some((s) => s.toLowerCase().includes(q))
+    )
+  }
+
+  const hasActiveFilters = activeServiceFilters.size > 0 || !!q
 
   return (
     <div>
-      {filtered.length === 0 && !q && (
+      {/* Chipy filtra usług */}
+      {uniqueServices.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+          <span style={{ fontSize: 11, color: "var(--text-mute)", alignSelf: "center", marginRight: 2, fontWeight: 500 }}>Usługi:</span>
+          {uniqueServices.map((name, i) => {
+            const color = SERVICE_COLORS[i % SERVICE_COLORS.length]
+            const active = activeServiceFilters.has(name)
+            const count = serviceCountMap[name] ?? 0
+            return (
+              <button
+                key={name}
+                onClick={() => toggleService(name)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                  background: active ? color.bg : "var(--panel)",
+                  color: active ? color.text : "var(--text-mute)",
+                  border: `1.5px solid ${active ? color.text + "55" : "var(--line)"}`,
+                  fontWeight: active ? 600 : 500, cursor: "pointer",
+                  transition: "all 0.12s", fontFamily: "inherit",
+                }}
+              >
+                {name}
+                {count > 0 && (
+                  <span style={{
+                    minWidth: 16, height: 16, borderRadius: 8,
+                    background: active ? color.text + "22" : "var(--panel-2)",
+                    color: active ? color.text : "var(--text-mute)",
+                    fontSize: 10, fontWeight: 700,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    padding: "0 4px", lineHeight: 1,
+                  }}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+          {activeServiceFilters.size > 0 && (
+            <button
+              onClick={() => setActiveServiceFilters(new Set())}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                padding: "4px 8px", borderRadius: 20, fontSize: 11,
+                background: "transparent", color: "var(--text-mute)",
+                border: "1.5px solid var(--line)",
+                fontWeight: 500, cursor: "pointer",
+                transition: "all 0.12s", fontFamily: "inherit",
+              }}
+              title="Wyczyść filtry usług"
+            >
+              <X size={10} /> Wyczyść
+            </button>
+          )}
+        </div>
+      )}
+
+      {filtered.length === 0 && !hasActiveFilters && (
         <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak zarchiwizowanych szans sprzedaży</div>
       )}
-      {filtered.length === 0 && q && (
-        <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak wyników dla „{q}”</div>
+      {filtered.length === 0 && hasActiveFilters && (
+        <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Brak wyników dla wybranych filtrów</div>
       )}
 
       {filtered.length > 0 && (
@@ -623,7 +713,9 @@ export default function PanelPage() {
   const items = useQuery(api.kanban.list)
   const currentUser = useQuery(api.users.me)
   const allUsers = useQuery(api.users.listAllActive)
+  const servicesList = useQuery(api.services.listActive) ?? []
   const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set())
+  const [activeServiceFilters, setActiveServiceFilters] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
 
@@ -660,6 +752,15 @@ export default function PanelPage() {
     })
   }
 
+  const toggleServiceFilter = (name: string) => {
+    setActiveServiceFilters(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
   // color → userId lookup as fallback when assignedUserId isn't yet in kanban items
   const colorToUserId = useMemo(() => {
     if (!allUsers) return {} as Record<string, string>
@@ -688,6 +789,16 @@ export default function PanelPage() {
       return uids.some(uid => activeUserFilters.has(uid))
     })
 
+    // Service filter — only applied on opportunities tab for pending items
+    if (activeServiceFilters.size > 0) {
+      filtered = filtered.filter(item => {
+        // orders in kanban tab are unaffected
+        if (item.type === "order") return true
+        const itemServices = item.services ?? []
+        return itemServices.some(s => activeServiceFilters.has(s))
+      })
+    }
+
     if (debouncedSearch) {
       filtered = filtered.filter(item => {
         const clientName = item.clientType === "business" && item.companyName
@@ -708,7 +819,7 @@ export default function PanelPage() {
     }
     
     return filtered
-  }, [items, activeUserFilters, colorToUserId, debouncedSearch])
+  }, [items, activeUserFilters, activeServiceFilters, colorToUserId, debouncedSearch])
 
   const changeStatus = useMutation(api.orders.changeStatus)
   const promoteToMeasurement = useMutation(api.jotformInternal.promoteToMeasurement)
@@ -899,6 +1010,18 @@ export default function PanelPage() {
       .filter((i) => i.type === "pending" && i.status === "inquiry" && typeof (i as any).profit === "number")
       .reduce((sum, i) => sum + ((i as any).profit || 0), 0)
   }, [activeTab, displayItems])
+
+  // Liczba szans sprzedaży (pending items) dla każdej usługi — bez wpływu aktywnych filtrów
+  const serviceCountMap = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const item of items ?? []) {
+      if (item.type !== "pending") continue
+      for (const s of item.services ?? []) {
+        map[s] = (map[s] ?? 0) + 1
+      }
+    }
+    return map
+  }, [items])
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0, height: "100%", minHeight: 0 }}>
@@ -1204,6 +1327,65 @@ export default function PanelPage() {
             }} />
             Bez przypisania
           </button>
+        </div>
+      )}
+
+      {/* Service filter chips — tylko zakładka Szanse sprzedaży */}
+      {activeTab === "opportunities" && servicesList.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
+          <span style={{ fontSize: 11, color: "var(--text-mute)", alignSelf: "center", marginRight: 2, fontWeight: 500 }}>Usługi:</span>
+          {servicesList.map((svc, i) => {
+            const color = SERVICE_COLORS[i % SERVICE_COLORS.length]
+            const active = activeServiceFilters.has(svc.name)
+            return (
+              <button
+                key={svc._id}
+                onClick={() => toggleServiceFilter(svc.name)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                  background: active ? color.bg : "var(--panel)",
+                  color: active ? color.text : "var(--text-mute)",
+                  border: `1.5px solid ${active ? color.text + "55" : "var(--line)"}`,
+                  fontWeight: active ? 600 : 500, cursor: "pointer",
+                  transition: "all 0.12s", fontFamily: "inherit",
+                }}
+              >
+                {svc.name}
+                {(serviceCountMap[svc.name] ?? 0) > 0 && (
+                  <span style={{
+                    minWidth: 16, height: 16,
+                    borderRadius: 8,
+                    background: active ? color.text + "22" : "var(--panel-2)",
+                    color: active ? color.text : "var(--text-mute)",
+                    fontSize: 10, fontWeight: 700,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    padding: "0 4px",
+                    lineHeight: 1,
+                  }}>
+                    {serviceCountMap[svc.name]}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+          {activeServiceFilters.size > 0 && (
+            <button
+              onClick={() => setActiveServiceFilters(new Set())}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                padding: "4px 8px", borderRadius: 20, fontSize: 11,
+                background: "transparent",
+                color: "var(--text-mute)",
+                border: "1.5px solid var(--line)",
+                fontWeight: 500, cursor: "pointer",
+                transition: "all 0.12s", fontFamily: "inherit",
+              }}
+              title="Wyczyść filtry usług"
+            >
+              <X size={10} /> Wyczyść
+            </button>
+          )}
         </div>
       )}
 
