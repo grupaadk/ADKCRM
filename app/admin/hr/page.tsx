@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -82,8 +82,17 @@ export default function HrPage() {
   const isAdmin = me?.role === "admin";
 
   // Podsekcja HR: Admin domyślnie "admin" (Zarządzanie), Pracownik "my" (Osobiste)
-  const [activeTab, setActiveTab] = useState<"my" | "admin">(isAdmin ? "admin" : "my");
+  const [activeTab, setActiveTab] = useState<"my" | "admin">("my");
   const [subTab, setSubTab] = useState<"leaves" | "overtime" | "employees">("leaves");
+
+  const requestsTableRef = useRef<HTMLDivElement>(null);
+
+  // Po pobraniu danych użytkownika przełącz na widok admina jeśli użytkownik jest adminem
+  useEffect(() => {
+    if (isAdmin) {
+      setActiveTab("admin");
+    }
+  }, [isAdmin]);
 
   // Stan filtrowania dla Admina
   const [adminUserFilter, setAdminUserFilter] = useState<string>("");
@@ -503,6 +512,9 @@ export default function HrPage() {
                               onClick={() => {
                                 setAdminUserFilter(emp._id);
                                 setSubTab("leaves");
+                                setTimeout(() => {
+                                  requestsTableRef.current?.scrollIntoView({ behavior: "smooth" });
+                                }, 50);
                               }}
                               className="text-xs font-semibold text-brand hover:underline"
                             >
@@ -517,7 +529,7 @@ export default function HrPage() {
               </div>
 
               {/* Sekcja Zarządzania Wnioskami (Urlopy i Nadgodziny) */}
-              <div className="space-y-4">
+              <div ref={requestsTableRef} className="space-y-4 scroll-mt-6">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-2">
                     <button
