@@ -797,7 +797,7 @@ export default function AppPwaPage() {
   // If NOT logged in -> Show immediate mobile Login Screen
   if (me === null) {
     return (
-      <div className="flex flex-col min-h-[100dvh] w-full bg-slate-50 justify-center items-center p-6 max-w-md mx-auto select-none">
+      <div className="flex flex-col min-h-[100dvh] w-full bg-slate-50 justify-center items-center p-6 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] max-w-md mx-auto select-none">
         <div className="w-full bg-white rounded-3xl p-6 border border-gray-200 shadow-xl space-y-6">
           <div className="text-center space-y-2">
             <div className="size-14 rounded-2xl bg-[#4dbdc6] text-white flex items-center justify-center font-extrabold text-xl mx-auto shadow-md">

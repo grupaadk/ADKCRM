@@ -53,6 +53,7 @@
 
 html {
   scroll-behavior: smooth;
+  height: 100%;
 }
 
 body {
@@ -63,6 +64,19 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -webkit-overflow-scrolling: touch;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Safe area padding utilities for header & footer */
+.safe-pt {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* ── Typography utilities ───────────────────────────────────────── */
