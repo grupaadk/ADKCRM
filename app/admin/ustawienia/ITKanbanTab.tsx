@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { X, Plus, Play, CheckCircle2, History, Calendar, ChevronDown } from "lucide-react";
+import { X, Plus, Play, CheckCircle2, History, Calendar, ChevronDown, Pencil } from "lucide-react";
 
 export function ITKanbanTab() {
   const columns = useQuery(api.itKanban.getColumns) ?? [];
@@ -38,6 +38,23 @@ export function ITKanbanTab() {
   
   // DND State for backlog
   const [draggedToSprintId, setDraggedToSprintId] = useState<Id<"itKanbanSprints"> | "backlog" | null>(null);
+
+  // Inline editing state
+  const [editingTaskId, setEditingTaskId] = useState<Id<"itKanbanTasks"> | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+
+  const handleStartEdit = (taskId: Id<"itKanbanTasks">, currentTitle: string) => {
+    setEditingTaskId(taskId);
+    setEditingTitle(currentTitle);
+  };
+
+  const handleSaveEdit = async (taskId: Id<"itKanbanTasks">) => {
+    if (editingTitle.trim()) {
+      await updateTask({ id: taskId, title: editingTitle.trim() });
+    }
+    setEditingTaskId(null);
+    setEditingTitle("");
+  };
 
   // Modals state
   const [startingSprintId, setStartingSprintId] = useState<Id<"itKanbanSprints"> | null>(null);
@@ -225,7 +242,25 @@ export function ITKanbanTab() {
                           >
                             <CheckCircle2 className="w-4 h-4" />
                           </button>
-                          <p className={`text-sm font-medium leading-snug flex-1 ${task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{task.title}</p>
+                          {editingTaskId === task._id ? (
+                            <input
+                              autoFocus
+                              className="text-sm font-medium leading-snug flex-1 outline-none border-b border-slate-300 bg-transparent focus:border-slate-500"
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") { e.preventDefault(); void handleSaveEdit(task._id); }
+                                if (e.key === "Escape") { setEditingTaskId(null); setEditingTitle(""); }
+                              }}
+                              onBlur={() => void handleSaveEdit(task._id)}
+                            />
+                          ) : (
+                            <p
+                              className={`text-sm font-medium leading-snug flex-1 cursor-text ${task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}
+                              onDoubleClick={() => !task.isCompleted && handleStartEdit(task._id, task.title)}
+                              title="Dwuklik aby edytować"
+                            >{task.title}</p>
+                          )}
                           <button
                             onClick={() => {
                               if (confirm("Usunąć zadanie?")) deleteTask({ id: task._id });
@@ -307,7 +342,36 @@ export function ITKanbanTab() {
                                 >
                                   <CheckCircle2 className="w-4 h-4" />
                                 </button>
-                                <span className={task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}>{task.title}</span>
+                                {editingTaskId === task._id ? (
+                                  <input
+                                    autoFocus
+                                    className="flex-1 text-sm outline-none border-b border-slate-300 bg-transparent focus:border-slate-500"
+                                    value={editingTitle}
+                                    onChange={(e) => setEditingTitle(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") { e.preventDefault(); void handleSaveEdit(task._id); }
+                                      if (e.key === "Escape") { setEditingTaskId(null); setEditingTitle(""); }
+                                    }}
+                                    onBlur={() => void handleSaveEdit(task._id)}
+                                  />
+                                ) : (
+                                  <>
+                                    <span
+                                      className={`flex-1 cursor-text ${task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}
+                                      onDoubleClick={() => !task.isCompleted && handleStartEdit(task._id, task.title)}
+                                      title="Dwuklik aby edytować"
+                                    >{task.title}</span>
+                                    {!task.isCompleted && (
+                                      <button
+                                        onClick={() => handleStartEdit(task._id, task.title)}
+                                        className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-slate-500 transition-opacity flex-shrink-0"
+                                        title="Edytuj"
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </>
+                                )}
                               </td>
                               <td className="px-4 py-2.5 w-10 text-right">
                                 <button
@@ -451,14 +515,32 @@ export function ITKanbanTab() {
                            onDragStart={(e) => handleDragStart(e, task._id)}
                            className="flex items-center justify-between bg-white px-3 py-2 border border-slate-200 rounded-md cursor-grab active:cursor-grabbing hover:border-slate-300 transition-colors group"
                          >
-                           <div className="flex items-center gap-2">
+                           <div className="flex items-center gap-2 flex-1 min-w-0">
                              <button 
                                onClick={(e) => { e.stopPropagation(); updateTask({ id: task._id, isCompleted: !task.isCompleted }) }}
                                className={`flex-shrink-0 transition-colors ${task.isCompleted ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
                              >
                                <CheckCircle2 className="w-4 h-4" />
                              </button>
-                             <span className={`text-sm font-medium ${task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{task.title}</span>
+                             {editingTaskId === task._id ? (
+                               <input
+                                 autoFocus
+                                 className="flex-1 text-sm font-medium outline-none border-b border-slate-300 bg-transparent focus:border-slate-500 min-w-0"
+                                 value={editingTitle}
+                                 onChange={(e) => setEditingTitle(e.target.value)}
+                                 onKeyDown={(e) => {
+                                   if (e.key === "Enter") { e.preventDefault(); void handleSaveEdit(task._id); }
+                                   if (e.key === "Escape") { setEditingTaskId(null); setEditingTitle(""); }
+                                 }}
+                                 onBlur={() => void handleSaveEdit(task._id)}
+                               />
+                             ) : (
+                               <span
+                                 className={`text-sm font-medium truncate cursor-text ${task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}
+                                 onDoubleClick={() => !task.isCompleted && handleStartEdit(task._id, task.title)}
+                                 title={task.title}
+                               >{task.title}</span>
+                             )}
                            </div>
                            <button
                              onClick={() => updateTask({ id: task._id, sprintId: null })} // usun ze sprintu = przenies do backlogu
@@ -519,14 +601,32 @@ export function ITKanbanTab() {
                         onDragStart={(e) => handleDragStart(e, task._id)}
                         className="flex items-center justify-between bg-white px-3 py-2 border border-slate-200 rounded-md cursor-grab active:cursor-grabbing hover:border-slate-300 transition-colors group"
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
                           <button 
                             onClick={(e) => { e.stopPropagation(); updateTask({ id: task._id, isCompleted: !task.isCompleted }) }}
                             className={`flex-shrink-0 transition-colors ${task.isCompleted ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
                           >
                             <CheckCircle2 className="w-4 h-4" />
                           </button>
-                          <span className={`text-sm font-medium ${task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{task.title}</span>
+                          {editingTaskId === task._id ? (
+                            <input
+                              autoFocus
+                              className="flex-1 text-sm font-medium outline-none border-b border-slate-300 bg-transparent focus:border-slate-500 min-w-0"
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") { e.preventDefault(); void handleSaveEdit(task._id); }
+                                if (e.key === "Escape") { setEditingTaskId(null); setEditingTitle(""); }
+                              }}
+                              onBlur={() => void handleSaveEdit(task._id)}
+                            />
+                          ) : (
+                            <span
+                              className={`text-sm font-medium truncate cursor-text ${task.isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}
+                              onDoubleClick={() => !task.isCompleted && handleStartEdit(task._id, task.title)}
+                              title={task.title}
+                            >{task.title}</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 relative">
                           {/* Quick assign to sprint button */}
@@ -863,7 +963,7 @@ export function ITKanbanTab() {
         </div>
       </div>
 
-      {mode === "active-sprint" && renderActiveSprint(activeSprint?._id || "none")}
+      {mode === "active-sprint" && renderActiveSprint(activeSprint?._id ?? "all")}
       {mode === "all-tasks" && renderActiveSprint("all")}
       {mode === "backlog" && renderBacklog()}
       {mode === "history" && renderHistory()}
