@@ -21,6 +21,7 @@ import {
   Users,
   Palmtree,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { EkipyView } from "@/app/admin/ekipy/page";
 import { FlotaView } from "@/app/admin/flota/page";
@@ -138,6 +139,16 @@ export default function HrPage() {
   const updateOvertimeStatusMut = useMutation(api.hr.updateOvertimeStatus);
   const cancelLeaveMut = useMutation(api.hr.cancelLeave);
   const deleteOvertimeMut = useMutation(api.hr.deleteOvertime);
+  const deleteLeaveMut = useMutation(api.hr.deleteLeave);
+
+  // Stan inline-potwierdzenia usuwania (zbiór ID)
+  const [confirmDeleteIds, setConfirmDeleteIds] = useState<Set<string>>(new Set());
+  const toggleConfirm = (id: string) =>
+    setConfirmDeleteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
 
   // Obliczanie dni roboczych przy zmianie dat
   const handleLeaveDateChange = (start: string, end: string) => {
@@ -595,6 +606,7 @@ export default function HrPage() {
                               <th className="px-6 py-3.5 font-semibold">Status</th>
                               <th className="px-6 py-3.5 font-semibold">Powód</th>
                               <th className="px-6 py-3.5 text-right font-semibold">Decyzja Admina</th>
+                              <th className="px-6 py-3.5 w-10"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
@@ -656,6 +668,36 @@ export default function HrPage() {
                                       <span className="text-xs text-gray-400">Przetworzono</span>
                                     )}
                                   </td>
+                                  <td className="px-3 py-4 text-right">
+                                    {confirmDeleteIds.has(leave._id) ? (
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span className="text-xs text-red-600 font-semibold whitespace-nowrap">Na pewno?</span>
+                                        <button
+                                          onClick={async () => {
+                                            await deleteLeaveMut({ leaveId: leave._id });
+                                            toggleConfirm(leave._id);
+                                          }}
+                                          className="inline-flex items-center gap-0.5 rounded bg-red-600 px-2 py-1 text-xs font-bold text-white hover:bg-red-700"
+                                        >
+                                          Usuń
+                                        </button>
+                                        <button
+                                          onClick={() => toggleConfirm(leave._id)}
+                                          className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100"
+                                        >
+                                          Anuluj
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => toggleConfirm(leave._id)}
+                                        className="rounded p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 transition"
+                                        title="Usuń wniosek"
+                                      >
+                                        <Trash2 className="size-3.5" />
+                                      </button>
+                                    )}
+                                  </td>
                                 </tr>
                               );
                             })}
@@ -681,6 +723,7 @@ export default function HrPage() {
                               <th className="px-6 py-3.5 font-semibold">Status</th>
                               <th className="px-6 py-3.5 font-semibold">Opis prac</th>
                               <th className="px-6 py-3.5 text-right font-semibold">Decyzja Admina</th>
+                              <th className="px-6 py-3.5 w-10"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
@@ -731,6 +774,36 @@ export default function HrPage() {
                                     </div>
                                   ) : (
                                     <span className="text-xs text-gray-400">Przetworzono</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-4 text-right">
+                                  {confirmDeleteIds.has(ot._id) ? (
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span className="text-xs text-red-600 font-semibold whitespace-nowrap">Na pewno?</span>
+                                      <button
+                                        onClick={async () => {
+                                          await deleteOvertimeMut({ overtimeId: ot._id });
+                                          toggleConfirm(ot._id);
+                                        }}
+                                        className="inline-flex items-center gap-0.5 rounded bg-red-600 px-2 py-1 text-xs font-bold text-white hover:bg-red-700"
+                                      >
+                                        Usuń
+                                      </button>
+                                      <button
+                                        onClick={() => toggleConfirm(ot._id)}
+                                        className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100"
+                                      >
+                                        Anuluj
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => toggleConfirm(ot._id)}
+                                      className="rounded p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 transition"
+                                      title="Usuń godziny dodatkowe"
+                                    >
+                                      <Trash2 className="size-3.5" />
+                                    </button>
                                   )}
                                 </td>
                               </tr>

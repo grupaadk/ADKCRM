@@ -431,3 +431,23 @@ export const deleteOvertime = mutation({
     await ctx.db.delete(args.overtimeId);
   },
 });
+
+/**
+ * Trwałe usunięcie wniosku urlopowego (tylko admin).
+ */
+export const deleteLeave = mutation({
+  args: {
+    leaveId: v.id("hrLeaves"),
+  },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const leave = await ctx.db.get(args.leaveId);
+    if (!leave) {
+      throw new ConvexError("Wniosek urlopowy nie istnieje.");
+    }
+
+    await ctx.db.delete(args.leaveId);
+  },
+});
+
