@@ -32,6 +32,7 @@ import {
   CircleDollarSign,
   AlertCircle,
   Truck,
+  Kanban,
 } from "lucide-react"
 
 type NavItem = {
@@ -63,6 +64,7 @@ const toolItems: NavItem[] = [
 const adminItems: NavItem[] = [
   { href: "/admin/ustawienia", label: "Ustawienia", icon: Settings, exactMatch: true, roles: ["admin"] },
   { href: "/admin/ustawienia/uzytkownicy", label: "Użytkownicy", icon: UserCog, roles: ["admin"] },
+  { href: "/admin/praca-it", label: "Praca IT", icon: Kanban, roles: ["admin"] },
   { href: "/admin/logi", label: "Logi systemu", icon: ScrollText, roles: ["admin"] },
 ]
 
