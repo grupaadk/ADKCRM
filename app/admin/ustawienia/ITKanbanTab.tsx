@@ -436,7 +436,7 @@ export function ITKanbanTab() {
     const defaultColumnId = columns.length > 0 ? columns[0]._id : undefined;
 
     return (
-      <div className="space-y-8 max-w-4xl">
+      <div className="space-y-8 w-full">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-slate-900">Planowanie (Backlog)</h3>
@@ -754,7 +754,7 @@ export function ITKanbanTab() {
     }
 
     return (
-      <div className="space-y-8 max-w-4xl">
+      <div className="space-y-8 w-full">
         <div>
           <h3 className="text-lg font-semibold text-slate-900">Historia Sprintów</h3>
           <p className="text-sm text-slate-500 mt-1">Zakończone sprinty oraz zadania w nich zrealizowane.</p>
