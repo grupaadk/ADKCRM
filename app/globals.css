@@ -66,8 +66,6 @@ body {
   -webkit-overflow-scrolling: touch;
   min-height: 100vh;
   min-height: 100dvh;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Safe area padding utilities for header & footer */
