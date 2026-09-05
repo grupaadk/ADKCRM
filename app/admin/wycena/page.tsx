@@ -386,7 +386,7 @@ export default function WycenaAIPage() {
           </div>
         </div>
 
-        {/* Strumień wiadomości */}
+        {/* Strumień wiadomości + input (zintegrowane jak ChatGPT) */}
         <div
           className="panel"
           style={{
@@ -394,13 +394,14 @@ export default function WycenaAIPage() {
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
+            position: "relative",
           }}
         >
           <div
             style={{
               flex: 1,
               overflowY: "auto",
-              padding: "24px 20px",
+              padding: "24px 20px 100px",
             }}
           >
             <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
@@ -587,49 +588,118 @@ export default function WycenaAIPage() {
               <div ref={messagesEndRef} />
             </div>
           </div>
-        </div>
 
-        {/* Pole wprowadzania */}
-        <div
-          className="panel"
-          style={{ padding: "12px 16px", flexShrink: 0 }}
-        >
-          <div style={{ maxWidth: 720, margin: "0 auto" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-end",
-                gap: 8,
-                borderRadius: 10,
-                border: "1px solid var(--line)",
-                background: "var(--panel-2)",
-                padding: "4px 4px 4px 14px",
-                transition: "border-color 0.15s",
-              }}
-            >
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Zapytaj Asystenta lub podaj dane wyceny..."
-                rows={2}
+          {/* Gradient fade nad inputem */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              pointerEvents: "none",
+              height: 100,
+              background: "linear-gradient(to bottom, transparent 0%, var(--panel) 70%)",
+            }}
+          />
+
+          {/* Pole wprowadzania — przyklejone do dołu panelu */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              padding: "0 20px 16px",
+            }}
+          >
+            <div style={{ maxWidth: 720, margin: "0 auto" }}>
+              <div
                 style={{
-                  flex: 1, resize: "none", background: "transparent", border: "none", outline: "none",
-                  fontSize: 13, lineHeight: 1.5, color: "var(--text)", fontFamily: "inherit", padding: "6px 0",
+                  display: "flex",
+                  alignItems: "flex-end",
+                  gap: 0,
+                  borderRadius: 24,
+                  border: "1px solid var(--line-2)",
+                  background: "var(--panel)",
+                  padding: "6px 6px 6px 18px",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
+                  transition: "border-color 0.15s, box-shadow 0.15s",
                 }}
-              />
-              <button
-                className="btn primary"
-                onClick={handleSend}
-                disabled={!input.trim()}
-                style={{ padding: "6px 10px", borderRadius: 8 }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--accent-line)";
+                  e.currentTarget.style.boxShadow = "0 4px 16px rgba(74,187,195,0.10), 0 1px 3px rgba(0,0,0,0.04)";
+                }}
+                onBlur={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget)) {
+                    e.currentTarget.style.borderColor = "var(--line-2)";
+                    e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)";
+                  }
+                }}
               >
-                <Send size={14} />
-              </button>
+                <textarea
+                  ref={(el) => {
+                    if (el) {
+                      el.style.height = "auto";
+                      el.style.height = Math.min(el.scrollHeight, 150) + "px";
+                    }
+                  }}
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    const el = e.target;
+                    el.style.height = "auto";
+                    el.style.height = Math.min(el.scrollHeight, 150) + "px";
+                  }}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Zapytaj Asystenta lub podaj dane wyceny..."
+                  rows={1}
+                  style={{
+                    flex: 1,
+                    resize: "none",
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    color: "var(--text)",
+                    fontFamily: "inherit",
+                    padding: "7px 0",
+                    maxHeight: 150,
+                    overflowY: "auto",
+                  }}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim()}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "50%",
+                    border: "none",
+                    background: input.trim() ? "var(--accent)" : "var(--panel-3)",
+                    color: input.trim() ? "#fff" : "var(--text-mute)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: input.trim() ? "pointer" : "default",
+                    flexShrink: 0,
+                    transition: "background 0.15s, color 0.15s, transform 0.1s",
+                    transform: input.trim() ? "scale(1)" : "scale(0.95)",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (input.trim()) e.currentTarget.style.background = "var(--brand-hover)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (input.trim()) e.currentTarget.style.background = "var(--accent)";
+                  }}
+                >
+                  <Send size={15} style={{ marginLeft: 1 }} />
+                </button>
+              </div>
+              <p className="mute" style={{ textAlign: "center", fontSize: 10, marginTop: 8 }}>
+                Asystent Wycen ADK AI · Zweryfikuj wycenę przed wysłaniem do klienta
+              </p>
             </div>
-            <p className="mute" style={{ textAlign: "center", fontSize: 10, marginTop: 6 }}>
-              Asystent Wycen ADK AI generuje propozycje kosztorysów. Zweryfikuj wycenę przed wysłaniem do klienta.
-            </p>
           </div>
         </div>
       </div>
