@@ -117,7 +117,7 @@ type CachedExpense = {
 
 
 
-type Tab = "szczegoly" | "zamowienia" | "montaz" | "wycena" | "finanse" | "dokumenty" | "reklamacja" | "faktury" | "koszty" | "notatki";
+type Tab = "szczegoly" | "zamowienia" | "montaz" | "wycena" | "finanse" | "dokumenty" | "reklamacja" | "faktury" | "koszty" | "notatki" | "historia";
 
 function getProjectFileLinks(projectFiles: string | undefined) {
   if (!projectFiles) return [];
@@ -2346,6 +2346,7 @@ export default function OrderDetailPage({
     { key: "zamowienia", label: "Zamówienia" },
     { key: "montaz", label: "Montaż" },
     { key: "dokumenty", label: "Dokumenty" },
+    { key: "historia", label: "Historia zdarzeń" },
     { key: "reklamacja", label: "Reklamacje" },
   ];
 
@@ -4005,11 +4006,6 @@ export default function OrderDetailPage({
             </CollapsibleSection>
           )}
 
-          {/* Historia zdarzeń zlecenia */}
-          <CollapsibleSection title="Historia zdarzeń zlecenia" defaultOpen={true}>
-            <EventTimeline events={events} />
-          </CollapsibleSection>
-
           {/* Koszty zlecenia (Fakturownia) */}
           <SectionCard
             title="Koszty zlecenia (Fakturownia)"
@@ -5150,6 +5146,15 @@ export default function OrderDetailPage({
       )}
 
 
+
+      {/* ── Tab: Historia zdarzeń ── */}
+      {activeTab === "historia" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <SectionCard title="Historia zdarzeń zlecenia">
+            <EventTimeline events={events} />
+          </SectionCard>
+        </div>
+      )}
 
       {/* ── Tab: Reklamacja ── */}
       {activeTab === "reklamacja" && (
