@@ -2346,8 +2346,8 @@ export default function OrderDetailPage({
     { key: "zamowienia", label: "Zamówienia" },
     { key: "montaz", label: "Montaż" },
     { key: "dokumenty", label: "Dokumenty" },
-    { key: "historia", label: "Historia zdarzeń" },
     { key: "reklamacja", label: "Reklamacje" },
+    { key: "historia", label: "Historia zdarzeń" },
   ];
 
   const warrantyEvent = (events ?? []).find(
