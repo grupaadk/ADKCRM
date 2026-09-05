@@ -20,6 +20,7 @@ import SideDrawer from "@/components/SideDrawer";
 import CreateOrderTaskDrawer from "@/components/CreateOrderTaskDrawer";
 import InvestmentLocation from "../../InvestmentLocation";
 import Notes from "../../Notes";
+import EventTimeline from "../../EventTimeline";
 import ReminderModal from "@/app/admin/faktury/ReminderModal";
 import {
   Table,
@@ -4003,6 +4004,11 @@ export default function OrderDetailPage({
               </div>
             </CollapsibleSection>
           )}
+
+          {/* Historia zdarzeń zlecenia */}
+          <CollapsibleSection title="Historia zdarzeń zlecenia" defaultOpen={true}>
+            <EventTimeline events={events} />
+          </CollapsibleSection>
 
           {/* Koszty zlecenia (Fakturownia) */}
           <SectionCard
