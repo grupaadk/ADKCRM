@@ -6,16 +6,9 @@ import {
   Send,
   User,
   Bot,
-  Plus,
   FileSpreadsheet,
   Check,
-  ChevronDown,
   Edit2,
-  Trash2,
-  ExternalLink,
-  ArrowRight,
-  ShieldCheck,
-  Calculator,
   RotateCcw,
 } from "lucide-react";
 
@@ -127,7 +120,6 @@ export default function WycenaAIPage() {
     setInput("");
     setIsTyping(true);
 
-    // Symulacja odpowiedzi AI
     setTimeout(() => {
       const assistantMsg: Message = {
         id: `asst-${Date.now()}`,
@@ -194,183 +186,397 @@ export default function WycenaAIPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col bg-slate-900 text-slate-100">
-      {/* Pasek nagłówka czatu */}
-      <header className="flex items-center justify-between border-b border-slate-800 bg-slate-950/60 px-6 py-3.5 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 ring-1 ring-teal-500/30">
-            <Sparkles className="h-5 w-5" />
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 7rem)", minHeight: 400 }}>
+      {/* Nagłówek */}
+      <div
+        className="panel"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 20px",
+          marginBottom: 16,
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: "var(--accent-soft)",
+              border: "1px solid var(--accent-line)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--accent)",
+            }}
+          >
+            <Sparkles size={18} />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold tracking-tight text-white">Asystent Wycen ADK</h1>
-              <span className="rounded-full bg-teal-500/15 px-2 py-0.5 text-[10px] font-semibold text-teal-400 border border-teal-500/20">
-                GPT-4o Stolarka
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-strong)" }}>
+                Asystent Wycen ADK
+              </span>
+              <span className="pill acc" style={{ fontSize: 10, padding: "1px 7px" }}>
+                AI
               </span>
             </div>
-            <p className="text-xs text-slate-400">Inteligentny generator kosztorysów i kalkulator stolarki okiennej</p>
+            <div style={{ fontSize: 11, color: "var(--text-mute)" }}>
+              Inteligentny generator kosztorysów i kalkulator stolarki
+            </div>
           </div>
         </div>
 
-        <button
-          onClick={handleResetChat}
-          className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
+        <button className="btn" onClick={handleResetChat}>
+          <RotateCcw size={13} />
           Nowa wycena
         </button>
-      </header>
+      </div>
 
-      {/* Strumień konwersacji ChatGPT (Center focused) */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin scrollbar-thumb-slate-800">
-        <div className="mx-auto max-w-3xl space-y-6">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex gap-4 ${
-                msg.sender === "user" ? "flex-row-reverse" : "flex-row"
-              }`}
-            >
-              {/* Awatar */}
+      {/* Strumień wiadomości */}
+      <div
+        className="panel"
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          marginBottom: 16,
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "24px 20px",
+          }}
+        >
+          <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+            {messages.map((msg) => (
               <div
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-xs font-bold ${
-                  msg.sender === "user"
-                    ? "bg-teal-600 text-white shadow-md shadow-teal-900/30"
-                    : "bg-slate-800 text-teal-400 ring-1 ring-slate-700"
-                }`}
+                key={msg.id}
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  flexDirection: msg.sender === "user" ? "row-reverse" : "row",
+                }}
               >
-                {msg.sender === "user" ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
-              </div>
-
-              {/* Treść wiadomości */}
-              <div
-                className={`flex max-w-[85%] flex-col gap-2 ${
-                  msg.sender === "user" ? "items-end" : "items-start"
-                }`}
-              >
+                {/* Awatar */}
                 <div
-                  className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                    msg.sender === "user"
-                      ? "bg-teal-600 text-white shadow-md shadow-teal-950/40"
-                      : "bg-slate-800/80 text-slate-200 border border-slate-700/60 backdrop-blur-sm"
-                  }`}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 10,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    ...(msg.sender === "user"
+                      ? {
+                          background: "var(--accent)",
+                          color: "#fff",
+                        }
+                      : {
+                          background: "var(--panel-2)",
+                          color: "var(--accent)",
+                          border: "1px solid var(--line)",
+                        }),
+                  }}
                 >
-                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                  {msg.sender === "user" ? <User size={16} /> : <Bot size={16} />}
                 </div>
 
-                {/* Karta wyceny (jeśli dołączona do odpowiedzi AI) */}
-                {msg.estimateCard && (
-                  <div className="w-full overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950/90 shadow-xl shadow-black/40">
-                    <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/80 px-5 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <FileSpreadsheet className="h-4 w-4 text-teal-400" />
-                        <span className="font-semibold text-white text-sm">{msg.estimateCard.title}</span>
-                      </div>
-                      <span className="text-xs font-medium text-slate-400">
-                        {msg.estimateCard.clientName}
-                      </span>
-                    </div>
-
-                    {/* Pozycje wyceny */}
-                    <div className="divide-y divide-slate-800/60 px-5 py-2">
-                      {msg.estimateCard.items.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between py-3">
-                          <div className="space-y-0.5">
-                            <div className="text-sm font-medium text-slate-100">{item.name}</div>
-                            <div className="text-xs text-slate-400">{item.specs}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-semibold text-white">
-                              {(item.priceNet * item.qty).toLocaleString("pl-PL")} PLN netto
-                            </div>
-                            <div className="text-[11px] text-slate-400">
-                              {item.qty} szt. x {item.priceNet} PLN (VAT {item.vat}%)
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Podsumowanie finansowe */}
-                    <div className="border-t border-slate-800 bg-slate-900/50 px-5 py-3.5">
-                      <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                        <span>Suma netto:</span>
-                        <span>{msg.estimateCard.summary.netTotal.toLocaleString("pl-PL")} PLN</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                        <span>Podatek VAT:</span>
-                        <span>{msg.estimateCard.summary.vatTotal.toLocaleString("pl-PL")} PLN</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm font-bold text-teal-400 pt-2 border-t border-slate-800/80">
-                        <span>RAZEM BRUTTO:</span>
-                        <span className="text-base">{msg.estimateCard.summary.grossTotal.toLocaleString("pl-PL")} PLN</span>
-                      </div>
-
-                      {/* Akcje pod wyceną */}
-                      <div className="mt-4 flex flex-wrap gap-2 pt-2 border-t border-slate-800/50">
-                        <button className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-teal-500 shadow-lg shadow-teal-950/50">
-                          <Check className="h-3.5 w-3.5" />
-                          Zapisz i utwórz zlecenie w CRM
-                        </button>
-                        <button className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-700 hover:text-white">
-                          <Edit2 className="h-3.5 w-3.5" />
-                          Edytuj pozycje
-                        </button>
-                      </div>
-                    </div>
+                {/* Treść */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                    maxWidth: "85%",
+                    alignItems: msg.sender === "user" ? "flex-end" : "flex-start",
+                  }}
+                >
+                  <div
+                    style={{
+                      borderRadius: 12,
+                      padding: "10px 14px",
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      ...(msg.sender === "user"
+                        ? {
+                            background: "var(--accent)",
+                            color: "#fff",
+                            borderBottomRightRadius: 4,
+                          }
+                        : {
+                            background: "var(--panel-2)",
+                            color: "var(--text)",
+                            border: "1px solid var(--line)",
+                            borderBottomLeftRadius: 4,
+                          }),
+                    }}
+                  >
+                    <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{msg.text}</p>
                   </div>
-                )}
 
-                <span className="text-[10px] text-slate-500 px-1">{msg.timestamp}</span>
-              </div>
-            </div>
-          ))}
+                  {/* Karta wyceny */}
+                  {msg.estimateCard && (
+                    <div
+                      style={{
+                        width: "100%",
+                        borderRadius: 10,
+                        border: "1px solid var(--line)",
+                        background: "var(--panel)",
+                        overflow: "hidden",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                      }}
+                    >
+                      {/* Nagłówek karty */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "10px 16px",
+                          borderBottom: "1px solid var(--line)",
+                          background: "var(--panel-2)",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <FileSpreadsheet size={14} style={{ color: "var(--accent)" }} />
+                          <span style={{ fontWeight: 700, fontSize: 12.5, color: "var(--text-strong)" }}>
+                            {msg.estimateCard.title}
+                          </span>
+                        </div>
+                        <span className="mute" style={{ fontSize: 11 }}>
+                          {msg.estimateCard.clientName}
+                        </span>
+                      </div>
 
-          {/* Indicator pisania */}
-          {isTyping && (
-            <div className="flex gap-4 flex-row">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-slate-800 text-teal-400 ring-1 ring-slate-700">
-                <Bot className="h-5 w-5 animate-pulse" />
-              </div>
-              <div className="flex items-center gap-1.5 rounded-2xl bg-slate-800/80 px-4 py-3 border border-slate-700/60">
-                <span className="h-2 w-2 rounded-full bg-teal-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="h-2 w-2 rounded-full bg-teal-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="h-2 w-2 rounded-full bg-teal-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-              </div>
-            </div>
-          )}
+                      {/* Pozycje */}
+                      <div style={{ padding: "0 16px" }}>
+                        {msg.estimateCard.items.map((item, i) => (
+                          <div
+                            key={item.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "10px 0",
+                              borderBottom:
+                                i < msg.estimateCard!.items.length - 1
+                                  ? "1px solid var(--line)"
+                                  : "none",
+                              gap: 16,
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-strong)" }}>
+                                {item.name}
+                              </div>
+                              <div className="mute" style={{ fontSize: 11, marginTop: 1 }}>
+                                {item.specs}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: "right", flexShrink: 0 }}>
+                              <div className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-strong)" }}>
+                                {(item.priceNet * item.qty).toLocaleString("pl-PL")} zł
+                              </div>
+                              <div className="mute mono" style={{ fontSize: 10.5 }}>
+                                {item.qty} szt. × {item.priceNet.toLocaleString("pl-PL")} zł (VAT {item.vat}%)
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
 
-          <div ref={messagesEndRef} />
+                      {/* Podsumowanie */}
+                      <div
+                        style={{
+                          borderTop: "1px solid var(--line)",
+                          background: "var(--panel-2)",
+                          padding: "12px 16px",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-mute)", marginBottom: 3 }}>
+                          <span>Suma netto:</span>
+                          <span className="mono">{msg.estimateCard.summary.netTotal.toLocaleString("pl-PL")} zł</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-mute)", marginBottom: 8 }}>
+                          <span>Podatek VAT:</span>
+                          <span className="mono">{msg.estimateCard.summary.vatTotal.toLocaleString("pl-PL")} zł</span>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: "var(--accent)",
+                            paddingTop: 8,
+                            borderTop: "1px solid var(--line)",
+                          }}
+                        >
+                          <span>RAZEM BRUTTO:</span>
+                          <span className="mono" style={{ fontSize: 14 }}>
+                            {msg.estimateCard.summary.grossTotal.toLocaleString("pl-PL")} zł
+                          </span>
+                        </div>
+
+                        {/* Akcje */}
+                        <div style={{ display: "flex", gap: 8, marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--line)", flexWrap: "wrap" }}>
+                          <button className="btn primary" style={{ flex: 1 }}>
+                            <Check size={13} />
+                            Zapisz i utwórz zlecenie w CRM
+                          </button>
+                          <button className="btn">
+                            <Edit2 size={13} />
+                            Edytuj pozycje
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <span className="mute" style={{ fontSize: 10, paddingLeft: 4 }}>{msg.timestamp}</span>
+                </div>
+              </div>
+            ))}
+
+            {/* Pisanie */}
+            {isTyping && (
+              <div style={{ display: "flex", gap: 12 }}>
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 10,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    background: "var(--panel-2)",
+                    color: "var(--accent)",
+                    border: "1px solid var(--line)",
+                  }}
+                >
+                  <Bot size={16} />
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    borderRadius: 12,
+                    padding: "10px 16px",
+                    background: "var(--panel-2)",
+                    border: "1px solid var(--line)",
+                    borderBottomLeftRadius: 4,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "var(--accent)",
+                      animation: "bounce 1.4s infinite",
+                      animationDelay: "0ms",
+                    }}
+                  />
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "var(--accent)",
+                      animation: "bounce 1.4s infinite",
+                      animationDelay: "200ms",
+                    }}
+                  />
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "var(--accent)",
+                      animation: "bounce 1.4s infinite",
+                      animationDelay: "400ms",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
         </div>
       </div>
 
-      {/* Pole wprowadzania wiadomości w stylu ChatGPT */}
-      <footer className="border-t border-slate-800/80 bg-slate-950 px-4 py-4">
-        <div className="mx-auto max-w-3xl">
-          <div className="relative flex items-end rounded-2xl border border-slate-700/80 bg-slate-900/90 shadow-2xl focus-within:border-teal-500 focus-within:ring-1 focus-within:ring-teal-500/50">
+      {/* Pole wprowadzania */}
+      <div
+        className="panel"
+        style={{
+          padding: "12px 16px",
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              gap: 8,
+              borderRadius: 10,
+              border: "1px solid var(--line)",
+              background: "var(--panel-2)",
+              padding: "4px 4px 4px 14px",
+              transition: "border-color 0.15s",
+            }}
+          >
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Zapytaj Asystenta lub podaj dane wyceny (np. 5 okien PVC, rolety, kolor antracyt)..."
+              placeholder="Zapytaj Asystenta lub podaj dane wyceny..."
               rows={2}
-              className="w-full resize-none bg-transparent px-4 py-3.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none scrollbar-none"
+              style={{
+                flex: 1,
+                resize: "none",
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: "var(--text)",
+                fontFamily: "inherit",
+                padding: "6px 0",
+              }}
             />
-            <div className="flex items-center gap-2 p-2.5">
-              <button
-                onClick={handleSend}
-                disabled={!input.trim()}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-500 text-slate-950 transition-all hover:bg-teal-400 disabled:opacity-30 disabled:hover:bg-teal-500"
-              >
-                <Send className="h-4 w-4" />
-              </button>
-            </div>
+            <button
+              className="btn primary"
+              onClick={handleSend}
+              disabled={!input.trim()}
+              style={{ padding: "6px 10px", borderRadius: 8 }}
+            >
+              <Send size={14} />
+            </button>
           </div>
-          <p className="mt-2 text-center text-[11px] text-slate-500">
+          <p className="mute" style={{ textAlign: "center", fontSize: 10, marginTop: 6 }}>
             Asystent Wycen ADK AI generuje propozycje kosztorysów. Zweryfikuj wycenę przed wysłaniem do klienta.
           </p>
         </div>
-      </footer>
+      </div>
+
+      <style jsx>{`
+        @keyframes bounce {
+          0%, 80%, 100% { transform: translateY(0); }
+          40% { transform: translateY(-4px); }
+        }
+      `}</style>
     </div>
   );
 }
