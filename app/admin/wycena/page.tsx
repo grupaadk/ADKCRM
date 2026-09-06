@@ -19,6 +19,7 @@ import {
   Trash2,
   ExternalLink,
   Loader2,
+  Settings,
 } from "lucide-react";
 
 type Message = {
@@ -511,10 +512,28 @@ export default function WycenaAIPage() {
                 </span>
               </div>
               <div style={{ fontSize: 11, color: "var(--text-mute)" }}>
-                Inteligentny generator kosztorysów i kalkulator stolarki
+                Inteligentny generator kosztorysów i kalkulator stolarki oraz zabudów tarasów
               </div>
             </div>
           </div>
+
+          <Link
+            href="/admin/ustawienia/asystent-wycen"
+            className="btn"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12,
+              padding: "6px 12px",
+              color: "var(--text-dim)",
+              textDecoration: "none",
+            }}
+            title="Ustawienia Asystenta Wycen i Cenniki"
+          >
+            <Settings size={15} />
+            <span>Ustawienia cennika</span>
+          </Link>
         </div>
 
         {/* Strumień wiadomości + input (zintegrowane jak ChatGPT) */}
@@ -532,10 +551,10 @@ export default function WycenaAIPage() {
             style={{
               flex: 1,
               overflowY: "auto",
-              padding: "24px 20px 100px",
+              padding: "24px 24px 100px",
             }}
           >
-            <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+            <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
               {messages.map((msg) => (
                 <div
                   key={msg.id}
@@ -567,7 +586,8 @@ export default function WycenaAIPage() {
                       display: "flex",
                       flexDirection: "column",
                       gap: 8,
-                      maxWidth: "85%",
+                      width: msg.estimateCard ? "100%" : undefined,
+                      maxWidth: msg.estimateCard ? "100%" : "85%",
                       alignItems: msg.sender === "user" ? "flex-end" : "flex-start",
                     }}
                   >
@@ -577,6 +597,7 @@ export default function WycenaAIPage() {
                         padding: "10px 14px",
                         fontSize: 13,
                         lineHeight: 1.6,
+                        maxWidth: 780,
                         ...(msg.sender === "user"
                           ? { background: "var(--accent)", color: "#fff", borderBottomRightRadius: 4 }
                           : { background: "var(--panel-2)", color: "var(--text)", border: "1px solid var(--line)", borderBottomLeftRadius: 4 }),
@@ -586,7 +607,7 @@ export default function WycenaAIPage() {
                     </div>
 
                     {msg.estimateCard && (
-                      <div style={{ width: "100%" }}>
+                      <div style={{ width: "100%", maxWidth: 780 }}>
                         <EstimateCardView
                           card={msg.estimateCard}
                           onCardUpdate={(updatedCard) => {
@@ -738,10 +759,10 @@ export default function WycenaAIPage() {
               bottom: 0,
               left: 0,
               right: 0,
-              padding: "0 20px 16px",
+              padding: "0 24px 16px",
             }}
           >
-            <div style={{ maxWidth: 720, margin: "0 auto" }}>
+            <div style={{ maxWidth: 880, margin: "0 auto" }}>
               <div
                 style={{
                   display: "flex",

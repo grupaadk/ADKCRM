@@ -81,6 +81,9 @@ export const createManualOpportunity = mutation({
     comment: v.optional(v.string()),
     customText: v.optional(v.string()),
     uploadedFileIds: v.optional(v.array(v.id("_storage"))),
+    cost: v.optional(v.number()),
+    price: v.optional(v.number()),
+    profit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     if (!args.firstName.trim() && !args.lastName.trim()) {

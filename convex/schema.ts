@@ -801,6 +801,18 @@ export default defineSchema({
     color: v.string(), // Hex color, np. "#ef4444"
   }),
 
+  // 3.21 Cennik zadaszeń tarasów (Poliwęglan / Szkło)
+  terraceRoofPricing: defineTable({
+    material: v.union(v.literal("polycarbonate"), v.literal("glass")),
+    widthCm: v.number(),
+    lengthCm: v.number(),
+    priceGross: v.number(),
+    priceNet: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_material", ["material"])
+    .index("by_material_dimensions", ["material", "widthCm", "lengthCm"]),
+
   // 3.21 Komentarze do zadań
   taskComments: defineTable({
     taskId: v.id("orderTasks"),
