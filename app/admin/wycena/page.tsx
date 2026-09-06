@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import Link from "next/link";
 import {
   Sparkles,
   Send,
@@ -8,33 +11,41 @@ import {
   Bot,
   FileSpreadsheet,
   Check,
-  Edit2,
   Plus,
   MessageSquare,
   Trash2,
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
+
+type EstimateCard = {
+  title: string;
+  clientName?: string;
+  items: Array<{
+    id: string;
+    name: string;
+    specs: string;
+    qty: number;
+    priceNet: number;
+    vat: number;
+  }>;
+  summary: {
+    netTotal: number;
+    vatTotal: number;
+    grossTotal: number;
+  };
+};
 
 type Message = {
   id: string;
   sender: "user" | "assistant";
   text: string;
   timestamp: string;
-  estimateCard?: {
-    title: string;
-    clientName?: string;
-    items: Array<{
-      id: string;
-      name: string;
-      specs: string;
-      qty: number;
-      priceNet: number;
-      vat: number;
-    }>;
-    summary: {
-      netTotal: number;
-      vatTotal: number;
-      grossTotal: number;
-    };
+  estimateCard?: EstimateCard;
+  opportunityLink?: {
+    id: string;
+    clientName: string;
+    priceNet: number;
   };
 };
 
@@ -123,12 +134,66 @@ const DEMO_CONVERSATIONS: Conversation[] = [
   },
 ];
 
+function parseClientName(clientName?: string): { firstName: string; lastName: string; city?: string } {
+  if (!clientName) return { firstName: "", lastName: "" };
+  // "Jan Kowalski (Wrocław)" → firstName="Jan", lastName="Kowalski", city="Wrocław"
+  const cityMatch = clientName.match(/\(([^)]+)\)/);
+  const city = cityMatch ? cityMatch[1].trim() : undefined;
+  const namePart = clientName.replace(/\s*\([^)]*\)\s*/, "").trim();
+  const parts = namePart.split(/\s+/);
+  const firstName = parts[0] || "";
+  const lastName = parts.slice(1).join(" ") || "";
+  return { firstName, lastName, city };
+}
+
+function extractOpportunityData(card: EstimateCard) {
+  const { firstName, lastName, city } = parseClientName(card.clientName);
+
+  // Wyciągnij unikalne nazwy usług z pozycji
+  const services = [...new Set(card.items.map((item) => {
+    // Uprość nazwę do kategorii usługi
+    if (/okn/i.test(item.name)) return "Okna";
+    if (/drzwi/i.test(item.name)) return "Drzwi";
+    if (/rolet/i.test(item.name)) return "Rolety";
+    if (/bram/i.test(item.name)) return "Bramy";
+    if (/montaż/i.test(item.name)) return "Montaż";
+    if (/dostaw/i.test(item.name)) return "Dostawa";
+    return item.name;
+  }))];
+
+  // Sformatuj pełną specyfikację jako comment
+  const lines = [`Wycena: ${card.title}`, "─────────────────────────────"];
+  card.items.forEach((item, i) => {
+    lines.push(`${i + 1}. ${item.name}`);
+    lines.push(`   ${item.specs}`);
+    lines.push(`   ${item.qty} szt. × ${item.priceNet.toLocaleString("pl-PL")} zł netto = ${(item.priceNet * item.qty).toLocaleString("pl-PL")} zł (VAT ${item.vat}%)`);
+    lines.push("");
+  });
+  lines.push("─────────────────────────────");
+  lines.push(`Suma netto: ${card.summary.netTotal.toLocaleString("pl-PL")} zł`);
+  lines.push(`VAT: ${card.summary.vatTotal.toLocaleString("pl-PL")} zł`);
+  lines.push(`BRUTTO: ${card.summary.grossTotal.toLocaleString("pl-PL")} zł`);
+
+  return {
+    firstName,
+    lastName,
+    investmentCity: city || undefined,
+    services: services.length > 0 ? services : undefined,
+    comment: lines.join("\n"),
+    price: card.summary.netTotal,
+    customText: card.clientName || undefined,
+  };
+}
+
 export default function WycenaAIPage() {
   const [conversations, setConversations] = useState<Conversation[]>(DEMO_CONVERSATIONS);
   const [activeConvId, setActiveConvId] = useState<string>(DEMO_CONVERSATIONS[0].id);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [createdOpportunities, setCreatedOpportunities] = useState<Set<string>>(new Set());
+  const [creatingOpportunity, setCreatingOpportunity] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const createOpportunity = useMutation(api.salesOpportunities.createManualOpportunity);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const messages = activeConv?.messages ?? [];
@@ -167,6 +232,54 @@ export default function WycenaAIPage() {
       }
       return filtered;
     });
+  };
+
+  const handleCreateOpportunity = async (card: EstimateCard, msgId: string) => {
+    if (createdOpportunities.has(msgId) || creatingOpportunity === msgId) return;
+    setCreatingOpportunity(msgId);
+    try {
+      const data = extractOpportunityData(card);
+      const opportunityId = await createOpportunity(data);
+
+      setCreatedOpportunities((prev) => new Set(prev).add(msgId));
+
+      // Dodaj wiadomość potwierdzającą z linkiem
+      const confirmMsg: Message = {
+        id: `opp-confirm-${Date.now()}`,
+        sender: "assistant",
+        text: `✅ Szansa sprzedaży została utworzona!\n\nKlient: ${data.firstName} ${data.lastName}\nKwota netto: ${data.price?.toLocaleString("pl-PL")} zł\nEtap: Lead`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        opportunityLink: {
+          id: opportunityId,
+          clientName: `${data.firstName} ${data.lastName}`,
+          priceNet: data.price ?? 0,
+        },
+      };
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeConvId
+            ? { ...c, messages: [...c.messages, confirmMsg] }
+            : c,
+        ),
+      );
+    } catch (err) {
+      // Pokaż błąd w czacie
+      const errorMsg: Message = {
+        id: `opp-error-${Date.now()}`,
+        sender: "assistant",
+        text: `❌ Nie udało się utworzyć szansy sprzedaży: ${err instanceof Error ? err.message : "Nieznany błąd"}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeConvId
+            ? { ...c, messages: [...c.messages, errorMsg] }
+            : c,
+        ),
+      );
+    } finally {
+      setCreatingOpportunity(null);
+    }
   };
 
   const handleSend = () => {
@@ -542,16 +655,78 @@ export default function WycenaAIPage() {
                           </div>
 
                           <div style={{ display: "flex", gap: 8, marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--line)", flexWrap: "wrap" }}>
-                            <button className="btn primary" style={{ flex: 1 }}>
-                              <Check size={13} />
-                              Zapisz i utwórz zlecenie w CRM
-                            </button>
-                            <button className="btn">
-                              <Edit2 size={13} />
-                              Edytuj pozycje
-                            </button>
+                            {createdOpportunities.has(msg.id) ? (
+                              <button className="btn" disabled style={{ flex: 1, opacity: 0.6 }}>
+                                <Check size={13} style={{ color: "var(--ok)" }} />
+                                Szansa utworzona ✓
+                              </button>
+                            ) : (
+                              <button
+                                className="btn primary"
+                                style={{ flex: 1 }}
+                                disabled={creatingOpportunity === msg.id}
+                                onClick={() => msg.estimateCard && handleCreateOpportunity(msg.estimateCard, msg.id)}
+                              >
+                                {creatingOpportunity === msg.id ? (
+                                  <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
+                                ) : (
+                                  <Plus size={13} />
+                                )}
+                                {creatingOpportunity === msg.id ? "Tworzę szansę..." : "Utwórz szansę sprzedaży"}
+                              </button>
+                            )}
                           </div>
                         </div>
+                      </div>
+                    )}
+
+                    {msg.opportunityLink && (
+                      <div
+                        style={{
+                          width: "100%",
+                          borderRadius: 10,
+                          border: "1px solid var(--accent-line)",
+                          background: "var(--accent-soft)",
+                          padding: "12px 16px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 12,
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 8,
+                              background: "var(--accent)",
+                              color: "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <Sparkles size={16} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-strong)" }}>
+                              Szansa sprzedaży
+                            </div>
+                            <div className="mute" style={{ fontSize: 11 }}>
+                              {msg.opportunityLink.clientName} · {msg.opportunityLink.priceNet.toLocaleString("pl-PL")} zł netto
+                            </div>
+                          </div>
+                        </div>
+                        <Link
+                          href={`/admin/szansa/${msg.opportunityLink.id}`}
+                          className="btn primary"
+                          style={{ fontSize: 12, padding: "6px 12px", textDecoration: "none" }}
+                        >
+                          Przejdź do szansy
+                          <ExternalLink size={12} />
+                        </Link>
                       </div>
                     )}
 
@@ -708,6 +883,10 @@ export default function WycenaAIPage() {
         @keyframes wycena-bounce {
           0%, 80%, 100% { transform: translateY(0); }
           40% { transform: translateY(-4px); }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>
