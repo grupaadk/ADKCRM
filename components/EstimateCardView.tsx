@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { FileSpreadsheet, Plus, Trash2 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -150,46 +150,27 @@ function InlineInput({
 interface EstimateCardViewProps {
   card: EstimateCardData;
   readOnly?: boolean;
-  outdatedLabel?: string;
   onCardUpdate?: (updatedCard: EstimateCardData) => void;
 }
 
-export default function EstimateCardView({ card, readOnly, outdatedLabel, onCardUpdate }: EstimateCardViewProps) {
+export default function EstimateCardView({ card, readOnly, onCardUpdate }: EstimateCardViewProps) {
   const [draft, setDraft] = useState<EstimateCardData>(() => JSON.parse(JSON.stringify(card)));
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasChanged = useRef(false);
 
   // Reset draft when card prop changes (new card rendered)
   useEffect(() => {
     setDraft(JSON.parse(JSON.stringify(card)));
-    hasChanged.current = false;
   }, [card]);
 
-  const commitUpdate = useCallback((updated: EstimateCardData) => {
+  const applyUpdate = (updated: EstimateCardData) => {
+    setDraft(updated);
     if (onCardUpdate && !readOnly) {
       onCardUpdate(updated);
     }
-  }, [onCardUpdate, readOnly]);
-
-  const scheduleSave = useCallback((updated: EstimateCardData) => {
-    hasChanged.current = true;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      commitUpdate(updated);
-    }, 2000);
-  }, [commitUpdate]);
-
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
+  };
 
   const updateClient = (field: keyof EstimateClient, value: string) => {
     const updated = { ...draft, client: { ...draft.client, [field]: value } };
-    setDraft(updated);
-    scheduleSave(updated);
+    applyUpdate(updated);
   };
 
   const updateItem = (itemId: string, field: keyof EstimateItem, value: string | number) => {
@@ -199,8 +180,7 @@ export default function EstimateCardView({ card, readOnly, outdatedLabel, onCard
         item.id === itemId ? { ...item, [field]: value } : item,
       ),
     };
-    setDraft(updated);
-    scheduleSave(updated);
+    applyUpdate(updated);
   };
 
   const addItem = (category: ItemCategory) => {
@@ -214,20 +194,17 @@ export default function EstimateCardView({ card, readOnly, outdatedLabel, onCard
       vat: CATEGORY_DEFAULT_VAT[category],
     };
     const updated = { ...draft, items: [...draft.items, newItem] };
-    setDraft(updated);
-    scheduleSave(updated);
+    applyUpdate(updated);
   };
 
   const removeItem = (itemId: string) => {
     const updated = { ...draft, items: draft.items.filter((i) => i.id !== itemId) };
-    setDraft(updated);
-    scheduleSave(updated);
+    applyUpdate(updated);
   };
 
   const setDiscount = (pct: number) => {
     const updated = { ...draft, discountPercent: pct };
-    setDraft(updated);
-    scheduleSave(updated);
+    applyUpdate(updated);
   };
 
   const summary = computeSummary(draft.items, draft.discountPercent);
@@ -249,23 +226,6 @@ export default function EstimateCardView({ card, readOnly, outdatedLabel, onCard
         position: "relative",
       }}
     >
-      {/* Outdated banner */}
-      {readOnly && outdatedLabel && (
-        <div
-          style={{
-            padding: "6px 16px",
-            background: "var(--warn-soft)",
-            color: "var(--warn)",
-            fontSize: 11,
-            fontWeight: 600,
-            textAlign: "center",
-            borderBottom: "1px solid var(--line)",
-          }}
-        >
-          {outdatedLabel}
-        </div>
-      )}
-
       {/* Header */}
       <div
         style={{

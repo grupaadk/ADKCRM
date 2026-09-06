@@ -27,8 +27,6 @@ type Message = {
   text: string;
   timestamp: string;
   estimateCard?: EstimateCardData;
-  estimateReadOnly?: boolean;
-  estimateOutdatedLabel?: string;
   opportunityLink?: {
     id: string;
     clientName: string;
@@ -591,29 +589,18 @@ export default function WycenaAIPage() {
                       <div style={{ width: "100%" }}>
                         <EstimateCardView
                           card={msg.estimateCard}
-                          readOnly={msg.estimateReadOnly}
-                          outdatedLabel={msg.estimateOutdatedLabel}
                           onCardUpdate={(updatedCard) => {
-                            // Oznacz obecną kartę jako read-only
+                            // Aktualizuj kartę w miejscu
                             setConversations((prev) =>
                               prev.map((c) =>
                                 c.id === activeConvId
                                   ? {
                                       ...c,
-                                      messages: [
-                                        ...c.messages.map((m) =>
-                                          m.id === msg.id
-                                            ? { ...m, estimateReadOnly: true, estimateOutdatedLabel: "Zaktualizowano → patrz niżej" }
-                                            : m,
-                                        ),
-                                        {
-                                          id: `update-${Date.now()}`,
-                                          sender: "assistant" as const,
-                                          text: "Zaktualizowałem wycenę na podstawie Twoich zmian.",
-                                          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                                          estimateCard: updatedCard,
-                                        },
-                                      ],
+                                      messages: c.messages.map((m) =>
+                                        m.id === msg.id
+                                          ? { ...m, estimateCard: updatedCard }
+                                          : m,
+                                      ),
                                     }
                                   : c,
                               ),
@@ -622,30 +609,28 @@ export default function WycenaAIPage() {
                         />
 
                         {/* Przycisk tworzenia szansy */}
-                        {!msg.estimateReadOnly && (
-                          <div style={{ marginTop: 8 }}>
-                            {createdOpportunities.has(msg.id) ? (
-                              <button className="btn" disabled style={{ width: "100%", justifyContent: "center", opacity: 0.6 }}>
-                                <Check size={13} style={{ color: "var(--ok)" }} />
-                                Szansa utworzona ✓
-                              </button>
-                            ) : (
-                              <button
-                                className="btn primary"
-                                style={{ width: "100%", justifyContent: "center" }}
-                                disabled={creatingOpportunity === msg.id}
-                                onClick={() => msg.estimateCard && handleCreateOpportunity(msg.estimateCard, msg.id)}
-                              >
-                                {creatingOpportunity === msg.id ? (
-                                  <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
-                                ) : (
-                                  <Plus size={13} />
-                                )}
-                                {creatingOpportunity === msg.id ? "Tworzę szansę..." : "Utwórz szansę sprzedaży"}
-                              </button>
-                            )}
-                          </div>
-                        )}
+                        <div style={{ marginTop: 8 }}>
+                          {createdOpportunities.has(msg.id) ? (
+                            <button className="btn" disabled style={{ width: "100%", justifyContent: "center", opacity: 0.6 }}>
+                              <Check size={13} style={{ color: "var(--ok)" }} />
+                              Szansa utworzona ✓
+                            </button>
+                          ) : (
+                            <button
+                              className="btn primary"
+                              style={{ width: "100%", justifyContent: "center" }}
+                              disabled={creatingOpportunity === msg.id}
+                              onClick={() => msg.estimateCard && handleCreateOpportunity(msg.estimateCard, msg.id)}
+                            >
+                              {creatingOpportunity === msg.id ? (
+                                <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
+                              ) : (
+                                <Plus size={13} />
+                              )}
+                              {creatingOpportunity === msg.id ? "Tworzę szansę..." : "Utwórz szansę sprzedaży"}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
 
