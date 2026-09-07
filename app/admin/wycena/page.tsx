@@ -220,6 +220,17 @@ export default function WycenaAIPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const activeConv = conversations.find((c) => c.id === activeConvId);
+  const messages = activeConv?.messages ?? [];
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages.length, isTyping]);
+
   const handleNewConversation = (serviceType?: string) => {
     setShowNewEstimateMenu(false);
     const title = serviceType ? `Nowa wycena — ${serviceType}` : "Nowa wycena";
