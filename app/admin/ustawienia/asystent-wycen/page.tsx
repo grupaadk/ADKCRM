@@ -375,6 +375,7 @@ export default function AsystentWycenSettingsPage() {
             <p style={{ fontSize: 11, color: "var(--text-mute)", margin: "4px 0 0" }}>
               Model Sonnet rekomendowany jest do automatycznego parsowania wymiarów i wycen.
             </p>
+          </div>
         </div>
 
         {/* Zapisał */}
