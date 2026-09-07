@@ -26,6 +26,7 @@ import {
   ListChecks,
   Edit3,
   X,
+  MessageSquare,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,6 +34,7 @@ import {
 export type NodeType =
   | "trigger"
   | "prompt_trigger"
+  | "custom_prompt"
   | "prompt_component"
   | "price_source"
   | "output_format"
@@ -59,6 +61,9 @@ export type WorkflowNode = {
     customText?: string;
     conditionExpr?: string;
     notificationTarget?: string;
+
+    // Zwykły prompt tekstowy (custom_prompt)
+    promptText?: string;
 
     // Trigger promptu wejściowego (prompt_trigger)
     promptRole?: string;
@@ -139,6 +144,7 @@ const NODE_PALETTE: {
   { type: "price_source",     label: "Cennik Bazowy",   icon: <DollarSign size={13} />,     color: "#06b6d4", category: "Cenniki i Rabaty",  defaultLabel: "Podpięty Cennik" },
 
   // Wytyczne i Wyjście
+  { type: "custom_prompt",    label: "Zwykły Prompt",   icon: <MessageSquare size={13} />,  color: "#6366f1", category: "Wytyczne AI",       defaultLabel: "Zwykły Prompt Tekstowy" },
   { type: "prompt_component", label: "Wytyczne AI",     icon: <FileCode size={13} />,       color: "#8b5cf6", category: "Wytyczne AI",       defaultLabel: "Komponent Wytycznych" },
   { type: "package_builder",  label: "Pakiet Wyceny",   icon: <Package size={13} />,        color: "#a855f7", category: "Wytyczne AI",       defaultLabel: "Konfiguracja Pakietu" },
   { type: "output_format",    label: "Format Wyjścia",  icon: <CheckCircle size={13} />,    color: "#f59e0b", category: "Wytyczne AI",       defaultLabel: "Format Wyjścia JSON" },
@@ -584,6 +590,19 @@ export default function WorkflowCanvas() {
                 onChange={(e) => updateNode(editingNode.id, { label: e.target.value })}
               />
             </div>
+
+            {/* Custom Prompt Editor */}
+            {editingNode.type === "custom_prompt" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, backgroundColor: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+                <label className="up mute" style={{ fontSize: 9, fontWeight: 700 }}>Treść swobodnego promptu dla AI</label>
+                <textarea
+                  className="panel" rows={7} placeholder="Wpisz bezpośrednio treść promptu/instrukcji dla modelu AI..."
+                  value={editingNode.data.promptText || ""}
+                  onChange={(e) => updateNode(editingNode.id, { promptText: e.target.value })}
+                  style={{ width: "100%", padding: "8px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)", resize: "vertical", fontFamily: "monospace", lineHeight: 1.5 }}
+                />
+              </div>
+            )}
 
             {/* Prompt Trigger Editor */}
             {editingNode.type === "prompt_trigger" && (
@@ -1150,6 +1169,12 @@ export default function WorkflowCanvas() {
                   </div>
 
                   {/* Rich Node Details */}
+                  {node.type === "custom_prompt" && (
+                    <div style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "monospace", backgroundColor: "#6366f112", padding: "4px 6px", borderRadius: 4, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                      💬 {node.data.promptText || "Brak treści promptu..."}
+                    </div>
+                  )}
+
                   {node.type === "prompt_trigger" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                       {node.data.promptRole && (

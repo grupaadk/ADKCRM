@@ -42,6 +42,15 @@ describe("aiWorkflows", () => {
           },
         },
         {
+          id: "node-custom",
+          type: "custom_prompt",
+          position: { x: -50, y: 0 },
+          data: {
+            label: "Zwykły Prompt: Zawsze proponuj montaż premium",
+            promptText: "Zawsze dodawaj ofertę montażu jako osobną pozycję w wycenie.",
+          },
+        },
+        {
           id: "node-1",
           type: "trigger",
           position: { x: 0, y: 0 },
@@ -119,7 +128,7 @@ describe("aiWorkflows", () => {
     // Verify fetched workflow
     const wf = await t.query(api.aiWorkflows.getWorkflow, { workflowId: wfId });
     expect(wf?.title).toBe("Precyzyjna Wycena Tarasów v2");
-    expect(wf?.nodes).toHaveLength(7);
+    expect(wf?.nodes).toHaveLength(8);
 
     // Activate workflow
     await asAdmin.mutation(api.aiWorkflows.activateWorkflow, { id: wfId });

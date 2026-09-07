@@ -142,7 +142,8 @@ export const saveWorkflowDraft = mutation({
           v.literal("price_modifier"),
           v.literal("validation_gate"),
           v.literal("question_step"),
-          v.literal("prompt_trigger")
+          v.literal("prompt_trigger"),
+          v.literal("custom_prompt")
         ),
         position: v.object({ x: v.number(), y: v.number() }),
         data: v.object({
@@ -153,6 +154,7 @@ export const saveWorkflowDraft = mutation({
           conditionExpr: v.optional(v.string()),
           notificationTarget: v.optional(v.string()),
 
+          promptText: v.optional(v.string()),
           promptRole: v.optional(v.string()),
           extractFields: v.optional(v.array(v.string())),
           samplePrompt: v.optional(v.string()),

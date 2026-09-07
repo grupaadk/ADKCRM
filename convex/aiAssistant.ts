@@ -82,6 +82,7 @@ interface WorkflowNodeData {
   customText?: string;
   conditionExpr?: string;
   notificationTarget?: string;
+  promptText?: string;
   promptRole?: string;
   extractFields?: string[];
   samplePrompt?: string;
@@ -255,13 +256,15 @@ function buildWorkflowInstructions(activeWfData: ActiveWfData | null): string {
   }
 
   // 7. General Prompt Components & Custom Steps
-  const genCompNodes = nodes.filter((n) => n.type === "prompt_component");
+  const genCompNodes = nodes.filter((n) => n.type === "prompt_component" || n.type === "custom_prompt");
   if (genCompNodes.length > 0) {
-    parts.push("--- DODATKOWE KOMPONENTY WYTYCZNYCH AI ---");
+    parts.push("--- SWOBODNE PROMPTY TEKSTOWE I WYTYCZNE AI ---");
     genCompNodes.forEach((n) => {
       const comp = n.data.componentId ? compMap[n.data.componentId] : null;
       if (comp) {
         parts.push(`### ${comp.title}\n${comp.content}`);
+      } else if (n.data.promptText) {
+        parts.push(`### ${n.data.label}\n${n.data.promptText}`);
       } else if (n.data.customText) {
         parts.push(`### ${n.data.label}\n${n.data.customText}`);
       }
