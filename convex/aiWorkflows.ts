@@ -1,5 +1,6 @@
 import { query, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 import { requireRole } from "./lib/auth";
 
 /**
@@ -358,7 +359,6 @@ export const seedShowcaseWorkflow = mutation({
         title: "Ogólne Standardy Jakości ADK Okna",
         category: "guidelines",
         content: "Każda wycena zadaszenia musi uwzględniać bezpłatny pomiar u klienta w promieniu 50 km od siedziby firmy.",
-        createdAt: now,
         updatedAt: now,
       });
     }
@@ -453,9 +453,9 @@ export const seedShowcaseWorkflow = mutation({
         data: {
           label: "8. Wątek A: Dopłata za Kolor RAL",
           modifierName: "Kolor Niestandardowy RAL",
-          modifierType: "percent",
+          modifierType: "percent" as const,
           modifierValue: 15,
-          modifierCategory: "service",
+          modifierCategory: "service" as const,
         },
       },
       {
