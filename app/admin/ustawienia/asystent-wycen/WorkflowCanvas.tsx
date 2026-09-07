@@ -367,6 +367,7 @@ export default function WorkflowCanvas() {
   const promptComponents = useQuery(api.aiWorkflows.listPromptComponents) ?? [];
   const saveDraft       = useMutation(api.aiWorkflows.saveWorkflowDraft);
   const activateWf      = useMutation(api.aiWorkflows.activateWorkflow);
+  const deleteWf        = useMutation(api.aiWorkflows.deleteWorkflow);
   const seedShowcase    = useMutation(api.aiWorkflows.seedShowcaseWorkflow);
   const upsertComponent = useMutation(api.aiWorkflows.upsertPromptComponent);
   const deleteComponent = useMutation(api.aiWorkflows.deletePromptComponent);
@@ -618,6 +619,22 @@ export default function WorkflowCanvas() {
       showStatus("success", "Workflow opublikowany na produkcję!");
     } catch (err) {
       showStatus("error", `Błąd publikacji: ${err instanceof Error ? err.message : "Nieznany błąd"}`);
+    }
+  };
+
+  const handleDeleteWorkflow = async () => {
+    if (!selectedWfId) return;
+    const currentWfObj = (workflows as Array<{ _id: Id<"aiWorkflows">; title: string }>).find((w) => w._id === selectedWfId);
+    const wTitle = currentWfObj?.title || title || "Ten workflow";
+    if (!window.confirm(`Czy na pewno chcesz bezpowrotnie usunąć workflow "${wTitle}"?`)) {
+      return;
+    }
+    try {
+      await deleteWf({ id: selectedWfId });
+      showStatus("success", `Workflow "${wTitle}" został pomyślnie usunięty.`);
+      setSelectedWfId(null);
+    } catch (err) {
+      showStatus("error", `Błąd podczas usuwania: ${err instanceof Error ? err.message : "Nieznany błąd"}`);
     }
   };
 
@@ -1400,6 +1417,24 @@ export default function WorkflowCanvas() {
             style={{ padding: "4px 8px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)" }}>
             {SERVICE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
+          {selectedWfId && (
+            <button
+              className="btn"
+              onClick={handleDeleteWorkflow}
+              style={{
+                gap: 4,
+                padding: "4px 9px",
+                fontSize: 11,
+                backgroundColor: "#ef444415",
+                color: "var(--bad)",
+                border: "1px solid #ef444440",
+                fontWeight: 600,
+              }}
+              title="Bezpowrotnie usuń ten workflow z bazy danych"
+            >
+              <Trash2 size={13} /> Usuń Workflow
+            </button>
+          )}
         </div>
 
         {/* Action buttons */}
