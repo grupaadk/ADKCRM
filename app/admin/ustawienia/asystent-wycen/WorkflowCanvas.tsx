@@ -425,10 +425,11 @@ export default function WorkflowCanvas() {
   const [editCompCategory, setEditCompCategory] = useState<PromptComponentItem["category"]>("guidelines");
   const [editCompContent,  setEditCompContent]  = useState("");
 
+  const hasInitializedRef = useRef(false);
   const currentWf = (workflows as Array<{ _id: Id<"aiWorkflows">; serviceType: string; title: string; description?: string; nodes: WorkflowNode[]; edges: WorkflowEdge[] }>).find((w) => w._id === selectedWfId);
 
   useEffect(() => {
-    if (currentWf) {
+    if (selectedWfId && currentWf) {
       queueMicrotask(() => {
         setServiceType(currentWf.serviceType);
         setTitle(currentWf.title);
@@ -436,24 +437,42 @@ export default function WorkflowCanvas() {
         setNodes(currentWf.nodes as WorkflowNode[]);
         setEdges(currentWf.edges as WorkflowEdge[]);
       });
+    } else if (!selectedWfId && hasInitializedRef.current) {
+      queueMicrotask(() => {
+        setTitle("Nowy Workflow (Roboczy)");
+        setDescription("");
+        setNodes([
+          { id: "node-1", type: "trigger", position: { x: 50, y: 140 }, data: { label: "Wyzwolenie: Zapytanie o Wycenę" } },
+          { id: "node-2", type: "input_required", position: { x: 300, y: 140 }, data: { label: "Wymagane Dane", requiredFields: ["widthCm", "lengthCm", "material"] } },
+          { id: "node-3", type: "output_format", position: { x: 560, y: 140 }, data: { label: "Odpowiedź i Karta Wyceny" } },
+        ]);
+        setEdges([
+          { id: "e1-2", source: "node-1", target: "node-2" },
+          { id: "e2-3", source: "node-2", target: "node-3" },
+        ]);
+      });
     }
   }, [selectedWfId, currentWf]);
 
-  // Auto-select or auto-seed showcase workflow if empty
+  // Initial auto-select or auto-seed showcase workflow ONCE on page load
   useEffect(() => {
-    if (rawWorkflows && rawWorkflows.length === 0 && !selectedWfId) {
+    if (hasInitializedRef.current || !rawWorkflows) return;
+
+    if (rawWorkflows.length === 0) {
+      hasInitializedRef.current = true;
       seedShowcase({ serviceType: "Zabudowa tarasu" })
         .then((id) => {
           queueMicrotask(() => setSelectedWfId(id));
         })
         .catch(() => {});
-    } else if (rawWorkflows && rawWorkflows.length > 0 && !selectedWfId) {
+    } else if (rawWorkflows.length > 0 && !selectedWfId) {
+      hasInitializedRef.current = true;
       const activeOrFirst = rawWorkflows.find((w) => w.status === "active") ?? rawWorkflows[0];
       if (activeOrFirst) {
         queueMicrotask(() => setSelectedWfId(activeOrFirst._id));
       }
     }
-  }, [rawWorkflows, selectedWfId, seedShowcase]);
+  }, [rawWorkflows, seedShowcase, selectedWfId]);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const backdropMouseDownRef = useRef(false);
