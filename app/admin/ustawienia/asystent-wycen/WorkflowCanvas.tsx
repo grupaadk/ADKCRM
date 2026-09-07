@@ -201,154 +201,6 @@ const COMP_CAT_LABELS: Record<string, string> = {
   context:       "Kontekst",
 };
 
-// ─── Presets ──────────────────────────────────────────────────────────────────
-
-const SHOWCASE_NODES: WorkflowNode[] = [
-  {
-    id: "node-1-trigger",
-    type: "prompt_trigger",
-    position: { x: 50, y: 150 },
-    data: {
-      label: "1. Wyzwolenie: Zapytanie Klienta",
-      promptRole: "Klient zainteresowany zadaszeniem lub zabudową tarasu",
-      extractFields: ["widthCm", "lengthCm", "material", "sideWalls", "city"],
-      samplePrompt: "Dzień dobry, poproszę o wycenę zadaszenia tarasu 400x300 cm z poliwęglanu we Wrocławiu.",
-      customText: "Wyceniaj w oparciu o cennik standardowy ADK Okna.",
-    },
-  },
-  {
-    id: "node-2-input",
-    type: "input_required",
-    position: { x: 300, y: 50 },
-    data: {
-      label: "2. Wymagane Dane do Wyceny",
-      requiredFields: ["widthCm", "lengthCm", "material", "city"],
-      inputPrompt: "Upewnij się, że klient podał wymiary w cm oraz oczekiwany materiał dachu.",
-    },
-  },
-  {
-    id: "node-3-question",
-    type: "question_step",
-    position: { x: 550, y: 50 },
-    data: {
-      label: "3. Pytanie o Fundament",
-      questionText: "Czy miejsce pod zadaszenie posiada wykonaną wylewkę lub stopy betonowe?",
-      questionOptions: ["Tak, wylewka betonowa", "Nie, wymagane stopy", "W trakcie budowy"],
-      questionVariable: "hasFoundation",
-    },
-  },
-  {
-    id: "node-4-validation",
-    type: "validation_gate",
-    position: { x: 800, y: 50 },
-    data: {
-      label: "4. Walidacja Wymiarów Dopuszczalnych",
-      validationMinWidth: 200,
-      validationMaxWidth: 600,
-      validationMinLength: 200,
-      validationMaxLength: 1200,
-      validationErrorMessage: "Wymiar wykracza poza standardowy cennik fabryczny ADK Okna. Wymagana estymacja niestandardowa.",
-    },
-  },
-  {
-    id: "node-5-branch",
-    type: "branch_splitter",
-    position: { x: 1050, y: 150 },
-    data: {
-      label: "5. Rozdzielacz: Wątek Główny vs Poboczny",
-      branchName: "Rozgałęzienie: Rabaty & Wytyczne Techniczne",
-      branchDescription: "Wątek A przetwarza wycenę i rabaty, a Wątek Poboczny B weryfikuje montaż i obróbkę.",
-      parallelMode: "parallel_all",
-    },
-  },
-  {
-    id: "node-6-cond",
-    type: "condition_branch",
-    position: { x: 1320, y: 50 },
-    data: {
-      label: "6. Wątek A: Warunek B2B vs B2C",
-      conditionVariable: "clientType",
-      conditionOperator: "==",
-      conditionValue: "business",
-      customText: "Dla klienta firmowego (B2B) zaproponuj fakturę VAT 23% i termin realizacji 14 dni.",
-    },
-  },
-  {
-    id: "node-7-discount",
-    type: "discount_rule",
-    position: { x: 1580, y: 50 },
-    data: {
-      label: "7. Wątek A: Rabat > 15 000 zł",
-      discountConditionType: "net_total",
-      discountThreshold: 15000,
-      discountPercent: 5,
-    },
-  },
-  {
-    id: "node-8-modifier",
-    type: "price_modifier",
-    position: { x: 1840, y: 50 },
-    data: {
-      label: "8. Wątek A: Dopłata za Kolor RAL",
-      modifierName: "Kolor Niestandardowy RAL",
-      modifierType: "percent",
-      modifierValue: 15,
-      modifierCategory: "service",
-    },
-  },
-  {
-    id: "node-9-prices",
-    type: "price_source",
-    position: { x: 2100, y: 50 },
-    data: {
-      label: "9. Wątek A: Cenniki Bazy ADK Okna",
-      priceTables: ["polycarbonate", "glass", "sliding_walls", "installation", "extras"],
-    },
-  },
-  {
-    id: "node-10-side-prompt",
-    type: "custom_prompt",
-    position: { x: 1320, y: 280 },
-    data: {
-      label: "10. Wątek Poboczny B: Instrukcja Montażowa",
-      promptText: "Wątek Poboczny: Dla zadaszeń powyżej 400 cm długości dolicz 2 szt. słupków środkowych oraz zalecaj zestaw uszczelek przeciwpyłowych.",
-    },
-  },
-  {
-    id: "node-11-comp",
-    type: "custom_prompt",
-    position: { x: 1580, y: 280 },
-    data: {
-      label: "11. Wątek Poboczny B: Standard Jakości",
-      promptText: "Wytyczne Jakości: Każda wycena zadaszenia musi uwzględniać bezpłatny pomiar u klienta w promieniu 50 km od siedziby firmy.",
-    },
-  },
-  {
-    id: "node-12-output",
-    type: "output_format",
-    position: { x: 2360, y: 150 },
-    data: {
-      label: "12. Wyjście: Podsumowanie i Karta Wyceny JSON",
-      customText: "Otrzymaną wycenę przedstaw w kulturalnym, fachowym tonie i wygeneruj pełną kartę wyceny JSON (estimateCard).",
-    },
-  },
-];
-
-const SHOWCASE_EDGES: WorkflowEdge[] = [
-  { id: "e1-2", source: "node-1-trigger", target: "node-2-input" },
-  { id: "e2-3", source: "node-2-input", target: "node-3-question" },
-  { id: "e3-4", source: "node-3-question", target: "node-4-validation" },
-  { id: "e4-5", source: "node-4-validation", target: "node-5-branch" },
-  { id: "e5-6", source: "node-5-branch", target: "node-6-cond", label: "Wątek A: Wycena i Rabaty" },
-  { id: "e6-7", source: "node-6-cond", target: "node-7-discount" },
-  { id: "e7-8", source: "node-7-discount", target: "node-8-modifier" },
-  { id: "e8-9", source: "node-8-modifier", target: "node-9-prices" },
-  { id: "e9-12", source: "node-9-prices", target: "node-12-output" },
-  { id: "e5-10", source: "node-5-branch", target: "node-10-side-prompt", label: "Wątek Poboczny B: Montaż" },
-  { id: "e10-11", source: "node-10-side-prompt", target: "node-11-comp" },
-  { id: "e11-12", source: "node-11-comp", target: "node-12-output" },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getNodeMeta(type: NodeType): { color: string; icon: React.ReactNode; label: string } {
@@ -368,7 +220,6 @@ export default function WorkflowCanvas() {
   const saveDraft       = useMutation(api.aiWorkflows.saveWorkflowDraft);
   const activateWf      = useMutation(api.aiWorkflows.activateWorkflow);
   const deleteWf        = useMutation(api.aiWorkflows.deleteWorkflow);
-  const seedShowcase    = useMutation(api.aiWorkflows.seedShowcaseWorkflow);
   const upsertComponent = useMutation(api.aiWorkflows.upsertPromptComponent);
   const deleteComponent = useMutation(api.aiWorkflows.deletePromptComponent);
 
@@ -454,25 +305,18 @@ export default function WorkflowCanvas() {
     }
   }, [selectedWfId, currentWf]);
 
-  // Initial auto-select or auto-seed showcase workflow ONCE on page load
+  // Initial auto-select ONCE on page load if workflows exist
   useEffect(() => {
     if (hasInitializedRef.current || !rawWorkflows) return;
 
-    if (rawWorkflows.length === 0) {
-      hasInitializedRef.current = true;
-      seedShowcase({ serviceType: "Zabudowa tarasu" })
-        .then((id) => {
-          queueMicrotask(() => setSelectedWfId(id));
-        })
-        .catch(() => {});
-    } else if (rawWorkflows.length > 0 && !selectedWfId) {
-      hasInitializedRef.current = true;
+    hasInitializedRef.current = true;
+    if (rawWorkflows.length > 0 && !selectedWfId) {
       const activeOrFirst = rawWorkflows.find((w) => w.status === "active") ?? rawWorkflows[0];
       if (activeOrFirst) {
         queueMicrotask(() => setSelectedWfId(activeOrFirst._id));
       }
     }
-  }, [rawWorkflows, seedShowcase, selectedWfId]);
+  }, [rawWorkflows, selectedWfId]);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const backdropMouseDownRef = useRef(false);
@@ -1463,48 +1307,6 @@ export default function WorkflowCanvas() {
               {statusMsg.text}
             </span>
           )}
-          <button
-            className="btn"
-            onClick={() => {
-              setTitle("🔥 Kompleksowy Workflow Testowy ADK Okna");
-              setServiceType("Zabudowa tarasu");
-              setNodes(SHOWCASE_NODES);
-              setEdges(SHOWCASE_EDGES);
-              showStatus("success", "Wczytano 12 węzłów szablonu testowego na płótno. Kliknij 'Zapisz Draft' lub 'Aktywuj'!");
-            }}
-            style={{ gap: 5, padding: "5px 11px", fontSize: 11, backgroundColor: "#6366f115", color: "#6366f1", border: "1px solid #6366f140", fontWeight: 600 }}
-            title="Wczytaj bezpośrednio na płótno szablon testowy z wszystkimi 12 węzłami i rozgałęzieniami"
-          >
-            <Sparkles size={13} /> ⚡ Wczytaj Szablon Testowy
-          </button>
-          <button
-            className="btn"
-            onClick={async () => {
-              try {
-                setTitle("🔥 Kompleksowy Workflow Testowy ADK Okna");
-                setServiceType("Zabudowa tarasu");
-                setNodes(SHOWCASE_NODES);
-                setEdges(SHOWCASE_EDGES);
-                const id = await saveDraft({
-                  id: selectedWfId ?? undefined,
-                  serviceType: "Zabudowa tarasu",
-                  title: "🔥 Kompleksowy Workflow Testowy ADK Okna",
-                  description: "Workflow testowy demonstrujący wszystkie 12 typów węzłów oraz równoległe wątki poboczne.",
-                  nodes: SHOWCASE_NODES,
-                  edges: SHOWCASE_EDGES,
-                });
-                setSelectedWfId(id);
-                await activateWf({ id });
-                showStatus("success", "Zapisano i aktywowano workflow testowy w bazie danych!");
-              } catch (err) {
-                showStatus("error", `Błąd zapisu: ${err instanceof Error ? err.message : "Nieznany błąd"}`);
-              }
-            }}
-            style={{ gap: 5, padding: "5px 11px", fontSize: 11, backgroundColor: "#ec489915", color: "#ec4899", border: "1px solid #ec489940", fontWeight: 600 }}
-            title="Zapisz i aktywuj kompleksowy workflow testowy w bazie danych Convex"
-          >
-            <Play size={13} /> 🔥 Zapisz Szablon w Baza Dev
-          </button>
           <button className="btn" onClick={handleSaveDraft} style={{ gap: 5, padding: "5px 12px", fontSize: 12 }}>
             <Save size={13} /> Zapisz Draft
           </button>
