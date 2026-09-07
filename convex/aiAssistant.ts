@@ -82,18 +82,18 @@ export const generateEstimateWithClaude = action({
       })
     ),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     // 1. Pobierz konfigurację z bazy
-    const config = await ctx.runQuery(api.aiAssistant.getAiConfigInternal);
+    const config: any = await ctx.runQuery(api.aiAssistant.getAiConfigInternal);
     if (!config || !config.apiKey || !config.apiKey.trim()) {
       throw new Error("Brak skonfigurowanego klucza Anthropic API Key w Ustawieniach Asystenta.");
     }
 
     // 2. Pobierz aktualne cenniki zadaszeń, ścian, trójkątów oraz montażu z bazy Convex
-    const terracePrices = await ctx.runQuery(api.terracePricing.listTerracePrices, {});
-    const wallPrices = await ctx.runQuery(api.terracePricing.listTerraceWallPrices, {});
-    const extrasPrices = await ctx.runQuery(api.terracePricing.listTerraceExtrasPrices, {});
-    const installationPrices = await ctx.runQuery(api.terracePricing.listTerraceInstallationPrices, {});
+    const terracePrices: any[] = await ctx.runQuery(api.terracePricing.listTerracePrices, {});
+    const wallPrices: any[] = await ctx.runQuery(api.terracePricing.listTerraceWallPrices, {});
+    const extrasPrices: any[] = await ctx.runQuery(api.terracePricing.listTerraceExtrasPrices, {});
+    const installationPrices: any[] = await ctx.runQuery(api.terracePricing.listTerraceInstallationPrices, {});
 
     // Sformatuj cennik w czytelną tabelkę dla Claude
     const polyPrices = (terracePrices ?? []).filter((p: any) => p.material === "polycarbonate");
@@ -109,39 +109,39 @@ export const generateEstimateWithClaude = action({
         )
         .join("\n");
 
-    const formatSlidingWallPriceTable = (items: typeof wallPrices) =>
+    const formatSlidingWallPriceTable = (items: Array<{ tracksCount: number; widthCm: number; heightCm: number; priceGross: number; priceNet: number }>) =>
       items
         .map(
-          (i) =>
+          (i: { tracksCount: number; widthCm: number; heightCm: number; priceGross: number; priceNet: number }) =>
             `- System ${i.tracksCount}-torowy ${i.widthCm} cm / wys. ${i.heightCm} cm: Brutto ${i.priceGross} zł | Netto ${i.priceNet} zł`
         )
         .join("\n");
 
-    const formatFixedWallPriceTable = (items: typeof wallPrices) =>
+    const formatFixedWallPriceTable = (items: Array<{ widthCm: number; heightCm: number; priceGross: number; priceNet: number }>) =>
       items
         .map(
-          (i) =>
+          (i: { widthCm: number; heightCm: number; priceGross: number; priceNet: number }) =>
             `- Długość ${i.widthCm} cm / wys. ${i.heightCm} cm: Brutto ${i.priceGross} zł | Netto ${i.priceNet} zł`
         )
         .join("\n");
 
-    const formatExtrasPriceTable = (items: typeof extrasPrices) =>
+    const formatExtrasPriceTable = (items: Array<{ widthCm: number; tracksCount: number; trianglePolycarbonateGross: number; trianglePolycarbonateNet: number; tintedGlassGross: number; tintedGlassNet: number; frostedGlassGross: number; frostedGlassNet: number; dustBrushesGross: number; dustBrushesNet: number; glassHandlesGross: number; glassHandlesNet: number }>) =>
       items
         .map(
-          (i) =>
+          (i: { widthCm: number; tracksCount: number; trianglePolycarbonateGross: number; trianglePolycarbonateNet: number; tintedGlassGross: number; tintedGlassNet: number; frostedGlassGross: number; frostedGlassNet: number; dustBrushesGross: number; dustBrushesNet: number; glassHandlesGross: number; glassHandlesNet: number }) =>
             `- Szerokość ${i.widthCm} cm (${i.tracksCount}-torowy): Trójkąt poliwęglan lity: ${i.trianglePolycarbonateGross}zł brutto (${i.trianglePolycarbonateNet}zł netto) | Dopłata szkło przyciemniane: ${i.tintedGlassGross}zł brutto (${i.tintedGlassNet}zł netto) | Dopłata szkło mleczne: ${i.frostedGlassGross}zł brutto (${i.frostedGlassNet}zł netto) | Szczotki: ${i.dustBrushesGross}zł brutto (${i.dustBrushesNet}zł netto) | Uchwyty: ${i.glassHandlesGross}zł brutto (${i.glassHandlesNet}zł netto)`
         )
         .join("\n");
 
-    const formatInstallationTable = (items: typeof installationPrices) =>
+    const formatInstallationTable = (items: Array<{ name: string; unit: string; flatRateNet?: number; rates?: Array<{ maxM2?: number; rateNet: number }> }>) =>
       items
-        .map((i) => {
+        .map((i: { name: string; unit: string; flatRateNet?: number; rates?: Array<{ maxM2?: number; rateNet: number }> }) => {
           if (i.flatRateNet) {
             return `- ${i.name}: ${i.flatRateNet} zł netto / ${i.unit}`;
           }
           const ratesStr = (i.rates || [])
             .map(
-              (r) =>
+              (r: { maxM2?: number; rateNet: number }) =>
                 `do ${r.maxM2 ? `${r.maxM2}m2` : "powyżej 25m2"}: ${r.rateNet} zł netto/m2`
             )
             .join(", ");
@@ -149,7 +149,7 @@ export const generateEstimateWithClaude = action({
         })
         .join("\n");
 
-    const systemPrompt = `Jesteś profesjonalnym Asystentem Wycen dla firmy ADK Okna. Twoim zadaniem jest pomoc doradcom w kalkulacji kosztów stolarki budowlanej oraz Zabudów Tarasów (Zadaszenia, Ściany Przesuwne i Stałe, Trójkąty Boczne, Montaż).
+    const systemPrompt: string = `Jesteś profesjonalnym Asystentem Wycen dla firmy ADK Okna. Twoim zadaniem jest pomoc doradcom w kalkulacji kosztów stolarki budowlanej oraz Zabudów Tarasów (Zadaszenia, Ściany Przesuwne i Stałe, Trójkąty Boczne, Montaż).
 
 AKTUALNY CENNIK ZADASZEŃ, ŚCIAN, TRÓJKĄTÓW I MONTAŻU ADK OKNA (Dystrybutor):
 
@@ -230,7 +230,7 @@ ${config.systemPromptExtra ? `\nDODATKOWE INSTRUKCJE FIRMOWE:\n${config.systemPr
     ];
 
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response: Response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -246,14 +246,14 @@ ${config.systemPromptExtra ? `\nDODATKOWE INSTRUKCJE FIRMOWE:\n${config.systemPr
       });
 
       if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
+        const errJson: any = await response.json().catch(() => ({}));
         throw new Error(
           `Błąd API Anthropic (${response.status}): ${errJson?.error?.message || response.statusText}`
         );
       }
 
-      const data = await response.json();
-      const rawText = data.content?.[0]?.text || "";
+      const data: any = await response.json();
+      const rawText: string = data.content?.[0]?.text || "";
 
       // Spróbuj sparsować odpowiedź JSON
       let parsedJson: any = null;
