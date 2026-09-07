@@ -265,10 +265,22 @@ export default function WorkflowCanvas() {
   }, [selectedWfId, currentWf]);
 
   const canvasRef = useRef<HTMLDivElement>(null);
+  const backdropMouseDownRef = useRef(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && editingNodeModalId) {
+        setEditingNodeModalId(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [editingNodeModalId]);
 
   // ── Canvas handlers ───────────────────────────────────────────────────────
 
   const handleCanvasMouseDown = (nodeId: string, e: React.MouseEvent) => {
+    if (editingNodeModalId) return;
     e.stopPropagation();
     setSelectedNodeId(nodeId);
     setDraggedNodeId(nodeId);
@@ -289,7 +301,7 @@ export default function WorkflowCanvas() {
   };
 
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
-    if (!draggedNodeId || !canvasRef.current) return;
+    if (editingNodeModalId || !draggedNodeId || !canvasRef.current) return;
     const r = canvasRef.current.getBoundingClientRect();
     const mouseXInCanvas = e.clientX - r.left;
     const mouseYInCanvas = e.clientY - r.top;
@@ -303,6 +315,7 @@ export default function WorkflowCanvas() {
   };
 
   const handleCanvasMouseUp = (e: React.MouseEvent) => {
+    if (editingNodeModalId) return;
     if (draggedNodeId && mouseDownPos) {
       const dist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
       if (dist < 4) {
@@ -503,7 +516,19 @@ export default function WorkflowCanvas() {
           justifyContent: "center",
           padding: 16,
         }}
-        onClick={() => setEditingNodeModalId(null)}
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) {
+            backdropMouseDownRef.current = true;
+          } else {
+            backdropMouseDownRef.current = false;
+          }
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+            setEditingNodeModalId(null);
+          }
+          backdropMouseDownRef.current = false;
+        }}
       >
         <div
           style={{
