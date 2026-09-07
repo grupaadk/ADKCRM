@@ -27,6 +27,11 @@ import {
   Edit3,
   X,
   MessageSquare,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  RotateCcw,
+  Hand,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -357,7 +362,8 @@ function getNodeMeta(type: NodeType): { color: string; icon: React.ReactNode; la
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function WorkflowCanvas() {
-  const workflows       = useQuery(api.aiWorkflows.listWorkflows)       ?? [];
+  const rawWorkflows     = useQuery(api.aiWorkflows.listWorkflows);
+  const workflows        = rawWorkflows ?? [];
   const promptComponents = useQuery(api.aiWorkflows.listPromptComponents) ?? [];
   const saveDraft       = useMutation(api.aiWorkflows.saveWorkflowDraft);
   const activateWf      = useMutation(api.aiWorkflows.activateWorkflow);
@@ -387,12 +393,18 @@ export default function WorkflowCanvas() {
     { id: "e5-6", source: "node-5", target: "node-6" },
   ]);
 
-  // ── Canvas drag & modal state ──
+  // ── Canvas drag & pan & zoom state ──
   const [selectedNodeId,     setSelectedNodeId]     = useState<string | null>(null);
   const [editingNodeModalId, setEditingNodeModalId] = useState<string | null>(null);
   const [draggedNodeId,      setDraggedNodeId]      = useState<string | null>(null);
   const [dragOffset,         setDragOffset]         = useState({ x: 0, y: 0 });
   const [mouseDownPos,       setMouseDownPos]       = useState<{ x: number; y: number } | null>(null);
+
+  // Pan & Zoom state
+  const [pan,       setPan]       = useState({ x: 0, y: 0 });
+  const [zoom,      setZoom]      = useState(1);
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart,  setPanStart]  = useState({ x: 0, y: 0 });
 
   // ── UI state ──
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -428,19 +440,19 @@ export default function WorkflowCanvas() {
 
   // Auto-select or auto-seed showcase workflow if empty
   useEffect(() => {
-    if (workflows && workflows.length === 0 && !selectedWfId) {
+    if (rawWorkflows && rawWorkflows.length === 0 && !selectedWfId) {
       seedShowcase({ serviceType: "Zabudowa tarasu" })
         .then((id) => {
           queueMicrotask(() => setSelectedWfId(id));
         })
         .catch(() => {});
-    } else if (workflows && workflows.length > 0 && !selectedWfId) {
-      const activeOrFirst = (workflows as Array<{ _id: Id<"aiWorkflows">; status: string }>).find((w) => w.status === "active") ?? workflows[0];
+    } else if (rawWorkflows && rawWorkflows.length > 0 && !selectedWfId) {
+      const activeOrFirst = rawWorkflows.find((w) => w.status === "active") ?? rawWorkflows[0];
       if (activeOrFirst) {
         queueMicrotask(() => setSelectedWfId(activeOrFirst._id));
       }
     }
-  }, [workflows, selectedWfId, seedShowcase]);
+  }, [rawWorkflows, selectedWfId, seedShowcase]);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const backdropMouseDownRef = useRef(false);
@@ -457,6 +469,17 @@ export default function WorkflowCanvas() {
 
   // ── Canvas handlers ───────────────────────────────────────────────────────
 
+  const handleBgMouseDown = (e: React.MouseEvent) => {
+    if (editingNodeModalId) return;
+    const target = e.target as HTMLElement | SVGElement | null;
+    if (target && target.closest && target.closest("[data-workflow-node='true']")) return;
+
+    setSelectedNodeId(null);
+    setIsPanning(true);
+    setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    setMouseDownPos({ x: e.clientX, y: e.clientY });
+  };
+
   const handleCanvasMouseDown = (nodeId: string, e: React.MouseEvent) => {
     if (editingNodeModalId) return;
     e.stopPropagation();
@@ -466,26 +489,36 @@ export default function WorkflowCanvas() {
 
     if (!canvasRef.current) return;
     const r = canvasRef.current.getBoundingClientRect();
-    const mouseXInCanvas = e.clientX - r.left;
-    const mouseYInCanvas = e.clientY - r.top;
+    const mouseXWorld = (e.clientX - r.left - pan.x) / zoom;
+    const mouseYWorld = (e.clientY - r.top - pan.y) / zoom;
 
     const n = nodes.find((n) => n.id === nodeId);
     if (n) {
       setDragOffset({
-        x: mouseXInCanvas - n.position.x,
-        y: mouseYInCanvas - n.position.y,
+        x: mouseXWorld - n.position.x,
+        y: mouseYWorld - n.position.y,
       });
     }
   };
 
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
-    if (editingNodeModalId || !draggedNodeId || !canvasRef.current) return;
-    const r = canvasRef.current.getBoundingClientRect();
-    const mouseXInCanvas = e.clientX - r.left;
-    const mouseYInCanvas = e.clientY - r.top;
+    if (editingNodeModalId || !canvasRef.current) return;
 
-    const x = Math.max(10, Math.min(r.width - 220, mouseXInCanvas - dragOffset.x));
-    const y = Math.max(10, Math.min(r.height - 100, mouseYInCanvas - dragOffset.y));
+    if (isPanning) {
+      setPan({
+        x: e.clientX - panStart.x,
+        y: e.clientY - panStart.y,
+      });
+      return;
+    }
+
+    if (!draggedNodeId) return;
+    const r = canvasRef.current.getBoundingClientRect();
+    const mouseXWorld = (e.clientX - r.left - pan.x) / zoom;
+    const mouseYWorld = (e.clientY - r.top - pan.y) / zoom;
+
+    const x = Math.round(mouseXWorld - dragOffset.x);
+    const y = Math.round(mouseYWorld - dragOffset.y);
 
     setNodes((prev) =>
       prev.map((n) => (n.id === draggedNodeId ? { ...n, position: { x, y } } : n))
@@ -494,6 +527,9 @@ export default function WorkflowCanvas() {
 
   const handleCanvasMouseUp = (e: React.MouseEvent) => {
     if (editingNodeModalId) return;
+    if (isPanning) {
+      setIsPanning(false);
+    }
     if (draggedNodeId && mouseDownPos) {
       const dist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
       if (dist < 4) {
@@ -502,6 +538,41 @@ export default function WorkflowCanvas() {
     }
     setDraggedNodeId(null);
     setMouseDownPos(null);
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (editingNodeModalId) return;
+    const delta = e.deltaY < 0 ? 0.08 : -0.08;
+    setZoom((prevZoom) => {
+      const nextZoom = Math.min(2.0, Math.max(0.35, prevZoom + delta));
+      return Number(nextZoom.toFixed(2));
+    });
+  };
+
+  const handleFitView = () => {
+    if (!nodes || nodes.length === 0 || !canvasRef.current) {
+      setPan({ x: 0, y: 0 });
+      setZoom(1);
+      return;
+    }
+    const minX = Math.min(...nodes.map((n) => n.position.x));
+    const maxX = Math.max(...nodes.map((n) => n.position.x + 220));
+    const minY = Math.min(...nodes.map((n) => n.position.y));
+    const maxY = Math.max(...nodes.map((n) => n.position.y + 120));
+
+    const r = canvasRef.current.getBoundingClientRect();
+    const width = maxX - minX + 140;
+    const height = maxY - minY + 140;
+
+    const zoomX = r.width / width;
+    const zoomY = r.height / height;
+    const fitZoom = Math.min(1.0, Math.max(0.35, Math.min(zoomX, zoomY)));
+
+    const panX = (r.width - (maxX + minX) * fitZoom) / 2;
+    const panY = (r.height - (maxY + minY) * fitZoom) / 2;
+
+    setZoom(Number(fitZoom.toFixed(2)));
+    setPan({ x: Math.round(panX), y: Math.round(panY) });
   };
 
   // ── Node CRUD ─────────────────────────────────────────────────────────────
@@ -1404,208 +1475,270 @@ export default function WorkflowCanvas() {
         {/* ── Canvas Area ── */}
         <div
           ref={canvasRef}
+          onMouseDown={handleBgMouseDown}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
-          onClick={() => setSelectedNodeId(null)}
+          onWheel={handleWheel}
           style={{
             flex: 1, height: "100%", position: "relative", overflow: "hidden",
             backgroundImage: "radial-gradient(circle, var(--line) 1px, transparent 1px)",
-            backgroundSize: "20px 20px", cursor: draggedNodeId ? "grabbing" : "default",
+            backgroundPosition: `${pan.x}px ${pan.y}px`,
+            backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
+            cursor: isPanning ? "grabbing" : draggedNodeId ? "grabbing" : "grab",
+            userSelect: "none",
           }}
         >
-          {/* SVG Edges */}
-          <svg style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0, pointerEvents: "none" }}>
-            {edges.map((e) => {
-              const src = nodes.find((n) => n.id === e.source);
-              const tgt = nodes.find((n) => n.id === e.target);
-              if (!src || !tgt) return null;
-              const x1 = src.position.x + 200;
-              const y1 = src.position.y + 40;
-              const x2 = tgt.position.x;
-              const y2 = tgt.position.y + 40;
-              const dx = Math.abs(x2 - x1) * 0.5;
-              const pathStr = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
-              const isBranchEdge = src.type === "branch_splitter" || !!e.label;
-              const strokeColor = isBranchEdge ? "#ec4899" : "var(--accent)";
+          {/* Floating Pan & Zoom Toolbar */}
+          <div style={{
+            position: "absolute", bottom: 16, right: 16, zIndex: 50,
+            display: "flex", alignItems: "center", gap: 4,
+            backgroundColor: "var(--panel)", padding: "4px 8px", borderRadius: 8,
+            border: "1px solid var(--line-2)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            backdropFilter: "blur(4px)",
+          }}>
+            <button
+              onClick={() => setZoom((z) => Number(Math.max(0.35, z - 0.1).toFixed(2)))}
+              style={{ border: "none", background: "transparent", color: "var(--text)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}
+              title="Oddal (Zoom Out)"
+            >
+              <ZoomOut size={14} />
+            </button>
+            <span style={{ fontSize: 11, fontWeight: 700, minWidth: 36, textAlign: "center", color: "var(--text-strong)", fontFamily: "monospace" }}>
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              onClick={() => setZoom((z) => Number(Math.min(2.0, z + 0.1).toFixed(2)))}
+              style={{ border: "none", background: "transparent", color: "var(--text)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}
+              title="Przybliż (Zoom In)"
+            >
+              <ZoomIn size={14} />
+            </button>
+            <div style={{ width: 1, height: 16, backgroundColor: "var(--line)", margin: "0 2px" }} />
+            <button
+              onClick={handleFitView}
+              style={{ border: "none", background: "transparent", color: "var(--accent)", cursor: "pointer", padding: "3px 7px", fontSize: 10, fontWeight: 700, borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}
+              title="Dopasuj widok do wszystkich węzłów"
+            >
+              <Maximize2 size={12} /> Dopasuj
+            </button>
+            <button
+              onClick={() => { setPan({ x: 0, y: 0 }); setZoom(1); }}
+              style={{ border: "none", background: "transparent", color: "var(--text-dim)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}
+              title="Resetuj widok (100% i środek)"
+            >
+              <RotateCcw size={12} />
+            </button>
+            <div style={{ width: 1, height: 16, backgroundColor: "var(--line)", margin: "0 2px" }} />
+            <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, display: "flex", alignItems: "center", gap: 3, paddingLeft: 2 }}>
+              <Hand size={12} style={{ color: "var(--accent)" }} /> Przesuwaj planszę chwytając tło
+            </span>
+          </div>
 
-              const midX = (x1 + x2) / 2;
-              const midY = (y1 + y2) / 2;
+          {/* Transformed Viewport Container */}
+          <div
+            style={{
+              position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+              transformOrigin: "0 0",
+              pointerEvents: "none",
+            }}
+          >
+            {/* SVG Edges */}
+            <svg style={{ width: 5000, height: 5000, position: "absolute", top: 0, left: 0, pointerEvents: "none", overflow: "visible" }}>
+              {edges.map((e) => {
+                const src = nodes.find((n) => n.id === e.source);
+                const tgt = nodes.find((n) => n.id === e.target);
+                if (!src || !tgt) return null;
+                const x1 = src.position.x + 200;
+                const y1 = src.position.y + 40;
+                const x2 = tgt.position.x;
+                const y2 = tgt.position.y + 40;
+                const dx = Math.abs(x2 - x1) * 0.5;
+                const pathStr = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+                const isBranchEdge = src.type === "branch_splitter" || !!e.label;
+                const strokeColor = isBranchEdge ? "#ec4899" : "var(--accent)";
+
+                const midX = (x1 + x2) / 2;
+                const midY = (y1 + y2) / 2;
+
+                return (
+                  <g key={e.id}>
+                    <path d={pathStr} fill="none" stroke="var(--line-2)" strokeWidth="3" />
+                    <path d={pathStr} fill="none" stroke={strokeColor} strokeWidth={isBranchEdge ? "2" : "1.5"} strokeDasharray={isBranchEdge ? "6,3" : "5,5"} />
+                    {e.label && (
+                      <g transform={`translate(${midX}, ${midY})`}>
+                        <rect x="-42" y="-9" width="84" height="17" rx="8" fill="var(--panel)" stroke={strokeColor} strokeWidth="1" />
+                        <text x="0" y="3" textAnchor="middle" fill="var(--text-strong)" fontSize="9" fontWeight="700">
+                          {e.label}
+                        </text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+
+            {/* Nodes */}
+            {nodes.map((node) => {
+              const meta = getNodeMeta(node.type);
+              const isSelected = selectedNodeId === node.id;
+              const attachedComp = node.data.componentId
+                ? (promptComponents as PromptComponentItem[]).find((c) => c._id === node.data.componentId)
+                : null;
 
               return (
-                <g key={e.id}>
-                  <path d={pathStr} fill="none" stroke="var(--line-2)" strokeWidth="3" />
-                  <path d={pathStr} fill="none" stroke={strokeColor} strokeWidth={isBranchEdge ? "2" : "1.5"} strokeDasharray={isBranchEdge ? "6,3" : "5,5"} />
-                  {e.label && (
-                    <g transform={`translate(${midX}, ${midY})`}>
-                      <rect x="-42" y="-9" width="84" height="17" rx="8" fill="var(--panel)" stroke={strokeColor} strokeWidth="1" />
-                      <text x="0" y="3" textAnchor="middle" fill="var(--text-strong)" fontSize="9" fontWeight="700">
-                        {e.label}
-                      </text>
-                    </g>
-                  )}
-                </g>
+                <div
+                  key={node.id}
+                  data-workflow-node="true"
+                  onMouseDown={(e) => handleCanvasMouseDown(node.id, e)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedNodeId(node.id);
+                  }}
+                  style={{
+                    position: "absolute", left: node.position.x, top: node.position.y,
+                    width: 210, backgroundColor: "var(--panel)", borderRadius: 10,
+                    border: isSelected ? `2px solid ${meta.color}` : "1px solid var(--line)",
+                    boxShadow: isSelected ? `0 0 0 3px ${meta.color}25, 0 4px 12px rgba(0,0,0,0.1)` : "0 2px 6px rgba(0,0,0,0.05)",
+                    cursor: "grab", userSelect: "none", transition: "border 0.15s, box-shadow 0.15s", zIndex: isSelected ? 10 : 2,
+                    pointerEvents: "auto",
+                  }}
+                >
+                  {/* Node Header */}
+                  <div style={{
+                    padding: "8px 10px", borderBottom: "1px solid var(--line)",
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    backgroundColor: `${meta.color}10`, borderTopLeftRadius: 8, borderTopRightRadius: 8,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      {meta.icon}
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                        {node.type}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingNodeModalId(node.id); }}
+                        style={{ border: "none", background: "transparent", color: "var(--accent)", cursor: "pointer", padding: 2, lineHeight: 1 }}
+                        title="Konfiguruj węzeł w modalu"
+                      >
+                        <Sliders size={12} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteNode(node.id); }}
+                        style={{ border: "none", background: "transparent", color: "var(--bad)", cursor: "pointer", padding: 2, opacity: 0.6, lineHeight: 1 }}
+                        title="Usuń krok z workflowu"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Node Body */}
+                  <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 5 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>
+                      {node.data.label}
+                    </div>
+
+                    {/* Rich Node Details */}
+                    {node.type === "branch_splitter" && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3, backgroundColor: "#ec489910", padding: "4px 6px", borderRadius: 4 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#ec4899" }}>
+                          🔀 {node.data.branchName || "Wątek Poboczny"}
+                        </div>
+                        {node.data.branchDescription && (
+                          <div style={{ fontSize: 10, color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                            {node.data.branchDescription}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {node.type === "custom_prompt" && (
+                      <div style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "monospace", backgroundColor: "#6366f112", padding: "4px 6px", borderRadius: 4, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                        💬 {node.data.promptText || "Brak treści promptu..."}
+                      </div>
+                    )}
+
+                    {node.type === "prompt_trigger" && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        {node.data.promptRole && (
+                          <div style={{ fontSize: 10, color: "#4abbc3", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            🎭 Rola: {node.data.promptRole}
+                          </div>
+                        )}
+                        {node.data.extractFields && node.data.extractFields.length > 0 && (
+                          <div style={{ fontSize: 10, color: "var(--text-mute)", display: "flex", flexWrap: "wrap", gap: 3 }}>
+                            {node.data.extractFields.map((f) => (
+                              <span key={f} style={{ backgroundColor: "#4abbc318", color: "#4abbc3", padding: "1px 5px", borderRadius: 4, fontWeight: 600 }}>
+                                {f}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {node.type === "input_required" && (
+                      <div style={{ fontSize: 10, color: "var(--text-mute)", display: "flex", flexWrap: "wrap", gap: 3 }}>
+                        {(node.data.requiredFields || []).map((f) => (
+                          <span key={f} style={{ backgroundColor: "#ec489918", color: "#ec4899", padding: "1px 5px", borderRadius: 4, fontWeight: 600 }}>
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {node.type === "condition_branch" && (
+                      <div style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "monospace", backgroundColor: "#ef444410", padding: "3px 6px", borderRadius: 4 }}>
+                        If ({node.data.conditionVariable || "zmienna"} {node.data.conditionOperator || "=="} {`"${node.data.conditionValue || ""}"`})
+                      </div>
+                    )}
+
+                    {node.type === "validation_gate" && (
+                      <div style={{ fontSize: 10, color: "#f97316", fontWeight: 600 }}>
+                        Szer: {node.data.validationMinWidth ?? 0}–{node.data.validationMaxWidth ?? "∞"}cm | Dł: {node.data.validationMinLength ?? 0}–{node.data.validationMaxLength ?? "∞"}cm
+                      </div>
+                    )}
+
+                    {node.type === "discount_rule" && (
+                      <div style={{ fontSize: 10, color: "#84cc16", fontWeight: 600 }}>
+                        Próg: ≥{node.data.discountThreshold ?? 0}zł → Rabat: {node.data.discountPercent ?? 0}%
+                      </div>
+                    )}
+
+                    {node.type === "price_modifier" && (
+                      <div style={{ fontSize: 10, color: "#10b981", fontWeight: 600 }}>
+                        {node.data.modifierName || "Dopłata"}: {node.data.modifierType === "percent" ? `+${node.data.modifierValue}%` : `+${node.data.modifierValue} zł`}
+                      </div>
+                    )}
+
+                    {node.type === "question_step" && (
+                      <div style={{ fontSize: 10, color: "var(--text-dim)", fontStyle: "italic" }}>
+                        {`"${node.data.questionText || "Pytanie..."}"`}
+                      </div>
+                    )}
+
+                    {attachedComp && (
+                      <div style={{ fontSize: 10, color: "#8b5cf6", backgroundColor: "#8b5cf612", padding: "2px 5px", borderRadius: 4, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        📄 {attachedComp.title}
+                      </div>
+                    )}
+
+                    {node.data.priceTables && node.data.priceTables.length > 0 && (
+                      <div style={{ fontSize: 10, color: "#06b6d4", fontWeight: 600 }}>
+                        📊 Podpięte cenniki: {node.data.priceTables.length}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Ports */}
+                  <div style={{ position: "absolute", left: -6, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, borderRadius: "50%", backgroundColor: meta.color, border: "2px solid var(--panel)" }} />
+                  <div style={{ position: "absolute", right: -6, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, borderRadius: "50%", backgroundColor: meta.color, border: "2px solid var(--panel)" }} />
+                </div>
               );
             })}
-          </svg>
-
-          {/* Nodes */}
-          {nodes.map((node) => {
-            const meta = getNodeMeta(node.type);
-            const isSelected = selectedNodeId === node.id;
-            const attachedComp = node.data.componentId
-              ? (promptComponents as PromptComponentItem[]).find((c) => c._id === node.data.componentId)
-              : null;
-
-            return (
-              <div
-                key={node.id}
-                onMouseDown={(e) => handleCanvasMouseDown(node.id, e)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedNodeId(node.id);
-                }}
-                style={{
-                  position: "absolute", left: node.position.x, top: node.position.y,
-                  width: 210, backgroundColor: "var(--panel)", borderRadius: 10,
-                  border: isSelected ? `2px solid ${meta.color}` : "1px solid var(--line)",
-                  boxShadow: isSelected ? `0 0 0 3px ${meta.color}25, 0 4px 12px rgba(0,0,0,0.1)` : "0 2px 6px rgba(0,0,0,0.05)",
-                  cursor: "grab", userSelect: "none", transition: "border 0.15s, box-shadow 0.15s", zIndex: isSelected ? 10 : 2,
-                }}
-              >
-                {/* Node Header */}
-                <div style={{
-                  padding: "8px 10px", borderBottom: "1px solid var(--line)",
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  backgroundColor: `${meta.color}10`, borderTopLeftRadius: 8, borderTopRightRadius: 8,
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                    {meta.icon}
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.4 }}>
-                      {node.type}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setEditingNodeModalId(node.id); }}
-                      style={{ border: "none", background: "transparent", color: "var(--accent)", cursor: "pointer", padding: 2, lineHeight: 1 }}
-                      title="Konfiguruj węzeł w modalu"
-                    >
-                      <Sliders size={12} />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteNode(node.id); }}
-                      style={{ border: "none", background: "transparent", color: "var(--bad)", cursor: "pointer", padding: 2, opacity: 0.6, lineHeight: 1 }}
-                      title="Usuń krok z workflowu"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Node Body */}
-                <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 5 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>
-                    {node.data.label}
-                  </div>
-
-                  {/* Rich Node Details */}
-                  {node.type === "branch_splitter" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3, backgroundColor: "#ec489910", padding: "4px 6px", borderRadius: 4 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "#ec4899" }}>
-                        🔀 {node.data.branchName || "Wątek Poboczny"}
-                      </div>
-                      {node.data.branchDescription && (
-                        <div style={{ fontSize: 10, color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                          {node.data.branchDescription}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {node.type === "custom_prompt" && (
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "monospace", backgroundColor: "#6366f112", padding: "4px 6px", borderRadius: 4, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                      💬 {node.data.promptText || "Brak treści promptu..."}
-                    </div>
-                  )}
-
-                  {node.type === "prompt_trigger" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                      {node.data.promptRole && (
-                        <div style={{ fontSize: 10, color: "#4abbc3", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          🎭 Rola: {node.data.promptRole}
-                        </div>
-                      )}
-                      {node.data.extractFields && node.data.extractFields.length > 0 && (
-                        <div style={{ fontSize: 10, color: "var(--text-mute)", display: "flex", flexWrap: "wrap", gap: 3 }}>
-                          {node.data.extractFields.map((f) => (
-                            <span key={f} style={{ backgroundColor: "#4abbc318", color: "#4abbc3", padding: "1px 5px", borderRadius: 4, fontWeight: 600 }}>
-                              {f}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {node.type === "input_required" && (
-                    <div style={{ fontSize: 10, color: "var(--text-mute)", display: "flex", flexWrap: "wrap", gap: 3 }}>
-                      {(node.data.requiredFields || []).map((f) => (
-                        <span key={f} style={{ backgroundColor: "#ec489918", color: "#ec4899", padding: "1px 5px", borderRadius: 4, fontWeight: 600 }}>
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {node.type === "condition_branch" && (
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "monospace", backgroundColor: "#ef444410", padding: "3px 6px", borderRadius: 4 }}>
-                      If ({node.data.conditionVariable || "zmienna"} {node.data.conditionOperator || "=="} {`"${node.data.conditionValue || ""}"`})
-                    </div>
-                  )}
-
-                  {node.type === "validation_gate" && (
-                    <div style={{ fontSize: 10, color: "#f97316", fontWeight: 600 }}>
-                      Szer: {node.data.validationMinWidth ?? 0}–{node.data.validationMaxWidth ?? "∞"}cm | Dł: {node.data.validationMinLength ?? 0}–{node.data.validationMaxLength ?? "∞"}cm
-                    </div>
-                  )}
-
-                  {node.type === "discount_rule" && (
-                    <div style={{ fontSize: 10, color: "#84cc16", fontWeight: 600 }}>
-                      Próg: ≥{node.data.discountThreshold ?? 0}zł → Rabat: {node.data.discountPercent ?? 0}%
-                    </div>
-                  )}
-
-                  {node.type === "price_modifier" && (
-                    <div style={{ fontSize: 10, color: "#10b981", fontWeight: 600 }}>
-                      {node.data.modifierName || "Dopłata"}: {node.data.modifierType === "percent" ? `+${node.data.modifierValue}%` : `+${node.data.modifierValue} zł`}
-                    </div>
-                  )}
-
-                  {node.type === "question_step" && (
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", fontStyle: "italic" }}>
-                      {`"${node.data.questionText || "Pytanie..."}"`}
-                    </div>
-                  )}
-
-                  {attachedComp && (
-                    <div style={{ fontSize: 10, color: "#8b5cf6", backgroundColor: "#8b5cf612", padding: "2px 5px", borderRadius: 4, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      📄 {attachedComp.title}
-                    </div>
-                  )}
-
-                  {node.data.priceTables && node.data.priceTables.length > 0 && (
-                    <div style={{ fontSize: 10, color: "#06b6d4", fontWeight: 600 }}>
-                      📊 Podpięte cenniki: {node.data.priceTables.length}
-                    </div>
-                  )}
-                </div>
-
-                {/* Ports */}
-                <div style={{ position: "absolute", left: -6, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, borderRadius: "50%", backgroundColor: meta.color, border: "2px solid var(--panel)" }} />
-                <div style={{ position: "absolute", right: -6, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, borderRadius: "50%", backgroundColor: meta.color, border: "2px solid var(--panel)" }} />
-              </div>
-            );
-          })}
+          </div>
         </div>
 
         {/* ── Right Panel (Combined Node Inspector + Component Library) ───────── */}
