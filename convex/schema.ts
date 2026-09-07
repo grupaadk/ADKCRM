@@ -1058,7 +1058,9 @@ export default defineSchema({
       v.literal("guidelines"),
       v.literal("pricing_rules"),
       v.literal("output_format"),
-      v.literal("questions")
+      v.literal("questions"),
+      v.literal("validation"),
+      v.literal("context")
     ),
     content: v.string(),
     updatedAt: v.number(),
@@ -1079,14 +1081,62 @@ export default defineSchema({
           v.literal("trigger"),
           v.literal("prompt_component"),
           v.literal("price_source"),
-          v.literal("output_format")
+          v.literal("output_format"),
+          v.literal("condition"),
+          v.literal("data_transform"),
+          v.literal("data_fetch"),
+          v.literal("notification"),
+          v.literal("package_builder"),
+          v.literal("input_required"),
+          v.literal("condition_branch"),
+          v.literal("discount_rule"),
+          v.literal("price_modifier"),
+          v.literal("validation_gate"),
+          v.literal("question_step")
         ),
         position: v.object({ x: v.number(), y: v.number() }),
         data: v.object({
           label: v.string(),
           componentId: v.optional(v.id("aiPromptComponents")),
-          priceTables: v.optional(v.array(v.string())), // np. ["polycarbonate", "glass", "sliding_walls", "fixed_walls", "extras", "installation"]
+          priceTables: v.optional(v.array(v.string())),
           customText: v.optional(v.string()),
+          conditionExpr: v.optional(v.string()),
+          notificationTarget: v.optional(v.string()),
+
+          // Wymagane pola (input_required)
+          requiredFields: v.optional(v.array(v.string())),
+          inputPrompt: v.optional(v.string()),
+
+          // Warunki logiczne (condition_branch)
+          conditionVariable: v.optional(v.string()),
+          conditionOperator: v.optional(v.string()),
+          conditionValue: v.optional(v.string()),
+          componentIdTrue: v.optional(v.id("aiPromptComponents")),
+          componentIdFalse: v.optional(v.id("aiPromptComponents")),
+
+          // Reguły rabatowe (discount_rule)
+          discountConditionType: v.optional(v.string()),
+          discountThreshold: v.optional(v.number()),
+          discountPercent: v.optional(v.number()),
+
+          // Dopłaty / modyfikatory (price_modifier)
+          modifierName: v.optional(v.string()),
+          modifierType: v.optional(v.union(v.literal("percent"), v.literal("fixed"))),
+          modifierValue: v.optional(v.number()),
+          modifierCategory: v.optional(v.union(v.literal("service"), v.literal("installation"), v.literal("extras"))),
+
+          // Bramka walidacyjna (validation_gate)
+          validationMinWidth: v.optional(v.number()),
+          validationMaxWidth: v.optional(v.number()),
+          validationMinLength: v.optional(v.number()),
+          validationMaxLength: v.optional(v.number()),
+          validationErrorMessage: v.optional(v.string()),
+
+          // Krok pytający (question_step)
+          questionText: v.optional(v.string()),
+          questionType: v.optional(v.string()),
+          questionOptions: v.optional(v.array(v.string())),
+          questionVariable: v.optional(v.string()),
         }),
       })
     ),

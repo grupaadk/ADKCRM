@@ -6,13 +6,15 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Plus, Trash2, Edit3, Save, Layers, Code, CheckCircle, FileText } from "lucide-react";
 
-type ComponentCategory = "guidelines" | "pricing_rules" | "output_format" | "questions";
+type ComponentCategory = "guidelines" | "pricing_rules" | "output_format" | "questions" | "validation" | "context";
 
 const CATEGORY_LABELS: Record<ComponentCategory, string> = {
   guidelines: "Wytyczne ogólne",
   pricing_rules: "Reguły wyceniania",
   output_format: "Formatowanie wyjścia",
   questions: "Pytania doprecyzowujące",
+  validation: "Walidacja",
+  context: "Kontekst danych",
 };
 
 export default function PromptComponentsLibrary() {

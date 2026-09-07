@@ -69,6 +69,191 @@ export const saveAiConfig = mutation({
   },
 });
 
+interface PromptComponentInfo {
+  id: string;
+  title: string;
+  content: string;
+}
+
+interface WorkflowNodeData {
+  label: string;
+  componentId?: string;
+  priceTables?: string[];
+  customText?: string;
+  conditionExpr?: string;
+  notificationTarget?: string;
+  requiredFields?: string[];
+  inputPrompt?: string;
+  conditionVariable?: string;
+  conditionOperator?: string;
+  conditionValue?: string;
+  componentIdTrue?: string;
+  componentIdFalse?: string;
+  discountConditionType?: string;
+  discountThreshold?: number;
+  discountPercent?: number;
+  modifierName?: string;
+  modifierType?: "percent" | "fixed";
+  modifierValue?: number;
+  modifierCategory?: "service" | "installation" | "extras";
+  validationMinWidth?: number;
+  validationMaxWidth?: number;
+  validationMinLength?: number;
+  validationMaxLength?: number;
+  validationErrorMessage?: string;
+  questionText?: string;
+  questionType?: string;
+  questionOptions?: string[];
+  questionVariable?: string;
+}
+
+interface WorkflowNodeInfo {
+  id: string;
+  type: string;
+  data: WorkflowNodeData;
+}
+
+interface WorkflowData {
+  title: string;
+  serviceType: string;
+  nodes: WorkflowNodeInfo[];
+}
+
+interface ActiveWfData {
+  workflow?: WorkflowData | null;
+  promptComponents?: PromptComponentInfo[];
+  promptComponentsMap?: Record<string, PromptComponentInfo>;
+}
+
+/**
+ * Pomocnicza funkcja budująca ustrukturyzowaną sekcję instrukcji systemowych z grafu workflowu
+ */
+function buildWorkflowInstructions(activeWfData: ActiveWfData | null): string {
+  if (!activeWfData || !activeWfData.workflow) return "";
+
+  const wf = activeWfData.workflow;
+  const compMap = activeWfData.promptComponentsMap || {};
+  const nodes = wf.nodes || [];
+
+  const parts: string[] = [];
+
+  parts.push(`=== AKTYWNY PROCES WORKFLOW WYCENY: ${wf.title} (Usługa: ${wf.serviceType}) ===`);
+
+  // 1. Input Required
+  const inputNodes = nodes.filter((n) => n.type === "input_required");
+  if (inputNodes.length > 0) {
+    parts.push("--- WYMAGANE DANE WEJŚCIOWE DO WYCENY ---");
+    inputNodes.forEach((n, idx: number) => {
+      const fields = (n.data.requiredFields || []).join(", ");
+      parts.push(
+        `${idx + 1}. [Wymóg: ${n.data.label}] Wymagane pola: ${fields || "brak określonych"}.` +
+          (n.data.inputPrompt ? ` Pytanie/Instrukcja: "${n.data.inputPrompt}"` : "") +
+          " PRZED podaniem ostatecznej wyceny upewnij się, że posiadasz wszystkie powyższe dane od klienta. Jeśli ich brakuje, zapytywaj po kolei!"
+      );
+    });
+  }
+
+  // 2. Question Steps
+  const questionNodes = nodes.filter((n) => n.type === "question_step");
+  if (questionNodes.length > 0) {
+    parts.push("--- STRUKTURALNE PYTANIA DLA KLIENTA ---");
+    questionNodes.forEach((n, idx: number) => {
+      const opts = (n.data.questionOptions || []).join(" | ");
+      parts.push(
+        `${idx + 1}. Pytanie: "${n.data.questionText || n.data.label}"` +
+          (opts ? ` [Dostępne opcje: ${opts}]` : "") +
+          (n.data.questionVariable ? ` -> Zapisz do zmiennej: ${n.data.questionVariable}` : "")
+      );
+    });
+  }
+
+  // 3. Validation Gates
+  const valNodes = nodes.filter((n) => n.type === "validation_gate");
+  if (valNodes.length > 0) {
+    parts.push("--- BRAMKI WALIDACYJNE WYMIARÓW I SPECYFIKACJI ---");
+    valNodes.forEach((n, idx: number) => {
+      const wRange = n.data.validationMinWidth || n.data.validationMaxWidth ? `Szerokość: ${n.data.validationMinWidth ?? 0}–${n.data.validationMaxWidth ?? "∞"} cm` : "";
+      const lRange = n.data.validationMinLength || n.data.validationMaxLength ? `Długość: ${n.data.validationMinLength ?? 0}–${n.data.validationMaxLength ?? "∞"} cm` : "";
+      const ranges = [wRange, lRange].filter(Boolean).join(" | ");
+      parts.push(
+        `${idx + 1}. [Walidacja: ${n.data.label}] Dopuszczalny zakres cennikowy: ${ranges}.` +
+          ` W przypadku przekroczenia zakomunikuj klientowi: "${n.data.validationErrorMessage || "Wymiar niestandardowy - zalecana wycena indywidualna."}"`
+      );
+    });
+  }
+
+  // 4. Logical Conditions
+  const condNodes = nodes.filter((n) => n.type === "condition_branch" || n.type === "condition");
+  if (condNodes.length > 0) {
+    parts.push("--- WARUNKI LOGICZNE (IF / ELSE) ---");
+    condNodes.forEach((n, idx: number) => {
+      if (n.type === "condition_branch") {
+        const varName = n.data.conditionVariable || "zmienna";
+        const op = n.data.conditionOperator || "==";
+        const val = n.data.conditionValue || "";
+        const trueComp = n.data.componentIdTrue ? compMap[n.data.componentIdTrue] : null;
+        const falseComp = n.data.componentIdFalse ? compMap[n.data.componentIdFalse] : null;
+
+        let condStr = `${idx + 1}. WARUNEK LOGICZNY: Jeśli (${varName} ${op} "${val}"):\n`;
+        if (trueComp) condStr += `   -> WARUNEK SPEŁNIONY (TAK): Zastosuj wytyczne "${trueComp.title}":\n${trueComp.content}\n`;
+        if (falseComp) condStr += `   -> WARUNEK NIESPEŁNIONY (NIE): Zastosuj wytyczne "${falseComp.title}":\n${falseComp.content}\n`;
+        if (n.data.customText) condStr += `   Instrukcja dodatkowa: ${n.data.customText}\n`;
+        parts.push(condStr);
+      } else {
+        parts.push(`${idx + 1}. [Warunek: ${n.data.label}] Expression: ${n.data.conditionExpr || "N/A"}. ${n.data.customText || ""}`);
+      }
+    });
+  }
+
+  // 5. Discount Rules
+  const discountNodes = nodes.filter((n) => n.type === "discount_rule");
+  if (discountNodes.length > 0) {
+    parts.push("--- REGUŁY RABATOWE ---");
+    discountNodes.forEach((n, idx: number) => {
+      const typeLabel = n.data.discountConditionType === "net_total" ? "Wartość netto całego zamówienia" : n.data.discountConditionType === "area_m2" ? "Powierzchnia w m²" : "Wartość";
+      parts.push(
+        `${idx + 1}. [Rabat: ${n.data.label}] Jeśli ${typeLabel} >= ${n.data.discountThreshold ?? 0} -> zastosuj ${n.data.discountPercent ?? 0}% rabatu w polu "discountPercent" karty wyceny.`
+      );
+    });
+  }
+
+  // 6. Price Modifiers
+  const modNodes = nodes.filter((n) => n.type === "price_modifier");
+  if (modNodes.length > 0) {
+    parts.push("--- MODYFIKATORY I DOPŁATY CENOWE ---");
+    modNodes.forEach((n, idx: number) => {
+      const typeStr = n.data.modifierType === "percent" ? `+${n.data.modifierValue}%` : `+${n.data.modifierValue} zł netto`;
+      parts.push(
+        `${idx + 1}. [Dopłata: ${n.data.modifierName || n.data.label}] Kwota/Wartość: ${typeStr} (Kategoria w karcie wyceny: ${n.data.modifierCategory || "extras"}). Dodaj tę dopłatę jako osobną pozycję lub uwzględnij w cenie.`
+      );
+    });
+  }
+
+  // 7. General Prompt Components & Custom Steps
+  const genCompNodes = nodes.filter((n) => n.type === "prompt_component");
+  if (genCompNodes.length > 0) {
+    parts.push("--- DODATKOWE KOMPONENTY WYTYCZNYCH AI ---");
+    genCompNodes.forEach((n) => {
+      const comp = n.data.componentId ? compMap[n.data.componentId] : null;
+      if (comp) {
+        parts.push(`### ${comp.title}\n${comp.content}`);
+      } else if (n.data.customText) {
+        parts.push(`### ${n.data.label}\n${n.data.customText}`);
+      }
+    });
+  }
+
+  // 8. Custom Text from remaining nodes
+  const otherCustomText = nodes
+    .filter((n) => n.data?.customText && !["condition_branch", "prompt_component"].includes(n.type))
+    .map((n) => `### INSTRUKCJA: ${n.data.label}\n${n.data.customText}`);
+  if (otherCustomText.length > 0) {
+    parts.push(otherCustomText.join("\n\n"));
+  }
+
+  return parts.join("\n\n") + "\n\n";
+}
+
 /**
  * Akcja bezpośrednio wywołująca Anthropic API i generująca odpowiedź + kartę wyceny
  */
@@ -83,17 +268,17 @@ export const generateEstimateWithClaude = action({
       })
     ),
   },
-  handler: async (ctx, args): Promise<any> => {
+  handler: async (ctx, args): Promise<{ replyText: string; estimateCard: unknown }> => {
     // 1. Pobierz konfigurację z bazy
-    const config: any = await ctx.runQuery(api.aiAssistant.getAiConfigInternal);
+    const config = await ctx.runQuery(api.aiAssistant.getAiConfigInternal);
     if (!config || !config.apiKey || !config.apiKey.trim()) {
       throw new Error("Brak skonfigurowanego klucza Anthropic API Key w Ustawieniach Asystenta.");
     }
 
     // Pobierz aktywny workflow dla danej usługi (jeśli wybrano w czacie)
-    const activeWfData: any = await ctx.runQuery(internal.aiWorkflows.getActiveWorkflowInternal, {
+    const activeWfData = (await ctx.runQuery(internal.aiWorkflows.getActiveWorkflowInternal, {
       serviceType: args.serviceType,
-    });
+    })) as ActiveWfData | null;
 
     // 2. Pobierz aktualne cenniki zadaszeń, ścian, trójkątów oraz montażu z bazy Convex
     const terracePrices = (await ctx.runQuery(api.terracePricing.listTerracePrices, {})) as Array<{
@@ -186,20 +371,12 @@ export const generateEstimateWithClaude = action({
         })
         .join("\n");
 
-    // Zbierz wytyczne ze zdefiniowanego workflowu n8n
-    const workflowComponentsText = (activeWfData?.promptComponents || [])
-      .map((c: any) => `### KOMPONENT WYTYCZNYCH: ${c.title}\n${c.content}`)
-      .join("\n\n");
-
-    const workflowCustomPromptNodes = (activeWfData?.workflow?.nodes || [])
-      .filter((n: any) => n.data?.customText)
-      .map((n: any) => `### INSTRUKCJA KROKU (${n.data.label}):\n${n.data.customText}`)
-      .join("\n\n");
+    // Zbierz ustrukturyzowane wytyczne i logikę z aktywnego workflowu
+    const workflowInstructions = buildWorkflowInstructions(activeWfData);
 
     const systemPrompt: string = `Jesteś profesjonalnym Asystentem Wycen dla firmy ADK Okna. Twoim zadaniem jest pomoc doradcom w kalkulacji kosztów stolarki budowlanej oraz Zabudów Tarasów (Zadaszenia, Ściany Przesuwne i Stałe, Trójkąty Boczne, Montaż).
-${activeWfData?.workflow?.title ? `AKTYWNY WORKFLOW PROCESU WYCENY: ${activeWfData.workflow.title} (Usługa: ${activeWfData.workflow.serviceType})\n` : ""}
 
-${workflowComponentsText ? `${workflowComponentsText}\n\n` : ""}${workflowCustomPromptNodes ? `${workflowCustomPromptNodes}\n\n` : ""}AKTUALNY CENNIK ZADASZEŃ, ŚCIAN, TRÓJKĄTÓW I MONTAŻU ADK OKNA (Dystrybutor):
+${workflowInstructions}AKTUALNY CENNIK ZADASZEŃ, ŚCIAN, TRÓJKĄTÓW I MONTAŻU ADK OKNA (Dystrybutor):
 
 ### ZADASZENIE DACH Z POLIWĘGLANU (Wymiary: Szerokość od ściany x Długość wzdłuż ściany):
 ${formatPriceTable(polyPrices)}
@@ -294,17 +471,17 @@ ${config.systemPromptExtra ? `\nDODATKOWE INSTRUKCJE FIRMOWE:\n${config.systemPr
       });
 
       if (!response.ok) {
-        const errJson: any = await response.json().catch(() => ({}));
+        const errJson = (await response.json().catch(() => ({}))) as Record<string, { message?: string }>;
         throw new Error(
           `Błąd API Anthropic (${response.status}): ${errJson?.error?.message || response.statusText}`
         );
       }
 
-      const data: any = await response.json();
+      const data = (await response.json()) as { content?: Array<{ text?: string }> };
       const rawText: string = data.content?.[0]?.text || "";
 
       // Spróbuj sparsować odpowiedź JSON
-      let parsedJson: any = null;
+      let parsedJson: { replyText?: string; estimateCard?: unknown } | null = null;
       try {
         const cleanJsonText = rawText
           .replace(/^```json\s*/i, "")
