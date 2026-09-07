@@ -31,6 +31,17 @@ describe("aiWorkflows", () => {
       description: "Workflow z bramkami walidacyjnymi i warunkami B2B/B2C",
       nodes: [
         {
+          id: "node-0",
+          type: "prompt_trigger",
+          position: { x: -100, y: 0 },
+          data: {
+            label: "Wyzwolenie: Rozpoznanie promptu",
+            promptRole: "Klient pytający o cennik tarasowy",
+            extractFields: ["widthCm", "lengthCm", "material"],
+            samplePrompt: "Poproszę o wycenę zadaszenia 400x300 poliwęglan",
+          },
+        },
+        {
           id: "node-1",
           type: "trigger",
           position: { x: 0, y: 0 },
@@ -108,7 +119,7 @@ describe("aiWorkflows", () => {
     // Verify fetched workflow
     const wf = await t.query(api.aiWorkflows.getWorkflow, { workflowId: wfId });
     expect(wf?.title).toBe("Precyzyjna Wycena Tarasów v2");
-    expect(wf?.nodes).toHaveLength(6);
+    expect(wf?.nodes).toHaveLength(7);
 
     // Activate workflow
     await asAdmin.mutation(api.aiWorkflows.activateWorkflow, { id: wfId });

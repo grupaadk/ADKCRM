@@ -82,6 +82,9 @@ interface WorkflowNodeData {
   customText?: string;
   conditionExpr?: string;
   notificationTarget?: string;
+  promptRole?: string;
+  extractFields?: string[];
+  samplePrompt?: string;
   requiredFields?: string[];
   inputPrompt?: string;
   conditionVariable?: string;
@@ -138,6 +141,28 @@ function buildWorkflowInstructions(activeWfData: ActiveWfData | null): string {
   const parts: string[] = [];
 
   parts.push(`=== AKTYWNY PROCES WORKFLOW WYCENY: ${wf.title} (Usługa: ${wf.serviceType}) ===`);
+
+  // 0. Prompt Triggers (Wyzwolenie procesu i rozpoznawanie wejścia)
+  const promptTriggers = nodes.filter((n) => n.type === "prompt_trigger" || n.type === "trigger");
+  if (promptTriggers.length > 0) {
+    parts.push("--- WYZWOLENIE PROCESU I ROZPOZNAWANIE WEJŚCIA (PROMPT TRIGGER) ---");
+    promptTriggers.forEach((n, idx: number) => {
+      let triggerText = `${idx + 1}. [Trigger: ${n.data.label}]`;
+      if (n.data.promptRole) {
+        triggerText += ` Rola/Kontekst zapytania: ${n.data.promptRole}.`;
+      }
+      if (n.data.extractFields && n.data.extractFields.length > 0) {
+        triggerText += ` Kluczowe dane do rozpoznania i wyciągnięcia z wiadomości klienta: [${n.data.extractFields.join(", ")}].`;
+      }
+      if (n.data.samplePrompt) {
+        triggerText += ` Przykład typowego zapytania klienta: "${n.data.samplePrompt}".`;
+      }
+      if (n.data.customText) {
+        triggerText += ` Dodatkowe wytyczne parsowania: ${n.data.customText}`;
+      }
+      parts.push(triggerText);
+    });
+  }
 
   // 1. Input Required
   const inputNodes = nodes.filter((n) => n.type === "input_required");

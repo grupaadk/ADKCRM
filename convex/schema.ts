@@ -1092,7 +1092,8 @@ export default defineSchema({
           v.literal("discount_rule"),
           v.literal("price_modifier"),
           v.literal("validation_gate"),
-          v.literal("question_step")
+          v.literal("question_step"),
+          v.literal("prompt_trigger")
         ),
         position: v.object({ x: v.number(), y: v.number() }),
         data: v.object({
@@ -1102,6 +1103,11 @@ export default defineSchema({
           customText: v.optional(v.string()),
           conditionExpr: v.optional(v.string()),
           notificationTarget: v.optional(v.string()),
+
+          // Trigger promptu wejściowego (prompt_trigger)
+          promptRole: v.optional(v.string()),
+          extractFields: v.optional(v.array(v.string())),
+          samplePrompt: v.optional(v.string()),
 
           // Wymagane pola (input_required)
           requiredFields: v.optional(v.array(v.string())),

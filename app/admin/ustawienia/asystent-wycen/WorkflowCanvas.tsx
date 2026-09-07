@@ -32,6 +32,7 @@ import {
 
 export type NodeType =
   | "trigger"
+  | "prompt_trigger"
   | "prompt_component"
   | "price_source"
   | "output_format"
@@ -58,6 +59,11 @@ export type WorkflowNode = {
     customText?: string;
     conditionExpr?: string;
     notificationTarget?: string;
+
+    // Trigger promptu wejściowego (prompt_trigger)
+    promptRole?: string;
+    extractFields?: string[];
+    samplePrompt?: string;
 
     // Wymagane pola (input_required)
     requiredFields?: string[];
@@ -116,6 +122,9 @@ const NODE_PALETTE: {
   category: string;
   defaultLabel: string;
 }[] = [
+  // Triggery i Wejście
+  { type: "prompt_trigger",   label: "Prompt Wejściowy", icon: <Sparkles size={13} />,      color: "#4abbc3", category: "Triggery i Wejście", defaultLabel: "Wyzwolenie: Prompt Wejściowy" },
+
   // Wymogi i Pytania
   { type: "input_required",   label: "Wymagane Dane",   icon: <ListChecks size={13} />,     color: "#ec4899", category: "Wymogi i Pytania", defaultLabel: "Wymagane Dane Wejściowe" },
   { type: "question_step",    label: "Krok Pytający",   icon: <HelpCircle size={13} />,     color: "#3b82f6", category: "Wymogi i Pytania", defaultLabel: "Pytanie Doprecyzowujące" },
@@ -592,6 +601,25 @@ export default function WorkflowCanvas() {
                   </div>
 
                   {/* Rich Node Details */}
+                  {node.type === "prompt_trigger" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      {node.data.promptRole && (
+                        <div style={{ fontSize: 10, color: "#4abbc3", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          🎭 Rola: {node.data.promptRole}
+                        </div>
+                      )}
+                      {node.data.extractFields && node.data.extractFields.length > 0 && (
+                        <div style={{ fontSize: 10, color: "var(--text-mute)", display: "flex", flexWrap: "wrap", gap: 3 }}>
+                          {node.data.extractFields.map((f) => (
+                            <span key={f} style={{ backgroundColor: "#4abbc318", color: "#4abbc3", padding: "1px 5px", borderRadius: 4, fontWeight: 600 }}>
+                              {f}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {node.type === "input_required" && (
                     <div style={{ fontSize: 10, color: "var(--text-mute)", display: "flex", flexWrap: "wrap", gap: 3 }}>
                       {(node.data.requiredFields || []).map((f) => (
@@ -691,6 +719,49 @@ export default function WorkflowCanvas() {
                     onChange={(e) => updateNode(selectedNode.id, { label: e.target.value })}
                   />
                 </div>
+
+                {/* ── Prompt Trigger Editor ── */}
+                {selectedNode.type === "prompt_trigger" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <label className="up mute" style={{ fontSize: 9 }}>Rola / Kontekst zapytania (Prompt Role)</label>
+                    <input
+                      type="text" className="panel" placeholder="np. Klient pytający o wycenę zadaszenia..."
+                      value={selectedNode.data.promptRole || ""}
+                      onChange={(e) => updateNode(selectedNode.id, { promptRole: e.target.value })}
+                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                    />
+
+                    <label className="up mute" style={{ fontSize: 9 }}>Kluczowe dane do rozpoznania i wyciągnięcia</label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {STANDARD_INPUT_FIELDS.map((f) => {
+                        const isChecked = (selectedNode.data.extractFields || []).includes(f.id);
+                        return (
+                          <label key={f.id} style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const curr = selectedNode.data.extractFields || [];
+                                updateNode(selectedNode.id, {
+                                  extractFields: e.target.checked ? [...curr, f.id] : curr.filter((x) => x !== f.id),
+                                });
+                              }}
+                            />
+                            {f.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    <label className="up mute" style={{ fontSize: 9, marginTop: 4 }}>Przykładowy prompt klienta</label>
+                    <textarea
+                      className="panel" rows={2} placeholder="np. Dzień dobry, poproszę o wycenę zadaszenia 400x300 cm..."
+                      value={selectedNode.data.samplePrompt || ""}
+                      onChange={(e) => updateNode(selectedNode.id, { samplePrompt: e.target.value })}
+                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)", resize: "vertical" }}
+                    />
+                  </div>
+                )}
 
                 {/* ── Attached Component Picker & Editor for prompt_component ── */}
                 {selectedNode.type === "prompt_component" && (
