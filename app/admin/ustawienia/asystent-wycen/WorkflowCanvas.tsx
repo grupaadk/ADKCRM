@@ -1539,10 +1539,10 @@ export default function WorkflowCanvas() {
                 const src = nodes.find((n) => n.id === e.source);
                 const tgt = nodes.find((n) => n.id === e.target);
                 if (!src || !tgt) return null;
-                const x1 = src.position.x + 200;
-                const y1 = src.position.y + 40;
+                const x1 = src.position.x + 210;
+                const y1 = src.position.y + 17;
                 const x2 = tgt.position.x;
-                const y2 = tgt.position.y + 40;
+                const y2 = tgt.position.y + 17;
                 const dx = Math.abs(x2 - x1) * 0.5;
                 const pathStr = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
                 const isBranchEdge = src.type === "branch_splitter" || !!e.label;
@@ -1555,6 +1555,8 @@ export default function WorkflowCanvas() {
                   <g key={e.id}>
                     <path d={pathStr} fill="none" stroke="var(--line-2)" strokeWidth="3" />
                     <path d={pathStr} fill="none" stroke={strokeColor} strokeWidth={isBranchEdge ? "2" : "1.5"} strokeDasharray={isBranchEdge ? "6,3" : "5,5"} />
+                    <circle cx={x1} cy={y1} r="3" fill={strokeColor} />
+                    <circle cx={x2} cy={y2} r="3" fill={strokeColor} />
                     {e.label && (
                       <g transform={`translate(${midX}, ${midY})`}>
                         <rect x="-42" y="-9" width="84" height="17" rx="8" fill="var(--panel)" stroke={strokeColor} strokeWidth="1" />
@@ -1722,9 +1724,39 @@ export default function WorkflowCanvas() {
                     )}
                   </div>
 
-                  {/* Ports */}
-                  <div style={{ position: "absolute", left: -6, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, borderRadius: "50%", backgroundColor: meta.color, border: "2px solid var(--panel)" }} />
-                  <div style={{ position: "absolute", right: -6, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, borderRadius: "50%", backgroundColor: meta.color, border: "2px solid var(--panel)" }} />
+                  {/* Ports aligned to header bar center (17px) */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: -6,
+                      top: 17,
+                      transform: "translateY(-50%)",
+                      width: 12,
+                      height: 12,
+                      borderRadius: "50%",
+                      backgroundColor: meta.color,
+                      border: "2px solid var(--panel)",
+                      boxShadow: `0 0 0 2px ${meta.color}40`,
+                      zIndex: 4,
+                    }}
+                    title="Port wejściowy"
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: -6,
+                      top: 17,
+                      transform: "translateY(-50%)",
+                      width: 12,
+                      height: 12,
+                      borderRadius: "50%",
+                      backgroundColor: meta.color,
+                      border: "2px solid var(--panel)",
+                      boxShadow: `0 0 0 2px ${meta.color}40`,
+                      zIndex: 4,
+                    }}
+                    title="Port wyjściowy"
+                  />
                 </div>
               );
             })}
