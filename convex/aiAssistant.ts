@@ -495,8 +495,8 @@ ${config.systemPromptExtra ? `\nDODATKOWE INSTRUKCJE FIRMOWE:\n${config.systemPr
       }
 
       return {
-        replyText: parsedJson.replyText || rawText,
-        estimateCard: parsedJson.estimateCard || null,
+        replyText: parsedJson?.replyText || rawText,
+        estimateCard: parsedJson?.estimateCard || null,
       };
     } catch (err) {
       throw new Error(`Wystąpił błąd podczas generowania wyceny z Claude: ${err instanceof Error ? err.message : "Nieznany błąd"}`);
