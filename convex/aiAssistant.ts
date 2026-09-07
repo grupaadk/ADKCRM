@@ -90,58 +90,89 @@ export const generateEstimateWithClaude = action({
     }
 
     // 2. Pobierz aktualne cenniki zadaszeń, ścian, trójkątów oraz montażu z bazy Convex
-    const terracePrices: any[] = await ctx.runQuery(api.terracePricing.listTerracePrices, {});
-    const wallPrices: any[] = await ctx.runQuery(api.terracePricing.listTerraceWallPrices, {});
-    const extrasPrices: any[] = await ctx.runQuery(api.terracePricing.listTerraceExtrasPrices, {});
-    const installationPrices: any[] = await ctx.runQuery(api.terracePricing.listTerraceInstallationPrices, {});
+    const terracePrices = (await ctx.runQuery(api.terracePricing.listTerracePrices, {})) as Array<{
+      material: "polycarbonate" | "glass";
+      widthCm: number;
+      lengthCm: number;
+      priceGross: number;
+      priceNet: number;
+    }>;
+    const wallPrices = (await ctx.runQuery(api.terracePricing.listTerraceWallPrices, {})) as Array<{
+      type: "sliding_2track" | "sliding_3track" | "sliding_4track" | "sliding_5track" | "sliding_6track" | "fixed_polycarbonate";
+      tracksCount?: number;
+      widthCm: number;
+      heightCm: number;
+      priceGross: number;
+      priceNet: number;
+    }>;
+    const extrasPrices = (await ctx.runQuery(api.terracePricing.listTerraceExtrasPrices, {})) as Array<{
+      widthCm: number;
+      tracksCount: number;
+      trianglePolycarbonateGross: number;
+      trianglePolycarbonateNet: number;
+      tintedGlassGross: number;
+      tintedGlassNet: number;
+      frostedGlassGross: number;
+      frostedGlassNet: number;
+      dustBrushesGross: number;
+      dustBrushesNet: number;
+      glassHandlesGross: number;
+      glassHandlesNet: number;
+    }>;
+    const installationPrices = (await ctx.runQuery(api.terracePricing.listTerraceInstallationPrices, {})) as Array<{
+      name: string;
+      unit: string;
+      flatRateNet?: number;
+      rates?: Array<{ maxM2?: number; rateNet: number }>;
+    }>;
 
     // Sformatuj cennik w czytelną tabelkę dla Claude
-    const polyPrices = (terracePrices ?? []).filter((p: any) => p.material === "polycarbonate");
-    const glassPrices = (terracePrices ?? []).filter((p: any) => p.material === "glass");
-    const slidingWallPrices = (wallPrices ?? []).filter((w: any) => w.type !== "fixed_polycarbonate");
-    const fixedPolyWallPrices = (wallPrices ?? []).filter((w: any) => w.type === "fixed_polycarbonate");
+    const polyPrices = (terracePrices ?? []).filter((p) => p.material === "polycarbonate");
+    const glassPrices = (terracePrices ?? []).filter((p) => p.material === "glass");
+    const slidingWallPrices = (wallPrices ?? []).filter((w) => w.type !== "fixed_polycarbonate");
+    const fixedPolyWallPrices = (wallPrices ?? []).filter((w) => w.type === "fixed_polycarbonate");
 
-    const formatPriceTable = (items: Array<{ widthCm: number; lengthCm: number; priceGross: number; priceNet: number }>) =>
+    const formatPriceTable = (items: typeof polyPrices) =>
       items
         .map(
-          (i: { widthCm: number; lengthCm: number; priceGross: number; priceNet: number }) =>
+          (i) =>
             `- ${i.widthCm} x ${i.lengthCm} cm: Brutto ${i.priceGross} zł | Netto ${i.priceNet} zł`
         )
         .join("\n");
 
-    const formatSlidingWallPriceTable = (items: Array<{ tracksCount: number; widthCm: number; heightCm: number; priceGross: number; priceNet: number }>) =>
+    const formatSlidingWallPriceTable = (items: typeof slidingWallPrices) =>
       items
         .map(
-          (i: { tracksCount: number; widthCm: number; heightCm: number; priceGross: number; priceNet: number }) =>
-            `- System ${i.tracksCount}-torowy ${i.widthCm} cm / wys. ${i.heightCm} cm: Brutto ${i.priceGross} zł | Netto ${i.priceNet} zł`
+          (i) =>
+            `- System ${i.tracksCount ?? ""}-torowy ${i.widthCm} cm / wys. ${i.heightCm} cm: Brutto ${i.priceGross} zł | Netto ${i.priceNet} zł`
         )
         .join("\n");
 
-    const formatFixedWallPriceTable = (items: Array<{ widthCm: number; heightCm: number; priceGross: number; priceNet: number }>) =>
+    const formatFixedWallPriceTable = (items: typeof fixedPolyWallPrices) =>
       items
         .map(
-          (i: { widthCm: number; heightCm: number; priceGross: number; priceNet: number }) =>
+          (i) =>
             `- Długość ${i.widthCm} cm / wys. ${i.heightCm} cm: Brutto ${i.priceGross} zł | Netto ${i.priceNet} zł`
         )
         .join("\n");
 
-    const formatExtrasPriceTable = (items: Array<{ widthCm: number; tracksCount: number; trianglePolycarbonateGross: number; trianglePolycarbonateNet: number; tintedGlassGross: number; tintedGlassNet: number; frostedGlassGross: number; frostedGlassNet: number; dustBrushesGross: number; dustBrushesNet: number; glassHandlesGross: number; glassHandlesNet: number }>) =>
+    const formatExtrasPriceTable = (items: typeof extrasPrices) =>
       items
         .map(
-          (i: { widthCm: number; tracksCount: number; trianglePolycarbonateGross: number; trianglePolycarbonateNet: number; tintedGlassGross: number; tintedGlassNet: number; frostedGlassGross: number; frostedGlassNet: number; dustBrushesGross: number; dustBrushesNet: number; glassHandlesGross: number; glassHandlesNet: number }) =>
+          (i) =>
             `- Szerokość ${i.widthCm} cm (${i.tracksCount}-torowy): Trójkąt poliwęglan lity: ${i.trianglePolycarbonateGross}zł brutto (${i.trianglePolycarbonateNet}zł netto) | Dopłata szkło przyciemniane: ${i.tintedGlassGross}zł brutto (${i.tintedGlassNet}zł netto) | Dopłata szkło mleczne: ${i.frostedGlassGross}zł brutto (${i.frostedGlassNet}zł netto) | Szczotki: ${i.dustBrushesGross}zł brutto (${i.dustBrushesNet}zł netto) | Uchwyty: ${i.glassHandlesGross}zł brutto (${i.glassHandlesNet}zł netto)`
         )
         .join("\n");
 
-    const formatInstallationTable = (items: Array<{ name: string; unit: string; flatRateNet?: number; rates?: Array<{ maxM2?: number; rateNet: number }> }>) =>
+    const formatInstallationTable = (items: typeof installationPrices) =>
       items
-        .map((i: { name: string; unit: string; flatRateNet?: number; rates?: Array<{ maxM2?: number; rateNet: number }> }) => {
+        .map((i) => {
           if (i.flatRateNet) {
             return `- ${i.name}: ${i.flatRateNet} zł netto / ${i.unit}`;
           }
           const ratesStr = (i.rates || [])
             .map(
-              (r: { maxM2?: number; rateNet: number }) =>
+              (r) =>
                 `do ${r.maxM2 ? `${r.maxM2}m2` : "powyżej 25m2"}: ${r.rateNet} zł netto/m2`
             )
             .join(", ");

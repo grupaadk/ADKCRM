@@ -105,7 +105,7 @@ describe("Calendar events filtering for unfinished orders", () => {
 
     // 1. Verify listForPicker
     const pickerOrders = await asUser.query(api.orders.listForPicker, {});
-    const pickerOrderIds = pickerOrders.map((o: any) => o._id);
+    const pickerOrderIds = (pickerOrders as Array<{ _id: string }>).map((o) => o._id);
     expect(pickerOrderIds).toContain(activeOrderId);
     expect(pickerOrderIds).not.toContain(completedOrderId);
     expect(pickerOrderIds).not.toContain(archivedOrderId);
@@ -118,7 +118,7 @@ describe("Calendar events filtering for unfinished orders", () => {
       startDate,
       endDate,
     });
-    const linkedOrderIds = linkedEvents.map((e: any) => e.orderId);
+    const linkedOrderIds = (linkedEvents as Array<{ orderId: string }>).map((e) => e.orderId);
     expect(linkedOrderIds).toContain(activeOrderId);
     expect(linkedOrderIds).not.toContain(completedOrderId);
     expect(linkedOrderIds).not.toContain(archivedOrderId);
@@ -128,7 +128,7 @@ describe("Calendar events filtering for unfinished orders", () => {
       startDate,
       endDate,
     });
-    const customEventIds = customEvents.map((e: any) => e._id);
+    const customEventIds = (customEvents as Array<{ _id: string }>).map((e) => e._id);
     expect(customEventIds).toContain(activeEventId);
     expect(customEventIds).not.toContain(completedEventId);
   });
