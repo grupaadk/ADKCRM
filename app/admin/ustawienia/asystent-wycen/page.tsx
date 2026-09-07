@@ -241,7 +241,14 @@ export default function AsystentWycenSettingsPage() {
         </div>
 
         {/* Akcje zasilania */}
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <Link
+            href="/admin/ustawienia/asystent-wycen/workflow"
+            className="btn primary"
+            style={{ fontSize: 13, gap: 8, padding: "8px 16px", borderRadius: 8 }}
+          >
+            <GitFork size={16} /> Otwórz Edytor Workflow AI (N8N)
+          </Link>
           <button
             className="btn"
             onClick={() => handleSeed(true)}
