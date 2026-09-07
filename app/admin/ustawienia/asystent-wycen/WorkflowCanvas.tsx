@@ -278,6 +278,22 @@ export default function WorkflowCanvas() {
     }
   }, [selectedWfId, currentWf]);
 
+  // Auto-select or auto-seed showcase workflow if empty
+  useEffect(() => {
+    if (workflows && workflows.length === 0 && !selectedWfId) {
+      seedShowcase({ serviceType: "Zabudowa tarasu" })
+        .then((id) => {
+          queueMicrotask(() => setSelectedWfId(id));
+        })
+        .catch(() => {});
+    } else if (workflows && workflows.length > 0 && !selectedWfId) {
+      const activeOrFirst = (workflows as Array<{ _id: Id<"aiWorkflows">; status: string }>).find((w) => w.status === "active") ?? workflows[0];
+      if (activeOrFirst) {
+        queueMicrotask(() => setSelectedWfId(activeOrFirst._id));
+      }
+    }
+  }, [workflows, selectedWfId, seedShowcase]);
+
   const canvasRef = useRef<HTMLDivElement>(null);
   const backdropMouseDownRef = useRef(false);
 
