@@ -99,7 +99,7 @@ export default function WorkflowCanvas() {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const currentWf = workflows.find((w) => w._id === selectedWfId);
+  const currentWf = workflows.find((w: any) => w._id === selectedWfId);
 
   // Załaduj do edytora wybrany workflow
   useEffect(() => {
@@ -110,7 +110,7 @@ export default function WorkflowCanvas() {
       setNodes(currentWf.nodes as WorkflowNode[]);
       setEdges(currentWf.edges as WorkflowEdge[]);
     }
-  }, [selectedWfId]);
+  }, [selectedWfId, currentWf]);
 
   const handleCanvasMouseDown = (nodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -233,7 +233,7 @@ export default function WorkflowCanvas() {
               onChange={(e) => setSelectedWfId((e.target.value as Id<"aiWorkflows">) || null)}
             >
               <option value="">-- Nowy Schemat (Nowy Draft) --</option>
-              {workflows.map((w) => (
+              {workflows.map((w: any) => (
                 <option key={w._id} value={w._id}>
                   {w.serviceType} — {w.title} ({w.status.toUpperCase()} v{w.version})
                 </option>
@@ -455,7 +455,7 @@ export default function WorkflowCanvas() {
                     value={selectedNode.data.componentId ?? ""}
                     onChange={(e) => {
                       const val = (e.target.value as Id<"aiPromptComponents">) || undefined;
-                      const matched = promptComponents.find((c) => c._id === val);
+                      const matched = promptComponents.find((c: any) => c._id === val);
                       setNodes((prev) =>
                         prev.map((n) =>
                           n.id === selectedNode.id
@@ -473,7 +473,7 @@ export default function WorkflowCanvas() {
                     }}
                   >
                     <option value="">-- Wybierz z biblioteki --</option>
-                    {promptComponents.map((comp) => (
+                    {promptComponents.map((comp: any) => (
                       <option key={comp._id} value={comp._id}>
                         {comp.title} ({comp.category})
                       </option>

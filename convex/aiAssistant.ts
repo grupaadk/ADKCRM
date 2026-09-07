@@ -1,6 +1,6 @@
 import { query, mutation, action } from "./_generated/server";
 import { v } from "convex/values";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 /**
  * Odczytuje publiczne metadane konfiguracji AI (czy podano API key, jaki model jest wybrany)

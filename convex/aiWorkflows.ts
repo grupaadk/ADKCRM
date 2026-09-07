@@ -1,6 +1,6 @@
 import { query, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
-import { requireAdminUser } from "./lib/auth";
+import { requireRole } from "./lib/auth";
 
 /**
  * Listuj wszystkie wielorazowe komponenty wytycznych
@@ -28,7 +28,7 @@ export const upsertPromptComponent = mutation({
     content: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireAdminUser(ctx);
+    await requireRole(ctx, "admin");
     const now = Date.now();
 
     if (args.id) {
@@ -58,7 +58,7 @@ export const deletePromptComponent = mutation({
     id: v.id("aiPromptComponents"),
   },
   handler: async (ctx, args) => {
-    await requireAdminUser(ctx);
+    await requireRole(ctx, "admin");
     await ctx.db.delete(args.id);
   },
 });
@@ -148,7 +148,7 @@ export const saveWorkflowDraft = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await requireAdminUser(ctx);
+    await requireRole(ctx, "admin");
     const now = Date.now();
 
     if (args.id) {
@@ -188,7 +188,7 @@ export const activateWorkflow = mutation({
     id: v.id("aiWorkflows"),
   },
   handler: async (ctx, args) => {
-    await requireAdminUser(ctx);
+    await requireRole(ctx, "admin");
     const target = await ctx.db.get(args.id);
     if (!target) throw new Error("Workflow nie znaleziony");
 
@@ -221,7 +221,7 @@ export const deleteWorkflow = mutation({
     id: v.id("aiWorkflows"),
   },
   handler: async (ctx, args) => {
-    await requireAdminUser(ctx);
+    await requireRole(ctx, "admin");
     await ctx.db.delete(args.id);
   },
 });
