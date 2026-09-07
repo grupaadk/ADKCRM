@@ -96,15 +96,15 @@ export const generateEstimateWithClaude = action({
     const installationPrices = await ctx.runQuery(api.terracePricing.listTerraceInstallationPrices, {});
 
     // Sformatuj cennik w czytelną tabelkę dla Claude
-    const polyPrices = terracePrices.filter((p) => p.material === "polycarbonate");
-    const glassPrices = terracePrices.filter((p) => p.material === "glass");
-    const slidingWallPrices = wallPrices.filter((w) => w.type !== "fixed_polycarbonate");
-    const fixedPolyWallPrices = wallPrices.filter((w) => w.type === "fixed_polycarbonate");
+    const polyPrices = (terracePrices ?? []).filter((p: any) => p.material === "polycarbonate");
+    const glassPrices = (terracePrices ?? []).filter((p: any) => p.material === "glass");
+    const slidingWallPrices = (wallPrices ?? []).filter((w: any) => w.type !== "fixed_polycarbonate");
+    const fixedPolyWallPrices = (wallPrices ?? []).filter((w: any) => w.type === "fixed_polycarbonate");
 
-    const formatPriceTable = (items: typeof terracePrices) =>
+    const formatPriceTable = (items: Array<{ widthCm: number; lengthCm: number; priceGross: number; priceNet: number }>) =>
       items
         .map(
-          (i) =>
+          (i: { widthCm: number; lengthCm: number; priceGross: number; priceNet: number }) =>
             `- ${i.widthCm} x ${i.lengthCm} cm: Brutto ${i.priceGross} zł | Netto ${i.priceNet} zł`
         )
         .join("\n");

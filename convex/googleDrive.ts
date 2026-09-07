@@ -3112,7 +3112,7 @@ export const listFolderContentsByPin = action({
   }>> => {
     const cleanPin = args.pin.trim();
     const teams = await ctx.runQuery(api.installationTeams.listAll, {});
-    const team = teams.find((t) => t.isActive && t.pin === cleanPin);
+    const team = (teams as any[]).find((t: any) => t.isActive && t.pin === cleanPin);
     if (!team) {
       throw new Error("Nieprawidłowy PIN ekipy.");
     }
@@ -3163,7 +3163,7 @@ export const uploadFileByPin = action({
   handler: async (ctx, args): Promise<{ fileId: string; name: string; url: string }> => {
     const cleanPin = args.pin.trim();
     const teams = await ctx.runQuery(api.installationTeams.listAll, {});
-    const team = teams.find((t) => t.isActive && t.pin === cleanPin);
+    const team = (teams as any[]).find((t: any) => t.isActive && t.pin === cleanPin);
     if (!team) {
       throw new Error("Nieprawidłowy PIN ekipy.");
     }
@@ -3325,6 +3325,10 @@ export const createComplaintFolder = internalAction({
     // ── 3. Find or create "Reklamacja" parent folder ──────────────────────────
     const connection = await getAuthorizedConnection(ctx);
     const accessToken = connection.accessToken;
+
+    if (!parentFolderId) {
+      throw new Error("Brak folderu nadrzędnego dla tej reklamacji.");
+    }
 
     const reklamacjaFolderId = await findOrCreateDriveFolder(
       accessToken,
