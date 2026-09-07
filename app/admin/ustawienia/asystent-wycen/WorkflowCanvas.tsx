@@ -225,10 +225,12 @@ export default function WorkflowCanvas() {
     { id: "e5-6", source: "node-5", target: "node-6" },
   ]);
 
-  // ── Canvas drag state ──
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [draggedNodeId,  setDraggedNodeId]  = useState<string | null>(null);
-  const [dragOffset,     setDragOffset]     = useState({ x: 0, y: 0 });
+  // ── Canvas drag & modal state ──
+  const [selectedNodeId,     setSelectedNodeId]     = useState<string | null>(null);
+  const [editingNodeModalId, setEditingNodeModalId] = useState<string | null>(null);
+  const [draggedNodeId,      setDraggedNodeId]      = useState<string | null>(null);
+  const [dragOffset,         setDragOffset]         = useState({ x: 0, y: 0 });
+  const [mouseDownPos,       setMouseDownPos]       = useState<{ x: number; y: number } | null>(null);
 
   // ── UI state ──
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -270,6 +272,7 @@ export default function WorkflowCanvas() {
     e.stopPropagation();
     setSelectedNodeId(nodeId);
     setDraggedNodeId(nodeId);
+    setMouseDownPos({ x: e.clientX, y: e.clientY });
 
     if (!canvasRef.current) return;
     const r = canvasRef.current.getBoundingClientRect();
@@ -299,7 +302,16 @@ export default function WorkflowCanvas() {
     );
   };
 
-  const handleCanvasMouseUp = () => setDraggedNodeId(null);
+  const handleCanvasMouseUp = (e: React.MouseEvent) => {
+    if (draggedNodeId && mouseDownPos) {
+      const dist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
+      if (dist < 4) {
+        setEditingNodeModalId(draggedNodeId);
+      }
+    }
+    setDraggedNodeId(null);
+    setMouseDownPos(null);
+  };
 
   // ── Node CRUD ─────────────────────────────────────────────────────────────
 
@@ -316,12 +328,14 @@ export default function WorkflowCanvas() {
     setNodes((prev) => [...prev, newNode]);
     if (last) setEdges((prev) => [...prev, { id: `e-${last.id}-${newId}`, source: last.id, target: newId }]);
     setSelectedNodeId(newId);
+    setEditingNodeModalId(newId);
   };
 
   const handleDeleteNode = (nodeId: string) => {
     setNodes((prev) => prev.filter((n) => n.id !== nodeId));
     setEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId));
     if (selectedNodeId === nodeId) setSelectedNodeId(null);
+    if (editingNodeModalId === nodeId) setEditingNodeModalId(null);
   };
 
   const updateNode = (nodeId: string, patch: Partial<WorkflowNode["data"]>) =>
@@ -470,6 +484,507 @@ export default function WorkflowCanvas() {
     );
   };
 
+  const editingNode = nodes.find((n) => n.id === editingNodeModalId);
+
+  const renderNodeModal = () => {
+    if (!editingNode) return null;
+    const meta = getNodeMeta(editingNode.type);
+
+    return (
+      <div
+        style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.55)",
+          backdropFilter: "blur(4px)",
+          zIndex: 1000,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 16,
+        }}
+        onClick={() => setEditingNodeModalId(null)}
+      >
+        <div
+          style={{
+            backgroundColor: "var(--panel)",
+            borderRadius: 12,
+            border: "1px solid var(--line-2)",
+            width: "100%",
+            maxWidth: 560,
+            maxHeight: "88vh",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Modal Header */}
+          <div style={{
+            padding: "12px 18px", borderBottom: "1px solid var(--line)",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            backgroundColor: `${meta.color}12`,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: `${meta.color}25`, border: `1px solid ${meta.color}50`, display: "flex", alignItems: "center", justifyContent: "center", color: meta.color, flexShrink: 0 }}>
+                {meta.icon}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)" }}>
+                  Konfiguracja Węzła: {editingNode.data.label}
+                </div>
+                <div style={{ fontSize: 10, color: meta.color, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  {meta.label} ({editingNode.type})
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setEditingNodeModalId(null)}
+              style={{ border: "none", background: "transparent", color: "var(--text-mute)", cursor: "pointer", padding: 4, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Modal Body */}
+          <div style={{ padding: "16px 18px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Step Label */}
+            <div>
+              <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Etykieta kroku w grafie</label>
+              <input
+                type="text" className="panel"
+                style={{ width: "100%", padding: "6px 9px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)", fontWeight: 600 }}
+                value={editingNode.data.label}
+                onChange={(e) => updateNode(editingNode.id, { label: e.target.value })}
+              />
+            </div>
+
+            {/* Prompt Trigger Editor */}
+            {editingNode.type === "prompt_trigger" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, backgroundColor: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Rola / Kontekst zapytania (Prompt Role)</label>
+                  <input
+                    type="text" className="panel" placeholder="np. Klient pytający o wycenę zadaszenia..."
+                    value={editingNode.data.promptRole || ""}
+                    onChange={(e) => updateNode(editingNode.id, { promptRole: e.target.value })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  />
+                </div>
+
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 5 }}>Kluczowe dane do rozpoznania i wyciągnięcia</label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                    {STANDARD_INPUT_FIELDS.map((f) => {
+                      const isChecked = (editingNode.data.extractFields || []).includes(f.id);
+                      return (
+                        <label key={f.id} style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", backgroundColor: "var(--panel)", padding: "5px 8px", borderRadius: 5, border: "1px solid var(--line)" }}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const curr = editingNode.data.extractFields || [];
+                              updateNode(editingNode.id, {
+                                extractFields: e.target.checked ? [...curr, f.id] : curr.filter((x) => x !== f.id),
+                              });
+                            }}
+                          />
+                          {f.label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Przykładowy prompt klienta</label>
+                  <textarea
+                    className="panel" rows={2} placeholder="np. Dzień dobry, poproszę o wycenę zadaszenia 400x300 cm..."
+                    value={editingNode.data.samplePrompt || ""}
+                    onChange={(e) => updateNode(editingNode.id, { samplePrompt: e.target.value })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)", resize: "vertical" }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Prompt Component Editor */}
+            {editingNode.type === "prompt_component" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, backgroundColor: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+                <label className="up mute" style={{ fontSize: 9 }}>Podpięty komponent wytycznych z bazy</label>
+                <select
+                  className="panel"
+                  value={editingNode.data.componentId || ""}
+                  onChange={(e) => {
+                    const cid = e.target.value ? (e.target.value as Id<"aiPromptComponents">) : undefined;
+                    const comp = (promptComponents as PromptComponentItem[]).find((c) => c._id === cid);
+                    updateNode(editingNode.id, { componentId: cid, label: comp ? `Wytyczne: ${comp.title}` : editingNode.data.label });
+                  }}
+                  style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                >
+                  <option value="">-- Wybierz komponent --</option>
+                  {(promptComponents as PromptComponentItem[]).map((c) => (
+                    <option key={c._id} value={c._id}>📄 {c.title}</option>
+                  ))}
+                </select>
+
+                {renderAttachedComponentEditor(editingNode.data.componentId, "Wytyczne")}
+
+                {!editingNode.data.componentId && (
+                  <button
+                    className="btn primary"
+                    onClick={() => setShowAddComponent(true)}
+                    style={{ padding: "5px 10px", fontSize: 11, gap: 4, width: "100%", marginTop: 2 }}
+                  >
+                    <Plus size={11} /> Stwórz i podepnij nowy komponent
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Input Required Editor */}
+            {editingNode.type === "input_required" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, backgroundColor: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+                <label className="up mute" style={{ fontSize: 9 }}>Wymagane pola do wyceny</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  {STANDARD_INPUT_FIELDS.map((f) => {
+                    const isChecked = (editingNode.data.requiredFields || []).includes(f.id);
+                    return (
+                      <label key={f.id} style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", backgroundColor: "var(--panel)", padding: "5px 8px", borderRadius: 5, border: "1px solid var(--line)" }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const curr = editingNode.data.requiredFields || [];
+                            updateNode(editingNode.id, {
+                              requiredFields: e.target.checked ? [...curr, f.id] : curr.filter((x) => x !== f.id),
+                            });
+                          }}
+                        />
+                        {f.label}
+                      </label>
+                    );
+                  })}
+                </div>
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Dedykowane pytanie/instrukcja AI</label>
+                  <input
+                    type="text" className="panel" placeholder="np. Podaj długość i szerokość dachu w cm..."
+                    value={editingNode.data.inputPrompt || ""}
+                    onChange={(e) => updateNode(editingNode.id, { inputPrompt: e.target.value })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Condition Branch Editor */}
+            {editingNode.type === "condition_branch" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, backgroundColor: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Zmienna warunku</label>
+                  <input
+                    type="text" className="panel" placeholder="np. clientType, totalAreaM2, material"
+                    value={editingNode.data.conditionVariable || ""}
+                    onChange={(e) => updateNode(editingNode.id, { conditionVariable: e.target.value })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Operator</label>
+                    <select
+                      className="panel"
+                      value={editingNode.data.conditionOperator || "=="}
+                      onChange={(e) => updateNode(editingNode.id, { conditionOperator: e.target.value })}
+                      style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                    >
+                      <option value="==">== (Równe)</option>
+                      <option value=">">&gt; (Większe)</option>
+                      <option value="<">&lt; (Mniejsze)</option>
+                      <option value=">=">&gt;= (Większe/Równe)</option>
+                      <option value="<=">&lt;= (Mniejsze/Równe)</option>
+                      <option value="!=">!= (Różne)</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Wartość porównania</label>
+                    <input
+                      type="text" className="panel" placeholder="np. business, 25"
+                      value={editingNode.data.conditionValue || ""}
+                      onChange={(e) => updateNode(editingNode.id, { conditionValue: e.target.value })}
+                      style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Wytyczne przy SPEŁNIONYM warunku (TAK)</label>
+                  <select
+                    className="panel"
+                    value={editingNode.data.componentIdTrue || ""}
+                    onChange={(e) => updateNode(editingNode.id, { componentIdTrue: e.target.value ? (e.target.value as Id<"aiPromptComponents">) : undefined })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  >
+                    <option value="">-- Wybierz komponent wytycznych (Brak) --</option>
+                    {(promptComponents as PromptComponentItem[]).map((c) => (
+                      <option key={c._id} value={c._id}>📄 {c.title}</option>
+                    ))}
+                  </select>
+                  {renderAttachedComponentEditor(editingNode.data.componentIdTrue, "TAK")}
+                </div>
+
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Wytyczne przy NIESPEŁNIONYM warunku (NIE)</label>
+                  <select
+                    className="panel"
+                    value={editingNode.data.componentIdFalse || ""}
+                    onChange={(e) => updateNode(editingNode.id, { componentIdFalse: e.target.value ? (e.target.value as Id<"aiPromptComponents">) : undefined })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  >
+                    <option value="">-- Wybierz komponent wytycznych (Brak) --</option>
+                    {(promptComponents as PromptComponentItem[]).map((c) => (
+                      <option key={c._id} value={c._id}>📄 {c.title}</option>
+                    ))}
+                  </select>
+                  {renderAttachedComponentEditor(editingNode.data.componentIdFalse, "NIE")}
+                </div>
+              </div>
+            )}
+
+            {/* Validation Gate Editor */}
+            {editingNode.type === "validation_gate" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, backgroundColor: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Szerokość Min (cm)</label>
+                    <input
+                      type="number" className="panel" placeholder="300"
+                      value={editingNode.data.validationMinWidth ?? ""}
+                      onChange={(e) => updateNode(editingNode.id, { validationMinWidth: e.target.value ? Number(e.target.value) : undefined })}
+                      style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Szerokość Max (cm)</label>
+                    <input
+                      type="number" className="panel" placeholder="500"
+                      value={editingNode.data.validationMaxWidth ?? ""}
+                      onChange={(e) => updateNode(editingNode.id, { validationMaxWidth: e.target.value ? Number(e.target.value) : undefined })}
+                      style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Długość Min (cm)</label>
+                    <input
+                      type="number" className="panel" placeholder="306"
+                      value={editingNode.data.validationMinLength ?? ""}
+                      onChange={(e) => updateNode(editingNode.id, { validationMinLength: e.target.value ? Number(e.target.value) : undefined })}
+                      style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Długość Max (cm)</label>
+                    <input
+                      type="number" className="panel" placeholder="1206"
+                      value={editingNode.data.validationMaxLength ?? ""}
+                      onChange={(e) => updateNode(editingNode.id, { validationMaxLength: e.target.value ? Number(e.target.value) : undefined })}
+                      style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Komunikat błędu walidacji</label>
+                  <input
+                    type="text" className="panel" placeholder="Wymiar niestandardowy - zalecana wycena indywidualna"
+                    value={editingNode.data.validationErrorMessage || ""}
+                    onChange={(e) => updateNode(editingNode.id, { validationErrorMessage: e.target.value })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Discount Rule Editor */}
+            {editingNode.type === "discount_rule" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, backgroundColor: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Kryterium przyznania rabatu</label>
+                  <select
+                    className="panel"
+                    value={editingNode.data.discountConditionType || "net_total"}
+                    onChange={(e) => updateNode(editingNode.id, { discountConditionType: e.target.value })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  >
+                    <option value="net_total">Suma netto wyceny (zł)</option>
+                    <option value="area_m2">Powierzchnia tarasu (m²)</option>
+                  </select>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Próg aktywacji</label>
+                    <input
+                      type="number" className="panel" placeholder="15000"
+                      value={editingNode.data.discountThreshold ?? ""}
+                      onChange={(e) => updateNode(editingNode.id, { discountThreshold: e.target.value ? Number(e.target.value) : undefined })}
+                      style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Wysokość rabatu (%)</label>
+                    <input
+                      type="number" className="panel" placeholder="5"
+                      value={editingNode.data.discountPercent ?? ""}
+                      onChange={(e) => updateNode(editingNode.id, { discountPercent: e.target.value ? Number(e.target.value) : undefined })}
+                      style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Price Modifier Editor */}
+            {editingNode.type === "price_modifier" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, backgroundColor: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Nazwa dopłaty / modyfikatora</label>
+                  <input
+                    type="text" className="panel" placeholder="np. Kolor Niestandardowy RAL"
+                    value={editingNode.data.modifierName || ""}
+                    onChange={(e) => updateNode(editingNode.id, { modifierName: e.target.value })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Typ modyfikatora</label>
+                    <select
+                      className="panel"
+                      value={editingNode.data.modifierType || "percent"}
+                      onChange={(e) => updateNode(editingNode.id, { modifierType: e.target.value as "percent" | "fixed" })}
+                      style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                    >
+                      <option value="percent">% Procentowo</option>
+                      <option value="fixed">zł Kwotowo</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Wartość</label>
+                    <input
+                      type="number" className="panel" placeholder="15"
+                      value={editingNode.data.modifierValue ?? ""}
+                      onChange={(e) => updateNode(editingNode.id, { modifierValue: e.target.value ? Number(e.target.value) : undefined })}
+                      style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Kategoria w karcie wyceny</label>
+                  <select
+                    className="panel"
+                    value={editingNode.data.modifierCategory || "extras"}
+                    onChange={(e) => updateNode(editingNode.id, { modifierCategory: e.target.value as "service" | "installation" | "extras" })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  >
+                    <option value="service">Usługa (service)</option>
+                    <option value="installation">Montaż (installation)</option>
+                    <option value="extras">Dodatki (extras)</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Question Step Editor */}
+            {editingNode.type === "question_step" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, backgroundColor: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Treść pytania do klienta</label>
+                  <input
+                    type="text" className="panel" placeholder="np. Czy taras posiada wylewkę betonową?"
+                    value={editingNode.data.questionText || ""}
+                    onChange={(e) => updateNode(editingNode.id, { questionText: e.target.value })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  />
+                </div>
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Sugerowane opcje (oddzielone przecinkami)</label>
+                  <input
+                    type="text" className="panel" placeholder="Tak, Nie, W trakcie budowy"
+                    value={(editingNode.data.questionOptions || []).join(", ")}
+                    onChange={(e) => updateNode(editingNode.id, { questionOptions: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Price Sources */}
+            {editingNode.type === "price_source" && (
+              <div style={{ backgroundColor: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+                <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>Wybierz cenniki do załadowania dla AI</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {PRICE_TABLE_OPTIONS.map((pt) => (
+                    <label key={pt.id} style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", backgroundColor: "var(--panel)", padding: "5px 8px", borderRadius: 5, border: "1px solid var(--line)" }}>
+                      <input type="checkbox"
+                        checked={!!editingNode.data.priceTables?.includes(pt.id)}
+                        onChange={(e) => {
+                          const curr = editingNode.data.priceTables ?? [];
+                          updateNode(editingNode.id, { priceTables: e.target.checked ? [...curr, pt.id] : curr.filter((t) => t !== pt.id) });
+                        }} />
+                      {pt.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Custom Text / Instructions */}
+            <div>
+              <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3, fontWeight: 700 }}>
+                Dodatkowe wytyczne dla kroku (Meta-prompt dla AI)
+              </label>
+              <textarea className="panel" rows={3} style={{
+                width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 6,
+                border: "1px solid var(--line)", resize: "vertical", fontFamily: "monospace"
+              }}
+                value={editingNode.data.customText ?? ""}
+                onChange={(e) => updateNode(editingNode.id, { customText: e.target.value })}
+                placeholder="Wpisz specyficzne instrukcje..." />
+            </div>
+          </div>
+
+          {/* Modal Footer */}
+          <div style={{
+            padding: "10px 16px", borderTop: "1px solid var(--line)",
+            backgroundColor: "var(--panel-2)", display: "flex", alignItems: "center",
+            justifyContent: "space-between",
+          }}>
+            <button
+              onClick={() => handleDeleteNode(editingNode.id)}
+              style={{
+                border: "none", backgroundColor: "#ef444415", color: "var(--bad)",
+                fontSize: 11, fontWeight: 600, cursor: "pointer", padding: "5px 10px",
+                borderRadius: 5, display: "flex", alignItems: "center", gap: 4
+              }}
+            >
+              <Trash2 size={12} /> Usuń ten węzeł
+            </button>
+            <button
+              className="btn primary"
+              onClick={() => setEditingNodeModalId(null)}
+              style={{ padding: "5px 14px", fontSize: 11, gap: 4, fontWeight: 600 }}
+            >
+              <CheckCircle size={13} /> Gotowe / Zapisz
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", backgroundColor: "var(--panel-2)", overflow: "hidden" }}>
 
@@ -585,13 +1100,22 @@ export default function WorkflowCanvas() {
                       {node.type}
                     </span>
                   </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDeleteNode(node.id); }}
-                    style={{ border: "none", background: "transparent", color: "var(--bad)", cursor: "pointer", padding: 2, opacity: 0.6, lineHeight: 1 }}
-                    title="Usuń krok z workflowu"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditingNodeModalId(node.id); }}
+                      style={{ border: "none", background: "transparent", color: "var(--accent)", cursor: "pointer", padding: 2, lineHeight: 1 }}
+                      title="Konfiguruj węzeł w modalu"
+                    >
+                      <Sliders size={12} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteNode(node.id); }}
+                      style={{ border: "none", background: "transparent", color: "var(--bad)", cursor: "pointer", padding: 2, opacity: 0.6, lineHeight: 1 }}
+                      title="Usuń krok z workflowu"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Node Body */}
@@ -688,8 +1212,8 @@ export default function WorkflowCanvas() {
           flexShrink: 0, overflow: "hidden",
         }}>
 
-          {/* ── Node Inspector ── */}
-          <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)", flexShrink: 0, backgroundColor: "var(--panel-2)", maxHeight: "55%", overflowY: "auto" }}>
+          {/* ── Node Inspector Summary ── */}
+          <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)", flexShrink: 0, backgroundColor: "var(--panel-2)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Sliders size={13} style={{ color: "var(--accent)" }} />
@@ -709,389 +1233,25 @@ export default function WorkflowCanvas() {
 
             {selectedNode ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {/* Node Label */}
-                <div>
-                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Etykieta kroku</label>
-                  <input
-                    type="text" className="panel"
-                    style={{ width: "100%", padding: "5px 8px", fontSize: 12, borderRadius: 6, border: "1px solid var(--line)" }}
-                    value={selectedNode.data.label}
-                    onChange={(e) => updateNode(selectedNode.id, { label: e.target.value })}
-                  />
+                <div style={{ backgroundColor: "var(--panel)", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)" }}>
+                    {selectedNode.data.label}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600, marginTop: 2 }}>
+                    Typ węzła: {selectedNode.type}
+                  </div>
                 </div>
-
-                {/* ── Prompt Trigger Editor ── */}
-                {selectedNode.type === "prompt_trigger" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label className="up mute" style={{ fontSize: 9 }}>Rola / Kontekst zapytania (Prompt Role)</label>
-                    <input
-                      type="text" className="panel" placeholder="np. Klient pytający o wycenę zadaszenia..."
-                      value={selectedNode.data.promptRole || ""}
-                      onChange={(e) => updateNode(selectedNode.id, { promptRole: e.target.value })}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                    />
-
-                    <label className="up mute" style={{ fontSize: 9 }}>Kluczowe dane do rozpoznania i wyciągnięcia</label>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      {STANDARD_INPUT_FIELDS.map((f) => {
-                        const isChecked = (selectedNode.data.extractFields || []).includes(f.id);
-                        return (
-                          <label key={f.id} style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                const curr = selectedNode.data.extractFields || [];
-                                updateNode(selectedNode.id, {
-                                  extractFields: e.target.checked ? [...curr, f.id] : curr.filter((x) => x !== f.id),
-                                });
-                              }}
-                            />
-                            {f.label}
-                          </label>
-                        );
-                      })}
-                    </div>
-
-                    <label className="up mute" style={{ fontSize: 9, marginTop: 4 }}>Przykładowy prompt klienta</label>
-                    <textarea
-                      className="panel" rows={2} placeholder="np. Dzień dobry, poproszę o wycenę zadaszenia 400x300 cm..."
-                      value={selectedNode.data.samplePrompt || ""}
-                      onChange={(e) => updateNode(selectedNode.id, { samplePrompt: e.target.value })}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)", resize: "vertical" }}
-                    />
-                  </div>
-                )}
-
-                {/* ── Attached Component Picker & Editor for prompt_component ── */}
-                {selectedNode.type === "prompt_component" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label className="up mute" style={{ fontSize: 9 }}>Podpięty komponent wytycznych z bazy</label>
-                    <select
-                      className="panel"
-                      value={selectedNode.data.componentId || ""}
-                      onChange={(e) => {
-                        const cid = e.target.value ? (e.target.value as Id<"aiPromptComponents">) : undefined;
-                        const comp = (promptComponents as PromptComponentItem[]).find((c) => c._id === cid);
-                        updateNode(selectedNode.id, { componentId: cid, label: comp ? `Wytyczne: ${comp.title}` : selectedNode.data.label });
-                      }}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                    >
-                      <option value="">-- Wybierz komponent --</option>
-                      {(promptComponents as PromptComponentItem[]).map((c) => (
-                        <option key={c._id} value={c._id}>📄 {c.title}</option>
-                      ))}
-                    </select>
-
-                    {renderAttachedComponentEditor(selectedNode.data.componentId, "Wytyczne")}
-
-                    {!selectedNode.data.componentId && (
-                      <button
-                        className="btn primary"
-                        onClick={() => setShowAddComponent(true)}
-                        style={{ padding: "4px 8px", fontSize: 10, gap: 4, width: "100%", marginTop: 4 }}
-                      >
-                        <Plus size={11} /> Stwórz i podepnij nowy komponent
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* ── Input Required Editor ── */}
-                {selectedNode.type === "input_required" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label className="up mute" style={{ fontSize: 9 }}>Wymagane pola do wyceny</label>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      {STANDARD_INPUT_FIELDS.map((f) => {
-                        const isChecked = (selectedNode.data.requiredFields || []).includes(f.id);
-                        return (
-                          <label key={f.id} style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                const curr = selectedNode.data.requiredFields || [];
-                                updateNode(selectedNode.id, {
-                                  requiredFields: e.target.checked ? [...curr, f.id] : curr.filter((x) => x !== f.id),
-                                });
-                              }}
-                            />
-                            {f.label}
-                          </label>
-                        );
-                      })}
-                    </div>
-                    <label className="up mute" style={{ fontSize: 9, marginTop: 4 }}>Dedykowane pytanie/instrukcja AI</label>
-                    <input
-                      type="text" className="panel" placeholder="np. Podaj długość i szerokość dachu w cm..."
-                      value={selectedNode.data.inputPrompt || ""}
-                      onChange={(e) => updateNode(selectedNode.id, { inputPrompt: e.target.value })}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                    />
-                  </div>
-                )}
-
-                {/* ── Condition Branch Editor ── */}
-                {selectedNode.type === "condition_branch" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label className="up mute" style={{ fontSize: 9 }}>Zmienna warunku</label>
-                    <input
-                      type="text" className="panel" placeholder="np. clientType, totalAreaM2, material"
-                      value={selectedNode.data.conditionVariable || ""}
-                      onChange={(e) => updateNode(selectedNode.id, { conditionVariable: e.target.value })}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                    />
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <div style={{ flex: 1 }}>
-                        <label className="up mute" style={{ fontSize: 9 }}>Operator</label>
-                        <select
-                          className="panel"
-                          value={selectedNode.data.conditionOperator || "=="}
-                          onChange={(e) => updateNode(selectedNode.id, { conditionOperator: e.target.value })}
-                          style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                        >
-                          <option value="==">== (Równe)</option>
-                          <option value=">">&gt; (Większe)</option>
-                          <option value="<">&lt; (Mniejsze)</option>
-                          <option value=">=">&gt;= (Większe/Równe)</option>
-                          <option value="<=">&lt;= (Mniejsze/Równe)</option>
-                          <option value="!=">!= (Różne)</option>
-                        </select>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label className="up mute" style={{ fontSize: 9 }}>Wartość porównania</label>
-                        <input
-                          type="text" className="panel" placeholder="np. business, 25"
-                          value={selectedNode.data.conditionValue || ""}
-                          onChange={(e) => updateNode(selectedNode.id, { conditionValue: e.target.value })}
-                          style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                        />
-                      </div>
-                    </div>
-
-                    <label className="up mute" style={{ fontSize: 9, marginTop: 4 }}>Wytyczne przy SPEŁNIONYM warunku (TAK)</label>
-                    <select
-                      className="panel"
-                      value={selectedNode.data.componentIdTrue || ""}
-                      onChange={(e) => updateNode(selectedNode.id, { componentIdTrue: e.target.value ? (e.target.value as Id<"aiPromptComponents">) : undefined })}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                    >
-                      <option value="">-- Wybierz komponent wytycznych (Brak) --</option>
-                      {(promptComponents as PromptComponentItem[]).map((c) => (
-                        <option key={c._id} value={c._id}>📄 {c.title}</option>
-                      ))}
-                    </select>
-
-                    {renderAttachedComponentEditor(selectedNode.data.componentIdTrue, "TAK")}
-
-                    <label className="up mute" style={{ fontSize: 9, marginTop: 4 }}>Wytyczne przy NIESPEŁNIONYM warunku (NIE)</label>
-                    <select
-                      className="panel"
-                      value={selectedNode.data.componentIdFalse || ""}
-                      onChange={(e) => updateNode(selectedNode.id, { componentIdFalse: e.target.value ? (e.target.value as Id<"aiPromptComponents">) : undefined })}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                    >
-                      <option value="">-- Wybierz komponent wytycznych (Brak) --</option>
-                      {(promptComponents as PromptComponentItem[]).map((c) => (
-                        <option key={c._id} value={c._id}>📄 {c.title}</option>
-                      ))}
-                    </select>
-
-                    {renderAttachedComponentEditor(selectedNode.data.componentIdFalse, "NIE")}
-                  </div>
-                )}
-
-                {/* ── Validation Gate Editor ── */}
-                {selectedNode.type === "validation_gate" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <div style={{ flex: 1 }}>
-                        <label className="up mute" style={{ fontSize: 9 }}>Szerokość Min (cm)</label>
-                        <input
-                          type="number" className="panel" placeholder="300"
-                          value={selectedNode.data.validationMinWidth ?? ""}
-                          onChange={(e) => updateNode(selectedNode.id, { validationMinWidth: e.target.value ? Number(e.target.value) : undefined })}
-                          style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                        />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label className="up mute" style={{ fontSize: 9 }}>Szerokość Max (cm)</label>
-                        <input
-                          type="number" className="panel" placeholder="400"
-                          value={selectedNode.data.validationMaxWidth ?? ""}
-                          onChange={(e) => updateNode(selectedNode.id, { validationMaxWidth: e.target.value ? Number(e.target.value) : undefined })}
-                          style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                        />
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <div style={{ flex: 1 }}>
-                        <label className="up mute" style={{ fontSize: 9 }}>Długość Min (cm)</label>
-                        <input
-                          type="number" className="panel" placeholder="306"
-                          value={selectedNode.data.validationMinLength ?? ""}
-                          onChange={(e) => updateNode(selectedNode.id, { validationMinLength: e.target.value ? Number(e.target.value) : undefined })}
-                          style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                        />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label className="up mute" style={{ fontSize: 9 }}>Długość Max (cm)</label>
-                        <input
-                          type="number" className="panel" placeholder="1206"
-                          value={selectedNode.data.validationMaxLength ?? ""}
-                          onChange={(e) => updateNode(selectedNode.id, { validationMaxLength: e.target.value ? Number(e.target.value) : undefined })}
-                          style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                        />
-                      </div>
-                    </div>
-                    <label className="up mute" style={{ fontSize: 9, marginTop: 2 }}>Komunikat błędu walidacji</label>
-                    <input
-                      type="text" className="panel" placeholder="Wymiar niestandardowy - wycena indywidualna"
-                      value={selectedNode.data.validationErrorMessage || ""}
-                      onChange={(e) => updateNode(selectedNode.id, { validationErrorMessage: e.target.value })}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                    />
-                  </div>
-                )}
-
-                {/* ── Discount Rule Editor ── */}
-                {selectedNode.type === "discount_rule" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label className="up mute" style={{ fontSize: 9 }}>Kryterium przyznania rabatu</label>
-                    <select
-                      className="panel"
-                      value={selectedNode.data.discountConditionType || "net_total"}
-                      onChange={(e) => updateNode(selectedNode.id, { discountConditionType: e.target.value })}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                    >
-                      <option value="net_total">Suma netto wyceny (zł)</option>
-                      <option value="area_m2">Powierzchnia tarasu (m²)</option>
-                    </select>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <div style={{ flex: 1 }}>
-                        <label className="up mute" style={{ fontSize: 9 }}>Próg aktywacji</label>
-                        <input
-                          type="number" className="panel" placeholder="15000"
-                          value={selectedNode.data.discountThreshold ?? ""}
-                          onChange={(e) => updateNode(selectedNode.id, { discountThreshold: e.target.value ? Number(e.target.value) : undefined })}
-                          style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                        />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label className="up mute" style={{ fontSize: 9 }}>Wysokość rabatu (%)</label>
-                        <input
-                          type="number" className="panel" placeholder="5"
-                          value={selectedNode.data.discountPercent ?? ""}
-                          onChange={(e) => updateNode(selectedNode.id, { discountPercent: e.target.value ? Number(e.target.value) : undefined })}
-                          style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Price Modifier Editor ── */}
-                {selectedNode.type === "price_modifier" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label className="up mute" style={{ fontSize: 9 }}>Nazwa dopłaty / modyfikatora</label>
-                    <input
-                      type="text" className="panel" placeholder="np. Kolor Niestandardowy RAL"
-                      value={selectedNode.data.modifierName || ""}
-                      onChange={(e) => updateNode(selectedNode.id, { modifierName: e.target.value })}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                    />
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <div style={{ flex: 1 }}>
-                        <label className="up mute" style={{ fontSize: 9 }}>Typ modyfikatora</label>
-                        <select
-                          className="panel"
-                          value={selectedNode.data.modifierType || "percent"}
-                          onChange={(e) => updateNode(selectedNode.id, { modifierType: e.target.value as "percent" | "fixed" })}
-                          style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                        >
-                          <option value="percent">% Procentowo</option>
-                          <option value="fixed">zł Kwotowo</option>
-                        </select>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label className="up mute" style={{ fontSize: 9 }}>Wartość</label>
-                        <input
-                          type="number" className="panel" placeholder="15"
-                          value={selectedNode.data.modifierValue ?? ""}
-                          onChange={(e) => updateNode(selectedNode.id, { modifierValue: e.target.value ? Number(e.target.value) : undefined })}
-                          style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                        />
-                      </div>
-                    </div>
-                    <label className="up mute" style={{ fontSize: 9 }}>Kategoria w karcie wyceny</label>
-                    <select
-                      className="panel"
-                      value={selectedNode.data.modifierCategory || "extras"}
-                      onChange={(e) => updateNode(selectedNode.id, { modifierCategory: e.target.value as "service" | "installation" | "extras" })}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                    >
-                      <option value="service">Usługa (service)</option>
-                      <option value="installation">Montaż (installation)</option>
-                      <option value="extras">Dodatki (extras)</option>
-                    </select>
-                  </div>
-                )}
-
-                {/* ── Question Step Editor ── */}
-                {selectedNode.type === "question_step" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <label className="up mute" style={{ fontSize: 9 }}>Treść pytania do klienta</label>
-                    <input
-                      type="text" className="panel" placeholder="np. Czy taras posiada wylewkę betonową?"
-                      value={selectedNode.data.questionText || ""}
-                      onChange={(e) => updateNode(selectedNode.id, { questionText: e.target.value })}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                    />
-                    <label className="up mute" style={{ fontSize: 9 }}>Sugerowane opcje (oddzielone przecinkami)</label>
-                    <input
-                      type="text" className="panel" placeholder="Tak, Nie, W trakcie budowy"
-                      value={(selectedNode.data.questionOptions || []).join(", ")}
-                      onChange={(e) => updateNode(selectedNode.id, { questionOptions: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
-                      style={{ width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
-                    />
-                  </div>
-                )}
-
-                {/* ── Price Sources ── */}
-                {selectedNode.type === "price_source" && (
-                  <div>
-                    <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>Wybierz cenniki do załadowania dla AI</label>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                      {PRICE_TABLE_OPTIONS.map((pt) => (
-                        <label key={pt.id} style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                          <input type="checkbox"
-                            checked={!!selectedNode.data.priceTables?.includes(pt.id)}
-                            onChange={(e) => {
-                              const curr = selectedNode.data.priceTables ?? [];
-                              updateNode(selectedNode.id, { priceTables: e.target.checked ? [...curr, pt.id] : curr.filter((t) => t !== pt.id) });
-                            }} />
-                          {pt.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Custom text / instructions for all nodes */}
-                <div>
-                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Dodatkowe wytyczne dla kroku</label>
-                  <textarea className="panel" rows={2} style={{
-                    width: "100%", padding: "5px 8px", fontSize: 11, borderRadius: 6,
-                    border: "1px solid var(--line)", resize: "vertical",
-                  }}
-                    value={selectedNode.data.customText ?? ""}
-                    onChange={(e) => updateNode(selectedNode.id, { customText: e.target.value })}
-                    placeholder="Wpisz specyficzne instrukcje..." />
-                </div>
+                <button
+                  className="btn primary"
+                  onClick={() => setEditingNodeModalId(selectedNode.id)}
+                  style={{ width: "100%", padding: "6px 10px", fontSize: 11, gap: 5, justifyContent: "center" }}
+                >
+                  <Sliders size={12} /> Otwórz konfigurację w modalu
+                </button>
               </div>
             ) : (
               <p style={{ fontSize: 11, color: "var(--text-mute)", margin: 0, lineHeight: 1.5 }}>
-                Kliknij dowolny węzeł na płótnie, aby skonfigurować jego specyficzne warunki i parametry wyceny.
+                Kliknij dowolny węzeł na płótnie, aby otworzyć jego konfigurację w oknie modalnym.
               </p>
             )}
           </div>
@@ -1319,6 +1479,7 @@ export default function WorkflowCanvas() {
           </div>
         </div>
       </div>
+      {renderNodeModal()}
     </div>
   );
 }
