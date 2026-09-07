@@ -114,7 +114,7 @@ export default function AsystentWycenSettingsPage() {
           type: "success",
           text: `Zapisano cenę dla ściany ${widthCm} cm (${activeTab === "walls" ? `${tracksCount}-torowej` : "stałej 16mm"}).`,
         });
-      } else {
+      } else if (activeTab === "polycarbonate" || activeTab === "glass") {
         await upsertPrice({
           material: activeTab,
           widthCm,
