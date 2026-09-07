@@ -113,6 +113,17 @@ describe("aiWorkflows", () => {
             modifierCategory: "service",
           },
         },
+        {
+          id: "node-branch",
+          type: "branch_splitter",
+          position: { x: 550, y: 0 },
+          data: {
+            label: "Rozdzielacz: Wątek Montażowy",
+            branchName: "Wątek B: Wymogi Techniczne",
+            branchDescription: "Równoległa weryfikacja wymogów fundamentu pod montaż",
+            parallelMode: "parallel_all",
+          },
+        },
       ],
       edges: [
         { id: "e1-2", source: "node-1", target: "node-2" },
@@ -120,6 +131,7 @@ describe("aiWorkflows", () => {
         { id: "e3-4", source: "node-3", target: "node-4" },
         { id: "e4-5", source: "node-4", target: "node-5" },
         { id: "e5-6", source: "node-5", target: "node-6" },
+        { id: "e6-b", source: "node-6", target: "node-branch", label: "Wątek Poboczny A" },
       ],
     });
 
@@ -128,7 +140,8 @@ describe("aiWorkflows", () => {
     // Verify fetched workflow
     const wf = await t.query(api.aiWorkflows.getWorkflow, { workflowId: wfId });
     expect(wf?.title).toBe("Precyzyjna Wycena Tarasów v2");
-    expect(wf?.nodes).toHaveLength(8);
+    expect(wf?.nodes).toHaveLength(9);
+    expect(wf?.edges.find((e) => e.target === "node-branch")?.label).toBe("Wątek Poboczny A");
 
     // Activate workflow
     await asAdmin.mutation(api.aiWorkflows.activateWorkflow, { id: wfId });

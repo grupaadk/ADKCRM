@@ -35,6 +35,7 @@ export type NodeType =
   | "trigger"
   | "prompt_trigger"
   | "custom_prompt"
+  | "branch_splitter"
   | "prompt_component"
   | "price_source"
   | "output_format"
@@ -69,6 +70,11 @@ export type WorkflowNode = {
     promptRole?: string;
     extractFields?: string[];
     samplePrompt?: string;
+
+    // Rozdzielacz wątków / Rozgałęzienie (branch_splitter)
+    branchName?: string;
+    branchDescription?: string;
+    parallelMode?: string;
 
     // Wymagane pola (input_required)
     requiredFields?: string[];
@@ -107,7 +113,7 @@ export type WorkflowNode = {
   };
 };
 
-export type WorkflowEdge = { id: string; source: string; target: string };
+export type WorkflowEdge = { id: string; source: string; target: string; label?: string; branchTag?: string };
 
 type PromptComponentItem = {
   _id: Id<"aiPromptComponents">;
@@ -135,6 +141,7 @@ const NODE_PALETTE: {
   { type: "question_step",    label: "Krok Pytający",   icon: <HelpCircle size={13} />,     color: "#3b82f6", category: "Wymogi i Pytania", defaultLabel: "Pytanie Doprecyzowujące" },
   
   // Logika i Walidacja
+  { type: "branch_splitter",  label: "Rozdzielacz Wątków",icon: <GitFork size={13} />,       color: "#ec4899", category: "Logika i Walidacja", defaultLabel: "Rozgałęzienie: Wątek Poboczny" },
   { type: "condition_branch", label: "Warunek If/Else", icon: <GitFork size={13} />,        color: "#ef4444", category: "Logika i Walidacja", defaultLabel: "Warunek Logiczny (If/Else)" },
   { type: "validation_gate",  label: "Bramka Walidacji",icon: <ShieldAlert size={13} />,    color: "#f97316", category: "Logika i Walidacja", defaultLabel: "Walidacja Wymiarów" },
   
@@ -985,6 +992,118 @@ export default function WorkflowCanvas() {
               </div>
             )}
 
+            {/* Branch Splitter Editor */}
+            {editingNode.type === "branch_splitter" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, backgroundColor: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Nazwa wątku / gałęzi</label>
+                  <input
+                    type="text" className="panel" placeholder="np. Wątek B: Wymogi Techniczne i Montaż"
+                    value={editingNode.data.branchName || ""}
+                    onChange={(e) => updateNode(editingNode.id, { branchName: e.target.value })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  />
+                </div>
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Cel / Opis działania tego wątku</label>
+                  <textarea
+                    className="panel" rows={2} placeholder="np. Wykonaj równolegle analizę wymogów montażowych oraz stóp fundamentowych..."
+                    value={editingNode.data.branchDescription || ""}
+                    onChange={(e) => updateNode(editingNode.id, { branchDescription: e.target.value })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)", resize: "vertical" }}
+                  />
+                </div>
+                <div>
+                  <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3 }}>Tryb wykonywania wątku przez AI</label>
+                  <select
+                    className="panel"
+                    value={editingNode.data.parallelMode || "parallel_all"}
+                    onChange={(e) => updateNode(editingNode.id, { parallelMode: e.target.value })}
+                    style={{ width: "100%", padding: "6px 9px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  >
+                    <option value="parallel_all">Równoległe (Wszystkie gałęzie wykonuj współbieżnie)</option>
+                    <option value="first_matching">Wątek warunkowy (Pierwsza pasująca gałąź)</option>
+                    <option value="background_context">Wątek poboczny w tle (Kontekst dodatkowy)</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Connection / Edge & Side Thread Management */}
+            <div style={{ backgroundColor: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span>🔗 Połączenia wychodzące i Wątki Poboczne ({edges.filter((e) => e.source === editingNode.id).length})</span>
+              </div>
+              
+              {/* Outgoing edges list */}
+              {edges.filter((e) => e.source === editingNode.id).length === 0 ? (
+                <div style={{ fontSize: 11, color: "var(--text-dim)", fontStyle: "italic" }}>
+                  Brak wychodzących połączeń z tego węzła. Węzeł nie przekazuje sygnału dalej.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {edges.filter((e) => e.source === editingNode.id).map((edge) => {
+                    const targetNode = nodes.find((n) => n.id === edge.target);
+                    return (
+                      <div key={edge.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "var(--panel)", padding: "5px 8px", borderRadius: 5, border: "1px solid var(--line)", fontSize: 11 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                          <span style={{ fontWeight: 700, color: "var(--accent)" }}>➜</span>
+                          <span style={{ fontWeight: 600 }}>{targetNode?.data.label || edge.target}</span>
+                          <input
+                            type="text"
+                            placeholder="Etykieta wątku (np. Wątek A)"
+                            value={edge.label || ""}
+                            onChange={(ev) => {
+                              const val = ev.target.value;
+                              setEdges((prev) => prev.map((eg) => eg.id === edge.id ? { ...eg, label: val } : eg));
+                            }}
+                            style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, border: "1px solid var(--line)", width: 140 }}
+                          />
+                        </div>
+                        <button
+                          onClick={() => setEdges((prev) => prev.filter((eg) => eg.id !== edge.id))}
+                          style={{ border: "none", background: "transparent", color: "var(--bad)", cursor: "pointer", padding: 2 }}
+                          title="Usuń połączenie"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Quick Add Connection */}
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                <select
+                  id={`add-conn-${editingNode.id}`}
+                  className="panel"
+                  style={{ flex: 1, padding: "5px 8px", fontSize: 11, borderRadius: 5, border: "1px solid var(--line)" }}
+                  defaultValue=""
+                  onChange={(e) => {
+                    const targetId = e.target.value;
+                    if (!targetId) return;
+                    if (edges.some((eg) => eg.source === editingNode.id && eg.target === targetId)) {
+                      alert("Połączenie do tego węzła już istnieje.");
+                      e.target.value = "";
+                      return;
+                    }
+                    const count = edges.filter((eg) => eg.source === editingNode.id).length;
+                    const defaultBranchLabel = editingNode.type === "branch_splitter" ? `Wątek ${count + 1}` : undefined;
+                    setEdges((prev) => [...prev, { id: `e-${editingNode.id}-${targetId}-${Date.now()}`, source: editingNode.id, target: targetId, label: defaultBranchLabel }]);
+                    e.target.value = "";
+                  }}
+                >
+                  <option value="">+ Dodaj połączenie / wątek poboczny do węzła...</option>
+                  {nodes
+                    .filter((n) => n.id !== editingNode.id && !edges.some((eg) => eg.source === editingNode.id && eg.target === n.id))
+                    .map((n) => (
+                      <option key={n.id} value={n.id}>➜ {n.data.label} ({n.type})</option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
             {/* Custom Text / Instructions */}
             <div>
               <label className="up mute" style={{ fontSize: 9, display: "block", marginBottom: 3, fontWeight: 700 }}>
@@ -1099,10 +1218,24 @@ export default function WorkflowCanvas() {
               const y2 = tgt.position.y + 40;
               const dx = Math.abs(x2 - x1) * 0.5;
               const pathStr = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+              const isBranchEdge = src.type === "branch_splitter" || !!e.label;
+              const strokeColor = isBranchEdge ? "#ec4899" : "var(--accent)";
+
+              const midX = (x1 + x2) / 2;
+              const midY = (y1 + y2) / 2;
+
               return (
                 <g key={e.id}>
                   <path d={pathStr} fill="none" stroke="var(--line-2)" strokeWidth="3" />
-                  <path d={pathStr} fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeDasharray="5,5" />
+                  <path d={pathStr} fill="none" stroke={strokeColor} strokeWidth={isBranchEdge ? "2" : "1.5"} strokeDasharray={isBranchEdge ? "6,3" : "5,5"} />
+                  {e.label && (
+                    <g transform={`translate(${midX}, ${midY})`}>
+                      <rect x="-42" y="-9" width="84" height="17" rx="8" fill="var(--panel)" stroke={strokeColor} strokeWidth="1" />
+                      <text x="0" y="3" textAnchor="middle" fill="var(--text-strong)" fontSize="9" fontWeight="700">
+                        {e.label}
+                      </text>
+                    </g>
+                  )}
                 </g>
               );
             })}
@@ -1169,6 +1302,19 @@ export default function WorkflowCanvas() {
                   </div>
 
                   {/* Rich Node Details */}
+                  {node.type === "branch_splitter" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3, backgroundColor: "#ec489910", padding: "4px 6px", borderRadius: 4 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#ec4899" }}>
+                        🔀 {node.data.branchName || "Wątek Poboczny"}
+                      </div>
+                      {node.data.branchDescription && (
+                        <div style={{ fontSize: 10, color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                          {node.data.branchDescription}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {node.type === "custom_prompt" && (
                     <div style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "monospace", backgroundColor: "#6366f112", padding: "4px 6px", borderRadius: 4, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
                       💬 {node.data.promptText || "Brak treści promptu..."}

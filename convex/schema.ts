@@ -1094,7 +1094,8 @@ export default defineSchema({
           v.literal("validation_gate"),
           v.literal("question_step"),
           v.literal("prompt_trigger"),
-          v.literal("custom_prompt")
+          v.literal("custom_prompt"),
+          v.literal("branch_splitter")
         ),
         position: v.object({ x: v.number(), y: v.number() }),
         data: v.object({
@@ -1112,6 +1113,11 @@ export default defineSchema({
           promptRole: v.optional(v.string()),
           extractFields: v.optional(v.array(v.string())),
           samplePrompt: v.optional(v.string()),
+
+          // Rozdzielacz wątków / Rozgałęzienie (branch_splitter)
+          branchName: v.optional(v.string()),
+          branchDescription: v.optional(v.string()),
+          parallelMode: v.optional(v.string()),
 
           // Wymagane pola (input_required)
           requiredFields: v.optional(v.array(v.string())),
@@ -1155,6 +1161,8 @@ export default defineSchema({
         id: v.string(),
         source: v.string(),
         target: v.string(),
+        label: v.optional(v.string()),
+        branchTag: v.optional(v.string()),
       })
     ),
     createdAt: v.number(),

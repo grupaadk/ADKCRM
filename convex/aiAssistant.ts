@@ -86,6 +86,9 @@ interface WorkflowNodeData {
   promptRole?: string;
   extractFields?: string[];
   samplePrompt?: string;
+  branchName?: string;
+  branchDescription?: string;
+  parallelMode?: string;
   requiredFields?: string[];
   inputPrompt?: string;
   conditionVariable?: string;
@@ -252,6 +255,20 @@ function buildWorkflowInstructions(activeWfData: ActiveWfData | null): string {
       parts.push(
         `${idx + 1}. [Dopłata: ${n.data.modifierName || n.data.label}] Kwota/Wartość: ${typeStr} (Kategoria w karcie wyceny: ${n.data.modifierCategory || "extras"}). Dodaj tę dopłatę jako osobną pozycję lub uwzględnij w cenie.`
       );
+    });
+  }
+
+  // 6.5. Branch Splitters & Parallel Side Threads
+  const branchNodes = nodes.filter((n) => n.type === "branch_splitter");
+  if (branchNodes.length > 0) {
+    parts.push("--- ROZBIJANIE WĄTKÓW I GAŁĘZIE POBOCZNE (PARALLEL / SIDE THREADS) ---");
+    branchNodes.forEach((n, idx: number) => {
+      let bStr = `${idx + 1}. [Wątek / Gałąź Poboczna: ${n.data.branchName || n.data.label}]`;
+      if (n.data.parallelMode) bStr += ` (Tryb: ${n.data.parallelMode})`;
+      if (n.data.branchDescription) bStr += `\n   Cel wątku: ${n.data.branchDescription}`;
+      if (n.data.customText) bStr += `\n   Instrukcje dodatkowe: ${n.data.customText}`;
+      bStr += `\n   (Uwaga dla AI: Przetwarzaj te wytyczne równolegle z procesem głównym jako poboczny wątek kontekstowy)`;
+      parts.push(bStr);
     });
   }
 
