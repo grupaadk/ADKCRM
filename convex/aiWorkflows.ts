@@ -331,3 +331,209 @@ export const getActiveWorkflowInternal = internalQuery({
     };
   },
 });
+
+/**
+ * Tworzy i aktywuje pełny produkcyjny workflow testowy prezentujący WSZYSTKIE możliwości modułu
+ */
+export const seedShowcaseWorkflow = mutation({
+  args: {
+    serviceType: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+    const now = Date.now();
+    const sType = args.serviceType ?? "Zabudowa tarasu";
+
+    // 1. Sprawdź i stwórz przykładowy komponent wytycznych w bazie jeśli nie istnieje
+    let sampleCompId: Id<"aiPromptComponents"> | undefined = undefined;
+    const existingComp = await ctx.db.query("aiPromptComponents").first();
+    if (existingComp) {
+      sampleCompId = existingComp._id;
+    } else {
+      sampleCompId = await ctx.db.insert("aiPromptComponents", {
+        title: "Ogólne Standardy Jakości ADK Okna",
+        category: "guidelines",
+        content: "Każda wycena zadaszenia musi uwzględniać bezpłatny pomiar u klienta w promieniu 50 km od siedziby firmy.",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    // 2. Przygotuj węzły demonstrujące WSZYSTKIE typy węzłów i rozgałęzienia
+    const nodes = [
+      {
+        id: "node-1-trigger",
+        type: "prompt_trigger" as const,
+        position: { x: 50, y: 150 },
+        data: {
+          label: "1. Wyzwolenie: Zapytanie Klienta",
+          promptRole: "Klient zainteresowany zadaszeniem lub zabudową tarasu",
+          extractFields: ["widthCm", "lengthCm", "material", "sideWalls", "city"],
+          samplePrompt: "Dzień dobry, poproszę o wycenę zadaszenia tarasu 400x300 cm z poliwęglanu we Wrocławiu.",
+          customText: "Wyceniaj w oparciu o cennik standardowy ADK Okna.",
+        },
+      },
+      {
+        id: "node-2-input",
+        type: "input_required" as const,
+        position: { x: 300, y: 50 },
+        data: {
+          label: "2. Wymagane Dane do Wyceny",
+          requiredFields: ["widthCm", "lengthCm", "material", "city"],
+          inputPrompt: "Upewnij się, że klient podał wymiary w cm oraz oczekiwany materiał dachu.",
+        },
+      },
+      {
+        id: "node-3-question",
+        type: "question_step" as const,
+        position: { x: 550, y: 50 },
+        data: {
+          label: "3. Pytanie o Fundament",
+          questionText: "Czy miejsce pod zadaszenie posiada wykonaną wylewkę lub stopy betonowe?",
+          questionOptions: ["Tak, wylewka betonowa", "Nie, wymagane stopy", "W trakcie budowy"],
+          questionVariable: "hasFoundation",
+        },
+      },
+      {
+        id: "node-4-validation",
+        type: "validation_gate" as const,
+        position: { x: 800, y: 50 },
+        data: {
+          label: "4. Walidacja Wymiarów Dopuszczalnych",
+          validationMinWidth: 200,
+          validationMaxWidth: 600,
+          validationMinLength: 200,
+          validationMaxLength: 1200,
+          validationErrorMessage: "Wymiar wykracza poza standardowy cennik fabryczny ADK Okna. Wymagana estymacja niestandardowa.",
+        },
+      },
+      {
+        id: "node-5-branch",
+        type: "branch_splitter" as const,
+        position: { x: 1050, y: 150 },
+        data: {
+          label: "5. Rozdzielacz: Wątek Główny vs Poboczny",
+          branchName: "Rozgałęzienie: Rabaty & Wytyczne Techniczne",
+          branchDescription: "Wątek A przetwarza wycenę i rabaty, a Wątek Poboczny B weryfikuje montaż i obróbkę.",
+          parallelMode: "parallel_all",
+        },
+      },
+      {
+        id: "node-6-cond",
+        type: "condition_branch" as const,
+        position: { x: 1320, y: 50 },
+        data: {
+          label: "6. Wątek A: Warunek B2B vs B2C",
+          conditionVariable: "clientType",
+          conditionOperator: "==",
+          conditionValue: "business",
+          componentIdTrue: sampleCompId,
+          customText: "Dla klienta firmowego (B2B) zaproponuj fakturę VAT 23% i termin realizacji 14 dni.",
+        },
+      },
+      {
+        id: "node-7-discount",
+        type: "discount_rule" as const,
+        position: { x: 1580, y: 50 },
+        data: {
+          label: "7. Wątek A: Rabat > 15 000 zł",
+          discountConditionType: "net_total",
+          discountThreshold: 15000,
+          discountPercent: 5,
+        },
+      },
+      {
+        id: "node-8-modifier",
+        type: "price_modifier" as const,
+        position: { x: 1840, y: 50 },
+        data: {
+          label: "8. Wątek A: Dopłata za Kolor RAL",
+          modifierName: "Kolor Niestandardowy RAL",
+          modifierType: "percent",
+          modifierValue: 15,
+          modifierCategory: "service",
+        },
+      },
+      {
+        id: "node-9-prices",
+        type: "price_source" as const,
+        position: { x: 2100, y: 50 },
+        data: {
+          label: "9. Wątek A: Cenniki Bazy ADK Okna",
+          priceTables: ["polycarbonate", "glass", "sliding_walls", "installation", "extras"],
+        },
+      },
+      {
+        id: "node-10-side-prompt",
+        type: "custom_prompt" as const,
+        position: { x: 1320, y: 280 },
+        data: {
+          label: "10. Wątek Poboczny B: Instrukcja Montażowa",
+          promptText: "Wątek Poboczny: Dla zadaszeń powyżej 400 cm długości dolicz 2 szt. słupków środkowych oraz zalecaj zestaw uszczelek przeciwpyłowych.",
+        },
+      },
+      {
+        id: "node-11-comp",
+        type: "prompt_component" as const,
+        position: { x: 1580, y: 280 },
+        data: {
+          label: "11. Wątek Poboczny B: Standard Jakości",
+          componentId: sampleCompId,
+        },
+      },
+      {
+        id: "node-12-output",
+        type: "output_format" as const,
+        position: { x: 2360, y: 150 },
+        data: {
+          label: "12. Wyjście: Podsumowanie i Karta Wyceny JSON",
+          customText: "Otrzymaną wycenę przedstaw w kulturalnym, fachowym tonie i wygeneruj pełną kartę wyceny JSON (estimateCard).",
+        },
+      },
+    ];
+
+    const edges = [
+      { id: "e1-2", source: "node-1-trigger", target: "node-2-input" },
+      { id: "e2-3", source: "node-2-input", target: "node-3-question" },
+      { id: "e3-4", source: "node-3-question", target: "node-4-validation" },
+      { id: "e4-5", source: "node-4-validation", target: "node-5-branch" },
+      // Rozgałęzienie na Wątek A (główny wyceny) i Wątek Poboczny B (montażowy)
+      { id: "e5-6", source: "node-5-branch", target: "node-6-cond", label: "Wątek A: Wycena i Rabaty" },
+      { id: "e6-7", source: "node-6-cond", target: "node-7-discount" },
+      { id: "e7-8", source: "node-7-discount", target: "node-8-modifier" },
+      { id: "e8-9", source: "node-8-modifier", target: "node-9-prices" },
+      { id: "e9-12", source: "node-9-prices", target: "node-12-output" },
+      // Wątek Poboczny B
+      { id: "e5-10", source: "node-5-branch", target: "node-10-side-prompt", label: "Wątek Poboczny B: Montaż" },
+      { id: "e10-11", source: "node-10-side-prompt", target: "node-11-comp" },
+      { id: "e11-12", source: "node-11-comp", target: "node-12-output" },
+    ];
+
+    // Dezaktywuj istniejące aktywne workflowy dla tej usługi
+    const actives = await ctx.db
+      .query("aiWorkflows")
+      .withIndex("by_service_status", (q) =>
+        q.eq("serviceType", sType).eq("status", "active")
+      )
+      .collect();
+
+    for (const item of actives) {
+      await ctx.db.patch(item._id, { status: "archived", updatedAt: now });
+    }
+
+    // Wstaw i aktywuj kompleksowy workflow testowy
+    const wfId = await ctx.db.insert("aiWorkflows", {
+      serviceType: sType,
+      title: "🔥 Kompleksowy Workflow Testowy ADK Okna (Wszystkie Węzły & Wątki Poboczne)",
+      description: "Oficjalny workflow testowy demonstrujący wyzwalacze promptów, pytania, walidację, warunki B2B/B2C, rabaty, dopłaty RAL, podpięte cenniki oraz równoległe wątki poboczne.",
+      status: "active",
+      version: 1,
+      nodes,
+      edges,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return wfId;
+  },
+});

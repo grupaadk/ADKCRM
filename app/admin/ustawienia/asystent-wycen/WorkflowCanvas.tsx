@@ -213,6 +213,7 @@ export default function WorkflowCanvas() {
   const promptComponents = useQuery(api.aiWorkflows.listPromptComponents) ?? [];
   const saveDraft       = useMutation(api.aiWorkflows.saveWorkflowDraft);
   const activateWf      = useMutation(api.aiWorkflows.activateWorkflow);
+  const seedShowcase    = useMutation(api.aiWorkflows.seedShowcaseWorkflow);
   const upsertComponent = useMutation(api.aiWorkflows.upsertPromptComponent);
   const deleteComponent = useMutation(api.aiWorkflows.deletePromptComponent);
 
@@ -1182,6 +1183,22 @@ export default function WorkflowCanvas() {
               {statusMsg.text}
             </span>
           )}
+          <button
+            className="btn"
+            onClick={async () => {
+              try {
+                const id = await seedShowcase({ serviceType });
+                setSelectedWfId(id);
+                showStatus("success", "Wygenerowano i aktywowano na produkcji pełny workflow testowy!");
+              } catch (err) {
+                showStatus("error", `Błąd generowania: ${err instanceof Error ? err.message : "Nieznany błąd"}`);
+              }
+            }}
+            style={{ gap: 5, padding: "5px 12px", fontSize: 11, backgroundColor: "#ec489915", color: "#ec4899", border: "1px solid #ec489940", fontWeight: 600 }}
+            title="Stwórz i aktywuj na produkcji workflow demonstrujący wszystkie węzły i wątki poboczne"
+          >
+            <Sparkles size={13} /> 🔥 Wygeneruj Workflow Testowy
+          </button>
           <button className="btn" onClick={handleSaveDraft} style={{ gap: 5, padding: "5px 12px", fontSize: 12 }}>
             <Save size={13} /> Zapisz Draft
           </button>
