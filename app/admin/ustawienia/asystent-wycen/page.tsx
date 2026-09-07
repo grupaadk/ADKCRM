@@ -375,30 +375,6 @@ export default function AsystentWycenSettingsPage() {
             <p style={{ fontSize: 11, color: "var(--text-mute)", margin: "4px 0 0" }}>
               Model Sonnet rekomendowany jest do automatycznego parsowania wymiarów i wycen.
             </p>
-          </div>
-        </div>
-
-        {/* Dodatkowe instrukcje promptu */}
-        <div style={{ marginTop: 16 }}>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--text-dim)" }}>
-            Dodatkowe wytyczne dla AI (Opcjonalne)
-          </label>
-          <textarea
-            rows={2}
-            placeholder="np. Zawsze oferuj montaż 1500 zł netto przy wycenach zadaszenia. Proponuj rabat 5% przy zamówieniu powyżej 15 000 zł..."
-            value={systemPromptExtra}
-            onChange={(e) => setSystemPromptExtra(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              borderRadius: 6,
-              border: "1px solid var(--line)",
-              background: "var(--panel-2)",
-              fontSize: 13,
-              color: "var(--text)",
-              resize: "vertical",
-            }}
-          />
         </div>
 
         {/* Zapisał */}
