@@ -75,6 +75,7 @@ export const saveAiConfig = mutation({
 export const generateEstimateWithClaude = action({
   args: {
     userMessage: v.string(),
+    serviceType: v.optional(v.string()),
     history: v.array(
       v.object({
         sender: v.union(v.literal("user"), v.literal("assistant")),
@@ -88,6 +89,11 @@ export const generateEstimateWithClaude = action({
     if (!config || !config.apiKey || !config.apiKey.trim()) {
       throw new Error("Brak skonfigurowanego klucza Anthropic API Key w Ustawieniach Asystenta.");
     }
+
+    // Pobierz aktywny workflow dla danej usługi (jeśli wybrano w czacie)
+    const activeWfData: any = await ctx.runQuery(internal.aiWorkflows.getActiveWorkflowInternal, {
+      serviceType: args.serviceType,
+    });
 
     // 2. Pobierz aktualne cenniki zadaszeń, ścian, trójkątów oraz montażu z bazy Convex
     const terracePrices = (await ctx.runQuery(api.terracePricing.listTerracePrices, {})) as Array<{
@@ -180,9 +186,20 @@ export const generateEstimateWithClaude = action({
         })
         .join("\n");
 
-    const systemPrompt: string = `Jesteś profesjonalnym Asystentem Wycen dla firmy ADK Okna. Twoim zadaniem jest pomoc doradcom w kalkulacji kosztów stolarki budowlanej oraz Zabudów Tarasów (Zadaszenia, Ściany Przesuwne i Stałe, Trójkąty Boczne, Montaż).
+    // Zbierz wytyczne ze zdefiniowanego workflowu n8n
+    const workflowComponentsText = (activeWfData?.promptComponents || [])
+      .map((c: any) => `### KOMPONENT WYTYCZNYCH: ${c.title}\n${c.content}`)
+      .join("\n\n");
 
-AKTUALNY CENNIK ZADASZEŃ, ŚCIAN, TRÓJKĄTÓW I MONTAŻU ADK OKNA (Dystrybutor):
+    const workflowCustomPromptNodes = (activeWfData?.workflow?.nodes || [])
+      .filter((n: any) => n.data?.customText)
+      .map((n: any) => `### INSTRUKCJA KROKU (${n.data.label}):\n${n.data.customText}`)
+      .join("\n\n");
+
+    const systemPrompt: string = `Jesteś profesjonalnym Asystentem Wycen dla firmy ADK Okna. Twoim zadaniem jest pomoc doradcom w kalkulacji kosztów stolarki budowlanej oraz Zabudów Tarasów (Zadaszenia, Ściany Przesuwne i Stałe, Trójkąty Boczne, Montaż).
+${activeWfData?.workflow?.title ? `AKTYWNY WORKFLOW PROCESU WYCENY: ${activeWfData.workflow.title} (Usługa: ${activeWfData.workflow.serviceType})\n` : ""}
+
+${workflowComponentsText ? `${workflowComponentsText}\n\n` : ""}${workflowCustomPromptNodes ? `${workflowCustomPromptNodes}\n\n` : ""}AKTUALNY CENNIK ZADASZEŃ, ŚCIAN, TRÓJKĄTÓW I MONTAŻU ADK OKNA (Dystrybutor):
 
 ### ZADASZENIE DACH Z POLIWĘGLANU (Wymiary: Szerokość od ściany x Długość wzdłuż ściany):
 ${formatPriceTable(polyPrices)}

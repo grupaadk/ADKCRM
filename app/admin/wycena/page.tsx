@@ -368,9 +368,13 @@ export default function WycenaAIPage() {
         return;
       }
 
+      // Wyciągnij serviceType z tytułu konwersacji jeśli istnieje (np. "Nowa wycena — Zabudowa tarasu")
+      const serviceTypeMatch = activeConv.title.split("—")[1]?.trim();
+
       // Wywołaj akcję z Claude
       const res = await generateEstimate({
         userMessage: userText,
+        serviceType: serviceTypeMatch,
         history: chatHistory,
       });
 

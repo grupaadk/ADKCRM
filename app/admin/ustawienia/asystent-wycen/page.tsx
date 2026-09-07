@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
+import WorkflowCanvas from "./WorkflowCanvas";
+import PromptComponentsLibrary from "./PromptComponentsLibrary";
 import {
   ArrowLeft,
   Settings,
@@ -18,10 +20,14 @@ import {
   Bot,
   Eye,
   EyeOff,
+  GitFork,
+  FileCode,
 } from "lucide-react";
 
 export default function AsystentWycenSettingsPage() {
-  const [activeTab, setActiveTab] = useState<"polycarbonate" | "glass" | "walls" | "fixed_walls" | "extras" | "installation">("polycarbonate");
+  const [activeTab, setActiveTab] = useState<
+    "workflow_builder" | "prompt_components" | "polycarbonate" | "glass" | "walls" | "fixed_walls" | "extras" | "installation"
+  >("workflow_builder");
   const [filterWidth, setFilterWidth] = useState<number | "all">("all");
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ priceGross: number; priceNet: number }>({
@@ -405,8 +411,25 @@ export default function AsystentWycenSettingsPage() {
         </div>
       </div>
 
-      {/* Zakładki materiałów */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+      {/* Zakładki materiałów i Workflow */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        <button
+          onClick={() => setActiveTab("workflow_builder")}
+          className={`btn ${activeTab === "workflow_builder" ? "primary" : ""}`}
+          style={{ padding: "10px 18px", borderRadius: 8, fontSize: 14, gap: 6 }}
+        >
+          <GitFork size={16} /> Workflow AI (n8n Builder)
+        </button>
+        <button
+          onClick={() => setActiveTab("prompt_components")}
+          className={`btn ${activeTab === "prompt_components" ? "primary" : ""}`}
+          style={{ padding: "10px 18px", borderRadius: 8, fontSize: 14, gap: 6 }}
+        >
+          <FileCode size={16} /> Biblioteka Wytycznych (Prompt)
+        </button>
+
+        <div style={{ width: 1, backgroundColor: "var(--line)", margin: "0 4px" }} />
+
         <button
           onClick={() => {
             setActiveTab("polycarbonate");
@@ -468,6 +491,10 @@ export default function AsystentWycenSettingsPage() {
           <Settings size={16} /> Stawki Montażu (m² / mb)
         </button>
       </div>
+
+      {/* Renderowanie Zakładek Workflow i Komponentów */}
+      {activeTab === "workflow_builder" && <WorkflowCanvas />}
+      {activeTab === "prompt_components" && <PromptComponentsLibrary />}
 
       {/* Filtry i Statystyki */}
       {(activeTab === "polycarbonate" || activeTab === "glass") && (

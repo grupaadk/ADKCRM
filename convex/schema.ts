@@ -1050,5 +1050,57 @@ export default defineSchema({
     systemPromptExtra: v.optional(v.string()),
     updatedAt: v.number(),
   }),
+
+  // Modułowe komponenty wytycznych promptu dla AI Workflow (n8n builder)
+  aiPromptComponents: defineTable({
+    title: v.string(),
+    category: v.union(
+      v.literal("guidelines"),
+      v.literal("pricing_rules"),
+      v.literal("output_format"),
+      v.literal("questions")
+    ),
+    content: v.string(),
+    updatedAt: v.number(),
+  }).index("by_category", ["category"]),
+
+  // Schematy Workflowów wycen AI (N8N Canvas Builder)
+  aiWorkflows: defineTable({
+    serviceType: v.string(), // np. "Zabudowa tarasu", "Zadaszenie tarasu", "Ściany szklane", "General"
+    title: v.string(),
+    description: v.optional(v.string()),
+    status: v.union(v.literal("draft"), v.literal("active"), v.literal("archived")),
+    version: v.number(),
+    // Struktura grafu (N8N Nodes i Edges)
+    nodes: v.array(
+      v.object({
+        id: v.string(),
+        type: v.union(
+          v.literal("trigger"),
+          v.literal("prompt_component"),
+          v.literal("price_source"),
+          v.literal("output_format")
+        ),
+        position: v.object({ x: v.number(), y: v.number() }),
+        data: v.object({
+          label: v.string(),
+          componentId: v.optional(v.id("aiPromptComponents")),
+          priceTables: v.optional(v.array(v.string())), // np. ["polycarbonate", "glass", "sliding_walls", "fixed_walls", "extras", "installation"]
+          customText: v.optional(v.string()),
+        }),
+      })
+    ),
+    edges: v.array(
+      v.object({
+        id: v.string(),
+        source: v.string(),
+        target: v.string(),
+      })
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_service", ["serviceType"])
+    .index("by_service_status", ["serviceType", "status"]),
 });
 
