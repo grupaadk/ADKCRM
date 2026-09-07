@@ -346,12 +346,12 @@ const SHOWCASE_EDGES: WorkflowEdge[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getNodeMeta(type: NodeType): { color: string; icon: React.ReactNode } {
-  if (type === "trigger") return { color: "#4ABBC3", icon: <Sparkles size={14} style={{ color: "#4ABBC3" }} /> };
+function getNodeMeta(type: NodeType): { color: string; icon: React.ReactNode; label: string } {
+  if (type === "trigger") return { color: "#4ABBC3", icon: <Sparkles size={14} style={{ color: "#4ABBC3" }} />, label: "Wyzwolenie" };
   const p = NODE_PALETTE.find((n) => n.type === type);
   return p
-    ? { color: p.color, icon: <span style={{ color: p.color }}>{p.icon}</span> }
-    : { color: "var(--line)", icon: null };
+    ? { color: p.color, icon: <span style={{ color: p.color }}>{p.icon}</span>, label: p.label }
+    : { color: "var(--line)", icon: null, label: type };
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
