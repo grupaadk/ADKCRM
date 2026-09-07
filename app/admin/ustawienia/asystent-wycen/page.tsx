@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
@@ -14,6 +14,10 @@ import {
   Check,
   Loader2,
   Plus,
+  Key,
+  Bot,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 export default function AsystentWycenSettingsPage() {
@@ -24,6 +28,26 @@ export default function AsystentWycenSettingsPage() {
     priceGross: 0,
     priceNet: 0,
   });
+
+  // Stan dla konfiguracji AI
+  const aiConfig = useQuery(api.aiAssistant.getAiConfig);
+  const saveAiConfigMutation = useMutation(api.aiAssistant.saveAiConfig);
+
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<
+    "claude-3-5-sonnet-20241022" | "claude-3-5-haiku-20241022"
+  >("claude-3-5-sonnet-20241022");
+  const [systemPromptExtra, setSystemPromptExtra] = useState("");
+  const [isSavingAi, setIsSavingAi] = useState(false);
+
+  useEffect(() => {
+    if (aiConfig) {
+      setSelectedModel(aiConfig.selectedModel || "claude-3-5-sonnet-20241022");
+      setSystemPromptExtra(aiConfig.systemPromptExtra || "");
+    }
+  }, [aiConfig]);
+
   const [isSaving, setIsSaving] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -87,6 +111,27 @@ export default function AsystentWycenSettingsPage() {
     }
   };
 
+  const handleSaveAiConfig = async () => {
+    setIsSavingAi(true);
+    setStatusMsg(null);
+    try {
+      await saveAiConfigMutation({
+        apiKey: apiKeyInput.trim() ? apiKeyInput.trim() : undefined,
+        selectedModel,
+        systemPromptExtra: systemPromptExtra.trim(),
+      });
+      setApiKeyInput("");
+      setStatusMsg({ type: "success", text: "Zapisano konfigurację Anthropic Claude AI!" });
+    } catch (err) {
+      setStatusMsg({
+        type: "error",
+        text: `Błąd zapisu konfiguracji AI: ${err instanceof Error ? err.message : "Nieznany błąd"}`,
+      });
+    } finally {
+      setIsSavingAi(false);
+    }
+  };
+
   return (
     <div style={{ padding: "24px 32px", maxWidth: 1200, margin: "0 auto" }}>
       {/* Powrót do czatu wycen */}
@@ -141,7 +186,7 @@ export default function AsystentWycenSettingsPage() {
               Ustawienia Asystenta Wycen
             </h1>
             <p style={{ fontSize: 13, color: "var(--text-dim)", margin: "4px 0 0" }}>
-              Zarządzaj cennikami dystrybutora dla zabudowy tarasów (Zadaszenia standardowe)
+              Konfiguracja modelu Anthropic Claude AI oraz cenniki dystrybutora dla zadaszeń tarasowych
             </p>
           </div>
         </div>
@@ -186,6 +231,136 @@ export default function AsystentWycenSettingsPage() {
           </button>
         </div>
       )}
+
+      {/* ── KARTA KONFIGURACJI CLAUDE AI ── */}
+      <div className="panel" style={{ padding: 24, marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <Bot size={20} style={{ color: "var(--accent)" }} />
+          <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "var(--text-strong)" }}>
+            Połączenie z API Anthropic Claude
+          </h2>
+          {aiConfig?.hasApiKey ? (
+            <span className="pill ok" style={{ fontSize: 11, padding: "2px 8px" }}>
+              Klucz skonfigurowany ({aiConfig.apiKeyMasked})
+            </span>
+          ) : (
+            <span className="pill bad" style={{ fontSize: 11, padding: "2px 8px" }}>
+              Brak klucza API
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          {/* Klucz API */}
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--text-dim)" }}>
+              Anthropic API Key (sk-ant-...)
+            </label>
+            <div style={{ position: "relative" }}>
+              <input
+                type={showApiKey ? "text" : "password"}
+                placeholder={aiConfig?.hasApiKey ? "Pozostaw puste aby zachować obecny klucz" : "Wklej klucz sk-ant-api03-..."}
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 36px 8px 12px",
+                  borderRadius: 6,
+                  border: "1px solid var(--line)",
+                  background: "var(--panel-2)",
+                  fontSize: 13,
+                  color: "var(--text)",
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                style={{
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--text-mute)",
+                }}
+              >
+                {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            <p style={{ fontSize: 11, color: "var(--text-mute)", margin: "4px 0 0" }}>
+              Klucz przetrzymywany bezpiecznie w bazie Convex. Generowany na platformie Anthropic Console.
+            </p>
+          </div>
+
+          {/* Wybór Modelu */}
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--text-dim)" }}>
+              Model sztucznej inteligencji
+            </label>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value as any)}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: 6,
+                border: "1px solid var(--line)",
+                background: "var(--panel-2)",
+                fontSize: 13,
+                color: "var(--text)",
+              }}
+            >
+              <option value="claude-3-5-sonnet-20241022">
+                Claude 3.5 Sonnet (Rekomendowany: Najwyższa precyzja i jakość kalkulacji)
+              </option>
+              <option value="claude-3-5-haiku-20241022">
+                Claude 3.5 Haiku (Szybki i ekonomiczny)
+              </option>
+            </select>
+            <p style={{ fontSize: 11, color: "var(--text-mute)", margin: "4px 0 0" }}>
+              Model Sonnet rekomendowany jest do automatycznego parsowania wymiarów i wycen.
+            </p>
+          </div>
+        </div>
+
+        {/* Dodatkowe instrukcje promptu */}
+        <div style={{ marginTop: 16 }}>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--text-dim)" }}>
+            Dodatkowe wytyczne dla AI (Opcjonalne)
+          </label>
+          <textarea
+            rows={2}
+            placeholder="np. Zawsze oferuj montaż 1500 zł netto przy wycenach zadaszenia. Proponuj rabat 5% przy zamówieniu powyżej 15 000 zł..."
+            value={systemPromptExtra}
+            onChange={(e) => setSystemPromptExtra(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              borderRadius: 6,
+              border: "1px solid var(--line)",
+              background: "var(--panel-2)",
+              fontSize: 13,
+              color: "var(--text)",
+              resize: "vertical",
+            }}
+          />
+        </div>
+
+        {/* Zapisał */}
+        <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+          <button
+            className="btn primary"
+            onClick={handleSaveAiConfig}
+            disabled={isSavingAi}
+            style={{ padding: "8px 18px" }}
+          >
+            {isSavingAi ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
+            Zapisz konfigurację AI
+          </button>
+        </div>
+      </div>
 
       {/* Zakładki materiałów */}
       <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as aiAssistant from "../aiAssistant.js";
 import type * as attachments from "../attachments.js";
 import type * as auth from "../auth.js";
 import type * as calendarEvents from "../calendarEvents.js";
@@ -75,6 +76,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  aiAssistant: typeof aiAssistant;
   attachments: typeof attachments;
   auth: typeof auth;
   calendarEvents: typeof calendarEvents;

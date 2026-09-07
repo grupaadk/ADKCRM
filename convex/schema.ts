@@ -985,5 +985,16 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
     .index("by_date", ["date"]),
+
+  // 3.22 Konfiguracja AI (Anthropic Claude)
+  aiAssistantConfig: defineTable({
+    apiKey: v.optional(v.string()),
+    selectedModel: v.union(
+      v.literal("claude-3-5-sonnet-20241022"),
+      v.literal("claude-3-5-haiku-20241022")
+    ),
+    systemPromptExtra: v.optional(v.string()),
+    updatedAt: v.number(),
+  }),
 });
 

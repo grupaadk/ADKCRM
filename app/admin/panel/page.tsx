@@ -8,7 +8,7 @@ import { api } from "@/convex/_generated/api"
 import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
 import { deriveStatusStyle } from "@/lib/statuses"
 import type { KanbanItem } from "@/convex/kanban"
-import { Plus, ChevronDown, ChevronUp, Archive, ArchiveRestore, Search, X, ClipboardList, Users, AlertTriangle, Package } from "lucide-react"
+import { Plus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Archive, ArchiveRestore, Search, X, ClipboardList, Users, AlertTriangle, Package } from "lucide-react"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 import NewOpportunityModal from "@/components/NewOpportunityModal"
 
@@ -833,8 +833,21 @@ export default function PanelPage() {
   const syncingFromRef = useRef<HTMLDivElement | null>(null)
   const [scrollWidth, setScrollWidth] = useState(0)
   const [hasOverflow, setHasOverflow] = useState(false)
+  const [showLeftScroll, setShowLeftScroll] = useState(false)
+  const [showRightScroll, setShowRightScroll] = useState(true)
+
+  const scrollRaf = useRef<number | null>(null)
+  const scrollVelocity = useRef(0)
+  const scrollTarget = useRef(0)
 
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
+
+  const checkScroll = () => {
+    if (!bottomScrollRef.current) return
+    const { scrollLeft, scrollWidth, clientWidth } = bottomScrollRef.current
+    setShowLeftScroll(scrollLeft > 0)
+    setShowRightScroll(Math.ceil(scrollLeft + clientWidth) < scrollWidth - 2)
+  }
 
   useEffect(() => {
     if (activeTab !== "kanban" && activeTab !== "opportunities") return
@@ -844,13 +857,52 @@ export default function PanelPage() {
     const update = () => {
       setScrollWidth(el.scrollWidth)
       setHasOverflow(el.scrollWidth - el.clientWidth > 1)
+      checkScroll()
     }
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
     Array.from(el.children).forEach((c) => ro.observe(c))
-    return () => ro.disconnect()
+    window.addEventListener("resize", checkScroll)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener("resize", checkScroll)
+    }
   }, [activeTab, items, expandedCards])
+
+  const runScrollLoop = () => {
+    const el = bottomScrollRef.current
+    if (!el) {
+      scrollRaf.current = null
+      return
+    }
+    scrollVelocity.current += (scrollTarget.current - scrollVelocity.current) * 0.12
+    el.scrollLeft += scrollVelocity.current
+    if (scrollTarget.current === 0 && Math.abs(scrollVelocity.current) < 0.15) {
+      scrollVelocity.current = 0
+      scrollRaf.current = null
+      return
+    }
+    scrollRaf.current = requestAnimationFrame(runScrollLoop)
+  }
+
+  const startScrolling = (direction: "left" | "right") => {
+    const MAX_SPEED = 22
+    scrollTarget.current = direction === "right" ? MAX_SPEED : -MAX_SPEED
+    if (scrollRaf.current == null) {
+      scrollRaf.current = requestAnimationFrame(runScrollLoop)
+    }
+  }
+
+  const stopScrolling = () => {
+    scrollTarget.current = 0
+  }
+
+  useEffect(() => {
+    return () => {
+      if (scrollRaf.current) cancelAnimationFrame(scrollRaf.current)
+    }
+  }, [])
 
   const visibleColumns = statuses.filter((s) =>
     s.hidden
@@ -876,6 +928,7 @@ export default function PanelPage() {
     const left = source.scrollLeft
     if (topScrollRef.current && topScrollRef.current !== source) topScrollRef.current.scrollLeft = left
     if (bottomScrollRef.current && bottomScrollRef.current !== source) bottomScrollRef.current.scrollLeft = left
+    checkScroll()
     requestAnimationFrame(() => { syncingFromRef.current = null })
   }
 
@@ -1404,6 +1457,30 @@ export default function PanelPage() {
       {/* Kanban tab (Zlecenia + Szanse sprzedaży) */}
       {(activeTab === "kanban" || activeTab === "opportunities") && (
         <>
+          {/* ── Kontrolki Scrollowania ── */}
+          {(showLeftScroll || showRightScroll) && (
+            <div className="flex justify-center gap-2 mb-2 w-full">
+              <button
+                onMouseEnter={() => showLeftScroll && startScrolling('left')}
+                onMouseLeave={stopScrolling}
+                className={`flex size-9 items-center justify-center rounded-full shadow transition-all ${
+                  showLeftScroll ? "bg-[#4abbc3] text-white hover:opacity-90 hover:scale-110 cursor-pointer" : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
+                }`}
+              >
+                <ChevronLeft className="size-5" />
+              </button>
+              <button
+                onMouseEnter={() => showRightScroll && startScrolling('right')}
+                onMouseLeave={stopScrolling}
+                className={`flex size-9 items-center justify-center rounded-full shadow transition-all ${
+                  showRightScroll ? "bg-[#4abbc3] text-white hover:opacity-90 hover:scale-110 cursor-pointer" : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
+                }`}
+              >
+                <ChevronRight className="size-5" />
+              </button>
+            </div>
+          )}
+
           {/* Sticky top scrollbar — widoczny tylko gdy kolumny nie mieszczą się w szerokości */}
           {hasOverflow && (
             <div style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--background)", paddingTop: 4, paddingBottom: 2 }}>

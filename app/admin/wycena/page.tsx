@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import EstimateCardView, {
@@ -20,6 +20,7 @@ import {
   ExternalLink,
   Loader2,
   Settings,
+  AlertTriangle,
 } from "lucide-react";
 
 type Message = {
@@ -293,19 +294,28 @@ export default function WycenaAIPage() {
     }
   };
 
-  const handleSend = () => {
-    if (!input.trim() || !activeConv) return;
+  const aiConfig = useQuery(api.aiAssistant.getAiConfig);
+  const generateEstimate = useAction(api.aiAssistant.generateEstimateWithClaude);
 
+  const handleSend = async () => {
+    if (!input.trim() || !activeConv || isTyping) return;
+
+    const userText = input.trim();
     const userMsg: Message = {
       id: `user-${Date.now()}`,
       sender: "user",
-      text: input.trim(),
+      text: userText,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
     // Update title if it's the first user message in "Nowa wycena"
     const isFirstUserMsg = activeConv.title === "Nowa wycena";
-    const newTitle = isFirstUserMsg ? input.trim().slice(0, 50) : activeConv.title;
+    const newTitle = isFirstUserMsg ? userText.slice(0, 50) : activeConv.title;
+
+    // Przekaż dotychczasową historię wiadomości (bez wiadomości powitalnej)
+    const chatHistory = activeConv.messages
+      .filter((m) => m.id !== "welcome" && !m.id.startsWith("welcome-"))
+      .map((m) => ({ sender: m.sender, text: m.text }));
 
     setConversations((prev) =>
       prev.map((c) =>
@@ -317,31 +327,42 @@ export default function WycenaAIPage() {
     setInput("");
     setIsTyping(true);
 
-    setTimeout(() => {
+    try {
+      if (!aiConfig?.hasApiKey) {
+        // Jesli brak klucza API, wyswietl informację o konieczności konfiguracji
+        setTimeout(() => {
+          const noKeyMsg: Message = {
+            id: `asst-${Date.now()}`,
+            sender: "assistant",
+            text: "⚠️ Aby generować wyceny za pomocą AI, przejdź do Ustawień Cennika (ikona kołowrotka w prawym górnym rogu) i podaj swój klucz API Anthropic (sk-ant-...).",
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          };
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === activeConvId
+                ? { ...c, messages: [...c.messages, noKeyMsg] }
+                : c,
+            ),
+          );
+          setIsTyping(false);
+        }, 600);
+        return;
+      }
+
+      // Wywołaj akcję z Claude
+      const res = await generateEstimate({
+        userMessage: userText,
+        history: chatHistory,
+      });
+
       const assistantMsg: Message = {
         id: `asst-${Date.now()}`,
         sender: "assistant",
-        text: "Zaktualizowałem parametry kalkulacji. Dodałem rolety podtynkowe oraz uwzględniłem 5% rabatu na stolarkę. Poniżej znajduje się przeliczone podsumowanie.",
+        text: res.replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        estimateCard: {
-          title: "Zaktualizowana Wycena #WYC-2026/09/004",
-          client: {
-            firstName: "Jan",
-            lastName: "Kowalski",
-            phone: "600 123 456",
-            email: "jan.kowalski@email.pl",
-            clientType: "individual" as const,
-            city: "Wrocław",
-            investmentCity: "Wrocław",
-          },
-          items: [
-            { id: "item-1", category: "service" as const, name: "Okno PVC Aluplast IDEAL 7000 (2-szybowe)", specs: "Wymiary: 1400x1400 mm | Kolor: Złoty Dąb", qty: 4, priceNet: 1150, vat: 8 },
-            { id: "item-2", category: "extras" as const, name: "Roleta podtynkowa Integro z silnikiem Somfy", specs: "Wymiary: 1400x1400 mm | Kolor skrzynki: Złoty Dąb", qty: 4, priceNet: 890, vat: 8 },
-            { id: "item-3", category: "installation" as const, name: "Ciepły montaż warstwowy + montaż rolet", specs: "Montaż stolarki i automatyki", qty: 1, priceNet: 1400, vat: 8 },
-          ],
-          discountPercent: 5,
-        },
+        estimateCard: res.estimateCard || undefined,
       };
+
       setConversations((prev) =>
         prev.map((c) =>
           c.id === activeConvId
@@ -349,8 +370,23 @@ export default function WycenaAIPage() {
             : c,
         ),
       );
+    } catch (err) {
+      const errorMsg: Message = {
+        id: `asst-err-${Date.now()}`,
+        sender: "assistant",
+        text: `❌ ${err instanceof Error ? err.message : "Wystąpił błąd podczas generowania wyceny z Claude."}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeConvId
+            ? { ...c, messages: [...c.messages, errorMsg] }
+            : c,
+        ),
+      );
+    } finally {
       setIsTyping(false);
-    }, 1400);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
