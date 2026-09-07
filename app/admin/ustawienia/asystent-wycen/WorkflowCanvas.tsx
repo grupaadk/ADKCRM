@@ -540,15 +540,6 @@ export default function WorkflowCanvas() {
     setMouseDownPos(null);
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (editingNodeModalId) return;
-    const delta = e.deltaY < 0 ? 0.08 : -0.08;
-    setZoom((prevZoom) => {
-      const nextZoom = Math.min(2.0, Math.max(0.35, prevZoom + delta));
-      return Number(nextZoom.toFixed(2));
-    });
-  };
-
   const handleFitView = () => {
     if (!nodes || nodes.length === 0 || !canvasRef.current) {
       setPan({ x: 0, y: 0 });
@@ -1478,7 +1469,6 @@ export default function WorkflowCanvas() {
           onMouseDown={handleBgMouseDown}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
-          onWheel={handleWheel}
           style={{
             flex: 1, height: "100%", position: "relative", overflow: "hidden",
             backgroundImage: "radial-gradient(circle, var(--line) 1px, transparent 1px)",
