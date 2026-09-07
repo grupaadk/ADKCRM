@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, GitFork, FileCode } from "lucide-react";
-import WorkflowCanvas from "../asystent-wycen/WorkflowCanvas";
-import PromptComponentsLibrary from "../asystent-wycen/PromptComponentsLibrary";
+import WorkflowCanvas from "../WorkflowCanvas";
+import PromptComponentsLibrary from "../PromptComponentsLibrary";
 
 export default function WorkflowsSettingsPage() {
   const [activeTab, setActiveTab] = useState<"builder" | "components">("builder");
