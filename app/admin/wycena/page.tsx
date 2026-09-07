@@ -21,6 +21,7 @@ import {
   Loader2,
   Settings,
   AlertTriangle,
+  ChevronDown,
 } from "lucide-react";
 
 type Message = {
@@ -202,32 +203,39 @@ export default function WycenaAIPage() {
   const [activeConvId, setActiveConvId] = useState<string>(DEMO_CONVERSATIONS[0].id);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [showNewEstimateMenu, setShowNewEstimateMenu] = useState(false);
   const [createdOpportunities, setCreatedOpportunities] = useState<Set<string>>(new Set());
   const [creatingOpportunity, setCreatingOpportunity] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const createOpportunity = useMutation(api.salesOpportunities.createManualOpportunity);
 
-  const activeConv = conversations.find((c) => c.id === activeConvId);
-  const messages = activeConv?.messages ?? [];
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
   useEffect(() => {
-    scrollToBottom();
-  }, [messages.length, isTyping]);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowNewEstimateMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  const handleNewConversation = () => {
+  const handleNewConversation = (serviceType?: string) => {
+    setShowNewEstimateMenu(false);
+    const title = serviceType ? `Nowa wycena — ${serviceType}` : "Nowa wycena";
+    const welcomeText = serviceType
+      ? `Rozpoczęliśmy nową kalkulację dla usługi: **${serviceType}**. Podaj szczegóły zlecenia (wymiary, wariant, kolor lub dane klienta).`
+      : "Rozpoczęliśmy nową kalkulację. Wpisz szczegóły zlecenia, parametry okien/drzwi lub dane klienta.";
+
     const newConv: Conversation = {
       id: `conv-${Date.now()}`,
-      title: "Nowa wycena",
+      title,
       date: "Dzisiaj",
       messages: [
         {
           id: `welcome-${Date.now()}`,
           sender: "assistant",
-          text: "Rozpoczęliśmy nową kalkulację. Wpisz szczegóły zlecenia, parametry okien/drzwi lub dane klienta.",
+          text: welcomeText,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ],
@@ -416,16 +424,127 @@ export default function WycenaAIPage() {
           overflow: "hidden",
         }}
       >
-        {/* Przycisk nowej wyceny */}
-        <div style={{ padding: 12, borderBottom: "1px solid var(--line)" }}>
-          <button
-            className="btn primary"
-            onClick={handleNewConversation}
-            style={{ width: "100%", justifyContent: "center", padding: "8px 12px", borderRadius: 8 }}
-          >
-            <Plus size={14} />
-            Nowa wycena
-          </button>
+        {/* Przycisk nowej wyceny z dropdownem usług */}
+        <div ref={dropdownRef} style={{ padding: 12, borderBottom: "1px solid var(--line)", position: "relative" }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button
+              className="btn primary"
+              onClick={() => setShowNewEstimateMenu((prev) => !prev)}
+              style={{ flex: 1, justifyContent: "center", padding: "8px 12px", borderRadius: 8, gap: 6 }}
+            >
+              <Plus size={14} />
+              Nowa wycena
+              <ChevronDown size={14} style={{ opacity: 0.8 }} />
+            </button>
+          </div>
+
+          {showNewEstimateMenu && (
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% - 4px)",
+                left: 12,
+                right: 12,
+                zIndex: 50,
+                backgroundColor: "var(--panel, #ffffff)",
+                border: "1px solid var(--line, #e2e8f0)",
+                borderRadius: 8,
+                boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+                padding: 4,
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+              }}
+            >
+              <div
+                className="up mute"
+                style={{ padding: "6px 8px 4px", fontSize: 10, fontWeight: 600 }}
+              >
+                Wybierz typ usługi:
+              </div>
+              <button
+                onClick={() => handleNewConversation("Zabudowa tarasu")}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  fontSize: 13,
+                  borderRadius: 6,
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  color: "var(--text, #1e293b)",
+                  fontWeight: 500,
+                  transition: "background-color 0.15s ease",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--panel-2, #f1f5f9)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              >
+                🏠 Zabudowa tarasu
+              </button>
+              <button
+                onClick={() => handleNewConversation("Zadaszenie tarasu")}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  fontSize: 13,
+                  borderRadius: 6,
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  color: "var(--text, #1e293b)",
+                  fontWeight: 500,
+                  transition: "background-color 0.15s ease",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--panel-2, #f1f5f9)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              >
+                ☀️ Zadaszenie tarasu
+              </button>
+              <button
+                onClick={() => handleNewConversation("Ściany szklane")}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  fontSize: 13,
+                  borderRadius: 6,
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  color: "var(--text, #1e293b)",
+                  fontWeight: 500,
+                  transition: "background-color 0.15s ease",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--panel-2, #f1f5f9)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              >
+                🪟 Ściany szklane
+              </button>
+              <div style={{ height: 1, backgroundColor: "var(--line, #e2e8f0)", margin: "4px 0" }} />
+              <button
+                onClick={() => handleNewConversation()}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  fontSize: 12,
+                  borderRadius: 6,
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  color: "var(--text-mute, #64748b)",
+                  fontWeight: 500,
+                  transition: "background-color 0.15s ease",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--panel-2, #f1f5f9)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              >
+                ✨ Ogólna wycena / inne
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Lista konwersacji */}
