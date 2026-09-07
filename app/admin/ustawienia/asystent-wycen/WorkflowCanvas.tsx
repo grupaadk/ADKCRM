@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -253,22 +253,41 @@ export default function WorkflowCanvas() {
     }
   }, [selectedWfId, currentWf]);
 
+  const canvasRef = useRef<HTMLDivElement>(null);
+
   // ── Canvas handlers ───────────────────────────────────────────────────────
 
   const handleCanvasMouseDown = (nodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedNodeId(nodeId);
     setDraggedNodeId(nodeId);
+
+    if (!canvasRef.current) return;
+    const r = canvasRef.current.getBoundingClientRect();
+    const mouseXInCanvas = e.clientX - r.left;
+    const mouseYInCanvas = e.clientY - r.top;
+
     const n = nodes.find((n) => n.id === nodeId);
-    if (n) setDragOffset({ x: e.clientX - n.position.x, y: e.clientY - n.position.y });
+    if (n) {
+      setDragOffset({
+        x: mouseXInCanvas - n.position.x,
+        y: mouseYInCanvas - n.position.y,
+      });
+    }
   };
 
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
-    if (!draggedNodeId) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const x = Math.max(10, Math.min(r.width  - 220, e.clientX - r.left - dragOffset.x));
-    const y = Math.max(10, Math.min(r.height - 100, e.clientY - r.top  - dragOffset.y));
-    setNodes((prev) => prev.map((n) => n.id === draggedNodeId ? { ...n, position: { x, y } } : n));
+    if (!draggedNodeId || !canvasRef.current) return;
+    const r = canvasRef.current.getBoundingClientRect();
+    const mouseXInCanvas = e.clientX - r.left;
+    const mouseYInCanvas = e.clientY - r.top;
+
+    const x = Math.max(10, Math.min(r.width - 220, mouseXInCanvas - dragOffset.x));
+    const y = Math.max(10, Math.min(r.height - 100, mouseYInCanvas - dragOffset.y));
+
+    setNodes((prev) =>
+      prev.map((n) => (n.id === draggedNodeId ? { ...n, position: { x, y } } : n))
+    );
   };
 
   const handleCanvasMouseUp = () => setDraggedNodeId(null);
@@ -490,6 +509,7 @@ export default function WorkflowCanvas() {
 
         {/* ── Canvas Area ── */}
         <div
+          ref={canvasRef}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
           onClick={() => setSelectedNodeId(null)}
