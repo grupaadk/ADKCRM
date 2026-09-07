@@ -10,49 +10,48 @@ export default function WorkflowsSettingsPage() {
   const [activeTab, setActiveTab] = useState<"builder" | "components">("builder");
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "24px 16px" }}>
-      {/* Nagłówek powrotny */}
-      <div style={{ marginBottom: 20 }}>
-        <Link
-          href="/admin/ustawienia/asystent-wycen"
-          className="btn"
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}
-        >
-          <ArrowLeft size={16} /> Powrót do Ustawień Asystenta Wycen
-        </Link>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 6rem)", padding: "16px 24px", gap: 14 }}>
+      {/* Pasek nawigacyjny i nagłówek */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <Link
+            href="/admin/ustawienia/asystent-wycen"
+            className="btn"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, padding: "6px 12px" }}
+          >
+            <ArrowLeft size={16} /> Powrót
+          </Link>
+          <div>
+            <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "var(--text-strong)", display: "flex", alignItems: "center", gap: 8 }}>
+              Workflowy & Wytyczne AI <span className="pill acc" style={{ fontSize: 11, padding: "2px 8px" }}>N8N Builder</span>
+            </h1>
+          </div>
+        </div>
+
+        {/* Zakładki */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setActiveTab("builder")}
+            className={`btn ${activeTab === "builder" ? "primary" : ""}`}
+            style={{ padding: "6px 14px", borderRadius: 6, fontSize: 13, gap: 6 }}
+          >
+            <GitFork size={15} /> Visual Canvas (n8n)
+          </button>
+          <button
+            onClick={() => setActiveTab("components")}
+            className={`btn ${activeTab === "components" ? "primary" : ""}`}
+            style={{ padding: "6px 14px", borderRadius: 6, fontSize: 13, gap: 6 }}
+          >
+            <FileCode size={15} /> Biblioteka Wytycznych
+          </button>
+        </div>
       </div>
 
-      {/* Tytuł i opis sekcji */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 6px", color: "var(--text-strong)" }}>
-          Workflowy & Wytyczne AI (N8N Builder)
-        </h1>
-        <p style={{ fontSize: 13, color: "var(--text-dim)", margin: 0, maxWidth: 800 }}>
-          Dedykowany edytor procesów wyceniania w stylu N8N. Twórz wizualne schematy blokowe dla konkretnych usług oraz zarządzaj modułową biblioteką wytycznych i instrukcji dla Claude AI.
-        </p>
+      {/* Główna zawartość - pełna wysokość i szerokość */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        {activeTab === "builder" && <WorkflowCanvas />}
+        {activeTab === "components" && <PromptComponentsLibrary />}
       </div>
-
-      {/* Nawigacja zakładek powiązanego widoku */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-        <button
-          onClick={() => setActiveTab("builder")}
-          className={`btn ${activeTab === "builder" ? "primary" : ""}`}
-          style={{ padding: "10px 18px", borderRadius: 8, fontSize: 14, gap: 8 }}
-        >
-          <GitFork size={16} /> Wizualny Edytor Workflow (Canvas)
-        </button>
-        <button
-          onClick={() => setActiveTab("components")}
-          className={`btn ${activeTab === "components" ? "primary" : ""}`}
-          style={{ padding: "10px 18px", borderRadius: 8, fontSize: 14, gap: 8 }}
-        >
-          <FileCode size={16} /> Biblioteka Wytycznych Promptu
-        </button>
-      </div>
-
-      {/* Zawartość wybranej zakładki */}
-      {activeTab === "builder" && <WorkflowCanvas />}
-      {activeTab === "components" && <PromptComponentsLibrary />}
     </div>
   );
 }

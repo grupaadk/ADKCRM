@@ -202,7 +202,7 @@ export default function WorkflowCanvas() {
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, flex: 1, height: "100%" }}>
       {statusMsg && (
         <div
           style={{
@@ -286,7 +286,7 @@ export default function WorkflowCanvas() {
       </div>
 
       {/* Wizualny Edytor Canvas w stylu N8N */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, minHeight: 480 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16, flex: 1, minHeight: 0 }}>
         {/* Płótno Canvas */}
         <div
           className="panel"
