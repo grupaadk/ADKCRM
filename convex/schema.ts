@@ -813,6 +813,60 @@ export default defineSchema({
     .index("by_material", ["material"])
     .index("by_material_dimensions", ["material", "widthCm", "lengthCm"]),
 
+  // 3.21b Cennik ścian tarasowych (Przesuwne / Stałe Poliwęglan 16mm)
+  terraceWallPricing: defineTable({
+    type: v.optional(v.union(v.literal("sliding"), v.literal("fixed_polycarbonate"))),
+    tracksCount: v.optional(v.number()), // np. 2, 3, 4, 5, 6 dla ścian przesuwnych
+    widthCm: v.number(),    // np. 194, 241, 290... (lub długość dla stałych)
+    heightCm: v.number(),   // np. 230
+    priceGross: v.number(),
+    priceNet: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_type", ["type"])
+    .index("by_tracks", ["tracksCount"])
+    .index("by_dimensions", ["widthCm", "heightCm"]),
+
+  // 3.21c Cennik trójkątów bocznych i dodatków (dopłaty do szkła, szczotki, uchwyty, trójkąt poliwęglan lity)
+  terraceExtrasPricing: defineTable({
+    tracksCount: v.number(),
+    widthCm: v.number(),
+    heightCm: v.number(),
+    // Dopłata za szkło przyciemniane
+    tintedGlassGross: v.number(),
+    tintedGlassNet: v.number(),
+    // Dopłata za szkło białe/mleczne
+    frostedGlassGross: v.number(),
+    frostedGlassNet: v.number(),
+    // Szczotki przeciwkurzowe (komplet)
+    dustBrushesGross: v.number(),
+    dustBrushesNet: v.number(),
+    // Uchwyty na szkło ścienne (komplet)
+    glassHandlesGross: v.number(),
+    glassHandlesNet: v.number(),
+    // Wypełnienie 1 trójkąta bocznego poliwęglanem litym
+    trianglePolycarbonateGross: v.number(),
+    trianglePolycarbonateNet: v.number(),
+    updatedAt: v.number(),
+  }).index("by_width", ["widthCm"]),
+
+  // 3.21d Cennik montażu zadaszeń i ścian (zależny od m2 / mb)
+  terraceInstallationPricing: defineTable({
+    name: v.string(), // np. "STIMEO - zadaszenia z poliw. - wymiar standardowy"
+    unit: v.union(v.literal("m2"), v.literal("mb")), // m2 lub mb
+    rates: v.optional(
+      v.array(
+        v.object({
+          minM2: v.number(),
+          maxM2: v.optional(v.number()),
+          rateNet: v.number(),
+        })
+      )
+    ),
+    flatRateNet: v.optional(v.number()), // dla stałych stawek per mb / m2
+    updatedAt: v.number(),
+  }),
+
   // 3.21 Komentarze do zadań
   taskComments: defineTable({
     taskId: v.id("orderTasks"),

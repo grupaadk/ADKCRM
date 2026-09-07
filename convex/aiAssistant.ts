@@ -89,12 +89,17 @@ export const generateEstimateWithClaude = action({
       throw new Error("Brak skonfigurowanego klucza Anthropic API Key w Ustawieniach Asystenta.");
     }
 
-    // 2. Pobierz aktualne cenniki zadaszeń z bazy Convex
+    // 2. Pobierz aktualne cenniki zadaszeń, ścian, trójkątów oraz montażu z bazy Convex
     const terracePrices = await ctx.runQuery(api.terracePricing.listTerracePrices, {});
+    const wallPrices = await ctx.runQuery(api.terracePricing.listTerraceWallPrices, {});
+    const extrasPrices = await ctx.runQuery(api.terracePricing.listTerraceExtrasPrices, {});
+    const installationPrices = await ctx.runQuery(api.terracePricing.listTerraceInstallationPrices, {});
 
     // Sformatuj cennik w czytelną tabelkę dla Claude
     const polyPrices = terracePrices.filter((p) => p.material === "polycarbonate");
     const glassPrices = terracePrices.filter((p) => p.material === "glass");
+    const slidingWallPrices = wallPrices.filter((w) => w.type !== "fixed_polycarbonate");
+    const fixedPolyWallPrices = wallPrices.filter((w) => w.type === "fixed_polycarbonate");
 
     const formatPriceTable = (items: typeof terracePrices) =>
       items
@@ -104,9 +109,49 @@ export const generateEstimateWithClaude = action({
         )
         .join("\n");
 
-    const systemPrompt = `Jesteś profesjonalnym Asystentem Wycen dla firmy ADK Okna. Twoim zadaniem jest pomoc doradcom w kalkulacji kosztów stolarki budowlanej oraz Zabudów Tarasów (Zadaszenia, Ściany, Trójkąty).
+    const formatSlidingWallPriceTable = (items: typeof wallPrices) =>
+      items
+        .map(
+          (i) =>
+            `- System ${i.tracksCount}-torowy ${i.widthCm} cm / wys. ${i.heightCm} cm: Brutto ${i.priceGross} zł | Netto ${i.priceNet} zł`
+        )
+        .join("\n");
 
-AKTUALNY CENNIK ZADASZEŃ STANARDOWYCH ADK OKNA (Dystrybutor):
+    const formatFixedWallPriceTable = (items: typeof wallPrices) =>
+      items
+        .map(
+          (i) =>
+            `- Długość ${i.widthCm} cm / wys. ${i.heightCm} cm: Brutto ${i.priceGross} zł | Netto ${i.priceNet} zł`
+        )
+        .join("\n");
+
+    const formatExtrasPriceTable = (items: typeof extrasPrices) =>
+      items
+        .map(
+          (i) =>
+            `- Szerokość ${i.widthCm} cm (${i.tracksCount}-torowy): Trójkąt poliwęglan lity: ${i.trianglePolycarbonateGross}zł brutto (${i.trianglePolycarbonateNet}zł netto) | Dopłata szkło przyciemniane: ${i.tintedGlassGross}zł brutto (${i.tintedGlassNet}zł netto) | Dopłata szkło mleczne: ${i.frostedGlassGross}zł brutto (${i.frostedGlassNet}zł netto) | Szczotki: ${i.dustBrushesGross}zł brutto (${i.dustBrushesNet}zł netto) | Uchwyty: ${i.glassHandlesGross}zł brutto (${i.glassHandlesNet}zł netto)`
+        )
+        .join("\n");
+
+    const formatInstallationTable = (items: typeof installationPrices) =>
+      items
+        .map((i) => {
+          if (i.flatRateNet) {
+            return `- ${i.name}: ${i.flatRateNet} zł netto / ${i.unit}`;
+          }
+          const ratesStr = (i.rates || [])
+            .map(
+              (r) =>
+                `do ${r.maxM2 ? `${r.maxM2}m2` : "powyżej 25m2"}: ${r.rateNet} zł netto/m2`
+            )
+            .join(", ");
+          return `- ${i.name}: ${ratesStr}`;
+        })
+        .join("\n");
+
+    const systemPrompt = `Jesteś profesjonalnym Asystentem Wycen dla firmy ADK Okna. Twoim zadaniem jest pomoc doradcom w kalkulacji kosztów stolarki budowlanej oraz Zabudów Tarasów (Zadaszenia, Ściany Przesuwne i Stałe, Trójkąty Boczne, Montaż).
+
+AKTUALNY CENNIK ZADASZEŃ, ŚCIAN, TRÓJKĄTÓW I MONTAŻU ADK OKNA (Dystrybutor):
 
 ### ZADASZENIE DACH Z POLIWĘGLANU (Wymiary: Szerokość od ściany x Długość wzdłuż ściany):
 ${formatPriceTable(polyPrices)}
@@ -114,11 +159,26 @@ ${formatPriceTable(polyPrices)}
 ### ZADASZENIE SZKŁO (Wymiary: Szerokość od ściany x Długość wzdłuż ściany):
 ${formatPriceTable(glassPrices)}
 
+### ŚCIANY PRZESUWNE (System prowadnic + szkło ścienne, Wysokość standardowa 230 cm):
+${formatSlidingWallPriceTable(slidingWallPrices)}
+
+### STAŁE ŚCIANY (Poliwęglan komorowy bezbarwny 16mm, Wysokość standardowa 230 cm):
+${formatFixedWallPriceTable(fixedPolyWallPrices)}
+
+### TRÓJKĄTY BOCZNE I DOPŁATY DO SZKŁA / AKCESORIA:
+${formatExtrasPriceTable(extrasPrices)}
+
+### STAWKI MONTAŻU I PRAC PRZYGOTOWAWCZYCH (Zależne od m2 lub mb):
+${formatInstallationTable(installationPrices)}
+
 ZASADY KALKULACJI I ODPOWIEDZI:
-1. Jeśli klient/użytkownik pyta o zadaszenie w wymiarach standardowych dokładnie odpowiadających tabeli (np. 300x406 cm), weź dokładne ceny brutto i netto z tabeli.
-2. Jeśli wymiar jest pośredni / niestandardowy (np. 320x450 cm), w tekście odpowiedzi koniecznie poinformuj: "Uwaga: Wymiar [Wymiar] jest wymiarem niestandardowym. Zaproponowano estymację niestandardową." i przelicz kwotę na bazie powierzchni/najbliższych wymiarów.
-3. Gdy przygotowujesz wycenę, zidentyfikuj dane klienta jeśli zostały podane (Imię, Nazwisko, Telefon, Email, Miasto).
-4. OTRZYMANĄ ODPOWIEDŹ ZWRÓĆ W STRICT FORMACIE JSON (bez dodatkowego formatowania markdown z potrójnymi backtickami na zewnątrz, lub upewnij się, że JSON jest poprawnym obiektem):
+1. Podczas kalkulacji zadaszenia oblicz powierzchnię (m2 = szerokość w metrach * długość w metrach) i dobierz właściwą stawkę netto za montaż za m2. Pozycję montażu umieść w sekcji "installation" karty wyceny.
+2. Gdy klient zamówi trójkąty, ścianki lub fundamenty, dolicz pozycje montażowe (zł/mb lub zł/m2) z cennika montażu do sekcji "installation".
+3. Jeśli klient/użytkownik pyta o zadaszenie lub ściany w wymiarach standardowych dokładnie odpowiadających tabeli, weź dokładne ceny brutto i netto z tabeli.
+4. Jeśli wymiar jest pośredni / niestandardowy (np. 320x450 cm zadaszenia lub ściana 300 cm), w tekście odpowiedzi koniecznie poinformuj: "Uwaga: Wymiar [Wymiar] jest wymiarem niestandardowym. Zaproponowano estymację niestandardową." i przelicz kwotę na bazie powierzchni/najbliższych wymiarów.
+5. Gdy przygotowujesz wycenę, zidentyfikuj dane klienta jeśli zostały podane (Imię, Nazwisko, Telefon, Email, Miasto).
+6. Pozycje zadaszenia i ścian trafiają do klastra "service" w karcie wyceny.
+7. OTRZYMANĄ ODPOWIEDŹ ZWRÓĆ W STRICT FORMACIE JSON (bez dodatkowego formatowania markdown z potrójnymi backtickami na zewnątrz, lub upewnij się, że JSON jest poprawnym obiektem):
 
 Przykładowa struktura odpowiedzi JSON:
 {
