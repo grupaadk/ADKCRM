@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { KanbanItem } from "@/convex/kanban";
 import { useStatuses } from "@/components/StatusLabelsContext";
+import { deriveStatusStyle } from "@/lib/statuses";
 import { uColor, uInitials } from "@/lib/userColor";
 import {
   Search,
@@ -166,6 +167,15 @@ function MobileKanbanCard({
     }
   };
 
+  const currentStatusDef = useMemo(() => {
+    if (isPending) return null;
+    return statuses.find((s) => s.key === item.status);
+  }, [statuses, item.status, isPending]);
+
+  const statusStyle = useMemo(() => {
+    return currentStatusDef ? deriveStatusStyle(currentStatusDef.color) : null;
+  }, [currentStatusDef]);
+
   return (
     <div
       onClick={handleCardClick}
@@ -181,10 +191,23 @@ function MobileKanbanCard({
                 {item.customText}
               </span>
             )}
-            {isPending && (
+            {isPending ? (
               <span className="inline-block rounded-md bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-200/50">
                 Szansa
               </span>
+            ) : (
+              statusStyle && currentStatusDef && (
+                <span
+                  className="inline-block rounded-md px-1.5 py-0.5 text-[10px] font-bold border shrink-0"
+                  style={{
+                    backgroundColor: statusStyle.bg,
+                    color: statusStyle.text,
+                    borderColor: statusStyle.border,
+                  }}
+                >
+                  {currentStatusDef.label}
+                </span>
+              )
             )}
           </div>
           <p className="text-xs text-slate-500 font-medium truncate">{fullName || "—"}</p>
@@ -456,9 +479,36 @@ export default function MobilePanel() {
     return map;
   }, [filteredItems, activeStatuses]);
 
+  const filteredOrders = useMemo(() => {
+    return filteredItems.filter((i) => i.type === "order");
+  }, [filteredItems]);
+
   const salesOpportunities = useMemo(() => {
     return filteredItems.filter((i) => i.type === "pending");
   }, [filteredItems]);
+
+  const filteredArchivedOrders = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return archivedOrders ?? [];
+    return (archivedOrders ?? []).filter((o) => {
+      const fullName = `${o.clientFirstName ?? ""} ${o.clientLastName ?? ""} ${o.companyName ?? ""}`.toLowerCase();
+      const name = (o.name ?? "").toLowerCase();
+      const city = (o.investmentCity ?? o.clientCity ?? "").toLowerCase();
+      const street = (o.investmentStreet ?? "").toLowerCase();
+      return fullName.includes(q) || name.includes(q) || city.includes(q) || street.includes(q);
+    });
+  }, [archivedOrders, searchQuery]);
+
+  const filteredArchivedOpps = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return archivedOpps ?? [];
+    return (archivedOpps ?? []).filter((opp) => {
+      const fullName = `${opp.firstName ?? ""} ${opp.lastName ?? ""}`.toLowerCase();
+      const email = (opp.email ?? "").toLowerCase();
+      const phone = (opp.phone ?? "").toLowerCase();
+      return fullName.includes(q) || email.includes(q) || phone.includes(q);
+    });
+  }, [archivedOpps, searchQuery]);
 
   const toggleExpandCard = (id: string) => {
     setExpandedCardIds((prev) => {
@@ -664,26 +714,54 @@ export default function MobilePanel() {
         {/* Tab 1: Kanban (Zlecenia) */}
         {activeTab === "kanban" && (
           <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="space-y-3 min-h-[50vh]">
-            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-0.5">
-              <span>{currentStatus?.label} ({currentColumnItems.length})</span>
-              <span className="text-[10px] text-slate-400 font-normal">Przesuń palcem aby zmienić status</span>
-            </div>
+            {searchQuery.trim().length > 0 ? (
+              <>
+                <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-0.5">
+                  <span>Wyniki wyszukiwania ({filteredOrders.length})</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Wszystkie statusy</span>
+                </div>
 
-            {currentColumnItems.length === 0 ? (
-              <div className="bg-white rounded-2xl p-8 border border-gray-200 text-center space-y-1">
-                <p className="text-xs font-bold text-slate-700">Brak zleceń w tym statusie</p>
-                <p className="text-[11px] text-slate-400">Przełącz status powyżej lub dodaj nowe zlecenie.</p>
-              </div>
+                {filteredOrders.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-8 border border-gray-200 text-center space-y-1">
+                    <p className="text-xs font-bold text-slate-700">Brak zleceń pasujących do wyszukiwania</p>
+                    <p className="text-[11px] text-slate-400">Spróbuj wpisać inną frazę lub wyczyścić filtry.</p>
+                  </div>
+                ) : (
+                  filteredOrders.map((item) => (
+                    <MobileKanbanCard
+                      key={item.id}
+                      item={item}
+                      expanded={expandedCardIds.has(item.id)}
+                      onToggleExpand={() => toggleExpandCard(item.id)}
+                      onArchive={handleArchiveOpp}
+                    />
+                  ))
+                )}
+              </>
             ) : (
-              currentColumnItems.map((item) => (
-                <MobileKanbanCard
-                  key={item.id}
-                  item={item}
-                  expanded={expandedCardIds.has(item.id)}
-                  onToggleExpand={() => toggleExpandCard(item.id)}
-                  onArchive={handleArchiveOpp}
-                />
-              ))
+              <>
+                <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-0.5">
+                  <span>{currentStatus?.label} ({currentColumnItems.length})</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Przesuń palcem aby zmienić status</span>
+                </div>
+
+                {currentColumnItems.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-8 border border-gray-200 text-center space-y-1">
+                    <p className="text-xs font-bold text-slate-700">Brak zleceń w tym statusie</p>
+                    <p className="text-[11px] text-slate-400">Przełącz status powyżej lub dodaj nowe zlecenie.</p>
+                  </div>
+                ) : (
+                  currentColumnItems.map((item) => (
+                    <MobileKanbanCard
+                      key={item.id}
+                      item={item}
+                      expanded={expandedCardIds.has(item.id)}
+                      onToggleExpand={() => toggleExpandCard(item.id)}
+                      onArchive={handleArchiveOpp}
+                    />
+                  ))
+                )}
+              </>
             )}
           </div>
         )}
@@ -720,15 +798,15 @@ export default function MobilePanel() {
             {/* Sekcja Archiwalnych Zleceń */}
             <div className="space-y-2">
               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                Zarchiwizowane Zlecenia ({(archivedOrders ?? []).length})
+                Zarchiwizowane Zlecenia ({filteredArchivedOrders.length})
               </h3>
-              {(archivedOrders ?? []).length === 0 ? (
+              {filteredArchivedOrders.length === 0 ? (
                 <p className="text-xs text-slate-400 bg-white p-4 rounded-xl border border-gray-200 text-center">
                   Brak zarchiwizowanych zleceń
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {(archivedOrders ?? []).map((o) => (
+                  {filteredArchivedOrders.map((o) => (
                     <div
                       key={o._id}
                       onClick={() => router.push(`/app/zlecenie/${o._id}?from=panel`)}
@@ -750,15 +828,15 @@ export default function MobilePanel() {
             {/* Sekcja Archiwalnych Szans */}
             <div className="space-y-2 pt-2">
               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                Zarchiwizowane Szanse ({(archivedOpps ?? []).length})
+                Zarchiwizowane Szanse ({filteredArchivedOpps.length})
               </h3>
-              {(archivedOpps ?? []).length === 0 ? (
+              {filteredArchivedOpps.length === 0 ? (
                 <p className="text-xs text-slate-400 bg-white p-4 rounded-xl border border-gray-200 text-center">
                   Brak zarchiwizowanych szans
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {(archivedOpps ?? []).map((opp) => (
+                  {filteredArchivedOpps.map((opp) => (
                     <div
                       key={opp._id}
                       className="bg-white rounded-xl p-3 border border-gray-200 flex items-center justify-between gap-2"
