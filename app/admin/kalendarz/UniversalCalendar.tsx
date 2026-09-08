@@ -2744,6 +2744,13 @@ export default function UniversalCalendar({
           .fc-daygrid .fc-scroller {
             overflow: hidden !important;
           }
+          /* Ograniczenie wysokości sekcji 'Cały dzień' (all-day slot) w widoku tygodniowym */
+          .fc-timegrid .fc-scroller-harness:first-child .fc-scroller,
+          .fc-timegrid-slots + .fc-timegrid-axis,
+          tr.fc-scrollgrid-section-body:first-child .fc-scroller {
+            max-height: 110px !important;
+            overflow-y: auto !important;
+          }
           .fc-daygrid-body, .fc-scrollgrid-sync-table {
             height: 100% !important;
           }
