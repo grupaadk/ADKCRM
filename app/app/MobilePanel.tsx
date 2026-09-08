@@ -162,7 +162,7 @@ function MobileKanbanCard({
     if (isPending) {
       router.push(`/admin/szansa/${item.pendingId}`);
     } else {
-      router.push(`/app/zlecenie/${item.orderId}`);
+      router.push(`/app/zlecenie/${item.orderId}?from=panel`);
     }
   };
 
@@ -731,7 +731,7 @@ export default function MobilePanel() {
                   {(archivedOrders ?? []).map((o) => (
                     <div
                       key={o._id}
-                      onClick={() => router.push(`/app/zlecenie/${o._id}`)}
+                      onClick={() => router.push(`/app/zlecenie/${o._id}?from=panel`)}
                       className="bg-white rounded-xl p-3 border border-gray-200 flex items-center justify-between gap-2 active:bg-slate-50 transition cursor-pointer"
                     >
                       <div>

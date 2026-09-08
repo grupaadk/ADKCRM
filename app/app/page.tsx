@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -150,8 +151,23 @@ function SortablePhotoItem({ id, src, index, rotation, onRemove, onRotate }: { i
 
 import { useStatuses } from "@/components/StatusLabelsContext";
 
-export default function AppPwaPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("home");
+function AppPwaMain() {
+  const searchParams = useSearchParams();
+  const urlTab = searchParams.get("tab") as Tab | null;
+
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    if (urlTab === "panel" || urlTab === "tasks" || urlTab === "home" || urlTab === "profile") {
+      return urlTab;
+    }
+    return "home";
+  });
+
+  useEffect(() => {
+    if (urlTab === "panel" || urlTab === "tasks" || urlTab === "home" || urlTab === "profile") {
+      setActiveTab(urlTab);
+    }
+  }, [urlTab]);
+
   const { signIn, signOut } = useAuthActions();
 
   // Auth User Query
@@ -2252,5 +2268,19 @@ export default function AppPwaPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AppPwaPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-full w-full bg-slate-50 flex items-center justify-center p-4">
+          <div className="animate-spin size-8 border-4 border-[#4abbc3] border-t-transparent rounded-full" />
+        </div>
+      }
+    >
+      <AppPwaMain />
+    </Suspense>
   );
 }

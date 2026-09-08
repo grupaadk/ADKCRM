@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useState, useMemo } from "react";
+import { use, useState, useMemo, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -100,9 +100,11 @@ function daysInStatus(statusChangedAt?: number) {
   return { days, label, color };
 }
 
-export default function MobileOrderPage({ params }: { params: Promise<{ orderId: string }> }) {
+function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromTab = searchParams.get("from") || "panel";
   const orderIdTyped = orderId as Id<"orders">;
 
   // Convex Queries
@@ -258,11 +260,11 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
-            onClick={() => router.push("/app")}
+            onClick={() => router.push(`/app?tab=${fromTab}`)}
             className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-bold text-xs p-1 -ml-1 rounded-lg active:bg-slate-100"
           >
             <ArrowLeft className="size-4" />
-            <span>Panel</span>
+            <span>{fromTab === "panel" ? "Panel" : fromTab === "tasks" ? "Zadania" : "Powrót"}</span>
           </button>
 
           <div className="flex items-center gap-1.5 shrink-0">
@@ -1020,5 +1022,19 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
         </>
       )}
     </div>
+  );
+}
+
+export default function MobileOrderPage({ params }: { params: Promise<{ orderId: string }> }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-full w-full bg-slate-50 flex items-center justify-center p-4">
+          <div className="animate-spin size-8 border-4 border-[#4abbc3] border-t-transparent rounded-full" />
+        </div>
+      }
+    >
+      <MobileOrderPageMain params={params} />
+    </Suspense>
   );
 }

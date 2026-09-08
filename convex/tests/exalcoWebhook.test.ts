@@ -129,4 +129,51 @@ describe("Exalco Webhook Delivery Date Logic", () => {
     const updatedDelivery = updatedOrder!.serviceDeliveries![0];
     expect(updatedDelivery.deliveryDate).toBe(futureDeliveryDate);
   });
+
+  test("allows updating order when serviceDeliveries contains sentApiFiles", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "GrupaExpert",
+        isActive: true,
+        createdBy: "test-user",
+      });
+    });
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Anna",
+      lastName: "Nowak",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Okna ALU",
+          supplierId,
+          orderDate: Date.now(),
+          sentApiFiles: [
+            {
+              fileId: "RW 08.09.pdf",
+              fileName: "RW 08.09.pdf",
+              fileType: "RW",
+              sentAt: Date.now(),
+            },
+          ],
+        },
+      ],
+    });
+
+    const updatedOrder = await t.run(async (ctx) => {
+      return await ctx.db.get(orderId);
+    });
+
+    expect(updatedOrder!.serviceDeliveries![0].sentApiFiles).toHaveLength(1);
+    expect(updatedOrder!.serviceDeliveries![0].sentApiFiles![0].fileName).toBe("RW 08.09.pdf");
+  });
 });
+

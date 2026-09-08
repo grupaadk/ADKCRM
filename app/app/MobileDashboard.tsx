@@ -152,7 +152,7 @@ function MobileTaskCard({
     taskType === "opportunity"
       ? `/admin/szansa/${task.opportunityId}`
       : taskType === "complaint" || taskType === "order"
-        ? `/app/zlecenie/${task.orderId}`
+        ? `/app/zlecenie/${task.orderId}?from=tasks`
         : "#";
 
   const contextTitle =
