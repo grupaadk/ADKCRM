@@ -13,6 +13,7 @@ import {
   CalendarPlus,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Flame,
   Check,
   Archive,
@@ -23,6 +24,7 @@ import {
   X,
   RefreshCw,
   MoveRight,
+  Users,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import TaskDrawer from "@/components/TaskDrawer";
@@ -31,6 +33,22 @@ import AddTaskDrawer from "@/components/AddTaskDrawer";
 /* ─────────── stałe / typy ─────────── */
 
 const DONE_LIMIT = 10;
+
+const COL_SHORT: Record<string, string> = {
+  monday: "Pn",
+  tuesday: "Wt",
+  wednesday: "Śr",
+  thursday: "Cz",
+  friday: "Pt",
+  this_week: "Tydz",
+  next_week: "Nast",
+  todo_list: "Todo",
+};
+
+function colShortName(col: { systemType?: string | null; title: string }) {
+  if (col.systemType && COL_SHORT[col.systemType]) return COL_SHORT[col.systemType];
+  return col.title.length > 5 ? col.title.slice(0, 4) + "." : col.title;
+}
 
 const TASK_TYPE_META = {
   order:       { label: "Zlecenie",         openLabel: "Otwórz zlecenie",    color: "#2563eb" },
@@ -443,6 +461,7 @@ export default function MobileDashboard() {
   const [view, setView] = useState<"board" | "archive">("board");
   const [moveTaskId, setMoveTaskId] = useState<string | null>(null);
   const [showAllDone, setShowAllDone] = useState(false);
+  const [showFilterPicker, setShowFilterPicker] = useState(false);
 
   const taskColumns = useQuery(api.taskColumns.list) ?? [];
   const tasks = useQuery(api.dashboardTasks.list, isAdmin ? { filter } : {});
@@ -608,149 +627,119 @@ export default function MobileDashboard() {
     );
   }
 
+  /* ── filter label ── */
+  const filterLabel = useMemo(() => {
+    if (filter === "all") return "Wszyscy";
+    if (filter === "unassigned") return "Nieprzypisane";
+    const u = (users ?? []).find((u) => u._id === filter);
+    return u?.displayName ?? u?.login ?? "Użytkownik";
+  }, [filter, users]);
+
+  const filterUser = useMemo(() => {
+    if (filter === "all" || filter === "unassigned") return null;
+    return (users ?? []).find((u) => u._id === filter) ?? null;
+  }, [filter, users]);
+
   return (
     <div className="flex flex-col min-h-0 relative -mx-4 -mt-4">
 
       {/* ── Sticky Header Zone ── */}
       <div className="sticky top-0 z-20 bg-slate-50">
-        {/* Nagłówek */}
-        <div className="px-4 pt-3 pb-2">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              {view === "archive" ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setView("board")}
-                    className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-700 active:bg-gray-200 transition-colors"
+        {/* Row 1: Title / filter / badges */}
+        <div className="px-4 pt-3 pb-1.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {view === "archive" ? (
+              <>
+                <button
+                  onClick={() => setView("board")}
+                  className="flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-700 active:bg-gray-200 transition-colors"
+                >
+                  <ArrowLeft className="size-3" /> Wróć
+                </button>
+                <span className="text-sm font-bold text-gray-900">Archiwum</span>
+              </>
+            ) : (
+              <h1 className="text-sm font-bold text-gray-900 shrink-0">Zadania</h1>
+            )}
+
+            {/* Admin filter button (compact) */}
+            {isAdmin && view === "board" && (
+              <button
+                onClick={() => setShowFilterPicker(true)}
+                className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 active:bg-gray-50 transition-colors shadow-sm min-w-0"
+              >
+                {filterUser ? (
+                  <span
+                    className="flex size-4 shrink-0 items-center justify-center rounded-full text-[7px] font-bold text-white"
+                    style={{ background: filterUser.color ?? uColor(filterUser._id) }}
                   >
-                    <ArrowLeft className="size-3.5" /> Wróć
-                  </button>
-                  <span className="text-sm font-bold text-gray-900">Archiwum</span>
-                </div>
-              ) : (
-                <h1 className="text-sm font-bold text-gray-900">Zadania</h1>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5">
-              {view === "board" && (
-                <>
-                  {overdueCount > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700 ring-1 ring-inset ring-red-200">
-                      <Clock className="size-2.5" /> {overdueCount}
-                    </span>
-                  )}
-                  {todayCount > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
-                      <CalendarDays className="size-2.5" /> {todayCount}
-                    </span>
-                  )}
-                  <button
-                    onClick={() => setView("archive")}
-                    className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-medium text-gray-600 active:bg-gray-50 transition-colors shadow-sm"
-                  >
-                    <Archive className="size-3" />
-                    {archivedTasks.length > 0 ? `(${archivedTasks.length})` : "Archiwum"}
-                  </button>
-                </>
-              )}
-            </div>
+                    {uInitials(filterUser.displayName ?? filterUser.login ?? "")}
+                  </span>
+                ) : (
+                  <Users className="size-3 shrink-0" />
+                )}
+                <span className="truncate max-w-[80px]">{filterLabel}</span>
+                <ChevronDown className="size-2.5 shrink-0 text-gray-400" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {view === "board" && (
+              <>
+                {overdueCount > 0 && (
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 ring-1 ring-inset ring-red-200">
+                    <Clock className="size-2.5" /> {overdueCount}
+                  </span>
+                )}
+                {todayCount > 0 && (
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+                    <CalendarDays className="size-2.5" /> {todayCount}
+                  </span>
+                )}
+                <button
+                  onClick={() => setView("archive")}
+                  className="flex items-center gap-0.5 rounded-lg border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-600 active:bg-gray-50 transition-colors shadow-sm"
+                >
+                  <Archive className="size-3" />
+                  {archivedTasks.length > 0 ? `${archivedTasks.length}` : ""}
+                </button>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Filtr admina */}
-        {isAdmin && view === "board" && (
-          <div className="px-4 pb-2 flex items-center gap-1.5 overflow-x-auto hide-scrollbar">
-            <button
-              onClick={() => setFilter("all")}
-              className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
-                filter === "all" ? "border-transparent bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600"
-              }`}
-            >
-              Wszyscy
-            </button>
-            <button
-              onClick={() => setFilter("unassigned")}
-              className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
-                filter === "unassigned" ? "border-transparent bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600"
-              }`}
-            >
-              Nieprzypisane
-            </button>
-            <div className="h-3.5 w-px bg-gray-200 shrink-0" />
-            {(users ?? []).map((u) => {
-              const name = u.displayName ?? u.login ?? "";
-              const active = filter === u._id;
-              const color = u.color ?? uColor(u._id);
-              return (
-                <button
-                  key={u._id}
-                  onClick={() => setFilter(u._id)}
-                  className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                    active ? "border-transparent bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600"
-                  }`}
-                >
-                  <span
-                    className="flex size-4 items-center justify-center rounded-full text-[7px] font-bold text-white"
-                    style={{ background: color }}
-                  >
-                    {uInitials(name)}
-                  </span>
-                  {name}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Nawigator kolumn */}
+        {/* Row 2: Column grid */}
         {view === "board" && taskColumns.length > 0 && (
-          <div className="px-4 pb-2 flex items-center gap-1.5">
-            <button
-              onClick={() => setSelectedColIndex(Math.max(0, validIndex - 1))}
-              disabled={validIndex === 0}
-              className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-all ${
-                validIndex === 0 ? "bg-gray-100 text-gray-300" : "bg-[#4abbc3] text-white shadow-sm active:scale-90"
-              }`}
-            >
-              <ChevronLeft className="size-3.5" />
-            </button>
-
-            <div className="flex-1 overflow-x-auto hide-scrollbar">
-              <div className="flex gap-1" style={{ minWidth: "max-content" }}>
-                {taskColumns.map((col, idx) => {
-                  const count = (byColumn[col._id] ?? []).length;
-                  const isActive = idx === validIndex;
-                  return (
-                    <button
-                      key={col._id}
-                      onClick={() => setSelectedColIndex(idx)}
-                      className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all active:scale-95 ${
-                        isActive ? "bg-[#4abbc3] text-white shadow-sm" : "bg-gray-100 text-gray-500"
+          <div className="px-3 pb-2">
+            <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${taskColumns.length}, 1fr)` }}>
+              {taskColumns.map((col, idx) => {
+                const count = (byColumn[col._id] ?? []).length;
+                const isActive = idx === validIndex;
+                const colColor = col.color ?? "#4abbc3";
+                return (
+                  <button
+                    key={col._id}
+                    onClick={() => setSelectedColIndex(idx)}
+                    className={`flex flex-col items-center justify-center rounded-lg py-1.5 text-center transition-all active:scale-95 ${
+                      isActive
+                        ? "text-white shadow-sm"
+                        : "bg-gray-100 text-gray-500"
+                    }`}
+                    style={isActive ? { background: colColor } : undefined}
+                  >
+                    <span className="text-[10px] font-bold leading-tight">{colShortName(col)}</span>
+                    <span
+                      className={`mt-0.5 inline-flex size-4 items-center justify-center rounded-full text-[9px] font-bold ${
+                        isActive ? "bg-white/25 text-white" : "bg-gray-200/80 text-gray-600"
                       }`}
                     >
-                      <span className="max-w-[80px] truncate">{col.title}</span>
-                      <span
-                        className={`inline-flex size-3.5 items-center justify-center rounded-full text-[8px] font-bold ${
-                          isActive ? "bg-white/30 text-white" : "bg-gray-200 text-gray-500"
-                        }`}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-
-            <button
-              onClick={() => setSelectedColIndex(Math.min(taskColumns.length - 1, validIndex + 1))}
-              disabled={validIndex === taskColumns.length - 1}
-              className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-all ${
-                validIndex === taskColumns.length - 1 ? "bg-gray-100 text-gray-300" : "bg-[#4abbc3] text-white shadow-sm active:scale-90"
-              }`}
-            >
-              <ChevronRight className="size-3.5" />
-            </button>
           </div>
         )}
 
@@ -874,6 +863,80 @@ export default function MobileDashboard() {
           onMove={(colId) => void handleMove(moveTaskId, colId)}
           onClose={() => setMoveTaskId(null)}
         />
+      )}
+
+      {/* Filter Picker Bottom Sheet */}
+      {showFilterPicker && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[2px]"
+            onClick={() => setShowFilterPicker(false)}
+          />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl pb-[env(safe-area-inset-bottom,0px)] animate-in slide-in-from-bottom duration-200 max-h-[70vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-sm font-bold text-gray-900">Filtruj po osobie</span>
+              <button
+                onClick={() => setShowFilterPicker(false)}
+                className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto py-1">
+              {/* Wszyscy */}
+              <button
+                onClick={() => { setFilter("all"); setShowFilterPicker(false); }}
+                className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
+                  filter === "all" ? "bg-gray-50" : "hover:bg-gray-50"
+                }`}
+              >
+                <span className="flex size-8 items-center justify-center rounded-full bg-gray-200 text-gray-600">
+                  <Users className="size-4" />
+                </span>
+                <span className="flex-1 text-sm font-medium text-gray-900">Wszyscy</span>
+                {filter === "all" && <Check className="size-4 text-[#4abbc3]" />}
+              </button>
+              {/* Nieprzypisane */}
+              <button
+                onClick={() => { setFilter("unassigned"); setShowFilterPicker(false); }}
+                className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
+                  filter === "unassigned" ? "bg-gray-50" : "hover:bg-gray-50"
+                }`}
+              >
+                <span className="flex size-8 items-center justify-center rounded-full bg-gray-200 text-gray-600">
+                  <X className="size-4" />
+                </span>
+                <span className="flex-1 text-sm font-medium text-gray-900">Nieprzypisane</span>
+                {filter === "unassigned" && <Check className="size-4 text-[#4abbc3]" />}
+              </button>
+              <div className="mx-4 h-px bg-gray-100" />
+              {/* Users */}
+              {(users ?? []).map((u) => {
+                const name = u.displayName ?? u.login ?? "";
+                const active = filter === u._id;
+                const color = u.color ?? uColor(u._id);
+                return (
+                  <button
+                    key={u._id}
+                    onClick={() => { setFilter(u._id); setShowFilterPicker(false); }}
+                    className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
+                      active ? "bg-gray-50" : "hover:bg-gray-50"
+                    }`}
+                  >
+                    <span
+                      className="flex size-8 items-center justify-center rounded-full text-xs font-bold text-white"
+                      style={{ background: color }}
+                    >
+                      {uInitials(name)}
+                    </span>
+                    <span className="flex-1 text-sm font-medium text-gray-900">{name}</span>
+                    {active && <Check className="size-4 text-[#4abbc3]" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
