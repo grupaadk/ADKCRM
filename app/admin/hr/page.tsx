@@ -122,6 +122,18 @@ export default function HrPage() {
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [isOvertimeModalOpen, setIsOvertimeModalOpen] = useState(false);
 
+  // Modal limitu urlopowego (Admin)
+  const [isAllowanceModalOpen, setIsAllowanceModalOpen] = useState(false);
+  const [selectedEmployeeForAllowance, setSelectedEmployeeForAllowance] = useState<{
+    _id: Id<"users">;
+    displayName: string;
+    email?: string;
+    vacationAllowance: number;
+    approvedVacationDays: number;
+  } | null>(null);
+  const [allowanceFormDays, setAllowanceFormDays] = useState<number>(26);
+  const [allowanceSaving, setAllowanceSaving] = useState(false);
+
   // Formularz urlopowy
   const [leaveForm, setLeaveForm] = useState({
     type: "vacation" as "vacation" | "sick" | "unpaid" | "other",
@@ -149,6 +161,7 @@ export default function HrPage() {
   const cancelLeaveMut = useMutation(api.hr.cancelLeave);
   const deleteOvertimeMut = useMutation(api.hr.deleteOvertime);
   const deleteLeaveMut = useMutation(api.hr.deleteLeave);
+  const setAllowanceMut = useMutation(api.hr.setEmployeeVacationAllowance);
 
   // Stan inline-potwierdzenia usuwania (zbiór ID)
   const [confirmDeleteIds, setConfirmDeleteIds] = useState<Set<string>>(new Set());
@@ -493,7 +506,39 @@ export default function HrPage() {
                             </div>
                           </td>
                           <td className="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
-                            {emp.approvedVacationDays} dn.
+                            <div className="flex items-center gap-2">
+                              <span>
+                                {emp.approvedVacationDays} / {emp.vacationAllowance} dn.
+                              </span>
+                              {emp.isOverLimit && (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800"
+                                  title="Wykorzystany lub oczekujący urlop przekracza roczny limit"
+                                >
+                                  ⚠️ Ponad limit
+                                </span>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setSelectedEmployeeForAllowance({
+                                    _id: emp._id,
+                                    displayName: emp.displayName,
+                                    email: emp.email,
+                                    vacationAllowance: emp.vacationAllowance,
+                                    approvedVacationDays: emp.approvedVacationDays,
+                                  });
+                                  setAllowanceFormDays(emp.vacationAllowance);
+                                  setIsAllowanceModalOpen(true);
+                                }}
+                                className="ml-1 rounded p-1 text-gray-400 hover:bg-purple-100 hover:text-purple-700 transition"
+                                title="Edytuj limit urlopowy"
+                              >
+                                ✏️
+                              </button>
+                            </div>
+                            <div className="text-xs font-normal text-gray-400">
+                              pozostało: {emp.remainingVacationDays} dn.
+                            </div>
                           </td>
                           <td className="whitespace-nowrap px-6 py-4 font-bold text-emerald-600">
                             +{emp.approvedOvertimeHours}h
@@ -640,7 +685,15 @@ export default function HrPage() {
                                     {leave.startDate} do {leave.endDate}
                                   </td>
                                   <td className="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
-                                    {leave.daysCount} dn.
+                                    <div>{leave.daysCount} dn.</div>
+                                    {leave.isOverLimit && (
+                                      <span
+                                        className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800"
+                                        title="Suma wnioskowanego urlopu przekracza limit pracownika"
+                                      >
+                                        ⚠️ Ponad limit
+                                      </span>
+                                    )}
                                   </td>
                                   <td className="whitespace-nowrap px-6 py-4">
                                     <StatusBadge status={leave.status} />
@@ -887,9 +940,13 @@ export default function HrPage() {
                     <span className="text-3xl font-bold text-gray-900">
                       {summary?.mySummary.approvedVacationDays ?? 0}
                     </span>
-                    <span className="text-sm font-medium text-gray-500">dni</span>
+                    <span className="text-sm font-medium text-gray-500">
+                      / {summary?.mySummary.vacationAllowance ?? 26} dn.
+                    </span>
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">Zaakceptowane urlopy</p>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Pozostało: {summary?.mySummary.remainingVacationDays ?? 26} dn.
+                  </p>
                 </div>
 
                 <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
@@ -1293,6 +1350,84 @@ export default function HrPage() {
                   className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
                   {isSubmitting ? "Zgłaszanie..." : "Zapisz nadgodziny"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: USTAW LIMIT URLOPOWY */}
+      {isAllowanceModalOpen && selectedEmployeeForAllowance && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Ustaw limit urlopowy
+                </h2>
+                <p className="text-xs text-gray-500">
+                  {selectedEmployeeForAllowance.displayName} ({new Date().getFullYear()})
+                </p>
+              </div>
+              <button
+                onClick={() => setIsAllowanceModalOpen(false)}
+                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setAllowanceSaving(true);
+                try {
+                  await setAllowanceMut({
+                    userId: selectedEmployeeForAllowance._id,
+                    daysCount: allowanceFormDays,
+                  });
+                  setIsAllowanceModalOpen(false);
+                } catch (err: any) {
+                  alert(err.message || "Błąd zapisu limitu urlopowego");
+                } finally {
+                  setAllowanceSaving(false);
+                }
+              }}
+              className="mt-4 space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Roczny limit dni urlopu wypoczynkowego
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="365"
+                  required
+                  value={allowanceFormDays}
+                  onChange={(e) => setAllowanceFormDays(parseInt(e.target.value) || 0)}
+                  className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  Domyślny limit systemowy wynosi 26 dni. Wykorzystano dotychczas: {selectedEmployeeForAllowance.approvedVacationDays} dn.
+                </p>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAllowanceModalOpen(false)}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Anuluj
+                </button>
+                <button
+                  type="submit"
+                  disabled={allowanceSaving}
+                  className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50"
+                >
+                  {allowanceSaving ? "Zapisywanie..." : "Zapisz limit"}
                 </button>
               </div>
             </form>

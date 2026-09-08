@@ -24,7 +24,7 @@ const overtimeStatusValidator = v.union(
 );
 
 /**
- * Pobiera dane HR zalogowanego użytkownika (własne urlopy i nadgodziny).
+ * Pobiera dane HR zalogowanego użytkownika (własne urlopy i nadgodziny oraz limit).
  */
 export const getMyHrData = query({
   args: {},
@@ -43,13 +43,37 @@ export const getMyHrData = query({
       .order("desc")
       .take(100);
 
+    const currentYear = new Date().getFullYear();
+    const allowanceDoc = await ctx.db
+      .query("hrLeaveAllowances")
+      .withIndex("by_user_year", (q) => q.eq("userId", user._id).eq("year", currentYear))
+      .first();
+
+    const vacationAllowance = allowanceDoc?.daysCount ?? user.vacationDaysAllowance ?? 26;
+
+    const approvedVacationDays = leaves
+      .filter((l) => l.type === "vacation" && l.status === "approved")
+      .reduce((sum, l) => sum + l.daysCount, 0);
+
+    const pendingVacationDays = leaves
+      .filter((l) => l.type === "vacation" && l.status === "pending")
+      .reduce((sum, l) => sum + l.daysCount, 0);
+
+    const remainingVacationDays = vacationAllowance - approvedVacationDays;
+
     return {
       user: {
         _id: user._id,
         displayName: user.displayName,
         email: user.email,
         role: user.role,
+        vacationDaysAllowance: vacationAllowance,
       },
+      vacationAllowance,
+      approvedVacationDays,
+      pendingVacationDays,
+      remainingVacationDays,
+      isOverLimit: (approvedVacationDays + pendingVacationDays) > vacationAllowance,
       leaves,
       overtime,
     };
@@ -72,6 +96,15 @@ export const getAllHrData = query({
     const userMap = new Map<Id<"users">, Doc<"users">>();
     for (const u of users) {
       userMap.set(u._id, u);
+    }
+
+    const allAllowances = await ctx.db.query("hrLeaveAllowances").collect();
+    const currentYear = new Date().getFullYear();
+    const allowanceMap = new Map<Id<"users">, number>();
+    for (const a of allAllowances) {
+      if (a.year === currentYear) {
+        allowanceMap.set(a.userId, a.daysCount);
+      }
     }
 
     let rawLeaves: Doc<"hrLeaves">[];
@@ -119,11 +152,23 @@ export const getAllHrData = query({
     const enrichLeave = (l: Doc<"hrLeaves">) => {
       const u = userMap.get(l.userId);
       const app = l.approvedBy ? userMap.get(l.approvedBy) : undefined;
+
+      const userVacationAllowance = u ? (allowanceMap.get(u._id) ?? u.vacationDaysAllowance ?? 26) : 26;
+      const userApprovedVacationDays = rawLeaves
+        .filter((rl) => rl.userId === l.userId && rl.type === "vacation" && rl.status === "approved")
+        .reduce((sum, rl) => sum + rl.daysCount, 0);
+
+      const isOverLimit = (userApprovedVacationDays + (l.status === "pending" ? l.daysCount : 0)) > userVacationAllowance;
+
       return {
         ...l,
         userName: u?.displayName || u?.email || "Nieznany pracownik",
         userEmail: u?.email,
         approvedByName: app?.displayName || app?.email,
+        userVacationAllowance,
+        userApprovedVacationDays,
+        userRemainingVacationDays: userVacationAllowance - userApprovedVacationDays,
+        isOverLimit,
       };
     };
 
@@ -164,6 +209,14 @@ export const getHrSummary = query({
       .withIndex("by_user", (q) => q.eq("userId", me._id))
       .collect();
 
+    const currentYear = new Date().getFullYear();
+    const allowanceDoc = await ctx.db
+      .query("hrLeaveAllowances")
+      .withIndex("by_user_year", (q) => q.eq("userId", me._id).eq("year", currentYear))
+      .first();
+
+    const vacationAllowance = allowanceDoc?.daysCount ?? me.vacationDaysAllowance ?? 26;
+
     const myApprovedVacationDays = myLeaves
       .filter((l) => l.type === "vacation" && l.status === "approved")
       .reduce((sum, l) => sum + l.daysCount, 0);
@@ -199,7 +252,9 @@ export const getHrSummary = query({
 
     return {
       mySummary: {
+        vacationAllowance,
         approvedVacationDays: myApprovedVacationDays,
+        remainingVacationDays: vacationAllowance - myApprovedVacationDays,
         pendingLeavesCount: myPendingLeavesCount,
         approvedOvertimeHours: myApprovedOvertimeHours,
         pendingOvertimeHours: myPendingOvertimeHours,
@@ -213,10 +268,13 @@ export const getHrSummary = query({
  * Zwraca zestawienie wszystkich pracowników wraz ze statystykami urlopowymi i nadgodzin (tylko dla Admina).
  */
 export const getEmployeesHrOverview = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    year: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
     await requireRole(ctx, "admin");
 
+    const currentYear = args.year ?? new Date().getFullYear();
     const users = await ctx.db.query("users").collect();
     const activeUsers = users.filter((u) => u.isActive !== false && u.showInPickers !== false);
 
@@ -224,41 +282,64 @@ export const getEmployeesHrOverview = query({
 
     const allLeaves = await ctx.db.query("hrLeaves").collect();
     const allOvertime = await ctx.db.query("hrOvertime").collect();
+    const allAllowances = await ctx.db.query("hrLeaveAllowances").collect();
 
-    return activeUsers.map((user) => {
-      const userLeaves = allLeaves.filter((l) => l.userId === user._id);
-      const userOvertime = allOvertime.filter((o) => o.userId === user._id);
+    const allowanceMap = new Map<Id<"users">, number>();
+    for (const a of allAllowances) {
+      if (a.year === currentYear) {
+        allowanceMap.set(a.userId, a.daysCount);
+      }
+    }
 
-      const approvedVacationDays = userLeaves
-        .filter((l) => l.type === "vacation" && l.status === "approved")
-        .reduce((sum, l) => sum + l.daysCount, 0);
+    return activeUsers
+      .map((user) => {
+        const userLeaves = allLeaves.filter((l) => l.userId === user._id);
+        const userOvertime = allOvertime.filter((o) => o.userId === user._id);
 
-      const approvedOvertimeHours = userOvertime
-        .filter((o) => o.status === "approved")
-        .reduce((sum, o) => sum + o.hours, 0);
+        const vacationAllowance = allowanceMap.get(user._id) ?? user.vacationDaysAllowance ?? 26;
 
-      const pendingLeavesCount = userLeaves.filter((l) => l.status === "pending").length;
-      const pendingOvertimeCount = userOvertime.filter((o) => o.status === "pending").length;
+        const approvedVacationDays = userLeaves
+          .filter((l) => l.type === "vacation" && l.status === "approved")
+          .reduce((sum, l) => sum + l.daysCount, 0);
 
-      const activeLeave = userLeaves.find(
-        (l) => l.status === "approved" && l.startDate <= todayStr && l.endDate >= todayStr
-      );
+        const pendingVacationDays = userLeaves
+          .filter((l) => l.type === "vacation" && l.status === "pending")
+          .reduce((sum, l) => sum + l.daysCount, 0);
 
-      return {
-        _id: user._id,
-        displayName: user.displayName || user.email || "Bez nazwy",
-        email: user.email,
-        role: user.role,
-        color: user.color,
-        approvedVacationDays,
-        approvedOvertimeHours,
-        pendingLeavesCount,
-        pendingOvertimeCount,
-        onLeaveToday: !!activeLeave,
-        leaveUntil: activeLeave ? activeLeave.endDate : null,
-        leaveType: activeLeave ? activeLeave.type : null,
-      };
-    }).sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "", "pl"));
+        const remainingVacationDays = vacationAllowance - approvedVacationDays;
+        const isOverLimit = approvedVacationDays + pendingVacationDays > vacationAllowance;
+
+        const approvedOvertimeHours = userOvertime
+          .filter((o) => o.status === "approved")
+          .reduce((sum, o) => sum + o.hours, 0);
+
+        const pendingLeavesCount = userLeaves.filter((l) => l.status === "pending").length;
+        const pendingOvertimeCount = userOvertime.filter((o) => o.status === "pending").length;
+
+        const activeLeave = userLeaves.find(
+          (l) => l.status === "approved" && l.startDate <= todayStr && l.endDate >= todayStr
+        );
+
+        return {
+          _id: user._id,
+          displayName: user.displayName || user.email || "Bez nazwy",
+          email: user.email,
+          role: user.role,
+          color: user.color,
+          vacationAllowance,
+          approvedVacationDays,
+          pendingVacationDays,
+          remainingVacationDays,
+          isOverLimit,
+          approvedOvertimeHours,
+          pendingLeavesCount,
+          pendingOvertimeCount,
+          onLeaveToday: !!activeLeave,
+          leaveUntil: activeLeave ? activeLeave.endDate : null,
+          leaveType: activeLeave ? activeLeave.type : null,
+        };
+      })
+      .sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "", "pl"));
   },
 });
 
@@ -448,6 +529,53 @@ export const deleteLeave = mutation({
     }
 
     await ctx.db.delete(args.leaveId);
+  },
+});
+
+/**
+ * Ustawia limit dni urlopu wypoczynkowego dla pracownika (tylko Admin).
+ */
+export const setEmployeeVacationAllowance = mutation({
+  args: {
+    userId: v.id("users"),
+    year: v.optional(v.number()),
+    daysCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    if (args.daysCount < 0) {
+      throw new ConvexError("Limit dni urlopu nie może być ujemny.");
+    }
+
+    const targetYear = args.year ?? new Date().getFullYear();
+
+    const existing = await ctx.db
+      .query("hrLeaveAllowances")
+      .withIndex("by_user_year", (q) => q.eq("userId", args.userId).eq("year", targetYear))
+      .first();
+
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        daysCount: args.daysCount,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert("hrLeaveAllowances", {
+        userId: args.userId,
+        year: targetYear,
+        daysCount: args.daysCount,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    await ctx.db.patch(args.userId, {
+      vacationDaysAllowance: args.daysCount,
+    });
+
+    return { success: true, year: targetYear, daysCount: args.daysCount };
   },
 });
 

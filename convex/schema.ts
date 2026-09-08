@@ -137,6 +137,7 @@ export default defineSchema({
     displayName: v.optional(v.string()),
     color: v.optional(v.string()),
     showInPickers: v.optional(v.boolean()),
+    vacationDaysAllowance: v.optional(v.number()),
   })
     .index("email", ["email"])
     .index("phone", ["phone"]),
@@ -1039,6 +1040,17 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
     .index("by_date", ["date"]),
+
+  // Moduł HR — Limity urlopowe
+  hrLeaveAllowances: defineTable({
+    userId: v.id("users"),
+    year: v.number(),
+    daysCount: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_year", ["userId", "year"]),
 
   // 3.22 Konfiguracja AI (Anthropic Claude)
   aiAssistantConfig: defineTable({

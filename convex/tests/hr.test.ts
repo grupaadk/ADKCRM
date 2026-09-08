@@ -134,4 +134,81 @@ describe("Moduł HR (Urlopy i Nadgodziny)", () => {
 
     await expect(workerCtx.query(api.hr.getAllHrData, {})).rejects.toThrow("Forbidden");
   });
+
+  test("administrator może ustawić limit urlopowy pracownika i wyliczenia wykrywają przekroczenie limitu", async () => {
+    const t = convexTest(schema);
+
+    const { workerId, adminId } = await t.run(async (ctx) => {
+      const wId = await ctx.db.insert("users", {
+        email: "pracownik3@adkokna.pl",
+        displayName: "Adam Zieliński",
+        role: "sales",
+        isActive: true,
+      });
+      const aId = await ctx.db.insert("users", {
+        email: "admin2@adkokna.pl",
+        displayName: "Główny Admin",
+        role: "admin",
+        isActive: true,
+      });
+      return { workerId: wId, adminId: aId };
+    });
+
+    const workerCtx = t.withIdentity({ subject: workerId, email: "pracownik3@adkokna.pl" });
+    const adminCtx = t.withIdentity({ subject: adminId, email: "admin2@adkokna.pl" });
+
+    // Domyślny limit to 26
+    const initialWorkerData = await workerCtx.query(api.hr.getMyHrData, {});
+    expect(initialWorkerData.vacationAllowance).toBe(26);
+
+    // Admin ustawia limit na 15 dni
+    await adminCtx.mutation(api.hr.setEmployeeVacationAllowance, {
+      userId: workerId,
+      daysCount: 15,
+    });
+
+    // Sprawdź po ustawieniu
+    const updatedWorkerData = await workerCtx.query(api.hr.getMyHrData, {});
+    expect(updatedWorkerData.vacationAllowance).toBe(15);
+
+    // Pracownik składa wniosek na 10 dni
+    const leave1Id = await workerCtx.mutation(api.hr.submitLeave, {
+      type: "vacation",
+      startDate: "2026-06-01",
+      endDate: "2026-06-12",
+      daysCount: 10,
+    });
+
+    // Admin akceptuje wniosek
+    await adminCtx.mutation(api.hr.updateLeaveStatus, {
+      leaveId: leave1Id,
+      status: "approved",
+    });
+
+    // Sprawdź w przeglądzie pracowników admina
+    const overview = await adminCtx.query(api.hr.getEmployeesHrOverview, {});
+    const workerOverview = overview.find((u) => u._id === workerId);
+    expect(workerOverview).toBeDefined();
+    expect(workerOverview?.vacationAllowance).toBe(15);
+    expect(workerOverview?.approvedVacationDays).toBe(10);
+    expect(workerOverview?.remainingVacationDays).toBe(5);
+    expect(workerOverview?.isOverLimit).toBe(false);
+
+    // Pracownik składa kolejny wniosek na 7 dni (łącznie 17 > 15)
+    await workerCtx.mutation(api.hr.submitLeave, {
+      type: "vacation",
+      startDate: "2026-07-01",
+      endDate: "2026-07-09",
+      daysCount: 7,
+    });
+
+    // Weryfikacja ostrzeżenia o przekroczeniu limitu (isOverLimit)
+    const overviewAfterSecond = await adminCtx.query(api.hr.getEmployeesHrOverview, {});
+    const workerOverviewAfterSecond = overviewAfterSecond.find((u) => u._id === workerId);
+    expect(workerOverviewAfterSecond?.isOverLimit).toBe(true);
+
+    const allHr = await adminCtx.query(api.hr.getAllHrData, {});
+    const pendingLeave = allHr.leaves.find((l) => l.userId === workerId && l.status === "pending");
+    expect(pendingLeave?.isOverLimit).toBe(true);
+  });
 });
