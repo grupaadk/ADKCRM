@@ -158,7 +158,23 @@ export const listByClient = query({
 export const getById = query({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
-    return ctx.db.get(args.orderId);
+    const order = await ctx.db.get(args.orderId);
+    if (!order) return null;
+
+    if (order.serviceDeliveries && order.serviceDeliveries.length > 0) {
+      const sanitizedDeliveries = order.serviceDeliveries.map((d) => {
+        const baseOrderDate = d.orderDate ?? order._creationTime;
+        if (d.deliveryDate && baseOrderDate && Math.abs(d.deliveryDate - baseOrderDate) < 86400000) {
+          const copy = { ...d };
+          delete copy.deliveryDate;
+          return copy;
+        }
+        return d;
+      });
+      return { ...order, serviceDeliveries: sanitizedDeliveries };
+    }
+
+    return order;
   },
 });
 
@@ -1245,6 +1261,12 @@ export const listSupplierOrders = query({
               const supplierName = supplier?.name ?? "Nieznany";
               const isApiEnabled = !!supplier?.isApiEnabled;
 
+              const baseOrderDate = d.orderDate ?? order._creationTime;
+              const deliveryDate =
+                d.deliveryDate && baseOrderDate && Math.abs(d.deliveryDate - baseOrderDate) < 86400000
+                  ? undefined
+                  : d.deliveryDate;
+
               return {
                 index, // pozycja w order.serviceDeliveries — identyfikator do edycji inline
                 serviceName: d.serviceName,
@@ -1253,7 +1275,7 @@ export const listSupplierOrders = query({
                 isApiEnabled,
                 orderDate: d.orderDate,
                 confirmedDate: d.confirmedDate,
-                deliveryDate: d.deliveryDate,
+                deliveryDate,
                 receivedDate: d.receivedDate,
               };
             }),
