@@ -151,11 +151,9 @@ function MobileTaskCard({
   const openHref =
     taskType === "opportunity"
       ? `/admin/szansa/${task.opportunityId}`
-      : taskType === "complaint"
-        ? `/admin/klient/${task.clientId}/zlecenie/${task.orderId}?tab=reklamacja`
-        : taskType === "order"
-          ? `/admin/klient/${task.clientId}/zlecenie/${task.orderId}?tab=szczegoly`
-          : "#";
+      : taskType === "complaint" || taskType === "order"
+        ? `/app/zlecenie/${task.orderId}`
+        : "#";
 
   const contextTitle =
     taskType === "opportunity" ? "Szansa sprzedaży" :
@@ -456,7 +454,7 @@ export default function MobileDashboard() {
   const [userFilter, setUserFilter] = useState<FilterValue | null>(null);
   const activeFilter: FilterValue = userFilter ?? me?._id ?? "all";
 
-  const [selectedColIndex, setSelectedColIndex] = useState(0);
+  const [selectedColIndex, setSelectedColIndex] = useState<number | null>(null);
   const [openTaskId, setOpenTaskId] = useState<Id<"orderTasks"> | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [openBags, setOpenBags] = useState<Record<string, boolean>>({});
@@ -556,7 +554,16 @@ export default function MobileDashboard() {
   }, [tasks, today, tomorrow, taskColumns]);
 
   /* ── aktywna kolumna ── */
-  const validIndex = Math.min(selectedColIndex, Math.max(0, taskColumns.length - 1));
+  const defaultTodayIndex = useMemo(() => {
+    if (!taskColumns || taskColumns.length === 0) return 0;
+    const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    const todaySysType = dayNames[new Date().getDay()];
+    const idx = taskColumns.findIndex((c) => c.systemType === todaySysType);
+    return idx !== -1 ? idx : 0;
+  }, [taskColumns]);
+
+  const activeIndex = selectedColIndex ?? defaultTodayIndex;
+  const validIndex = Math.min(activeIndex, Math.max(0, taskColumns.length - 1));
   const currentCol = taskColumns[validIndex] ?? null;
   const currentColId = currentCol?._id ?? null;
 

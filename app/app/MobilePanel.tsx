@@ -162,7 +162,7 @@ function MobileKanbanCard({
     if (isPending) {
       router.push(`/admin/szansa/${item.pendingId}`);
     } else {
-      router.push(`/admin/klient/${item.clientId}/zlecenie/${item.orderId}`);
+      router.push(`/app/zlecenie/${item.orderId}`);
     }
   };
 
@@ -376,7 +376,10 @@ export default function MobilePanel() {
   const loading = items === undefined;
 
   /* Listy statusów zlecenia */
-  const activeStatuses = useMemo(() => statuses.filter((s) => s.key !== "archived"), [statuses]);
+  const activeStatuses = useMemo(
+    () => statuses.filter((s) => s.key !== "archived" && s.key !== "lead" && s.key !== "inquiry" && s.kind !== "opportunity"),
+    [statuses]
+  );
   const validStatusIndex = Math.min(selectedStatusIndex, Math.max(0, activeStatuses.length - 1));
   const currentStatus = activeStatuses[validStatusIndex] ?? activeStatuses[0];
 
@@ -728,7 +731,7 @@ export default function MobilePanel() {
                   {(archivedOrders ?? []).map((o) => (
                     <div
                       key={o._id}
-                      onClick={() => router.push(`/admin/klient/${o.clientId}/zlecenie/${o._id}`)}
+                      onClick={() => router.push(`/app/zlecenie/${o._id}`)}
                       className="bg-white rounded-xl p-3 border border-gray-200 flex items-center justify-between gap-2 active:bg-slate-50 transition cursor-pointer"
                     >
                       <div>
