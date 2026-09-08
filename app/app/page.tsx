@@ -45,8 +45,10 @@ import {
   List,
   LayoutGrid,
   Smartphone,
-  RotateCw
+  RotateCw,
+  Folder,
 } from "lucide-react";
+import OrderDriveBrowser from "@/app/admin/klient/[id]/zlecenie/[orderId]/OrderDriveBrowser";
 
 
 import { DateStrip } from "@/components/ekipa/DateStrip";
@@ -238,6 +240,7 @@ export default function AppPwaPage() {
   const [scanPages, setScanPages] = useState<File[]>([]);
   const [scanPreviews, setScanPreviews] = useState<string[]>([]);
   const [scanRotations, setScanRotations] = useState<number[]>([]);
+  const [uploadTargetMode, setUploadTargetMode] = useState<"replace_doc" | "drive_browser">("replace_doc");
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ ok: true; url: string } | { ok: false; error: string } | null>(null);
 
@@ -423,6 +426,7 @@ export default function AppPwaPage() {
     setScanPages([]);
     setScanPreviews([]);
     setScanRotations([]);
+    setUploadTargetMode("replace_doc");
     setResult(null);
   }
 
@@ -1651,174 +1655,232 @@ export default function AppPwaPage() {
                   </div>
                 )}
 
-                {/* Step 3: Document Type */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">3. Typ Dokumentu (Wybierz wygenerowany dokument do podmiany) *</label>
-                  {!selectedOrderId ? (
-                    <p className="text-xs text-slate-400 italic">Najpierw wybierz zlecenie.</p>
-                  ) : availableDocumentTypes.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic">Brak wygenerowanych dokumentów w tym zleceniu.</p>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      {availableDocumentTypes.map(t => (
+                {/* Step 3: Choose Upload Mode & Content */}
+                {selectedOrderId && (
+                  <div className="space-y-4 pt-3 border-t border-gray-100">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">3. Wybierz miejsce / sposób wgrywania *</label>
+                      <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
                         <button
-                          key={t.id}
                           type="button"
-                          onClick={() => setDocumentType(t.id)}
-                          className={`p-3 text-xs rounded-xl border text-left transition ${
-                            documentType === t.id
-                              ? "border-[#4dbdc6] bg-[#4dbdc6]/10 text-slate-900 font-bold"
-                              : "border-gray-200 bg-white text-slate-700 hover:bg-slate-50"
+                          onClick={() => setUploadTargetMode("replace_doc")}
+                          className={`py-2 px-2 text-[11px] font-bold rounded-lg transition text-center ${
+                            uploadTargetMode === "replace_doc"
+                              ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                              : "text-slate-500 hover:text-slate-700"
                           }`}
                         >
-                          {t.label}
+                          Podmień dokument systemowy
                         </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Step 4: Photo / File Input buttons */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">4. Wybierz Plik lub Zrób Zdjęcie *</label>
-
-                  {/* Hidden inputs */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <input
-                    ref={cameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleScanPhotoSelect}
-                    className="hidden"
-                  />
-                  {/* Hidden input for adding extra scan pages */}
-                  <input
-                    ref={scanCameraAddRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleScanPhotoSelect}
-                    className="hidden"
-                  />
-
-                  {/* Mode A: single file selected from disk */}
-                  {file && scanPages.length === 0 ? (
-                    <div className="flex items-center justify-between p-3.5 bg-slate-100 rounded-xl border border-slate-200">
-                      <div className="flex items-center gap-2.5 overflow-hidden">
-                        <FileText className="size-5 text-[#4dbdc6] shrink-0" />
-                        <span className="text-xs font-semibold text-slate-700 truncate">{file.name}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setFile(null)}
-                        className="text-slate-400 hover:text-slate-600 p-1"
-                      >
-                        <X className="size-4" />
-                      </button>
-                    </div>
-
-                  ) : scanPages.length > 0 ? (
-                    /* Mode B: scanner — one or more photos */
-                    <div className="space-y-2">
-                      {/* Page thumbnails grid */}
-                      <DndContext 
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEnd}
-                      >
-                        <SortableContext 
-                          items={scanPreviews}
-                          strategy={rectSortingStrategy}
-                        >
-                          <div className="grid grid-cols-3 gap-2">
-                            {scanPreviews.map((src, idx) => (
-                              <SortablePhotoItem
-                                key={src}
-                                id={src}
-                                src={src}
-                                index={idx}
-                                rotation={scanRotations[idx] || 0}
-                                onRemove={handleRemoveScanPage}
-                                onRotate={handleRotateScanPage}
-                              />
-                            ))}
-                          </div>
-                        </SortableContext>
-                      </DndContext>
-
-                      {/* Add page button (max 20 pages) */}
-                      {scanPages.length < 20 && (
                         <button
                           type="button"
-                          onClick={() => scanCameraAddRef.current?.click()}
-                          className="w-full flex items-center justify-center gap-1.5 py-2.5 border-2 border-dashed border-[#4dbdc6] rounded-xl text-[#4dbdc6] text-xs font-bold hover:bg-[#4dbdc6]/5 transition"
+                          onClick={() => setUploadTargetMode("drive_browser")}
+                          className={`py-2 px-2 text-[11px] font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
+                            uploadTargetMode === "drive_browser"
+                              ? "bg-[#4dbdc6] text-white shadow-xs"
+                              : "text-slate-500 hover:text-slate-700"
+                          }`}
                         >
-                          <Camera className="size-4" />
-                          + Dodaj stronę ({scanPages.length}/20)
+                          <Folder className="size-3.5" />
+                          Foldery zlecenia w Drive
                         </button>
-                      )}
-
-                      {/* Clear all */}
-                      <button
-                        type="button"
-                        onClick={() => { setScanPages([]); setScanPreviews([]); setScanRotations([]); }}
-                        className="w-full text-[10px] text-slate-400 hover:text-red-500 transition py-1"
-                      >
-                        ✕ Usuń wszystkie strony i zacznij od nowa
-                      </button>
+                      </div>
                     </div>
 
-                  ) : (
-                    /* Mode C: initial — no file, no pages */
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => cameraInputRef.current?.click()}
-                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 gap-1.5 transition"
-                      >
-                        <Camera className="size-6 text-[#4dbdc6]" />
-                        <span className="text-xs font-bold">Zrób zdjęcie</span>
-                        <span className="text-[9px] text-slate-400">wiele stron → PDF</span>
-                      </button>
+                    {uploadTargetMode === "drive_browser" ? (
+                      <div className="space-y-2 pt-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <Folder className="size-4 text-[#4dbdc6]" />
+                            Pliki i Foldery Zlecenia (Google Drive)
+                          </h4>
+                          {selectedOrder?.folderId ? (
+                            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              Dysk połączony
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                              Folder główny zlecenia niedostępny
+                            </span>
+                          )}
+                        </div>
 
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 gap-1.5 transition"
-                      >
-                        <Upload className="size-6 text-[#4dbdc6]" />
-                        <span className="text-xs font-bold">Wybierz plik</span>
-                        <span className="text-[9px] text-slate-400">PDF lub obraz</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
+                        <OrderDriveBrowser
+                          orderId={selectedOrderId}
+                          rootFolderId={selectedOrder?.folderId}
+                          previewSide="right"
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        {/* Step 3a: Document Type */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-700">Typ Dokumentu (Wybierz wygenerowany dokument do podmiany) *</label>
+                          {availableDocumentTypes.length === 0 ? (
+                            <p className="text-xs text-slate-400 italic">Brak wygenerowanych dokumentów w tym zleceniu.</p>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2">
+                              {availableDocumentTypes.map(t => (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => setDocumentType(t.id)}
+                                  className={`p-3 text-xs rounded-xl border text-left transition ${
+                                    documentType === t.id
+                                      ? "border-[#4dbdc6] bg-[#4dbdc6]/10 text-slate-900 font-bold"
+                                      : "border-gray-200 bg-white text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  {t.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
 
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={!selectedClientId || !selectedOrderId || (!file && scanPages.length === 0) || uploading}
-                  className="w-full py-3.5 rounded-xl bg-[#4dbdc6] text-white font-bold text-xs shadow-md hover:bg-[#3caab3] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 mt-4"
-                >
-                  {uploading ? (
-                    <>
-                      <RefreshCw className="size-4 animate-spin" />
-                      {scanPages.length > 0 ? `Łączenie ${scanPages.length} str. w PDF...` : "Wgrywanie do Dysk Google..."}
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="size-4" />
-                      {scanPages.length > 0 ? `Wyślij PDF (${scanPages.length} str.)` : "Wyślij dokument"}
-                    </>
-                  )}
-                </button>
+                        {/* Step 4: Photo / File Input buttons */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-700">4. Wybierz Plik lub Zrób Zdjęcie *</label>
+
+                          {/* Hidden inputs */}
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*,application/pdf"
+                            onChange={handleFileSelect}
+                            className="hidden"
+                          />
+                          <input
+                            ref={cameraInputRef}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleScanPhotoSelect}
+                            className="hidden"
+                          />
+                          {/* Hidden input for adding extra scan pages */}
+                          <input
+                            ref={scanCameraAddRef}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleScanPhotoSelect}
+                            className="hidden"
+                          />
+
+                          {/* Mode A: single file selected from disk */}
+                          {file && scanPages.length === 0 ? (
+                            <div className="flex items-center justify-between p-3.5 bg-slate-100 rounded-xl border border-slate-200">
+                              <div className="flex items-center gap-2.5 overflow-hidden">
+                                <FileText className="size-5 text-[#4dbdc6] shrink-0" />
+                                <span className="text-xs font-semibold text-slate-700 truncate">{file.name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setFile(null)}
+                                className="text-slate-400 hover:text-slate-600 p-1"
+                              >
+                                <X className="size-4" />
+                              </button>
+                            </div>
+                          ) : scanPages.length > 0 ? (
+                            /* Mode B: scanner — one or more photos */
+                            <div className="space-y-2">
+                              {/* Page thumbnails grid */}
+                              <DndContext 
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
+                              >
+                                <SortableContext 
+                                  items={scanPreviews}
+                                  strategy={rectSortingStrategy}
+                                >
+                                  <div className="grid grid-cols-3 gap-2">
+                                    {scanPreviews.map((src, idx) => (
+                                      <SortablePhotoItem
+                                        key={src}
+                                        id={src}
+                                        src={src}
+                                        index={idx}
+                                        rotation={scanRotations[idx] || 0}
+                                        onRemove={handleRemoveScanPage}
+                                        onRotate={handleRotateScanPage}
+                                      />
+                                    ))}
+                                  </div>
+                                </SortableContext>
+                              </DndContext>
+
+                              {/* Add page button (max 20 pages) */}
+                              {scanPages.length < 20 && (
+                                <button
+                                  type="button"
+                                  onClick={() => scanCameraAddRef.current?.click()}
+                                  className="w-full flex items-center justify-center gap-1.5 py-2.5 border-2 border-dashed border-[#4dbdc6] rounded-xl text-[#4dbdc6] text-xs font-bold hover:bg-[#4dbdc6]/5 transition"
+                                >
+                                  <Camera className="size-4" />
+                                  + Dodaj stronę ({scanPages.length}/20)
+                                </button>
+                              )}
+
+                              {/* Clear all */}
+                              <button
+                                type="button"
+                                onClick={() => { setScanPages([]); setScanPreviews([]); setScanRotations([]); }}
+                                className="w-full text-[10px] text-slate-400 hover:text-red-500 transition py-1"
+                              >
+                                ✕ Usuń wszystkie strony i zacznij od nowa
+                              </button>
+                            </div>
+                          ) : (
+                            /* Mode C: initial — no file, no pages */
+                            <div className="grid grid-cols-2 gap-2.5">
+                              <button
+                                type="button"
+                                onClick={() => cameraInputRef.current?.click()}
+                                className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 gap-1.5 transition"
+                              >
+                                <Camera className="size-6 text-[#4dbdc6]" />
+                                <span className="text-xs font-bold">Zrób zdjęcie</span>
+                                <span className="text-[9px] text-slate-400">wiele stron → PDF</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 gap-1.5 transition"
+                              >
+                                <Upload className="size-6 text-[#4dbdc6]" />
+                                <span className="text-xs font-bold">Wybierz plik</span>
+                                <span className="text-[9px] text-slate-400">PDF lub obraz</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Submit Button */}
+                        <button
+                          type="submit"
+                          disabled={!selectedClientId || !selectedOrderId || (!file && scanPages.length === 0) || uploading}
+                          className="w-full py-3.5 rounded-xl bg-[#4dbdc6] text-white font-bold text-xs shadow-md hover:bg-[#3caab3] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 mt-4"
+                        >
+                          {uploading ? (
+                            <>
+                              <RefreshCw className="size-4 animate-spin" />
+                              {scanPages.length > 0 ? `Łączenie ${scanPages.length} str. w PDF...` : "Wgrywanie do Dysk Google..."}
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="size-4" />
+                              {scanPages.length > 0 ? `Wyślij PDF (${scanPages.length} str.)` : "Wyślij dokument"}
+                            </>
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </form>
             )}
           </div>
