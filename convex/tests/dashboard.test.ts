@@ -3,6 +3,20 @@ import { expect, test, describe } from "vitest";
 import { api } from "../_generated/api";
 import schema from "../schema";
 
+type TestRuntime = ReturnType<typeof convexTest>;
+
+async function setupAuthContext(t: TestRuntime) {
+  const userId = await t.run(async (ctx) => {
+    return await ctx.db.insert("users", {
+      email: "admin@example.pl",
+      displayName: "Admin User",
+      role: "admin",
+      isActive: true,
+    });
+  });
+  return t.withIdentity({ subject: userId });
+}
+
 describe("dashboard", () => {
   test("getStats returns zeros when no clients", async () => {
     const t = convexTest(schema);
@@ -18,43 +32,45 @@ describe("dashboard", () => {
 
   test("getStats counts orders by status correctly", async () => {
     const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
 
-    const id1 = await t.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
-    const id2 = await t.mutation(api.clients.create, { firstName: "Anna", lastName: "Nowak" });
-    const id3 = await t.mutation(api.clients.create, { firstName: "Piotr", lastName: "Zielinski" });
-    const orderId1 = await t.mutation(api.orders.create, { clientId: id1 });
-    await t.mutation(api.orders.create, { clientId: id2 });
-    await t.mutation(api.orders.create, { clientId: id3 });
+    const id1 = await asUser.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
+    const id2 = await asUser.mutation(api.clients.create, { firstName: "Anna", lastName: "Nowak" });
+    const id3 = await asUser.mutation(api.clients.create, { firstName: "Piotr", lastName: "Zielinski" });
+    const orderId1 = await asUser.mutation(api.orders.create, { clientId: id1 });
+    await asUser.mutation(api.orders.create, { clientId: id2 });
+    await asUser.mutation(api.orders.create, { clientId: id3 });
 
-    await t.mutation(api.orders.changeStatus, { orderId: orderId1, newStatus: "inquiry" });
+    await asUser.mutation(api.orders.changeStatus, { orderId: orderId1, newStatus: "offer" });
 
-    const stats = await t.query(api.dashboard.getStats, {});
-    expect(stats.byStatus.lead).toBe(2);
-    expect(stats.byStatus.inquiry).toBe(1);
-    expect(stats.byStatus.measurement).toBe(0);
+    const stats = await asUser.query(api.dashboard.getStats, {});
+    expect(stats.byStatus.measurement).toBe(2);
+    expect(stats.byStatus.offer).toBe(1);
   });
 
   test("getStats counts total clients", async () => {
     const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
 
-    await t.mutation(api.clients.create, { firstName: "A", lastName: "Jeden" });
-    await t.mutation(api.clients.create, { firstName: "B", lastName: "Dwa" });
-    await t.mutation(api.clients.create, { firstName: "C", lastName: "Trzy" });
-    await t.mutation(api.clients.create, { firstName: "D", lastName: "Cztery" });
-    const stats = await t.query(api.dashboard.getStats, {});
+    await asUser.mutation(api.clients.create, { firstName: "A", lastName: "Jeden" });
+    await asUser.mutation(api.clients.create, { firstName: "B", lastName: "Dwa" });
+    await asUser.mutation(api.clients.create, { firstName: "C", lastName: "Trzy" });
+    await asUser.mutation(api.clients.create, { firstName: "D", lastName: "Cztery" });
+    const stats = await asUser.query(api.dashboard.getStats, {});
     expect(stats.total).toBe(4);
   });
 
   test("getStats counts enabled documents across orders", async () => {
     const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
 
-    const clientId = await t.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
-    const orderId = await t.mutation(api.orders.create, { clientId });
+    const clientId = await asUser.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
 
-    await t.mutation(api.orders.toggleDocument, { orderId, documentType: "pomiar", enabled: true });
-    await t.mutation(api.orders.toggleDocument, { orderId, documentType: "umowa", enabled: true });
+    await asUser.mutation(api.orders.toggleDocument, { orderId, documentType: "umowa", enabled: true });
+    await asUser.mutation(api.orders.toggleDocument, { orderId, documentType: "faktura", enabled: true });
 
-    const stats = await t.query(api.dashboard.getStats, {});
+    const stats = await asUser.query(api.dashboard.getStats, {});
     expect(stats.documentsEnabledCount).toBe(2);
   });
 
@@ -67,9 +83,10 @@ describe("dashboard", () => {
 
   test("getRecentEvents returns events with client names", async () => {
     const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
 
-    await t.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
-    const events = await t.query(api.dashboard.getRecentEvents, {});
+    await asUser.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
+    const events = await asUser.query(api.dashboard.getRecentEvents, {});
     expect(events.length).toBeGreaterThanOrEqual(1);
     expect(events[0].clientName).toBe("Jan Kowalski");
     expect(events[0].type).toBe("created");
@@ -77,12 +94,13 @@ describe("dashboard", () => {
 
   test("getRecentEvents returns events in reverse chronological order", async () => {
     const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
 
-    const id1 = await t.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
-    const orderId1 = await t.mutation(api.orders.create, { clientId: id1 });
-    await t.mutation(api.orders.changeStatus, { orderId: orderId1, newStatus: "inquiry" });
+    const id1 = await asUser.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
+    const orderId1 = await asUser.mutation(api.orders.create, { clientId: id1 });
+    await asUser.mutation(api.orders.changeStatus, { orderId: orderId1, newStatus: "offer" });
 
-    const events = await t.query(api.dashboard.getRecentEvents, {});
+    const events = await asUser.query(api.dashboard.getRecentEvents, {});
     expect(events.length).toBeGreaterThanOrEqual(3);
 
     for (let i = 0; i < events.length - 1; i++) {

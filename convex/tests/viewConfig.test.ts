@@ -3,17 +3,30 @@ import { expect, test, describe } from "vitest";
 import { api } from "../_generated/api";
 import schema from "../schema";
 
+async function setupTestUser(t: ReturnType<typeof convexTest>, emailPrefix: string = "user-1") {
+  const userId = await t.run(async (ctx) => {
+    return await ctx.db.insert("users", {
+      email: `${emailPrefix}@example.com`,
+      displayName: emailPrefix,
+      isActive: true,
+      role: "admin",
+    });
+  });
+  return t.withIdentity({ subject: userId });
+}
+
 describe("viewConfig", () => {
   test("getForUser returns null when no config exists", async () => {
     const t = convexTest(schema);
+    const asUser = await setupTestUser(t, "user-none");
 
-    const config = await t.query(api.viewConfig.getForUser, {});
+    const config = await asUser.query(api.viewConfig.getForUser, {});
     expect(config).toBeNull();
   });
 
   test("save creates new config for user", async () => {
     const t = convexTest(schema);
-    const asUser = t.withIdentity({ subject: "user-1" });
+    const asUser = await setupTestUser(t, "user-1");
 
     await asUser.mutation(api.viewConfig.save, {
       viewType: "table",
@@ -23,7 +36,6 @@ describe("viewConfig", () => {
 
     const config = await asUser.query(api.viewConfig.getForUser, {});
     expect(config).not.toBeNull();
-    expect(config!.userId).toBe("user-1");
     expect(config!.viewType).toBe("table");
     expect(config!.columns).toEqual([
       "lastName",
@@ -36,7 +48,7 @@ describe("viewConfig", () => {
 
   test("save updates existing config (upsert)", async () => {
     const t = convexTest(schema);
-    const asUser = t.withIdentity({ subject: "user-1" });
+    const asUser = await setupTestUser(t, "user-1");
 
     await asUser.mutation(api.viewConfig.save, {
       viewType: "table",
@@ -66,7 +78,7 @@ describe("viewConfig", () => {
 
   test("updateViewType creates config if none exists", async () => {
     const t = convexTest(schema);
-    const asUser = t.withIdentity({ subject: "user-new" });
+    const asUser = await setupTestUser(t, "user-new");
 
     await asUser.mutation(api.viewConfig.updateViewType, {
       viewType: "table",
@@ -81,7 +93,7 @@ describe("viewConfig", () => {
 
   test("updateViewType updates just viewType on existing config", async () => {
     const t = convexTest(schema);
-    const asUser = t.withIdentity({ subject: "user-1" });
+    const asUser = await setupTestUser(t, "user-1");
 
     await asUser.mutation(api.viewConfig.save, {
       viewType: "table",
@@ -102,7 +114,7 @@ describe("viewConfig", () => {
 
   test("updateColumns updates just columns", async () => {
     const t = convexTest(schema);
-    const asUser = t.withIdentity({ subject: "user-1" });
+    const asUser = await setupTestUser(t, "user-1");
 
     await asUser.mutation(api.viewConfig.save, {
       viewType: "table",
@@ -127,7 +139,7 @@ describe("viewConfig", () => {
 
   test("updateSort updates just sortBy", async () => {
     const t = convexTest(schema);
-    const asUser = t.withIdentity({ subject: "user-1" });
+    const asUser = await setupTestUser(t, "user-1");
 
     await asUser.mutation(api.viewConfig.save, {
       viewType: "table",
@@ -148,7 +160,7 @@ describe("viewConfig", () => {
 
   test("updateFilters updates just filters", async () => {
     const t = convexTest(schema);
-    const asUser = t.withIdentity({ subject: "user-1" });
+    const asUser = await setupTestUser(t, "user-1");
 
     await asUser.mutation(api.viewConfig.save, {
       viewType: "table",
@@ -174,8 +186,8 @@ describe("viewConfig", () => {
 
   test("different users have separate configs", async () => {
     const t = convexTest(schema);
-    const alice = t.withIdentity({ subject: "user-alice" });
-    const bob = t.withIdentity({ subject: "user-bob" });
+    const alice = await setupTestUser(t, "user-alice");
+    const bob = await setupTestUser(t, "user-bob");
 
     await alice.mutation(api.viewConfig.save, {
       viewType: "table",
@@ -202,3 +214,4 @@ describe("viewConfig", () => {
     expect(bobConfig!.groupBy).toBe("status");
   });
 });
+

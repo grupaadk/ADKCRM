@@ -5,36 +5,50 @@ import schema from "../schema";
 
 type TestRuntime = ReturnType<typeof convexTest>;
 
-async function createTestClient(t: TestRuntime) {
-  return await t.mutation(api.clients.create, {
+async function setupAuthContext(t: TestRuntime) {
+  const userId = await t.run(async (ctx) => {
+    return await ctx.db.insert("users", {
+      email: "admin@example.pl",
+      displayName: "Admin User",
+      role: "admin",
+      isActive: true,
+    });
+  });
+  return t.withIdentity({ subject: userId });
+}
+
+async function createTestClient(asUser: any) {
+  return await asUser.mutation(api.clients.create, {
     firstName: "Test",
     lastName: "Klient",
     email: "test@example.pl",
   });
 }
 
-async function createTestOrder(t: TestRuntime) {
-  const clientId = await createTestClient(t);
-  const orderId = await t.mutation(api.orders.create, { clientId });
+async function createTestOrder(asUser: any) {
+  const clientId = await createTestClient(asUser);
+  const orderId = await asUser.mutation(api.orders.create, { clientId });
   return { clientId, orderId };
 }
 
 describe("US-4.2 — Client data update", () => {
   test("update changes firstName", async () => {
     const t = convexTest(schema);
-    const clientId = await createTestClient(t);
+    const asUser = await setupAuthContext(t);
+    const clientId = await createTestClient(asUser);
 
-    await t.mutation(api.clients.update, { clientId, firstName: "Zmieniony" });
+    await asUser.mutation(api.clients.update, { clientId, firstName: "Zmieniony" });
 
-    const client = await t.query(api.clients.getById, { clientId });
+    const client = await asUser.query(api.clients.getById, { clientId });
     expect(client!.firstName).toBe("Zmieniony");
   });
 
   test("update changes multiple fields at once", async () => {
     const t = convexTest(schema);
-    const clientId = await createTestClient(t);
+    const asUser = await setupAuthContext(t);
+    const clientId = await createTestClient(asUser);
 
-    await t.mutation(api.clients.update, {
+    await asUser.mutation(api.clients.update, {
       clientId,
       firstName: "Anna",
       lastName: "Nowak",
@@ -42,20 +56,21 @@ describe("US-4.2 — Client data update", () => {
       city: "Warszawa",
     });
 
-    const client = await t.query(api.clients.getById, { clientId });
+    const client = await asUser.query(api.clients.getById, { clientId });
     expect(client!.firstName).toBe("Anna");
     expect(client!.lastName).toBe("Nowak");
-    expect(client!.phone).toBe("+48 600 100 200");
+    expect(client!.phone).toBe("600-100-200");
     expect(client!.city).toBe("Warszawa");
   });
 
   test('update creates a "data_updated" event with field names', async () => {
     const t = convexTest(schema);
-    const clientId = await createTestClient(t);
+    const asUser = await setupAuthContext(t);
+    const clientId = await createTestClient(asUser);
 
-    await t.mutation(api.clients.update, { clientId, firstName: "Nowe", city: "Krakow" });
+    await asUser.mutation(api.clients.update, { clientId, firstName: "Nowe", city: "Krakow" });
 
-    const events = await t.query(api.events.listByClient, { clientId });
+    const events = await asUser.query(api.events.listByClient, { clientId });
     const updateEvent = events.find((e: { type: string }) => e.type === "data_updated");
     expect(updateEvent).toBeDefined();
     expect(updateEvent!.details.fields).toContain("firstName");
@@ -64,11 +79,12 @@ describe("US-4.2 — Client data update", () => {
 
   test("update with no changes does nothing", async () => {
     const t = convexTest(schema);
-    const clientId = await createTestClient(t);
+    const asUser = await setupAuthContext(t);
+    const clientId = await createTestClient(asUser);
 
-    await t.mutation(api.clients.update, { clientId });
+    await asUser.mutation(api.clients.update, { clientId });
 
-    const events = await t.query(api.events.listByClient, { clientId });
+    const events = await asUser.query(api.events.listByClient, { clientId });
     const updateEvents = events.filter((e: { type: string }) => e.type === "data_updated");
     expect(updateEvents).toHaveLength(0);
   });
@@ -77,12 +93,13 @@ describe("US-4.2 — Client data update", () => {
 describe("US-4.3 — Event timeline", () => {
   test("events.listByClient returns events in reverse chronological order", async () => {
     const t = convexTest(schema);
-    const clientId = await createTestClient(t);
+    const asUser = await setupAuthContext(t);
+    const clientId = await createTestClient(asUser);
 
-    await t.mutation(api.clients.update, { clientId, firstName: "Zmiana1" });
-    await t.mutation(api.clients.update, { clientId, city: "Krakow" });
+    await asUser.mutation(api.clients.update, { clientId, firstName: "Zmiana1" });
+    await asUser.mutation(api.clients.update, { clientId, city: "Krakow" });
 
-    const events = await t.query(api.events.listByClient, { clientId });
+    const events = await asUser.query(api.events.listByClient, { clientId });
 
     expect(events.length).toBeGreaterThanOrEqual(2);
 
@@ -93,23 +110,25 @@ describe("US-4.3 — Event timeline", () => {
 
   test("events.listByClient respects the limit parameter", async () => {
     const t = convexTest(schema);
-    const clientId = await createTestClient(t);
+    const asUser = await setupAuthContext(t);
+    const clientId = await createTestClient(asUser);
 
-    await t.mutation(api.clients.update, { clientId, firstName: "A" });
-    await t.mutation(api.clients.update, { clientId, lastName: "B" });
-    await t.mutation(api.clients.update, { clientId, city: "C" });
+    await asUser.mutation(api.clients.update, { clientId, firstName: "A" });
+    await asUser.mutation(api.clients.update, { clientId, lastName: "B" });
+    await asUser.mutation(api.clients.update, { clientId, city: "C" });
 
-    const limited = await t.query(api.events.listByClient, { clientId, limit: 2 });
+    const limited = await asUser.query(api.events.listByClient, { clientId, limit: 2 });
     expect(limited).toHaveLength(2);
   });
 
   test("events.listByOrder returns order-level events", async () => {
     const t = convexTest(schema);
-    const { orderId } = await createTestOrder(t);
+    const asUser = await setupAuthContext(t);
+    const { orderId } = await createTestOrder(asUser);
 
-    await t.mutation(api.orders.changeStatus, { orderId, newStatus: "inquiry" });
+    await asUser.mutation(api.orders.changeStatus, { orderId, newStatus: "offer" });
 
-    const events = await t.query(api.events.listByOrder, { orderId });
+    const events = await asUser.query(api.events.listByOrder, { orderId });
     expect(events.length).toBeGreaterThanOrEqual(1);
     const statusEvent = events.find((e: { type: string }) => e.type === "status_changed");
     expect(statusEvent).toBeDefined();
@@ -117,18 +136,19 @@ describe("US-4.3 — Event timeline", () => {
 
   test("multiple order actions create corresponding events", async () => {
     const t = convexTest(schema);
-    const { orderId } = await createTestOrder(t);
+    const asUser = await setupAuthContext(t);
+    const { orderId } = await createTestOrder(asUser);
 
-    await t.mutation(api.orders.changeStatus, { orderId, newStatus: "inquiry" });
-    await t.mutation(api.orders.toggleDocument, { orderId, documentType: "umowa", enabled: true });
-    await t.mutation(api.orders.addWarrantyCard, {
+    await asUser.mutation(api.orders.changeStatus, { orderId, newStatus: "offer" });
+    await asUser.mutation(api.orders.toggleDocument, { orderId, documentType: "umowa", enabled: true });
+    await asUser.mutation(api.orders.addWarrantyCard, {
       orderId,
       manufacturer: "Yawal",
       type: "aluminium",
       fileUrl: "https://drive.google.com/file/w1",
     });
 
-    const events = await t.query(api.events.listByOrder, { orderId });
+    const events = await asUser.query(api.events.listByOrder, { orderId });
     const eventTypes = events.map((e: { type: string }) => e.type);
 
     expect(eventTypes).toContain("order_created");

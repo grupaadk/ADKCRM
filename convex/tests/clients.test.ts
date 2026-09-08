@@ -3,14 +3,29 @@ import { expect, test, describe } from "vitest";
 import { api } from "../_generated/api";
 import schema from "../schema";
 
+type TestRuntime = ReturnType<typeof convexTest>;
+
+async function setupAuthContext(t: TestRuntime, customEmail?: string) {
+  const userId = await t.run(async (ctx) => {
+    return await ctx.db.insert("users", {
+      email: customEmail ?? "admin@example.pl",
+      displayName: "Admin User",
+      role: "admin",
+      isActive: true,
+    });
+  });
+  return { asUser: t.withIdentity({ subject: userId }), userId };
+}
+
 // ============================================================
 // US-1.2 — Manual Client Creation
 // ============================================================
 describe("US-1.2 — Manual Client Creation (clients.create)", () => {
   test("creates client with source 'manual'", async () => {
     const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
 
-    const clientId = await t.mutation(api.clients.create, {
+    const clientId = await asUser.mutation(api.clients.create, {
       firstName: "Tomasz",
       lastName: "Krawczyk",
       email: "tomasz@example.com",
@@ -22,7 +37,7 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
 
     expect(clientId).toBeDefined();
 
-    const client = await t.query(api.clients.getById, { clientId });
+    const client = await asUser.query(api.clients.getById, { clientId });
     expect(client).not.toBeNull();
     expect(client!.source).toBe("manual");
     expect(client!.firstName).toBe("Tomasz");
@@ -33,13 +48,14 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
 
   test("requires firstName and lastName (minimal args)", async () => {
     const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
 
-    const clientId = await t.mutation(api.clients.create, {
+    const clientId = await asUser.mutation(api.clients.create, {
       firstName: "Ewa",
       lastName: "Maj",
     });
 
-    const client = await t.query(api.clients.getById, { clientId });
+    const client = await asUser.query(api.clients.getById, { clientId });
     expect(client).not.toBeNull();
     expect(client!.firstName).toBe("Ewa");
     expect(client!.lastName).toBe("Maj");
@@ -48,8 +64,9 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
 
   test("creates 'created' event with source 'manual'", async () => {
     const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
 
-    const clientId = await t.mutation(api.clients.create, {
+    const clientId = await asUser.mutation(api.clients.create, {
       firstName: "Anna",
       lastName: "Duda",
     });
@@ -68,20 +85,16 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
 
   test("sets createdBy from auth identity", async () => {
     const t = convexTest(schema);
-
-    const asUser = t.withIdentity({
-      subject: "clerk-user-abc123",
-      name: "Admin Testowy",
-    });
+    const { asUser } = await setupAuthContext(t, "clerk-user-abc123@example.com");
 
     const clientId = await asUser.mutation(api.clients.create, {
       firstName: "Marek",
       lastName: "Borkowski",
     });
 
-    const client = await t.query(api.clients.getById, { clientId });
+    const client = await asUser.query(api.clients.getById, { clientId });
     expect(client).not.toBeNull();
-    expect(client!.createdBy).toBe("clerk-user-abc123");
+    expect(client!.createdBy).toBe("clerk-user-abc123@example.com");
 
     const events = await t.run(async (ctx) => {
       return await ctx.db
@@ -90,7 +103,7 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
         .collect();
     });
 
-    expect(events[0].performedBy).toBe("clerk-user-abc123");
+    expect(events[0].performedBy).toBe("clerk-user-abc123@example.com");
   });
 });
 
@@ -100,22 +113,27 @@ describe("US-1.2 — Manual Client Creation (clients.create)", () => {
 describe("US-1.3 — Client Listing & Search", () => {
   test("lists all clients", async () => {
     const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
 
+    await asUser.mutation(api.clients.create, { firstName: "A", lastName: "Klient1" });
+    await asUser.mutation(api.clients.create, { firstName: "B", lastName: "Klient2" });
+    await asUser.mutation(api.clients.create, { firstName: "C", lastName: "Klient3" });
 
-    const result = await t.query(api.clients.list, {});
+    const result = await asUser.query(api.clients.list, {});
     expect(result.page).toHaveLength(3);
   });
 
   test("getById returns a specific client", async () => {
     const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
 
-    const clientId = await t.mutation(api.clients.create, {
+    const clientId = await asUser.mutation(api.clients.create, {
       firstName: "Zofia",
       lastName: "Kaminska",
       email: "zofia@test.pl",
     });
 
-    const client = await t.query(api.clients.getById, { clientId });
+    const client = await asUser.query(api.clients.getById, { clientId });
     expect(client).not.toBeNull();
     expect(client!._id).toBe(clientId);
     expect(client!.firstName).toBe("Zofia");
@@ -124,8 +142,9 @@ describe("US-1.3 — Client Listing & Search", () => {
 
   test("getById returns null for non-existent client", async () => {
     const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
 
-    const clientId = await t.mutation(api.clients.create, {
+    const clientId = await asUser.mutation(api.clients.create, {
       firstName: "Temp",
       lastName: "Testowy",
     });
@@ -134,15 +153,17 @@ describe("US-1.3 — Client Listing & Search", () => {
       await ctx.db.delete(clientId);
     });
 
-    const client = await t.query(api.clients.getById, { clientId });
+    const client = await asUser.query(api.clients.getById, { clientId });
     expect(client).toBeNull();
   });
 
   test("searches by lastName", async () => {
     const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
 
+    await asUser.mutation(api.clients.create, { firstName: "Jan", lastName: "Kowalski" });
 
-    const results = await t.query(api.clients.search, { searchTerm: "Kowalski" });
+    const results = await asUser.query(api.clients.search, { searchTerm: "Kowalski" });
 
     expect(results.length).toBeGreaterThanOrEqual(1);
     expect(results.some((c: { lastName: string }) => c.lastName === "Kowalski")).toBe(true);
@@ -155,14 +176,15 @@ describe("US-1.3 — Client Listing & Search", () => {
 describe("Deduplication", () => {
   test("findByEmail returns existing client", async () => {
     const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
 
-    await t.mutation(api.clients.create, {
+    await asUser.mutation(api.clients.create, {
       firstName: "Jan",
       lastName: "Kowalski",
       email: "jan@example.com",
     });
 
-    const found = await t.query(api.clients.findByEmail, {
+    const found = await asUser.query(api.clients.findByEmail, {
       email: "jan@example.com",
     });
 
@@ -174,8 +196,9 @@ describe("Deduplication", () => {
 
   test("findByEmail returns null for unknown email", async () => {
     const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
 
-    const found = await t.query(api.clients.findByEmail, {
+    const found = await asUser.query(api.clients.findByEmail, {
       email: "nieistnieje@example.com",
     });
 
@@ -184,8 +207,9 @@ describe("Deduplication", () => {
 
   test("addSubmissionEvent logs duplicate event", async () => {
     const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
 
-    const clientId = await t.mutation(api.clients.create, {
+    const clientId = await asUser.mutation(api.clients.create, {
       firstName: "Jan",
       lastName: "Kowalski",
       email: "jan@example.com",
@@ -210,3 +234,4 @@ describe("Deduplication", () => {
     expect(duplicateEvent!.performedBy).toBe("system");
   });
 });
+

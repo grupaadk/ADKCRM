@@ -7,7 +7,7 @@ export const sendDeliveryOrderToCrm = action({
     orderId: v.id("orders"),
     deliveryIndex: v.number(),
   },
-  handler: async (ctx, args): Promise<any> => {
+  handler: async (ctx, args): Promise<{ success: boolean; externalOrderId?: string; externalOrderNumber?: string }> => {
     // 1. Pobierz zlecenie
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) {
@@ -120,13 +120,13 @@ export const addNoteToCrmOrder = action({
     noteText: v.string(),
   },
   handler: async (ctx, args): Promise<unknown> => {
-    const order: any = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) throw new Error("Nie znaleziono zlecenia.");
     const delivery = order.serviceDeliveries?.[args.deliveryIndex];
     if (!delivery || !delivery.externalOrderNumber) {
       throw new Error("Zamówienie nie zostało jeszcze utworzone w CRM Exalco.");
     }
-    const supplier: any = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: delivery.supplierId });
+    const supplier = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: delivery.supplierId });
     if (!supplier || !supplier.apiEndpoint || !supplier.apiKey) {
       throw new Error("Dostawca nie posiada skonfigurowanego API.");
     }
@@ -177,7 +177,7 @@ export const uploadFileToCrmOrder = action({
     externalOrderNumber: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<unknown> => {
-    const order: any = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
+    const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) throw new Error("Nie znaleziono zlecenia.");
     const delivery = order.serviceDeliveries?.[args.deliveryIndex];
     const orderNumberToUse = args.externalOrderNumber || delivery?.externalOrderNumber;
@@ -188,7 +188,7 @@ export const uploadFileToCrmOrder = action({
     if (!supplierIdToUse) {
       throw new Error("Nie odnaleziono ID dostawcy w zamówieniu.");
     }
-    const supplier: any = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: supplierIdToUse });
+    const supplier = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: supplierIdToUse });
     if (!supplier || !supplier.apiEndpoint || !supplier.apiKey) {
       throw new Error("Dostawca nie posiada skonfigurowanego API.");
     }
@@ -262,7 +262,7 @@ export const sendDeliveryOrderWithFilesToCrm = action({
     if (args.filesToUpload && args.filesToUpload.length > 0 && result.externalOrderNumber) {
       for (const fileItem of args.filesToUpload) {
         let uploaded = false;
-        let lastError: any = null;
+        let lastError: unknown = null;
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
             const downloaded = await ctx.runAction(api.googleDrive.downloadDriveFileBase64, {
@@ -293,3 +293,4 @@ export const sendDeliveryOrderWithFilesToCrm = action({
     return result;
   },
 });
+
