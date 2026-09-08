@@ -453,17 +453,8 @@ export default function MobileDashboard() {
   const isAdmin = me?.role === "admin";
   const canAddTasks = me?.role === "admin" || me?.role === "sales";
 
-  const [filter, setFilter] = useState<FilterValue | null>(null);
-  const [filterInitialized, setFilterInitialized] = useState(false);
-
-  useEffect(() => {
-    if (me !== undefined && !filterInitialized) {
-      setFilter(me?._id ?? "all");
-      setFilterInitialized(true);
-    }
-  }, [me, filterInitialized]);
-
-  const activeFilter: FilterValue = filter ?? me?._id ?? "all";
+  const [userFilter, setUserFilter] = useState<FilterValue | null>(null);
+  const activeFilter: FilterValue = userFilter ?? me?._id ?? "all";
 
   const [selectedColIndex, setSelectedColIndex] = useState(0);
   const [openTaskId, setOpenTaskId] = useState<Id<"orderTasks"> | null>(null);
@@ -896,7 +887,7 @@ export default function MobileDashboard() {
             <div className="flex-1 overflow-y-auto py-1">
               {/* Wszyscy */}
               <button
-                onClick={() => { setFilter("all"); setShowFilterPicker(false); }}
+                onClick={() => { setUserFilter("all"); setShowFilterPicker(false); }}
                 className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
                   activeFilter === "all" ? "bg-gray-50" : "hover:bg-gray-50"
                 }`}
@@ -909,7 +900,7 @@ export default function MobileDashboard() {
               </button>
               {/* Nieprzypisane */}
               <button
-                onClick={() => { setFilter("unassigned"); setShowFilterPicker(false); }}
+                onClick={() => { setUserFilter("unassigned"); setShowFilterPicker(false); }}
                 className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
                   activeFilter === "unassigned" ? "bg-gray-50" : "hover:bg-gray-50"
                 }`}
@@ -929,7 +920,7 @@ export default function MobileDashboard() {
                 return (
                   <button
                     key={u._id}
-                    onClick={() => { setFilter(u._id); setShowFilterPicker(false); }}
+                    onClick={() => { setUserFilter(u._id); setShowFilterPicker(false); }}
                     className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
                       active ? "bg-gray-50" : "hover:bg-gray-50"
                     }`}
