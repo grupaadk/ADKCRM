@@ -134,7 +134,7 @@ export const createCarEvent = mutation({
       const title = `${args.type === 'inspection' ? 'Przegląd' : args.type === 'repair' ? 'Naprawa' : args.type === 'refueling' ? 'Tankowanie' : 'Inne'}: ${car?.registrationNumber}`;
       
       const user = await getCurrentUser(ctx);
-      let createdBy = user?._id || null;
+      const createdBy = user?._id || null;
 
       if (createdBy) {
         linkedCalendarEventId = await ctx.db.insert("calendarEvents", {

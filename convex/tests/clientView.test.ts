@@ -17,6 +17,7 @@ async function setupAuthContext(t: TestRuntime) {
   return t.withIdentity({ subject: userId });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function createTestClient(asUser: any) {
   return await asUser.mutation(api.clients.create, {
     firstName: "Test",
@@ -25,6 +26,7 @@ async function createTestClient(asUser: any) {
   });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function createTestOrder(asUser: any) {
   const clientId = await createTestClient(asUser);
   const orderId = await asUser.mutation(api.orders.create, { clientId });
