@@ -47,15 +47,17 @@ import {
   Smartphone,
   RotateCw,
   Folder,
+  ClipboardList,
 } from "lucide-react";
 import OrderDriveBrowser from "@/app/admin/klient/[id]/zlecenie/[orderId]/OrderDriveBrowser";
 import MobileDashboard from "@/app/app/MobileDashboard";
+import MobilePanel from "@/app/app/MobilePanel";
 
 import { DateStrip } from "@/components/ekipa/DateStrip";
 import dynamic from "next/dynamic";
 
 const MobileWeekCalendar = dynamic(() => import("@/components/ekipa/MobileWeekCalendar"), { ssr: false });
-type Tab = "home" | "tasks" | "notifications" | "profile" | "add-document";
+type Tab = "home" | "tasks" | "panel" | "profile" | "add-document";
 
 const DOCUMENT_LABELS: Record<string, string> = {
   pomiar: "Pomiar",
@@ -1505,11 +1507,8 @@ export default function AppPwaPage() {
           <MobileDashboard />
         )}
 
-        {activeTab === "notifications" && (
-          <div className="space-y-4">
-            <h1 className="text-lg font-bold text-slate-800">Powiadomienia</h1>
-            <p className="text-xs text-slate-500">Brak nowych powiadomień.</p>
-          </div>
+        {activeTab === "panel" && (
+          <MobilePanel />
         )}
 
         {activeTab === "profile" && (
@@ -2227,16 +2226,16 @@ export default function AppPwaPage() {
           </div>
 
 
-          {/* Notifications */}
+          {/* Panel */}
           <button
             type="button"
-            onClick={() => setActiveTab("notifications")}
+            onClick={() => setActiveTab("panel")}
             className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-              activeTab === "notifications" ? "text-[#4dbdc6]" : "text-gray-400 hover:text-gray-600"
+              activeTab === "panel" ? "text-[#4dbdc6]" : "text-gray-400 hover:text-gray-600"
             }`}
           >
-            <Bell className="size-6 stroke-[1.75]" />
-            <span className="text-[11px] font-medium mt-1">Notifications</span>
+            <ClipboardList className="size-6 stroke-[1.75]" />
+            <span className="text-[11px] font-medium mt-1">Panel</span>
           </button>
 
           {/* Profile */}
