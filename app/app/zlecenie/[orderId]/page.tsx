@@ -53,12 +53,6 @@ const DOC_NAMES: Record<string, string> = {
   reklamacja: "Reklamacja",
 };
 
-const DOC_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  gray: { bg: "bg-slate-100", text: "text-slate-500", label: "Brak / W trakcie" },
-  red: { bg: "bg-red-100", text: "text-red-700", label: "Wymaga uwagi" },
-  green: { bg: "bg-emerald-100", text: "text-emerald-700", label: "Zrobione" },
-};
-
 const SERVICE_COLORS = [
   { bg: "#ede9fe", text: "#6d28d9" },
   { bg: "#dbeafe", text: "#1d4ed8" },
@@ -98,6 +92,25 @@ function daysInStatus(statusChangedAt?: number) {
     label = `${days} dni w tym statusie`;
   }
   return { days, label, color };
+}
+
+function getDocumentInfo(doc?: { enabled?: boolean; url?: string; generatedAt?: number; signatureStatus?: string; error?: string }) {
+  if (!doc) {
+    return { state: "none", bg: "bg-slate-50 border-slate-200/80", text: "text-slate-400 border-slate-200", label: "Brak", url: undefined };
+  }
+  if (doc.signatureStatus === "signed") {
+    return { state: "signed", bg: "bg-emerald-50 border-emerald-200", text: "text-emerald-800 font-extrabold border-emerald-200", label: "Podpisano", url: doc.url };
+  }
+  if (doc.url || doc.generatedAt) {
+    return { state: "generated", bg: "bg-blue-50 border-blue-200", text: "text-blue-800 font-extrabold border-blue-200", label: "Wygenerowano", url: doc.url };
+  }
+  if (doc.error) {
+    return { state: "error", bg: "bg-red-50 border-red-200", text: "text-red-700 font-extrabold border-red-200", label: "Błąd", url: undefined };
+  }
+  if (doc.enabled) {
+    return { state: "pending", bg: "bg-amber-50 border-amber-200", text: "text-amber-800 font-extrabold border-amber-200", label: "W trakcie", url: undefined };
+  }
+  return { state: "none", bg: "bg-slate-50 border-slate-200/80", text: "text-slate-400 border-slate-200", label: "Brak", url: undefined };
 }
 
 function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> }) {
@@ -244,10 +257,10 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
         <h1 className="text-lg font-bold text-slate-800">Zlecenie nie zostało znalezione</h1>
         <p className="text-sm text-slate-500">Zlecenie mogło zostać usunięte lub nie masz do niego dostępu.</p>
         <button
-          onClick={() => router.push("/app")}
+          onClick={() => router.push(`/app?tab=${fromTab}`)}
           className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs"
         >
-          Wróć do Panelu
+          Powrót
         </button>
       </div>
     );
@@ -266,18 +279,6 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
             <ArrowLeft className="size-4" />
             <span>{fromTab === "panel" ? "Panel" : fromTab === "tasks" ? "Zadania" : "Powrót"}</span>
           </button>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            {order.clientId && (
-              <Link
-                href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
-                className="flex items-center gap-1 text-[11px] font-bold text-[#2c8a90] bg-[#4abbc3]/10 border border-[#4abbc3]/30 px-2.5 py-1 rounded-lg active:scale-95 transition"
-              >
-                <span>Pełny panel</span>
-                <ExternalLink className="size-3" />
-              </Link>
-            )}
-          </div>
         </div>
 
         {/* Dynamic Title and Status */}
@@ -835,12 +836,11 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <ShieldAlert className="size-4 text-red-500" /> Reklamacje ({complaints.length})
             </h2>
-            <Link
-              href={`/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=reklamacja`}
-              className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg active:scale-95 transition"
-            >
-              Zarządzaj
-            </Link>
+            {complaints.length > 0 && (
+              <span className="text-[10px] font-extrabold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                Wykryto zgłoszenia
+              </span>
+            )}
           </div>
 
           {complaints.length === 0 ? (
@@ -889,15 +889,39 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             {DOC_KEYS.map((key) => {
-              const st = (order.docs?.[key] as string) ?? "gray";
-              const col = DOC_COLORS[st] ?? DOC_COLORS.gray;
+              const docEntry = (order.documents as Record<string, any> | undefined)?.[key];
+              const info = getDocumentInfo(docEntry);
+
               return (
                 <div
                   key={key}
-                  className={`flex items-center justify-between p-2.5 rounded-xl border ${col.bg} border-gray-200/50`}
+                  className={`flex items-center justify-between p-3 rounded-xl border ${info.bg} transition-all`}
                 >
-                  <span className="font-bold text-slate-800 text-[11px]">{DOC_NAMES[key]}</span>
-                  <span className={`text-[10px] font-extrabold ${col.text}`}>{col.label}</span>
+                  <div className="min-w-0 flex-1 pr-2">
+                    <span className="font-bold text-slate-800 text-xs block truncate">{DOC_NAMES[key]}</span>
+                    {docEntry?.generatedAt && (
+                      <span className="text-[10px] text-slate-500 block font-medium">
+                        {formatDate(docEntry.generatedAt)}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-md border uppercase ${info.text}`}>
+                      {info.label}
+                    </span>
+                    {info.url && (
+                      <a
+                        href={info.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 rounded-lg bg-white border border-gray-200 text-slate-600 hover:text-slate-900 active:scale-95 transition"
+                        title="Otwórz plik"
+                      >
+                        <ExternalLink className="size-3.5" />
+                      </a>
+                    )}
+                  </div>
                 </div>
               );
             })}
