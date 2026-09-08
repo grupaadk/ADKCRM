@@ -1,13 +1,17 @@
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "ADK Ekipy — Mobilny Kalendarz Ekipy",
+  title: "Ekipa — Mobilny Kalendarz Montażysty",
   description: "Dedykowana aplikacja PWA dla ekip montażowych ADK Okna",
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest-ekipa.json",
+  icons: {
+    icon: "/icon-ekipa-192.png",
+    apple: "/icon-ekipa-512.png",
+  },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "ADK Ekipy",
+    statusBarStyle: "black-translucent",
+    title: "Ekipa",
   },
   formatDetection: {
     telephone: true,
@@ -15,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f6f7f9",
+  themeColor: "#09090b",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="biuroGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#52c6cf" />
+      <stop offset="100%" stop-color="#3caab3" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.12" />
+    </filter>
+  </defs>
+  <!-- Background Squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#biuroGrad)" />
+  
+  <!-- Office Icon Graphic -->
+  <g transform="translate(106, 106)" fill="#ffffff" filter="url(#shadow)">
+    <!-- Main Central Office Tower -->
+    <path d="M70 40 C70 33.373 75.373 28 82 28 L218 28 C224.627 28 230 33.373 230 40 L230 272 C230 278.627 224.627 284 218 284 L82 284 C75.373 284 70 278.627 70 272 Z" fill="#ffffff" />
+    
+    <!-- Right Wing -->
+    <path d="M220 100 C220 93.373 225.373 88 232 88 L278 88 C284.627 88 290 93.373 290 100 L290 272 C290 278.627 284.627 284 278 284 L232 284 C225.373 284 220 278.627 220 272 Z" fill="#ffffff" opacity="0.9" />
+
+    <!-- Left Wing -->
+    <path d="M10 120 C10 113.373 15.373 108 22 108 L78 108 C84.627 108 90 113.373 90 120 L90 272 C90 278.627 84.627 284 78 284 L22 284 C15.373 284 10 278.627 10 272 Z" fill="#ffffff" opacity="0.85" />
+    
+    <!-- Base -->
+    <rect x="0" y="272" width="300" height="12" rx="6" fill="#ffffff" />
+
+    <!-- Main Windows -->
+    <rect x="94" y="56" width="30" height="24" rx="4" fill="#4ABBC3" />
+    <rect x="135" y="56" width="30" height="24" rx="4" fill="#4ABBC3" />
+    <rect x="176" y="56" width="30" height="24" rx="4" fill="#4ABBC3" />
+
+    <rect x="94" y="96" width="30" height="24" rx="4" fill="#4ABBC3" />
+    <rect x="135" y="96" width="30" height="24" rx="4" fill="#4ABBC3" />
+    <rect x="176" y="96" width="30" height="24" rx="4" fill="#4ABBC3" />
+
+    <rect x="94" y="136" width="30" height="24" rx="4" fill="#4ABBC3" />
+    <rect x="135" y="136" width="30" height="24" rx="4" fill="#4ABBC3" />
+    <rect x="176" y="136" width="30" height="24" rx="4" fill="#4ABBC3" />
+
+    <rect x="94" y="176" width="30" height="24" rx="4" fill="#4ABBC3" />
+    <rect x="135" y="176" width="30" height="24" rx="4" fill="#4ABBC3" />
+    <rect x="176" y="176" width="30" height="24" rx="4" fill="#4ABBC3" />
+
+    <!-- Doorway -->
+    <path d="M125 284 L125 220 C125 214.477 129.477 210 135 210 L165 210 C170.523 210 175 214.477 175 220 L175 284 Z" fill="#4ABBC3" />
+
+    <!-- Left Wing Windows -->
+    <rect x="26" y="136" width="22" height="18" rx="3" fill="#4ABBC3" />
+    <rect x="54" y="136" width="22" height="18" rx="3" fill="#4ABBC3" />
+    <rect x="26" y="170" width="22" height="18" rx="3" fill="#4ABBC3" />
+    <rect x="54" y="170" width="22" height="18" rx="3" fill="#4ABBC3" />
+    <rect x="26" y="204" width="22" height="18" rx="3" fill="#4ABBC3" />
+    <rect x="54" y="204" width="22" height="18" rx="3" fill="#4ABBC3" />
+
+    <!-- Right Wing Windows -->
+    <rect x="238" y="116" width="36" height="20" rx="3" fill="#4ABBC3" />
+    <rect x="238" y="152" width="36" height="20" rx="3" fill="#4ABBC3" />
+    <rect x="238" y="188" width="36" height="20" rx="3" fill="#4ABBC3" />
+    <rect x="238" y="224" width="36" height="20" rx="3" fill="#4ABBC3" />
+  </g>
+</svg>

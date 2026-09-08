@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="ekipaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#09090b" />
+    </linearGradient>
+    <filter id="wrenchShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
+  </defs>
+  <!-- Background Squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#ekipaGrad)" />
+  
+  <!-- Subtle Outer Accent Frame -->
+  <rect x="28" y="28" width="456" height="456" rx="92" fill="none" stroke="#27272a" stroke-width="3" opacity="0.7" />
+
+  <!-- Mounting Wrench Graphic (Rotated 45 deg, white) -->
+  <g transform="translate(256, 256) rotate(-45) translate(-256, -256)" filter="url(#wrenchShadow)">
+    <!-- Shaft -->
+    <path d="
+      M 160 216
+      L 352 216
+      C 362 216, 370 224, 370 234
+      L 370 278
+      C 370 288, 362 296, 352 296
+      L 160 296
+      C 150 296, 142 288, 142 278
+      L 142 234
+      C 142 224, 150 216, 160 216
+      Z" fill="#ffffff" />
+    
+    <!-- Open Wrench Head (Left) -->
+    <path d="
+      M 165 256
+      m -60 0
+      a 60 60 0 1 0 120 0
+      a 60 60 0 1 0 -120 0
+    " fill="#ffffff" />
+    <!-- Cutout for Open End Jaw -->
+    <path d="
+      M 75 232
+      L 145 244
+      L 145 268
+      L 75 280
+      Z
+    " fill="#09090b" />
+
+    <!-- Ring Wrench Head (Right) -->
+    <path d="
+      M 347 256
+      m -58 0
+      a 58 58 0 1 0 116 0
+      a 58 58 0 1 0 -116 0
+    " fill="#ffffff" />
+    <!-- Ring Hexagon Cutout -->
+    <polygon points="
+      347,218 
+      374,233 
+      374,264 
+      347,279 
+      320,264 
+      320,233
+    " fill="#09090b" />
+
+    <!-- Shaft Recess Detail -->
+    <rect x="180" y="240" width="152" height="32" rx="16" fill="#09090b" opacity="0.15" />
+  </g>
+</svg>

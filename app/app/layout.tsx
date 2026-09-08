@@ -1,13 +1,17 @@
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "ADK App — Mobilna Aplikacja ADK",
-  description: "Aplikacja PWA dla użytkowników ADK Okna",
+  title: "Biuro — Mobilna Aplikacja ADK",
+  description: "Aplikacja biurowa PWA dla użytkowników ADK Okna",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icon-biuro-192.png",
+    apple: "/icon-biuro-512.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "ADK App",
+    title: "Biuro",
   },
   formatDetection: {
     telephone: true,
@@ -15,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4dbdc6",
+  themeColor: "#4abbc3",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

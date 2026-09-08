@@ -1,29 +1,29 @@
 {
-  "name": "Biuro",
-  "short_name": "Biuro",
-  "description": "Mobilna aplikacja biurowa dla użytkowników ADK Okna",
-  "start_url": "/app",
-  "scope": "/app",
+  "name": "Ekipa",
+  "short_name": "Ekipa",
+  "description": "Mobilny kalendarz i aplikacja dla ekip montażowych ADK Okna",
+  "start_url": "/ekipa",
+  "scope": "/ekipa",
   "display": "standalone",
   "display_override": ["standalone"],
   "orientation": "portrait",
-  "background_color": "#4abbc3",
-  "theme_color": "#4abbc3",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
   "icons": [
     {
-      "src": "/icon-biuro-192.png",
+      "src": "/icon-ekipa-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-biuro-512.png",
+      "src": "/icon-ekipa-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-biuro.svg",
+      "src": "/icon-ekipa.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
