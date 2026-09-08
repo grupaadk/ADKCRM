@@ -2797,6 +2797,17 @@ export default function UniversalCalendar({
             background: rgba(0, 0, 0, 0.4);
             box-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
           }
+          .fc-more-link {
+            font-size: 11px !important;
+            font-weight: 700 !important;
+            color: #2563eb !important;
+            background: #eff6ff !important;
+            border: 1px solid #bfdbfe !important;
+            border-radius: 4px !important;
+            padding: 2px 6px !important;
+            margin-top: 2px !important;
+            display: inline-block !important;
+          }
         `}</style>
         <FullCalendar
           ref={calendarRef}
@@ -2825,7 +2836,7 @@ export default function UniversalCalendar({
           eventContent={renderEventContent}
           height="100%"
           expandRows={true}
-          dayMaxEvents={false}
+          dayMaxEvents={1}
           eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotDuration="01:00:00"
