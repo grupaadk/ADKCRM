@@ -24,14 +24,8 @@ import {
   Mail,
   FolderOpen,
   MessageSquare,
-  PackageCheck,
   Receipt,
   ShoppingCart,
-  ChevronDown,
-  ChevronUp,
-  Tag,
-  CheckCircle2,
-  Clock,
 } from "lucide-react";
 
 const DOC_KEYS = [
@@ -108,6 +102,14 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
   // Local State
   const [newNoteText, setNewNoteText] = useState("");
   const [submittingNote, setSubmittingNote] = useState(false);
+
+  // Scroll to section helper
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
 
   // Maps & calculations
   const supplierMap = useMemo(() => {
@@ -195,7 +197,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
 
   if (order === undefined || client === undefined) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="h-full w-full bg-slate-50 flex items-center justify-center p-4">
         <div className="animate-spin size-8 border-4 border-[#4abbc3] border-t-transparent rounded-full" />
       </div>
     );
@@ -203,7 +205,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
 
   if (order === null) {
     return (
-      <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center text-center space-y-4">
+      <div className="h-full w-full bg-slate-50 p-6 flex flex-col items-center justify-center text-center space-y-4">
         <AlertTriangle className="size-12 text-amber-500" />
         <h1 className="text-lg font-bold text-slate-800">Zlecenie nie zostało znalezione</h1>
         <p className="text-sm text-slate-500">Zlecenie mogło zostać usunięte lub nie masz do niego dostępu.</p>
@@ -218,9 +220,9 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 pb-16 text-slate-900 antialiased">
+    <div className="h-full w-full overflow-y-auto bg-slate-100 text-slate-900 antialiased pb-24 scroll-smooth">
       {/* Top Mobile Header */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-gray-200/80 px-4 py-3 shadow-2xs">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-200/80 px-4 py-3 shadow-2xs">
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
@@ -245,7 +247,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
         </div>
 
         {/* Dynamic Title and Status */}
-        <div className="mt-2.5 space-y-1">
+        <div className="mt-2 space-y-1">
           <div className="flex items-center justify-between gap-2">
             <h1 className="text-base font-extrabold text-slate-900 truncate">
               {order.name || "Zlecenie bez nazwy"}
@@ -268,7 +270,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
         </div>
       </header>
 
-      {/* Main Content Sections */}
+      {/* Main Content Body */}
       <main className="p-3.5 space-y-3 max-w-xl mx-auto">
         {/* Quick Action Bar (Zadzwoń, Nawiguj, Status) */}
         <div className="bg-white rounded-2xl p-3 border border-gray-200/90 shadow-xs space-y-2.5">
@@ -329,10 +331,66 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
               ))}
             </select>
           </div>
+
+          {/* Quick Section Navigation Bar */}
+          <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+            <button
+              onClick={() => scrollToSection("sekcja-klient")}
+              className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold shrink-0 hover:bg-slate-200 active:scale-95 transition"
+            >
+              Klient
+            </button>
+            <button
+              onClick={() => scrollToSection("sekcja-wycena")}
+              className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 border border-sky-200/60 text-[11px] font-bold shrink-0 hover:bg-sky-100 active:scale-95 transition"
+            >
+              Wycena
+            </button>
+            <button
+              onClick={() => scrollToSection("sekcja-finanse")}
+              className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[11px] font-bold shrink-0 hover:bg-emerald-100 active:scale-95 transition"
+            >
+              Finanse
+            </button>
+            <button
+              onClick={() => scrollToSection("sekcja-zamowienia")}
+              className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200/60 text-[11px] font-bold shrink-0 hover:bg-amber-100 active:scale-95 transition"
+            >
+              Zamówienia
+            </button>
+            <button
+              onClick={() => scrollToSection("sekcja-montaz")}
+              className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200/60 text-[11px] font-bold shrink-0 hover:bg-indigo-100 active:scale-95 transition"
+            >
+              Montaż
+            </button>
+            <button
+              onClick={() => scrollToSection("sekcja-reklamacje")}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 active:scale-95 transition ${
+                complaints.length > 0
+                  ? "bg-red-500 text-white shadow-2xs"
+                  : "bg-slate-100 text-slate-700 border border-slate-200"
+              }`}
+            >
+              Reklamacje {complaints.length > 0 && `(${complaints.length})`}
+            </button>
+            <button
+              onClick={() => scrollToSection("sekcja-dokumenty")}
+              className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold shrink-0 hover:bg-slate-200 active:scale-95 transition"
+            >
+              Dokumenty
+            </button>
+            <button
+              onClick={() => scrollToSection("sekcja-notatki")}
+              className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200/60 text-[11px] font-bold shrink-0 hover:bg-purple-100 active:scale-95 transition"
+            >
+              Notatki ({notes.length})
+            </button>
+          </div>
         </div>
 
         {/* Sekcja 1: Klient & Inwestycja */}
-        <section className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3">
+        <section id="sekcja-klient" className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3 scroll-mt-28">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Building2 className="size-4 text-[#4abbc3]" /> Klient & Adres
@@ -400,7 +458,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
         </section>
 
         {/* Sekcja 2: Wyceny & Pozycje kosztorysu */}
-        <section className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3">
+        <section id="sekcja-wycena" className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3 scroll-mt-28">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Receipt className="size-4 text-sky-500" /> Wycena ({lineItems.length} pozycji)
@@ -459,7 +517,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
         </section>
 
         {/* Sekcja 3: Finanse & Plan fakturowania */}
-        <section className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3">
+        <section id="sekcja-finanse" className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3 scroll-mt-28">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <DollarSign className="size-4 text-emerald-500" /> Finanse & Faktury
@@ -552,7 +610,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
         </section>
 
         {/* Sekcja 4: Zamówienia u dostawców */}
-        <section className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3">
+        <section id="sekcja-zamowienia" className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3 scroll-mt-28">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <ShoppingCart className="size-4 text-amber-500" /> Zamówienia materiałów ({(order.serviceDeliveries ?? []).length})
           </h2>
@@ -634,7 +692,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
         </section>
 
         {/* Sekcja 5: Montaż & Ekipa */}
-        <section className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3">
+        <section id="sekcja-montaz" className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3 scroll-mt-28">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <Calendar className="size-4 text-indigo-500" /> Montaż & Ekipa
           </h2>
@@ -667,7 +725,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
         </section>
 
         {/* Sekcja 6: Reklamacje */}
-        <section className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3">
+        <section id="sekcja-reklamacje" className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3 scroll-mt-28">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <ShieldAlert className="size-4 text-red-500" /> Reklamacje ({complaints.length})
@@ -706,7 +764,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
         </section>
 
         {/* Sekcja 7: Dokumenty & Pliki Drive */}
-        <section className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3">
+        <section id="sekcja-dokumenty" className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3 scroll-mt-28">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <FileText className="size-4 text-emerald-500" /> Dokumenty Zlecenia
@@ -742,7 +800,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
         </section>
 
         {/* Sekcja 8: Notatki & Komentarze */}
-        <section className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3">
+        <section id="sekcja-notatki" className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3 scroll-mt-28">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <MessageSquare className="size-4 text-purple-500" /> Notatki ({notes.length})
           </h2>
