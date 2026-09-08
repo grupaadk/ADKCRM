@@ -1894,64 +1894,55 @@ export default function OrderDetailPage({
         currentDeliveries.push(draftDeliveryEntry);
       }
       await updateOrder({ orderId: orderIdTyped, serviceDeliveries: currentDeliveries });
-
-      // Automatyczne wywołanie integracji CRM jeśli dostawca ma aktywne API
-      const supplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
-      if (supplier?.isApiEnabled && targetIndex !== null && targetIndex >= 0) {
-        setSendingCrm(true);
-        if (!draftDeliveryEntry.externalOrderNumber) {
-          const filesToUpload = Object.values(selectedDriveFiles).map((f) => ({
-            fileId: f.id,
-            fileName: f.name,
-            fileType: (f.name.toUpperCase().includes("RW") ? "RW" : "Rysunek") as "RW" | "Rysunek",
-          }));
-
-          try {
-            await sendCrmOrderWithFiles({
-              orderId: orderIdTyped,
-              deliveryIndex: targetIndex,
-              filesToUpload: filesToUpload.length > 0 ? filesToUpload : undefined,
-            });
-          } catch (errWithFiles) {
-            console.warn("sendCrmOrderWithFiles w trakcie synchronizacji, używam sendCrmOrder:", errWithFiles);
-            await sendCrmOrder({ orderId: orderIdTyped, deliveryIndex: targetIndex });
-          }
-        } else {
-          const fileList = Object.values(selectedDriveFiles);
-          if (fileList.length > 0) {
-            for (const fileItem of fileList) {
-              try {
-                const downloaded = await downloadDriveBase64({ fileId: fileItem.id });
-                await uploadFileToCrm({
-                  orderId: orderIdTyped,
-                  deliveryIndex: targetIndex,
-                  fileType: (fileItem.name.toUpperCase().includes("RW") ? "RW" : "Rysunek") as "RW" | "Rysunek",
-                  fileName: fileItem.name,
-                  fileBase64: downloaded.base64,
-                  externalOrderNumber: draftDeliveryEntry.externalOrderNumber,
-                });
-              } catch (errUpload) {
-                console.error(`Błąd przesyłu pliku ${fileItem.name}:`, errUpload);
-              }
-            }
-          }
-
-          if (draftDeliveryEntry.notes?.trim()) {
-            await addCrmNote({
-              orderId: orderIdTyped,
-              deliveryIndex: targetIndex,
-              noteText: draftDeliveryEntry.notes.trim(),
-            });
-          }
-        }
-      }
-
       cancelEditDelivery();
     } catch (err) {
       console.error("Błąd podczas zapisywania zamówienia:", err);
       alert(err instanceof Error ? err.message : "Wystąpił błąd podczas zapisywania.");
     } finally {
       setSavingDelivery(false);
+    }
+  }
+
+  async function sendDeliveryOrderToAlcoCrm() {
+    if (!draftDeliveryEntry || savingDelivery || sendingCrm) return;
+    try {
+      setSendingCrm(true);
+      // 1. Zapisz dane zamówienia lokalnie w bazie Convex ADK Okna
+      const currentDeliveries = [...(order?.serviceDeliveries ?? [])];
+      let targetIndex = editingDeliveryIndex;
+      if (targetIndex !== null && targetIndex >= 0) {
+        currentDeliveries[targetIndex] = draftDeliveryEntry;
+      } else {
+        targetIndex = currentDeliveries.length;
+        currentDeliveries.push(draftDeliveryEntry);
+      }
+      await updateOrder({ orderId: orderIdTyped, serviceDeliveries: currentDeliveries });
+
+      // 2. Wyślij zamówienie wraz z zaznaczonymi plikami do ALCO CRM
+      const filesToUpload = Object.values(selectedDriveFiles).map((f) => ({
+        fileId: f.id,
+        fileName: f.name,
+        fileType: (f.name.toUpperCase().includes("RW") ? "RW" : "Rysunek") as "RW" | "Rysunek",
+      }));
+
+      let result: { externalOrderNumber?: string } | null = null;
+      try {
+        result = await sendCrmOrderWithFiles({
+          orderId: orderIdTyped,
+          deliveryIndex: targetIndex,
+          filesToUpload: filesToUpload.length > 0 ? filesToUpload : undefined,
+        });
+      } catch (errWithFiles) {
+        console.warn("sendCrmOrderWithFiles fallback do sendCrmOrder:", errWithFiles);
+        result = await sendCrmOrder({ orderId: orderIdTyped, deliveryIndex: targetIndex });
+      }
+
+      alert(`✅ Pomyślnie wysłano zamówienie do ALCO! Numer zlecenia w ALCO: ${result?.externalOrderNumber ?? "Zarejestrowane"}`);
+      cancelEditDelivery();
+    } catch (err) {
+      console.error("Błąd podczas wysyłania zamówienia do ALCO:", err);
+      alert(`❌ Błąd wysyłania zamówienia do ALCO: ${err instanceof Error ? err.message : "Nieznany błąd"}`);
+    } finally {
       setSendingCrm(false);
     }
   }
@@ -1987,9 +1978,9 @@ export default function OrderDetailPage({
       }
       alert(`Pomyślnie przesłano ${count} plików do zlecenia ${draftDeliveryEntry.externalOrderNumber} w Exalco!`);
       setSelectedDriveFiles({});
-    } catch (err: any) {
+    } catch (err) {
       console.error("Błąd przesyłania plików:", err);
-      alert(`Błąd podczas przesyłania plików: ${err.message || err}`);
+      alert(`Błąd podczas przesyłania plików: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSendingFilesCrm(false);
     }
@@ -4165,7 +4156,7 @@ export default function OrderDetailPage({
 
               {(order.services ?? []).length === 0 ? (
                 <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "14px 16px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
-                  Brak usług w zleceniu — dodaj usługi w zakładce "Szczegóły", aby przypisać dostawców.
+                  Brak usług w zleceniu — dodaj usługi w zakładce &quot;Szczegóły&quot;, aby przypisać dostawców.
                 </div>
               ) : (
                 <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
@@ -4397,13 +4388,53 @@ export default function OrderDetailPage({
                     className="btn primary"
                     disabled={savingDelivery || sendingCrm || sendingFilesCrm}
                   >
-                    {(savingDelivery || sendingCrm) ? (
+                    {savingDelivery ? (
                       <span className="flex items-center gap-2">
                         <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         Zapisywanie...
                       </span>
                     ) : "Zapisz zamówienie"}
                   </button>
+                  {draftDeliveryEntry && (() => {
+                    const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+                    if (!currentSupplier?.isApiEnabled) return null;
+
+                    if (!draftDeliveryEntry.externalOrderNumber) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={sendDeliveryOrderToAlcoCrm}
+                          className="btn"
+                          style={{
+                            backgroundColor: "#7c3aed",
+                            color: "#ffffff",
+                            fontWeight: 700,
+                            padding: "6px 14px",
+                            borderRadius: 8,
+                            border: "none",
+                          }}
+                          disabled={savingDelivery || sendingCrm || sendingFilesCrm}
+                        >
+                          {sendingCrm ? (
+                            <span className="flex items-center gap-2">
+                              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Wysyłanie do ALCO...
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5">
+                              🚀 Wyślij zamówienie do ALCO
+                            </span>
+                          )}
+                        </button>
+                      );
+                    }
+
+                    return (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+                        ✅ Wysłano do ALCO ({draftDeliveryEntry.externalOrderNumber})
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             }
@@ -4416,6 +4447,18 @@ export default function OrderDetailPage({
 
                 return (
                   <div className="flex flex-col gap-5">
+                    {/* Status wysłania do CRM */}
+                    {draftDeliveryEntry.externalOrderNumber && (
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs font-semibold flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🟢</span>
+                          <div>
+                            <div className="font-bold text-sm text-emerald-950">Zamówienie zarejestrowane w CRM ALCO</div>
+                            <div className="text-emerald-700 text-[11px]">Numer zlecenia dostawcy: <strong className="font-mono">{draftDeliveryEntry.externalOrderNumber}</strong></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {/* Wybór dostawcy i Kwota netto w 2 kolumnach */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="flex flex-col gap-1.5">

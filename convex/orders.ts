@@ -1342,6 +1342,7 @@ export const updateExternalOrderInfo = mutation({
         ...d,
         externalOrderId: args.externalOrderId,
         externalOrderNumber: args.externalOrderNumber,
+        orderDate: d.orderDate ?? Date.now(),
       };
     });
 
