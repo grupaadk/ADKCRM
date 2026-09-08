@@ -1436,8 +1436,23 @@ export const confirmDeliveryByExalcoWebhook = mutation({
     const deliveries = [...(targetOrder.serviceDeliveries ?? [])];
     const delivery = deliveries[targetDeliveryIndex];
 
+    const baseOrderDate = delivery.orderDate ?? targetOrder._creationTime;
+
+    let validDeliveryDate = args.deliveryDate;
+    if (validDeliveryDate && baseOrderDate && Math.abs(validDeliveryDate - baseOrderDate) < 86400000) {
+      validDeliveryDate = undefined;
+    }
+
     const nextConfirmedDate = args.rawStatus ? (delivery.confirmedDate ?? now) : delivery.confirmedDate;
-    const nextDeliveryDate = args.deliveryDate ?? delivery.deliveryDate;
+
+    let nextDeliveryDate: number | undefined = validDeliveryDate;
+    if (nextDeliveryDate === undefined) {
+      if (delivery.deliveryDate && baseOrderDate && Math.abs(delivery.deliveryDate - baseOrderDate) < 86400000) {
+        nextDeliveryDate = undefined;
+      } else {
+        nextDeliveryDate = delivery.deliveryDate;
+      }
+    }
 
     deliveries[targetDeliveryIndex] = {
       ...delivery,

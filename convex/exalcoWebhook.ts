@@ -73,12 +73,31 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     body.pickupDate;
 
   let deliveryDateTs: number | undefined;
-  if (rawDateVal) {
-    if (typeof rawDateVal === "number") {
+  if (rawDateVal && rawDateVal !== "null" && rawDateVal !== "undefined") {
+    if (typeof rawDateVal === "number" && rawDateVal > 0) {
       deliveryDateTs = rawDateVal;
-    } else {
-      const parsed = Date.parse(String(rawDateVal));
-      if (!isNaN(parsed)) deliveryDateTs = parsed;
+    } else if (typeof rawDateVal === "string" && rawDateVal.trim()) {
+      const parsed = Date.parse(rawDateVal.trim());
+      if (!isNaN(parsed) && parsed > 0) deliveryDateTs = parsed;
+    }
+  }
+
+  // Weryfikacja czy wyciągnięta data dostawy nie jest w rzeczywistości datą utworzenia/złożenia zamówienia w ALCO
+  const creationDateVal =
+    dataObj.createdAt ||
+    dataObj.created_at ||
+    dataObj.orderDate ||
+    dataObj.date ||
+    body.createdAt ||
+    body.created_at ||
+    body.orderDate ||
+    body.date;
+
+  if (creationDateVal && deliveryDateTs) {
+    const createdTs = typeof creationDateVal === "number" ? creationDateVal : Date.parse(String(creationDateVal));
+    if (!isNaN(createdTs) && Math.abs(deliveryDateTs - createdTs) < 86400000) {
+      // Data odbioru z ALCO odpowiada dacie utworzenia zlecenia — ALCO nie ustawiło rzeczywistej daty odbioru
+      deliveryDateTs = undefined;
     }
   }
 
