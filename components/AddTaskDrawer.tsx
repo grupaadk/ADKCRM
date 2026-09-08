@@ -208,7 +208,6 @@ export default function AddTaskDrawer({
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
                   <input
-                    autoFocus
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Szukaj po kliencie, nazwie, tekście własnym…"
@@ -256,7 +255,6 @@ export default function AddTaskDrawer({
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
                 <input
-                  autoFocus
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Szukaj po kliencie, tekście własnym…"
