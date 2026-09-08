@@ -4369,7 +4369,7 @@ export default function OrderDetailPage({
                 </span>
               </div>
             }
-            width={1000}
+            width={1320}
             footer={
               <div className="flex items-center justify-between gap-3 w-full">
                 {editingDeliveryIndex !== null ? (
@@ -4451,8 +4451,8 @@ export default function OrderDetailPage({
                 const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
 
                 return (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-                    {/* Lewa kolumna: Parametry zamówienia, etapy i uwagi */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+                    {/* Lewa kolumna (1): Parametry zamówienia i etapy realizacji */}
                     <div className="flex flex-col gap-5">
                       {/* Wybór dostawcy i Kwota netto w 2 kolumnach */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -4548,35 +4548,6 @@ export default function OrderDetailPage({
                         </div>
                       </div>
 
-                      {/* Notatki / Uwagi (Textarea) */}
-                      <div className="flex flex-col gap-1.5 pt-3 border-t border-slate-200">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-bold text-slate-700">Notatki / Uwagi do zamówienia</label>
-                          {currentSupplier?.isApiEnabled && (
-                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              ⚡ Automatyczna synchronizacja z Exalco
-                            </span>
-                          )}
-                        </div>
-                        <textarea
-                          ref={(el) => {
-                            if (el) {
-                              el.style.height = "auto";
-                              el.style.height = `${Math.max(100, el.scrollHeight)}px`;
-                            }
-                          }}
-                          rows={3}
-                          placeholder="Wpisz uwagi, numer zamówienia u dostawcy, wymiary, specyfikację lub dodatkowe ustalenia..."
-                          value={draftDeliveryEntry.notes ?? ""}
-                          onChange={(e) => {
-                            updateDraftSingleField("notes", e.target.value);
-                            e.target.style.height = "auto";
-                            e.target.style.height = `${Math.max(100, e.target.scrollHeight)}px`;
-                          }}
-                          className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm transition-[height] duration-150 overflow-hidden resize-none"
-                        />
-                      </div>
-
                       {/* Lista plików wysłanych po API */}
                       {draftDeliveryEntry.sentApiFiles && draftDeliveryEntry.sentApiFiles.length > 0 && (
                         <div className="flex flex-col gap-2 pt-3 border-t border-slate-200">
@@ -4592,7 +4563,7 @@ export default function OrderDetailPage({
                             </span>
                           </div>
                           <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto p-2 bg-emerald-50/40 border border-emerald-200 rounded-lg">
-                            {draftDeliveryEntry.sentApiFiles.map((file, fIdx) => (
+                            {draftDeliveryEntry.sentApiFiles.map((file: { fileName: string; fileType: string; sentAt: number }, fIdx: number) => (
                               <div key={fIdx} className="flex items-center justify-between p-2 bg-white rounded border border-emerald-200 text-xs shadow-xs">
                                 <div className="flex items-center gap-2 truncate min-w-0 flex-1">
                                   <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -4620,7 +4591,25 @@ export default function OrderDetailPage({
                       )}
                     </div>
 
-                    {/* Prawa kolumna: Przeglądarka plików Google Drive do przesyłania po API */}
+                    {/* Środkowa kolumna (2): Notatki / Uwagi do zamówienia na całą wysokość modala */}
+                    <div className="flex flex-col gap-3 p-4 bg-slate-50/70 border border-slate-200 rounded-xl h-full flex-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-700">Notatki / Uwagi do zamówienia</label>
+                        {currentSupplier?.isApiEnabled && (
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            ⚡ Sync z Exalco
+                          </span>
+                        )}
+                      </div>
+                      <textarea
+                        placeholder="Wpisz uwagi, numer zamówienia u dostawcy, wymiary, specyfikację lub dodatkowe ustalenia..."
+                        value={draftDeliveryEntry.notes ?? ""}
+                        onChange={(e) => updateDraftSingleField("notes", e.target.value)}
+                        className="w-full flex-1 h-full min-h-[380px] rounded-lg border border-slate-300 bg-white p-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm resize-none"
+                      />
+                    </div>
+
+                    {/* Prawa kolumna (3): Przeglądarka plików Google Drive do przesyłania po API */}
                     <div className="flex flex-col gap-4 h-full flex-1">
                       {currentSupplier?.isApiEnabled ? (
                         <div className="flex flex-col gap-3 p-4 bg-slate-50/70 border border-slate-200 rounded-xl h-full flex-1 justify-between">
