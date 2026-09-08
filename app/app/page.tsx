@@ -49,13 +49,13 @@ import {
   Folder,
 } from "lucide-react";
 import OrderDriveBrowser from "@/app/admin/klient/[id]/zlecenie/[orderId]/OrderDriveBrowser";
-
+import MobileDashboard from "@/app/app/MobileDashboard";
 
 import { DateStrip } from "@/components/ekipa/DateStrip";
 import dynamic from "next/dynamic";
 
 const MobileWeekCalendar = dynamic(() => import("@/components/ekipa/MobileWeekCalendar"), { ssr: false });
-type Tab = "home" | "search" | "notifications" | "profile" | "add-document";
+type Tab = "home" | "tasks" | "notifications" | "profile" | "add-document";
 
 const DOCUMENT_LABELS: Record<string, string> = {
   pomiar: "Pomiar",
@@ -1509,11 +1509,8 @@ export default function AppPwaPage() {
 
 
 
-        {activeTab === "search" && (
-          <div className="space-y-4">
-            <h1 className="text-lg font-bold text-slate-800">Wyszukiwarka</h1>
-            <p className="text-xs text-slate-500">Szukaj zleceń i klientów.</p>
-          </div>
+        {activeTab === "tasks" && (
+          <MobileDashboard />
         )}
 
         {activeTab === "notifications" && (
@@ -2141,16 +2138,16 @@ export default function AppPwaPage() {
             <span className="text-[11px] font-medium mt-1">Home</span>
           </button>
 
-          {/* Search */}
+          {/* Tasks */}
           <button
             type="button"
-            onClick={() => setActiveTab("search")}
+            onClick={() => setActiveTab("tasks")}
             className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-              activeTab === "search" ? "text-[#4dbdc6]" : "text-gray-400 hover:text-gray-600"
+              activeTab === "tasks" ? "text-[#4dbdc6]" : "text-gray-400 hover:text-gray-600"
             }`}
           >
-            <Search className="size-6 stroke-[1.75]" />
-            <span className="text-[11px] font-medium mt-1">Search</span>
+            <LayoutGrid className="size-6 stroke-[1.75]" />
+            <span className="text-[11px] font-medium mt-1">Zadania</span>
           </button>
 
           {/* Center Floating (+) Button for Quick Choice Menu */}
