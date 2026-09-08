@@ -4429,11 +4429,7 @@ export default function OrderDetailPage({
                       );
                     }
 
-                    return (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 text-xs font-mono font-bold">
-                        ID zlecenia ALCO: {draftDeliveryEntry.externalOrderNumber}
-                      </span>
-                    );
+                    return null;
                   })()}
                 </div>
               </div>
