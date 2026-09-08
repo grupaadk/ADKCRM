@@ -161,7 +161,7 @@ function MobileKanbanCard({
   const handleCardClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isPending) {
-      router.push(`/admin/szansa/${item.pendingId}`);
+      router.push(`/app/szansa/${item.pendingId}?from=panel`);
     } else {
       router.push(`/app/zlecenie/${item.orderId}?from=panel`);
     }

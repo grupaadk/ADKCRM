@@ -150,7 +150,7 @@ function MobileTaskCard({
 
   const openHref =
     taskType === "opportunity"
-      ? `/admin/szansa/${task.opportunityId}`
+      ? `/app/szansa/${task.opportunityId}?from=panel`
       : taskType === "complaint" || taskType === "order"
         ? `/app/zlecenie/${task.orderId}?from=tasks`
         : "#";
