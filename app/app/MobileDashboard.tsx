@@ -619,14 +619,6 @@ export default function MobileDashboard() {
   const visibleTasks = isLastCol && !showAllDone ? colTasks.slice(0, DONE_LIMIT) : colTasks;
   const hiddenCount = isLastCol ? colTasks.length - visibleTasks.length : 0;
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <RefreshCw className="size-6 text-[#4abbc3] animate-spin" />
-      </div>
-    );
-  }
-
   /* ── filter label ── */
   const filterLabel = useMemo(() => {
     if (filter === "all") return "Wszyscy";
@@ -639,6 +631,14 @@ export default function MobileDashboard() {
     if (filter === "all" || filter === "unassigned") return null;
     return (users ?? []).find((u) => u._id === filter) ?? null;
   }, [filter, users]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <RefreshCw className="size-6 text-[#4abbc3] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-0 relative -mx-4 -mt-4">
