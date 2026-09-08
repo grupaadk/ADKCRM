@@ -4455,14 +4455,16 @@ export default function OrderDetailPage({
                   <div className="grid grid-cols-3 gap-6 items-stretch min-w-[1150px] flex-1 min-h-0">
                     {/* Lewa kolumna (1): Parametry zamówienia i etapy realizacji */}
                     <div className="flex flex-col gap-5 overflow-y-auto min-h-0 pr-1">
-                      {/* Wybór dostawcy i Kwota netto w 2 kolumnach */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs font-bold text-slate-700">Dostawca realizujący zamówienie</label>
+                      {/* Wybór dostawcy i Kwota netto w 2 równych kolumnach z wyrównaniem */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col justify-between">
+                          <label className="text-xs font-bold text-slate-700 min-h-[32px] flex items-end pb-1">
+                            Dostawca realizujący zamówienie
+                          </label>
                           <select
                             value={draftDeliveryEntry.supplierId}
                             onChange={(e) => updateDraftSingleField("supplierId", e.target.value as Id<"suppliers">)}
-                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm"
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs h-[38px]"
                           >
                             {(availableSuppliers.length > 0 ? availableSuppliers : allSuppliers).map((s) => (
                               <option key={s._id} value={s._id}>
@@ -4472,8 +4474,10 @@ export default function OrderDetailPage({
                           </select>
                         </div>
 
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs font-bold text-slate-700">Kwota netto zamówienia (PLN)</label>
+                        <div className="flex flex-col justify-between">
+                          <label className="text-xs font-bold text-slate-700 min-h-[32px] flex items-end pb-1">
+                            Kwota netto (PLN)
+                          </label>
                           <input
                             type="number"
                             step="0.01"
@@ -4484,7 +4488,7 @@ export default function OrderDetailPage({
                               const val = e.target.value ? parseFloat(e.target.value) : undefined;
                               updateDraftSingleField("netAmount", val);
                             }}
-                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm"
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs h-[38px]"
                           />
                         </div>
                       </div>
