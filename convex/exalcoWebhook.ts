@@ -9,17 +9,17 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     });
   }
 
-  let body: Record<string, any> = {};
+  let body: Record<string, unknown> = {};
   try {
-    body = await request.json();
-  } catch (err) {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  const dataObj = body.data || body.order || body;
+  const dataObj = ((body.data || body.order || body) ?? {}) as Record<string, unknown>;
 
   // Identyfikacja zlecenia z ładunku Exalco (wsparcie płaścich i zagnieżdżonych struktur)
   const orderIdOrNumber =
@@ -60,18 +60,17 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     );
   }
 
-  // Odczyt daty dostawy / odbioru z Exalco (np. deliveryDate, plannedDate, expectedDate, pickupDate, date)
+  // Odczyt daty dostawy / odbioru z Exalco (wyłącznie z dedykowanych pól dostawy/odbioru)
   const rawDateVal =
     dataObj.deliveryDate ||
-    dataObj.plannedDate ||
-    dataObj.expectedDate ||
+    dataObj.plannedDeliveryDate ||
+    dataObj.expectedDeliveryDate ||
     dataObj.pickupDate ||
-    dataObj.date ||
-    dataObj.completionDate ||
+    dataObj.plannedPickupDate ||
     body.deliveryDate ||
-    body.plannedDate ||
-    body.expectedDate ||
-    body.date;
+    body.plannedDeliveryDate ||
+    body.expectedDeliveryDate ||
+    body.pickupDate;
 
   let deliveryDateTs: number | undefined;
   if (rawDateVal) {
