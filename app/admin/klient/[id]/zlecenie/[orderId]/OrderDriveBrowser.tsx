@@ -254,12 +254,14 @@ export default function OrderDriveBrowser({
   previewSide = "right",
   onFolderChange,
   refreshKey,
+  hideDropZone = false,
 }: {
   orderId: Id<"orders">;
   rootFolderId: string | undefined;
   previewSide?: "left" | "right";
   onFolderChange?: (folder: { id: string; name: string }) => void;
   refreshKey?: number;
+  hideDropZone?: boolean;
 }) {
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadFile = useAction(api.googleDrive.uploadManualOrderFile);
@@ -1194,68 +1196,70 @@ export default function OrderDriveBrowser({
               )}
 
               {/* Drop zone */}
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                }}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  cursor: "pointer",
-                  borderRadius: 8,
-                  border: `2px dashed ${isDragging ? "#60a5fa" : "var(--line)"}`,
-                  background: isDragging ? "#eff6ff" : "transparent",
-                  padding: isEmpty ? "24px 16px" : "10px 16px",
-                  textAlign: "center",
-                  transition: "border-color 0.15s, background 0.15s",
-                }}
-              >
-                <svg
-                  style={{
-                    width: 18,
-                    height: 18,
-                    margin: "0 auto 4px",
-                    color: isDragging ? "#60a5fa" : "var(--text-mute)",
-                    display: "block",
+              {!hideDropZone && (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
                   }}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-                  />
-                </svg>
-                <p
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                  }}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
                   style={{
-                    fontSize: 12.5,
-                    fontWeight: 500,
-                    color: isDragging ? "#2563eb" : "var(--text-mute)",
-                    margin: 0,
+                    cursor: "pointer",
+                    borderRadius: 8,
+                    border: `2px dashed ${isDragging ? "#60a5fa" : "var(--line)"}`,
+                    background: isDragging ? "#eff6ff" : "transparent",
+                    padding: isEmpty ? "24px 16px" : "10px 16px",
+                    textAlign: "center",
+                    transition: "border-color 0.15s, background 0.15s",
                   }}
                 >
-                  {isDragging ? "Upuść tutaj" : "Przeciągnij pliki lub kliknij"}
-                </p>
-                {!isAtRoot && !isDragging && (
+                  <svg
+                    style={{
+                      width: 18,
+                      height: 18,
+                      margin: "0 auto 4px",
+                      color: isDragging ? "#60a5fa" : "var(--text-mute)",
+                      display: "block",
+                    }}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+                    />
+                  </svg>
                   <p
                     style={{
-                      fontSize: 11,
-                      color: "var(--text-mute)",
-                      margin: "3px 0 0",
+                      fontSize: 12.5,
+                      fontWeight: 500,
+                      color: isDragging ? "#2563eb" : "var(--text-mute)",
+                      margin: 0,
                     }}
                   >
-                    Pliki trafią do: {breadcrumb[breadcrumb.length - 1]?.name}
+                    {isDragging ? "Upuść tutaj" : "Przeciągnij pliki lub kliknij"}
                   </p>
-                )}
-              </div>
+                  {!isAtRoot && !isDragging && (
+                    <p
+                      style={{
+                        fontSize: 11,
+                        color: "var(--text-mute)",
+                        margin: "3px 0 0",
+                      }}
+                    >
+                      Pliki trafią do: {breadcrumb[breadcrumb.length - 1]?.name}
+                    </p>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>

@@ -1774,26 +1774,6 @@ export default function AppPwaPage() {
 
                     {uploadTargetMode === "drive_browser" ? (
                       <div className="space-y-4 pt-2">
-                        {/* Notice & Active Folder Header */}
-                        <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                              <Folder className="size-4 text-[#4dbdc6]" />
-                              Wgrywanie do: <span className="text-[#4dbdc6]">{activeDriveFolder?.name ?? "Folder główny zlecenia"}</span>
-                            </h4>
-                            <p className="text-[10px] text-slate-400">Nawiguj po folderach poniżej, aby zmienić docelowe miejsce.</p>
-                          </div>
-                          {selectedOrder?.folderId ? (
-                            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 shrink-0">
-                              ✓ Dysk aktywny
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-1 rounded-md border border-amber-200 shrink-0">
-                              Folder zlecenia niedostępny
-                            </span>
-                          )}
-                        </div>
-
                         {/* Status Messages */}
                         {driveSuccessMsg && (
                           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 font-bold flex items-center justify-between shadow-xs">
@@ -1811,10 +1791,25 @@ export default function AppPwaPage() {
                           </div>
                         )}
 
-                        {/* Photo Capture & Scanner Box for Drive Subfolder */}
+                        {/* Step 4: Folder Selection */}
+                        <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-700">
+                            4. Wybierz folder docelowy w Google Drive *
+                          </label>
+                          <OrderDriveBrowser
+                            orderId={selectedOrderId}
+                            rootFolderId={selectedOrder?.folderId}
+                            previewSide="right"
+                            onFolderChange={setActiveDriveFolder}
+                            refreshKey={driveRefreshKey}
+                            hideDropZone={true}
+                          />
+                        </div>
+
+                        {/* Step 5: Photo Capture & Scanner Box */}
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                           <label className="block text-xs font-bold text-slate-700">
-                            4. Zrób Zdjęcie lub Wybierz Plik dla folderu "{activeDriveFolder?.name ?? "Folder główny"}" *
+                            5. Zrób Zdjęcie lub Wybierz Plik (Wyślij do: "{activeDriveFolder?.name ?? "Folder główny zlecenia"}") *
                           </label>
 
                           {/* Hidden inputs */}
@@ -1909,7 +1904,7 @@ export default function AppPwaPage() {
                               <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl bg-white hover:bg-slate-100 text-slate-700 gap-1 transition"
+                                className="flex flex-col items-center justify-center p-3.5 border-2 border-dashed border-gray-300 rounded-xl bg-white hover:bg-slate-100 text-slate-700 gap-1 transition"
                               >
                                 <Upload className="size-5 text-[#4dbdc6]" />
                                 <span className="text-xs font-bold">Wybierz plik</span>
@@ -1951,17 +1946,6 @@ export default function AppPwaPage() {
                               </>
                             )}
                           </button>
-                        </div>
-
-                        {/* Integrated Drive Browser Below */}
-                        <div className="pt-2">
-                          <OrderDriveBrowser
-                            orderId={selectedOrderId}
-                            rootFolderId={selectedOrder?.folderId}
-                            previewSide="right"
-                            onFolderChange={setActiveDriveFolder}
-                            refreshKey={driveRefreshKey}
-                          />
                         </div>
                       </div>
                     ) : (
