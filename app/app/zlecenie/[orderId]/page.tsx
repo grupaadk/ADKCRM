@@ -30,7 +30,18 @@ import {
   ChevronRight,
   X,
   Check,
+  Plus,
+  Trash2,
+  CheckSquare,
+  Square,
 } from "lucide-react";
+
+const COMPLAINT_STATUS_LABELS: Record<string, string> = {
+  nowa: "Nowa",
+  w_toku: "W toku",
+  rozwiazana: "Rozwiązana",
+  zamknieta: "Zamknięta",
+};
 
 const DOC_KEYS = [
   "pomiar",
@@ -134,11 +145,52 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
   // Mutations
   const changeStatus = useMutation(api.orders.changeStatus);
   const addNote = useMutation(api.notes.add);
+  const createComplaint = useMutation(api.complaints.create);
+  const updateComplaintStatus = useMutation(api.complaints.updateStatus);
+  const updateComplaintDetails = useMutation(api.complaints.updateDetails);
+  const addComplaintTodo = useMutation(api.complaints.addTodo);
+  const toggleComplaintTodo = useMutation(api.complaints.toggleTodo);
+  const deleteComplaint = useMutation(api.complaints.deleteComplaint);
 
   // Local State
   const [newNoteText, setNewNoteText] = useState("");
   const [submittingNote, setSubmittingNote] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [selectedComplaintId, setSelectedComplaintId] = useState<Id<"complaints"> | null>(null);
+  const [showNewComplaintModal, setShowNewComplaintModal] = useState(false);
+  const [newComplaintDesc, setNewComplaintDesc] = useState("");
+  const [newComplaintClientDesc, setNewComplaintClientDesc] = useState("");
+  const [creatingComplaint, setCreatingComplaint] = useState(false);
+  const [newTodoText, setNewTodoText] = useState("");
+  const [confirmDeleteComplaintId, setConfirmDeleteComplaintId] = useState<string | null>(null);
+
+  const selectedComplaint = useMemo(() => {
+    if (!selectedComplaintId) return null;
+    return complaints.find((c) => c._id === selectedComplaintId) ?? null;
+  }, [complaints, selectedComplaintId]);
+
+  const handleCreateComplaint = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order || !client || !newComplaintDesc.trim() || creatingComplaint) return;
+    setCreatingComplaint(true);
+    try {
+      await createComplaint({
+        orderId: order._id,
+        clientId: client._id,
+        startDate: Date.now(),
+        description: newComplaintDesc.trim(),
+        clientDescription: newComplaintClientDesc.trim() || undefined,
+        createdBy: "Aplikacja Mobilna",
+      });
+      setNewComplaintDesc("");
+      setNewComplaintClientDesc("");
+      setShowNewComplaintModal(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Błąd dodawania reklamacji");
+    } finally {
+      setCreatingComplaint(false);
+    }
+  };
 
 
   // Maps & calculations
@@ -730,11 +782,14 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <ShieldAlert className="size-4 text-red-500" /> Reklamacje ({complaints.length})
             </h2>
-            {complaints.length > 0 && (
-              <span className="text-[10px] font-extrabold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200">
-                Wykryto zgłoszenia
-              </span>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowNewComplaintModal(true)}
+              className="flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-xl active:scale-95 transition"
+            >
+              <Plus className="size-3.5" />
+              <span>Zgłoś reklamację</span>
+            </button>
           </div>
 
           {complaints.length === 0 ? (
@@ -744,17 +799,31 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
           ) : (
             <div className="space-y-2">
               {complaints.map((c) => (
-                <div key={c._id} className="bg-red-50/50 p-3 rounded-xl border border-red-100 space-y-1.5 text-xs">
+                <div
+                  key={c._id}
+                  onClick={() => setSelectedComplaintId(c._id)}
+                  className="bg-red-50/60 hover:bg-red-50 p-3 rounded-2xl border border-red-200/80 space-y-1.5 text-xs transition-all active:scale-[0.99] cursor-pointer shadow-2xs"
+                >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-extrabold text-xs text-red-950 truncate">{c.title || "Reklamacja"}</span>
-                    <span className="text-[9px] font-extrabold text-red-700 bg-red-100 px-2 py-0.5 rounded uppercase border border-red-200 shrink-0">
-                      {c.status}
-                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <ShieldAlert className="size-4 text-red-600 shrink-0" />
+                      <span className="font-extrabold text-xs text-red-950 truncate">
+                        {c.title || `Reklamacja #${c._id.slice(-4)}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[10px] font-extrabold text-red-700 bg-white/80 px-2 py-0.5 rounded-lg uppercase border border-red-200">
+                        {COMPLAINT_STATUS_LABELS[c.status] || c.status}
+                      </span>
+                      <ChevronRight className="size-4 text-red-400" />
+                    </div>
                   </div>
-                  {c.description && <p className="text-xs text-slate-700 leading-snug">{c.description}</p>}
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-red-100">
-                    <span>Data zgłoszenia: {formatDate(c._creationTime)}</span>
-                    {c.installationTeam && <span className="font-semibold text-slate-600">Ekipa: {c.installationTeam.name}</span>}
+                  {c.description && <p className="text-xs text-slate-700 leading-snug line-clamp-2">{c.description}</p>}
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-red-100">
+                    <span>Zgłoszono: {formatDate(c._creationTime)}</span>
+                    {c.installationTeam && (
+                      <span className="font-semibold text-slate-600">Ekipa: {c.installationTeam.name}</span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -936,6 +1005,277 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
                 );
               })}
             </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Bottom Sheet Modalu Szczegółów Reklamacji ── */}
+      {selectedComplaint && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]"
+            onClick={() => {
+              setSelectedComplaintId(null);
+              setConfirmDeleteComplaintId(null);
+            }}
+          />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] animate-in slide-in-from-bottom duration-200 max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShieldAlert className="size-5 text-red-600 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                    Zgłoszenie Reklamacyjne
+                  </span>
+                  <h3 className="text-sm font-extrabold text-slate-900 truncate">
+                    {selectedComplaint.title || `Reklamacja #${selectedComplaint._id.slice(-6)}`}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedComplaintId(null);
+                  setConfirmDeleteComplaintId(null);
+                }}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 shrink-0"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Status Selector */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Status reklamacji:</span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(["nowa", "w_toku", "rozwiazana", "zamknieta"] as const).map((stKey) => {
+                    const active = selectedComplaint.status === stKey;
+                    return (
+                      <button
+                        key={stKey}
+                        type="button"
+                        onClick={() => updateComplaintStatus({ complaintId: selectedComplaint._id, status: stKey })}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold text-center border transition-all active:scale-95 ${
+                          active
+                            ? "bg-red-600 text-white border-red-600 shadow-2xs"
+                            : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {COMPLAINT_STATUS_LABELS[stKey]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Opis usterki */}
+              <div className="bg-red-50/50 p-3 rounded-2xl border border-red-100 space-y-1">
+                <span className="text-[10px] font-bold text-red-800 uppercase block">Opis usterki / powód</span>
+                <p className="text-slate-800 leading-relaxed font-medium">
+                  {selectedComplaint.description || "Brak opisu usterki"}
+                </p>
+              </div>
+
+              {/* Uwagi klienta */}
+              {selectedComplaint.clientDescription && (
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Uwagi od klienta</span>
+                  <p className="text-slate-700 leading-relaxed">{selectedComplaint.clientDescription}</p>
+                </div>
+              )}
+
+              {/* Ekipa Montażowa */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Przypisana ekipa montażowa:</span>
+                <select
+                  value={selectedComplaint.installationTeamId ?? ""}
+                  onChange={(e) => {
+                    const teamVal = e.target.value ? (e.target.value as Id<"installationTeams">) : null;
+                    updateComplaintDetails({
+                      complaintId: selectedComplaint._id,
+                      installationTeamId: teamVal,
+                    });
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-red-500"
+                >
+                  <option value="">Brak przypisanej ekipy</option>
+                  {teams.map((t) => (
+                    <option key={t._id} value={t._id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Zadania do reklamacji (TODO) */}
+              <div className="space-y-2 pt-1 border-t border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                  Zadania do wykonania ({(selectedComplaint.todos ?? []).length}):
+                </span>
+
+                <div className="space-y-1.5">
+                  {(selectedComplaint.todos ?? []).map((td) => (
+                    <div
+                      key={td.id}
+                      onClick={() => toggleComplaintTodo({ complaintId: selectedComplaint._id, todoId: td.id })}
+                      className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 active:bg-slate-100 cursor-pointer"
+                    >
+                      {td.completed ? (
+                        <CheckSquare className="size-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <Square className="size-4 text-slate-400 shrink-0" />
+                      )}
+                      <span className={`text-xs ${td.completed ? "line-through text-slate-400 font-normal" : "text-slate-800 font-semibold"}`}>
+                        {td.text}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!newTodoText.trim()) return;
+                    await addComplaintTodo({ complaintId: selectedComplaint._id, text: newTodoText.trim() });
+                    setNewTodoText("");
+                  }}
+                  className="flex items-center gap-1.5 pt-1"
+                >
+                  <input
+                    type="text"
+                    value={newTodoText}
+                    onChange={(e) => setNewTodoText(e.target.value)}
+                    placeholder="Dodaj zadanie..."
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs shrink-0 active:scale-95 transition"
+                  >
+                    Dodaj
+                  </button>
+                </form>
+              </div>
+
+              {/* Link do Google Drive */}
+              {selectedComplaint.complaintFolderUrl && (
+                <div className="pt-2 border-t border-slate-100">
+                  <a
+                    href={selectedComplaint.complaintFolderUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl py-2.5 font-bold text-xs active:scale-95 transition"
+                  >
+                    <FolderOpen className="size-4" />
+                    <span>Otwórz folder reklamacji w Google Drive</span>
+                  </a>
+                </div>
+              )}
+
+              {/* Usuwanie reklamacji */}
+              <div className="pt-3 border-t border-slate-100">
+                {confirmDeleteComplaintId === selectedComplaint._id ? (
+                  <div className="bg-red-50 p-3 rounded-xl border border-red-200 text-center space-y-2">
+                    <p className="text-xs font-bold text-red-800">Czy na pewno usunąć tę reklamację?</p>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteComplaintId(null)}
+                        className="px-3 py-1.5 rounded-lg bg-white border border-red-200 text-slate-700 text-xs font-bold"
+                      >
+                        Anuluj
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await deleteComplaint({ complaintId: selectedComplaint._id });
+                          setSelectedComplaintId(null);
+                          setConfirmDeleteComplaintId(null);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold shadow-xs"
+                      >
+                        Usuń
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteComplaintId(selectedComplaint._id)}
+                    className="w-full flex items-center justify-center gap-1.5 text-red-600 bg-red-50 hover:bg-red-100 border border-red-200/80 rounded-xl py-2 font-bold text-xs active:scale-95 transition"
+                  >
+                    <Trash2 className="size-3.5" />
+                    <span>Usuń reklamację</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Bottom Sheet Dodawania Nowej Reklamacji ── */}
+      {showNewComplaintModal && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]"
+            onClick={() => setShowNewComplaintModal(false)}
+          />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] animate-in slide-in-from-bottom duration-200 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="size-5 text-red-600" />
+                <div>
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                    Nowe zgłoszenie
+                  </span>
+                  <h3 className="text-sm font-extrabold text-slate-900">Zgłoś reklamację</h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewComplaintModal(false)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateComplaint} className="p-4 space-y-3 overflow-y-auto flex-1 text-xs">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase block">Opis usterki / zgłoszenia *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={newComplaintDesc}
+                  onChange={(e) => setNewComplaintDesc(e.target.value)}
+                  placeholder="Opisz usterkę lub przyczynę reklamacji..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-none focus:border-red-500 font-medium"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase block">Uwagi od klienta (opcjonalnie)</label>
+                <textarea
+                  rows={2}
+                  value={newComplaintClientDesc}
+                  onChange={(e) => setNewComplaintClientDesc(e.target.value)}
+                  placeholder="Dodatkowe informacje przekazane przez klienta..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-none focus:border-red-500 font-medium"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={creatingComplaint || !newComplaintDesc.trim()}
+                className="w-full py-3 rounded-2xl bg-red-600 text-white font-extrabold text-xs shadow-md active:scale-98 transition disabled:opacity-50 mt-2"
+              >
+                {creatingComplaint ? "Zgłaszanie..." : "Zapisz reklamację"}
+              </button>
+            </form>
           </div>
         </>
       )}
