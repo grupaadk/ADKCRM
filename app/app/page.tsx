@@ -1803,6 +1803,7 @@ export default function AppPwaPage() {
                             onFolderChange={setActiveDriveFolder}
                             refreshKey={driveRefreshKey}
                             hideDropZone={true}
+                            hideHeaderButtons={true}
                           />
                         </div>
 

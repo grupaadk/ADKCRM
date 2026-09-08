@@ -255,6 +255,7 @@ export default function OrderDriveBrowser({
   onFolderChange,
   refreshKey,
   hideDropZone = false,
+  hideHeaderButtons = false,
 }: {
   orderId: Id<"orders">;
   rootFolderId: string | undefined;
@@ -262,6 +263,7 @@ export default function OrderDriveBrowser({
   onFolderChange?: (folder: { id: string; name: string }) => void;
   refreshKey?: number;
   hideDropZone?: boolean;
+  hideHeaderButtons?: boolean;
 }) {
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadFile = useAction(api.googleDrive.uploadManualOrderFile);
@@ -473,7 +475,7 @@ export default function OrderDriveBrowser({
           }}
         >
           <span className="up mute">Pliki zlecenia</span>
-          {rootFolderId && (
+          {rootFolderId && !hideHeaderButtons && (
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               {!showNewFolderInput && (
                 <button
@@ -760,7 +762,7 @@ export default function OrderDriveBrowser({
 
               {/* File/folder listing */}
               {!fetchError && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: hideDropZone ? 6 : 3 }}>
                   {/* Delete error toast */}
                   {deleteErrorMsg && (
                     <div
@@ -783,8 +785,8 @@ export default function OrderDriveBrowser({
                       <div
                         key={i}
                         style={{
-                          height: 33,
-                          borderRadius: 6,
+                          height: hideDropZone ? 42 : 33,
+                          borderRadius: hideDropZone ? 10 : 6,
                           background: "var(--panel-2)",
                           border: "1px solid var(--line)",
                           opacity: 0.5,
@@ -800,10 +802,10 @@ export default function OrderDriveBrowser({
                         display: "flex",
                         alignItems: "center",
                         gap: 0,
-                        borderRadius: 6,
+                        borderRadius: hideDropZone ? 10 : 6,
                         border: "1px solid var(--line)",
                         background: "var(--panel-2)",
-                        fontSize: 12.5,
+                        fontSize: hideDropZone ? 13 : 12.5,
                         transition: "border-color 0.1s",
                       }}
                       onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#fbbf24"; }}
@@ -814,8 +816,8 @@ export default function OrderDriveBrowser({
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: 8,
-                          padding: "6px 10px",
+                          gap: hideDropZone ? 10 : 8,
+                          padding: hideDropZone ? "10px 14px" : "6px 10px",
                           flex: 1,
                           color: "var(--text)",
                           textAlign: "left",
@@ -824,6 +826,7 @@ export default function OrderDriveBrowser({
                           border: "none",
                           fontSize: "inherit",
                           fontFamily: "inherit",
+                          fontWeight: hideDropZone ? 600 : 500,
                         }}
                         onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fefce8"; }}
                         onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
@@ -833,13 +836,13 @@ export default function OrderDriveBrowser({
                           {folder.name}
                         </span>
                         <svg
-                          width="10"
-                          height="10"
+                          width={hideDropZone ? 14 : 10}
+                          height={hideDropZone ? 14 : 10}
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
-                          strokeWidth={2}
-                          style={{ color: "var(--text-mute)", flexShrink: 0 }}
+                          strokeWidth={hideDropZone ? 2.5 : 2}
+                          style={{ color: hideDropZone ? "#4dbdc6" : "var(--text-mute)", flexShrink: 0 }}
                         >
                           <path
                             strokeLinecap="round"
