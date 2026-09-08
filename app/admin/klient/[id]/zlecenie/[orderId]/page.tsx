@@ -4361,6 +4361,7 @@ export default function OrderDetailPage({
           <SideDrawer
             open={!!editingDeliverySvc && !!draftDeliveryEntry}
             onClose={cancelEditDelivery}
+            bodyClassName="flex flex-col min-h-0 overflow-hidden bg-slate-50/50"
             title={
               <div className="flex items-center gap-2">
                 <ServiceIcon name={editingDeliverySvc ?? ""} size={18} />
@@ -4444,16 +4445,16 @@ export default function OrderDetailPage({
               </div>
             }
           >
-            <div className="p-4 overflow-x-auto">
+            <div className="p-4 flex-1 min-h-0 flex flex-col overflow-x-auto overflow-y-hidden">
               {draftDeliveryEntry && (() => {
                 const svc = servicesList.find((s) => s.name === editingDeliverySvc);
                 const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
                 const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
 
                 return (
-                  <div className="grid grid-cols-3 gap-6 items-stretch min-w-[1150px]">
+                  <div className="grid grid-cols-3 gap-6 items-stretch min-w-[1150px] flex-1 min-h-0">
                     {/* Lewa kolumna (1): Parametry zamówienia i etapy realizacji */}
-                    <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-5 overflow-y-auto min-h-0 pr-1">
                       {/* Wybór dostawcy i Kwota netto w 2 kolumnach */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="flex flex-col gap-1.5">
@@ -4592,9 +4593,14 @@ export default function OrderDetailPage({
                     </div>
 
                     {/* Środkowa kolumna (2): Notatki / Uwagi do zamówienia na całą wysokość modala */}
-                    <div className="flex flex-col gap-3 p-4 bg-slate-50/70 border border-slate-200 rounded-xl h-full flex-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-700">Notatki / Uwagi do zamówienia</label>
+                    <div className="flex flex-col gap-3 p-4 bg-white border border-slate-200 rounded-xl flex-1 min-h-0 shadow-xs">
+                      <div className="flex items-center justify-between shrink-0">
+                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                          <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Notatki / Uwagi do zamówienia
+                        </label>
                         {currentSupplier?.isApiEnabled && (
                           <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                             ⚡ Sync z Exalco
@@ -4605,14 +4611,14 @@ export default function OrderDetailPage({
                         placeholder="Wpisz uwagi, numer zamówienia u dostawcy, wymiary, specyfikację lub dodatkowe ustalenia..."
                         value={draftDeliveryEntry.notes ?? ""}
                         onChange={(e) => updateDraftSingleField("notes", e.target.value)}
-                        className="w-full flex-1 h-full min-h-[380px] rounded-lg border border-slate-300 bg-white p-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm resize-none"
+                        className="w-full flex-1 min-h-0 rounded-lg border border-slate-300 bg-slate-50/50 p-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs resize-none"
                       />
                     </div>
 
                     {/* Prawa kolumna (3): Przeglądarka plików Google Drive do przesyłania po API */}
-                    <div className="flex flex-col gap-4 h-full flex-1">
+                    <div className="flex flex-col gap-4 flex-1 min-h-0">
                       {currentSupplier?.isApiEnabled ? (
-                        <div className="flex flex-col gap-3 p-4 bg-slate-50/70 border border-slate-200 rounded-xl h-full flex-1 justify-between">
+                        <div className="flex flex-col gap-3 p-4 bg-white border border-slate-200 rounded-xl flex-1 min-h-0 justify-between shadow-xs">
                           <OrderDriveFilePicker
                             orderId={orderIdTyped}
                             rootFolderId={order?.folderId}
@@ -4624,7 +4630,7 @@ export default function OrderDetailPage({
                               type="button"
                               onClick={sendSelectedFilesToExistingOrder}
                               disabled={sendingFilesCrm}
-                              className="btn primary text-xs w-full py-2.5 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm rounded-lg"
+                              className="btn primary text-xs w-full py-2.5 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm rounded-lg shrink-0"
                             >
                               {sendingFilesCrm ? (
                                 <>
@@ -4643,7 +4649,7 @@ export default function OrderDetailPage({
                           )}
                         </div>
                       ) : (
-                        <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-500">
+                        <div className="p-4 rounded-xl border border-slate-200 bg-white text-xs text-slate-500 shadow-xs">
                           Automatyczne wysyłanie załączników z Google Drive dostępne jest dla dostawców posiadających aktywną integrację API (np. Exalco).
                         </div>
                       )}

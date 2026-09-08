@@ -16,6 +16,7 @@ export default function SideDrawer({
   width = 460,
   children,
   footer,
+  bodyClassName,
 }: {
   open: boolean;
   onClose: () => void;
@@ -23,6 +24,7 @@ export default function SideDrawer({
   width?: number;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  bodyClassName?: string;
 }) {
   // Escape zamyka (subskrypcja zdarzenia — aktywna tylko gdy otwarty).
   useEffect(() => {
@@ -63,7 +65,7 @@ export default function SideDrawer({
             <X className="size-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto">{children}</div>
+        <div className={`flex-1 ${bodyClassName ?? "overflow-y-auto"}`}>{children}</div>
         {footer && <div className="shrink-0 border-t border-gray-200 p-4">{footer}</div>}
       </div>
     </div>
