@@ -147,6 +147,6 @@ describe("US-3.6 — Warranty cards", () => {
 
     const order = await asUser.query(api.orders.getById, { orderId });
     expect(order!.warrantyCards).toHaveLength(1);
-    expect(order!.warrantyCards[0].manufacturer).toBe("Yawal");
+    expect(order!.warrantyCards?.[0]?.manufacturer).toBe("Yawal");
   });
 });
