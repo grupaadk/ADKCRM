@@ -140,13 +140,6 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
   const [submittingNote, setSubmittingNote] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
 
-  // Scroll to section helper
-  const scrollToSection = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
 
   // Maps & calculations
   const supplierMap = useMemo(() => {
@@ -303,7 +296,7 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
       {/* Main Content Body */}
       <main className="p-3.5 space-y-3 max-w-xl mx-auto">
         {/* Quick Action Bar (Zadzwoń, Nawiguj) */}
-        <div className="bg-white rounded-2xl p-3 border border-gray-200/90 shadow-xs space-y-2.5">
+        <div className="bg-white rounded-2xl p-3 border border-gray-200/90 shadow-xs">
           <div className="grid grid-cols-2 gap-2">
             {client?.phone ? (
               <a
@@ -342,68 +335,6 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
                 <span>Brak adresu</span>
               </button>
             )}
-          </div>
-
-          {/* Quick Section Navigation Bar */}
-          <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-            <button
-              onClick={() => scrollToSection("sekcja-status")}
-              className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-bold shrink-0 active:scale-95 transition"
-            >
-              Status
-            </button>
-            <button
-              onClick={() => scrollToSection("sekcja-klient")}
-              className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold shrink-0 hover:bg-slate-200 active:scale-95 transition"
-            >
-              Klient
-            </button>
-            <button
-              onClick={() => scrollToSection("sekcja-wycena")}
-              className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 border border-sky-200/60 text-[11px] font-bold shrink-0 hover:bg-sky-100 active:scale-95 transition"
-            >
-              Wycena
-            </button>
-            <button
-              onClick={() => scrollToSection("sekcja-finanse")}
-              className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[11px] font-bold shrink-0 hover:bg-emerald-100 active:scale-95 transition"
-            >
-              Finanse
-            </button>
-            <button
-              onClick={() => scrollToSection("sekcja-zamowienia")}
-              className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200/60 text-[11px] font-bold shrink-0 hover:bg-amber-100 active:scale-95 transition"
-            >
-              Zamówienia
-            </button>
-            <button
-              onClick={() => scrollToSection("sekcja-montaz")}
-              className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200/60 text-[11px] font-bold shrink-0 hover:bg-indigo-100 active:scale-95 transition"
-            >
-              Montaż
-            </button>
-            <button
-              onClick={() => scrollToSection("sekcja-reklamacje")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 active:scale-95 transition ${
-                complaints.length > 0
-                  ? "bg-red-500 text-white shadow-2xs"
-                  : "bg-slate-100 text-slate-700 border border-slate-200"
-              }`}
-            >
-              Reklamacje {complaints.length > 0 && `(${complaints.length})`}
-            </button>
-            <button
-              onClick={() => scrollToSection("sekcja-dokumenty")}
-              className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold shrink-0 hover:bg-slate-200 active:scale-95 transition"
-            >
-              Dokumenty
-            </button>
-            <button
-              onClick={() => scrollToSection("sekcja-notatki")}
-              className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200/60 text-[11px] font-bold shrink-0 hover:bg-purple-100 active:scale-95 transition"
-            >
-              Notatki ({notes.length})
-            </button>
           </div>
         </div>
 
