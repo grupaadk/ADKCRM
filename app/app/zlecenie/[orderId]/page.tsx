@@ -27,7 +27,6 @@ import {
   Receipt,
   ShoppingCart,
   Clock,
-  CheckCircle2,
   ChevronRight,
   X,
   Check,
@@ -148,11 +147,6 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
       el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
-
-  // Status lists
-  const orderStatuses = useMemo(() => {
-    return statuses.filter((s) => s.key !== "archived" && s.key !== "lead" && s.key !== "inquiry" && s.kind !== "opportunity");
-  }, [statuses]);
 
   // Maps & calculations
   const supplierMap = useMemo(() => {
@@ -462,37 +456,6 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
             </div>
           )}
 
-          {/* Wizualny Pasek Postępu (Stepper) */}
-          <div className="space-y-1.5 pt-1">
-            <span className="text-[10px] font-bold text-slate-400 uppercase block">Ścieżka etapów zlecenia:</span>
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1.5 px-0.5">
-              {orderStatuses.map((s, idx) => {
-                const isCurrent = s.key === order.status;
-                const currentIdx = orderStatuses.findIndex((st) => st.key === order.status);
-                const isPast = currentIdx !== -1 && idx < currentIdx;
-
-                return (
-                  <button
-                    key={s.key}
-                    type="button"
-                    onClick={() => changeStatus({ orderId: order._id, newStatus: s.key as any })}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold shrink-0 transition-all active:scale-95 ${
-                      isCurrent
-                        ? "text-white shadow-xs ring-2 ring-offset-1"
-                        : isPast
-                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200/80"
-                        : "bg-slate-100 text-slate-400 border border-gray-200/60 hover:text-slate-600"
-                    }`}
-                    style={isCurrent ? { backgroundColor: s.color, ringColor: s.color } : undefined}
-                  >
-                    {isPast && <CheckCircle2 className="size-3 shrink-0 text-emerald-600" />}
-                    {isCurrent && <span className="size-2 rounded-full bg-white animate-ping" />}
-                    <span>{s.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </section>
 
         {/* Sekcja 1: Klient & Inwestycja */}
