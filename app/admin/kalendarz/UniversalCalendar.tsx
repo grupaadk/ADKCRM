@@ -2744,6 +2744,11 @@ export default function UniversalCalendar({
           .fc-daygrid .fc-scroller {
             overflow: hidden !important;
           }
+          /* Przeprojektowanie / ograniczenie wysokości wyłącznie wiersza 'Cały dzień' */
+          .fc-timegrid .fc-scrollgrid-section-header .fc-scroller {
+            max-height: 85px !important;
+            overflow-y: auto !important;
+          }
           .fc-daygrid-body, .fc-scrollgrid-sync-table {
             height: 100% !important;
           }
