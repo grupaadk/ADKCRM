@@ -453,7 +453,18 @@ export default function MobileDashboard() {
   const isAdmin = me?.role === "admin";
   const canAddTasks = me?.role === "admin" || me?.role === "sales";
 
-  const [filter, setFilter] = useState<FilterValue>("all");
+  const [filter, setFilter] = useState<FilterValue | null>(null);
+  const [filterInitialized, setFilterInitialized] = useState(false);
+
+  useEffect(() => {
+    if (me !== undefined && !filterInitialized) {
+      setFilter(me?._id ?? "all");
+      setFilterInitialized(true);
+    }
+  }, [me, filterInitialized]);
+
+  const activeFilter: FilterValue = filter ?? me?._id ?? "all";
+
   const [selectedColIndex, setSelectedColIndex] = useState(0);
   const [openTaskId, setOpenTaskId] = useState<Id<"orderTasks"> | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -464,7 +475,7 @@ export default function MobileDashboard() {
   const [showFilterPicker, setShowFilterPicker] = useState(false);
 
   const taskColumns = useQuery(api.taskColumns.list) ?? [];
-  const tasks = useQuery(api.dashboardTasks.list, isAdmin ? { filter } : {});
+  const tasks = useQuery(api.dashboardTasks.list, isAdmin ? { filter: activeFilter } : {});
   const users = useQuery(api.users.listAllActive);
   const updateTask = useMutation(api.orderTasks.update);
 
@@ -621,16 +632,16 @@ export default function MobileDashboard() {
 
   /* ── filter label ── */
   const filterLabel = useMemo(() => {
-    if (filter === "all") return "Wszyscy";
-    if (filter === "unassigned") return "Nieprzypisane";
-    const u = (users ?? []).find((u) => u._id === filter);
+    if (activeFilter === "all") return "Wszyscy";
+    if (activeFilter === "unassigned") return "Nieprzypisane";
+    const u = (users ?? []).find((u) => u._id === activeFilter);
     return u?.displayName ?? u?.login ?? "Użytkownik";
-  }, [filter, users]);
+  }, [activeFilter, users]);
 
   const filterUser = useMemo(() => {
-    if (filter === "all" || filter === "unassigned") return null;
-    return (users ?? []).find((u) => u._id === filter) ?? null;
-  }, [filter, users]);
+    if (activeFilter === "all" || activeFilter === "unassigned") return null;
+    return (users ?? []).find((u) => u._id === activeFilter) ?? null;
+  }, [activeFilter, users]);
 
   if (loading) {
     return (
@@ -887,33 +898,33 @@ export default function MobileDashboard() {
               <button
                 onClick={() => { setFilter("all"); setShowFilterPicker(false); }}
                 className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
-                  filter === "all" ? "bg-gray-50" : "hover:bg-gray-50"
+                  activeFilter === "all" ? "bg-gray-50" : "hover:bg-gray-50"
                 }`}
               >
                 <span className="flex size-8 items-center justify-center rounded-full bg-gray-200 text-gray-600">
                   <Users className="size-4" />
                 </span>
                 <span className="flex-1 text-sm font-medium text-gray-900">Wszyscy</span>
-                {filter === "all" && <Check className="size-4 text-[#4abbc3]" />}
+                {activeFilter === "all" && <Check className="size-4 text-[#4abbc3]" />}
               </button>
               {/* Nieprzypisane */}
               <button
                 onClick={() => { setFilter("unassigned"); setShowFilterPicker(false); }}
                 className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
-                  filter === "unassigned" ? "bg-gray-50" : "hover:bg-gray-50"
+                  activeFilter === "unassigned" ? "bg-gray-50" : "hover:bg-gray-50"
                 }`}
               >
                 <span className="flex size-8 items-center justify-center rounded-full bg-gray-200 text-gray-600">
                   <X className="size-4" />
                 </span>
                 <span className="flex-1 text-sm font-medium text-gray-900">Nieprzypisane</span>
-                {filter === "unassigned" && <Check className="size-4 text-[#4abbc3]" />}
+                {activeFilter === "unassigned" && <Check className="size-4 text-[#4abbc3]" />}
               </button>
               <div className="mx-4 h-px bg-gray-100" />
               {/* Users */}
               {(users ?? []).map((u) => {
                 const name = u.displayName ?? u.login ?? "";
-                const active = filter === u._id;
+                const active = activeFilter === u._id;
                 const color = u.color ?? uColor(u._id);
                 return (
                   <button
