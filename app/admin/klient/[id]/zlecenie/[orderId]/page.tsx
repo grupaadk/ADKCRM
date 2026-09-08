@@ -4451,7 +4451,7 @@ export default function OrderDetailPage({
                 const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
 
                 return (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
                     {/* Lewa kolumna: Parametry zamówienia, etapy i uwagi */}
                     <div className="flex flex-col gap-5">
                       {/* Wybór dostawcy i Kwota netto w 2 kolumnach */}
@@ -4621,9 +4621,9 @@ export default function OrderDetailPage({
                     </div>
 
                     {/* Prawa kolumna: Przeglądarka plików Google Drive do przesyłania po API */}
-                    <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-4 h-full flex-1">
                       {currentSupplier?.isApiEnabled ? (
-                        <div className="flex flex-col gap-3 p-4 bg-slate-50/70 border border-slate-200 rounded-xl">
+                        <div className="flex flex-col gap-3 p-4 bg-slate-50/70 border border-slate-200 rounded-xl h-full flex-1 justify-between">
                           <OrderDriveFilePicker
                             orderId={orderIdTyped}
                             rootFolderId={order?.folderId}
