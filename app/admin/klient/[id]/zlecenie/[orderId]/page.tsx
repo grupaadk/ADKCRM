@@ -4444,14 +4444,14 @@ export default function OrderDetailPage({
               </div>
             }
           >
-            <div className="p-4">
+            <div className="p-4 overflow-x-auto">
               {draftDeliveryEntry && (() => {
                 const svc = servicesList.find((s) => s.name === editingDeliverySvc);
                 const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
                 const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
 
                 return (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+                  <div className="grid grid-cols-3 gap-6 items-stretch min-w-[1150px]">
                     {/* Lewa kolumna (1): Parametry zamówienia i etapy realizacji */}
                     <div className="flex flex-col gap-5">
                       {/* Wybór dostawcy i Kwota netto w 2 kolumnach */}
