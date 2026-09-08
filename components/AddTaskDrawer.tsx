@@ -20,7 +20,7 @@ type AssignUser = { _id: Id<"users">; displayName?: string | null; login?: strin
 export default function AddTaskDrawer({
   open,
   onClose,
-  initialTargetType = "order",
+  initialTargetType = "general",
   initialColumnId = null,
 }: {
   open: boolean;
@@ -111,7 +111,7 @@ export default function AddTaskDrawer({
 
   function close() {
     reset();
-    setTargetType("order");
+    setTargetType(initialTargetType);
     onClose();
   }
 

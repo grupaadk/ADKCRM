@@ -852,7 +852,7 @@ export default function MobileDashboard() {
         <AddTaskDrawer
           open={addOpen}
           onClose={() => setAddOpen(false)}
-          initialTargetType="order"
+          initialTargetType="general"
           initialColumnId={currentColId}
         />
       )}
