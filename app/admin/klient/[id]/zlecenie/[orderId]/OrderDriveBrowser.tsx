@@ -252,10 +252,14 @@ export default function OrderDriveBrowser({
   orderId,
   rootFolderId,
   previewSide = "right",
+  onFolderChange,
+  refreshKey,
 }: {
   orderId: Id<"orders">;
   rootFolderId: string | undefined;
   previewSide?: "left" | "right";
+  onFolderChange?: (folder: { id: string; name: string }) => void;
+  refreshKey?: number;
 }) {
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadFile = useAction(api.googleDrive.uploadManualOrderFile);
@@ -285,6 +289,13 @@ export default function OrderDriveBrowser({
   const folderNameInputRef = useRef<HTMLInputElement>(null);
 
   const currentFolderId = breadcrumb[breadcrumb.length - 1]?.id;
+  const currentFolderName = breadcrumb[breadcrumb.length - 1]?.name ?? "Folder zlecenia";
+
+  useEffect(() => {
+    if (currentFolderId && onFolderChange) {
+      onFolderChange({ id: currentFolderId, name: currentFolderName });
+    }
+  }, [currentFolderId, currentFolderName, onFolderChange]);
 
   useEffect(() => {
     if (rootFolderId) {
@@ -321,7 +332,7 @@ export default function OrderDriveBrowser({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentFolderId, refreshCounter, rootFolderId]);
+  }, [currentFolderId, refreshCounter, refreshKey, rootFolderId]);
 
   // Auto-focus folder name input when it appears
   useEffect(() => {

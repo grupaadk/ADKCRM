@@ -241,6 +241,12 @@ export default function AppPwaPage() {
   const [scanPreviews, setScanPreviews] = useState<string[]>([]);
   const [scanRotations, setScanRotations] = useState<number[]>([]);
   const [uploadTargetMode, setUploadTargetMode] = useState<"replace_doc" | "drive_browser">("replace_doc");
+  const [activeDriveFolder, setActiveDriveFolder] = useState<{ id: string; name: string } | null>(null);
+  const [driveCustomFileName, setDriveCustomFileName] = useState("");
+  const [driveRefreshKey, setDriveRefreshKey] = useState(0);
+  const [driveUploading, setDriveUploading] = useState(false);
+  const [driveSuccessMsg, setDriveSuccessMsg] = useState<string | null>(null);
+  const [driveErrorMsg, setDriveErrorMsg] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ ok: true; url: string } | { ok: false; error: string } | null>(null);
 
@@ -427,6 +433,10 @@ export default function AppPwaPage() {
     setScanPreviews([]);
     setScanRotations([]);
     setUploadTargetMode("replace_doc");
+    setActiveDriveFolder(null);
+    setDriveCustomFileName("");
+    setDriveSuccessMsg(null);
+    setDriveErrorMsg(null);
     setResult(null);
   }
 
@@ -578,9 +588,84 @@ export default function AppPwaPage() {
       
       doc.addImage(dataUrl, "JPEG", x, y, finalWidth, finalHeight, undefined, "MEDIUM");
     }
-    const blob = doc.output("blob");
-    const date = new Date().toISOString().slice(0, 10);
-    return new File([blob], `skan_${date}.pdf`, { type: "application/pdf" });
+    const pdfBlob = doc.output("blob");
+    return new File([pdfBlob], "skan.pdf", { type: "application/pdf" });
+  }
+
+  async function handleDriveFileUpload(e: React.FormEvent) {
+    e.preventDefault();
+    const targetFolderId = activeDriveFolder?.id || selectedOrder?.folderId;
+    if (!selectedOrderId || !targetFolderId) {
+      setDriveErrorMsg("Folder zlecenia w Google Drive jest niedostępny.");
+      return;
+    }
+    if (!file && scanPages.length === 0) {
+      setDriveErrorMsg("Wybierz plik lub zrób zdjęcie przed wysłaniem.");
+      return;
+    }
+
+    setDriveUploading(true);
+    setDriveSuccessMsg(null);
+    setDriveErrorMsg(null);
+
+    try {
+      let fileToUpload: File;
+      const now = new Date();
+      const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}`;
+
+      if (scanPages.length > 0) {
+        fileToUpload = await buildPdfFromPages(scanPages, scanRotations);
+      } else if (file) {
+        fileToUpload = file;
+      } else {
+        throw new Error("Brak wybranego pliku.");
+      }
+
+      let finalName = driveCustomFileName.trim();
+      if (!finalName) {
+        if (scanPages.length > 0) {
+          finalName = `Zdjecie_${timestamp}.pdf`;
+        } else {
+          finalName = fileToUpload.name || `Plik_${timestamp}`;
+        }
+      } else {
+        const hasExt = /\.[a-zA-Z0-9]+$/.test(finalName);
+        if (!hasExt) {
+          const ext = scanPages.length > 0 ? "pdf" : (fileToUpload.name.split(".").pop() || "pdf");
+          finalName = `${finalName}.${ext}`;
+        }
+      }
+
+      const uploadUrl = await generateUploadUrl();
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": fileToUpload.type || "application/octet-stream" },
+        body: fileToUpload,
+      });
+
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+      const { storageId } = (await res.json()) as { storageId: string };
+
+      await uploadManualOrderFile({
+        orderId: selectedOrderId,
+        storageId: storageId as Id<"_storage">,
+        fileName: finalName,
+        mimeType: fileToUpload.type || undefined,
+        targetFolderId: targetFolderId,
+      });
+
+      setFile(null);
+      setScanPages([]);
+      setScanPreviews([]);
+      setScanRotations([]);
+      setDriveCustomFileName("");
+      setDriveSuccessMsg(`Pomyślnie zapisano plik "${finalName}" w folderze "${activeDriveFolder?.name ?? "Folder zlecenia"}"`);
+      setDriveRefreshKey((k) => k + 1);
+    } catch (err) {
+      setDriveErrorMsg(err instanceof Error ? err.message : "Błąd podczas wgrywania pliku.");
+    } finally {
+      setDriveUploading(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -1688,28 +1773,196 @@ export default function AppPwaPage() {
                     </div>
 
                     {uploadTargetMode === "drive_browser" ? (
-                      <div className="space-y-2 pt-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                            <Folder className="size-4 text-[#4dbdc6]" />
-                            Pliki i Foldery Zlecenia (Google Drive)
-                          </h4>
+                      <div className="space-y-4 pt-2">
+                        {/* Notice & Active Folder Header */}
+                        <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                              <Folder className="size-4 text-[#4dbdc6]" />
+                              Wgrywanie do: <span className="text-[#4dbdc6]">{activeDriveFolder?.name ?? "Folder główny zlecenia"}</span>
+                            </h4>
+                            <p className="text-[10px] text-slate-400">Nawiguj po folderach poniżej, aby zmienić docelowe miejsce.</p>
+                          </div>
                           {selectedOrder?.folderId ? (
-                            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                              Dysk połączony
+                            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 shrink-0">
+                              ✓ Dysk aktywny
                             </span>
                           ) : (
-                            <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                              Folder główny zlecenia niedostępny
+                            <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-1 rounded-md border border-amber-200 shrink-0">
+                              Folder zlecenia niedostępny
                             </span>
                           )}
                         </div>
 
-                        <OrderDriveBrowser
-                          orderId={selectedOrderId}
-                          rootFolderId={selectedOrder?.folderId}
-                          previewSide="right"
-                        />
+                        {/* Status Messages */}
+                        {driveSuccessMsg && (
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 font-bold flex items-center justify-between shadow-xs">
+                            <span>{driveSuccessMsg}</span>
+                            <button type="button" onClick={() => setDriveSuccessMsg(null)} className="text-emerald-500 hover:text-emerald-700 p-0.5">
+                              <X className="size-4" />
+                            </button>
+                          </div>
+                        )}
+
+                        {driveErrorMsg && (
+                          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-700 flex items-center gap-2">
+                            <AlertCircle className="size-4 shrink-0" />
+                            <span>{driveErrorMsg}</span>
+                          </div>
+                        )}
+
+                        {/* Photo Capture & Scanner Box for Drive Subfolder */}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                          <label className="block text-xs font-bold text-slate-700">
+                            4. Zrób Zdjęcie lub Wybierz Plik dla folderu "{activeDriveFolder?.name ?? "Folder główny"}" *
+                          </label>
+
+                          {/* Hidden inputs */}
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*,application/pdf"
+                            onChange={handleFileSelect}
+                            className="hidden"
+                          />
+                          <input
+                            ref={cameraInputRef}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleScanPhotoSelect}
+                            className="hidden"
+                          />
+                          <input
+                            ref={scanCameraAddRef}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleScanPhotoSelect}
+                            className="hidden"
+                          />
+
+                          {/* Mode A: single file selected */}
+                          {file && scanPages.length === 0 ? (
+                            <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 shadow-xs">
+                              <div className="flex items-center gap-2.5 overflow-hidden">
+                                <FileText className="size-5 text-[#4dbdc6] shrink-0" />
+                                <span className="text-xs font-semibold text-slate-700 truncate">{file.name}</span>
+                              </div>
+                              <button type="button" onClick={() => setFile(null)} className="text-slate-400 hover:text-slate-600 p-1">
+                                <X className="size-4" />
+                              </button>
+                            </div>
+                          ) : scanPages.length > 0 ? (
+                            /* Mode B: scanner grid */
+                            <div className="space-y-2">
+                              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                                <SortableContext items={scanPreviews} strategy={rectSortingStrategy}>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    {scanPreviews.map((src, idx) => (
+                                      <SortablePhotoItem
+                                        key={src}
+                                        id={src}
+                                        src={src}
+                                        index={idx}
+                                        rotation={scanRotations[idx] || 0}
+                                        onRemove={handleRemoveScanPage}
+                                        onRotate={handleRotateScanPage}
+                                      />
+                                    ))}
+                                  </div>
+                                </SortableContext>
+                              </DndContext>
+
+                              {scanPages.length < 20 && (
+                                <button
+                                  type="button"
+                                  onClick={() => scanCameraAddRef.current?.click()}
+                                  className="w-full flex items-center justify-center gap-1.5 py-2.5 border-2 border-dashed border-[#4dbdc6] rounded-xl text-[#4dbdc6] text-xs font-bold bg-white hover:bg-[#4dbdc6]/5 transition"
+                                >
+                                  <Camera className="size-4" />
+                                  + Dodaj kolejną stronę ({scanPages.length}/20)
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => { setScanPages([]); setScanPreviews([]); setScanRotations([]); }}
+                                className="w-full text-[10px] text-slate-400 hover:text-red-500 transition py-1"
+                              >
+                                ✕ Usuń wszystkie strony i zacznij od nowa
+                              </button>
+                            </div>
+                          ) : (
+                            /* Mode C: Action Buttons */
+                            <div className="grid grid-cols-2 gap-2.5">
+                              <button
+                                type="button"
+                                onClick={() => cameraInputRef.current?.click()}
+                                className="flex flex-col items-center justify-center p-3.5 border-2 border-dashed border-gray-300 rounded-xl bg-white hover:bg-slate-100 text-slate-700 gap-1 transition"
+                              >
+                                <Camera className="size-5 text-[#4dbdc6]" />
+                                <span className="text-xs font-bold">Zrób zdjęcie</span>
+                                <span className="text-[9px] text-slate-400">skaner → PDF</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl bg-white hover:bg-slate-100 text-slate-700 gap-1 transition"
+                              >
+                                <Upload className="size-5 text-[#4dbdc6]" />
+                                <span className="text-xs font-bold">Wybierz plik</span>
+                                <span className="text-[9px] text-slate-400">PDF lub obraz</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Custom File Name Input */}
+                          {(file || scanPages.length > 0) && (
+                            <div className="space-y-1 pt-1">
+                              <label className="text-[11px] font-bold text-slate-700">Nazwa pliku w Google Drive (opcjonalnie)</label>
+                              <input
+                                type="text"
+                                placeholder={scanPages.length > 0 ? "Zdjecie_2026-09-08_08-35.pdf" : (file?.name ?? "Moja_Nazwa.pdf")}
+                                value={driveCustomFileName}
+                                onChange={(e) => setDriveCustomFileName(e.target.value)}
+                                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-xs text-slate-800 focus:border-[#4dbdc6] focus:outline-none bg-white"
+                              />
+                            </div>
+                          )}
+
+                          {/* Send Button to Active Folder */}
+                          <button
+                            type="button"
+                            onClick={handleDriveFileUpload}
+                            disabled={(!file && scanPages.length === 0) || driveUploading}
+                            className="w-full py-3.5 rounded-xl bg-[#4dbdc6] text-white font-bold text-xs shadow-md hover:bg-[#3caab3] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                          >
+                            {driveUploading ? (
+                              <>
+                                <RefreshCw className="size-4 animate-spin" />
+                                Wgrywanie do folderu "{activeDriveFolder?.name ?? "Drive"}"...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="size-4" />
+                                Wyślij do folderu: {activeDriveFolder?.name ?? "Folder główny zlecenia"}
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Integrated Drive Browser Below */}
+                        <div className="pt-2">
+                          <OrderDriveBrowser
+                            orderId={selectedOrderId}
+                            rootFolderId={selectedOrder?.folderId}
+                            previewSide="right"
+                            onFolderChange={setActiveDriveFolder}
+                            refreshKey={driveRefreshKey}
+                          />
+                        </div>
                       </div>
                     ) : (
                       <>
