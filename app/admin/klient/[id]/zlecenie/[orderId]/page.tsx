@@ -4369,7 +4369,7 @@ export default function OrderDetailPage({
                 </span>
               </div>
             }
-            width={620}
+            width={1000}
             footer={
               <div className="flex items-center justify-between gap-3 w-full">
                 {editingDeliveryIndex !== null ? (
@@ -4444,212 +4444,221 @@ export default function OrderDetailPage({
               </div>
             }
           >
-            <div className="flex flex-col gap-6 p-2">
+            <div className="p-4">
               {draftDeliveryEntry && (() => {
                 const svc = servicesList.find((s) => s.name === editingDeliverySvc);
                 const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
                 const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
 
                 return (
-                  <div className="flex flex-col gap-5">
-                    {/* Wybór dostawcy i Kwota netto w 2 kolumnach */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-bold text-slate-700">Dostawca realizujący zamówienie</label>
-                        <select
-                          value={draftDeliveryEntry.supplierId}
-                          onChange={(e) => updateDraftSingleField("supplierId", e.target.value as Id<"suppliers">)}
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm"
-                        >
-                          {(availableSuppliers.length > 0 ? availableSuppliers : allSuppliers).map((s) => (
-                            <option key={s._id} value={s._id}>
-                              {s.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-bold text-slate-700">Kwota netto zamówienia (PLN)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0.00"
-                          value={draftDeliveryEntry.netAmount ?? ""}
-                          onChange={(e) => {
-                            const val = e.target.value ? parseFloat(e.target.value) : undefined;
-                            updateDraftSingleField("netAmount", val);
-                          }}
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Daty etapów zamówienia w formie eleganckiej tabeli */}
-                    <div className="flex flex-col gap-3 pt-3 border-t border-slate-200">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Etapy i terminy realizacji</span>
-                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-                        <table className="w-full border-collapse text-left text-xs">
-                          <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
-                              <th className="py-2.5 px-3.5 w-1/3">Etap</th>
-                              <th className="py-2.5 px-3.5 w-1/2">Data</th>
-                              <th className="py-2.5 px-3.5 text-right w-1/6">Akcje</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {DELIVERY_MILESTONES.map((m) => {
-                              const val = draftDeliveryEntry[m.key];
-                              const isSet = val != null;
-                              const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
-                              const isWebhookSupplier = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("ALCO") || currentSupplier?.name?.toUpperCase().includes("EXALCO");
-                              const isLockedByWebhook = isWebhookSupplier && (m.key === "confirmedDate" || m.key === "deliveryDate");
-
-                              return (
-                                <tr key={m.key} className="hover:bg-slate-50/50 transition-colors">
-                                  <td className="py-2.5 px-3.5 font-bold align-middle">
-                                    <div className="flex items-center gap-2">
-                                      <span className="w-2 height-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.tone, width: 8, height: 8 }} />
-                                      <span style={{ color: isSet ? m.tone : "var(--text-strong)" }}>{m.label}</span>
-                                    </div>
-                                  </td>
-                                  <td className="py-2.5 px-3.5 align-middle">
-                                    <input
-                                      type="date"
-                                      value={tsToDateStr(val)}
-                                      disabled={isLockedByWebhook}
-                                      title={isLockedByWebhook ? "Data pobierana automatycznie z webhooka (ALCO)" : undefined}
-                                      onChange={(e) => updateDraftSingleField(m.key, dateStrToTs(e.target.value))}
-                                      className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-                                    />
-                                  </td>
-                                  <td className="py-2.5 px-3.5 text-right align-middle">
-                                    {isSet && !isLockedByWebhook ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => updateDraftSingleField(m.key, undefined)}
-                                        className="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded text-xs transition-colors"
-                                        title={`Wyczyść datę dla ${m.label}`}
-                                      >
-                                        ✕
-                                      </button>
-                                    ) : (
-                                      <span className="text-slate-300 text-xs">—</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {/* Notatki / Uwagi (Textarea) */}
-                    <div className="flex flex-col gap-1.5 pt-3 border-t border-slate-200">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-700">Notatki / Uwagi do zamówienia</label>
-                        {currentSupplier?.isApiEnabled && (
-                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                            ⚡ Automatyczna synchronizacja z Exalco
-                          </span>
-                        )}
-                      </div>
-                      <textarea
-                        ref={(el) => {
-                          if (el) {
-                            el.style.height = "auto";
-                            el.style.height = `${Math.max(100, el.scrollHeight)}px`;
-                          }
-                        }}
-                        rows={3}
-                        placeholder="Wpisz uwagi, numer zamówienia u dostawcy, wymiary, specyfikację lub dodatkowe ustalenia..."
-                        value={draftDeliveryEntry.notes ?? ""}
-                        onChange={(e) => {
-                          updateDraftSingleField("notes", e.target.value);
-                          e.target.style.height = "auto";
-                          e.target.style.height = `${Math.max(100, e.target.scrollHeight)}px`;
-                        }}
-                        className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm transition-[height] duration-150 overflow-hidden resize-none"
-                      />
-                    </div>
-
-                    {/* Lista plików wysłanych po API */}
-                    {draftDeliveryEntry.sentApiFiles && draftDeliveryEntry.sentApiFiles.length > 0 && (
-                      <div className="flex flex-col gap-2 pt-3 border-t border-slate-200">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                            <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Pliki wysłane do Exalco po API ({draftDeliveryEntry.sentApiFiles.length})
-                          </label>
-                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
-                            ✓ Potwierdzono w Exalco
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto p-2 bg-emerald-50/40 border border-emerald-200 rounded-lg">
-                          {draftDeliveryEntry.sentApiFiles.map((file, fIdx) => (
-                            <div key={fIdx} className="flex items-center justify-between p-2 bg-white rounded border border-emerald-200 text-xs shadow-xs">
-                              <div className="flex items-center gap-2 truncate min-w-0 flex-1">
-                                <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                </svg>
-                                <span className="truncate font-semibold text-slate-800" title={file.fileName}>{file.fileName}</span>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
-                                  {file.fileType}
-                                </span>
-                                <span className="text-[11px] text-slate-500 font-medium">
-                                  {new Date(file.sentAt).toLocaleString("pl-PL", {
-                                    day: "2-digit",
-                                    month: "2-digit",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Przeglądarka plików Google Drive do przesyłania po API */}
-                    {currentSupplier?.isApiEnabled && (
-                      <div className="flex flex-col gap-3">
-                        <OrderDriveFilePicker
-                          orderId={orderIdTyped}
-                          rootFolderId={order?.folderId}
-                          selectedFiles={selectedDriveFiles}
-                          onSelectionChange={setSelectedDriveFiles}
-                        />
-                        {draftDeliveryEntry.externalOrderNumber && Object.keys(selectedDriveFiles).length > 0 && (
-                          <button
-                            type="button"
-                            onClick={sendSelectedFilesToExistingOrder}
-                            disabled={sendingFilesCrm}
-                            className="btn primary text-xs w-full py-2 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm"
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                    {/* Lewa kolumna: Parametry zamówienia, etapy i uwagi */}
+                    <div className="flex flex-col gap-5">
+                      {/* Wybór dostawcy i Kwota netto w 2 kolumnach */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-slate-700">Dostawca realizujący zamówienie</label>
+                          <select
+                            value={draftDeliveryEntry.supplierId}
+                            onChange={(e) => updateDraftSingleField("supplierId", e.target.value as Id<"suppliers">)}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm"
                           >
-                            {sendingFilesCrm ? (
-                              <>
-                                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                Wysyłanie plików do zlecenia w Exalco…
-                              </>
-                            ) : (
-                              <>
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                </svg>
-                                Wyślij zaznaczone pliki ({Object.keys(selectedDriveFiles).length}) do zlecenia w Exalco
-                              </>
-                            )}
-                          </button>
-                        )}
+                            {(availableSuppliers.length > 0 ? availableSuppliers : allSuppliers).map((s) => (
+                              <option key={s._id} value={s._id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-slate-700">Kwota netto zamówienia (PLN)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            value={draftDeliveryEntry.netAmount ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                              updateDraftSingleField("netAmount", val);
+                            }}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm"
+                          />
+                        </div>
                       </div>
-                    )}
+
+                      {/* Daty etapów zamówienia w formie eleganckiej tabeli */}
+                      <div className="flex flex-col gap-3 pt-3 border-t border-slate-200">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Etapy i terminy realizacji</span>
+                        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                          <table className="w-full border-collapse text-left text-xs">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                                <th className="py-2.5 px-3.5 w-1/3">Etap</th>
+                                <th className="py-2.5 px-3.5 w-1/2">Data</th>
+                                <th className="py-2.5 px-3.5 text-right w-1/6">Akcje</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {DELIVERY_MILESTONES.map((m) => {
+                                const val = draftDeliveryEntry[m.key];
+                                const isSet = val != null;
+                                const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+                                const isWebhookSupplier = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("ALCO") || currentSupplier?.name?.toUpperCase().includes("EXALCO");
+                                const isLockedByWebhook = isWebhookSupplier && (m.key === "confirmedDate" || m.key === "deliveryDate");
+
+                                return (
+                                  <tr key={m.key} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="py-2.5 px-3.5 font-bold align-middle">
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-2 height-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.tone, width: 8, height: 8 }} />
+                                        <span style={{ color: isSet ? m.tone : "var(--text-strong)" }}>{m.label}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3.5 align-middle">
+                                      <input
+                                        type="date"
+                                        value={tsToDateStr(val)}
+                                        disabled={isLockedByWebhook}
+                                        title={isLockedByWebhook ? "Data pobierana automatycznie z webhooka (ALCO)" : undefined}
+                                        onChange={(e) => updateDraftSingleField(m.key, dateStrToTs(e.target.value))}
+                                        className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                      />
+                                    </td>
+                                    <td className="py-2.5 px-3.5 text-right align-middle">
+                                      {isSet && !isLockedByWebhook ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => updateDraftSingleField(m.key, undefined)}
+                                          className="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded text-xs transition-colors"
+                                          title={`Wyczyść datę dla ${m.label}`}
+                                        >
+                                          ✕
+                                        </button>
+                                      ) : (
+                                        <span className="text-slate-300 text-xs">—</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Notatki / Uwagi (Textarea) */}
+                      <div className="flex flex-col gap-1.5 pt-3 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-slate-700">Notatki / Uwagi do zamówienia</label>
+                          {currentSupplier?.isApiEnabled && (
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              ⚡ Automatyczna synchronizacja z Exalco
+                            </span>
+                          )}
+                        </div>
+                        <textarea
+                          ref={(el) => {
+                            if (el) {
+                              el.style.height = "auto";
+                              el.style.height = `${Math.max(100, el.scrollHeight)}px`;
+                            }
+                          }}
+                          rows={3}
+                          placeholder="Wpisz uwagi, numer zamówienia u dostawcy, wymiary, specyfikację lub dodatkowe ustalenia..."
+                          value={draftDeliveryEntry.notes ?? ""}
+                          onChange={(e) => {
+                            updateDraftSingleField("notes", e.target.value);
+                            e.target.style.height = "auto";
+                            e.target.style.height = `${Math.max(100, e.target.scrollHeight)}px`;
+                          }}
+                          className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-sm transition-[height] duration-150 overflow-hidden resize-none"
+                        />
+                      </div>
+
+                      {/* Lista plików wysłanych po API */}
+                      {draftDeliveryEntry.sentApiFiles && draftDeliveryEntry.sentApiFiles.length > 0 && (
+                        <div className="flex flex-col gap-2 pt-3 border-t border-slate-200">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                              <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Pliki wysłane do Exalco po API ({draftDeliveryEntry.sentApiFiles.length})
+                            </label>
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                              ✓ Potwierdzono w Exalco
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto p-2 bg-emerald-50/40 border border-emerald-200 rounded-lg">
+                            {draftDeliveryEntry.sentApiFiles.map((file, fIdx) => (
+                              <div key={fIdx} className="flex items-center justify-between p-2 bg-white rounded border border-emerald-200 text-xs shadow-xs">
+                                <div className="flex items-center gap-2 truncate min-w-0 flex-1">
+                                  <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                  </svg>
+                                  <span className="truncate font-semibold text-slate-800" title={file.fileName}>{file.fileName}</span>
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                    {file.fileType}
+                                  </span>
+                                  <span className="text-[11px] text-slate-500 font-medium">
+                                    {new Date(file.sentAt).toLocaleString("pl-PL", {
+                                      day: "2-digit",
+                                      month: "2-digit",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Prawa kolumna: Przeglądarka plików Google Drive do przesyłania po API */}
+                    <div className="flex flex-col gap-4">
+                      {currentSupplier?.isApiEnabled ? (
+                        <div className="flex flex-col gap-3 p-4 bg-slate-50/70 border border-slate-200 rounded-xl">
+                          <OrderDriveFilePicker
+                            orderId={orderIdTyped}
+                            rootFolderId={order?.folderId}
+                            selectedFiles={selectedDriveFiles}
+                            onSelectionChange={setSelectedDriveFiles}
+                          />
+                          {draftDeliveryEntry.externalOrderNumber && Object.keys(selectedDriveFiles).length > 0 && (
+                            <button
+                              type="button"
+                              onClick={sendSelectedFilesToExistingOrder}
+                              disabled={sendingFilesCrm}
+                              className="btn primary text-xs w-full py-2.5 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm rounded-lg"
+                            >
+                              {sendingFilesCrm ? (
+                                <>
+                                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  Wysyłanie plików do zlecenia w Exalco…
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                  </svg>
+                                  Wyślij zaznaczone pliki ({Object.keys(selectedDriveFiles).length}) do zlecenia w Exalco
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-500">
+                          Automatyczne wysyłanie załączników z Google Drive dostępne jest dla dostawców posiadających aktywną integrację API (np. Exalco).
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })()}
