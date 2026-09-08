@@ -4430,8 +4430,8 @@ export default function OrderDetailPage({
                     }
 
                     return (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
-                        ✅ Wysłano do ALCO ({draftDeliveryEntry.externalOrderNumber})
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 text-xs font-mono font-bold">
+                        ID zlecenia ALCO: {draftDeliveryEntry.externalOrderNumber}
                       </span>
                     );
                   })()}
@@ -4447,18 +4447,6 @@ export default function OrderDetailPage({
 
                 return (
                   <div className="flex flex-col gap-5">
-                    {/* Status wysłania do CRM */}
-                    {draftDeliveryEntry.externalOrderNumber && (
-                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs font-semibold flex items-center justify-between shadow-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">🟢</span>
-                          <div>
-                            <div className="font-bold text-sm text-emerald-950">Zamówienie zarejestrowane w CRM ALCO</div>
-                            <div className="text-emerald-700 text-[11px]">Numer zlecenia dostawcy: <strong className="font-mono">{draftDeliveryEntry.externalOrderNumber}</strong></div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                     {/* Wybór dostawcy i Kwota netto w 2 kolumnach */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="flex flex-col gap-1.5">
