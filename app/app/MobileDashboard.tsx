@@ -609,123 +609,114 @@ export default function MobileDashboard() {
   }
 
   return (
-    <div className="flex flex-col min-h-0 relative">
+    <div className="flex flex-col min-h-0 relative -mx-4 -mt-4">
 
-      {/* Nagłówek */}
-      <div className="mb-3">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            {view === "archive" ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setView("board")}
-                  className="flex items-center gap-1.5 rounded-xl bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 active:bg-gray-200 transition-colors"
-                >
-                  <ArrowLeft className="size-4" /> Wróć
-                </button>
-                <span className="text-base font-bold text-gray-900">Archiwum</span>
-              </div>
-            ) : (
-              <h1 className="text-base font-bold text-gray-900">Zadania</h1>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5">
-            {view === "board" && (
-              <>
-                {overdueCount > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700 ring-1 ring-inset ring-red-200">
-                    <Clock className="size-3" /> {overdueCount}
-                  </span>
-                )}
-                {todayCount > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
-                    <CalendarDays className="size-3" /> {todayCount}
-                  </span>
-                )}
-                <button
-                  onClick={() => setView("archive")}
-                  className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 active:bg-gray-50 transition-colors shadow-sm"
-                >
-                  <Archive className="size-3.5" />
-                  {archivedTasks.length > 0 ? `(${archivedTasks.length})` : "Archiwum"}
-                </button>
-              </>
-            )}
+      {/* ── Sticky Header Zone ── */}
+      <div className="sticky top-0 z-20 bg-slate-50">
+        {/* Nagłówek */}
+        <div className="px-4 pt-3 pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              {view === "archive" ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setView("board")}
+                    className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-700 active:bg-gray-200 transition-colors"
+                  >
+                    <ArrowLeft className="size-3.5" /> Wróć
+                  </button>
+                  <span className="text-sm font-bold text-gray-900">Archiwum</span>
+                </div>
+              ) : (
+                <h1 className="text-sm font-bold text-gray-900">Zadania</h1>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              {view === "board" && (
+                <>
+                  {overdueCount > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700 ring-1 ring-inset ring-red-200">
+                      <Clock className="size-2.5" /> {overdueCount}
+                    </span>
+                  )}
+                  {todayCount > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+                      <CalendarDays className="size-2.5" /> {todayCount}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setView("archive")}
+                    className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-medium text-gray-600 active:bg-gray-50 transition-colors shadow-sm"
+                  >
+                    <Archive className="size-3" />
+                    {archivedTasks.length > 0 ? `(${archivedTasks.length})` : "Archiwum"}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Filtr admina */}
-      {isAdmin && view === "board" && (
-        <div className="mb-3 flex items-center gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
-          <button
-            onClick={() => setFilter("all")}
-            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              filter === "all" ? "border-transparent bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600"
-            }`}
-          >
-            Wszyscy
-          </button>
-          <button
-            onClick={() => setFilter("unassigned")}
-            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              filter === "unassigned" ? "border-transparent bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600"
-            }`}
-          >
-            Nieprzypisane
-          </button>
-          <div className="h-4 w-px bg-gray-200 shrink-0" />
-          {(users ?? []).map((u) => {
-            const name = u.displayName ?? u.login ?? "";
-            const active = filter === u._id;
-            const color = u.color ?? uColor(u._id);
-            return (
-              <button
-                key={u._id}
-                onClick={() => setFilter(u._id)}
-                className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-medium transition-colors ${
-                  active ? "border-transparent bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600"
-                }`}
-              >
-                <span
-                  className="flex size-5 items-center justify-center rounded-full text-[8.5px] font-bold text-white"
-                  style={{ background: color }}
+        {/* Filtr admina */}
+        {isAdmin && view === "board" && (
+          <div className="px-4 pb-2 flex items-center gap-1.5 overflow-x-auto hide-scrollbar">
+            <button
+              onClick={() => setFilter("all")}
+              className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                filter === "all" ? "border-transparent bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600"
+              }`}
+            >
+              Wszyscy
+            </button>
+            <button
+              onClick={() => setFilter("unassigned")}
+              className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                filter === "unassigned" ? "border-transparent bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600"
+              }`}
+            >
+              Nieprzypisane
+            </button>
+            <div className="h-3.5 w-px bg-gray-200 shrink-0" />
+            {(users ?? []).map((u) => {
+              const name = u.displayName ?? u.login ?? "";
+              const active = filter === u._id;
+              const color = u.color ?? uColor(u._id);
+              return (
+                <button
+                  key={u._id}
+                  onClick={() => setFilter(u._id)}
+                  className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                    active ? "border-transparent bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600"
+                  }`}
                 >
-                  {uInitials(name)}
-                </span>
-                {name}
-              </button>
-            );
-          })}
-        </div>
-      )}
+                  <span
+                    className="flex size-4 items-center justify-center rounded-full text-[7px] font-bold text-white"
+                    style={{ background: color }}
+                  >
+                    {uInitials(name)}
+                  </span>
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-      {/* Archiwum */}
-      {view === "archive" && (
-        <MobileArchiveView
-          tasks={archivedTasks}
-          loading={loading}
-          onOpen={(id) => setOpenTaskId(id)}
-        />
-      )}
-
-      {/* Board */}
-      {view === "board" && taskColumns.length > 0 && (
-        <>
-          {/* Nawigator kolumn */}
-          <div className="mb-2 flex items-center gap-2">
+        {/* Nawigator kolumn */}
+        {view === "board" && taskColumns.length > 0 && (
+          <div className="px-4 pb-2 flex items-center gap-1.5">
             <button
               onClick={() => setSelectedColIndex(Math.max(0, validIndex - 1))}
               disabled={validIndex === 0}
-              className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-all ${
+              className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-all ${
                 validIndex === 0 ? "bg-gray-100 text-gray-300" : "bg-[#4abbc3] text-white shadow-sm active:scale-90"
               }`}
             >
-              <ChevronLeft className="size-4" />
+              <ChevronLeft className="size-3.5" />
             </button>
 
             <div className="flex-1 overflow-x-auto hide-scrollbar">
-              <div className="flex gap-1.5 py-0.5" style={{ minWidth: "max-content" }}>
+              <div className="flex gap-1" style={{ minWidth: "max-content" }}>
                 {taskColumns.map((col, idx) => {
                   const count = (byColumn[col._id] ?? []).length;
                   const isActive = idx === validIndex;
@@ -733,14 +724,14 @@ export default function MobileDashboard() {
                     <button
                       key={col._id}
                       onClick={() => setSelectedColIndex(idx)}
-                      className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 ${
-                        isActive ? "bg-[#4abbc3] text-white shadow-sm" : "bg-gray-100 text-gray-600"
+                      className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all active:scale-95 ${
+                        isActive ? "bg-[#4abbc3] text-white shadow-sm" : "bg-gray-100 text-gray-500"
                       }`}
                     >
-                      <span className="max-w-[90px] truncate">{col.title}</span>
+                      <span className="max-w-[80px] truncate">{col.title}</span>
                       <span
-                        className={`inline-flex size-4 items-center justify-center rounded-full text-[9px] font-bold ${
-                          isActive ? "bg-white/30 text-white" : "bg-gray-200 text-gray-600"
+                        className={`inline-flex size-3.5 items-center justify-center rounded-full text-[8px] font-bold ${
+                          isActive ? "bg-white/30 text-white" : "bg-gray-200 text-gray-500"
                         }`}
                       >
                         {count}
@@ -754,22 +745,33 @@ export default function MobileDashboard() {
             <button
               onClick={() => setSelectedColIndex(Math.min(taskColumns.length - 1, validIndex + 1))}
               disabled={validIndex === taskColumns.length - 1}
-              className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-all ${
+              className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-all ${
                 validIndex === taskColumns.length - 1 ? "bg-gray-100 text-gray-300" : "bg-[#4abbc3] text-white shadow-sm active:scale-90"
               }`}
             >
-              <ChevronRight className="size-4" />
+              <ChevronRight className="size-3.5" />
             </button>
           </div>
+        )}
 
-          {/* Info o kolumnie */}
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs text-gray-400 font-medium">
-              {currentCol?.title} · {validIndex + 1}/{taskColumns.length}
-            </span>
-          </div>
+        {/* Separator */}
+        <div className="h-px bg-gray-200/60" />
+      </div>
 
-          {/* Lista kart */}
+      {/* ── Scrollable Content ── */}
+      <div className="px-4 pt-3 pb-4">
+
+        {/* Archiwum */}
+        {view === "archive" && (
+          <MobileArchiveView
+            tasks={archivedTasks}
+            loading={loading}
+            onOpen={(id) => setOpenTaskId(id)}
+          />
+        )}
+
+        {/* Board - task cards */}
+        {view === "board" && taskColumns.length > 0 && (
           <div
             className="flex flex-col gap-2.5"
             onTouchStart={handleTouchStart}
@@ -839,8 +841,8 @@ export default function MobileDashboard() {
               </div>
             )}
           </div>
-        </>
-      )}
+        )}
+      </div>
 
       {/* FAB */}
       {canAddTasks && view === "board" && (
