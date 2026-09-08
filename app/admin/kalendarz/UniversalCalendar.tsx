@@ -2827,7 +2827,7 @@ export default function UniversalCalendar({
           eventContent={renderEventContent}
           height="100%"
           expandRows={true}
-          dayMaxEvents={false}
+          dayMaxEvents={2}
           eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotDuration="01:00:00"
