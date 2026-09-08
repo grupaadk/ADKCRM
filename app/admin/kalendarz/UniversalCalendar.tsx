@@ -2727,10 +2727,11 @@ export default function UniversalCalendar({
       )}
 
       {/* Calendar */}
-      <div style={{ flex: 1, height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+      <div style={{ flex: 1, height: "100%", width: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
         <style>{`
           .fc {
             height: 100% !important;
+            width: 100% !important;
             display: flex !important;
             flex-direction: column !important;
           }
