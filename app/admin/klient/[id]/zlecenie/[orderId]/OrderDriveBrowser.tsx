@@ -256,6 +256,7 @@ export default function OrderDriveBrowser({
   refreshKey,
   hideDropZone = false,
   hideHeaderButtons = false,
+  disableSidePreview = false,
 }: {
   orderId: Id<"orders">;
   rootFolderId: string | undefined;
@@ -264,6 +265,7 @@ export default function OrderDriveBrowser({
   refreshKey?: number;
   hideDropZone?: boolean;
   hideHeaderButtons?: boolean;
+  disableSidePreview?: boolean;
 }) {
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadFile = useAction(api.googleDrive.uploadManualOrderFile);
@@ -926,72 +928,92 @@ export default function OrderDriveBrowser({
                   ))}
 
                   {/* Files */}
-                  {files.map((file) => (
-                    <div
-                      key={file.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "6px 10px",
-                        borderRadius: 6,
-                        border: "1px solid var(--line)",
-                        background: "var(--panel-2)",
-                        fontSize: 12.5,
-                        transition: "border-color 0.1s",
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#93c5fd"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--line)"; }}
-                    >
-                      {isPreviewable(file) && file.url ? (
-                        <button
-                          onClick={() => setPreviewFile({ name: file.name, url: file.url!, mimeType: file.mimeType })}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            flex: 1,
-                            overflow: "hidden",
-                            color: "var(--text)",
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            padding: 0,
-                            textAlign: "left",
-                            fontFamily: "inherit",
-                            fontSize: "inherit",
-                          }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#1d4ed8"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text)"; }}
-                        >
-                          <FileIcon mimeType={file.mimeType} name={file.name} />
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {file.name}
-                          </span>
-                        </button>
-                      ) : (
-                        <a
-                          href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            flex: 1,
-                            overflow: "hidden",
-                            color: "var(--text)",
-                            textDecoration: "none",
-                          }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#1d4ed8"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--text)"; }}
-                        >
-                          <FileIcon mimeType={file.mimeType} name={file.name} />
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {file.name}
-                          </span>
-                        </a>
-                      )}
+                  {files.map((file) => {
+                    const shouldDisablePreview = disableSidePreview || hideDropZone;
+                    return (
+                      <div
+                        key={file.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: hideDropZone ? "10px 14px" : "6px 10px",
+                          borderRadius: hideDropZone ? 10 : 6,
+                          border: "1px solid var(--line)",
+                          background: "var(--panel-2)",
+                          fontSize: hideDropZone ? 13 : 12.5,
+                          fontWeight: hideDropZone ? 600 : 500,
+                          transition: "border-color 0.1s",
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#93c5fd"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--line)"; }}
+                      >
+                        {isPreviewable(file) && file.url && !shouldDisablePreview ? (
+                          <button
+                            onClick={() => setPreviewFile({ name: file.name, url: file.url!, mimeType: file.mimeType })}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              flex: 1,
+                              overflow: "hidden",
+                              color: "var(--text)",
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              padding: 0,
+                              textAlign: "left",
+                              fontFamily: "inherit",
+                              fontSize: "inherit",
+                            }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#1d4ed8"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text)"; }}
+                          >
+                            <FileIcon mimeType={file.mimeType} name={file.name} />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {file.name}
+                            </span>
+                          </button>
+                        ) : (
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: hideDropZone ? 10 : 8,
+                              flex: 1,
+                              overflow: "hidden",
+                              color: "var(--text)",
+                              textDecoration: "none",
+                            }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#1d4ed8"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--text)"; }}
+                          >
+                            <FileIcon mimeType={file.mimeType} name={file.name} />
+                            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {file.name}
+                            </span>
+                            {hideDropZone && (
+                              <svg
+                                width="14"
+                                height="14"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                                style={{ color: "#4dbdc6", flexShrink: 0 }}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                                />
+                              </svg>
+                            )}
+                          </a>
+                        )}
 
                       <button
                         onClick={() => setConfirmingDeleteId(file.id)}

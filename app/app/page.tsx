@@ -1804,6 +1804,7 @@ export default function AppPwaPage() {
                             refreshKey={driveRefreshKey}
                             hideDropZone={true}
                             hideHeaderButtons={true}
+                            disableSidePreview={true}
                           />
                         </div>
 
