@@ -71,7 +71,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
   const notes = useQuery(api.notes.listByOrder, { orderId: orderIdTyped }) ?? [];
   const invoices = useQuery(api.fakturownia.listCachedInvoicesByOrder, { orderId: orderIdTyped }) ?? [];
   const expenses = useQuery(api.fakturownia.listCachedExpensesByOrder, { orderId: orderIdTyped }) ?? [];
-  const complaints = useQuery(api.complaints.listByOrder, { orderId: orderIdTyped }) ?? [];
+  const complaints = useQuery(api.complaints.getAllByOrder, { orderId: orderIdTyped }) ?? [];
   const teams = useQuery(api.installationTeams.listAll) ?? [];
   const statuses = useStatuses();
 
