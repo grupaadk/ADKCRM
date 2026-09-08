@@ -949,9 +949,9 @@ export default function AppPwaPage() {
 
   return (
     <div className="flex flex-col h-[100dvh] w-full bg-slate-50 text-gray-900 select-none relative overflow-hidden">
-      {/* Top Mobile Bar - Fixed/Static Header */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] shrink-0 sticky top-0 z-50 flex items-center justify-between">
-        {activeTab === "add-document" ? (
+      {/* Top Mobile Bar - only for add-document */}
+      {activeTab === "add-document" && (
+        <header className="bg-white border-b border-gray-200 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] shrink-0 sticky top-0 z-50 flex items-center justify-between">
           <div className="flex items-center gap-3 w-full">
             <button
               type="button"
@@ -965,16 +965,8 @@ export default function AppPwaPage() {
             </button>
             <span className="font-bold text-slate-800 text-sm">Dodaj dokument / zdjęcie</span>
           </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <div className="size-7 rounded-lg bg-[#4dbdc6] text-white flex items-center justify-center font-bold text-xs">
-              ADK
-            </div>
-            <span className="font-bold text-slate-800 text-sm">Aplikacja Mobilna</span>
-          </div>
-        )}
-
-      </header>
+        </header>
+      )}
 
       {/* MODAL 1: Zgłoś Reklamację (Full Screen Top-aligned for Mobile Keyboards) */}
       {showNewComplaintModal && (
