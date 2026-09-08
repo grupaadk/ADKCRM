@@ -1874,6 +1874,11 @@ export default function OrderDetailPage({
   const [sendingCrm, setSendingCrm] = useState(false);
   const [sendingFilesCrm, setSendingFilesCrm] = useState(false);
   const [selectedDriveFiles, setSelectedDriveFiles] = useState<Record<string, SelectedFileItem>>({});
+  const [successModalInfo, setSuccessModalInfo] = useState<{
+    title: string;
+    message: string;
+    orderNumber?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!editingDeliverySvc || !draftDeliveryEntry) {
@@ -1937,7 +1942,11 @@ export default function OrderDetailPage({
         result = await sendCrmOrder({ orderId: orderIdTyped, deliveryIndex: targetIndex });
       }
 
-      alert(`✅ Pomyślnie wysłano zamówienie do ALCO! Numer zlecenia w ALCO: ${result?.externalOrderNumber ?? "Zarejestrowane"}`);
+      setSuccessModalInfo({
+        title: "Zamówienie wysłane do ALCO",
+        message: "Pomyślnie wysłano zamówienie do dostawcy ALCO!",
+        orderNumber: result?.externalOrderNumber ?? "Zarejestrowane",
+      });
       cancelEditDelivery();
     } catch (err) {
       console.error("Błąd podczas wysyłania zamówienia do ALCO:", err);
@@ -6507,6 +6516,108 @@ export default function OrderDetailPage({
                 Tak, usuń terminy
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Modal Potwierdzenia Wysyłki do ALCO */}
+      {successModalInfo && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(15, 23, 42, 0.5)",
+            backdropFilter: "blur(4px)",
+            padding: 16,
+          }}
+          onClick={() => setSuccessModalInfo(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: 16,
+              border: "1px solid var(--line)",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+              maxWidth: 420,
+              width: "100%",
+              padding: 24,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              gap: 16,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: "50%",
+                backgroundColor: "#dcfce7",
+                border: "4px solid #f0fdf4",
+                color: "#16a34a",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 26,
+                fontWeight: 800,
+              }}
+            >
+              ✓
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-strong)", margin: 0 }}>
+                {successModalInfo.title}
+              </h3>
+              <p style={{ fontSize: 13.5, color: "var(--text-mute)", margin: 0, fontWeight: 500 }}>
+                {successModalInfo.message}
+              </p>
+            </div>
+
+            {successModalInfo.orderNumber && (
+              <div
+                style={{
+                  width: "100%",
+                  backgroundColor: "var(--panel-2)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 12,
+                  padding: "12px 16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color: "var(--text-mute)" }}>
+                  Numer zlecenia w ALCO
+                </span>
+                <span style={{ fontSize: 17, fontFamily: "monospace", fontWeight: 800, color: "var(--text-strong)" }}>
+                  {successModalInfo.orderNumber}
+                </span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setSuccessModalInfo(null)}
+              className="btn primary"
+              style={{
+                width: "100%",
+                justifyContent: "center",
+                padding: "10px 20px",
+                fontSize: 14,
+                fontWeight: 700,
+                borderRadius: 10,
+                marginTop: 4,
+              }}
+            >
+              Zamknij
+            </button>
           </div>
         </div>
       )}
