@@ -2727,11 +2727,10 @@ export default function UniversalCalendar({
       )}
 
       {/* Calendar */}
-      <div style={{ flex: 1, height: "100%", width: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+      <div style={{ flex: 1, height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
         <style>{`
           .fc {
             height: 100% !important;
-            width: 100% !important;
             display: flex !important;
             flex-direction: column !important;
           }
@@ -2744,13 +2743,6 @@ export default function UniversalCalendar({
           }
           .fc-daygrid .fc-scroller {
             overflow: hidden !important;
-          }
-          /* Ograniczenie wysokości sekcji 'Cały dzień' (all-day slot) w widoku tygodniowym */
-          .fc-timegrid .fc-scroller-harness:first-child .fc-scroller,
-          .fc-timegrid-slots + .fc-timegrid-axis,
-          tr.fc-scrollgrid-section-body:first-child .fc-scroller {
-            max-height: 110px !important;
-            overflow-y: auto !important;
           }
           .fc-daygrid-body, .fc-scrollgrid-sync-table {
             height: 100% !important;
@@ -2828,12 +2820,7 @@ export default function UniversalCalendar({
           eventContent={renderEventContent}
           height="100%"
           expandRows={true}
-          dayMaxEvents={true}
-          views={{
-            dayGridMonth: { dayMaxEvents: 3 },
-            timeGridWeek: { dayMaxEvents: 2 },
-            timeGridDay: { dayMaxEvents: 4 },
-          }}
+          dayMaxEvents={false}
           eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotDuration="01:00:00"
