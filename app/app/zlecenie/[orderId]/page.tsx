@@ -26,6 +26,11 @@ import {
   MessageSquare,
   Receipt,
   ShoppingCart,
+  Clock,
+  CheckCircle2,
+  ChevronRight,
+  X,
+  Check,
 } from "lucide-react";
 
 const DOC_KEYS = [
@@ -78,6 +83,23 @@ function formatDate(ts?: number | null) {
   });
 }
 
+function daysInStatus(statusChangedAt?: number) {
+  if (!statusChangedAt) return null;
+  const days = Math.floor((Date.now() - statusChangedAt) / (1000 * 60 * 60 * 24));
+  let color: "green" | "amber" | "red" = "green";
+  let label = `${days} dny w statusie`;
+  if (days === 0) label = "Dzisiaj zmieniono";
+  else if (days === 1) label = "1 dzień w tym statusie";
+  else if (days >= 7) {
+    color = "red";
+    label = `${days} dni w statusie! (Wymaga uwagi)`;
+  } else if (days >= 3) {
+    color = "amber";
+    label = `${days} dni w tym statusie`;
+  }
+  return { days, label, color };
+}
+
 export default function MobileOrderPage({ params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = use(params);
   const router = useRouter();
@@ -102,6 +124,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
   // Local State
   const [newNoteText, setNewNoteText] = useState("");
   const [submittingNote, setSubmittingNote] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
 
   // Scroll to section helper
   const scrollToSection = (id: string) => {
@@ -110,6 +133,11 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
       el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
+
+  // Status lists
+  const orderStatuses = useMemo(() => {
+    return statuses.filter((s) => s.key !== "archived" && s.key !== "lead" && s.key !== "inquiry" && s.kind !== "opportunity");
+  }, [statuses]);
 
   // Maps & calculations
   const supplierMap = useMemo(() => {
@@ -157,6 +185,10 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
   const statusStyle = useMemo(() => {
     return currentStatusDef ? deriveStatusStyle(currentStatusDef.color) : null;
   }, [currentStatusDef]);
+
+  const daysInfo = useMemo(() => {
+    return daysInStatus(order?.statusChangedAt);
+  }, [order?.statusChangedAt]);
 
   const assignedTeam = useMemo(() => {
     if (!order?.assignedInstallationTeamId) return null;
@@ -255,7 +287,8 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
 
             {statusStyle && (
               <span
-                className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full border shadow-2xs"
+                className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full border shadow-2xs cursor-pointer"
+                onClick={() => setShowStatusModal(true)}
                 style={{
                   backgroundColor: statusStyle.bg,
                   color: statusStyle.text,
@@ -272,7 +305,7 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
 
       {/* Main Content Body */}
       <main className="p-3.5 space-y-3 max-w-xl mx-auto">
-        {/* Quick Action Bar (Zadzwoń, Nawiguj, Status) */}
+        {/* Quick Action Bar (Zadzwoń, Nawiguj) */}
         <div className="bg-white rounded-2xl p-3 border border-gray-200/90 shadow-xs space-y-2.5">
           <div className="grid grid-cols-2 gap-2">
             {client?.phone ? (
@@ -314,26 +347,14 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
             )}
           </div>
 
-          {/* Quick status selector */}
-          <div className="pt-2 border-t border-slate-100">
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">
-              Zmień status zlecenia:
-            </label>
-            <select
-              value={order.status}
-              onChange={(e) => changeStatus({ orderId: order._id, newStatus: e.target.value as any })}
-              className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-[#4abbc3]"
-            >
-              {statuses.map((s) => (
-                <option key={s.key} value={s.key}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* Quick Section Navigation Bar */}
           <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+            <button
+              onClick={() => scrollToSection("sekcja-status")}
+              className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-bold shrink-0 active:scale-95 transition"
+            >
+              Status
+            </button>
             <button
               onClick={() => scrollToSection("sekcja-klient")}
               className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold shrink-0 hover:bg-slate-200 active:scale-95 transition"
@@ -388,6 +409,88 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
             </button>
           </div>
         </div>
+
+        {/* ── Przeprojektowany Moduł Statusu Zlecenia ── */}
+        <section id="sekcja-status" className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3 scroll-mt-28">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <span
+                className="size-3.5 rounded-full animate-pulse shrink-0 border border-white shadow-xs"
+                style={{ backgroundColor: currentStatusDef?.color || "#4abbc3" }}
+              />
+              <div>
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                  Status Workflow
+                </span>
+                <h3 className="text-base font-extrabold text-slate-900 leading-tight">
+                  {currentStatusDef?.label}
+                </h3>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowStatusModal(true)}
+              className="flex items-center gap-1 text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 px-3 py-1.5 rounded-xl active:scale-95 transition shrink-0"
+            >
+              <span>Zmień status</span>
+              <ChevronRight className="size-4 text-slate-400" />
+            </button>
+          </div>
+
+          {/* Czas w obecnym statusie */}
+          {daysInfo && (
+            <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
+                <Clock className="size-3.5 text-slate-400" />
+                <span>Czas w statusie:</span>
+              </div>
+              <span
+                className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-lg border uppercase ${
+                  daysInfo.color === "red"
+                    ? "bg-red-50 text-red-700 border-red-200"
+                    : daysInfo.color === "amber"
+                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                }`}
+              >
+                {daysInfo.label}
+              </span>
+            </div>
+          )}
+
+          {/* Wizualny Pasek Postępu (Stepper) */}
+          <div className="space-y-1.5 pt-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase block">Ścieżka etapów zlecenia:</span>
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1.5 px-0.5">
+              {orderStatuses.map((s, idx) => {
+                const isCurrent = s.key === order.status;
+                const currentIdx = orderStatuses.findIndex((st) => st.key === order.status);
+                const isPast = currentIdx !== -1 && idx < currentIdx;
+
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => changeStatus({ orderId: order._id, newStatus: s.key as any })}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold shrink-0 transition-all active:scale-95 ${
+                      isCurrent
+                        ? "text-white shadow-xs ring-2 ring-offset-1"
+                        : isPast
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200/80"
+                        : "bg-slate-100 text-slate-400 border border-gray-200/60 hover:text-slate-600"
+                    }`}
+                    style={isCurrent ? { backgroundColor: s.color, ringColor: s.color } : undefined}
+                  >
+                    {isPast && <CheckCircle2 className="size-3 shrink-0 text-emerald-600" />}
+                    {isCurrent && <span className="size-2 rounded-full bg-white animate-ping" />}
+                    <span>{s.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
 
         {/* Sekcja 1: Klient & Inwestycja */}
         <section id="sekcja-klient" className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3 scroll-mt-28">
@@ -843,6 +946,79 @@ export default function MobileOrderPage({ params }: { params: Promise<{ orderId:
           )}
         </section>
       </main>
+
+      {/* ── Bottom Sheet Modalu Wyboru Statusu ── */}
+      {showStatusModal && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]"
+            onClick={() => setShowStatusModal(false)}
+          />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] animate-in slide-in-from-bottom duration-200 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                  Wybierz nowy status
+                </span>
+                <h3 className="text-sm font-extrabold text-slate-900">Zmiana Statusu Zlecenia</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStatusModal(false)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 overflow-y-auto space-y-2 flex-1">
+              {statuses.filter((s) => s.key !== "archived").map((s) => {
+                const isCurrent = s.key === order.status;
+                const style = deriveStatusStyle(s.color);
+
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={async () => {
+                      await changeStatus({ orderId: order._id, newStatus: s.key as any });
+                      setShowStatusModal(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition-all text-left active:scale-[0.99] ${
+                      isCurrent
+                        ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                        : "bg-slate-50 text-slate-800 border-gray-200/80 hover:bg-slate-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="size-3.5 rounded-full shrink-0 border border-white/50"
+                        style={{ backgroundColor: s.color }}
+                      />
+                      <div>
+                        <span className="font-bold text-xs block">{s.label}</span>
+                        {s.kind === "opportunity" && (
+                          <span className="text-[9px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                            Szansa
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {isCurrent ? (
+                      <span className="text-xs font-extrabold text-emerald-400 flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded-xl">
+                        <Check className="size-3.5" /> Obecny
+                      </span>
+                    ) : (
+                      <ChevronRight className="size-4 text-slate-400" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
