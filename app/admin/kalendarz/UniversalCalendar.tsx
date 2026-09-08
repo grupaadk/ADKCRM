@@ -2827,7 +2827,12 @@ export default function UniversalCalendar({
           eventContent={renderEventContent}
           height="100%"
           expandRows={true}
-          dayMaxEvents={2}
+          dayMaxEvents={true}
+          views={{
+            dayGridMonth: { dayMaxEvents: 3 },
+            timeGridWeek: { dayMaxEvents: 2 },
+            timeGridDay: { dayMaxEvents: 4 },
+          }}
           eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }}
           slotDuration="01:00:00"
