@@ -280,12 +280,57 @@ export default function OpportunityEmailThreadsSection({
       </div>
 
       {/* Komunikat o błędzie */}
-      {error && (
-        <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#991B1B", padding: "8px 12px", borderRadius: 6, fontSize: 11.5, display: "flex", alignItems: "center", gap: 6 }}>
-          <AlertCircle size={14} />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && (() => {
+        const isAuthError = 
+          error.includes("invalid_grant") || 
+          error.includes("refresh failed") || 
+          error.includes("not connected") ||
+          error.includes("401");
+
+        const GMAIL_AUTH_URL = "https://fearless-firefly-85.eu-west-1.convex.site/api/gmail/auth";
+
+        if (isAuthError) {
+          return (
+            <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#991B1B", padding: "12px 14px", borderRadius: 6, fontSize: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700 }}>
+                <AlertCircle size={16} className="text-red-600" />
+                <span>Wygasła autoryzacja konta Gmail (Błąd Google: invalid_grant)</span>
+              </div>
+              <p style={{ margin: 0, fontSize: 11.5, color: "#7F1D1D" }}>
+                Token odświeżania OAuth w Google wygasł lub został cofnięty. Wystarczy kliknąć poniższy przycisk, aby połączyć konto ponownym logowaniem w Google.
+              </p>
+              <a
+                href={GMAIL_AUTH_URL}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "#DC2626",
+                  color: "#ffffff",
+                  fontWeight: 700,
+                  fontSize: 12,
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  textDecoration: "none",
+                  width: "fit-content",
+                  marginTop: 4,
+                }}
+              >
+                <ExternalLink size={14} /> Ponownie połącz konto Gmail (Zaloguj przez Google)
+              </a>
+            </div>
+          );
+        }
+
+        return (
+          <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#991B1B", padding: "8px 12px", borderRadius: 6, fontSize: 11.5, display: "flex", alignItems: "center", gap: 6 }}>
+            <AlertCircle size={14} />
+            <span>{error}</span>
+          </div>
+        );
+      })()}
 
       {/* Stan Ładowania */}
       {loading && threads.length === 0 && (
