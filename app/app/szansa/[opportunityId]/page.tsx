@@ -435,9 +435,6 @@ function MobileOpportunityPageMain({ params }: { params: Promise<{ opportunityId
               <p className="font-extrabold text-slate-900 text-sm">
                 {opp.firstName} {opp.lastName}
               </p>
-              {opp.companyName && (
-                <p className="text-slate-600 font-semibold">{opp.companyName}</p>
-              )}
             </div>
 
             {/* Adres główny */}
