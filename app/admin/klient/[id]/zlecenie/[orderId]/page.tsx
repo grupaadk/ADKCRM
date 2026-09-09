@@ -4754,27 +4754,51 @@ export default function OrderDetailPage({
                           </div>
                           <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto p-2 bg-emerald-50/40 border border-emerald-200 rounded-lg">
                             {draftDeliveryEntry.sentApiFiles.map((file: { fileId?: string; fileName: string; fileType: string; sentAt: number }, fIdx: number) => {
-                              const matchedDriveFile = order?.driveProjectFiles?.find(
-                                (df) => (file.fileId && df.fileId === file.fileId) || df.name?.toLowerCase() === file.fileName?.toLowerCase()
-                              );
+                              const fileIdClean = file.fileId?.trim() ?? "";
+                              const fileNameClean = file.fileName?.trim().toLowerCase() ?? "";
+
+                              const matchedDriveFile = order?.driveProjectFiles?.find((df) => {
+                                const dfId = df.fileId?.trim();
+                                const dfName = df.name?.trim().toLowerCase();
+                                if (fileIdClean && dfId === fileIdClean) return true;
+                                if (dfName && fileNameClean && (dfName.includes(fileNameClean) || fileNameClean.includes(dfName))) return true;
+                                return false;
+                              });
 
                               let driveUrl: string | null = null;
                               if (matchedDriveFile?.url) {
                                 driveUrl = matchedDriveFile.url;
-                              } else if (file.fileId && file.fileId.length > 10 && !file.fileId.includes(".")) {
-                                driveUrl = `https://drive.google.com/file/d/${file.fileId}/view`;
+                              } else if (fileIdClean && fileIdClean.length > 10 && !fileIdClean.includes(".")) {
+                                driveUrl = `https://drive.google.com/file/d/${fileIdClean}/view`;
+                              } else if (order?.folderUrl) {
+                                driveUrl = order.folderUrl;
                               }
 
-                              let previewUrl: string | null = driveUrl;
-                              if (!previewUrl && order?.projectFiles) {
-                                const matchedProjectFileUrl = order.projectFiles.find((pfUrl: string) => {
-                                  const lowerName = file.fileName.toLowerCase();
+                              const projectLinks = getProjectFileLinks(order?.projectFiles);
+                              let previewUrl: string | null = matchedDriveFile?.url ?? null;
+
+                              if (!previewUrl && fileIdClean && (fileIdClean.startsWith("http://") || fileIdClean.startsWith("https://"))) {
+                                previewUrl = fileIdClean;
+                              }
+
+                              if (!previewUrl && projectLinks.length > 0) {
+                                const matchedProjectFileUrl = projectLinks.find((pfUrl: string) => {
                                   const lowerUrl = pfUrl.toLowerCase();
-                                  return lowerUrl.includes(lowerName) || lowerName.includes(lowerUrl.split("/").pop()?.toLowerCase() ?? "");
-                                });
+                                  const baseName = lowerUrl.split("/").pop()?.split("?")[0] ?? "";
+                                  return lowerUrl.includes(fileNameClean) || (baseName && fileNameClean.includes(baseName));
+                                }) || projectLinks[0];
+
                                 if (matchedProjectFileUrl) {
-                                  previewUrl = `${process.env.NEXT_PUBLIC_CONVEX_URL}/api/jotform/file?url=${encodeURIComponent(matchedProjectFileUrl)}`;
+                                  if (matchedProjectFileUrl.startsWith("http://") || matchedProjectFileUrl.startsWith("https://")) {
+                                    previewUrl = `${process.env.NEXT_PUBLIC_CONVEX_URL}/api/jotform/file?url=${encodeURIComponent(matchedProjectFileUrl)}`;
+                                  } else {
+                                    previewUrl = matchedProjectFileUrl;
+                                  }
                                 }
+                              }
+
+                              if (!previewUrl && driveUrl) {
+                                previewUrl = driveUrl;
                               }
 
                               return (
