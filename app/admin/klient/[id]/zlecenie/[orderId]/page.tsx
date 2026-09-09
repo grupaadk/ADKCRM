@@ -1914,6 +1914,28 @@ export default function OrderDetailPage({
   const addCrmNote = useAction(api.crmIntegration.addNoteToCrmOrder);
   const uploadFileToCrm = useAction(api.crmIntegration.uploadFileToCrmOrder);
   const downloadDriveBase64 = useAction(api.googleDrive.downloadDriveFileBase64);
+  const listFolderContents = useAction(api.googleDrive.listOrderFolderContents);
+
+  const [fetchedDriveFiles, setFetchedDriveFiles] = useState<Array<{ id: string; name: string; url?: string }>>([]);
+
+  useEffect(() => {
+    if (!order?.folderId) return;
+    let isMounted = true;
+    void listFolderContents({ orderId: orderIdTyped, folderId: order.folderId })
+      .then((items) => {
+        if (!isMounted || !items) return;
+        const filesOnly = items
+          .filter((item) => !item.isFolder && item.url)
+          .map((item) => ({ id: item.id, name: item.name, url: item.url }));
+        setFetchedDriveFiles(filesOnly);
+      })
+      .catch((err) => {
+        console.warn("Nie udało się pobrać plików z Google Drive:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [order?.folderId, orderIdTyped, listFolderContents]);
 
   const [savingDelivery, setSavingDelivery] = useState(false);
   const [sendingCrm, setSendingCrm] = useState(false);
@@ -4735,8 +4757,13 @@ export default function OrderDetailPage({
                               const fileNameClean = file.fileName?.trim().toLowerCase() ?? "";
                               const fileNameBase = fileNameClean.replace(/\.[a-z0-9]+$/i, "");
 
-                              const matchedDriveFile = order?.driveProjectFiles?.find((df) => {
-                                const dfId = df.fileId?.trim();
+                              const allDriveFiles = [
+                                ...(order?.driveProjectFiles ?? []),
+                                ...fetchedDriveFiles,
+                              ];
+
+                              const matchedDriveFile = allDriveFiles.find((df) => {
+                                const dfId = ("id" in df ? df.id : df.fileId)?.trim();
                                 const dfName = df.name?.trim().toLowerCase();
                                 const dfNameBase = dfName?.replace(/\.[a-z0-9]+$/i, "");
 
@@ -4750,6 +4777,9 @@ export default function OrderDetailPage({
 
                               if (matchedDriveFile?.url) {
                                 fileOpenUrl = matchedDriveFile.url;
+                              } else if (matchedDriveFile && ("id" in matchedDriveFile || "fileId" in matchedDriveFile)) {
+                                const targetId = "id" in matchedDriveFile ? matchedDriveFile.id : matchedDriveFile.fileId;
+                                fileOpenUrl = `https://drive.google.com/file/d/${targetId}/view`;
                               } else if (fileIdClean && !fileIdClean.includes(".") && !fileIdClean.includes("/")) {
                                 fileOpenUrl = `https://drive.google.com/file/d/${fileIdClean}/view`;
                               } else if (fileIdClean && (fileIdClean.startsWith("http://") || fileIdClean.startsWith("https://"))) {
@@ -4766,7 +4796,7 @@ export default function OrderDetailPage({
                                       (baseName && fileNameClean.includes(baseName)) ||
                                       (baseNameWithoutExt && fileNameBase && (fileNameBase.includes(baseNameWithoutExt) || baseNameWithoutExt.includes(fileNameBase)))
                                     );
-                                  }) || projectLinks[0];
+                                  });
 
                                   if (matchedProjectFileUrl) {
                                     if (matchedProjectFileUrl.startsWith("http://") || matchedProjectFileUrl.startsWith("https://")) {
@@ -4778,16 +4808,22 @@ export default function OrderDetailPage({
                                 }
                               }
 
-                              // Direct file link fallback from driveProjectFiles before folderUrl fallback
-                              if (!fileOpenUrl && order?.driveProjectFiles && order.driveProjectFiles.length > 0) {
-                                const indexedDriveFile = order.driveProjectFiles[fIdx] || order.driveProjectFiles[0];
+                              // Direct file link fallback from allDriveFiles before search fallback
+                              if (!fileOpenUrl && allDriveFiles.length > 0) {
+                                const indexedDriveFile = allDriveFiles[fIdx] || allDriveFiles[0];
                                 if (indexedDriveFile?.url) {
                                   fileOpenUrl = indexedDriveFile.url;
+                                } else {
+                                  const targetId = "id" in indexedDriveFile ? indexedDriveFile.id : indexedDriveFile.fileId;
+                                  if (targetId) {
+                                    fileOpenUrl = `https://drive.google.com/file/d/${targetId}/view`;
+                                  }
                                 }
                               }
 
-                              if (!fileOpenUrl && order?.folderUrl) {
-                                fileOpenUrl = order.folderUrl;
+                              // Search fallback directly for exact filename (never fallback to folder overview)
+                              if (!fileOpenUrl && file.fileName) {
+                                fileOpenUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent('"' + file.fileName + '"')}`;
                               }
 
                               return (
