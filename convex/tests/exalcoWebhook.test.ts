@@ -233,5 +233,69 @@ describe("Exalco Webhook Delivery Date Logic", () => {
 
     expect(updatedOrder!.serviceDeliveries![0].notesFeed![0].sentToCrm).toBe(true);
   });
+
+  test("processes incoming notes from Exalco webhook and updates unread count", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "Exalco",
+        isActive: true,
+        createdBy: "test-user",
+      });
+    });
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Tomasz",
+      lastName: "Wiśniewski",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(orderId, {
+        serviceDeliveries: [
+          {
+            serviceName: "Okna PVC",
+            supplierId,
+            externalOrderNumber: "EX-998877",
+          },
+        ],
+      });
+    });
+
+    // Simulate incoming note from Exalco webhook
+    const res = await t.mutation(api.orders.receiveNoteFromExalcoWebhook, {
+      orderIdOrNumber: "EX-998877",
+      noteText: "Wiadomość z Exalco: Zamówienie w trakcie produkcji",
+      authorName: "Jan z Exalco",
+    });
+
+    expect(res.success).toBe(true);
+
+    let updatedOrder = await t.run(async (ctx) => {
+      return await ctx.db.get(orderId);
+    });
+
+    const delivery = updatedOrder!.serviceDeliveries![0];
+    expect(delivery.notesFeed).toHaveLength(1);
+    expect(delivery.notesFeed![0].senderType).toBe("exalco");
+    expect(delivery.notesFeed![0].createdByName).toBe("Exalco · Jan z Exalco");
+    expect(delivery.notesFeed![0].note).toBe("Wiadomość z Exalco: Zamówienie w trakcie produkcji");
+    expect(delivery.unreadNotesCount).toBe(1);
+
+    // Mark as read
+    await asUser.mutation(api.orders.markSupplierNotesAsRead, {
+      orderId,
+      deliveryIndex: 0,
+    });
+
+    updatedOrder = await t.run(async (ctx) => {
+      return await ctx.db.get(orderId);
+    });
+
+    expect(updatedOrder!.serviceDeliveries![0].unreadNotesCount).toBe(0);
+  });
 });
 

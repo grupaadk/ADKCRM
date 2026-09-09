@@ -1838,12 +1838,22 @@ export default function OrderDetailPage({
       createdAt: number;
       createdBy?: string;
       createdByName?: string;
+      senderType?: "adk" | "exalco";
       sentToCrm?: boolean;
+      errorSending?: boolean;
+      errorMessage?: string;
+      attachments?: Array<{
+        fileId: string;
+        fileName: string;
+        fileType?: string;
+      }>;
     }>;
+    unreadNotesCount?: number;
   } | null>(null);
 
   const [newSupplierNoteText, setNewSupplierNoteText] = useState("");
   const [addingSupplierNote, setAddingSupplierNote] = useState(false);
+  const markNotesRead = useMutation(api.orders.markSupplierNotesAsRead);
 
   function startEditDelivery(svcName: string, supplierId?: Id<"suppliers">, index?: number) {
     setEditingDeliverySvc(svcName);
@@ -1862,9 +1872,13 @@ export default function OrderDetailPage({
               note: existingNotes,
               createdAt: existing.orderDate ?? (order?._creationTime ?? Date.now()),
               createdByName: "Uwaga",
+              senderType: "adk" as const,
             }]
           : [];
         setDraftDeliveryEntry({ ...existing, notesFeed: initialFeed });
+        if (orderIdTyped && existing.unreadNotesCount && existing.unreadNotesCount > 0) {
+          void markNotesRead({ orderId: orderIdTyped, deliveryIndex: index });
+        }
         return;
       }
     }
@@ -2039,7 +2053,21 @@ export default function OrderDetailPage({
     const noteContent = newSupplierNoteText.trim();
     setAddingSupplierNote(true);
 
+    const authorName = me?.displayName ?? me?.login ?? "Ja";
+    const textForExalco = `[${authorName}]: ${noteContent}`;
+
+    // Załączniki z zaznaczonych plików Google Drive
+    const selectedFilesList = Object.values(selectedDriveFiles);
+    const attachments = selectedFilesList.length > 0 ? selectedFilesList.map((f) => ({
+      fileId: f.id,
+      fileName: f.name,
+      fileType: f.name.toUpperCase().includes("RW") ? "RW" : "Rysunek",
+    })) : undefined;
+
     let sentToCrm = false;
+    let errorSending = false;
+    let errorMessage: string | undefined = undefined;
+
     const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
     if (
       editingDeliveryIndex !== null &&
@@ -2050,12 +2078,13 @@ export default function OrderDetailPage({
         await addCrmNote({
           orderId: orderIdTyped,
           deliveryIndex: editingDeliveryIndex,
-          noteText: noteContent,
+          noteText: textForExalco,
         });
         sentToCrm = true;
       } catch (err) {
         console.error("Błąd wysyłania notatki do Exalco API:", err);
-        alert(`Ostrzeżenie: Nie udało się wysłać notatki do Exalco API: ${err instanceof Error ? err.message : String(err)}`);
+        errorSending = true;
+        errorMessage = err instanceof Error ? err.message : String(err);
       }
     }
 
@@ -2064,8 +2093,12 @@ export default function OrderDetailPage({
       note: noteContent,
       createdAt: Date.now(),
       createdBy: me?._id,
-      createdByName: me?.displayName ?? me?.login ?? "Ja",
+      createdByName: authorName,
+      senderType: "adk" as const,
       sentToCrm,
+      errorSending,
+      errorMessage,
+      attachments,
     };
 
     const currentFeed = draftDeliveryEntry.notesFeed ?? [];
@@ -2078,12 +2111,52 @@ export default function OrderDetailPage({
       notes: combinedNotes,
     });
     setNewSupplierNoteText("");
+    setSelectedDriveFiles({});
     setAddingSupplierNote(false);
+  }
+
+  async function handleRetrySendCrmNote(noteId: string) {
+    if (!draftDeliveryEntry || editingDeliveryIndex === null) return;
+    const currentFeed = draftDeliveryEntry.notesFeed ?? [];
+    const noteItem = currentFeed.find((n) => n.id === noteId);
+    if (!noteItem) return;
+
+    const authorName = me?.displayName ?? me?.login ?? "Ja";
+    const textForExalco = `[${authorName}]: ${noteItem.note}`;
+
+    try {
+      await addCrmNote({
+        orderId: orderIdTyped,
+        deliveryIndex: editingDeliveryIndex,
+        noteText: textForExalco,
+      });
+      const updatedFeed = currentFeed.map((n) =>
+        n.id === noteId ? { ...n, sentToCrm: true, errorSending: false, errorMessage: undefined } : n
+      );
+      const combinedNotes = updatedFeed.map((n) => n.note).join("\n---\n");
+      setDraftDeliveryEntry({
+        ...draftDeliveryEntry,
+        notesFeed: updatedFeed,
+        notes: combinedNotes,
+      });
+    } catch (err) {
+      console.error("Błąd ponownego wysyłania do Exalco:", err);
+      alert(`Nie udało się wysłać notatki do Exalco API: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   function handleDeleteSupplierNoteFromFeed(noteId: string) {
     if (!draftDeliveryEntry) return;
     const currentFeed = draftDeliveryEntry.notesFeed ?? [];
+    const noteItem = currentFeed.find((n) => n.id === noteId);
+
+    if (noteItem?.sentToCrm) {
+      const confirmDel = confirm(
+        "Ta notatka została już wysłana do systemu Exalco CRM. Usunięcie jej w ADK Okna nie usunie jej po stronie dostawcy. Czy na pewno chcesz usunąć tę wiadomość z feedu ADK?"
+      );
+      if (!confirmDel) return;
+    }
+
     const updatedFeed = currentFeed.filter((n) => n.id !== noteId);
     const combinedNotes = updatedFeed.map((n) => n.note).join("\n---\n");
     setDraftDeliveryEntry({
@@ -4341,7 +4414,14 @@ export default function OrderDetailPage({
                                     ) : null}
                                     <TableCell className="text-sm font-semibold text-slate-800 whitespace-nowrap" style={{ padding: "14px 16px" }}>
                                       <div className="flex flex-col gap-1 items-start">
-                                        <span>{supplier?.name ?? "— nieznany dostawca"}</span>
+                                        <div className="flex items-center gap-1.5">
+                                          <span>{supplier?.name ?? "— nieznany dostawca"}</span>
+                                          {Boolean(d.unreadNotesCount && d.unreadNotesCount > 0) && (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md animate-pulse">
+                                              🔴 {d.unreadNotesCount} nowe
+                                            </span>
+                                          )}
+                                        </div>
                                         {d.externalOrderNumber && (
                                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md tracking-wider">
                                             {d.externalOrderNumber}
@@ -4687,15 +4767,15 @@ export default function OrderDetailPage({
                       )}
                     </div>
 
-                    {/* Środkowa kolumna (2): Notatki / Uwagi do zamówienia (Feed notatek) */}
+                    {/* Środkowa kolumna (2): Komunikator 2-Way (Czat z dostawcą Exalco) */}
                     <div className="flex flex-col gap-3 p-4 bg-white border border-slate-200 rounded-xl flex-1 min-h-0 shadow-xs">
                       <div className="flex items-center justify-between shrink-0 pb-2 border-b border-slate-100">
                         <div className="flex items-center gap-2">
                           <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                             <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                             </svg>
-                            Notatki / Uwagi do zamówienia
+                            Czat / Notatki z dostawcą
                           </label>
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                             {(draftDeliveryEntry.notesFeed ?? []).length}
@@ -4708,20 +4788,21 @@ export default function OrderDetailPage({
                         )}
                       </div>
 
-                      {/* Feed z notatkami (najnowsze na górze) */}
-                      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+                      {/* Feed z notatkami/czatem (najnowsze na górze) */}
+                      <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
                         {(!draftDeliveryEntry.notesFeed || draftDeliveryEntry.notesFeed.length === 0) ? (
                           <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
                             <svg className="w-8 h-8 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                             </svg>
-                            <p className="text-xs font-medium">Brak dodanych notatek</p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">Wpisz uwagę w formularzu poniżej, aby dodać wpis do feedu.</p>
+                            <p className="text-xs font-medium">Brak wiadomości w czacie</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Wpisz wiadomość w formularzu poniżej, aby rozpocząć konwersację z dostawcą.</p>
                           </div>
                         ) : (
                           draftDeliveryEntry.notesFeed.map((nItem) => {
-                            const author = nItem.createdByName || "Użytkownik";
-                            const initials = uInitials(author);
+                            const isExalco = nItem.senderType === "exalco";
+                            const author = nItem.createdByName || (isExalco ? "Exalco CRM" : "Użytkownik");
+                            const initials = isExalco ? "EX" : uInitials(author);
                             const formattedDate = new Date(nItem.createdAt).toLocaleString("pl-PL", {
                               day: "2-digit",
                               month: "2-digit",
@@ -4733,26 +4814,65 @@ export default function OrderDetailPage({
                             return (
                               <div
                                 key={nItem.id}
-                                className="group relative flex items-start gap-2.5 p-3 rounded-lg border border-slate-200 bg-white hover:border-slate-300 hover:shadow-2xs transition-all"
+                                className={`group relative flex items-start gap-2.5 p-3 rounded-lg border transition-all ${
+                                  isExalco
+                                    ? "bg-blue-50/40 border-blue-200/80 shadow-2xs"
+                                    : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-2xs"
+                                }`}
                               >
-                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[9px] font-extrabold text-white shadow-2xs mt-0.5">
+                                <span
+                                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-extrabold text-white shadow-2xs mt-0.5 ${
+                                    isExalco ? "bg-blue-600" : "bg-amber-500"
+                                  }`}
+                                >
                                   {initials}
                                 </span>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between gap-2 mb-1">
                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className="text-xs font-bold text-slate-800">{author}</span>
+                                      <span className={`text-xs font-bold ${isExalco ? "text-blue-900" : "text-slate-800"}`}>
+                                        {author}
+                                      </span>
                                       <span className="text-[10px] text-slate-400 font-medium">· {formattedDate}</span>
                                     </div>
-                                    {nItem.sentToCrm && (
-                                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                                        ⚡ Exalco
-                                      </span>
-                                    )}
+                                    <div className="flex items-center gap-1">
+                                      {nItem.sentToCrm && (
+                                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                          ⚡ Exalco
+                                        </span>
+                                      )}
+                                      {nItem.errorSending && (
+                                        <span className="text-[9px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                          ⚠️ Błąd wysyłki
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRetrySendCrmNote(nItem.id)}
+                                            className="underline text-red-800 hover:text-red-950 font-extrabold ml-1"
+                                          >
+                                            Ponów
+                                          </button>
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                   <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
                                     {nItem.note}
                                   </p>
+                                  {nItem.attachments && nItem.attachments.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2 pt-1.5 border-t border-slate-100">
+                                      {nItem.attachments.map((att, aIdx) => (
+                                        <span
+                                          key={aIdx}
+                                          className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md"
+                                        >
+                                          <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0l-3.714-3.714a3 3 0 014.243-4.243l3.182 3.182a1.5 1.5 0 01-2.122 2.122l-3.182-3.182" />
+                                          </svg>
+                                          {att.fileName}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                                 <button
                                   type="button"
@@ -4772,8 +4892,16 @@ export default function OrderDetailPage({
 
                       {/* Formularz dodawania notatki */}
                       <div className="shrink-0 pt-2 border-t border-slate-100 flex flex-col gap-2">
+                        {Object.keys(selectedDriveFiles).length > 0 && (
+                          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                            <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0l-3.714-3.714a3 3 0 014.243-4.243l3.182 3.182a1.5 1.5 0 01-2.122 2.122l-3.182-3.182" />
+                            </svg>
+                            <span>Załączono pliki do wiadomości ({Object.keys(selectedDriveFiles).length})</span>
+                          </div>
+                        )}
                         <textarea
-                          placeholder="Napisz nową notatkę / uwagę do zamówienia..."
+                          placeholder="Napisz wiadomość / uwagę do dostawcy..."
                           rows={2}
                           value={newSupplierNoteText}
                           onChange={(e) => setNewSupplierNoteText(e.target.value)}
@@ -4787,7 +4915,7 @@ export default function OrderDetailPage({
                         />
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] text-slate-400">
-                            Naciśnij Enter, aby dodać notatkę
+                            Enter = Wyślij · Shift+Enter = Nowa linia
                           </span>
                           <button
                             type="button"
@@ -4803,9 +4931,9 @@ export default function OrderDetailPage({
                             ) : (
                               <>
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                                 </svg>
-                                Dodaj notatkę
+                                Wyślij wiadomość
                               </>
                             )}
                           </button>

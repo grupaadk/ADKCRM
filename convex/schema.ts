@@ -258,8 +258,17 @@ export default defineSchema({
         createdAt: v.number(),
         createdBy: v.optional(v.string()),
         createdByName: v.optional(v.string()),
+        senderType: v.optional(v.union(v.literal("adk"), v.literal("exalco"))),
         sentToCrm: v.optional(v.boolean()),
+        errorSending: v.optional(v.boolean()),
+        errorMessage: v.optional(v.string()),
+        attachments: v.optional(v.array(v.object({
+          fileId: v.string(),
+          fileName: v.string(),
+          fileType: v.optional(v.string()),
+        }))),
       }))),
+      unreadNotesCount: v.optional(v.number()),
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),

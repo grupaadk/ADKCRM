@@ -419,8 +419,17 @@ export const update = mutation({
         createdAt: v.number(),
         createdBy: v.optional(v.string()),
         createdByName: v.optional(v.string()),
+        senderType: v.optional(v.union(v.literal("adk"), v.literal("exalco"))),
         sentToCrm: v.optional(v.boolean()),
+        errorSending: v.optional(v.boolean()),
+        errorMessage: v.optional(v.string()),
+        attachments: v.optional(v.array(v.object({
+          fileId: v.string(),
+          fileName: v.string(),
+          fileType: v.optional(v.string()),
+        }))),
       }))),
+      unreadNotesCount: v.optional(v.number()),
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),
@@ -1567,6 +1576,115 @@ export const recordSentApiFilesInternal = internalMutation({
     };
 
     await ctx.db.patch(args.orderId, { serviceDeliveries: deliveries });
+  },
+});
+
+export const receiveNoteFromExalcoWebhook = mutation({
+  args: {
+    orderIdOrNumber: v.string(),
+    noteText: v.string(),
+    authorName: v.optional(v.string()),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          fileId: v.string(),
+          fileName: v.string(),
+          fileType: v.optional(v.string()),
+        })
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    const allOrders = await ctx.db.query("orders").collect();
+    let targetOrder = null;
+    let targetDeliveryIndex = -1;
+
+    for (const order of allOrders) {
+      if (!order.serviceDeliveries) continue;
+      const idx = order.serviceDeliveries.findIndex((d) => {
+        if (!d.externalOrderNumber && !d.externalOrderId) return false;
+        const numMatch = d.externalOrderNumber?.trim().toLowerCase() === args.orderIdOrNumber.trim().toLowerCase();
+        const idMatch = d.externalOrderId?.trim().toLowerCase() === args.orderIdOrNumber.trim().toLowerCase();
+        return numMatch || idMatch;
+      });
+      if (idx !== -1) {
+        targetOrder = order;
+        targetDeliveryIndex = idx;
+        break;
+      }
+    }
+
+    if (!targetOrder || targetDeliveryIndex === -1) {
+      return { success: false, reason: `Nie znaleziono zlecenia z numerem/ID Exalco: ${args.orderIdOrNumber}` };
+    }
+
+    const deliveries = [...(targetOrder.serviceDeliveries ?? [])];
+    const targetDelivery = deliveries[targetDeliveryIndex];
+    const now = Date.now();
+    const currentFeed = targetDelivery.notesFeed ?? [];
+
+    const newNoteItem = {
+      id: `exalco-${now}-${Math.random().toString(36).substring(2, 7)}`,
+      note: args.noteText.trim(),
+      createdAt: now,
+      senderType: "exalco" as const,
+      createdByName: args.authorName ? `Exalco · ${args.authorName}` : "Exalco CRM",
+      sentToCrm: true,
+      attachments: args.attachments,
+    };
+
+    const updatedFeed = [newNoteItem, ...currentFeed];
+    const unreadCount = (targetDelivery.unreadNotesCount ?? 0) + 1;
+
+    deliveries[targetDeliveryIndex] = {
+      ...targetDelivery,
+      notesFeed: updatedFeed,
+      unreadNotesCount: unreadCount,
+    };
+
+    await ctx.db.patch(targetOrder._id, { serviceDeliveries: deliveries });
+
+    await ctx.db.insert("historyLogs", {
+      clientId: targetOrder.clientId,
+      orderId: targetOrder._id,
+      type: "data_updated",
+      details: {
+        action: "exalco_note_received",
+        serviceName: targetDelivery.serviceName,
+        externalOrderNumber: targetDelivery.externalOrderNumber,
+        noteText: args.noteText.trim(),
+      },
+      performedBy: args.authorName ? `Exalco (${args.authorName})` : "Exalco CRM",
+    });
+
+    return {
+      success: true,
+      orderId: targetOrder._id,
+      deliveryIndex: targetDeliveryIndex,
+    };
+  },
+});
+
+export const markSupplierNotesAsRead = mutation({
+  args: {
+    orderId: v.id("orders"),
+    deliveryIndex: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const order = await ctx.db.get(args.orderId);
+    if (!order || !order.serviceDeliveries) return;
+    const deliveries = [...order.serviceDeliveries];
+    const target = deliveries[args.deliveryIndex];
+    if (!target) return;
+
+    if (target.unreadNotesCount && target.unreadNotesCount > 0) {
+      deliveries[args.deliveryIndex] = {
+        ...target,
+        unreadNotesCount: 0,
+      };
+      await ctx.db.patch(args.orderId, { serviceDeliveries: deliveries });
+    }
   },
 });
 

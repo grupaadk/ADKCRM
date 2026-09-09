@@ -118,6 +118,41 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     );
   }
 
+  // Odczyt nadchodzącej notatki / wiadomości z Exalco
+  const incomingNote = String(
+    dataObj.note ||
+    dataObj.message ||
+    dataObj.comment ||
+    dataObj.noteText ||
+    dataObj.text ||
+    body.note ||
+    body.message ||
+    body.comment ||
+    body.noteText ||
+    body.text ||
+    "",
+  ).trim();
+
+  const authorName = String(
+    dataObj.authorName ||
+    dataObj.author ||
+    dataObj.userName ||
+    dataObj.sender ||
+    body.authorName ||
+    body.author ||
+    body.userName ||
+    body.sender ||
+    "",
+  ).trim();
+
+  if (incomingNote) {
+    await ctx.runMutation(api.orders.receiveNoteFromExalcoWebhook, {
+      orderIdOrNumber: String(orderIdOrNumber),
+      noteText: incomingNote,
+      authorName: authorName || undefined,
+    });
+  }
+
   // Wywołaj mutację ustawienia daty potwierdzenia (confirmedDate) oraz daty dostawy/odbioru z Exalco (deliveryDate)
   const result = await ctx.runMutation(api.orders.confirmDeliveryByExalcoWebhook, {
     orderIdOrNumber: String(orderIdOrNumber),
