@@ -12,6 +12,7 @@ import { useStatusLabel } from "@/components/StatusLabelsContext";
 import { ArrowLeft, Archive, ArchiveRestore, Trash2, Send, MapPin, Building2, Tag, MessageSquare, DollarSign, Sliders, Layers } from "lucide-react";
 import DriveFolderButton from "@/components/DriveFolderButton";
 import OpportunityAttachmentsSection from "./OpportunityAttachmentsSection";
+import OpportunityEmailThreadsSection from "./OpportunityEmailThreadsSection";
 
 const FIELD_LABEL: React.CSSProperties = {
   fontSize: 10.5,
@@ -802,6 +803,12 @@ export default function OpportunityDetailPage({
               </div>
             </div>
           </div>
+
+          {/* KORESPONDENCJA GMAIL */}
+          <OpportunityEmailThreadsSection
+            clientEmail={opp.email}
+            defaultEmail="aluminiumadk@gmail.com"
+          />
 
           {/* ZAŁĄCZNIKI */}
           <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 12 }}>
