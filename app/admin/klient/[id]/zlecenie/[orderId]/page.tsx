@@ -2057,14 +2057,6 @@ export default function OrderDetailPage({
     const authorName = me?.displayName ?? me?.login ?? "Ja";
     const textForExalco = `[${authorName}]: ${noteContent}`;
 
-    // Załączniki z zaznaczonych plików Google Drive
-    const selectedFilesList = Object.values(selectedDriveFiles);
-    const attachments = selectedFilesList.length > 0 ? selectedFilesList.map((f) => ({
-      fileId: f.id,
-      fileName: f.name,
-      fileType: f.name.toUpperCase().includes("RW") ? "RW" : "Rysunek",
-    })) : undefined;
-
     let sentToCrm = false;
     let errorSending = false;
     let errorMessage: string | undefined = undefined;
@@ -2099,7 +2091,6 @@ export default function OrderDetailPage({
       sentToCrm,
       errorSending,
       errorMessage,
-      attachments,
     };
 
     const currentFeed = draftDeliveryEntry.notesFeed ?? [];
@@ -2112,7 +2103,6 @@ export default function OrderDetailPage({
       notes: combinedNotes,
     });
     setNewSupplierNoteText("");
-    setSelectedDriveFiles({});
     setAddingSupplierNote(false);
   }
 
@@ -4952,21 +4942,6 @@ export default function OrderDetailPage({
                                   <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
                                     {nItem.note}
                                   </p>
-                                  {nItem.attachments && nItem.attachments.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-2 pt-1.5 border-t border-slate-100">
-                                      {nItem.attachments.map((att, aIdx) => (
-                                        <span
-                                          key={aIdx}
-                                          className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md"
-                                        >
-                                          <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0l-3.714-3.714a3 3 0 014.243-4.243l3.182 3.182a1.5 1.5 0 01-2.122 2.122l-3.182-3.182" />
-                                          </svg>
-                                          {att.fileName}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
                                 </div>
                                 <button
                                   type="button"
@@ -4986,14 +4961,6 @@ export default function OrderDetailPage({
 
                       {/* Formularz dodawania notatki */}
                       <div className="shrink-0 pt-2 border-t border-slate-100 flex flex-col gap-2">
-                        {Object.keys(selectedDriveFiles).length > 0 && (
-                          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
-                            <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0l-3.714-3.714a3 3 0 014.243-4.243l3.182 3.182a1.5 1.5 0 01-2.122 2.122l-3.182-3.182" />
-                            </svg>
-                            <span>Załączono pliki do wiadomości ({Object.keys(selectedDriveFiles).length})</span>
-                          </div>
-                        )}
                         <textarea
                           placeholder="Napisz wiadomość / uwagę do dostawcy..."
                           rows={2}
