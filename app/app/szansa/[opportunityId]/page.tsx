@@ -25,7 +25,69 @@ import {
   Trash2,
   Tag,
   FolderOpen,
+  Sliders,
 } from "lucide-react";
+
+interface ConfiguratorObject {
+  variant?: string;
+  width?: string;
+  depth?: string;
+  dimensions?: string;
+  area?: string;
+  options?: string;
+  location?: string;
+  userNotes?: string;
+}
+
+function parseConfiguratorData(commentStr?: string): { parsedConfig: ConfiguratorObject | null; displayComment: string } {
+  if (!commentStr) return { parsedConfig: null, displayComment: "" };
+
+  const hasConfigKeywords = 
+    commentStr.includes("Wariant:") || 
+    commentStr.includes("Wymiary:") || 
+    commentStr.includes("Wyposażenie:");
+
+  if (!hasConfigKeywords) {
+    return { parsedConfig: null, displayComment: commentStr };
+  }
+
+  const parts = commentStr.split("|").map(s => s.trim());
+  const config: ConfiguratorObject = {};
+  const notesParts: string[] = [];
+
+  for (const part of parts) {
+    if (part.startsWith("Wariant:")) {
+      config.variant = part.replace(/^Wariant:\s*/, "").trim();
+    } else if (part.startsWith("Wymiary:")) {
+      const dimStr = part.replace(/^Wymiary:\s*/, "").trim();
+      const areaMatch = dimStr.match(/\(([^)]+)\)/);
+      if (areaMatch) {
+        config.area = areaMatch[1].trim();
+        config.dimensions = dimStr.replace(/\s*\([^)]+\)/, "").trim();
+      } else {
+        config.dimensions = dimStr;
+      }
+    } else if (part.startsWith("Wyposażenie:")) {
+      config.options = part.replace(/^Wyposażenie:\s*/, "").trim();
+    } else if (part.startsWith("Lokalizacja:")) {
+      config.location = part.replace(/^Lokalizacja:\s*/, "").trim();
+    } else if (part.startsWith("Uwagi:")) {
+      const val = part.replace(/^Uwagi:\s*/, "").trim();
+      if (val && val !== "Brak dodatkowych uwag") {
+        config.userNotes = val;
+      }
+    } else if (!part.startsWith("Załączone pliki")) {
+      notesParts.push(part);
+    }
+  }
+
+  const cleanNotes = [config.userNotes, ...notesParts].filter(Boolean).join("\n");
+  
+  return {
+    parsedConfig: (config.variant || config.dimensions || config.options) ? config : null,
+    displayComment: cleanNotes,
+  };
+}
 
 function MobileOpportunityPageMain({ params }: { params: Promise<{ opportunityId: string }> }) {
   const { opportunityId: rawId } = use(params);
@@ -305,6 +367,61 @@ function MobileOpportunityPageMain({ params }: { params: Promise<{ opportunityId
             </button>
           </div>
         </div>
+
+        {/* Sekcja Konfiguratora (Zabudowa tarasu) */}
+        {(() => {
+          const isTerraceService = (opp.services ?? []).includes("Zabudowa tarasu");
+          const { parsedConfig } = parseConfiguratorData(opp.comment);
+
+          if (!isTerraceService && !parsedConfig) return null;
+
+          return (
+            <section className="bg-teal-50/80 border border-teal-200 rounded-2xl p-4 shadow-xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-teal-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sliders className="size-4 text-teal-600" /> Odpowiedzi z Konfiguratora
+                </h2>
+                <span className="text-[10px] font-extrabold bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">
+                  Zabudowa tarasu
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {parsedConfig?.variant && (
+                  <div className="bg-white p-2.5 rounded-xl border border-teal-100">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Wariant</span>
+                    <p className="font-extrabold text-slate-900">{parsedConfig.variant}</p>
+                  </div>
+                )}
+                {parsedConfig?.dimensions && (
+                  <div className="bg-white p-2.5 rounded-xl border border-teal-100">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Wymiary</span>
+                    <p className="font-extrabold text-slate-900">{parsedConfig.dimensions}</p>
+                  </div>
+                )}
+                {parsedConfig?.area && (
+                  <div className="bg-white p-2.5 rounded-xl border border-teal-100">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Powierzchnia</span>
+                    <p className="font-extrabold text-teal-700">{parsedConfig.area}</p>
+                  </div>
+                )}
+                {parsedConfig?.location && (
+                  <div className="bg-white p-2.5 rounded-xl border border-teal-100">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Miejscowość</span>
+                    <p className="font-extrabold text-slate-900">{parsedConfig.location}</p>
+                  </div>
+                )}
+              </div>
+
+              {parsedConfig?.options && (
+                <div className="bg-white p-2.5 rounded-xl border border-teal-100 text-xs">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Wyposażenie dodatkowe</span>
+                  <p className="font-semibold text-slate-800">{parsedConfig.options}</p>
+                </div>
+              )}
+            </section>
+          );
+        })()}
 
         {/* Sekcja 1: Dane Kontaktu & Adres */}
         <section className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3">

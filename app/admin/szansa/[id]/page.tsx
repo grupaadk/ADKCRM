@@ -9,20 +9,80 @@ import { Id } from "@/convex/_generated/dataModel";
 import InlineEdit from "@/app/admin/klient/[id]/InlineEdit";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { useStatusLabel } from "@/components/StatusLabelsContext";
-import { ArrowLeft, Archive, ArchiveRestore, Trash2, Send } from "lucide-react";
+import { ArrowLeft, Archive, ArchiveRestore, Trash2, Send, MapPin, Building2, Tag, MessageSquare, DollarSign, Sliders, Layers } from "lucide-react";
 import DriveFolderButton from "@/components/DriveFolderButton";
 import OpportunityAttachmentsSection from "./OpportunityAttachmentsSection";
-import TaskKanban from "@/components/TaskKanban";
 
 const FIELD_LABEL: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
+  fontSize: 10.5,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: 0.5,
   color: "var(--text-mute)",
   margin: 0,
   marginBottom: 4,
 };
+
+interface ConfiguratorObject {
+  variant?: string;
+  width?: string;
+  depth?: string;
+  dimensions?: string;
+  area?: string;
+  options?: string;
+  location?: string;
+  userNotes?: string;
+}
+
+function parseConfiguratorData(commentStr?: string): { parsedConfig: ConfiguratorObject | null; displayComment: string } {
+  if (!commentStr) return { parsedConfig: null, displayComment: "" };
+
+  const hasConfigKeywords = 
+    commentStr.includes("Wariant:") || 
+    commentStr.includes("Wymiary:") || 
+    commentStr.includes("Wyposażenie:");
+
+  if (!hasConfigKeywords) {
+    return { parsedConfig: null, displayComment: commentStr };
+  }
+
+  const parts = commentStr.split("|").map(s => s.trim());
+  const config: ConfiguratorObject = {};
+  const notesParts: string[] = [];
+
+  for (const part of parts) {
+    if (part.startsWith("Wariant:")) {
+      config.variant = part.replace(/^Wariant:\s*/, "").trim();
+    } else if (part.startsWith("Wymiary:")) {
+      const dimStr = part.replace(/^Wymiary:\s*/, "").trim();
+      const areaMatch = dimStr.match(/\(([^)]+)\)/);
+      if (areaMatch) {
+        config.area = areaMatch[1].trim();
+        config.dimensions = dimStr.replace(/\s*\([^)]+\)/, "").trim();
+      } else {
+        config.dimensions = dimStr;
+      }
+    } else if (part.startsWith("Wyposażenie:")) {
+      config.options = part.replace(/^Wyposażenie:\s*/, "").trim();
+    } else if (part.startsWith("Lokalizacja:")) {
+      config.location = part.replace(/^Lokalizacja:\s*/, "").trim();
+    } else if (part.startsWith("Uwagi:")) {
+      const val = part.replace(/^Uwagi:\s*/, "").trim();
+      if (val && val !== "Brak dodatkowych uwag") {
+        config.userNotes = val;
+      }
+    } else if (!part.startsWith("Załączone pliki")) {
+      notesParts.push(part);
+    }
+  }
+
+  const cleanNotes = [config.userNotes, ...notesParts].filter(Boolean).join("\n");
+  
+  return {
+    parsedConfig: (config.variant || config.dimensions || config.options) ? config : null,
+    displayComment: cleanNotes,
+  };
+}
 
 function ToggleGroup({
   title,
@@ -36,7 +96,7 @@ function ToggleGroup({
   onChange: (next: string[]) => void;
 }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       <p style={FIELD_LABEL}>{title}</p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {options.map((opt) => {
@@ -51,15 +111,15 @@ function ToggleGroup({
                 )
               }
               style={{
-                fontSize: 12,
-                fontWeight: 500,
-                padding: "4px 10px",
+                fontSize: 11.5,
+                fontWeight: 600,
+                padding: "3px 10px",
                 borderRadius: 6,
                 border: `1px solid ${active ? "#1d4ed8" : "var(--line)"}`,
                 background: active ? "#2563eb" : "var(--panel)",
                 color: active ? "#fff" : "var(--text)",
                 cursor: "pointer",
-                transition: "background 0.1s, border-color 0.1s",
+                transition: "all 0.1s ease",
               }}
             >
               {opt}
@@ -70,8 +130,6 @@ function ToggleGroup({
     </div>
   );
 }
-
-
 
 export default function OpportunityDetailPage({
   params,
@@ -231,9 +289,7 @@ export default function OpportunityDetailPage({
     setRetrying(true);
     try {
       await retryFolder({ opportunityId });
-      // Odczekaj chwilę, aby akcja się wykonała
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      // Przeładuj stronę
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Błąd tworzenia folderu");
@@ -242,27 +298,37 @@ export default function OpportunityDetailPage({
   }
 
   const selectedServices = opp.services ?? [];
+  const isTerraceService = selectedServices.includes("Zabudowa tarasu");
+  const { parsedConfig, displayComment } = parseConfiguratorData(opp.comment);
+
+  const mainAddressStr = [opp.street, opp.buildingNumber ? ` buildingNumber` : "", opp.postalCode, opp.city].filter(Boolean).join(" ").trim() || 
+    [opp.street, opp.postalCode, opp.city].filter(Boolean).join(", ");
+  const investmentAddressStr = [opp.investmentStreet, opp.investmentBuildingNumber ? ` buildingNumber` : "", opp.investmentPostalCode, opp.investmentCity].filter(Boolean).join(" ").trim() || 
+    [opp.investmentStreet, opp.investmentPostalCode, opp.investmentCity].filter(Boolean).join(", ");
+
+  const mainMapsUrl = mainAddressStr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mainAddressStr)}` : null;
+  const investmentMapsUrl = investmentAddressStr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(investmentAddressStr)}` : null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Header */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 1200, margin: "0 auto", paddingBottom: 32 }}>
+      {/* Top Navigation Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
             onClick={() => router.push("/admin/panel?tab=opportunities")}
             className="btn"
-            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 10px", fontSize: 12 }}
             title="Wróć do panelu"
           >
             <ArrowLeft size={14} /> Panel
           </button>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
+            <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-strong)", margin: 0, lineHeight: 1.2 }}>
               {opp.firstName} {opp.lastName}
             </h1>
-            <p style={{ fontSize: 12, color: "var(--text-mute)", margin: "2px 0 0" }}>
+            <p style={{ fontSize: 11.5, color: "var(--text-mute)", margin: "2px 0 0" }}>
               Szansa sprzedaży · {stageLabel}
-              {opp.submissionId && ` · Jotform #${opp.submissionId}`}
+              {opp.submissionId && ` · #${opp.submissionId}`}
               {opp.archived && " · ZARCHIWIZOWANA"}
             </p>
           </div>
@@ -289,6 +355,7 @@ export default function OpportunityDetailPage({
                   className="btn"
                   style={{
                     fontSize: 11,
+                    padding: "4px 10px",
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 4,
@@ -356,13 +423,12 @@ export default function OpportunityDetailPage({
                         )}
                       </button>
                     ))}
-                    {/* Usuń przypisanie */}
-                      {assigneesArray.length > 0 && (
-                        <button
-                          onClick={() => {
-                            void assignOpportunity({ opportunityId, assignedUserIds: [] });
-                            setShowAssignDropdown(false);
-                          }}
+                    {assigneesArray.length > 0 && (
+                      <button
+                        onClick={() => {
+                          void assignOpportunity({ opportunityId, assignedUserIds: [] });
+                          setShowAssignDropdown(false);
+                        }}
                         style={{
                           display: "block",
                           width: "100%",
@@ -396,7 +462,7 @@ export default function OpportunityDetailPage({
           <button
             onClick={handleArchive}
             className="btn"
-            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 10px", fontSize: 11.5 }}
             title={opp.archived ? "Przywróć z archiwum" : "Archiwizuj"}
           >
             {opp.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
@@ -409,6 +475,8 @@ export default function OpportunityDetailPage({
               display: "inline-flex",
               alignItems: "center",
               gap: 4,
+              padding: "5px 10px",
+              fontSize: 11.5,
               color: "#dc2626",
               borderColor: "#fca5a5",
             }}
@@ -435,308 +503,318 @@ export default function OpportunityDetailPage({
         </div>
       )}
 
-      {/* Status switch */}
-      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-        <p style={FIELD_LABEL}>Etap sprzedaży</p>
-        <div style={{ display: "flex", gap: 6 }}>
-          {(["lead", "inquiry"] as const).map((s) => {
-            const active = stage === s;
-            return (
-              <button
-                key={s}
-                onClick={() => handleStageChange(s)}
-                style={{
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  padding: "6px 14px",
-                  borderRadius: 6,
-                  border: `1px solid ${active ? "#1d4ed8" : "var(--line)"}`,
-                  background: active ? "#2563eb" : "var(--panel)",
-                  color: active ? "#fff" : "var(--text)",
-                  cursor: "pointer",
-                }}
-              >
-                {s === "lead" ? "Oferty" : "Oferta wysłana"}
-              </button>
-            );
-          })}
+      {/* Smukły Pasek Etapu Sprzedaży & Konwersji */}
+      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={FIELD_LABEL}>Etap:</span>
+          <div style={{ display: "flex", gap: 4 }}>
+            {(["lead", "inquiry"] as const).map((s) => {
+              const active = stage === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => handleStageChange(s)}
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    padding: "4px 12px",
+                    borderRadius: 6,
+                    border: `1px solid ${active ? "#1d4ed8" : "var(--line)"}`,
+                    background: active ? "#2563eb" : "var(--panel)",
+                    color: active ? "#fff" : "var(--text)",
+                    cursor: "pointer",
+                    transition: "all 0.1s ease",
+                  }}
+                >
+                  {s === "lead" ? "Oferty" : "Oferta wysłana"}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div
+        <button
+          onClick={handleConvert}
+          disabled={stage !== "inquiry" || converting}
+          className="btn primary"
           style={{
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            paddingTop: 12,
-            borderTop: "1px dashed var(--line)",
+            gap: 6,
+            fontSize: 12,
+            padding: "5px 12px",
+            opacity: stage !== "inquiry" || converting ? 0.5 : 1,
+            cursor: stage !== "inquiry" || converting ? "not-allowed" : "pointer",
           }}
         >
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-strong)", margin: 0 }}>
-              Utwórz zlecenie
-            </p>
-            <p style={{ fontSize: 11.5, color: "var(--text-mute)", margin: "2px 0 0" }}>
-              {"Dostępne gdy etap = „Oferta wysłana”. Utworzy klienta, zlecenie w statusie „Do pomiarów” i folder Drive."}
-            </p>
+          <Send size={13} />
+          {converting ? "Tworzenie..." : "Utwórz zlecenie"}
+        </button>
+      </div>
+
+      {/* GŁÓWNY SMUKŁY UKŁAD 2-KOLUMNOWY */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 14 }}>
+        
+        {/* LEWA KOLUMNA: Konfigurator, Dane, Finanse, Usługi */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {/* DEDYKOWANE OBIEKTOWE ODPOWIEDZI Z KONFIGURATORA (DLA ZABUDOWY TARASU) */}
+          {(isTerraceService || parsedConfig) && (
+            <div style={{ background: "#F0FDFD", border: "1px solid #99F6E4", borderRadius: 8, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0F766E", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Sliders size={15} className="text-teal-600" />
+                  Parametry z konfiguratora (Zabudowa tarasu)
+                </h3>
+                <span style={{ fontSize: 10.5, fontWeight: 700, background: "#CCFBF1", color: "#0F766E", padding: "2px 8px", borderRadius: 12 }}>
+                  Formularz online
+                </span>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                {parsedConfig?.variant && (
+                  <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wybrany wariant</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.variant}</span>
+                  </div>
+                )}
+
+                {parsedConfig?.dimensions && (
+                  <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wymiary (Szer. x Głęb.)</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.dimensions}</span>
+                  </div>
+                )}
+
+                {parsedConfig?.area && (
+                  <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Powierzchnia tarasu</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F766E" }}>{parsedConfig.area}</span>
+                  </div>
+                )}
+
+                {parsedConfig?.location && (
+                  <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Deklarowana miejscowość</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.location}</span>
+                  </div>
+                )}
+              </div>
+
+              {parsedConfig?.options && (
+                <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wyposażenie dodatkowe</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#1E293B" }}>{parsedConfig.options}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SMUKŁY KOMPAKTOWY BOX: DANE KONTAKTOWE + FINANSE + TEKST WŁASNY */}
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            
+            {/* Sekcja Danych Klienta */}
+            <div>
+              <h2 style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)", margin: "0 0 8px 0", display: "flex", alignItems: "center", gap: 6 }}>
+                <Building2 size={14} /> Dane klienta & Finanse
+              </h2>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                <InlineEdit
+                  label="Imię"
+                  value={opp.firstName}
+                  onSave={(v) => save("firstName", v)}
+                />
+                <InlineEdit
+                  label="Nazwisko"
+                  value={opp.lastName}
+                  onSave={(v) => save("lastName", v)}
+                />
+                <InlineEdit
+                  label="E-mail"
+                  value={opp.email ?? ""}
+                  placeholder="—"
+                  onSave={(v) => save("email", v || undefined)}
+                />
+                <InlineEdit
+                  label="Telefon"
+                  value={opp.phone ?? ""}
+                  placeholder="—"
+                  onSave={(v) => save("phone", v || undefined)}
+                />
+              </div>
+            </div>
+
+            <div style={{ height: 1, background: "var(--line)" }} />
+
+            {/* Sekcja Finansów & Tekstu własnego */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+              <InlineEdit
+                label="Koszt (PLN)"
+                value={opp.cost !== undefined ? String(opp.cost) : ""}
+                placeholder="0"
+                onSave={(v) => {
+                  const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+                  if (num !== undefined && !isNaN(num)) {
+                    save("cost", num);
+                    if (opp.price !== undefined) save("profit", opp.price - num);
+                  } else if (!v) {
+                    save("cost", undefined);
+                  }
+                }}
+              />
+              <InlineEdit
+                label="Cena (PLN)"
+                value={opp.price !== undefined ? String(opp.price) : ""}
+                placeholder="0"
+                onSave={(v) => {
+                  const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+                  if (num !== undefined && !isNaN(num)) {
+                    save("price", num);
+                    if (opp.cost !== undefined) save("profit", num - opp.cost);
+                  } else if (!v) {
+                    save("price", undefined);
+                  }
+                }}
+              />
+              <InlineEdit
+                label="Zarobek (PLN)"
+                value={opp.profit !== undefined ? String(opp.profit) : ""}
+                placeholder="0"
+                onSave={(v) => {
+                  const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+                  if (num !== undefined && !isNaN(num)) save("profit", num);
+                  else if (!v) save("profit", undefined);
+                }}
+              />
+            </div>
+
+            <div style={{ background: "var(--panel-2)", padding: "6px 10px", borderRadius: 6, border: "1px solid var(--line)" }}>
+              <InlineEdit
+                label="Tekst własny (Identyfikator Kanban)"
+                value={opp.customText ?? ""}
+                placeholder="np. KOWALSKI – Zabudowa tarasu Mińsk"
+                onSave={(v) => save("customText", v || undefined)}
+              />
+            </div>
           </div>
-          <button
-            onClick={handleConvert}
-            disabled={stage !== "inquiry" || converting}
-            className="btn primary"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              opacity: stage !== "inquiry" || converting ? 0.5 : 1,
-              cursor: stage !== "inquiry" || converting ? "not-allowed" : "pointer",
-            }}
-          >
-            <Send size={13} />
-            {converting ? "Tworzenie..." : "Utwórz zlecenie"}
-          </button>
-        </div>
-      </div>
 
-      {/* Dane kontaktowe */}
-      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-          Dane kontaktowe
-        </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <InlineEdit
-            label="Imię"
-            value={opp.firstName}
-            onSave={(v) => save("firstName", v)}
-          />
-          <InlineEdit
-            label="Nazwisko"
-            value={opp.lastName}
-            onSave={(v) => save("lastName", v)}
-          />
-          <InlineEdit
-            label="E-mail"
-            value={opp.email ?? ""}
-            placeholder="—"
-            onSave={(v) => save("email", v || undefined)}
-          />
-          <InlineEdit
-            label="Telefon"
-            value={opp.phone ?? ""}
-            placeholder="—"
-            onSave={(v) => save("phone", v || undefined)}
-          />
-        </div>
-      </div>
-
-      {/* Finanse */}
-      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-          Finanse
-        </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-          <InlineEdit
-            label="Koszt (PLN)"
-            value={opp.cost !== undefined ? String(opp.cost) : ""}
-            placeholder="np. 1500"
-            onSave={(v) => {
-              const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-              if (num !== undefined && !isNaN(num)) {
-                save("cost", num);
-                if (opp.price !== undefined) save("profit", opp.price - num);
-              } else if (!v) {
-                save("cost", undefined);
-              }
-            }}
-          />
-          <InlineEdit
-            label="Cena (PLN)"
-            value={opp.price !== undefined ? String(opp.price) : ""}
-            placeholder="np. 3000"
-            onSave={(v) => {
-              const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-              if (num !== undefined && !isNaN(num)) {
-                save("price", num);
-                if (opp.cost !== undefined) save("profit", num - opp.cost);
-              } else if (!v) {
-                save("price", undefined);
-              }
-            }}
-          />
-          <InlineEdit
-            label="Zarobek (PLN)"
-            value={opp.profit !== undefined ? String(opp.profit) : ""}
-            placeholder="np. 1500"
-            onSave={(v) => {
-              const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-              if (num !== undefined && !isNaN(num)) save("profit", num);
-              else if (!v) save("profit", undefined);
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Lista zadań */}
-      <TaskKanban opportunityId={opportunityId} />
-
-      {/* Tekst własny */}
-      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-          Tekst własny
-        </h2>
-        <InlineEdit
-          label="Tekst własny"
-          value={opp.customText ?? ""}
-          placeholder="np. Kowalski – okna salonu"
-          onSave={(v) => save("customText", v || undefined)}
-        />
-        <p style={{ fontSize: 12, color: "var(--text-mute)", margin: 0 }}>Dodatkowy identyfikator widoczny na karcie kanban</p>
-      </div>
-
-      {/* Adres */}
-      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-          Adres
-        </h2>
-        <AddressSearch onSelect={handleAddress} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <InlineEdit
-            label="Ulica"
-            value={opp.street ?? ""}
-            placeholder="—"
-            onSave={(v) => save("street", v || undefined)}
-          />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <InlineEdit
-              label="Nr budynku"
-              value={opp.buildingNumber ?? ""}
-              placeholder="—"
-              onSave={(v) => save("buildingNumber", v || undefined)}
-            />
-            <InlineEdit
-              label="Nr mieszk."
-              value={opp.apartmentNumber ?? ""}
-              placeholder="—"
-              onSave={(v) => save("apartmentNumber", v || undefined)}
-            />
-          </div>
-          <InlineEdit
-            label="Kod pocztowy"
-            value={opp.postalCode ?? ""}
-            placeholder="—"
-            onSave={(v) => save("postalCode", v || undefined)}
-          />
-          <InlineEdit
-            label="Miejscowość"
-            value={opp.city ?? ""}
-            placeholder="—"
-            onSave={(v) => save("city", v || undefined)}
-          />
-        </div>
-      </div>
-
-      {/* Adres inwestycji */}
-      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-        <div>
-          <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-            Adres inwestycji
-          </h2>
-          <p style={{ fontSize: 12, color: "var(--text-mute)", margin: "4px 0 0" }}>Lokalizacja montażu (jeśli różni się od adresu klienta)</p>
-        </div>
-        <AddressSearch onSelect={handleInvestmentAddress} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <InlineEdit
-            label="Ulica"
-            value={opp.investmentStreet ?? ""}
-            placeholder="—"
-            onSave={(v) => save("investmentStreet", v || undefined)}
-          />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <InlineEdit
-              label="Nr budynku"
-              value={opp.investmentBuildingNumber ?? ""}
-              placeholder="—"
-              onSave={(v) => save("investmentBuildingNumber", v || undefined)}
-            />
-            <InlineEdit
-              label="Nr mieszk."
-              value={opp.investmentApartmentNumber ?? ""}
-              placeholder="—"
-              onSave={(v) => save("investmentApartmentNumber", v || undefined)}
+          {/* SMUKŁE WYBRANE USŁUGI */}
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 12 }}>
+            <ToggleGroup
+              title="Wybrane usługi"
+              options={serviceNames}
+              selected={selectedServices}
+              onChange={(next) => save("services", next.length > 0 ? next : undefined)}
             />
           </div>
-          <InlineEdit
-            label="Kod pocztowy"
-            value={opp.investmentPostalCode ?? ""}
-            placeholder="—"
-            onSave={(v) => save("investmentPostalCode", v || undefined)}
-          />
-          <InlineEdit
-            label="Miejscowość"
-            value={opp.investmentCity ?? ""}
-            placeholder="—"
-            onSave={(v) => save("investmentCity", v || undefined)}
-          />
+
+          {/* SMUKŁY KOMENTARZ KLIENTA */}
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+            <h2 style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-strong)", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+              <MessageSquare size={14} /> Komentarz / Uwagi klienta
+            </h2>
+            <textarea
+              ref={commentRef}
+              defaultValue={displayComment || opp.comment || ""}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = el.scrollHeight + "px";
+              }}
+              onBlur={(e) => {
+                const next = e.target.value.trim();
+                if (next !== (opp.comment ?? "")) {
+                  save("comment", next || undefined);
+                }
+              }}
+              rows={2}
+              placeholder="Uwagi klienta lub notatka wewnętrzna…"
+              style={{
+                width: "100%",
+                resize: "none",
+                overflow: "hidden",
+                border: "1px solid var(--line)",
+                borderRadius: 6,
+                padding: "6px 8px",
+                fontSize: 12,
+                color: "var(--text)",
+                background: "var(--panel)",
+                outline: "none",
+                fontFamily: "inherit",
+              }}
+            />
+          </div>
+
+        </div>
+
+        {/* PRAWA KOLUMNA: Adresy, Załączniki */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          
+          {/* NOWOCZESNE KOMPAKTOWE ADRESY (ZAMIESZKANIA I INWESTYCJI) */}
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            <h2 style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+              <MapPin size={14} /> Lokalizacja i Adresy
+            </h2>
+
+            {/* Adres Zamieszkania / Klienta */}
+            <div style={{ background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 6, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>Adres Klienta</span>
+                {mainMapsUrl && (
+                  <a href={mainMapsUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10.5, color: "#2563eb", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    <MapPin size={11} /> Google Maps
+                  </a>
+                )}
+              </div>
+              <AddressSearch onSelect={handleAddress} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <InlineEdit label="Ulica" value={opp.street ?? ""} placeholder="—" onSave={(v) => save("street", v || undefined)} />
+                <InlineEdit label="Nr bud. / mieszk." value={[opp.buildingNumber, opp.apartmentNumber].filter(Boolean).join("/")} placeholder="—" onSave={(v) => {
+                  const parts = v ? v.split("/") : [];
+                  save("buildingNumber", parts[0] || undefined);
+                  save("apartmentNumber", parts[1] || undefined);
+                }} />
+                <InlineEdit label="Kod pocztowy" value={opp.postalCode ?? ""} placeholder="—" onSave={(v) => save("postalCode", v || undefined)} />
+                <InlineEdit label="Miejscowość" value={opp.city ?? ""} placeholder="—" onSave={(v) => save("city", v || undefined)} />
+              </div>
+            </div>
+
+            {/* Adres Inwestycji */}
+            <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 6, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#0F172A" }}>Adres Inwestycji (Montażu)</span>
+                {investmentMapsUrl && (
+                  <a href={investmentMapsUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10.5, color: "#0284C7", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    <MapPin size={11} /> Google Maps
+                  </a>
+                )}
+              </div>
+              <AddressSearch onSelect={handleInvestmentAddress} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <InlineEdit label="Ulica" value={opp.investmentStreet ?? ""} placeholder="—" onSave={(v) => save("investmentStreet", v || undefined)} />
+                <InlineEdit label="Nr bud. / mieszk." value={[opp.investmentBuildingNumber, opp.investmentApartmentNumber].filter(Boolean).join("/")} placeholder="—" onSave={(v) => {
+                  const parts = v ? v.split("/") : [];
+                  save("investmentBuildingNumber", parts[0] || undefined);
+                  save("investmentApartmentNumber", parts[1] || undefined);
+                }} />
+                <InlineEdit label="Kod pocztowy" value={opp.investmentPostalCode ?? ""} placeholder="—" onSave={(v) => save("investmentPostalCode", v || undefined)} />
+                <InlineEdit label="Miejscowość" value={opp.investmentCity ?? ""} placeholder="—" onSave={(v) => save("investmentCity", v || undefined)} />
+              </div>
+            </div>
+          </div>
+
+          {/* ZAŁĄCZNIKI */}
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 12 }}>
+            <OpportunityAttachmentsSection
+              opportunityId={opportunityId}
+              opportunityFolderId={opp.opportunityFolderId}
+            />
+          </div>
+
         </div>
       </div>
 
-      {/* Usługi */}
-      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-          Usługi
-        </h2>
-        <ToggleGroup
-          title="Wybrane usługi"
-          options={serviceNames}
-          selected={selectedServices}
-          onChange={(next) => save("services", next.length > 0 ? next : undefined)}
-        />
-      </div>
-
-      {/* Załączniki */}
-      <OpportunityAttachmentsSection
-        opportunityId={opportunityId}
-        opportunityFolderId={opp.opportunityFolderId}
-      />
-
-      {/* Komentarz */}
-      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
-          Komentarz klienta
-        </h2>
-        <textarea
-          ref={commentRef}
-          defaultValue={opp.comment ?? ""}
-          onInput={(e) => {
-            const el = e.currentTarget;
-            el.style.height = "auto";
-            el.style.height = el.scrollHeight + "px";
-          }}
-          onBlur={(e) => {
-            const next = e.target.value.trim();
-            if (next !== (opp.comment ?? "")) {
-              save("comment", next || undefined);
-            }
-          }}
-          rows={1}
-          placeholder="Dodatkowe uwagi…"
-          style={{
-            width: "100%",
-            resize: "none",
-            overflow: "hidden",
-            border: "1px solid var(--line)",
-            borderRadius: 6,
-            padding: "8px 10px",
-            fontSize: 13,
-            color: "var(--text)",
-            background: "var(--panel)",
-            outline: "none",
-            fontFamily: "inherit",
-          }}
-        />
-      </div>
-
-      {/* Potwierdzenie usuwania */}
+      {/* Modal Potwierdzenia usuwania */}
       {confirmDelete && (
         <div
           style={{
