@@ -264,6 +264,18 @@ export const assignOpportunity = mutation({
   },
 });
 
+function formatFinancialsNote(cost?: number, price?: number, profit?: number, isUpdate = false): string | null {
+  if (cost === undefined && price === undefined && profit === undefined) return null;
+  const parts: string[] = [];
+  if (cost !== undefined) parts.push(`Koszt: ${cost.toLocaleString("pl-PL")} zł`);
+  if (price !== undefined) parts.push(`Cena: ${price.toLocaleString("pl-PL")} zł`);
+  if (profit !== undefined) parts.push(`Zarobek: ${profit.toLocaleString("pl-PL")} zł`);
+  if (parts.length === 0) return null;
+
+  const prefix = isUpdate ? "[Aktualizacja finansów z szansy]" : "[Finanse z szansy]";
+  return `${prefix} ${parts.join(", ")}`;
+}
+
 // Edycja pól szansy sprzedaży z widoku szczegółowego.
 export const updateOpportunity = mutation({
   args: {
@@ -293,7 +305,11 @@ export const updateOpportunity = mutation({
     const { opportunityId, ...rest } = args;
     const opp = await ctx.db.get(opportunityId);
     if (!opp) throw new Error("Szansa sprzedaży nie znaleziona");
-    if (opp.processed) throw new Error("Szansa została już przekonwertowana");
+
+    const isFinancialUpdate = rest.cost !== undefined || rest.price !== undefined || rest.profit !== undefined;
+    if (opp.processed && !isFinancialUpdate) {
+      throw new Error("Szansa została już przekonwertowana");
+    }
 
     const patch: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(rest)) {
@@ -302,6 +318,43 @@ export const updateOpportunity = mutation({
     }
     if (Object.keys(patch).length > 0) {
       await ctx.db.patch(opportunityId, patch);
+    }
+
+    // Jeśli zmiana dotyczy finansów na przekonwertowanej szansie, dodaj notatkę do zlecenia
+    if (opp.processed && isFinancialUpdate && opp.clientId) {
+      const updatedCost = rest.cost !== undefined ? rest.cost : opp.cost;
+      const updatedPrice = rest.price !== undefined ? rest.price : opp.price;
+      const updatedProfit = rest.profit !== undefined ? rest.profit : opp.profit;
+      const updateNote = formatFinancialsNote(updatedCost, updatedPrice, updatedProfit, true);
+
+      if (updateNote) {
+        const existingOrder = await ctx.db
+          .query("orders")
+          .withIndex("by_client", (q) => q.eq("clientId", opp.clientId!))
+          .filter((q) =>
+            opp.submissionId ? q.eq(q.field("jotformSubmissionId"), opp.submissionId) : q.eq(true, true)
+          )
+          .first();
+
+        if (existingOrder) {
+          const existingComment = existingOrder.comment ?? "";
+          const newComment = existingComment ? `${updateNote}\n---\n${existingComment}` : updateNote;
+          await ctx.db.patch(existingOrder._id, { comment: newComment });
+
+          await ctx.db.insert("clientEvents", {
+            clientId: opp.clientId,
+            orderId: existingOrder._id,
+            type: "data_updated",
+            details: {
+              field: "finanse_szansy",
+              cost: updatedCost,
+              price: updatedPrice,
+              profit: updatedProfit,
+            },
+            performedBy: "system",
+          });
+        }
+      }
     }
   },
 });
@@ -437,6 +490,12 @@ export const convertToOrder = mutation({
       })
       .filter((f): f is { fileId: string; name: string; url: string } => f !== null);
 
+    const finNote = formatFinancialsNote(opp.cost, opp.price, opp.profit, false);
+    let initialComment = opp.comment ?? "";
+    if (finNote) {
+      initialComment = initialComment ? `${finNote}\n---\n${initialComment}` : finNote;
+    }
+
     const orderName = await nextOrderNumber(ctx);
     const orderId = await ctx.db.insert("orders", {
       clientId,
@@ -444,7 +503,7 @@ export const convertToOrder = mutation({
       services: opp.services,
       projectFiles: opp.projectFiles,
       driveProjectFiles: driveProjectFiles.length > 0 ? driveProjectFiles : undefined,
-      comment: opp.comment,
+      comment: initialComment || undefined,
       customText: opp.customText,
       investmentStreet: opp.investmentStreet,
       investmentBuildingNumber: opp.investmentBuildingNumber,
