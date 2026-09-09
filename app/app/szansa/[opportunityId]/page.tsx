@@ -437,7 +437,6 @@ function MobileOpportunityPageMain({ params }: { params: Promise<{ opportunityId
               {opp.companyName && (
                 <p className="text-slate-600 font-semibold">{opp.companyName}</p>
               )}
-              {opp.nip && <p className="text-slate-500 font-medium">NIP: {opp.nip}</p>}
             </div>
 
             {/* Adres główny */}
@@ -591,7 +590,7 @@ function MobileOpportunityPageMain({ params }: { params: Promise<{ opportunityId
               <FolderOpen className="size-4 text-purple-600" /> Załączniki & Dysk
             </h2>
             <DriveFolderButton
-              folderUrl={opp.driveOpportunityFolderUrl}
+              folderUrl={opp.opportunityFolderUrl}
               createdAt={opp._creationTime}
               onCreate={handleCreateFolderRetry}
               busy={retryingFolder}
@@ -600,7 +599,7 @@ function MobileOpportunityPageMain({ params }: { params: Promise<{ opportunityId
 
           <OpportunityAttachmentsSection
             opportunityId={opportunityId}
-            opportunityFolderId={opp.driveOpportunityFolderId}
+            opportunityFolderId={opp.opportunityFolderId}
           />
         </section>
 
