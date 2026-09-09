@@ -15,7 +15,9 @@ import {
   Paperclip,
   CheckCircle2,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  ArrowUpRight,
+  ArrowDownLeft
 } from "lucide-react";
 
 interface ThreadItem {
@@ -53,6 +55,148 @@ interface ThreadMessage {
   attachments?: MessageAttachment[];
 }
 
+function SingleEmailMessageCard({ msg }: { msg: ThreadMessage }) {
+  const [expandedBody, setExpandedBody] = useState(false);
+  
+  const fromStr = (msg.from || "").toLowerCase();
+  const isFromADK = 
+    fromStr.includes("aluminiumadk@gmail.com") || 
+    fromStr.includes("adkokna.pl") ||
+    fromStr.includes("adk okna");
+
+  const cardBg = isFromADK ? "#F0F9FF" : "#FFFFFF";
+  const borderLeftColor = isFromADK ? "#0284C7" : "#10B981";
+  const badgeBg = isFromADK ? "#E0F2FE" : "#DCFCE7";
+  const badgeColor = isFromADK ? "#0369A1" : "#15803D";
+  const badgeText = isFromADK ? "Wysyłka ADK" : "Od Klienta";
+
+  const isLongText = (msg.body || "").length > 450;
+
+  return (
+    <div
+      style={{
+        background: cardBg,
+        border: "1px solid #E2E8F0",
+        borderLeft: `4px solid ${borderLeftColor}`,
+        borderRadius: 8,
+        padding: 12,
+        boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+    >
+      {/* Header wiadomości */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(0,0,0,0.06)", paddingBottom: 6, flexWrap: "wrap", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10, fontWeight: 800, background: badgeBg, color: badgeColor, padding: "2px 8px", borderRadius: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            {isFromADK ? <ArrowUpRight size={12} /> : <ArrowDownLeft size={12} />}
+            {badgeText}
+          </span>
+
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: "#0F172A" }}>
+            Od: <span style={{ fontWeight: 600, color: "#334155" }}>{msg.from || "Nieznany nadawca"}</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10.5, color: "#64748B" }}>
+            Do: {msg.to || "Nieznany odbiorca"}
+          </span>
+          <span style={{ fontSize: 10.5, color: "#94A3B8", fontWeight: 500 }}>
+            {msg.date}
+          </span>
+        </div>
+      </div>
+
+      {/* Treść wiadomości (z kontrolą wysokości) */}
+      <div style={{ position: "relative" }}>
+        <div
+          style={{
+            fontSize: 12.5,
+            color: "#1E293B",
+            lineHeight: 1.6,
+            maxHeight: expandedBody || !isLongText ? "none" : "220px",
+            overflow: "hidden",
+            position: "relative",
+          }}
+        >
+          {msg.isHtml ? (
+            <div
+              dangerouslySetInnerHTML={{ __html: msg.body }}
+              style={{ maxWidth: "100%", overflowX: "auto" }}
+            />
+          ) : (
+            <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", margin: 0 }}>
+              {msg.body}
+            </pre>
+          )}
+        </div>
+
+        {/* Nakładka gradientowa & Przycisk rozwijania przy długiej wiadomości */}
+        {isLongText && (
+          <div
+            style={{
+              marginTop: 6,
+              display: "flex",
+              justifyContent: "center",
+              paddingTop: expandedBody ? 6 : 20,
+              background: expandedBody ? "transparent" : "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.95))",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setExpandedBody(!expandedBody)}
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#2563EB",
+                background: "#EFF6FF",
+                border: "1px solid #BFDBFE",
+                padding: "3px 12px",
+                borderRadius: 12,
+                cursor: "pointer",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+              }}
+            >
+              {expandedBody ? "▲ Zwiń treść wiadomości" : "▼ Pokaż pełną treść wiadomości"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Załączniki */}
+      {msg.attachments && msg.attachments.length > 0 && (
+        <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed #CBD5E1", display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
+            Załączniki ({msg.attachments.length}):
+          </span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {msg.attachments.map((att, aIdx) => (
+              <span
+                key={aIdx}
+                style={{
+                  fontSize: 11,
+                  background: "#ffffff",
+                  border: "1px solid #CBD5E1",
+                  padding: "3px 8px",
+                  borderRadius: 4,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  color: "#334155",
+                }}
+              >
+                <Paperclip size={11} /> {att.filename} ({Math.round(att.size / 1024)} KB)
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function OpportunityEmailThreadsSection({
   clientEmail,
   defaultEmail = "aluminiumadk@gmail.com",
@@ -84,7 +228,6 @@ export default function OpportunityEmailThreadsSection({
     setLoading(true);
     setError(null);
     try {
-      // Szukamy wiadomości z lub do konkretnego adresu email
       const searchQuery = `from:${queryEmail} OR to:${queryEmail}`;
       const result = await listThreadsAction({
         labelId: "ALL",
@@ -159,7 +302,6 @@ export default function OpportunityEmailThreadsSection({
       setSendSuccess(true);
       setTimeout(() => setSendSuccess(false), 4000);
 
-      // Odśwież wątek
       const updatedThread = await getThreadAction({ threadId: thread.id });
       setThreadMessagesMap((prev) => ({
         ...prev,
@@ -216,7 +358,6 @@ export default function OpportunityEmailThreadsSection({
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-mute)" }}>Adres email:</span>
           
-          {/* Przycisk domyślny aluminiumadk@gmail.com */}
           <button
             type="button"
             onClick={() => setActiveQueryEmail("aluminiumadk@gmail.com")}
@@ -234,7 +375,6 @@ export default function OpportunityEmailThreadsSection({
             aluminiumadk@gmail.com
           </button>
 
-          {/* Przycisk e-mail klienta (jeśli inny) */}
           {clientEmail && clientEmail.toLowerCase() !== "aluminiumadk@gmail.com" && (
             <button
               type="button"
@@ -255,7 +395,6 @@ export default function OpportunityEmailThreadsSection({
           )}
         </div>
 
-        {/* Wyszukiwarka innego adresu */}
         <form onSubmit={handleSearchSubmit} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <input
             type="email"
@@ -435,79 +574,9 @@ export default function OpportunityEmailThreadsSection({
                     </div>
                   )}
 
-                  {/* Lista wiadomości */}
+                  {/* Lista sformatowanych kart wiadomości */}
                   {messages.map((msg, idx) => (
-                    <div
-                      key={msg.id || idx}
-                      style={{
-                        background: "#ffffff",
-                        border: "1px solid #E2E8F0",
-                        borderRadius: 8,
-                        padding: 12,
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 8,
-                      }}
-                    >
-                      {/* Nagłówek wiadomości */}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #F1F5F9", paddingBottom: 6 }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          <div style={{ fontSize: 11.5, fontWeight: 700, color: "#0F172A" }}>
-                            Od: <span style={{ fontWeight: 600, color: "#334155" }}>{msg.from || "Nieznany nadawca"}</span>
-                          </div>
-                          <div style={{ fontSize: 10.5, color: "#64748B" }}>
-                            Do: {msg.to || "Nieznany odbiorca"}
-                          </div>
-                        </div>
-                        <span style={{ fontSize: 10.5, color: "#94A3B8", fontWeight: 500 }}>
-                          {msg.date}
-                        </span>
-                      </div>
-
-                      {/* Treść wiadomości (HTML lub Tekst) */}
-                      <div style={{ fontSize: 12.5, color: "#1E293B", lineHeight: 1.5, overflowX: "auto" }}>
-                        {msg.isHtml ? (
-                          <div
-                            dangerouslySetInnerHTML={{ __html: msg.body }}
-                            style={{ maxWidth: "100%", overflowX: "auto" }}
-                          />
-                        ) : (
-                          <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", margin: 0 }}>
-                            {msg.body}
-                          </pre>
-                        )}
-                      </div>
-
-                      {/* Załączniki w wiadomości */}
-                      {msg.attachments && msg.attachments.length > 0 && (
-                        <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed #E2E8F0", display: "flex", flexDirection: "column", gap: 4 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", uppercase: "true" }}>
-                            Załączniki ({msg.attachments.length}):
-                          </span>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                            {msg.attachments.map((att, aIdx) => (
-                              <span
-                                key={aIdx}
-                                style={{
-                                  fontSize: 11,
-                                  background: "#F1F5F9",
-                                  border: "1px solid #CBD5E1",
-                                  padding: "3px 8px",
-                                  borderRadius: 4,
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: 4,
-                                  color: "#334155",
-                                }}
-                              >
-                                <Paperclip size={11} /> {att.filename} ({Math.round(att.size / 1024)} KB)
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <SingleEmailMessageCard key={msg.id || idx} msg={msg} />
                   ))}
 
                   {/* Szybka odpowiedź w tym wątku */}
