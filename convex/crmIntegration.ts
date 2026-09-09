@@ -174,6 +174,7 @@ export const uploadFileToCrmOrder = action({
   args: {
     orderId: v.id("orders"),
     deliveryIndex: v.number(),
+    fileId: v.optional(v.string()),
     fileType: v.union(v.literal("RW"), v.literal("Rysunek")),
     fileName: v.string(),
     fileBase64: v.string(),
@@ -224,7 +225,7 @@ export const uploadFileToCrmOrder = action({
         deliveryIndex: args.deliveryIndex,
         files: [
           {
-            fileId: args.fileName,
+            fileId: args.fileId || args.fileName,
             fileName: args.fileName,
             fileType: args.fileType,
             sentAt: Date.now(),
@@ -275,6 +276,7 @@ export const sendDeliveryOrderWithFilesToCrm = action({
             await ctx.runAction(api.crmIntegration.uploadFileToCrmOrder, {
               orderId: args.orderId,
               deliveryIndex: args.deliveryIndex,
+              fileId: fileItem.fileId,
               fileType: fileItem.fileType,
               fileName: fileItem.fileName,
               fileBase64: downloaded.base64,

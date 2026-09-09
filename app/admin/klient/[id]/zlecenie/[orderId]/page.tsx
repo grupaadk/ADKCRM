@@ -2024,6 +2024,7 @@ export default function OrderDetailPage({
         await uploadFileToCrm({
           orderId: orderIdTyped,
           deliveryIndex: editingDeliveryIndex,
+          fileId: fileItem.fileId,
           fileType: fileItem.fileType,
           fileName: fileItem.fileName,
           fileBase64: downloaded.base64,
@@ -4742,19 +4743,24 @@ export default function OrderDetailPage({
                             {draftDeliveryEntry.sentApiFiles.map((file: { fileId?: string; fileName: string; fileType: string; sentAt: number }, fIdx: number) => {
                               const fileIdClean = file.fileId?.trim() ?? "";
                               const fileNameClean = file.fileName?.trim().toLowerCase() ?? "";
+                              const fileNameBase = fileNameClean.replace(/\.[a-z0-9]+$/i, "");
 
                               const matchedDriveFile = order?.driveProjectFiles?.find((df) => {
                                 const dfId = df.fileId?.trim();
                                 const dfName = df.name?.trim().toLowerCase();
+                                const dfNameBase = dfName?.replace(/\.[a-z0-9]+$/i, "");
+
                                 if (fileIdClean && dfId === fileIdClean) return true;
-                                if (dfName && fileNameClean && (dfName.includes(fileNameClean) || fileNameClean.includes(dfName))) return true;
+                                if (dfName && fileNameClean && (dfName === fileNameClean || dfName.includes(fileNameClean) || fileNameClean.includes(dfName))) return true;
+                                if (dfNameBase && fileNameBase && (dfNameBase === fileNameBase || dfNameBase.includes(fileNameBase) || fileNameBase.includes(dfNameBase))) return true;
                                 return false;
                               });
 
                               let fileOpenUrl: string | null = null;
+
                               if (matchedDriveFile?.url) {
                                 fileOpenUrl = matchedDriveFile.url;
-                              } else if (fileIdClean && fileIdClean.length > 10 && !fileIdClean.includes(".")) {
+                              } else if (fileIdClean && !fileIdClean.includes(".") && !fileIdClean.includes("/")) {
                                 fileOpenUrl = `https://drive.google.com/file/d/${fileIdClean}/view`;
                               } else if (fileIdClean && (fileIdClean.startsWith("http://") || fileIdClean.startsWith("https://"))) {
                                 fileOpenUrl = fileIdClean;
@@ -4763,8 +4769,13 @@ export default function OrderDetailPage({
                                 if (projectLinks.length > 0) {
                                   const matchedProjectFileUrl = projectLinks.find((pfUrl: string) => {
                                     const lowerUrl = pfUrl.toLowerCase();
-                                    const baseName = lowerUrl.split("/").pop()?.split("?")[0] ?? "";
-                                    return lowerUrl.includes(fileNameClean) || (baseName && fileNameClean.includes(baseName));
+                                    const baseName = lowerUrl.split("/").pop()?.split("?")[0]?.toLowerCase() ?? "";
+                                    const baseNameWithoutExt = baseName.replace(/\.[a-z0-9]+$/i, "");
+                                    return (
+                                      lowerUrl.includes(fileNameClean) ||
+                                      (baseName && fileNameClean.includes(baseName)) ||
+                                      (baseNameWithoutExt && fileNameBase && (fileNameBase.includes(baseNameWithoutExt) || baseNameWithoutExt.includes(fileNameBase)))
+                                    );
                                   }) || projectLinks[0];
 
                                   if (matchedProjectFileUrl) {
@@ -4774,6 +4785,14 @@ export default function OrderDetailPage({
                                       fileOpenUrl = matchedProjectFileUrl;
                                     }
                                   }
+                                }
+                              }
+
+                              // Direct file link fallback from driveProjectFiles before folderUrl fallback
+                              if (!fileOpenUrl && order?.driveProjectFiles && order.driveProjectFiles.length > 0) {
+                                const indexedDriveFile = order.driveProjectFiles[fIdx] || order.driveProjectFiles[0];
+                                if (indexedDriveFile?.url) {
+                                  fileOpenUrl = indexedDriveFile.url;
                                 }
                               }
 
