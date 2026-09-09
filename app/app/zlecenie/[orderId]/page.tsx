@@ -730,11 +730,34 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
                       </div>
                     </div>
 
-                    {delivery.notes && (
-                      <p className="text-[11px] text-slate-600 bg-white/60 p-2 rounded-lg border border-amber-100">
-                        <span className="font-bold text-slate-700 block">Uwagi:</span>
-                        {delivery.notes}
-                      </p>
+                    {((delivery.notesFeed && delivery.notesFeed.length > 0) || delivery.notes) && (
+                      <div className="space-y-1.5 pt-1">
+                        <span className="font-bold text-[10px] uppercase text-amber-900 tracking-wider block">
+                          Uwagi do zamówienia ({delivery.notesFeed?.length ?? 1}):
+                        </span>
+                        {delivery.notesFeed && delivery.notesFeed.length > 0 ? (
+                          delivery.notesFeed.map((nItem) => (
+                            <div key={nItem.id} className="text-[11px] text-slate-700 bg-white/80 p-2 rounded-lg border border-amber-100/80 space-y-0.5">
+                              <div className="flex items-center justify-between text-[9px] text-slate-400 font-semibold">
+                                <span>{nItem.createdByName || "Użytkownik"}</span>
+                                <span>
+                                  {new Date(nItem.createdAt).toLocaleString("pl-PL", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              </div>
+                              <p className="whitespace-pre-wrap leading-tight">{nItem.note}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-[11px] text-slate-700 bg-white/80 p-2 rounded-lg border border-amber-100/80">
+                            <p className="whitespace-pre-wrap leading-tight">{delivery.notes}</p>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 );

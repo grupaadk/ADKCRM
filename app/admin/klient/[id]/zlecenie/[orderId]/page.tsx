@@ -1826,16 +1826,45 @@ export default function OrderDetailPage({
       sentAt: number;
       sentBy?: string;
     }>;
+    sentApiFiles?: Array<{
+      fileId: string;
+      fileName: string;
+      fileType: string;
+      sentAt: number;
+    }>;
+    notesFeed?: Array<{
+      id: string;
+      note: string;
+      createdAt: number;
+      createdBy?: string;
+      createdByName?: string;
+      sentToCrm?: boolean;
+    }>;
   } | null>(null);
+
+  const [newSupplierNoteText, setNewSupplierNoteText] = useState("");
+  const [addingSupplierNote, setAddingSupplierNote] = useState(false);
 
   function startEditDelivery(svcName: string, supplierId?: Id<"suppliers">, index?: number) {
     setEditingDeliverySvc(svcName);
+    setNewSupplierNoteText("");
     if (supplierId && index !== undefined) {
       const existing = (order?.serviceDeliveries ?? [])[index];
       if (existing) {
         setEditingSupplierId(supplierId);
         setEditingDeliveryIndex(index);
-        setDraftDeliveryEntry({ ...existing });
+        const existingNotes = existing.notes?.trim();
+        const initialFeed = existing.notesFeed && existing.notesFeed.length > 0
+          ? existing.notesFeed
+          : existingNotes
+          ? [{
+              id: `legacy-${Date.now()}`,
+              note: existingNotes,
+              createdAt: existing.orderDate ?? (order?._creationTime ?? Date.now()),
+              createdByName: "Uwaga",
+            }]
+          : [];
+        setDraftDeliveryEntry({ ...existing, notesFeed: initialFeed });
         return;
       }
     }
@@ -1854,6 +1883,7 @@ export default function OrderDetailPage({
       receivedDate: undefined,
       netAmount: undefined,
       notes: undefined,
+      notesFeed: [],
     });
   }
 
@@ -1862,6 +1892,7 @@ export default function OrderDetailPage({
     setEditingSupplierId(null);
     setEditingDeliveryIndex(null);
     setDraftDeliveryEntry(null);
+    setNewSupplierNoteText("");
   }
 
   const sendCrmOrder = useAction(api.crmIntegration.sendDeliveryOrderToCrm);
@@ -2001,6 +2032,65 @@ export default function OrderDetailPage({
     currentDeliveries.splice(indexToDelete, 1);
     await updateOrder({ orderId: orderIdTyped, serviceDeliveries: currentDeliveries });
     cancelEditDelivery();
+  }
+
+  async function handleAddSupplierNoteToFeed() {
+    if (!newSupplierNoteText.trim() || !draftDeliveryEntry) return;
+    const noteContent = newSupplierNoteText.trim();
+    setAddingSupplierNote(true);
+
+    let sentToCrm = false;
+    const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+    if (
+      editingDeliveryIndex !== null &&
+      draftDeliveryEntry.externalOrderNumber &&
+      currentSupplier?.isApiEnabled
+    ) {
+      try {
+        await addCrmNote({
+          orderId: orderIdTyped,
+          deliveryIndex: editingDeliveryIndex,
+          noteText: noteContent,
+        });
+        sentToCrm = true;
+      } catch (err) {
+        console.error("Błąd wysyłania notatki do Exalco API:", err);
+        alert(`Ostrzeżenie: Nie udało się wysłać notatki do Exalco API: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    const newNoteObj = {
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      note: noteContent,
+      createdAt: Date.now(),
+      createdBy: me?._id,
+      createdByName: me?.displayName ?? me?.login ?? "Ja",
+      sentToCrm,
+    };
+
+    const currentFeed = draftDeliveryEntry.notesFeed ?? [];
+    const updatedFeed = [newNoteObj, ...currentFeed];
+    const combinedNotes = updatedFeed.map((n) => n.note).join("\n---\n");
+
+    setDraftDeliveryEntry({
+      ...draftDeliveryEntry,
+      notesFeed: updatedFeed,
+      notes: combinedNotes,
+    });
+    setNewSupplierNoteText("");
+    setAddingSupplierNote(false);
+  }
+
+  function handleDeleteSupplierNoteFromFeed(noteId: string) {
+    if (!draftDeliveryEntry) return;
+    const currentFeed = draftDeliveryEntry.notesFeed ?? [];
+    const updatedFeed = currentFeed.filter((n) => n.id !== noteId);
+    const combinedNotes = updatedFeed.map((n) => n.note).join("\n---\n");
+    setDraftDeliveryEntry({
+      ...draftDeliveryEntry,
+      notesFeed: updatedFeed,
+      notes: combinedNotes,
+    });
   }
   const [editingCompletionDate, setEditingCompletionDate] = useState(false);
   const [draftCompletionDate, setDraftCompletionDate] = useState<number | undefined>(undefined);
@@ -4597,27 +4687,130 @@ export default function OrderDetailPage({
                       )}
                     </div>
 
-                    {/* Środkowa kolumna (2): Notatki / Uwagi do zamówienia na całą wysokość modala */}
+                    {/* Środkowa kolumna (2): Notatki / Uwagi do zamówienia (Feed notatek) */}
                     <div className="flex flex-col gap-3 p-4 bg-white border border-slate-200 rounded-xl flex-1 min-h-0 shadow-xs">
-                      <div className="flex items-center justify-between shrink-0">
-                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                          <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          Notatki / Uwagi do zamówienia
-                        </label>
+                      <div className="flex items-center justify-between shrink-0 pb-2 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Notatki / Uwagi do zamówienia
+                          </label>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                            {(draftDeliveryEntry.notesFeed ?? []).length}
+                          </span>
+                        </div>
                         {currentSupplier?.isApiEnabled && (
-                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
                             ⚡ Sync z Exalco
                           </span>
                         )}
                       </div>
-                      <textarea
-                        placeholder="Wpisz uwagi, numer zamówienia u dostawcy, wymiary, specyfikację lub dodatkowe ustalenia..."
-                        value={draftDeliveryEntry.notes ?? ""}
-                        onChange={(e) => updateDraftSingleField("notes", e.target.value)}
-                        className="w-full flex-1 min-h-0 rounded-lg border border-slate-300 bg-slate-50/50 p-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs resize-none"
-                      />
+
+                      {/* Feed z notatkami (najnowsze na górze) */}
+                      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+                        {(!draftDeliveryEntry.notesFeed || draftDeliveryEntry.notesFeed.length === 0) ? (
+                          <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+                            <svg className="w-8 h-8 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                            </svg>
+                            <p className="text-xs font-medium">Brak dodanych notatek</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Wpisz uwagę w formularzu poniżej, aby dodać wpis do feedu.</p>
+                          </div>
+                        ) : (
+                          draftDeliveryEntry.notesFeed.map((nItem) => {
+                            const author = nItem.createdByName || "Użytkownik";
+                            const initials = uInitials(author);
+                            const formattedDate = new Date(nItem.createdAt).toLocaleString("pl-PL", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            });
+
+                            return (
+                              <div
+                                key={nItem.id}
+                                className="group relative flex items-start gap-2.5 p-3 rounded-lg border border-slate-200 bg-white hover:border-slate-300 hover:shadow-2xs transition-all"
+                              >
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[9px] font-extrabold text-white shadow-2xs mt-0.5">
+                                  {initials}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-2 mb-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-xs font-bold text-slate-800">{author}</span>
+                                      <span className="text-[10px] text-slate-400 font-medium">· {formattedDate}</span>
+                                    </div>
+                                    {nItem.sentToCrm && (
+                                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                        ⚡ Exalco
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+                                    {nItem.note}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSupplierNoteFromFeed(nItem.id)}
+                                  className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-600 transition-all rounded hover:bg-red-50 shrink-0"
+                                  title="Usuń notatkę"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {/* Formularz dodawania notatki */}
+                      <div className="shrink-0 pt-2 border-t border-slate-100 flex flex-col gap-2">
+                        <textarea
+                          placeholder="Napisz nową notatkę / uwagę do zamówienia..."
+                          rows={2}
+                          value={newSupplierNoteText}
+                          onChange={(e) => setNewSupplierNoteText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              void handleAddSupplierNoteToFeed();
+                            }
+                          }}
+                          className="w-full rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 resize-none transition-colors"
+                        />
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-slate-400">
+                            Naciśnij Enter, aby dodać notatkę
+                          </span>
+                          <button
+                            type="button"
+                            disabled={!newSupplierNoteText.trim() || addingSupplierNote}
+                            onClick={handleAddSupplierNoteToFeed}
+                            className="btn primary text-xs py-1.5 px-3.5 inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                          >
+                            {addingSupplierNote ? (
+                              <>
+                                <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Wysyłanie...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                </svg>
+                                Dodaj notatkę
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Prawa kolumna (3): Przeglądarka plików Google Drive do przesyłania po API */}

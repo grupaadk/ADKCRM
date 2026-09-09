@@ -38,11 +38,14 @@ export const sendDeliveryOrderToCrm = action({
     const investmentParts = [order.investmentStreet, order.investmentBuildingNumber, order.investmentCity].filter(Boolean);
     const investmentAddress = investmentParts.length > 0 ? ` | Inwestycja: ${investmentParts.join(" ")}` : "";
 
+    const feedNotesText = (delivery.notesFeed ?? []).map((n) => n.note).join("\n---\n");
+    const notesTextToUse = feedNotesText || delivery.notes || "";
+
     const notesCombined = [
       `Zlecenie ADK: ${order.name || order.customText || order._id}`,
       `Usługa: ${delivery.serviceName}`,
       `Klient: ${clientName}${clientPhone}${clientEmail}${investmentAddress}`,
-      delivery.notes ? `\nUwagi do zamówienia:\n${delivery.notes}` : "",
+      notesTextToUse ? `\nUwagi do zamówienia:\n${notesTextToUse}` : "",
     ].filter(Boolean).join("\n");
 
     const siteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL || "https://fearless-firefly-85.eu-west-1.convex.site";

@@ -175,5 +175,63 @@ describe("Exalco Webhook Delivery Date Logic", () => {
     expect(updatedOrder!.serviceDeliveries![0].sentApiFiles).toHaveLength(1);
     expect(updatedOrder!.serviceDeliveries![0].sentApiFiles![0].fileName).toBe("RW 08.09.pdf");
   });
+
+  test("allows updating order with notesFeed and records notes in recordCrmNoteSent", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "Exalco",
+        isActive: true,
+        createdBy: "test-user",
+      });
+    });
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Piotr",
+      lastName: "Zieliński",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Montaż szyb",
+          supplierId,
+          notesFeed: [
+            {
+              id: "n1",
+              note: "Specjalne szkło hartowane",
+              createdAt: Date.now(),
+              createdByName: "Admin User",
+            },
+          ],
+        },
+      ],
+    });
+
+    let updatedOrder = await t.run(async (ctx) => {
+      return await ctx.db.get(orderId);
+    });
+
+    expect(updatedOrder!.serviceDeliveries![0].notesFeed).toHaveLength(1);
+    expect(updatedOrder!.serviceDeliveries![0].notesFeed![0].note).toBe("Specjalne szkło hartowane");
+
+    // Call recordCrmNoteSent
+    await asUser.mutation(api.orders.recordCrmNoteSent, {
+      orderId,
+      deliveryIndex: 0,
+      noteText: "Specjalne szkło hartowane",
+    });
+
+    updatedOrder = await t.run(async (ctx) => {
+      return await ctx.db.get(orderId);
+    });
+
+    expect(updatedOrder!.serviceDeliveries![0].notesFeed![0].sentToCrm).toBe(true);
+  });
 });
 

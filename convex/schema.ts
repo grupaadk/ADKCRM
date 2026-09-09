@@ -252,6 +252,14 @@ export default defineSchema({
         fileType: v.string(),
         sentAt: v.number(),
       }))),
+      notesFeed: v.optional(v.array(v.object({
+        id: v.string(),
+        note: v.string(),
+        createdAt: v.number(),
+        createdBy: v.optional(v.string()),
+        createdByName: v.optional(v.string()),
+        sentToCrm: v.optional(v.boolean()),
+      }))),
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),

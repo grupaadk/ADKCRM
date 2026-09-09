@@ -413,6 +413,14 @@ export const update = mutation({
         fileType: v.string(),
         sentAt: v.number(),
       }))),
+      notesFeed: v.optional(v.array(v.object({
+        id: v.string(),
+        note: v.string(),
+        createdAt: v.number(),
+        createdBy: v.optional(v.string()),
+        createdByName: v.optional(v.string()),
+        sentToCrm: v.optional(v.boolean()),
+      }))),
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),
@@ -1405,13 +1413,30 @@ export const recordCrmNoteSent = mutation({
     }
 
     const now = Date.now();
+    const userNameStr = user.displayName ?? user.login ?? userId;
     const next = deliveries.map((d, i) => {
       if (i !== args.deliveryIndex) return d;
       const history = d.crmNotesHistory ?? [];
+      const currentFeed = d.notesFeed ?? [];
+      let updatedFeed = [...currentFeed];
+      const existingIdx = updatedFeed.findIndex((n) => n.note.trim() === args.noteText.trim());
+      if (existingIdx >= 0) {
+        updatedFeed[existingIdx] = { ...updatedFeed[existingIdx], sentToCrm: true };
+      } else {
+        updatedFeed.unshift({
+          id: `${now}-${Math.random().toString(36).substring(2, 7)}`,
+          note: args.noteText.trim(),
+          createdAt: now,
+          createdBy: userId,
+          createdByName: userNameStr,
+          sentToCrm: true,
+        });
+      }
       return {
         ...d,
         lastCrmNoteSentAt: now,
         crmNotesHistory: [...history, { note: args.noteText, sentAt: now, sentBy: userId }],
+        notesFeed: updatedFeed,
       };
     });
 
