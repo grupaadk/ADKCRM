@@ -545,6 +545,12 @@ function MobileOpportunityPageMain({ params }: { params: Promise<{ opportunityId
           </div>
         </section>
 
+        {/* Sekcja Korespondencji E-mail (Gmail) */}
+        <OpportunityEmailThreadsSection
+          clientEmail={opp.email}
+          defaultEmail="aluminiumadk@gmail.com"
+        />
+
         {/* Sekcja 4: Komentarz & Notatka */}
         <section className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -580,12 +586,6 @@ function MobileOpportunityPageMain({ params }: { params: Promise<{ opportunityId
             )}
           </div>
         </section>
-
-        {/* Sekcja Korespondencji E-mail (Gmail) */}
-        <OpportunityEmailThreadsSection
-          clientEmail={opp.email}
-          defaultEmail="aluminiumadk@gmail.com"
-        />
 
         {/* Sekcja 5: Załączniki i Dysk Google */}
         <section className="bg-white rounded-2xl p-4 border border-gray-200/90 shadow-xs space-y-3">

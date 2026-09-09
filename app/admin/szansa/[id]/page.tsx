@@ -709,42 +709,11 @@ export default function OpportunityDetailPage({
             />
           </div>
 
-          {/* SMUKŁY KOMENTARZ KLIENTA */}
-          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-            <h2 style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-strong)", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
-              <MessageSquare size={14} /> Komentarz / Uwagi klienta
-            </h2>
-            <textarea
-              ref={commentRef}
-              defaultValue={displayComment || opp.comment || ""}
-              onInput={(e) => {
-                const el = e.currentTarget;
-                el.style.height = "auto";
-                el.style.height = el.scrollHeight + "px";
-              }}
-              onBlur={(e) => {
-                const next = e.target.value.trim();
-                if (next !== (opp.comment ?? "")) {
-                  save("comment", next || undefined);
-                }
-              }}
-              rows={2}
-              placeholder="Uwagi klienta lub notatka wewnętrzna…"
-              style={{
-                width: "100%",
-                resize: "none",
-                overflow: "hidden",
-                border: "1px solid var(--line)",
-                borderRadius: 6,
-                padding: "6px 8px",
-                fontSize: 12,
-                color: "var(--text)",
-                background: "var(--panel)",
-                outline: "none",
-                fontFamily: "inherit",
-              }}
-            />
-          </div>
+          {/* KORESPONDENCJA GMAIL */}
+          <OpportunityEmailThreadsSection
+            clientEmail={opp.email}
+            defaultEmail="aluminiumadk@gmail.com"
+          />
 
         </div>
 
@@ -804,11 +773,42 @@ export default function OpportunityDetailPage({
             </div>
           </div>
 
-          {/* KORESPONDENCJA GMAIL */}
-          <OpportunityEmailThreadsSection
-            clientEmail={opp.email}
-            defaultEmail="aluminiumadk@gmail.com"
-          />
+          {/* SMUKŁY KOMENTARZ KLIENTA */}
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+            <h2 style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-strong)", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+              <MessageSquare size={14} /> Komentarz / Uwagi klienta
+            </h2>
+            <textarea
+              ref={commentRef}
+              defaultValue={displayComment || opp.comment || ""}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = el.scrollHeight + "px";
+              }}
+              onBlur={(e) => {
+                const next = e.target.value.trim();
+                if (next !== (opp.comment ?? "")) {
+                  save("comment", next || undefined);
+                }
+              }}
+              rows={2}
+              placeholder="Uwagi klienta lub notatka wewnętrzna…"
+              style={{
+                width: "100%",
+                resize: "none",
+                overflow: "hidden",
+                border: "1px solid var(--line)",
+                borderRadius: 6,
+                padding: "6px 8px",
+                fontSize: 12,
+                color: "var(--text)",
+                background: "var(--panel)",
+                outline: "none",
+                fontFamily: "inherit",
+              }}
+            />
+          </div>
 
           {/* ZAŁĄCZNIKI */}
           <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, padding: 12 }}>
