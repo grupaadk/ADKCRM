@@ -1644,7 +1644,7 @@ export const receiveNoteFromExalcoWebhook = mutation({
 
     await ctx.db.patch(targetOrder._id, { serviceDeliveries: deliveries });
 
-    await ctx.db.insert("historyLogs", {
+    await ctx.db.insert("clientEvents", {
       clientId: targetOrder.clientId,
       orderId: targetOrder._id,
       type: "data_updated",
