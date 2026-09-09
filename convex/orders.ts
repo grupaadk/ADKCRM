@@ -1413,12 +1413,12 @@ export const recordCrmNoteSent = mutation({
     }
 
     const now = Date.now();
-    const userNameStr = user.displayName ?? user.login ?? userId;
+    const userNameStr = user.displayName ?? user.name ?? user.email ?? userId;
     const next = deliveries.map((d, i) => {
       if (i !== args.deliveryIndex) return d;
       const history = d.crmNotesHistory ?? [];
       const currentFeed = d.notesFeed ?? [];
-      let updatedFeed = [...currentFeed];
+      const updatedFeed = [...currentFeed];
       const existingIdx = updatedFeed.findIndex((n) => n.note.trim() === args.noteText.trim());
       if (existingIdx >= 0) {
         updatedFeed[existingIdx] = { ...updatedFeed[existingIdx], sentToCrm: true };
