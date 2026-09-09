@@ -310,7 +310,7 @@ export default function OpportunityDetailPage({
   const investmentMapsUrl = investmentAddressStr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(investmentAddressStr)}` : null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 1200, margin: "0 auto", paddingBottom: 32 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {/* Top Navigation Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
