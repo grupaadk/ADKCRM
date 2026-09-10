@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { CrmPageHeader } from "@/components/crm-ui";
 import {
   Database,
@@ -19,6 +20,8 @@ import {
   AlertTriangle,
   RotateCcw,
   CheckCircle2,
+  User,
+  Search,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -55,7 +58,22 @@ export default function BackupsPage() {
   const restoreMutation = useMutation(api.backups.restoreFullBackup);
 
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingClient, setIsExportingClient] = useState(false);
   const [copiedCli, setCopiedCli] = useState(false);
+
+  // Stan dla podszukania klienta do dedykowanego backupu
+  const [clientSearchTerm, setClientSearchTerm] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState<Id<"clients"> | null>(null);
+
+  const clientSearchResults = useQuery(
+    api.clients.search,
+    clientSearchTerm.trim().length > 0 ? { searchTerm: clientSearchTerm } : "skip"
+  );
+  const allClientsRes = useQuery(api.clients.list);
+  const selectedClient = useQuery(
+    api.clients.getById,
+    selectedClientId ? { clientId: selectedClientId } : "skip"
+  );
 
   // Stan dla importu / instalatora
   const [parsedBackup, setParsedBackup] = useState<ParsedBackupPayload | null>(null);
@@ -104,6 +122,46 @@ export default function BackupsPage() {
       );
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  // Obsługa pobierania dedykowanego backupu dla konkretnego klienta
+  const handleDownloadClientBackup = async () => {
+    if (!selectedClientId) {
+      toast.error("Wybierz najpierw klienta z listy.");
+      return;
+    }
+
+    setIsExportingClient(true);
+    const toastId = toast.loading("Generowanie kopii zapasowej dla wybranego klienta...");
+
+    try {
+      const data = await convex.query(api.backups.exportClientBackup, { clientId: selectedClientId });
+      const jsonString = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const safeName = (data.client.name || "klient").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const filename = `adk_backup_klient_${safeName}_${timestamp}.json`;
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Wygenerowano i pobrano kopię dla: ${data.client.name}`, { id: toastId });
+    } catch (err: unknown) {
+      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : "Błąd podczas generowania kopii zapasowej klienta.",
+        { id: toastId }
+      );
+    } finally {
+      setIsExportingClient(false);
     }
   };
 
@@ -164,11 +222,13 @@ export default function BackupsPage() {
     }
   };
 
+  const clientList = clientSearchTerm.trim().length > 0 ? clientSearchResults : allClientsRes?.page;
+
   return (
     <div className="space-y-6">
       <CrmPageHeader
         title="Kopie Zapasowe i Instalator Bazy"
-        sub="Pobieranie kopii zapasowej oraz bezkonfiguracyjne przywracanie i instalacja bazy z pliku JSON."
+        sub="Pobieranie pełnej kopii zapasowej, eksport konkretnego klienta oraz przywracanie bazy z pliku JSON."
       />
 
       {/* Górne karty ze statystykami */}
@@ -217,7 +277,7 @@ export default function BackupsPage() {
         </div>
       </div>
 
-      {/* Sekcja 1: Eksport danych (Pobieranie) */}
+      {/* Sekcja 1: Eksport danych (Pobieranie Pełnej Bazy) */}
       <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-3">
@@ -226,7 +286,7 @@ export default function BackupsPage() {
             </div>
             <div>
               <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                1. Pobierz kopię zapasową danych (JSON)
+                1. Pobierz pełną kopię zapasową danych (JSON)
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Generuje i pobiera pełny plik JSON ze wszystkimi tabelami i rekordami systemu CRM.
@@ -258,7 +318,138 @@ export default function BackupsPage() {
         </div>
       </div>
 
-      {/* Sekcja 2: Instalator & Przywracanie z pliku JSON */}
+      {/* Sekcja 2: Dedykowany eksport dla konkretnego klienta */}
+      <div className="p-6 rounded-xl border border-blue-500/30 bg-blue-500/5 dark:bg-blue-950/10 space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+            <User className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+              2. Eksport Kopii Zapasowej dla Konkretnego Klienta
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Wybierz klienta z listy, aby wyeksportować dedykowany pakiet danych (profil, zlecenia, pozycje, notatki, reklamacje i załączniki).
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+          {/* Wyszukiwanie i lista */}
+          <div className="space-y-3">
+            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+              Wyszukaj i wybierz klienta:
+            </label>
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                placeholder="Szukaj po nazwisku, firmie, emailu..."
+                value={clientSearchTerm}
+                onChange={(e) => setClientSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-1 space-y-1">
+              {!clientList ? (
+                <div className="p-3 text-center text-xs text-gray-400">Wczytywanie listy klientów...</div>
+              ) : clientList.length === 0 ? (
+                <div className="p-3 text-center text-xs text-gray-400">Nie znaleziono klientów.</div>
+              ) : (
+                clientList.map((c) => {
+                  const displayName =
+                    [c.firstName, c.lastName].filter(Boolean).join(" ") ||
+                    c.companyName ||
+                    "Brak nazwy";
+                  const isSelected = selectedClientId === c._id;
+
+                  return (
+                    <button
+                      key={c._id}
+                      onClick={() => setSelectedClientId(c._id)}
+                      className={`w-full text-left px-3 py-2 rounded-md text-xs transition-colors flex items-center justify-between ${
+                        isSelected
+                          ? "bg-blue-600 text-white font-semibold"
+                          : "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200"
+                      }`}
+                    >
+                      <div className="truncate pr-2">
+                        <span className="font-medium">{displayName}</span>
+                        {c.companyName && (
+                          <span className={`ml-1.5 text-[10px] ${isSelected ? "text-blue-100" : "text-gray-400"}`}>
+                            ({c.companyName})
+                          </span>
+                        )}
+                      </div>
+                      {c.city && (
+                        <span className={`text-[10px] shrink-0 ${isSelected ? "text-blue-100" : "text-gray-400"}`}>
+                          {c.city}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Podgląd wybranego klienta i akcja */}
+          <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+              Wybrana Kartoteka Klienta
+            </h4>
+
+            {!selectedClient ? (
+              <div className="py-8 text-center text-xs text-gray-400 italic">
+                Wybierz klienta z listy po lewej stronie, aby odblokować przycisk eksportu.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 space-y-1">
+                  <div className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                    {[selectedClient.firstName, selectedClient.lastName].filter(Boolean).join(" ") ||
+                      selectedClient.companyName}
+                  </div>
+                  {selectedClient.companyName && (
+                    <div className="text-xs text-gray-600 dark:text-gray-300">
+                      Firma: <strong>{selectedClient.companyName}</strong> {selectedClient.nip ? `(NIP: ${selectedClient.nip})` : ""}
+                    </div>
+                  )}
+                  {selectedClient.email && (
+                    <div className="text-xs text-gray-500">Email: {selectedClient.email}</div>
+                  )}
+                  {selectedClient.phone && (
+                    <div className="text-xs text-gray-500">Tel: {selectedClient.phone}</div>
+                  )}
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={handleDownloadClientBackup}
+                    disabled={isExportingClient}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium text-xs transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    {isExportingClient ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Pobieranie...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        Pobierz Kopię Klienta (.json)
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Sekcja 3: Instalator & Przywracanie z pliku JSON */}
       <div className="p-6 rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/10 space-y-5">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -266,7 +457,7 @@ export default function BackupsPage() {
           </div>
           <div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-              2. Przywracanie i Instalator Bazy Danych z pliku JSON
+              3. Przywracanie i Instalator Bazy Danych z pliku JSON
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Wgraj plik backupu `.json`, aby odtworzyć lub zasilić nową bazę danych danymi operacyjnymi.
@@ -449,7 +640,7 @@ export default function BackupsPage() {
         </div>
       )}
 
-      {/* Sekcja 3: Eksport CLI z plikami */}
+      {/* Sekcja 4: Eksport CLI z plikami */}
       <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 space-y-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
@@ -482,7 +673,7 @@ export default function BackupsPage() {
         </div>
       </div>
 
-      {/* Sekcja 4: Statystyki tabel */}
+      {/* Sekcja 5: Statystyki tabel */}
       <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">

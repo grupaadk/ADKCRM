@@ -315,3 +315,106 @@ export const restoreFullBackup = mutation({
     };
   },
 });
+
+/**
+ * Eksportuje kompletną bazę danych dla wybranego klienta (profil, zlecenia, notatki, zadania, reklamacje, załączniki).
+ */
+export const exportClientBackup = query({
+  args: {
+    clientId: v.id("clients"),
+  },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const client = await ctx.db.get(args.clientId);
+    if (!client) {
+      throw new ConvexError("Nie znaleziono wskazanego klienta.");
+    }
+
+    // Zlecenia klienta
+    const orders = await ctx.db
+      .query("orders")
+      .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+      .collect();
+
+    const orderIds = new Set(orders.map((o) => o._id));
+
+    // Pozycje kosztorysowe / linijki zleceń
+    const orderLineItems = (
+      await ctx.db.query("orderLineItems").collect()
+    ).filter((item) => orderIds.has(item.orderId));
+
+    // Zadania zleceń
+    const orderTasks = (
+      await ctx.db.query("orderTasks").collect()
+    ).filter((task) => task.orderId && orderIds.has(task.orderId));
+
+    // Notatki klienta i zleceń
+    const clientNotes = await ctx.db
+      .query("clientNotes")
+      .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+      .collect();
+
+    // Zdarzenia klienta
+    const clientEvents = await ctx.db
+      .query("clientEvents")
+      .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+      .collect();
+
+    // Reklamacje klienta
+    const complaints = await ctx.db
+      .query("complaints")
+      .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+      .collect();
+
+    // Załączniki do zleceń
+    const orderAttachments = (
+      await ctx.db.query("orderAttachments").collect()
+    ).filter((att) => orderIds.has(att.orderId));
+
+    // Wydarzenia w kalendarzu
+    const calendarEvents = (
+      await ctx.db.query("calendarEvents").collect()
+    ).filter(
+      (ev) =>
+        ev.clientId === args.clientId || (ev.orderId && orderIds.has(ev.orderId))
+    );
+
+    const clientName =
+      [client.firstName, client.lastName].filter(Boolean).join(" ") ||
+      client.companyName ||
+      "Klient";
+
+    return {
+      version: "1.0",
+      type: "single_client_backup",
+      exportedAt: new Date().toISOString(),
+      client: {
+        id: client._id,
+        name: clientName,
+        companyName: client.companyName,
+        email: client.email,
+        phone: client.phone,
+        nip: client.nip,
+      },
+      stats: {
+        ordersCount: orders.length,
+        notesCount: clientNotes.length,
+        complaintsCount: complaints.length,
+        attachmentsCount: orderAttachments.length,
+      },
+      tables: {
+        clients: [client],
+        orders,
+        orderLineItems,
+        orderTasks,
+        clientNotes,
+        clientEvents,
+        complaints,
+        orderAttachments,
+        calendarEvents,
+      },
+    };
+  },
+});
+
