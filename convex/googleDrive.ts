@@ -3568,7 +3568,7 @@ export const downloadDriveFileBase64 = action({
     for (let i = 0; i < bytes.length; i++) {
       binary += String.fromCharCode(bytes[i]);
     }
-    const base64 = typeof btoa === "function" ? btoa(binary) : (globalThis as any).Buffer?.from(arrayBuffer)?.toString("base64");
+    const base64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(arrayBuffer).toString("base64");
     return { base64 };
   },
 });
@@ -3710,6 +3710,77 @@ export const getClientDriveFilesMetadata = action({
     return { files };
   },
 });
+
+/**
+ * Pobiera listę wszystkich plików ze wszystkich folderów klientów na Google Drive.
+ */
+export const getAllDriveFilesMetadata = action({
+  args: {},
+  handler: async (ctx) => {
+    await requireUserIdentifierInAction(ctx);
+
+    const clientsRes = (await ctx.runQuery(api.clients.list, {})) as { page: Doc<"clients">[] };
+    const clients = clientsRes.page ?? [];
+
+    const result: Array<{
+      clientId: string;
+      clientName: string;
+      files: Array<{ id: string; name: string; relativePath: string; mimeType: string }>;
+    }> = [];
+
+    for (const client of clients) {
+      const folderId = client.folderId || client.clientFolderId;
+      if (!folderId) continue;
+
+      const clientName = client.companyName || `${client.lastName || ""} ${client.firstName || ""}`.trim() || client._id;
+      const files: Array<{ id: string; name: string; relativePath: string; mimeType: string }> = [];
+
+      async function scanFolder(currentFolderId: string, currentPath: string) {
+        const params = new URLSearchParams({
+          q: `'${currentFolderId}' in parents and trashed=false`,
+          supportsAllDrives: "true",
+          includeItemsFromAllDrives: "true",
+          fields: "files(id,name,mimeType)",
+          pageSize: "1000",
+        });
+
+        const response = (await driveApiFetchWithRetry(ctx, `/files?${params.toString()}`)) as {
+          files?: Array<{ id: string; name: string; mimeType: string }>;
+        };
+
+        for (const item of response.files ?? []) {
+          const itemPath = currentPath ? `${currentPath}/${item.name}` : item.name;
+          if (item.mimeType === "application/vnd.google-apps.folder") {
+            await scanFolder(item.id, itemPath);
+          } else {
+            files.push({
+              id: item.id,
+              name: item.name,
+              relativePath: itemPath,
+              mimeType: item.mimeType,
+            });
+          }
+        }
+      }
+
+      try {
+        await scanFolder(folderId, "");
+        if (files.length > 0) {
+          result.push({
+            clientId: client._id,
+            clientName,
+            files,
+          });
+        }
+      } catch (err) {
+        console.error(`Błąd skanowania plików klienta ${client._id} na Google Drive:`, err);
+      }
+    }
+
+    return { clientFiles: result };
+  },
+});
+
 
 /**
  * Wgrywa plik z kopii zapasowej na Google Drive do folderu klienta (tworząc brakujące podfoldery).

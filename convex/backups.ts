@@ -269,9 +269,10 @@ export const restoreFullBackup = mutation({
 
         // Jeśli to tabela users i user o danym emailu istnieje, pomijamy ponowny insert
         if (tableName === "users" && doc.email) {
+          const emailVal = doc.email as string;
           const existingUser = await ctx.db
             .query("users")
-            .filter((q: any) => q.eq(q.field("email"), doc.email))
+            .withIndex("email", (q) => q.eq("email", emailVal))
             .first();
           if (existingUser) {
             if (oldId) {
@@ -307,6 +308,7 @@ export const restoreFullBackup = mutation({
       success: true,
       totalImported,
       tableCounts,
+      idMap: Object.fromEntries(idMap),
     };
   },
 });

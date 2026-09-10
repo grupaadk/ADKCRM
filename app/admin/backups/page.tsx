@@ -64,6 +64,7 @@ export default function BackupsPage() {
   const restoreMutation = useMutation(api.backups.restoreFullBackup);
 
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingFullZip, setIsExportingFullZip] = useState(false);
   const [isExportingClient, setIsExportingClient] = useState(false);
   const [isExportingClientZip, setIsExportingClientZip] = useState(false);
   const [copiedCli, setCopiedCli] = useState(false);
@@ -132,6 +133,87 @@ export default function BackupsPage() {
       setIsExporting(false);
     }
   };
+
+  // Obsługa pobierania PEŁNEGO ARCHIWUM ZIP DLA CAŁEGO SYSTEMU (Baza Convex + pliki ze wszystkich klientów z Google Drive)
+  const handleDownloadFullZipBackup = async () => {
+    setIsExportingFullZip(true);
+    const toastId = toast.loading("Przygotowywanie pełnej kopii zapasowej systemu (JSON + pliki ze wszystkich klientów na Google Drive)...");
+
+    try {
+      const data = await convex.query(api.backups.exportFullBackup);
+
+      const zip = new JSZip();
+      zip.file("data.json", JSON.stringify(data, null, 2));
+
+      toast.loading("Skanowanie plików na Google Drive dla wszystkich klientów...", { id: toastId });
+      const allDriveRes = await convex.action(api.googleDrive.getAllDriveFilesMetadata, {});
+      const clientFiles = allDriveRes.clientFiles ?? [];
+
+      let totalFiles = 0;
+      for (const item of clientFiles) {
+        totalFiles += item.files.length;
+      }
+
+      if (totalFiles > 0) {
+        const driveFolder = zip.folder("Pliki_Google_Drive");
+        let count = 0;
+
+        for (const clientGroup of clientFiles) {
+          const clientFolder = driveFolder?.folder(clientGroup.clientId);
+          for (const fileMeta of clientGroup.files) {
+            count++;
+            toast.loading(
+              `Pobieranie z Google Drive (${count}/${totalFiles}): [${clientGroup.clientName}] ${fileMeta.name}...`,
+              { id: toastId }
+            );
+
+            try {
+              const fileRes = await convex.action(api.googleDrive.downloadDriveFileBase64, {
+                fileId: fileMeta.id,
+              });
+              const binaryStr = atob(fileRes.base64);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+              }
+              clientFolder?.file(fileMeta.relativePath, bytes);
+            } catch (fileErr) {
+              console.error(`Nie udało się pobrać pliku ${fileMeta.name} z Drive:`, fileErr);
+            }
+          }
+        }
+      }
+
+      toast.loading("Pakowanie archiwum ZIP...", { id: toastId });
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const filename = `adk_crm_backup_FULL_SYSTEM_${timestamp}.zip`;
+
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(
+        `Pobrano pełne archiwum systemu (${(zipBlob.size / (1024 * 1024)).toFixed(2)} MB, plików z Drive: ${totalFiles})!`,
+        { id: toastId }
+      );
+    } catch (err: unknown) {
+      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : "Błąd podczas tworzenia archiwum ZIP systemu.",
+        { id: toastId }
+      );
+    } finally {
+      setIsExportingFullZip(false);
+    }
+  };
+
 
   // Obsługa pobierania dedykowanego backupu dla konkretnego klienta (JSON)
   const handleDownloadClientBackup = async () => {
@@ -342,13 +424,44 @@ export default function BackupsPage() {
         });
 
         if (driveFilesToUpload.length > 0) {
-          // Ustalamy klienta do wgrania plików
-          const clientRecords = parsedBackup.tables.clients as Array<{ _id: string }>;
-          const targetClientId = (clientRecords && clientRecords.length > 0 ? clientRecords[0]._id : undefined) as Id<"clients"> | undefined;
+          const clientRecords = (parsedBackup.tables?.clients || []) as Array<{ _id: string }>;
+          const idMap = ((res as { idMap?: Record<string, string> }).idMap || {}) as Record<string, string>;
 
-          if (targetClientId) {
-            let processed = 0;
-            for (const item of driveFilesToUpload) {
+          // Grupowanie plików dla odpowiednich klientów
+          const filesByClient = new Map<string, Array<{ relativePath: string; entry: JSZip.JSZipObject }>>();
+
+          for (const item of driveFilesToUpload) {
+            const parts = item.relativePath.split(/[/\\\\]/);
+            const firstPart = parts[0];
+
+            // Sprawdzamy, czy pierwsza część ścieżki odpowiada staremu ID klienta (w pełnym systemowym ZIP-ie)
+            const matchedClient = clientRecords.find((c) => c._id === firstPart);
+
+            if (matchedClient) {
+              const targetClientId = idMap[firstPart] || firstPart;
+              const subPath = parts.slice(1).join("/");
+              if (subPath) {
+                if (!filesByClient.has(targetClientId)) {
+                  filesByClient.set(targetClientId, []);
+                }
+                filesByClient.get(targetClientId)?.push({ relativePath: subPath, entry: item.entry });
+              }
+            } else {
+              // Pojedynczy klient (plik ZIP wyeksportowany dla 1 klienta)
+              const rawSingleId = clientRecords.length > 0 ? clientRecords[0]._id : undefined;
+              const targetClientId = rawSingleId ? (idMap[rawSingleId] || rawSingleId) : undefined;
+              if (targetClientId) {
+                if (!filesByClient.has(targetClientId)) {
+                  filesByClient.set(targetClientId, []);
+                }
+                filesByClient.get(targetClientId)?.push({ relativePath: item.relativePath, entry: item.entry });
+              }
+            }
+          }
+
+          let processed = 0;
+          for (const [targetClientId, items] of filesByClient.entries()) {
+            for (const item of items) {
               processed++;
               toast.loading(
                 `Wgrywanie plików na Google Drive (${processed}/${driveFilesToUpload.length}): ${item.relativePath}...`,
@@ -358,7 +471,7 @@ export default function BackupsPage() {
               try {
                 const base64 = await item.entry.async("base64");
                 await convex.action(api.googleDrive.uploadBackupDriveFile, {
-                  clientId: targetClientId,
+                  clientId: targetClientId as Id<"clients">,
                   relativePath: item.relativePath,
                   fileBase64: base64,
                 });
@@ -450,7 +563,7 @@ export default function BackupsPage() {
         </div>
       </div>
 
-      {/* Sekcja 1: Eksport danych (Pobieranie Pełnej Bazy) */}
+      {/* Sekcja 1: Eksport danych (Pobieranie Pełnej Bazy / Systemu ZIP) */}
       <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-3">
@@ -459,35 +572,55 @@ export default function BackupsPage() {
             </div>
             <div>
               <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                1. Pobierz pełną kopię zapasową danych (JSON)
+                1. Pobierz Pełną Kopię Zapasową Systemu (JSON / ZIP z Google Drive)
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Generuje i pobiera pełny plik JSON ze wszystkimi tabelami i rekordami systemu CRM.
+                Generuje pełną kopię zapasową bazy danych Convex (JSON) lub kompletne archiwum ZIP zawierające bazę danych i pliki ze wszystkich folderów klientów z Google Drive.
               </p>
             </div>
           </div>
 
-          <button
-            onClick={handleDownloadBackupJson}
-            disabled={isExporting || !backupStats}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-medium text-sm transition-colors disabled:opacity-50 shadow-sm shrink-0"
-          >
-            {isExporting ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                Generowanie...
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4" />
-                Pobierz Kopię Bazy (.json)
-              </>
-            )}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+            <button
+              onClick={handleDownloadBackupJson}
+              disabled={isExporting || isExportingFullZip || !backupStats}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-medium text-xs transition-colors disabled:opacity-50 shadow-sm"
+            >
+              {isExporting ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Generowanie...
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  Pobierz Kopię Bazy (.json)
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleDownloadFullZipBackup}
+              disabled={isExporting || isExportingFullZip || !backupStats}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium text-xs transition-colors disabled:opacity-50 shadow-sm"
+            >
+              {isExportingFullZip ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Pakowanie ZIP i plików Drive...
+                </>
+              ) : (
+                <>
+                  <FileArchive className="w-3.5 h-3.5" />
+                  Pobierz Pełne Archiwum Systemu (.zip z Google Drive)
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="text-xs text-gray-500 dark:text-gray-400">
-          Ustrukturyzowany format JSON umożliwia łatwy podgląd oraz import do nowego lub czystego środowiska CRM.
+          Format JSON pobiera same dane strukturalne. Format ZIP dodatkowo przeskanuje i pobierze z Google Drive wszystkie umowy, wyceny i dokumenty klientów do jednego pliku archiwum.
         </div>
       </div>
 
