@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useConvex } from "convex/react";
+import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { CrmPageHeader } from "@/components/crm-ui";
 import {
@@ -15,6 +15,10 @@ import {
   RefreshCw,
   HardDrive,
   Table as TableIcon,
+  UploadCloud,
+  AlertTriangle,
+  RotateCcw,
+  CheckCircle2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -36,11 +40,30 @@ const TABLE_LABELS: Record<string, string> = {
   aiAssistantConfig: "Konfiguracja Asystenta AI",
 };
 
+interface ParsedBackupPayload {
+  version?: string;
+  app?: string;
+  exportedAt?: string;
+  totalRecords?: number;
+  tablesCount?: number;
+  tables: Record<string, Record<string, unknown>[]>;
+}
+
 export default function BackupsPage() {
   const convex = useConvex();
   const backupStats = useQuery(api.backups.getBackupStats);
+  const restoreMutation = useMutation(api.backups.restoreFullBackup);
+
   const [isExporting, setIsExporting] = useState(false);
   const [copiedCli, setCopiedCli] = useState(false);
+
+  // Stan dla importu / instalatora
+  const [parsedBackup, setParsedBackup] = useState<ParsedBackupPayload | null>(null);
+  const [backupFileName, setBackupFileName] = useState<string | null>(null);
+  const [restoreMode, setRestoreMode] = useState<"replace" | "merge">("replace");
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [restoreResult, setRestoreResult] = useState<{ totalImported: number } | null>(null);
 
   const cliCommand = "npx convex export --prod --include-file-storage --path ./backups/backup_full.zip";
 
@@ -84,11 +107,68 @@ export default function BackupsPage() {
     }
   };
 
+  // Obsługa wyboru pliku JSON do importu
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setBackupFileName(file.name);
+    setRestoreResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const json = JSON.parse(text);
+
+        if (!json || typeof json !== "object" || !json.tables) {
+          throw new Error("Plik nie posiada prawidłowej struktury pliku kopii zapasowej (brak sekcji tables).");
+        }
+
+        setParsedBackup(json as ParsedBackupPayload);
+        toast.success(`Odczytano plik: ${file.name}`);
+      } catch (err: unknown) {
+        console.error(err);
+        setParsedBackup(null);
+        setBackupFileName(null);
+        toast.error(err instanceof Error ? err.message : "Błąd odczytu pliku JSON.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Wykonanie przywracania danych
+  const handleExecuteRestore = async () => {
+    if (!parsedBackup) return;
+
+    setConfirmOpen(false);
+    setIsRestoring(true);
+    const toastId = toast.loading("Przywracanie i importowanie bazy danych w toku...");
+
+    try {
+      const res = await restoreMutation({
+        backupData: parsedBackup,
+        mode: restoreMode,
+      });
+
+      setRestoreResult({ totalImported: res.totalImported });
+      toast.success(`Pomyślnie przywrócono ${res.totalImported} obiektów w bazie danych!`, { id: toastId });
+    } catch (err: unknown) {
+      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : "Wystąpił błąd podczas przywracania danych.",
+        { id: toastId }
+      );
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <CrmPageHeader
-        title="Kopie Zapasowe i Eksport Bazy"
-        sub="Pobieranie kopii zapasowej bazy danych w formacie JSON oraz instrukcja pełnego archiwum plików."
+        title="Kopie Zapasowe i Instalator Bazy"
+        sub="Pobieranie kopii zapasowej oraz bezkonfiguracyjne przywracanie i instalacja bazy z pliku JSON."
       />
 
       {/* Górne karty ze statystykami */}
@@ -99,7 +179,7 @@ export default function BackupsPage() {
           </div>
           <div>
             <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Łącznie rekordów
+              Łącznie rekordów w bazie
             </div>
             <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {backupStats ? backupStats.totalRecords.toLocaleString("pl-PL") : "..."}
@@ -137,7 +217,7 @@ export default function BackupsPage() {
         </div>
       </div>
 
-      {/* Sekcja 1: Eksport danych w przeglądarce */}
+      {/* Sekcja 1: Eksport danych (Pobieranie) */}
       <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-3">
@@ -146,7 +226,7 @@ export default function BackupsPage() {
             </div>
             <div>
               <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                Pobierz kopię zapasową danych (JSON)
+                1. Pobierz kopię zapasową danych (JSON)
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Generuje i pobiera pełny plik JSON ze wszystkimi tabelami i rekordami systemu CRM.
@@ -157,7 +237,7 @@ export default function BackupsPage() {
           <button
             onClick={handleDownloadBackupJson}
             disabled={isExporting || !backupStats}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-medium text-sm transition-colors disabled:opacity-50 shadow-sm"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-medium text-sm transition-colors disabled:opacity-50 shadow-sm shrink-0"
           >
             {isExporting ? (
               <>
@@ -173,12 +253,203 @@ export default function BackupsPage() {
           </button>
         </div>
 
-        <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-          <span>Struktura pliku: JSON z podziałem na klucze reprezentujące poszczególne tabele bazy danych Convex.</span>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          Ustrukturyzowany format JSON umożliwia łatwy podgląd oraz import do nowego lub czystego środowiska CRM.
         </div>
       </div>
 
-      {/* Sekcja 2: Eksport CLI z plikami */}
+      {/* Sekcja 2: Instalator & Przywracanie z pliku JSON */}
+      <div className="p-6 rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/10 space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <UploadCloud className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+              2. Przywracanie i Instalator Bazy Danych z pliku JSON
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Wgraj plik backupu `.json`, aby odtworzyć lub zasilić nową bazę danych danymi operacyjnymi.
+            </p>
+          </div>
+        </div>
+
+        {/* Wgrywanie pliku */}
+        <div className="border-2 border-dashed border-emerald-500/30 rounded-xl p-6 text-center bg-white/60 dark:bg-gray-900/60 hover:bg-white transition-colors">
+          <input
+            type="file"
+            accept=".json"
+            id="backup-file-input"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <label htmlFor="backup-file-input" className="cursor-pointer space-y-2 block">
+            <UploadCloud className="w-10 h-10 mx-auto text-emerald-600 dark:text-emerald-400" />
+            <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
+              {backupFileName ? (
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  Wybrany plik: {backupFileName}
+                </span>
+              ) : (
+                "Kliknij tutaj lub przeciągnij plik adk_crm_backup_*.json"
+              )}
+            </div>
+            <p className="text-xs text-gray-500">Obsługiwany format: plik strukturalny kopii zapasowej .json</p>
+          </label>
+        </div>
+
+        {/* Podgląd wybranego backupu i ustawienia importu */}
+        {parsedBackup && (
+          <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100 dark:border-gray-800">
+              <div>
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                  Wykryto prawidłową kopię zapasową
+                </span>
+                <div className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                  Wyeksportowano: {parsedBackup.exportedAt ? new Date(parsedBackup.exportedAt).toLocaleString("pl-PL") : "Brak daty"}
+                </div>
+              </div>
+              <div className="text-xs text-gray-500">
+                Łącznie wykrytych obiektów: <strong className="text-gray-900 dark:text-gray-100">{Object.values(parsedBackup.tables).reduce((acc, t) => acc + (t?.length || 0), 0)}</strong>
+              </div>
+            </div>
+
+            {/* Wybór trybu */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Wybierz tryb przywracania danych:
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label
+                  onClick={() => setRestoreMode("replace")}
+                  className={`p-3 rounded-lg border cursor-pointer flex items-start gap-3 transition-colors ${
+                    restoreMode === "replace"
+                      ? "border-amber-500 bg-amber-500/10 text-amber-900 dark:text-amber-100"
+                      : "border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="restoreMode"
+                    checked={restoreMode === "replace"}
+                    onChange={() => setRestoreMode("replace")}
+                    className="mt-1"
+                  />
+                  <div>
+                    <div className="text-xs font-bold">Nadpisz i zaktualizuj (Pełny import)</div>
+                    <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                      Czyści dotychczasowe dane i wgrywa dokładny stan z pliku.
+                    </div>
+                  </div>
+                </label>
+
+                <label
+                  onClick={() => setRestoreMode("merge")}
+                  className={`p-3 rounded-lg border cursor-pointer flex items-start gap-3 transition-colors ${
+                    restoreMode === "merge"
+                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
+                      : "border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="restoreMode"
+                    checked={restoreMode === "merge"}
+                    onChange={() => setRestoreMode("merge")}
+                    className="mt-1"
+                  />
+                  <div>
+                    <div className="text-xs font-bold">Połącz z istniejącymi danymi (Merge)</div>
+                    <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                      Dopisuje nowe rekordy z pliku bez usuwania obecnych danych.
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Tabela wykrytych obiektów */}
+            <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800 p-2 bg-gray-50/50 dark:bg-gray-950/50">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                {Object.entries(parsedBackup.tables).map(([tbl, items]) => (
+                  <div key={tbl} className="flex justify-between px-2 py-1 bg-white dark:bg-gray-900 rounded border border-gray-100 dark:border-gray-800">
+                    <span className="font-mono text-[11px] truncate max-w-[120px]">{tbl}</span>
+                    <span className="font-bold">{items?.length || 0}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setConfirmOpen(true)}
+                disabled={isRestoring}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors shadow-md disabled:opacity-50"
+              >
+                {isRestoring ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Przywracanie danych...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-4 h-4" />
+                    Rozpocznij Przywracanie Bazy
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Informacja o wyniku po sukcesie */}
+        {restoreResult && (
+          <div className="p-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100 flex items-center gap-3">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+            <div>
+              <div className="text-sm font-bold">Import bazy danych zakończony pomyślnie!</div>
+              <div className="text-xs">Zaimportowano łącznie {restoreResult.totalImported} obiektów. Relacje zostały automatycznie odtworzone.</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modal Potwierdzenia */}
+      {confirmOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 text-amber-600">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                Potwierdzenie przywracania bazy
+              </h4>
+            </div>
+
+            <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+              Czy na pewno chcesz rozpocząć przywracanie danych z pliku <strong>{backupFileName}</strong> w trybie{" "}
+              <strong>{restoreMode === "replace" ? "Nadpisz i zaktualizuj" : "Połącz (Merge)"}</strong>?
+            </p>
+
+            <div className="flex justify-end gap-3 pt-3">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={handleExecuteRestore}
+                className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-md"
+              >
+                Tak, Przywróć Bazę
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sekcja 3: Eksport CLI z plikami */}
       <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 space-y-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
@@ -211,7 +482,7 @@ export default function BackupsPage() {
         </div>
       </div>
 
-      {/* Sekcja 3: Statystyki tabel */}
+      {/* Sekcja 4: Statystyki tabel */}
       <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
