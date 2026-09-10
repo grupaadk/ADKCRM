@@ -166,21 +166,16 @@ function remapIds(obj: unknown, idMap: Map<string, string>): unknown {
  */
 export const restoreFullBackup = mutation({
   args: {
-    backupData: v.object({
-      version: v.optional(v.string()),
-      app: v.optional(v.string()),
-      exportedAt: v.optional(v.string()),
-      totalRecords: v.optional(v.number()),
-      tables: v.any(),
-    }),
+    backupData: v.any(),
     mode: v.union(v.literal("replace"), v.literal("merge")),
   },
   handler: async (ctx, args) => {
     const adminUser = await requireRole(ctx, "admin");
 
-    const tables = args.backupData.tables as Record<string, Record<string, unknown>[]>;
+    const backupObj = args.backupData as Record<string, unknown> | null;
+    const tables = backupObj?.tables as Record<string, Record<string, unknown>[]> | undefined;
     if (!tables || typeof tables !== "object") {
-      throw new ConvexError("Nieprawidłowa struktura pliku kopii zapasowej (brak tabel).");
+      throw new ConvexError("Nieprawidłowa struktura pliku kopii zapasowej (brak sekcji tables).");
     }
 
     const idMap = new Map<string, string>();
