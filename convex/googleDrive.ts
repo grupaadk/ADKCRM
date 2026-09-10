@@ -3711,4 +3711,100 @@ export const getClientDriveFilesMetadata = action({
   },
 });
 
+/**
+ * Wgrywa plik z kopii zapasowej na Google Drive do folderu klienta (tworząc brakujące podfoldery).
+ */
+export const uploadBackupDriveFile = action({
+  args: {
+    clientId: v.id("clients"),
+    relativePath: v.string(),
+    fileBase64: v.string(),
+    mimeType: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireUserIdentifierInAction(ctx);
+
+    const folderRes = await ctx.runAction(api.googleDrive.createClientFolder, {
+      clientId: args.clientId,
+    });
+
+    const rootFolderId = folderRes?.clientFolderId;
+    if (!rootFolderId) {
+      throw new Error("Brak połączenia z Google Drive lub błąd tworzenia folderu klienta.");
+    }
+
+    const connection = await getAuthorizedConnection(ctx);
+
+    const pathParts = args.relativePath.split("/").filter(Boolean);
+    const fileName = pathParts.pop() || "plik";
+    let currentParentId = rootFolderId;
+
+    for (const subfolderName of pathParts) {
+      const queryParams = new URLSearchParams({
+        q: `'${currentParentId}' in parents and name='${subfolderName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+        supportsAllDrives: "true",
+        includeItemsFromAllDrives: "true",
+        fields: "files(id)",
+      });
+
+      const res = (await driveApiFetchWithRetry(ctx, `/files?${queryParams.toString()}`)) as {
+        files?: Array<{ id: string }>;
+      };
+
+      if (res.files && res.files.length > 0) {
+        currentParentId = res.files[0].id;
+      } else {
+        const createRes = (await driveApiFetchWithRetry(ctx, "/files?supportsAllDrives=true", {
+          method: "POST",
+          body: JSON.stringify({
+            name: subfolderName,
+            mimeType: "application/vnd.google-apps.folder",
+            parents: [currentParentId],
+          }),
+        })) as { id: string };
+        currentParentId = createRes.id;
+      }
+    }
+
+    const boundary = "-------314159265358979323846";
+    const mime = args.mimeType || "application/octet-stream";
+
+    const metadata = JSON.stringify({
+      name: fileName,
+      parents: [currentParentId],
+    });
+
+    const fileBuffer = Buffer.from(args.fileBase64, "base64");
+
+    const multipartRequestBody = Buffer.concat([
+      Buffer.from(
+        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`
+      ),
+      fileBuffer,
+      Buffer.from(`\r\n--${boundary}--`),
+    ]);
+
+    const uploadRes = await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${connection.accessToken}`,
+          "Content-Type": `multipart/related; boundary=${boundary}`,
+        },
+        body: multipartRequestBody,
+      }
+    );
+
+    if (!uploadRes.ok) {
+      const errBody = await uploadRes.text();
+      throw new Error(`Google Drive upload error ${uploadRes.status}: ${errBody}`);
+    }
+
+    const uploadedFileData = (await uploadRes.json()) as { id: string };
+    return { fileId: uploadedFileData.id, name: fileName };
+  },
+});
+
+
 

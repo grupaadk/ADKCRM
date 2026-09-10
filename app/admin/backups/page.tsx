@@ -51,6 +51,10 @@ interface ParsedBackupPayload {
   exportedAt?: string;
   totalRecords?: number;
   tablesCount?: number;
+  client?: {
+    id: string;
+    name: string;
+  };
   tables: Record<string, Record<string, unknown>[]>;
 }
 
@@ -80,11 +84,12 @@ export default function BackupsPage() {
 
   // Stan dla importu / instalatora
   const [parsedBackup, setParsedBackup] = useState<ParsedBackupPayload | null>(null);
+  const [rawUploadedZip, setRawUploadedZip] = useState<JSZip | null>(null);
   const [backupFileName, setBackupFileName] = useState<string | null>(null);
   const [restoreMode, setRestoreMode] = useState<"replace" | "merge">("replace");
   const [isRestoring, setIsRestoring] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [restoreResult, setRestoreResult] = useState<{ totalImported: number } | null>(null);
+  const [restoreResult, setRestoreResult] = useState<{ totalImported: number; uploadedDriveFilesCount?: number } | null>(null);
 
   const cliCommand = "npx convex export --prod --include-file-storage --path ./backups/backup_full.zip";
 
@@ -179,13 +184,11 @@ export default function BackupsPage() {
     const toastId = toast.loading("Przygotowywanie pełnego archiwum ZIP (dane + pliki Google Drive)...");
 
     try {
-      // 1. Pobierz dane z bazy Convex dla klienta
       const data = await convex.query(api.backups.exportClientBackup, { clientId: selectedClientId });
 
       const zip = new JSZip();
       zip.file("data.json", JSON.stringify(data, null, 2));
 
-      // 2. Pobierz listę plików z Google Drive dla tego klienta
       toast.loading("Skanowanie plików klienta na Google Drive...", { id: toastId });
       const driveRes = await convex.action(api.googleDrive.getClientDriveFilesMetadata, {
         clientId: selectedClientId,
@@ -257,10 +260,13 @@ export default function BackupsPage() {
 
     setBackupFileName(file.name);
     setRestoreResult(null);
+    setRawUploadedZip(null);
 
     try {
       if (file.name.endsWith(".zip")) {
         const zip = await JSZip.loadAsync(file);
+        setRawUploadedZip(zip);
+
         const jsonFile =
           zip.file("data.json") ||
           Object.values(zip.files).find((f) => f.name.endsWith(".json") && !f.dir);
@@ -306,22 +312,78 @@ export default function BackupsPage() {
     }
   };
 
-  // Wykonanie przywracania danych
+  // Wykonanie przywracania danych i ewentualne wgrywanie plików na Google Drive
   const handleExecuteRestore = async () => {
     if (!parsedBackup) return;
 
     setConfirmOpen(false);
     setIsRestoring(true);
-    const toastId = toast.loading("Przywracanie i importowanie bazy danych w toku...");
+    const toastId = toast.loading("Przywracanie danych w bazie Convex...");
 
     try {
+      // 1. Odtwórz dane bazy w Convex
       const res = await restoreMutation({
         backupData: parsedBackup,
         mode: restoreMode,
       });
 
-      setRestoreResult({ totalImported: res.totalImported });
-      toast.success(`Pomyślnie przywrócono ${res.totalImported} obiektów w bazie danych!`, { id: toastId });
+      let uploadedDriveCount = 0;
+
+      // 2. Jeśli wgrywamy plik ZIP zawierający podkatalog Pliki_Google_Drive
+      if (rawUploadedZip) {
+        const driveFilesToUpload: Array<{ relativePath: string; entry: JSZip.JSZipObject }> = [];
+        rawUploadedZip.forEach((relativePath, entry) => {
+          if (!entry.dir && (relativePath.startsWith("Pliki_Google_Drive/") || relativePath.startsWith("Pliki_Google_Drive\\"))) {
+            const cleanRelPath = relativePath.replace(/^Pliki_Google_Drive[/\\]/, "");
+            if (cleanRelPath) {
+              driveFilesToUpload.push({ relativePath: cleanRelPath, entry });
+            }
+          }
+        });
+
+        if (driveFilesToUpload.length > 0) {
+          // Ustalamy klienta do wgrania plików
+          const clientRecords = parsedBackup.tables.clients as Array<{ _id: string }>;
+          const targetClientId = (clientRecords && clientRecords.length > 0 ? clientRecords[0]._id : undefined) as Id<"clients"> | undefined;
+
+          if (targetClientId) {
+            let processed = 0;
+            for (const item of driveFilesToUpload) {
+              processed++;
+              toast.loading(
+                `Wgrywanie plików na Google Drive (${processed}/${driveFilesToUpload.length}): ${item.relativePath}...`,
+                { id: toastId }
+              );
+
+              try {
+                const base64 = await item.entry.async("base64");
+                await convex.action(api.googleDrive.uploadBackupDriveFile, {
+                  clientId: targetClientId,
+                  relativePath: item.relativePath,
+                  fileBase64: base64,
+                });
+                uploadedDriveCount++;
+              } catch (driveErr) {
+                console.error(`Błąd wgrywania pliku ${item.relativePath} na Google Drive:`, driveErr);
+              }
+            }
+          }
+        }
+      }
+
+      setRestoreResult({
+        totalImported: res.totalImported,
+        uploadedDriveFilesCount: uploadedDriveCount,
+      });
+
+      if (uploadedDriveCount > 0) {
+        toast.success(
+          `Odtworzono bazę danych (${res.totalImported} obiektów) i załadowano ${uploadedDriveCount} plików na Google Drive!`,
+          { id: toastId }
+        );
+      } else {
+        toast.success(`Pomyślnie przywrócono ${res.totalImported} obiektów w bazie danych!`, { id: toastId });
+      }
     } catch (err: unknown) {
       console.error(err);
       toast.error(
@@ -584,7 +646,7 @@ export default function BackupsPage() {
               3. Przywracanie i Instalator Bazy Danych z pliku JSON lub ZIP
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Wgraj plik `.json` lub archiwum `.zip`, aby odtworzyć lub zasilić bazę danych danymi operacyjnymi.
+              Wgraj plik `.json` lub archiwum `.zip`, aby odtworzyć bazę Convex oraz automatycznie utworzyć folder i wgrać pliki z powrotem na Google Drive.
             </p>
           </div>
         </div>
@@ -609,7 +671,7 @@ export default function BackupsPage() {
                 "Kliknij tutaj lub przeciągnij plik .json lub .zip"
               )}
             </div>
-            <p className="text-xs text-gray-500">Obsługiwane formaty: plik .json oraz archiwum .zip</p>
+            <p className="text-xs text-gray-500">Obsługiwane formaty: plik .json oraz archiwum .zip (z plikami Google Drive)</p>
           </label>
         </div>
 
@@ -705,12 +767,12 @@ export default function BackupsPage() {
                 {isRestoring ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    Przywracanie danych...
+                    Przywracanie danych i plików...
                   </>
                 ) : (
                   <>
                     <RotateCcw className="w-4 h-4" />
-                    Rozpocznij Przywracanie Bazy
+                    Rozpocznij Przywracanie Bazy & Plików
                   </>
                 )}
               </button>
@@ -723,8 +785,11 @@ export default function BackupsPage() {
           <div className="p-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100 flex items-center gap-3">
             <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
             <div>
-              <div className="text-sm font-bold">Import bazy danych zakończony pomyślnie!</div>
-              <div className="text-xs">Zaimportowano łącznie {restoreResult.totalImported} obiektów. Relacje zostały automatycznie odtworzone.</div>
+              <div className="text-sm font-bold">Import bazy danych oraz plików zakończony pomyślnie!</div>
+              <div className="text-xs">
+                Zaimportowano łącznie {restoreResult.totalImported} obiektów bazy.
+                {restoreResult.uploadedDriveFilesCount ? ` Otworzono i załadowano ${restoreResult.uploadedDriveFilesCount} plików na Google Drive.` : ""}
+              </div>
             </div>
           </div>
         )}
