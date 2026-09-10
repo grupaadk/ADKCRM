@@ -170,13 +170,15 @@ export default function BackupsPage() {
             try {
               const fileRes = await convex.action(api.googleDrive.downloadDriveFileBase64, {
                 fileId: fileMeta.id,
+                mimeType: fileMeta.mimeType,
               });
-              const binaryStr = atob(fileRes.base64);
-              const bytes = new Uint8Array(binaryStr.length);
-              for (let i = 0; i < binaryStr.length; i++) {
-                bytes[i] = binaryStr.charCodeAt(i);
+
+              let targetPath = fileMeta.relativePath;
+              if (fileRes.isExportedPdf && !targetPath.toLowerCase().endsWith(".pdf")) {
+                targetPath += ".pdf";
               }
-              clientFolder?.file(fileMeta.relativePath, bytes);
+
+              clientFolder?.file(targetPath, fileRes.base64, { base64: true });
             } catch (fileErr) {
               console.error(`Nie udało się pobrać pliku ${fileMeta.name} z Drive:`, fileErr);
             }
@@ -185,7 +187,7 @@ export default function BackupsPage() {
       }
 
       toast.loading("Pakowanie archiwum ZIP...", { id: toastId });
-      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
       const filename = `adk_crm_backup_FULL_SYSTEM_${timestamp}.zip`;
@@ -291,13 +293,15 @@ export default function BackupsPage() {
           try {
             const fileRes = await convex.action(api.googleDrive.downloadDriveFileBase64, {
               fileId: fileMeta.id,
+              mimeType: fileMeta.mimeType,
             });
-            const binaryStr = atob(fileRes.base64);
-            const bytes = new Uint8Array(binaryStr.length);
-            for (let i = 0; i < binaryStr.length; i++) {
-              bytes[i] = binaryStr.charCodeAt(i);
+
+            let targetPath = fileMeta.relativePath;
+            if (fileRes.isExportedPdf && !targetPath.toLowerCase().endsWith(".pdf")) {
+              targetPath += ".pdf";
             }
-            driveFolder?.file(fileMeta.relativePath, bytes);
+
+            driveFolder?.file(targetPath, fileRes.base64, { base64: true });
           } catch (fileErr) {
             console.error(`Nie udało się pobrać pliku ${fileMeta.name} z Drive:`, fileErr);
           }
@@ -305,7 +309,7 @@ export default function BackupsPage() {
       }
 
       toast.loading("Pakowanie archiwum ZIP...", { id: toastId });
-      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
       const safeName = (data.client.name || "klient").replace(/[^a-zA-Z0-9_-]/g, "_");

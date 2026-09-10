@@ -3542,19 +3542,46 @@ export const checkFolderInfo = action({
 });
 
 export const downloadDriveFileBase64 = action({
-  args: { fileId: v.string() },
+  args: {
+    fileId: v.string(),
+    mimeType: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     let connection = await getAuthorizedConnection(ctx);
 
-    let res = await fetch(`${DRIVE_API_BASE}/files/${args.fileId}?alt=media&supportsAllDrives=true`, {
+    let isGoogleApp = args.mimeType?.startsWith("application/vnd.google-apps.") ?? false;
+    let downloadUrl: string;
+
+    if (isGoogleApp) {
+      downloadUrl = `${DRIVE_API_BASE}/files/${args.fileId}/export?mimeType=application/pdf&supportsAllDrives=true`;
+    } else {
+      downloadUrl = `${DRIVE_API_BASE}/files/${args.fileId}?alt=media&supportsAllDrives=true`;
+    }
+
+    let res = await fetch(downloadUrl, {
       headers: { Authorization: `Bearer ${connection.accessToken}` },
     });
 
     if (res.status === 401) {
       connection = await getAuthorizedConnection(ctx, { forceRefresh: true });
-      res = await fetch(`${DRIVE_API_BASE}/files/${args.fileId}?alt=media&supportsAllDrives=true`, {
+      res = await fetch(downloadUrl, {
         headers: { Authorization: `Bearer ${connection.accessToken}` },
       });
+    }
+
+    // Jeśli standardowe pobieranie zwróciło 403 z błędem braku treści binarnej (fileNotDownloadable), eksportujemy jako PDF
+    if (!res.ok && res.status === 403 && !isGoogleApp) {
+      const errTextPeek = await res.clone().text();
+      if (errTextPeek.includes("fileNotDownloadable") || errTextPeek.includes("binary content")) {
+        const exportUrl = `${DRIVE_API_BASE}/files/${args.fileId}/export?mimeType=application/pdf&supportsAllDrives=true`;
+        const exportRes = await fetch(exportUrl, {
+          headers: { Authorization: `Bearer ${connection.accessToken}` },
+        });
+        if (exportRes.ok) {
+          res = exportRes;
+          isGoogleApp = true;
+        }
+      }
     }
 
     if (!res.ok) {
@@ -3563,13 +3590,8 @@ export const downloadDriveFileBase64 = action({
     }
 
     const arrayBuffer = await res.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    const base64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(arrayBuffer).toString("base64");
-    return { base64 };
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    return { base64, isExportedPdf: isGoogleApp };
   },
 });
 
