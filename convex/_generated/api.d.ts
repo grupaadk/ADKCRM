@@ -12,6 +12,7 @@ import type * as aiAssistant from "../aiAssistant.js";
 import type * as aiWorkflows from "../aiWorkflows.js";
 import type * as attachments from "../attachments.js";
 import type * as auth from "../auth.js";
+import type * as backups from "../backups.js";
 import type * as calendarEvents from "../calendarEvents.js";
 import type * as cars from "../cars.js";
 import type * as clients from "../clients.js";
@@ -81,6 +82,7 @@ declare const fullApi: ApiFromModules<{
   aiWorkflows: typeof aiWorkflows;
   attachments: typeof attachments;
   auth: typeof auth;
+  backups: typeof backups;
   calendarEvents: typeof calendarEvents;
   cars: typeof cars;
   clients: typeof clients;
