@@ -22,8 +22,10 @@ import {
   CheckCircle2,
   User,
   Search,
+  FileArchive,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import JSZip from "jszip";
 
 const TABLE_LABELS: Record<string, string> = {
   users: "Użytkownicy i konta",
@@ -59,6 +61,7 @@ export default function BackupsPage() {
 
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingClient, setIsExportingClient] = useState(false);
+  const [isExportingClientZip, setIsExportingClientZip] = useState(false);
   const [copiedCli, setCopiedCli] = useState(false);
 
   // Stan dla podszukania klienta do dedykowanego backupu
@@ -125,7 +128,7 @@ export default function BackupsPage() {
     }
   };
 
-  // Obsługa pobierania dedykowanego backupu dla konkretnego klienta
+  // Obsługa pobierania dedykowanego backupu dla konkretnego klienta (JSON)
   const handleDownloadClientBackup = async () => {
     if (!selectedClientId) {
       toast.error("Wybierz najpierw klienta z listy.");
@@ -165,34 +168,142 @@ export default function BackupsPage() {
     }
   };
 
-  // Obsługa wyboru pliku JSON do importu
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Obsługa pobierania PEŁNEGO ARCHIWUM ZIP DLA KLIENTA (JSON + pliki z Google Drive)
+  const handleDownloadClientZipBackup = async () => {
+    if (!selectedClientId) {
+      toast.error("Wybierz najpierw klienta z listy.");
+      return;
+    }
+
+    setIsExportingClientZip(true);
+    const toastId = toast.loading("Przygotowywanie pełnego archiwum ZIP (dane + pliki Google Drive)...");
+
+    try {
+      // 1. Pobierz dane z bazy Convex dla klienta
+      const data = await convex.query(api.backups.exportClientBackup, { clientId: selectedClientId });
+
+      const zip = new JSZip();
+      zip.file("data.json", JSON.stringify(data, null, 2));
+
+      // 2. Pobierz listę plików z Google Drive dla tego klienta
+      toast.loading("Skanowanie plików klienta na Google Drive...", { id: toastId });
+      const driveRes = await convex.action(api.googleDrive.getClientDriveFilesMetadata, {
+        clientId: selectedClientId,
+      });
+      const driveFiles = driveRes.files ?? [];
+
+      if (driveFiles.length > 0) {
+        const driveFolder = zip.folder("Pliki_Google_Drive");
+        let count = 0;
+
+        for (const fileMeta of driveFiles) {
+          count++;
+          toast.loading(
+            `Pobieranie z Google Drive (${count}/${driveFiles.length}): ${fileMeta.name}...`,
+            { id: toastId }
+          );
+
+          try {
+            const fileRes = await convex.action(api.googleDrive.downloadDriveFileBase64, {
+              fileId: fileMeta.id,
+            });
+            const binaryStr = atob(fileRes.base64);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+            }
+            driveFolder?.file(fileMeta.relativePath, bytes);
+          } catch (fileErr) {
+            console.error(`Nie udało się pobrać pliku ${fileMeta.name} z Drive:`, fileErr);
+          }
+        }
+      }
+
+      toast.loading("Pakowanie archiwum ZIP...", { id: toastId });
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const safeName = (data.client.name || "klient").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const filename = `adk_backup_klient_${safeName}_FULL.zip`;
+
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(
+        `Pobrano pełne archiwum ZIP (${(zipBlob.size / (1024 * 1024)).toFixed(2)} MB, plików z Drive: ${driveFiles.length})!`,
+        { id: toastId }
+      );
+    } catch (err: unknown) {
+      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : "Błąd podczas tworzenia archiwum ZIP klienta.",
+        { id: toastId }
+      );
+    } finally {
+      setIsExportingClientZip(false);
+    }
+  };
+
+  // Obsługa wyboru pliku JSON lub ZIP do importu
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setBackupFileName(file.name);
     setRestoreResult(null);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        const json = JSON.parse(text);
+    try {
+      if (file.name.endsWith(".zip")) {
+        const zip = await JSZip.loadAsync(file);
+        const jsonFile =
+          zip.file("data.json") ||
+          Object.values(zip.files).find((f) => f.name.endsWith(".json") && !f.dir);
+
+        if (!jsonFile) {
+          throw new Error("Plik ZIP nie zawiera pliku data.json z danymi bazy.");
+        }
+
+        const jsonText = await jsonFile.async("string");
+        const json = JSON.parse(jsonText);
 
         if (!json || typeof json !== "object" || !json.tables) {
-          throw new Error("Plik nie posiada prawidłowej struktury pliku kopii zapasowej (brak sekcji tables).");
+          throw new Error("Struktura JSON w pliku ZIP jest nieprawidłowa.");
         }
 
         setParsedBackup(json as ParsedBackupPayload);
-        toast.success(`Odczytano plik: ${file.name}`);
-      } catch (err: unknown) {
-        console.error(err);
-        setParsedBackup(null);
-        setBackupFileName(null);
-        toast.error(err instanceof Error ? err.message : "Błąd odczytu pliku JSON.");
+        toast.success(`Odczytano archiwum ZIP: ${file.name}`);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const text = event.target?.result as string;
+            const json = JSON.parse(text);
+            if (!json || typeof json !== "object" || !json.tables) {
+              throw new Error("Plik nie posiada prawidłowej struktury (brak sekcji tables).");
+            }
+            setParsedBackup(json as ParsedBackupPayload);
+            toast.success(`Odczytano plik: ${file.name}`);
+          } catch (err: unknown) {
+            console.error(err);
+            setParsedBackup(null);
+            setBackupFileName(null);
+            toast.error(err instanceof Error ? err.message : "Błąd odczytu pliku JSON.");
+          }
+        };
+        reader.readAsText(file);
       }
-    };
-    reader.readAsText(file);
+    } catch (err: unknown) {
+      console.error(err);
+      setParsedBackup(null);
+      setBackupFileName(null);
+      toast.error(err instanceof Error ? err.message : "Błąd przetwarzania pliku backupu.");
+    }
   };
 
   // Wykonanie przywracania danych
@@ -228,7 +339,7 @@ export default function BackupsPage() {
     <div className="space-y-6">
       <CrmPageHeader
         title="Kopie Zapasowe i Instalator Bazy"
-        sub="Pobieranie pełnej kopii zapasowej, eksport konkretnego klienta oraz przywracanie bazy z pliku JSON."
+        sub="Pobieranie pełnej kopii bazy, eksport klienta z plikami Google Drive (ZIP) oraz przywracanie z pliku JSON/ZIP."
       />
 
       {/* Górne karty ze statystykami */}
@@ -326,10 +437,10 @@ export default function BackupsPage() {
           </div>
           <div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-              2. Eksport Kopii Zapasowej dla Konkretnego Klienta
+              2. Eksport Kopii Zapasowej dla Konkretnego Klienta (JSON / ZIP z Google Drive)
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Wybierz klienta z listy, aby wyeksportować dedykowany pakiet danych (profil, zlecenia, pozycje, notatki, reklamacje i załączniki).
+              Wybierz klienta z listy, aby wyeksportować dedykowany pakiet danych (sam JSON lub pełne archiwum ZIP wraz z plikami z Google Drive).
             </p>
           </div>
         </div>
@@ -394,7 +505,7 @@ export default function BackupsPage() {
             </div>
           </div>
 
-          {/* Podgląd wybranego klienta i akcja */}
+          {/* Podgląd wybranego klienta i akcje */}
           <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 space-y-4">
             <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">
               Wybrana Kartoteka Klienta
@@ -402,7 +513,7 @@ export default function BackupsPage() {
 
             {!selectedClient ? (
               <div className="py-8 text-center text-xs text-gray-400 italic">
-                Wybierz klienta z listy po lewej stronie, aby odblokować przycisk eksportu.
+                Wybierz klienta z listy po lewej stronie, aby odblokować przyciski eksportu.
               </div>
             ) : (
               <div className="space-y-3">
@@ -424,21 +535,34 @@ export default function BackupsPage() {
                   )}
                 </div>
 
-                <div className="pt-2 flex justify-end">
+                <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-end">
                   <button
                     onClick={handleDownloadClientBackup}
-                    disabled={isExportingClient}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium text-xs transition-colors shadow-sm disabled:opacity-50"
+                    disabled={isExportingClient || isExportingClientZip}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium text-xs transition-colors disabled:opacity-50"
                   >
                     {isExportingClient ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5" />
+                    )}
+                    Pobierz Dane (.json)
+                  </button>
+
+                  <button
+                    onClick={handleDownloadClientZipBackup}
+                    disabled={isExportingClient || isExportingClientZip}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium text-xs transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    {isExportingClientZip ? (
                       <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        Pobieranie...
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Pobieranie plików z Drive...
                       </>
                     ) : (
                       <>
-                        <Download className="w-4 h-4" />
-                        Pobierz Kopię Klienta (.json)
+                        <FileArchive className="w-3.5 h-3.5" />
+                        Pobierz Pełny ZIP (z Google Drive)
                       </>
                     )}
                   </button>
@@ -449,7 +573,7 @@ export default function BackupsPage() {
         </div>
       </div>
 
-      {/* Sekcja 3: Instalator & Przywracanie z pliku JSON */}
+      {/* Sekcja 3: Instalator & Przywracanie z pliku JSON / ZIP */}
       <div className="p-6 rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/10 space-y-5">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -457,10 +581,10 @@ export default function BackupsPage() {
           </div>
           <div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-              3. Przywracanie i Instalator Bazy Danych z pliku JSON
+              3. Przywracanie i Instalator Bazy Danych z pliku JSON lub ZIP
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Wgraj plik backupu `.json`, aby odtworzyć lub zasilić nową bazę danych danymi operacyjnymi.
+              Wgraj plik `.json` lub archiwum `.zip`, aby odtworzyć lub zasilić bazę danych danymi operacyjnymi.
             </p>
           </div>
         </div>
@@ -469,7 +593,7 @@ export default function BackupsPage() {
         <div className="border-2 border-dashed border-emerald-500/30 rounded-xl p-6 text-center bg-white/60 dark:bg-gray-900/60 hover:bg-white transition-colors">
           <input
             type="file"
-            accept=".json"
+            accept=".json,.zip"
             id="backup-file-input"
             onChange={handleFileSelect}
             className="hidden"
@@ -482,10 +606,10 @@ export default function BackupsPage() {
                   Wybrany plik: {backupFileName}
                 </span>
               ) : (
-                "Kliknij tutaj lub przeciągnij plik adk_crm_backup_*.json"
+                "Kliknij tutaj lub przeciągnij plik .json lub .zip"
               )}
             </div>
-            <p className="text-xs text-gray-500">Obsługiwany format: plik strukturalny kopii zapasowej .json</p>
+            <p className="text-xs text-gray-500">Obsługiwane formaty: plik .json oraz archiwum .zip</p>
           </label>
         </div>
 

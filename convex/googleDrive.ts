@@ -3641,7 +3641,6 @@ export const listOrderConstructionDrawingsFiles = action({
     };
 
     return {
-      sourceFolderName: "Główny folder zlecenia",
       files: (rootFilesData.files ?? []).map((f) => ({
         id: f.id,
         name: f.name,
@@ -3652,3 +3651,64 @@ export const listOrderConstructionDrawingsFiles = action({
     };
   },
 });
+
+/**
+ * Pobiera listę plików w folderze klienta na Google Drive (rekursywnie z podfolderami).
+ */
+export const getClientDriveFilesMetadata = action({
+  args: {
+    clientId: v.id("clients"),
+  },
+  handler: async (ctx, args) => {
+    await requireUserIdentifierInAction(ctx);
+
+    const client = (await ctx.runQuery(api.clients.getById, {
+      clientId: args.clientId,
+    })) as Doc<"clients"> | null;
+
+    const folderId = client?.folderId || client?.clientFolderId;
+    if (!folderId) {
+      return { files: [] };
+    }
+
+    const files: Array<{ id: string; name: string; relativePath: string; mimeType: string }> = [];
+
+    async function scanFolder(currentFolderId: string, currentPath: string) {
+      const params = new URLSearchParams({
+        q: `'${currentFolderId}' in parents and trashed=false`,
+        supportsAllDrives: "true",
+        includeItemsFromAllDrives: "true",
+        fields: "files(id,name,mimeType)",
+        pageSize: "1000",
+      });
+
+      const response = (await driveApiFetchWithRetry(ctx, `/files?${params.toString()}`)) as {
+        files?: Array<{ id: string; name: string; mimeType: string }>;
+      };
+
+      for (const item of response.files ?? []) {
+        const itemPath = currentPath ? `${currentPath}/${item.name}` : item.name;
+        if (item.mimeType === "application/vnd.google-apps.folder") {
+          await scanFolder(item.id, itemPath);
+        } else {
+          files.push({
+            id: item.id,
+            name: item.name,
+            relativePath: itemPath,
+            mimeType: item.mimeType,
+          });
+        }
+      }
+    }
+
+    try {
+      await scanFolder(folderId, "");
+    } catch (err) {
+      console.error("Błąd skanowania plików klienta na Google Drive:", err);
+    }
+
+    return { files };
+  },
+});
+
+
