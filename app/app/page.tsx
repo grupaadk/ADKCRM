@@ -56,6 +56,7 @@ import MobilePanel from "@/app/app/MobilePanel";
 
 import { DateStrip } from "@/components/ekipa/DateStrip";
 import dynamic from "next/dynamic";
+import EventDrawer, { type ScheduleEventItem } from "@/components/EventDrawer";
 
 const MobileWeekCalendar = dynamic(() => import("@/components/ekipa/MobileWeekCalendar"), { ssr: false });
 type Tab = "home" | "tasks" | "panel" | "profile" | "add-document";
@@ -233,6 +234,7 @@ function AppPwaMain() {
   // Schedule / Calendar State
   const [selectedScheduleDate, setSelectedScheduleDate] = useState<Date | null>(new Date());
   const [selectedScheduleUserId, setSelectedScheduleUserId] = useState<Id<"users"> | "all" | null>(null);
+  const [selectedEventForEdit, setSelectedEventForEdit] = useState<ScheduleEventItem | null>(null);
   const allUsersForFilter = useQuery(api.users.listAllActive);
 
   const userSchedule = useQuery(
@@ -521,8 +523,8 @@ function AppPwaMain() {
       reader.onload = () => {
         const img = new Image();
         img.onload = () => {
-          let width = img.width;
-          let height = img.height;
+          const width = img.width;
+          const height = img.height;
 
           // Ręczny obrót jeśli użytkownik tak zażądał, ALBO
           // automatyczny obrót poziomego obrazu (jeśli np. naturalnie jest landscape, ale chcemy portrait).
@@ -1402,7 +1404,10 @@ function AppPwaMain() {
                   className="w-full overflow-hidden -mx-2 sm:mx-0 px-2 sm:px-0" 
                   style={{ height: "max(350px, calc(100vh - 220px))" }}
                 >
-                  <MobileWeekCalendar items={userSchedule?.items ?? []} />
+                  <MobileWeekCalendar 
+                    items={userSchedule?.items ?? []} 
+                    onEventClick={(item) => setSelectedEventForEdit(item as ScheduleEventItem)}
+                  />
                 </div>
               ) : (() => {
                 if (userSchedule === undefined) {
@@ -1441,7 +1446,8 @@ function AppPwaMain() {
                     {filtered.map((item) => (
                       <div
                         key={item.id}
-                        className="bg-white rounded-2xl p-4 border border-gray-200 shadow-xs space-y-2 hover:border-[#4dbdc6] transition"
+                        onClick={() => setSelectedEventForEdit(item as ScheduleEventItem)}
+                        className="bg-white rounded-2xl p-4 border border-gray-200 shadow-xs space-y-2 hover:border-[#4dbdc6] active:scale-[0.99] cursor-pointer transition"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2">
@@ -1513,6 +1519,13 @@ function AppPwaMain() {
                 />
               </div>
             )}
+
+            {/* Event Drawer Modal for editing */}
+            <EventDrawer
+              isOpen={!!selectedEventForEdit}
+              onClose={() => setSelectedEventForEdit(null)}
+              item={selectedEventForEdit}
+            />
           </div>
         )}
 
