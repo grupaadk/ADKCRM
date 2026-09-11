@@ -3584,13 +3584,17 @@ export const downloadDriveFileBase64 = action({
       }
     }
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Błąd pobierania pliku z Google Drive (${res.status}): ${errText}`);
-    }
-
     const arrayBuffer = await res.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    let binary = "";
+    const bytes = new Uint8Array(arrayBuffer);
+    const len = bytes.byteLength;
+    const chunkSize = 8192;
+    for (let i = 0; i < len; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode.apply(null, Array.from(chunk));
+    }
+    const base64 = btoa(binary);
+
     return { base64, isExportedPdf: isGoogleApp };
   },
 });
@@ -3904,15 +3908,21 @@ export const uploadBackupDriveFile = action({
       parents: [currentParentId],
     });
 
-    const fileBuffer = Buffer.from(args.fileBase64, "base64");
+    const preamble = new TextEncoder().encode(
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`
+    );
+    const epilogue = new TextEncoder().encode(`\r\n--${boundary}--`);
 
-    const multipartRequestBody = Buffer.concat([
-      Buffer.from(
-        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`
-      ),
-      fileBuffer,
-      Buffer.from(`\r\n--${boundary}--`),
-    ]);
+    const binaryString = atob(args.fileBase64);
+    const fileBytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      fileBytes[i] = binaryString.charCodeAt(i);
+    }
+
+    const multipartRequestBody = new Uint8Array(preamble.byteLength + fileBytes.byteLength + epilogue.byteLength);
+    multipartRequestBody.set(preamble, 0);
+    multipartRequestBody.set(fileBytes, preamble.byteLength);
+    multipartRequestBody.set(epilogue, preamble.byteLength + fileBytes.byteLength);
 
     const uploadRes = await fetch(
       "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
