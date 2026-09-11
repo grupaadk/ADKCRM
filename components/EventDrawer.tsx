@@ -1,17 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import SideDrawer from "@/components/SideDrawer";
 import {
   X,
   MapPin,
   Phone,
   ExternalLink,
-  Calendar,
-  Clock,
-  Users,
   Camera,
   Trash2,
   Check,
@@ -56,6 +55,7 @@ export default function EventDrawer({
   item,
   onSaveSuccess,
 }: EventDrawerProps) {
+  const router = useRouter();
   const statuses = useStatuses();
 
   // Queries
@@ -68,6 +68,7 @@ export default function EventDrawer({
   const deleteCalendarEvent = useMutation(api.calendarEvents.deleteEvent);
 
   // State
+  const [title, setTitle] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [dateStr, setDateStr] = useState<string>("");
   const [timeStr, setTimeStr] = useState<string>("");
@@ -76,17 +77,20 @@ export default function EventDrawer({
   const [, setPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Populate state when item changes
   useEffect(() => {
     if (item) {
+      setTitle(item.title || "");
       setStatus(item.status || "measurement");
       setComment(item.comment || item.description || "");
       setSelectedTeamId("");
       setPhotos([]);
       setPhotoPreviews([]);
+      setConfirmDelete(false);
 
       // Format date
       const d = item.date ? new Date(item.date) : new Date();
@@ -106,7 +110,7 @@ export default function EventDrawer({
     }
   }, [item]);
 
-  if (!isOpen || !item) return null;
+  if (!item) return null;
 
   // Extract real orderId if item.id has format orderId_inst_X
   const realOrderId = item.orderId
@@ -119,7 +123,7 @@ export default function EventDrawer({
 
   const isCustomEvent = item.type === "wlasne" || !realOrderId;
 
-  // Quick photo selection with compression
+  // Photo selection with compression
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -166,7 +170,7 @@ export default function EventDrawer({
 
         await updateCalendarEvent({
           id: calendarEventId,
-          title: item.title,
+          title: title || item.title,
           description: comment,
           startDate: eventDate,
         });
@@ -189,6 +193,7 @@ export default function EventDrawer({
         const patchArgs: Parameters<typeof updateOrder>[0] = {
           orderId: realOrderId,
           comment: comment,
+          name: title,
         };
 
         if (selectedTeamId) {
@@ -222,8 +227,6 @@ export default function EventDrawer({
 
   // Delete / Cancel event handler
   const handleDeleteOrCancel = async () => {
-    if (!confirm("Czy na pewno chcesz anulować / usunąć to wydarzenie?")) return;
-
     setIsDeleting(true);
     try {
       if (isCustomEvent) {
@@ -237,6 +240,7 @@ export default function EventDrawer({
         toast.success("Zlecenie zostało anulowane");
       }
 
+      setConfirmDelete(false);
       onSaveSuccess?.();
       onClose();
     } catch (error: unknown) {
@@ -256,154 +260,179 @@ export default function EventDrawer({
   const phoneUrl = item.phone ? `tel:${item.phone.replace(/\s+/g, "")}` : null;
 
   // Order link
-  const orderHref = realOrderId ? `/app/zlecenie/${realOrderId}?from=home` : null;
+  const openHref = realOrderId ? `/app/zlecenie/${realOrderId}?from=home` : null;
+
+  const contextLabel =
+    item.type === "montaz"
+      ? "Montaż stolarki"
+      : item.type === "serwis"
+      ? "Zgłoszenie serwisowe"
+      : "Wydarzenie w kalendarzu";
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-200">
-      {/* Background click to close */}
-      <div className="absolute inset-0" onClick={onClose} />
-
-      {/* Drawer Card */}
-      <div className="relative bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col shadow-2xl z-10 overflow-hidden">
-        {/* Top Drag Handle */}
-        <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto my-2.5 shrink-0" />
-
-        {/* Header */}
-        <div className="px-5 py-3 border-b border-slate-100 flex items-start justify-between gap-3 shrink-0">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${
-                  item.type === "montaz"
-                    ? "bg-emerald-100 text-emerald-800"
-                    : item.type === "serwis"
-                    ? "bg-purple-100 text-purple-800"
-                    : "bg-blue-100 text-blue-800"
-                }`}
+    <SideDrawer
+      open={isOpen}
+      onClose={onClose}
+      title="Szczegóły wydarzenia"
+      width={480}
+      footer={
+        confirmDelete ? (
+          <div className="flex items-center gap-2">
+            <span className="flex-1 text-sm font-medium text-gray-700">
+              {isCustomEvent ? "Usunąć wydarzenie z kalendarza?" : "Anulować zlecenie?"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(false)}
+              className="shrink-0 rounded-md border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              Anuluj
+            </button>
+            <button
+              type="button"
+              disabled={isDeleting}
+              onClick={handleDeleteOrCancel}
+              className="flex shrink-0 items-center justify-center gap-1.5 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {isDeleting ? <RefreshCw className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {isCustomEvent ? "Usuń" : "Anuluj zlecenie"}
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                title="Usuń / Anuluj wydarzenie"
+                className="flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
               >
-                {item.type === "montaz"
-                  ? "Montaż"
-                  : item.type === "serwis"
-                  ? "Serwis"
-                  : "Wydarzenie własne"}
-              </span>
+                <Trash2 className="size-4" /> Usuń
+              </button>
 
-              {item.status && (
-                <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                  {statuses.find((s) => s.key === item.status)?.label || item.status}
-                </span>
+              {openHref && (
+                <button
+                  type="button"
+                  onClick={() => router.push(openHref)}
+                  className="flex items-center justify-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  <ExternalLink className="size-4" /> Otwórz zlecenie
+                </button>
               )}
             </div>
 
-            {item.clientName && item.clientName !== "Wydarzenie własne" && (
-              <h2 className="text-base font-extrabold text-slate-900 leading-tight">
-                {item.clientName}
-              </h2>
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={handleSave}
+              className="flex items-center justify-center gap-1.5 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+            >
+              {isSaving ? <RefreshCw className="size-4 animate-spin" /> : <Check className="size-4" />}
+              Zapisz Zmiany
+            </button>
+          </div>
+        )
+      }
+    >
+      <div className="flex flex-col">
+        {/* Top Context Bar (matching TaskDrawer style) */}
+        <div className="border-b border-gray-100 bg-gray-50/60 px-5 py-3.5 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              {contextLabel}
+            </div>
+            {item.status && (
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-200 text-gray-700">
+                {statuses.find((s) => s.key === item.status)?.label || item.status}
+              </span>
             )}
-            <p className="text-xs font-semibold text-slate-600">{item.title}</p>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-          >
-            <X className="size-5" />
-          </button>
-        </div>
+          <div>
+            <div className="text-sm font-semibold text-gray-900">{item.clientName}</div>
+            <div className="text-xs text-gray-500 font-medium">{item.title}</div>
+          </div>
 
-        {/* Scrollable Form Body */}
-        <div className="p-5 space-y-5 overflow-y-auto flex-1">
-          {/* Quick Action Bar (Maps, Phone, Order Link) */}
-          <div className="grid grid-cols-3 gap-2">
-            {mapUrl ? (
+          {/* Quick Contact & Navigation Buttons */}
+          <div className="flex items-center gap-2 pt-1">
+            {mapUrl && (
               <a
                 href={mapUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-95 transition text-center"
+                className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
               >
-                <MapPin className="size-4 text-[#4dbdc6] mb-1" />
-                <span className="text-[11px] font-extrabold">Nawiguj</span>
+                <MapPin className="size-3.5 text-blue-600" /> Nawiguj
               </a>
-            ) : (
-              <button
-                disabled
-                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-slate-300 text-center opacity-50 cursor-not-allowed"
-              >
-                <MapPin className="size-4 mb-1" />
-                <span className="text-[11px] font-extrabold">Nawiguj</span>
-              </button>
             )}
 
-            {phoneUrl ? (
+            {phoneUrl && (
               <a
                 href={phoneUrl}
-                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 active:scale-95 transition text-center"
+                className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-gray-50"
               >
-                <Phone className="size-4 text-emerald-600 mb-1" />
-                <span className="text-[11px] font-extrabold">Zadzwoń</span>
+                <Phone className="size-3.5 text-emerald-600" /> Zadzwoń
               </a>
-            ) : (
-              <button
-                disabled
-                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-slate-300 text-center opacity-50 cursor-not-allowed"
-              >
-                <Phone className="size-4 mb-1" />
-                <span className="text-[11px] font-extrabold">Zadzwoń</span>
-              </button>
             )}
 
-            {orderHref ? (
+            {openHref && (
               <a
-                href={orderHref}
-                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100 active:scale-95 transition text-center"
+                href={openHref}
+                className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
               >
-                <ExternalLink className="size-4 text-blue-600 mb-1" />
-                <span className="text-[11px] font-extrabold">Zlecenie</span>
+                <ExternalLink className="size-3.5 text-gray-500" /> Zlecenie
               </a>
-            ) : (
-              <button
-                disabled
-                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-slate-300 text-center opacity-50 cursor-not-allowed"
-              >
-                <ExternalLink className="size-4 mb-1" />
-                <span className="text-[11px] font-extrabold">Zlecenie</span>
-              </button>
             )}
           </div>
 
-          {/* Address info if available */}
           {item.address && (
-            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600 font-medium">
-              <MapPin className="size-4 text-[#4dbdc6] shrink-0" />
+            <div className="text-[11px] text-gray-500 truncate flex items-center gap-1 pt-1 border-t border-gray-200/60">
+              <MapPin className="size-3 text-gray-400 shrink-0" />
               <span>{item.address}</span>
             </div>
           )}
+        </div>
 
-          {/* Quick Status Selector (For Orders) */}
+        {/* Form Body Fields (matching TaskDrawer style) */}
+        <div className="space-y-5 px-5 py-4">
+          {/* Tytuł wydarzenia */}
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              Nazwa / Tytuł
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
+            />
+          </div>
+
+          {/* Status selector (for Orders) */}
           {!isCustomEvent && (
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Status wydarzenia / zlecenia
+            <div>
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Status
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {[
-                  { key: "measurement", label: "Pomiar", color: "bg-blue-50 text-blue-700 border-blue-200" },
-                  { key: "installation", label: "W trakcie", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-                  { key: "completed", label: "Zakończone", color: "bg-purple-50 text-purple-700 border-purple-200" },
-                  { key: "cancelled", label: "Anulowane", color: "bg-red-50 text-red-700 border-red-200" },
+                  { key: "measurement", label: "Pomiar", accent: "#2563eb", bg: "#eff6ff" },
+                  { key: "installation", label: "W trakcie", accent: "#10b981", bg: "#ecfdf5" },
+                  { key: "completed", label: "Zakończone", accent: "#16a34a", bg: "#f0fdf4" },
+                  { key: "cancelled", label: "Anulowane", accent: "#ef4444", bg: "#fef2f2" },
                 ].map((s) => {
-                  const isActive = status === s.key;
+                  const active = status === s.key;
                   return (
                     <button
                       key={s.key}
                       type="button"
                       onClick={() => setStatus(s.key)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition ${
-                        isActive
-                          ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                          : `${s.color} hover:opacity-80`
-                      }`}
+                      className="flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors"
+                      style={
+                        active
+                          ? { borderColor: s.accent, background: s.bg, color: s.accent }
+                          : { borderColor: "#e5e7eb", background: "#fff", color: "#6b7280" }
+                      }
                     >
                       {s.label}
                     </button>
@@ -413,46 +442,48 @@ export default function EventDrawer({
             </div>
           )}
 
-          {/* Date & Time Fields */}
-          <div className="space-y-2">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Termin i godzina
-            </label>
-            <div className="grid grid-cols-2 gap-2">
+          {/* Date and Time Fields */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Data
+              </label>
               <div className="relative">
-                <Calendar className="size-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
                 <input
                   type="date"
                   value={dateStr}
                   onChange={(e) => setDateStr(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#4dbdc6]"
+                  className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-gray-400"
                 />
               </div>
+            </div>
 
+            <div>
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Godzina
+              </label>
               <div className="relative">
-                <Clock className="size-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
                 <input
                   type="time"
                   value={timeStr}
                   onChange={(e) => setTimeStr(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#4dbdc6]"
+                  className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-gray-400"
                 />
               </div>
             </div>
           </div>
 
-          {/* Installation Team Selector */}
+          {/* Ekipa Montażowa */}
           {!isCustomEvent && teams && teams.length > 0 && (
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Przypisana ekipa montażowa
+            <div>
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Ekipa Montażowa
               </label>
               <div className="relative">
-                <Users className="size-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
                 <select
                   value={selectedTeamId}
                   onChange={(e) => setSelectedTeamId(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#4dbdc6]"
+                  className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-gray-400 bg-white"
                 >
                   <option value="">Zachowaj obecną ekipę</option>
                   {teams.map((team) => (
@@ -465,55 +496,52 @@ export default function EventDrawer({
             </div>
           )}
 
-          {/* Notes / Progress comment */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Notatka z przebiegu prac / Uwagi
+          {/* Uwagi / Notatka z montażu */}
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              Notatki / Uwagi z przebiegu prac
             </label>
             <textarea
               rows={3}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="Wpisz uwagi z montażu, ustalenia lub opis wykonanych prac..."
-              className="w-full p-3 text-xs font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#4dbdc6] resize-none"
+              className="w-full resize-none rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
             />
           </div>
 
-          {/* Photo attachment / Camera upload */}
-          <div className="space-y-2">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+          {/* Zdjęcia z montażu */}
+          <div>
+            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
               Fotorelacja z prac / Zdjęcia
             </label>
 
-            <div className="flex items-center gap-2">
-              <label className="flex-1 flex items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-200 rounded-xl text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 transition cursor-pointer active:scale-98">
-                <Camera className="size-4 text-[#4dbdc6]" />
-                <span>Zrób zdjęcie lub dodaj z galerii</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  capture="environment"
-                  onChange={handlePhotoSelect}
-                  className="hidden"
-                />
-              </label>
-            </div>
+            <label className="flex items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 transition cursor-pointer">
+              <Camera className="size-4 text-blue-600" />
+              <span>Zrób zdjęcie lub wybierz z galerii</span>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                capture="environment"
+                onChange={handlePhotoSelect}
+                className="hidden"
+              />
+            </label>
 
-            {/* Photo previews list */}
             {photoPreviews.length > 0 && (
-              <div className="grid grid-cols-4 gap-2 pt-2">
+              <div className="grid grid-cols-4 gap-2 pt-3">
                 {photoPreviews.map((src, idx) => (
                   <div
                     key={idx}
-                    className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100 group"
+                    className="relative aspect-square rounded-md overflow-hidden border border-gray-200 bg-gray-100 group"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={src} alt={`Zdjęcie ${idx + 1}`} className="w-full h-full object-cover" />
                     <button
                       type="button"
                       onClick={() => handleRemovePhoto(idx)}
-                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 shadow-md hover:bg-red-700 transition"
+                      className="absolute top-1 right-1 rounded-full bg-red-600 p-1 text-white shadow-sm hover:bg-red-700"
                     >
                       <X className="size-3" />
                     </button>
@@ -523,53 +551,7 @@ export default function EventDrawer({
             )}
           </div>
         </div>
-
-        {/* Footer Action Buttons */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3 shrink-0">
-          <button
-            type="button"
-            disabled={isDeleting || isSaving}
-            onClick={handleDeleteOrCancel}
-            className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 active:scale-95 transition flex items-center gap-1.5 disabled:opacity-50"
-          >
-            {isDeleting ? (
-              <RefreshCw className="size-4 animate-spin" />
-            ) : (
-              <Trash2 className="size-4" />
-            )}
-            <span>{isCustomEvent ? "Usuń" : "Anuluj"}</span>
-          </button>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition"
-            >
-              Zamknij
-            </button>
-
-            <button
-              type="button"
-              disabled={isSaving}
-              onClick={handleSave}
-              className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-white bg-[#4dbdc6] hover:bg-[#3daab3] active:scale-95 transition shadow-sm flex items-center gap-2 disabled:opacity-50"
-            >
-              {isSaving ? (
-                <>
-                  <RefreshCw className="size-4 animate-spin" />
-                  <span>Zapisywanie...</span>
-                </>
-              ) : (
-                <>
-                  <Check className="size-4" />
-                  <span>Zapisz Zmiany</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
       </div>
-    </div>
+    </SideDrawer>
   );
 }
