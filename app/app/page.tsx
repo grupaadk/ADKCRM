@@ -525,13 +525,18 @@ function AppPwaMain() {
 
   async function fileToCompressedImage(file: File, additionalRotation: number): Promise<{ dataUrl: string; width: number; height: number }> {
     const options = {
-      maxSizeMB: 0.5,
+      maxSizeMB: 0.8,
       maxWidthOrHeight: 1600,
       useWebWorker: true,
-      exifOrientation: true // Wymusza odczytanie EXIF
+      initialQuality: 0.85,
     };
     
-    const compressedFile = await imageCompression(file, options);
+    let processedFile = file;
+    try {
+      processedFile = await imageCompression(file, options);
+    } catch (err) {
+      console.warn("imageCompression failed, using raw file", err);
+    }
     
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -540,89 +545,83 @@ function AppPwaMain() {
         img.onload = () => {
           const width = img.width;
           const height = img.height;
+          const normRotation = ((additionalRotation % 360) + 360) % 360;
 
-          // Ręczny obrót jeśli użytkownik tak zażądał, ALBO
-          // automatyczny obrót poziomego obrazu (jeśli np. naturalnie jest landscape, ale chcemy portrait).
-          const needsAutoPortrait = (width > height);
-          
-          if (additionalRotation > 0 || needsAutoPortrait) {
-            const canvas = document.createElement("canvas");
-            
-            // Obliczamy ostateczne wymiary płótna (jeśli kąt 90 lub 270, zamieniamy width z height)
-            let finalCanvasWidth = width;
-            let finalCanvasHeight = height;
-            
-            // Dodajemy 90 stopni z automatu jeśli obraz był landscape
-            let totalRotation = additionalRotation;
-            if (needsAutoPortrait) {
-              totalRotation += 90;
-            }
-            
-            // Normalizujemy obrót do 0, 90, 180, 270
-            totalRotation = totalRotation % 360;
-            
-            if (totalRotation === 90 || totalRotation === 270) {
-              finalCanvasWidth = height;
-              finalCanvasHeight = width;
-            }
-            
-            canvas.width = finalCanvasWidth;
-            canvas.height = finalCanvasHeight;
-            const ctx = canvas.getContext("2d");
-            
-            if (ctx) {
-              ctx.translate(finalCanvasWidth / 2, finalCanvasHeight / 2);
-              ctx.rotate((totalRotation * Math.PI) / 180);
-              ctx.drawImage(img, -width / 2, -height / 2, width, height);
-              
-              const rotatedDataUrl = canvas.toDataURL("image/jpeg", 0.8);
-              return resolve({ dataUrl: rotatedDataUrl, width: finalCanvasWidth, height: finalCanvasHeight });
-            }
+          let finalCanvasWidth = width;
+          let finalCanvasHeight = height;
+
+          if (normRotation === 90 || normRotation === 270) {
+            finalCanvasWidth = height;
+            finalCanvasHeight = width;
           }
 
-          // Jeśli obraz jest już pionowy i nie ma dodatkowego obrotu, używamy go bez zmian
+          const canvas = document.createElement("canvas");
+          canvas.width = finalCanvasWidth;
+          canvas.height = finalCanvasHeight;
+          const ctx = canvas.getContext("2d");
+
+          if (ctx) {
+            ctx.translate(finalCanvasWidth / 2, finalCanvasHeight / 2);
+            ctx.rotate((normRotation * Math.PI) / 180);
+            ctx.drawImage(img, -width / 2, -height / 2, width, height);
+
+            const rotatedDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+            return resolve({ dataUrl: rotatedDataUrl, width: finalCanvasWidth, height: finalCanvasHeight });
+          }
+
           resolve({ dataUrl: img.src, width, height });
         };
         img.onerror = reject;
         img.src = reader.result as string;
       };
       reader.onerror = reject;
-      reader.readAsDataURL(compressedFile);
+      reader.readAsDataURL(processedFile);
     });
   }
 
   async function buildPdfFromPages(pages: File[], rotations: number[]): Promise<File> {
     const { jsPDF } = await import("jspdf");
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const PAGE_WIDTH = 210;
-    const PAGE_HEIGHT = 297;
+    let doc: InstanceType<typeof jsPDF> | null = null;
 
     for (let i = 0; i < pages.length; i++) {
-      if (i > 0) doc.addPage();
       const userRotation = rotations[i] || 0;
       const { dataUrl, width, height } = await fileToCompressedImage(pages[i], userRotation);
-      
-      const imgRatio = width / height;
-      const pageRatio = PAGE_WIDTH / PAGE_HEIGHT;
-      
-      let finalWidth = PAGE_WIDTH;
-      let finalHeight = PAGE_HEIGHT;
-      
-      // Dopasowanie zdjęcia zachowując oryginalne proporcje
-      if (imgRatio > pageRatio) {
-        finalWidth = PAGE_WIDTH;
-        finalHeight = PAGE_WIDTH / imgRatio;
-      } else {
-        finalHeight = PAGE_HEIGHT;
-        finalWidth = PAGE_HEIGHT * imgRatio;
+
+      const isLandscape = width > height;
+      const orientation = isLandscape ? "landscape" : "portrait";
+      const pageW = isLandscape ? 297 : 210;
+      const pageH = isLandscape ? 210 : 297;
+
+      if (i === 0) {
+        doc = new jsPDF({ orientation, unit: "mm", format: "a4" });
+      } else if (doc) {
+        doc.addPage("a4", orientation);
       }
-      
-      // Wyśrodkowanie na stronie A4
-      const x = (PAGE_WIDTH - finalWidth) / 2;
-      const y = (PAGE_HEIGHT - finalHeight) / 2;
-      
-      doc.addImage(dataUrl, "JPEG", x, y, finalWidth, finalHeight, undefined, "MEDIUM");
+
+      const imgRatio = width / height;
+      const pageRatio = pageW / pageH;
+
+      let finalWidth = pageW;
+      let finalHeight = pageH;
+
+      if (imgRatio > pageRatio) {
+        finalWidth = pageW;
+        finalHeight = pageW / imgRatio;
+      } else {
+        finalHeight = pageH;
+        finalWidth = pageH * imgRatio;
+      }
+
+      const x = (pageW - finalWidth) / 2;
+      const y = (pageH - finalHeight) / 2;
+
+      doc?.addImage(dataUrl, "JPEG", x, y, finalWidth, finalHeight, undefined, "MEDIUM");
     }
+
+    if (!doc) {
+      throw new Error("Brak stron do wygenerowania PDF");
+    }
+
     const pdfBlob = doc.output("blob");
     return new File([pdfBlob], "skan.pdf", { type: "application/pdf" });
   }
