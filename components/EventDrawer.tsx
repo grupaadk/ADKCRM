@@ -58,6 +58,12 @@ export default function EventDrawer({
   const router = useRouter();
   const statuses = useStatuses();
 
+  // Retain last item during closing slide-out transition
+  const [shownItem, setShownItem] = useState<ScheduleEventItem | null>(item);
+  if (item && item !== shownItem) setShownItem(item);
+
+  const activeItem = item || shownItem;
+
   // Queries
   const teams = useQuery(api.installationTeams.listActive);
 
@@ -81,47 +87,47 @@ export default function EventDrawer({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Populate state when item changes
+  // Populate state when activeItem changes
   useEffect(() => {
-    if (item) {
-      setTitle(item.title || "");
-      setStatus(item.status || "measurement");
-      setComment(item.comment || item.description || "");
+    if (activeItem) {
+      setTitle(activeItem.title || "");
+      setStatus(activeItem.status || "measurement");
+      setComment(activeItem.comment || activeItem.description || "");
       setSelectedTeamId("");
       setPhotos([]);
       setPhotoPreviews([]);
       setConfirmDelete(false);
 
       // Format date
-      const d = item.date ? new Date(item.date) : new Date();
+      const d = activeItem.date ? new Date(activeItem.date) : new Date();
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
       setDateStr(`${yyyy}-${mm}-${dd}`);
 
       // Format time
-      if (item.timeStr && item.timeStr.includes(":")) {
-        setTimeStr(item.timeStr);
+      if (activeItem.timeStr && activeItem.timeStr.includes(":")) {
+        setTimeStr(activeItem.timeStr);
       } else {
         const hh = String(d.getHours()).padStart(2, "0");
         const min = String(d.getMinutes()).padStart(2, "0");
         setTimeStr(`${hh}:${min}`);
       }
     }
-  }, [item]);
+  }, [activeItem]);
 
-  if (!item) return null;
-
-  // Extract real orderId if item.id has format orderId_inst_X
-  const realOrderId = item.orderId
-    ? item.orderId
-    : item.id.includes("_inst_")
-    ? (item.id.split("_inst_")[0] as Id<"orders">)
-    : item.type === "montaz" || item.type === "serwis"
-    ? (item.id as Id<"orders">)
+  // Extract real orderId if activeItem.id has format orderId_inst_X
+  const realOrderId = activeItem
+    ? activeItem.orderId
+      ? activeItem.orderId
+      : activeItem.id.includes("_inst_")
+      ? (activeItem.id.split("_inst_")[0] as Id<"orders">)
+      : activeItem.type === "montaz" || activeItem.type === "serwis"
+      ? (activeItem.id as Id<"orders">)
+      : null
     : null;
 
-  const isCustomEvent = item.type === "wlasne" || !realOrderId;
+  const isCustomEvent = activeItem ? activeItem.type === "wlasne" || !realOrderId : false;
 
   // Photo selection with compression
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -159,18 +165,19 @@ export default function EventDrawer({
 
   // Save changes handler
   const handleSave = async () => {
+    if (!activeItem) return;
     setIsSaving(true);
     try {
       if (isCustomEvent) {
         // Update custom calendar event
-        const calendarEventId = item.id as Id<"calendarEvents">;
+        const calendarEventId = activeItem.id as Id<"calendarEvents">;
         const [year, month, day] = dateStr.split("-").map(Number);
         const [hours, minutes] = timeStr.split(":").map(Number);
         const eventDate = new Date(year, month - 1, day, hours || 0, minutes || 0).getTime();
 
         await updateCalendarEvent({
           id: calendarEventId,
-          title: title || item.title,
+          title: title || activeItem.title,
           description: comment,
           startDate: eventDate,
         });
@@ -178,7 +185,7 @@ export default function EventDrawer({
         toast.success("Wydarzenie zostało zaktualizowane");
       } else if (realOrderId) {
         // Update Order status if changed
-        if (status && status !== item.status) {
+        if (status && status !== activeItem.status) {
           try {
             await changeOrderStatus({
               orderId: realOrderId,
@@ -227,10 +234,11 @@ export default function EventDrawer({
 
   // Delete / Cancel event handler
   const handleDeleteOrCancel = async () => {
+    if (!activeItem) return;
     setIsDeleting(true);
     try {
       if (isCustomEvent) {
-        await deleteCalendarEvent({ id: item.id as Id<"calendarEvents"> });
+        await deleteCalendarEvent({ id: activeItem.id as Id<"calendarEvents"> });
         toast.success("Wydarzenie zostało usunięte z kalendarza");
       } else if (realOrderId) {
         await changeOrderStatus({
@@ -252,22 +260,23 @@ export default function EventDrawer({
   };
 
   // Map links
-  const mapUrl = item.address
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`
+  const mapUrl = activeItem?.address
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeItem.address)}`
     : null;
 
   // Phone link
-  const phoneUrl = item.phone ? `tel:${item.phone.replace(/\s+/g, "")}` : null;
+  const phoneUrl = activeItem?.phone ? `tel:${activeItem.phone.replace(/\s+/g, "")}` : null;
 
   // Order link
   const openHref = realOrderId ? `/app/zlecenie/${realOrderId}?from=home` : null;
 
-  const contextLabel =
-    item.type === "montaz"
+  const contextLabel = activeItem
+    ? activeItem.type === "montaz"
       ? "Montaż stolarki"
-      : item.type === "serwis"
+      : activeItem.type === "serwis"
       ? "Zgłoszenie serwisowe"
-      : "Wydarzenie w kalendarzu";
+      : "Wydarzenie w kalendarzu"
+    : "Wydarzenie";
 
   return (
     <SideDrawer
@@ -334,224 +343,226 @@ export default function EventDrawer({
         )
       }
     >
-      <div className="flex flex-col">
-        {/* Top Context Bar (matching TaskDrawer style) */}
-        <div className="border-b border-gray-100 bg-gray-50/60 px-5 py-3.5 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-              {contextLabel}
-            </div>
-            {item.status && (
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-200 text-gray-700">
-                {statuses.find((s) => s.key === item.status)?.label || item.status}
-              </span>
-            )}
-          </div>
-
-          <div>
-            <div className="text-sm font-semibold text-gray-900">{item.clientName}</div>
-            <div className="text-xs text-gray-500 font-medium">{item.title}</div>
-          </div>
-
-          {/* Quick Contact & Navigation Buttons */}
-          <div className="flex items-center gap-2 pt-1">
-            {mapUrl && (
-              <a
-                href={mapUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-              >
-                <MapPin className="size-3.5 text-blue-600" /> Nawiguj
-              </a>
-            )}
-
-            {phoneUrl && (
-              <a
-                href={phoneUrl}
-                className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-gray-50"
-              >
-                <Phone className="size-3.5 text-emerald-600" /> Zadzwoń
-              </a>
-            )}
-
-            {openHref && (
-              <a
-                href={openHref}
-                className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-              >
-                <ExternalLink className="size-3.5 text-gray-500" /> Zlecenie
-              </a>
-            )}
-          </div>
-
-          {item.address && (
-            <div className="text-[11px] text-gray-500 truncate flex items-center gap-1 pt-1 border-t border-gray-200/60">
-              <MapPin className="size-3 text-gray-400 shrink-0" />
-              <span>{item.address}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Form Body Fields (matching TaskDrawer style) */}
-        <div className="space-y-5 px-5 py-4">
-          {/* Tytuł wydarzenia */}
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-              Nazwa / Tytuł
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
-            />
-          </div>
-
-          {/* Status selector (for Orders) */}
-          {!isCustomEvent && (
-            <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                Status
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { key: "measurement", label: "Pomiar", accent: "#2563eb", bg: "#eff6ff" },
-                  { key: "installation", label: "W trakcie", accent: "#10b981", bg: "#ecfdf5" },
-                  { key: "completed", label: "Zakończone", accent: "#16a34a", bg: "#f0fdf4" },
-                  { key: "cancelled", label: "Anulowane", accent: "#ef4444", bg: "#fef2f2" },
-                ].map((s) => {
-                  const active = status === s.key;
-                  return (
-                    <button
-                      key={s.key}
-                      type="button"
-                      onClick={() => setStatus(s.key)}
-                      className="flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors"
-                      style={
-                        active
-                          ? { borderColor: s.accent, background: s.bg, color: s.accent }
-                          : { borderColor: "#e5e7eb", background: "#fff", color: "#6b7280" }
-                      }
-                    >
-                      {s.label}
-                    </button>
-                  );
-                })}
+      {activeItem ? (
+        <div className="flex flex-col">
+          {/* Top Context Bar (matching TaskDrawer style) */}
+          <div className="border-b border-gray-100 bg-gray-50/60 px-5 py-3.5 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                {contextLabel}
               </div>
-            </div>
-          )}
-
-          {/* Date and Time Fields */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                Data
-              </label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={dateStr}
-                  onChange={(e) => setDateStr(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-gray-400"
-                />
-              </div>
+              {activeItem.status && (
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-200 text-gray-700">
+                  {statuses.find((s) => s.key === activeItem.status)?.label || activeItem.status}
+                </span>
+              )}
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                Godzina
-              </label>
-              <div className="relative">
-                <input
-                  type="time"
-                  value={timeStr}
-                  onChange={(e) => setTimeStr(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-gray-400"
-                />
-              </div>
+              <div className="text-sm font-semibold text-gray-900">{activeItem.clientName}</div>
+              <div className="text-xs text-gray-500 font-medium">{activeItem.title}</div>
             </div>
-          </div>
 
-          {/* Ekipa Montażowa */}
-          {!isCustomEvent && teams && teams.length > 0 && (
-            <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                Ekipa Montażowa
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedTeamId}
-                  onChange={(e) => setSelectedTeamId(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-gray-400 bg-white"
+            {/* Quick Contact & Navigation Buttons */}
+            <div className="flex items-center gap-2 pt-1">
+              {mapUrl && (
+                <a
+                  href={mapUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                 >
-                  <option value="">Zachowaj obecną ekipę</option>
-                  {teams.map((team) => (
-                    <option key={team._id} value={team._id}>
-                      {team.name} {team.leaderName ? `(${team.leaderName})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  <MapPin className="size-3.5 text-blue-600" /> Nawiguj
+                </a>
+              )}
+
+              {phoneUrl && (
+                <a
+                  href={phoneUrl}
+                  className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-gray-50"
+                >
+                  <Phone className="size-3.5 text-emerald-600" /> Zadzwoń
+                </a>
+              )}
+
+              {openHref && (
+                <a
+                  href={openHref}
+                  className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  <ExternalLink className="size-3.5 text-gray-500" /> Zlecenie
+                </a>
+              )}
             </div>
-          )}
 
-          {/* Uwagi / Notatka z montażu */}
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-              Notatki / Uwagi z przebiegu prac
-            </label>
-            <textarea
-              rows={3}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Wpisz uwagi z montażu, ustalenia lub opis wykonanych prac..."
-              className="w-full resize-none rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
-            />
-          </div>
-
-          {/* Zdjęcia z montażu */}
-          <div>
-            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-              Fotorelacja z prac / Zdjęcia
-            </label>
-
-            <label className="flex items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 transition cursor-pointer">
-              <Camera className="size-4 text-blue-600" />
-              <span>Zrób zdjęcie lub wybierz z galerii</span>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                capture="environment"
-                onChange={handlePhotoSelect}
-                className="hidden"
-              />
-            </label>
-
-            {photoPreviews.length > 0 && (
-              <div className="grid grid-cols-4 gap-2 pt-3">
-                {photoPreviews.map((src, idx) => (
-                  <div
-                    key={idx}
-                    className="relative aspect-square rounded-md overflow-hidden border border-gray-200 bg-gray-100 group"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={`Zdjęcie ${idx + 1}`} className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePhoto(idx)}
-                      className="absolute top-1 right-1 rounded-full bg-red-600 p-1 text-white shadow-sm hover:bg-red-700"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                ))}
+            {activeItem.address && (
+              <div className="text-[11px] text-gray-500 truncate flex items-center gap-1 pt-1 border-t border-gray-200/60">
+                <MapPin className="size-3 text-gray-400 shrink-0" />
+                <span>{activeItem.address}</span>
               </div>
             )}
           </div>
+
+          {/* Form Body Fields (matching TaskDrawer style) */}
+          <div className="space-y-5 px-5 py-4">
+            {/* Tytuł wydarzenia */}
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Nazwa / Tytuł
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
+              />
+            </div>
+
+            {/* Status selector (for Orders) */}
+            {!isCustomEvent && (
+              <div>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  Status
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { key: "measurement", label: "Pomiar", accent: "#2563eb", bg: "#eff6ff" },
+                    { key: "installation", label: "W trakcie", accent: "#10b981", bg: "#ecfdf5" },
+                    { key: "completed", label: "Zakończone", accent: "#16a34a", bg: "#f0fdf4" },
+                    { key: "cancelled", label: "Anulowane", accent: "#ef4444", bg: "#fef2f2" },
+                  ].map((s) => {
+                    const active = status === s.key;
+                    return (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => setStatus(s.key)}
+                        className="flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors"
+                        style={
+                          active
+                            ? { borderColor: s.accent, background: s.bg, color: s.accent }
+                            : { borderColor: "#e5e7eb", background: "#fff", color: "#6b7280" }
+                        }
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Date and Time Fields */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  Data
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={dateStr}
+                    onChange={(e) => setDateStr(e.target.value)}
+                    className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-gray-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  Godzina
+                </label>
+                <div className="relative">
+                  <input
+                    type="time"
+                    value={timeStr}
+                    onChange={(e) => setTimeStr(e.target.value)}
+                    className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-gray-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Ekipa Montażowa */}
+            {!isCustomEvent && teams && teams.length > 0 && (
+              <div>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  Ekipa Montażowa
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedTeamId}
+                    onChange={(e) => setSelectedTeamId(e.target.value)}
+                    className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-gray-400 bg-white"
+                  >
+                    <option value="">Zachowaj obecną ekipę</option>
+                    {teams.map((team) => (
+                      <option key={team._id} value={team._id}>
+                        {team.name} {team.leaderName ? `(${team.leaderName})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Uwagi / Notatka z montażu */}
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Notatki / Uwagi z przebiegu prac
+              </label>
+              <textarea
+                rows={3}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Wpisz uwagi z montażu, ustalenia lub opis wykonanych prac..."
+                className="w-full resize-none rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
+              />
+            </div>
+
+            {/* Zdjęcia z montażu */}
+            <div>
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Fotorelacja z prac / Zdjęcia
+              </label>
+
+              <label className="flex items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 transition cursor-pointer">
+                <Camera className="size-4 text-blue-600" />
+                <span>Zrób zdjęcie lub wybierz z galerii</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  capture="environment"
+                  onChange={handlePhotoSelect}
+                  className="hidden"
+                />
+              </label>
+
+              {photoPreviews.length > 0 && (
+                <div className="grid grid-cols-4 gap-2 pt-3">
+                  {photoPreviews.map((src, idx) => (
+                    <div
+                      key={idx}
+                      className="relative aspect-square rounded-md overflow-hidden border border-gray-200 bg-gray-100 group"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={src} alt={`Zdjęcie ${idx + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoto(idx)}
+                        className="absolute top-1 right-1 rounded-full bg-red-600 p-1 text-white shadow-sm hover:bg-red-700"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      ) : null}
     </SideDrawer>
   );
 }
