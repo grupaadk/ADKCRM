@@ -25,7 +25,8 @@ import {
   Hammer,
   Wrench,
   ShieldCheck,
-  Settings
+  Settings,
+  Clock,
 } from "lucide-react";
 import { ITKanbanTab } from "./ITKanbanTab";
 import { EventTypesTab } from "./EventTypesTab";
@@ -3635,6 +3636,7 @@ function SuppliersTab() {
 
   const [showForm, setShowForm] = useState(false);
   const [formName, setFormName] = useState("");
+  const [formLeadTime, setFormLeadTime] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -3643,8 +3645,12 @@ function SuppliersTab() {
     setError(null);
     setBusy(true);
     try {
-      await createSupplier({ name: formName.trim() });
+      await createSupplier({
+        name: formName.trim(),
+        estimatedLeadTime: formLeadTime.trim() || undefined,
+      });
       setFormName("");
+      setFormLeadTime("");
       setShowForm(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Błąd zapisu");
@@ -3663,7 +3669,7 @@ function SuppliersTab() {
         <div>
           <h2 className="text-base font-semibold text-slate-900">Dostawcy</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            Zarządzaj dostawcami przypisywanymi do usług.
+            Zarządzaj dostawcami przypisywanymi do usług i ich przewidywanym czasem realizacji.
           </p>
         </div>
         {!showForm && (
@@ -3679,15 +3685,24 @@ function SuppliersTab() {
       {showForm && (
         <form onSubmit={handleCreate} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
           <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">Nowy dostawca</h3>
-          <div className="flex gap-3 items-end">
-            <div className="flex-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+            <div>
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>
               <input
                 required
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 placeholder="np. Alco"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Przewidywany czas realizacji</label>
+              <input
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                value={formLeadTime}
+                onChange={(e) => setFormLeadTime(e.target.value)}
+                placeholder="np. 14 dni, 3-4 tygodnie"
               />
             </div>
           </div>
@@ -3697,7 +3712,7 @@ function SuppliersTab() {
               className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
               Dodaj
             </button>
-            <button type="button" onClick={() => { setShowForm(false); setFormName(""); setError(null); }}
+            <button type="button" onClick={() => { setShowForm(false); setFormName(""); setFormLeadTime(""); setError(null); }}
               className="rounded-lg border border-slate-300 px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
               Anuluj
             </button>
@@ -3715,6 +3730,7 @@ function SuppliersTab() {
             <thead>
               <tr className="border-b border-slate-100">
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Dostawca</th>
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Czas realizacji</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
                 <th className="w-32" />
               </tr>
@@ -3743,13 +3759,31 @@ function SupplierRow({
   onToggle,
   onDelete,
 }: {
-  supplier: { _id: Id<"suppliers">; name: string; isActive: boolean; apiEndpoint?: string; apiKey?: string; isApiEnabled?: boolean };
-  onSave: (id: Id<"suppliers">, data: { name?: string; apiEndpoint?: string; apiKey?: string; isApiEnabled?: boolean }) => Promise<unknown>;
+  supplier: {
+    _id: Id<"suppliers">;
+    name: string;
+    isActive: boolean;
+    apiEndpoint?: string;
+    apiKey?: string;
+    isApiEnabled?: boolean;
+    estimatedLeadTime?: string;
+  };
+  onSave: (
+    id: Id<"suppliers">,
+    data: {
+      name?: string;
+      apiEndpoint?: string;
+      apiKey?: string;
+      isApiEnabled?: boolean;
+      estimatedLeadTime?: string;
+    }
+  ) => Promise<unknown>;
   onToggle: (id: Id<"suppliers">) => Promise<unknown>;
   onDelete: (id: Id<"suppliers">) => Promise<unknown>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(supplier.name);
+  const [draftLeadTime, setDraftLeadTime] = useState(supplier.estimatedLeadTime ?? "");
   const [draftEndpoint, setDraftEndpoint] = useState(supplier.apiEndpoint ?? "");
   const [draftKey, setDraftKey] = useState(supplier.apiKey ?? "");
   const [draftEnabled, setDraftEnabled] = useState(supplier.isApiEnabled ?? false);
@@ -3762,6 +3796,7 @@ function SupplierRow({
     try {
       await onSave(supplier._id, {
         name: draftName,
+        estimatedLeadTime: draftLeadTime.trim() || undefined,
         apiEndpoint: draftEndpoint.trim() || undefined,
         apiKey: draftKey.trim() || undefined,
         isApiEnabled: draftEnabled,
@@ -3777,10 +3812,10 @@ function SupplierRow({
   if (editing) {
     return (
       <tr className="bg-blue-50/70 border-b border-blue-100">
-        <td className="px-4 py-4" colSpan={3}>
+        <td className="px-4 py-4" colSpan={4}>
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+              <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Nazwa dostawcy</label>
                 <input
                   className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-800"
@@ -3788,17 +3823,27 @@ function SupplierRow({
                   onChange={(e) => setDraftName(e.target.value)}
                 />
               </div>
-              <div className="flex items-center gap-2 pt-5">
-                <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
-                  <input
-                    type="checkbox"
-                    checked={draftEnabled}
-                    onChange={(e) => setDraftEnabled(e.target.checked)}
-                    className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
-                  />
-                  <span>Integracja API aktywna</span>
-                </label>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Przewidywany czas realizacji</label>
+                <input
+                  placeholder="np. 14 dni, 3-4 tygodnie"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-800 bg-white"
+                  value={draftLeadTime}
+                  onChange={(e) => setDraftLeadTime(e.target.value)}
+                />
               </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+                <input
+                  type="checkbox"
+                  checked={draftEnabled}
+                  onChange={(e) => setDraftEnabled(e.target.checked)}
+                  className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                />
+                <span>Integracja API aktywna</span>
+              </label>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-blue-100">
@@ -3859,6 +3904,16 @@ function SupplierRow({
             </span>
           )}
         </div>
+      </td>
+      <td className="px-4 py-3 text-xs text-slate-600 font-medium">
+        {supplier.estimatedLeadTime ? (
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 text-slate-700 font-medium">
+            <Clock className="size-3 text-slate-400" />
+            {supplier.estimatedLeadTime}
+          </span>
+        ) : (
+          <span className="text-slate-300">—</span>
+        )}
       </td>
       <td className="px-4 py-3 text-xs">
         <span

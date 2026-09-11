@@ -3688,18 +3688,45 @@ export const getClientDriveFilesMetadata = action({
       clientId: args.clientId,
     })) as Doc<"clients"> | null;
 
-    const folderId = client?.folderId || client?.clientFolderId;
-    if (!folderId) {
+    if (!client) {
       return { files: [] };
     }
 
+    const folderIdsToScan: Array<{ folderId: string; rootPrefix: string }> = [];
+    const visitedFolderIds = new Set<string>();
+
+    const mainFolderId = client.clientFolderId || client.folderId;
+    if (mainFolderId) {
+      folderIdsToScan.push({ folderId: mainFolderId, rootPrefix: "" });
+    }
+
+    // Dodatkowo zbieramy foldery ze Zleceń klienta, na wypadek gdyby leżały poza głównym katalogiem
+    try {
+      const orders = (await ctx.runQuery(api.orders.listByClient, { clientId: args.clientId })) as Doc<"orders">[];
+      for (const order of orders ?? []) {
+        if (order.folderId) {
+          folderIdsToScan.push({ folderId: order.folderId, rootPrefix: `Zamówienia/${order.name || order._id}` });
+        }
+        if (order.attachmentsFolderId) {
+          folderIdsToScan.push({ folderId: order.attachmentsFolderId, rootPrefix: `Zamówienia/${order.name || order._id}/Załączniki` });
+        }
+      }
+    } catch {
+      // Ignorujemy ew. błąd zapytania pomocniczego zleceń
+    }
+
     const files: Array<{ id: string; name: string; relativePath: string; mimeType: string }> = [];
+    const addedFileIds = new Set<string>();
 
     async function scanFolder(currentFolderId: string, currentPath: string) {
+      if (visitedFolderIds.has(currentFolderId)) return;
+      visitedFolderIds.add(currentFolderId);
+
       const params = new URLSearchParams({
         q: `'${currentFolderId}' in parents and trashed=false`,
         supportsAllDrives: "true",
         includeItemsFromAllDrives: "true",
+        corpora: "allDrives",
         fields: "files(id,name,mimeType)",
         pageSize: "1000",
       });
@@ -3713,20 +3740,25 @@ export const getClientDriveFilesMetadata = action({
         if (item.mimeType === "application/vnd.google-apps.folder") {
           await scanFolder(item.id, itemPath);
         } else {
-          files.push({
-            id: item.id,
-            name: item.name,
-            relativePath: itemPath,
-            mimeType: item.mimeType,
-          });
+          if (!addedFileIds.has(item.id)) {
+            addedFileIds.add(item.id);
+            files.push({
+              id: item.id,
+              name: item.name,
+              relativePath: itemPath,
+              mimeType: item.mimeType,
+            });
+          }
         }
       }
     }
 
-    try {
-      await scanFolder(folderId, "");
-    } catch (err) {
-      console.error("Błąd skanowania plików klienta na Google Drive:", err);
+    for (const item of folderIdsToScan) {
+      try {
+        await scanFolder(item.folderId, item.rootPrefix);
+      } catch (err) {
+        console.error(`Błąd skanowania folderu ${item.folderId} klienta na Google Drive:`, err);
+      }
     }
 
     return { files };
@@ -3751,17 +3783,22 @@ export const getAllDriveFilesMetadata = action({
     }> = [];
 
     for (const client of clients) {
-      const folderId = client.folderId || client.clientFolderId;
+      const folderId = client.clientFolderId || client.folderId;
       if (!folderId) continue;
 
       const clientName = client.companyName || `${client.lastName || ""} ${client.firstName || ""}`.trim() || client._id;
       const files: Array<{ id: string; name: string; relativePath: string; mimeType: string }> = [];
+      const visitedFolderIds = new Set<string>();
 
       async function scanFolder(currentFolderId: string, currentPath: string) {
+        if (visitedFolderIds.has(currentFolderId)) return;
+        visitedFolderIds.add(currentFolderId);
+
         const params = new URLSearchParams({
           q: `'${currentFolderId}' in parents and trashed=false`,
           supportsAllDrives: "true",
           includeItemsFromAllDrives: "true",
+          corpora: "allDrives",
           fields: "files(id,name,mimeType)",
           pageSize: "1000",
         });

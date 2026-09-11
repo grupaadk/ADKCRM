@@ -545,6 +545,7 @@ export default defineSchema({
     apiEndpoint: v.optional(v.string()), // URL punktu końcowego API (np. https://...convex.site/api/partner/orders)
     apiKey: v.optional(v.string()),      // Klucz API partnera (np. pk_live_...)
     isApiEnabled: v.optional(v.boolean()), // Czy automatyczne przesyłanie zamówień przez API jest aktywne
+    estimatedLeadTime: v.optional(v.string()), // Przewidywany czas realizacji (np. "14 dni", "3-4 tygodnie")
   })
     .index("by_active", ["isActive"]),
 

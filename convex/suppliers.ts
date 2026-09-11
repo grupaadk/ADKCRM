@@ -28,7 +28,10 @@ export const listActive = query({
 });
 
 export const create = mutation({
-  args: { name: v.string() },
+  args: {
+    name: v.string(),
+    estimatedLeadTime: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
 
@@ -42,6 +45,7 @@ export const create = mutation({
       name: args.name,
       isActive: true,
       createdBy: userIdentifier(user),
+      estimatedLeadTime: args.estimatedLeadTime?.trim() || undefined,
     });
 
     await ctx.db.insert("calendarEventTypes", {
@@ -85,6 +89,7 @@ export const update = mutation({
     apiEndpoint: v.optional(v.string()),
     apiKey: v.optional(v.string()),
     isApiEnabled: v.optional(v.boolean()),
+    estimatedLeadTime: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;
