@@ -140,7 +140,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
       if (!clientForm.firstName.trim()) newErrors.firstName = "Imię jest wymagane";
       if (!clientForm.lastName.trim()) newErrors.lastName = "Nazwisko jest wymagane";
     } else {
-      if (!clientForm.companyName.trim()) newErrors.companyName = "Pobierz dane firmy lub wpisz nazwę";
+      if (!clientForm.companyName.trim()) newErrors.companyName = "Nazwa firmy jest wymagana";
       if (!clientForm.firstName.trim()) newErrors.firstName = "Imię osoby kontaktowej jest wymagane";
       if (!clientForm.lastName.trim()) newErrors.lastName = "Nazwisko osoby kontaktowej jest wymagane";
     }
@@ -484,9 +484,8 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                           type="text"
                           value={clientForm.companyName}
                           onChange={(e) => handleClientFormChange("companyName", e.target.value)}
-                          className={nipFetched ? fieldCls("companyName") : fieldCls("companyName", true)}
-                          readOnly={!nipFetched}
-                          placeholder={nipFetched ? "Nazwa firmy" : "Pobierz dane NIP aby wypełnić"}
+                          className={fieldCls("companyName")}
+                          placeholder="Nazwa firmy"
                         />
                         {clientErrors.companyName && (
                           <p className="mt-1 text-xs text-red-600">{clientErrors.companyName}</p>
@@ -497,11 +496,6 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                       <div>
                         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                           Adres firmy
-                          {!nipFetched && (
-                            <span className="ml-1 font-normal normal-case text-slate-400">
-                              (wypełni się po pobraniu danych)
-                            </span>
-                          )}
                         </p>
                         <div className="grid grid-cols-2 gap-2.5">
                           <div className="col-span-2">
@@ -510,8 +504,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                               type="text"
                               value={clientForm.street}
                               onChange={(e) => handleClientFormChange("street", e.target.value)}
-                              className={nipFetched ? fieldCls("street") : fieldCls("street", true)}
-                              readOnly={!nipFetched}
+                              className={fieldCls("street")}
                               placeholder="Ulica"
                             />
                           </div>
@@ -521,8 +514,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                               type="text"
                               value={clientForm.buildingNumber}
                               onChange={(e) => handleClientFormChange("buildingNumber", e.target.value)}
-                              className={nipFetched ? fieldCls("buildingNumber") : fieldCls("buildingNumber", true)}
-                              readOnly={!nipFetched}
+                              className={fieldCls("buildingNumber")}
                               placeholder="Nr"
                             />
                           </div>
@@ -532,8 +524,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                               type="text"
                               value={clientForm.apartmentNumber}
                               onChange={(e) => handleClientFormChange("apartmentNumber", e.target.value)}
-                              className={nipFetched ? fieldCls("apartmentNumber") : fieldCls("apartmentNumber", true)}
-                              readOnly={!nipFetched}
+                              className={fieldCls("apartmentNumber")}
                               placeholder="Opcjonalnie"
                             />
                           </div>
@@ -543,8 +534,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                               type="text"
                               value={clientForm.postalCode}
                               onChange={(e) => handleClientFormChange("postalCode", e.target.value)}
-                              className={nipFetched ? fieldCls("postalCode") : fieldCls("postalCode", true)}
-                              readOnly={!nipFetched}
+                              className={fieldCls("postalCode")}
                               placeholder="00-000"
                             />
                           </div>
@@ -554,8 +544,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
                               type="text"
                               value={clientForm.city}
                               onChange={(e) => handleClientFormChange("city", e.target.value)}
-                              className={nipFetched ? fieldCls("city") : fieldCls("city", true)}
-                              readOnly={!nipFetched}
+                              className={fieldCls("city")}
                               placeholder="Miejscowość"
                             />
                           </div>

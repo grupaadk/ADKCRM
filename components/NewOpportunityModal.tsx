@@ -153,7 +153,7 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
       if (!clientForm.firstName.trim()) newErrors.firstName = "Imię jest wymagane";
       if (!clientForm.lastName.trim()) newErrors.lastName = "Nazwisko jest wymagane";
     } else {
-      if (!clientForm.companyName.trim()) newErrors.companyName = "Pobierz dane firmy lub wpisz nazwę";
+      if (!clientForm.companyName.trim()) newErrors.companyName = "Nazwa firmy jest wymagana";
       if (!clientForm.firstName.trim()) newErrors.firstName = "Imię osoby kontaktowej jest wymagane";
       if (!clientForm.lastName.trim()) newErrors.lastName = "Nazwisko osoby kontaktowej jest wymagane";
     }
@@ -484,9 +484,8 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
                           type="text"
                           value={clientForm.companyName}
                           onChange={(e) => handleClientFormChange("companyName", e.target.value)}
-                          className={nipFetched ? fieldCls("companyName") : fieldCls("companyName", true)}
-                          readOnly={!nipFetched}
-                          placeholder={nipFetched ? "Nazwa firmy" : "Pobierz dane NIP aby wypełnić"}
+                          className={fieldCls("companyName")}
+                          placeholder="Nazwa firmy"
                         />
                         {clientErrors.companyName && <p className="mt-1 text-xs text-red-600">{clientErrors.companyName}</p>}
                       </div>
@@ -494,28 +493,27 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
                       <div>
                         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                           Adres firmy
-                          {!nipFetched && <span className="ml-1 font-normal normal-case text-slate-400">(wypełni się po pobraniu danych)</span>}
                         </p>
                         <div className="grid grid-cols-2 gap-2.5">
                           <div className="col-span-2">
                             <label className="mb-1 block text-xs text-slate-500">Ulica</label>
-                            <input type="text" value={clientForm.street} onChange={(e) => handleClientFormChange("street", e.target.value)} className={nipFetched ? fieldCls("street") : fieldCls("street", true)} readOnly={!nipFetched} placeholder="Ulica" />
+                            <input type="text" value={clientForm.street} onChange={(e) => handleClientFormChange("street", e.target.value)} className={fieldCls("street")} placeholder="Ulica" />
                           </div>
                           <div>
                             <label className="mb-1 block text-xs text-slate-500">Nr budynku</label>
-                            <input type="text" value={clientForm.buildingNumber} onChange={(e) => handleClientFormChange("buildingNumber", e.target.value)} className={nipFetched ? fieldCls("buildingNumber") : fieldCls("buildingNumber", true)} readOnly={!nipFetched} placeholder="Nr" />
+                            <input type="text" value={clientForm.buildingNumber} onChange={(e) => handleClientFormChange("buildingNumber", e.target.value)} className={fieldCls("buildingNumber")} placeholder="Nr" />
                           </div>
                           <div>
                             <label className="mb-1 block text-xs text-slate-500">Nr lokalu</label>
-                            <input type="text" value={clientForm.apartmentNumber} onChange={(e) => handleClientFormChange("apartmentNumber", e.target.value)} className={nipFetched ? fieldCls("apartmentNumber") : fieldCls("apartmentNumber", true)} readOnly={!nipFetched} placeholder="Opcjonalnie" />
+                            <input type="text" value={clientForm.apartmentNumber} onChange={(e) => handleClientFormChange("apartmentNumber", e.target.value)} className={fieldCls("apartmentNumber")} placeholder="Opcjonalnie" />
                           </div>
                           <div>
                             <label className="mb-1 block text-xs text-slate-500">Kod pocztowy</label>
-                            <input type="text" value={clientForm.postalCode} onChange={(e) => handleClientFormChange("postalCode", e.target.value)} className={nipFetched ? fieldCls("postalCode") : fieldCls("postalCode", true)} readOnly={!nipFetched} placeholder="00-000" />
+                            <input type="text" value={clientForm.postalCode} onChange={(e) => handleClientFormChange("postalCode", e.target.value)} className={fieldCls("postalCode")} placeholder="00-000" />
                           </div>
                           <div>
                             <label className="mb-1 block text-xs text-slate-500">Miejscowość</label>
-                            <input type="text" value={clientForm.city} onChange={(e) => handleClientFormChange("city", e.target.value)} className={nipFetched ? fieldCls("city") : fieldCls("city", true)} readOnly={!nipFetched} placeholder="Miejscowość" />
+                            <input type="text" value={clientForm.city} onChange={(e) => handleClientFormChange("city", e.target.value)} className={fieldCls("city")} placeholder="Miejscowość" />
                           </div>
                         </div>
                       </div>

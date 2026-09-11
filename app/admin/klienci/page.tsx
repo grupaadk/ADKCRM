@@ -56,7 +56,7 @@ export default function KlienciPage() {
       if (!form.firstName.trim()) newErrors.firstName = "Imię jest wymagane";
       if (!form.lastName.trim()) newErrors.lastName = "Nazwisko jest wymagane";
     } else {
-      if (!form.companyName.trim()) newErrors.companyName = "Pobierz dane firmy lub wpisz nazwę";
+      if (!form.companyName.trim()) newErrors.companyName = "Nazwa firmy jest wymagana";
       if (!form.firstName.trim()) newErrors.firstName = "Imię osoby kontaktowej jest wymagane";
       if (!form.lastName.trim()) newErrors.lastName = "Nazwisko osoby kontaktowej jest wymagane";
     }
@@ -161,8 +161,6 @@ export default function KlienciPage() {
 
   const inputClass = (field: string) =>
     `w-full rounded-md border px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 ${errors[field] ? "border-red-400 focus:ring-red-400" : "border-slate-300"}`;
-
-  const disabledInputClass = "w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 cursor-not-allowed";
 
   return (
     <div>
@@ -320,7 +318,7 @@ export default function KlienciPage() {
                       {errors.nip && <p className="mt-1 text-xs text-red-600">{errors.nip}</p>}
                     </div>
 
-                    {/* Company name — auto-filled */}
+                    {/* Company name */}
                     <div>
                       <label className="mb-1 block text-sm font-medium text-slate-700">
                         Nazwa firmy <span className="text-red-500">*</span>
@@ -330,18 +328,16 @@ export default function KlienciPage() {
                         type="text"
                         value={form.companyName}
                         onChange={(e) => handleChange("companyName", e.target.value)}
-                        className={nipFetched ? inputClass("companyName") : disabledInputClass}
-                        readOnly={!nipFetched}
-                        placeholder={nipFetched ? "Nazwa firmy" : "Pobierz dane NIP aby wypełnić"}
+                        className={inputClass("companyName")}
+                        placeholder="Nazwa firmy"
                       />
                       {errors.companyName && <p className="mt-1 text-xs text-red-600">{errors.companyName}</p>}
                     </div>
 
-                    {/* Address — auto-filled */}
+                    {/* Address */}
                     <div>
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                         Adres firmy
-                        {!nipFetched && <span className="ml-1 normal-case font-normal">(wypełni się po pobraniu danych)</span>}
                       </p>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div className="sm:col-span-2">
@@ -350,8 +346,7 @@ export default function KlienciPage() {
                             type="text"
                             value={form.street}
                             onChange={(e) => handleChange("street", e.target.value)}
-                            className={nipFetched ? inputClass("street") : disabledInputClass}
-                            readOnly={!nipFetched}
+                            className={inputClass("street")}
                             placeholder="Ulica"
                           />
                         </div>
@@ -361,8 +356,7 @@ export default function KlienciPage() {
                             type="text"
                             value={form.buildingNumber}
                             onChange={(e) => handleChange("buildingNumber", e.target.value)}
-                            className={nipFetched ? inputClass("buildingNumber") : disabledInputClass}
-                            readOnly={!nipFetched}
+                            className={inputClass("buildingNumber")}
                             placeholder="Nr budynku"
                           />
                         </div>
@@ -372,8 +366,7 @@ export default function KlienciPage() {
                             type="text"
                             value={form.apartmentNumber}
                             onChange={(e) => handleChange("apartmentNumber", e.target.value)}
-                            className={nipFetched ? inputClass("apartmentNumber") : disabledInputClass}
-                            readOnly={!nipFetched}
+                            className={inputClass("apartmentNumber")}
                             placeholder="Nr lokalu (opcjonalnie)"
                           />
                         </div>
@@ -383,8 +376,7 @@ export default function KlienciPage() {
                             type="text"
                             value={form.postalCode}
                             onChange={(e) => handleChange("postalCode", e.target.value)}
-                            className={nipFetched ? inputClass("postalCode") : disabledInputClass}
-                            readOnly={!nipFetched}
+                            className={inputClass("postalCode")}
                             placeholder="00-000"
                           />
                         </div>
@@ -394,8 +386,7 @@ export default function KlienciPage() {
                             type="text"
                             value={form.city}
                             onChange={(e) => handleChange("city", e.target.value)}
-                            className={nipFetched ? inputClass("city") : disabledInputClass}
-                            readOnly={!nipFetched}
+                            className={inputClass("city")}
                             placeholder="Miejscowość"
                           />
                         </div>
