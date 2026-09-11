@@ -1234,6 +1234,8 @@ export const createOrderFolder = action({
           { id: opp?.offersReceivedFolderId, name: folders.opportunity.offersReceived },
           { id: opp?.offersSentFolderId, name: folders.opportunity.offersSent },
           { id: opp?.ponzioFilesFolderId, name: folders.opportunity.ponzioFiles },
+          { id: opp?.otherFilesFolderId, name: "Inne pliki" },
+          { id: opp?.opportunityFolderId, name: "Główny folder szansy" },
         ].filter((sf): sf is { id: string; name: string } => !!sf.id);
 
         for (const cfName of folders.opportunity.customSubfolders) {
@@ -1247,7 +1249,7 @@ export const createOrderFolder = action({
           await log("info", "copying files from opportunity subfolders", { count: subfoldersToCopy.length });
           for (const subfolder of subfoldersToCopy) {
             try {
-              const destFolderId = oppSubfolderByName[subfolder.name];
+              const destFolderId = oppSubfolderByName[subfolder.name] || folderId;
               const files = await listDriveFolderFiles(ctx, subfolder.id);
               for (const file of files) {
                 try {
@@ -3407,6 +3409,50 @@ export const createOrderFolderInDrive = action({
     }
 
     const folder = await createRes.json() as { id?: string };
+    if (!folder.id) throw new Error("Drive nie zwróciło ID folderu");
+
+    return {
+      id: folder.id,
+      url: `https://drive.google.com/drive/folders/${folder.id}`,
+    };
+  },
+});
+
+export const createOpportunityFolderInDrive = action({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+    parentFolderId: v.string(),
+    name: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ id: string; url: string }> => {
+    await requireUserIdentifierInAction(ctx);
+
+    const opp = await ctx.runQuery(api.salesOpportunities.getSalesOpportunity, { opportunityId: args.opportunityId });
+    if (!opp) throw new Error("Szansa sprzedaży nie znaleziona");
+    if (!opp.opportunityFolderId) throw new Error("Ta szansa nie ma folderu w Google Drive.");
+
+    const connection = await getAuthorizedConnection(ctx);
+    const accessToken = connection.accessToken;
+
+    const createRes = await fetch(`${DRIVE_API_BASE}/files?supportsAllDrives=true`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: args.name,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [args.parentFolderId],
+      }),
+    });
+
+    if (!createRes.ok) {
+      const errorBody = await createRes.text();
+      throw new Error(`Nie udało się utworzyć folderu Drive: ${createRes.status} - ${errorBody}`);
+    }
+
+    const folder = (await createRes.json()) as { id?: string };
     if (!folder.id) throw new Error("Drive nie zwróciło ID folderu");
 
     return {

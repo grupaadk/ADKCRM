@@ -51,6 +51,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import OrderDriveBrowser from "@/app/admin/klient/[id]/zlecenie/[orderId]/OrderDriveBrowser";
+import OpportunityDriveBrowser from "@/components/OpportunityDriveBrowser";
 import MobileDashboard from "@/app/app/MobileDashboard";
 import MobilePanel from "@/app/app/MobilePanel";
 
@@ -248,12 +249,13 @@ function AppPwaMain() {
 
 
   // Form State
-
+  const [uploadTargetEntity, setUploadTargetEntity] = useState<"order" | "opportunity">("order");
   const [clientSearch, setClientSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<Id<"clients"> | null>(null);
   const [, setSelectedClientName] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<Id<"orders"> | null>(null);
+  const [selectedOpportunityId, setSelectedOpportunityId] = useState<Id<"pendingJotformSubmissions"> | null>(null);
   const [documentType, setDocumentType] = useState<string>("pomiar");
   const [file, setFile] = useState<File | null>(null);
   const [signatureStatus] = useState<"signed" | "not_applicable" | null>("signed");
@@ -309,15 +311,24 @@ function AppPwaMain() {
     return list;
   }, [templates]);
 
-  // Find selected order to filter document types
+  // Find selected order / opportunity
   const orders = useQuery(
     api.orders.listByClient,
+    selectedClientId ? { clientId: selectedClientId } : "skip"
+  );
+
+  const clientOpportunities = useQuery(
+    api.salesOpportunities.listByClient,
     selectedClientId ? { clientId: selectedClientId } : "skip"
   );
 
   const selectedOrder = useMemo(() => {
     return orders?.find(o => o._id === selectedOrderId);
   }, [orders, selectedOrderId]);
+
+  const selectedOpportunity = useMemo(() => {
+    return clientOpportunities?.find(o => o._id === selectedOpportunityId);
+  }, [clientOpportunities, selectedOpportunityId]);
 
   const availableDocumentTypes = useMemo(() => {
     if (!selectedOrder) return [];
@@ -384,6 +395,7 @@ function AppPwaMain() {
   const uploadUserDocument = useAction(api.googleDrive.uploadUserDocumentPublic);
   const createComplaint = useMutation(api.complaints.create);
   const uploadManualOrderFile = useAction(api.googleDrive.uploadManualOrderFile);
+  const uploadManualOpportunityFile = useAction(api.googleDrive.uploadManualOpportunityFile);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -442,11 +454,13 @@ function AppPwaMain() {
   }, []);
 
   function resetForm() {
+    setUploadTargetEntity("order");
     setSelectedClientId(null);
     setSelectedClientName("");
     setClientSearch("");
     setShowClientDropdown(false);
     setSelectedOrderId(null);
+    setSelectedOpportunityId(null);
     setDocumentType("pomiar");
     setFile(null);
     setScanPages([]);
@@ -466,6 +480,7 @@ function AppPwaMain() {
     setClientSearch(name);
     setShowClientDropdown(false);
     setSelectedOrderId(null);
+    setSelectedOpportunityId(null);
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -614,6 +629,81 @@ function AppPwaMain() {
 
   async function handleDriveFileUpload(e: React.FormEvent) {
     e.preventDefault();
+
+    if (uploadTargetEntity === "opportunity") {
+      if (!selectedOpportunityId) {
+        setDriveErrorMsg("Wybierz szansę sprzedaży przed wysłaniem.");
+        return;
+      }
+      if (!file && scanPages.length === 0) {
+        setDriveErrorMsg("Wybierz plik lub zrób zdjęcie przed wysłaniem.");
+        return;
+      }
+
+      setDriveUploading(true);
+      setDriveSuccessMsg(null);
+      setDriveErrorMsg(null);
+
+      try {
+        let fileToUpload: File;
+        const now = new Date();
+        const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}`;
+
+        if (scanPages.length > 0) {
+          fileToUpload = await buildPdfFromPages(scanPages, scanRotations);
+        } else if (file) {
+          fileToUpload = file;
+        } else {
+          throw new Error("Brak wybranego pliku.");
+        }
+
+        let finalName = driveCustomFileName.trim();
+        if (!finalName) {
+          if (scanPages.length > 0) {
+            finalName = `Zdjecie_Szansa_${timestamp}.pdf`;
+          } else {
+            finalName = fileToUpload.name || `Plik_Szansa_${timestamp}`;
+          }
+        } else {
+          const hasExt = /\.[a-zA-Z0-9]+$/.test(finalName);
+          if (!hasExt) {
+            const ext = scanPages.length > 0 ? "pdf" : (fileToUpload.name.split(".").pop() || "pdf");
+            finalName = `${finalName}.${ext}`;
+          }
+        }
+
+        const uploadUrl = await generateUploadUrl();
+        const res = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": fileToUpload.type || "application/octet-stream" },
+          body: fileToUpload,
+        });
+
+        if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+        const { storageId } = (await res.json()) as { storageId: string };
+
+        const targetFolderId = activeDriveFolder?.id || selectedOpportunity?.opportunityFolderId || selectedOpportunity?.otherFilesFolderId;
+        await uploadManualOpportunityFile({
+          opportunityId: selectedOpportunityId,
+          storageId: storageId as Id<"_storage">,
+          targetFolderId,
+        });
+
+        setFile(null);
+        setScanPages([]);
+        setScanPreviews([]);
+        setScanRotations([]);
+        setDriveCustomFileName("");
+        setDriveSuccessMsg(`Pomyślnie zapisano plik "${finalName}" w folderze "${activeDriveFolder?.name ?? "Folder szansy"}"`);
+        setDriveRefreshKey((k) => k + 1);
+      } catch (err) {
+        setDriveErrorMsg(err instanceof Error ? err.message : "Błąd podczas wgrywania pliku do szansy.");
+      } finally {
+        setDriveUploading(false);
+      }
+      return;
+    }
+
     const targetFolderId = activeDriveFolder?.id || selectedOrder?.folderId;
     if (!selectedOrderId || !targetFolderId) {
       setDriveErrorMsg("Folder zlecenia w Google Drive jest niedostępny.");
@@ -1670,6 +1760,42 @@ function AppPwaMain() {
                   </div>
                 )}
 
+                {/* Target Entity Switcher: Zlecenie vs Szansa sprzedaży */}
+                <div className="space-y-1.5 pb-2 border-b border-gray-100">
+                  <label className="text-xs font-bold text-slate-700">Gdzie chcesz dodać zdjęcie / plik? *</label>
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadTargetEntity("order");
+                        setSelectedOpportunityId(null);
+                        setUploadTargetMode("drive_browser");
+                      }}
+                      className={`py-2.5 px-3 text-xs font-bold rounded-lg transition text-center ${
+                        uploadTargetEntity === "order"
+                          ? "bg-[#4dbdc6] text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Zlecenie
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadTargetEntity("opportunity");
+                        setSelectedOrderId(null);
+                      }}
+                      className={`py-2.5 px-3 text-xs font-bold rounded-lg transition text-center ${
+                        uploadTargetEntity === "opportunity"
+                          ? "bg-[#4dbdc6] text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Szansa sprzedaży
+                    </button>
+                  </div>
+                </div>
+
                 {/* Step 1: Select Client */}
                 <div className="space-y-1.5 relative">
                   <label className="text-xs font-bold text-slate-700">1. Wybierz Klienta *</label>
@@ -1721,14 +1847,13 @@ function AppPwaMain() {
                 </div>
 
                 {/* Step 2: Select Order */}
-                {selectedClientId && (
+                {selectedClientId && uploadTargetEntity === "order" && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-700">2. Wybierz Zlecenie *</label>
                     {orders && orders.length > 0 ? (
                       <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                         {orders.map((o) => {
                           const isSelected = selectedOrderId === o._id;
-                          const statusStr = statusMap[o.status] ?? o.status;
                           return (
                             <button
                               key={o._id}
@@ -1754,6 +1879,216 @@ function AppPwaMain() {
                     ) : (
                       <p className="text-xs text-slate-400 italic">Brak otwartych zleceń dla tego klienta.</p>
                     )}
+                  </div>
+                )}
+
+                {/* Step 2: Select Opportunity */}
+                {selectedClientId && uploadTargetEntity === "opportunity" && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">2. Wybierz Szansę Sprzedaży *</label>
+                    {clientOpportunities && clientOpportunities.length > 0 ? (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {clientOpportunities.map((opp) => {
+                          const isSelected = selectedOpportunityId === opp._id;
+                          const name = `${opp.firstName} ${opp.lastName}`.trim() || "Szansa bez nazwy";
+                          return (
+                            <button
+                              key={opp._id}
+                              type="button"
+                              onClick={() => setSelectedOpportunityId(isSelected ? null : opp._id)}
+                              className={`w-full text-left p-3 rounded-xl border text-xs transition flex items-center justify-between ${
+                                isSelected
+                                  ? "border-[#4dbdc6] bg-[#4dbdc6]/10 text-slate-900 font-semibold"
+                                  : "border-gray-200 bg-white hover:bg-slate-50 text-slate-700"
+                              }`}
+                            >
+                              <div>
+                                <div className="font-bold text-slate-800">{name}</div>
+                                {opp.customText && (
+                                  <div className="text-[11px] text-[#4dbdc6] font-medium mt-0.5">{opp.customText}</div>
+                                )}
+                              </div>
+                              {isSelected && <CheckCircle className="size-4 text-[#4dbdc6]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">Brak aktywnych szans sprzedaży dla tego klienta.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Step 3 (Opportunity): Photo Capture & File Upload */}
+                {uploadTargetEntity === "opportunity" && selectedOpportunityId && (
+                  <div className="space-y-4 pt-3 border-t border-gray-100">
+                    {/* Status Messages */}
+                    {driveSuccessMsg && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 font-bold flex items-center justify-between shadow-xs">
+                        <span>{driveSuccessMsg}</span>
+                        <button type="button" onClick={() => setDriveSuccessMsg(null)} className="text-emerald-500 hover:text-emerald-700 p-0.5">
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    )}
+
+                    {driveErrorMsg && (
+                      <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-700 flex items-center gap-2">
+                        <AlertCircle className="size-4 shrink-0" />
+                        <span>{driveErrorMsg}</span>
+                      </div>
+                    )}
+
+                    {/* Step 3: Folder Selection */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-slate-700">
+                        3. Wybierz folder docelowy w Google Drive *
+                      </label>
+                      <OpportunityDriveBrowser
+                        opportunityId={selectedOpportunityId}
+                        rootFolderId={selectedOpportunity?.opportunityFolderId}
+                        onFolderChange={setActiveDriveFolder}
+                        refreshKey={driveRefreshKey}
+                        hideDropZone={true}
+                        hideHeaderButtons={true}
+                        disableSidePreview={true}
+                      />
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                      <label className="block text-xs font-bold text-slate-700">
+                        4. Zrób Zdjęcie lub Wybierz Plik (Wyślij do: &quot;{activeDriveFolder?.name ?? "Folder główny szansy"}&quot;) *
+                      </label>
+
+                      {/* Hidden inputs */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
+                      <input
+                        ref={cameraInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleScanPhotoSelect}
+                        className="hidden"
+                      />
+                      <input
+                        ref={scanCameraAddRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleScanPhotoSelect}
+                        className="hidden"
+                      />
+
+                      {/* Mode A: single file selected */}
+                      {file && scanPages.length === 0 ? (
+                        <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 shadow-xs">
+                          <div className="flex items-center gap-2.5 overflow-hidden">
+                            <FileText className="size-5 text-[#4dbdc6] shrink-0" />
+                            <span className="text-xs font-semibold text-slate-700 truncate">{file.name}</span>
+                          </div>
+                          <button type="button" onClick={() => setFile(null)} className="text-slate-400 hover:text-slate-600 p-1">
+                            <X className="size-4" />
+                          </button>
+                        </div>
+                      ) : scanPages.length > 0 ? (
+                        /* Mode B: scanner grid */
+                        <div className="space-y-2">
+                          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                            <SortableContext items={scanPreviews} strategy={rectSortingStrategy}>
+                              <div className="grid grid-cols-3 gap-2">
+                                {scanPreviews.map((src, idx) => (
+                                  <SortablePhotoItem
+                                    key={src}
+                                    id={src}
+                                    src={src}
+                                    index={idx}
+                                    rotation={scanRotations[idx] || 0}
+                                    onRemove={handleRemoveScanPage}
+                                    onRotate={handleRotateScanPage}
+                                  />
+                                ))}
+                              </div>
+                            </SortableContext>
+                          </DndContext>
+
+                          {scanPages.length < 20 && (
+                            <button
+                              type="button"
+                              onClick={() => scanCameraAddRef.current?.click()}
+                              className="w-full py-2.5 rounded-xl border border-dashed border-teal-300 text-[#4dbdc6] font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-teal-50/50 transition"
+                            >
+                              <Camera className="size-4" />
+                              Zrób kolejne zdjęcie ({scanPages.length}/20)
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        /* Mode C: Photo / File Input Buttons */
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => cameraInputRef.current?.click()}
+                            className="py-3 px-2 rounded-xl bg-[#4dbdc6] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm hover:bg-[#3baab3] active:scale-98 transition"
+                          >
+                            <Camera className="size-4" />
+                            Zrób Zdjęcie
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="py-3 px-2 rounded-xl bg-white border border-gray-300 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-gray-50 active:scale-98 transition"
+                          >
+                            <Upload className="size-4 text-[#4dbdc6]" />
+                            Wybierz z Galerii
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Custom File Name Input */}
+                      {(file || scanPages.length > 0) && (
+                        <div className="space-y-1 pt-1">
+                          <label className="text-[11px] font-semibold text-slate-600">
+                            Nazwa pliku w Szansie Sprzedaży (opcjonalnie):
+                          </label>
+                          <input
+                            type="text"
+                            value={driveCustomFileName}
+                            onChange={(e) => setDriveCustomFileName(e.target.value)}
+                            placeholder={scanPages.length > 0 ? "np. Zdjecie_Szansa.pdf" : "np. Zdjecie_Pomiar.jpg"}
+                            className="w-full rounded-xl border border-gray-300 px-3 py-2 text-xs text-slate-800 focus:border-[#4dbdc6] focus:outline-none bg-white"
+                          />
+                        </div>
+                      )}
+
+                      {/* Submit Button */}
+                      {(file || scanPages.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={handleDriveFileUpload}
+                          disabled={driveUploading}
+                          className="w-full py-3.5 rounded-xl bg-[#4dbdc6] text-white font-bold text-xs shadow-md hover:bg-[#3baab3] transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {driveUploading ? (
+                            <>
+                              <RefreshCw className="size-4 animate-spin" />
+                              Przesyłanie do Szansy...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="size-4" />
+                              Wyślij Zdjęcie / Plik do Szansy Sprzedaży
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -1828,7 +2163,7 @@ function AppPwaMain() {
                         {/* Step 5: Photo Capture & Scanner Box */}
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                           <label className="block text-xs font-bold text-slate-700">
-                            5. Zrób Zdjęcie lub Wybierz Plik (Wyślij do: "{activeDriveFolder?.name ?? "Folder główny zlecenia"}") *
+                            5. Zrób Zdjęcie lub Wybierz Plik (Wyślij do: &quot;{activeDriveFolder?.name ?? "Folder główny zlecenia"}&quot;) *
                           </label>
 
                           {/* Hidden inputs */}
@@ -1956,7 +2291,7 @@ function AppPwaMain() {
                             {driveUploading ? (
                               <>
                                 <RefreshCw className="size-4 animate-spin" />
-                                Wgrywanie do folderu "{activeDriveFolder?.name ?? "Drive"}"...
+                                Wgrywanie do folderu &quot;{activeDriveFolder?.name ?? "Drive"}&quot;...
                               </>
                             ) : (
                               <>

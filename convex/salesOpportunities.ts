@@ -193,6 +193,37 @@ export const listForPicker = query({
   },
 });
 
+// Aktywne szanse powiązane z danym klientem (lub szanse z identycznymi danymi)
+export const listByClient = query({
+  args: { clientId: v.id("clients") },
+  handler: async (ctx, args) => {
+    const client = await ctx.db.get(args.clientId);
+    if (!client) return [];
+    
+    // Szukamy po clientId lub po zgodności imienia i nazwiska
+    const byClient = await ctx.db
+      .query("pendingJotformSubmissions")
+      .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+      .collect();
+
+    const all = await ctx.db.query("pendingJotformSubmissions").collect();
+    const byName = all.filter(
+      (o) =>
+        o.firstName.toLowerCase() === client.firstName.toLowerCase() &&
+        o.lastName.toLowerCase() === client.lastName.toLowerCase()
+    );
+
+    const merged = [...byClient, ...byName];
+    const uniqueMap = new Map();
+    for (const item of merged) {
+      if (!item.processed && item.archived !== true) {
+        uniqueMap.set(item._id, item);
+      }
+    }
+    return Array.from(uniqueMap.values());
+  },
+});
+
 export const listArchivedOpportunities = query({
   args: {},
   handler: async (ctx) => {
