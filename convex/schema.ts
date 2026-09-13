@@ -923,6 +923,27 @@ export default defineSchema({
     .index("by_sprint", ["sprintId"])
     .index("by_assignee", ["assignedUserIds"]),
 
+  // IT Time Tracker (Niezależny stoper i tracker czasu pracy IT)
+  itTimeTrackerTasks: defineTable({
+    title: v.string(),
+    status: v.union(v.literal("stopped"), v.literal("running"), v.literal("completed")),
+    totalDurationMs: v.number(),
+    lastStartedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    lastTrackedAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_last_tracked", ["lastTrackedAt"]),
+
+  itTimeTrackerLogs: defineTable({
+    taskId: v.id("itTimeTrackerTasks"),
+    startTime: v.number(),
+    endTime: v.number(),
+    durationMs: v.number(),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_start_time", ["startTime"]),
+
   // Logi systemowe
   systemLogs: defineTable({
     level: v.union(v.literal("info"), v.literal("warn"), v.literal("error")),
