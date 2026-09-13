@@ -11,6 +11,7 @@ export interface OptionResult {
   roofType: "polycarbonate" | "glass_standard" | "glass_nonstandard";
   materialCostNet: number; // Materiał netto z narzutem
   assemblyCostNet: number; // Łączny montaż netto
+  assemblyRateNetPerSqM: number; // Stawka montażu za m²
   totalNet: number; // Razem netto (Materiał + Montaż)
   totalGross: number; // Razem brutto (Z wybranym VAT)
   pricePerSqMNet: number; // Cena netto za m²
@@ -32,7 +33,9 @@ export interface TerraceCalculationResult {
     isOutOfRange: boolean;
     areaSqM: number;
     suggestedAssemblyRateNetPerSqM: number;
+    suggestedGlassAssemblyRateNetPerSqM: number;
     effectiveAssemblyRateNetPerSqM: number;
+    effectiveGlassAssemblyRateNetPerSqM: number;
     materialMarkupPercent: number;
     vatRatePercent: number;
     lookupKey: string;
@@ -196,10 +199,17 @@ export function calculateTerraceEstimate(
   const areaSqM = (depth * width) / 10000;
   const basePriceNet = basePriceData.basePriceNet;
 
+  // Poliwęglan używa stawki montażu w zależności od isStdDim (komórka B11 w Excelu)
   const suggestedAssemblyRate = getSuggestedAssemblyRate(areaSqM, isStdDim);
   const effectiveAssemblyRate =
     input.customAssemblyRateNetPerSqM ?? suggestedAssemblyRate;
   const totalAssemblyCostNet = areaSqM * effectiveAssemblyRate;
+
+  // Szkło w Excelu (komórka C11) ZAWSZE używa tabeli stawek niestandardowych (G4:G8) dla montażu!
+  const suggestedGlassAssemblyRate = getSuggestedAssemblyRate(areaSqM, false);
+  const effectiveGlassAssemblyRate =
+    input.customAssemblyRateNetPerSqM ?? suggestedGlassAssemblyRate;
+  const glassAssemblyCostNet = areaSqM * effectiveGlassAssemblyRate;
 
   // 1. Poliwęglan (Polycarbonate)
   const polyMaterialCostNet = basePriceNet * (1 + markupPercent);
@@ -215,6 +225,7 @@ export function calculateTerraceEstimate(
     roofType: "polycarbonate",
     materialCostNet: polyMaterialCostNet,
     assemblyCostNet: totalAssemblyCostNet,
+    assemblyRateNetPerSqM: effectiveAssemblyRate,
     totalNet: polyTotalNet,
     totalGross: polyTotalGross,
     pricePerSqMNet: areaSqM > 0 ? polyTotalNet / areaSqM : 0,
@@ -238,9 +249,10 @@ export function calculateTerraceEstimate(
   }
 
   const glassStdMaterialCostNet = glassStdMaterialBaseNet * (1 + markupPercent);
-  const glassStdTotalNet = glassStdMaterialCostNet + totalAssemblyCostNet;
+  const glassStdTotalNet = glassStdMaterialCostNet + glassAssemblyCostNet;
   const glassStdTotalGross = glassStdTotalNet * (1 + vatRate);
-  const glassStdTotalCostKc = glassStdMaterialBaseNet + polyAssemblyCostKc;
+  const glassStdAssemblyCostKc = areaSqM * (effectiveGlassAssemblyRate - 50);
+  const glassStdTotalCostKc = glassStdMaterialBaseNet + glassStdAssemblyCostKc;
   const glassStdProfitZ = glassStdTotalNet - glassStdTotalCostKc;
   const glassStdMarginPercent =
     glassStdTotalCostKc > 0 ? glassStdProfitZ / glassStdTotalCostKc : 0;
@@ -249,7 +261,8 @@ export function calculateTerraceEstimate(
     title: "Szkło Standard",
     roofType: "glass_standard",
     materialCostNet: glassStdMaterialCostNet,
-    assemblyCostNet: totalAssemblyCostNet,
+    assemblyCostNet: glassAssemblyCostNet,
+    assemblyRateNetPerSqM: effectiveGlassAssemblyRate,
     totalNet: glassStdTotalNet,
     totalGross: glassStdTotalGross,
     pricePerSqMNet: areaSqM > 0 ? glassStdTotalNet / areaSqM : 0,
@@ -267,9 +280,9 @@ export function calculateTerraceEstimate(
   else glassNonStdMaterialBaseNet = basePriceNet * (1 + 1.271);
 
   const glassNonStdMaterialCostNet = glassNonStdMaterialBaseNet * (1 + markupPercent);
-  const glassNonStdTotalNet = glassNonStdMaterialCostNet + totalAssemblyCostNet;
+  const glassNonStdTotalNet = glassNonStdMaterialCostNet + glassAssemblyCostNet;
   const glassNonStdTotalGross = glassNonStdTotalNet * (1 + vatRate);
-  const glassNonStdTotalCostKc = glassNonStdMaterialBaseNet + polyAssemblyCostKc;
+  const glassNonStdTotalCostKc = glassNonStdMaterialBaseNet + glassStdAssemblyCostKc;
   const glassNonStdProfitZ = glassNonStdTotalNet - glassNonStdTotalCostKc;
   const glassNonStdMarginPercent =
     glassNonStdTotalCostKc > 0 ? glassNonStdProfitZ / glassNonStdTotalCostKc : 0;
@@ -278,7 +291,8 @@ export function calculateTerraceEstimate(
     title: "Szkło Niestandard",
     roofType: "glass_nonstandard",
     materialCostNet: glassNonStdMaterialCostNet,
-    assemblyCostNet: totalAssemblyCostNet,
+    assemblyCostNet: glassAssemblyCostNet,
+    assemblyRateNetPerSqM: effectiveGlassAssemblyRate,
     totalNet: glassNonStdTotalNet,
     totalGross: glassNonStdTotalGross,
     pricePerSqMNet: areaSqM > 0 ? glassNonStdTotalNet / areaSqM : 0,
@@ -300,7 +314,9 @@ export function calculateTerraceEstimate(
       isOutOfRange: outOfRange,
       areaSqM,
       suggestedAssemblyRateNetPerSqM: suggestedAssemblyRate,
+      suggestedGlassAssemblyRateNetPerSqM: suggestedGlassAssemblyRate,
       effectiveAssemblyRateNetPerSqM: effectiveAssemblyRate,
+      effectiveGlassAssemblyRateNetPerSqM: effectiveGlassAssemblyRate,
       materialMarkupPercent: markupPercent * 100,
       vatRatePercent: vatRate * 100,
       lookupKey,

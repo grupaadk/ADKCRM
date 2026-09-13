@@ -34,6 +34,26 @@ describe("terraceCalculatorEngine", () => {
     expect(res.options.glassStandard.totalNet).toBeCloseTo(115061.19, 1);
   });
 
+  test("calculates exact Glass Standard net value (25 729 zł) for 350x706 from Excel", () => {
+    const res = calculateTerraceEstimate({
+      depthCm: 350,
+      widthCm: 706,
+      materialMarkupPercent: 52,
+      vatRatePercent: 8,
+    });
+
+    expect(res.input.matchedDepthCm).toBe(350);
+    expect(res.input.matchedWidthCm).toBe(706);
+    expect(res.input.isStandardDimension).toBe(true);
+    expect(res.input.areaSqM).toBeCloseTo(24.71, 2);
+    expect(res.input.basePriceNet).toBe(7675);
+    expect(res.options.polycarbonate.assemblyRateNetPerSqM).toBe(250);
+    expect(res.options.glassStandard.assemblyRateNetPerSqM).toBe(300);
+
+    // Glass Standard Total Net: 18,315.63 (material) + 7,413.00 (assembly @ 300/m2) = 25,728.63 zł (~25 729 zł)
+    expect(Math.round(res.options.glassStandard.totalNet)).toBe(25729);
+  });
+
   test("correctly identifies standard dimension thresholds", () => {
     expect(isStandardDimension(300, 306)).toBe(true);
     expect(isStandardDimension(350, 406)).toBe(true);
