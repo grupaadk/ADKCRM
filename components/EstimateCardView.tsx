@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileSpreadsheet, Plus, Trash2 } from "lucide-react";
+import { FileSpreadsheet, Mail, Plus, Trash2 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -151,9 +151,10 @@ interface EstimateCardViewProps {
   card: EstimateCardData;
   readOnly?: boolean;
   onCardUpdate?: (updatedCard: EstimateCardData) => void;
+  onSendOffer?: (card: EstimateCardData) => void;
 }
 
-export default function EstimateCardView({ card, readOnly, onCardUpdate }: EstimateCardViewProps) {
+export default function EstimateCardView({ card, readOnly, onCardUpdate, onSendOffer }: EstimateCardViewProps) {
   const [draft, setDraft] = useState<EstimateCardData>(() => JSON.parse(JSON.stringify(card)));
 
   // Reset draft when card prop changes (new card rendered)
@@ -596,6 +597,37 @@ export default function EstimateCardView({ card, readOnly, onCardUpdate }: Estim
             {fmt(summary.grossTotal)} zł
           </span>
         </div>
+
+        {/* Send offer button */}
+        {onSendOffer && !readOnly && (
+          <button
+            onClick={() => onSendOffer(draft)}
+            style={{
+              marginTop: 14,
+              width: "100%",
+              padding: "10px 16px",
+              border: "none",
+              borderRadius: 8,
+              background: "linear-gradient(135deg,#0f5a9a,#1a80cf)",
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              letterSpacing: "0.2px",
+              boxShadow: "0 2px 8px rgba(15,90,154,0.25)",
+              transition: "opacity 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.88"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+          >
+            <Mail size={15} />
+            Wyślij ofertę do klienta
+          </button>
+        )}
       </div>
     </div>
   );

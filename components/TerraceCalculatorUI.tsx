@@ -6,12 +6,12 @@ import {
   generateOfferText,
   formatPLN,
   STANDARD_DEPTHS,
+  type TerraceCalculationResult,
 } from "@/lib/terraceCalculatorEngine";
 import {
   Calculator,
   Copy,
   Check,
-  Printer,
   AlertTriangle,
   TrendingUp,
   Sliders,
@@ -19,7 +19,91 @@ import {
   RefreshCw,
   Layers,
   Percent,
+  Mail,
+  User,
 } from "lucide-react";
+import SendOfferModal from "@/components/SendOfferModal";
+import type { EstimateCardData } from "@/components/EstimateCardView";
+
+// ─── Converter: TerraceCalculationResult → EstimateCardData ──────────────────
+
+type RoofVariant = "polycarbonate" | "glassStandard" | "glassNonStandard";
+
+const VARIANT_LABELS: Record<RoofVariant, string> = {
+  polycarbonate: "Poliwęglan",
+  glassStandard: "Szkło Standard",
+  glassNonStandard: "Szkło Niestandardowe",
+};
+
+function buildEstimateCardData(
+  calc: TerraceCalculationResult,
+  variant: RoofVariant,
+  client: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    city: string;
+  },
+): EstimateCardData {
+  const { input, options } = calc;
+  const opt = options[variant];
+  const vat = input.vatRatePercent;
+
+  const widthM = (input.widthCm / 100).toFixed(2);
+  const depthM = (input.depthCm / 100).toFixed(2);
+  const areaStr = `${input.areaSqM.toFixed(2)} m²`;
+  const seriesLabel = `${input.series} | ${VARIANT_LABELS[variant]}`;
+  const offerTitle = `Zabudowa Tarasu ${widthM}m × ${depthM}m — ${VARIANT_LABELS[variant]}`;
+
+  return {
+    title: offerTitle,
+    client: {
+      firstName: client.firstName,
+      lastName: client.lastName,
+      email: client.email || undefined,
+      phone: client.phone || undefined,
+      clientType: "individual",
+      city: client.city || undefined,
+    },
+    discountPercent: 0,
+    items: [
+      {
+        id: "material",
+        category: "service",
+        name: `Zadaszenie tarasu – ${VARIANT_LABELS[variant]}`,
+        specs: `${widthM}m × ${depthM}m (${areaStr}) · Seria ${seriesLabel} · Narzut mat. ${input.materialMarkupPercent}%`,
+        qty: 1,
+        priceNet: opt.materialCostNet,
+        vat,
+      },
+      {
+        id: "assembly",
+        category: "installation",
+        name: "Montaż i uruchomienie",
+        specs: `Stawka ${formatPLN(opt.assemblyRateNetPerSqM)}/m² × ${areaStr}`,
+        qty: 1,
+        priceNet: opt.assemblyCostNet,
+        vat,
+      },
+      ...(opt.extraGlassGrossDelta && opt.extraGlassGrossDelta > 0
+        ? [
+            {
+              id: "glass_extra",
+              category: "extras" as const,
+              name: "Dopłata do szkła (vs. poliwęglan)",
+              specs: `Szacunkowy koszt materiału szklanego ponad standard`,
+              qty: 1,
+              priceNet: Math.round(opt.extraGlassGrossDelta / (1 + vat / 100)),
+              vat,
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function TerraceCalculatorUI() {
   const [widthCm, setWidthCm] = useState<number>(1106);
@@ -29,6 +113,15 @@ export default function TerraceCalculatorUI() {
   const [vatRatePercent, setVatRatePercent] = useState<number>(8);
   const [copied, setCopied] = useState<boolean>(false);
   const [selectedTab, setSelectedTab] = useState<"all" | "polycarbonate" | "glassStandard" | "glassNonStandard">("all");
+
+  // Dane klienta do oferty
+  const [clientFirstName, setClientFirstName] = useState("");
+  const [clientLastName, setClientLastName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientCity, setClientCity] = useState("");
+  const [offerVariant, setOfferVariant] = useState<RoofVariant>("polycarbonate");
+  const [sendTarget, setSendTarget] = useState<EstimateCardData | null>(null);
 
   const calcResult = useMemo(() => {
     const customRate = customAssemblyRate !== "" ? parseFloat(customAssemblyRate) : null;
@@ -50,10 +143,6 @@ export default function TerraceCalculatorUI() {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   const handleResetDefaults = () => {
     setWidthCm(1106);
     setDepthCm(550);
@@ -62,9 +151,20 @@ export default function TerraceCalculatorUI() {
     setVatRatePercent(8);
   };
 
+  const handleOpenSendModal = () => {
+    const estimate = buildEstimateCardData(calcResult, offerVariant, {
+      firstName: clientFirstName,
+      lastName: clientLastName,
+      email: clientEmail,
+      phone: clientPhone,
+      city: clientCity,
+    });
+    setSendTarget(estimate);
+  };
+
   return (
     <div className="space-y-6 pb-12">
-      {/* Header Banner - Clean Light CRM Style */}
+      {/* Header Banner */}
       <div className="panel p-5 bg-[var(--panel)] border border-[var(--line)] rounded-xl shadow-xs text-[var(--text-strong)] relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
@@ -251,30 +351,20 @@ export default function TerraceCalculatorUI() {
               {/* Custom Assembly Rate */}
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs font-semibold text-[var(--text-strong)]">
-                    Stawka montażu za m² netto
+                  <label className="text-xs font-semibold text-[var(--text-strong)] flex items-center gap-1.5">
+                    <Calculator className="w-3.5 h-3.5 text-[var(--text-mute)]" /> Stawka montażu (netto/m²)
                   </label>
-                  <span className="text-[11px] mono text-[var(--text-mute)]">
-                    Auto: {input.suggestedAssemblyRateNetPerSqM} zł/m²
+                  <span className="text-[10px] text-[var(--text-mute)] mono">
+                    Suggested: {formatPLN(input.suggestedAssemblyRateNetPerSqM)}/m²
                   </span>
                 </div>
-                <div className="relative">
-                  <input
-                    type="number"
-                    placeholder={`Automatycznie: ${input.suggestedAssemblyRateNetPerSqM} zł/m²`}
-                    value={customAssemblyRate}
-                    onChange={(e) => setCustomAssemblyRate(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs border border-[var(--line)] rounded-lg bg-[var(--panel)] focus:ring-2 focus:ring-[#4ABBC3] focus:outline-none mono"
-                  />
-                  {customAssemblyRate !== "" && (
-                    <button
-                      onClick={() => setCustomAssemblyRate("")}
-                      className="absolute right-2 top-2 text-[11px] text-[#4ABBC3] hover:underline"
-                    >
-                      Reset auto
-                    </button>
-                  )}
-                </div>
+                <input
+                  type="number"
+                  value={customAssemblyRate}
+                  onChange={(e) => setCustomAssemblyRate(e.target.value)}
+                  placeholder={`${input.suggestedAssemblyRateNetPerSqM} (domyślna)`}
+                  className="w-full px-3 py-1.5 text-right mono text-xs font-semibold border border-[var(--line)] rounded-lg bg-[var(--panel)] focus:ring-2 focus:ring-[#4ABBC3] focus:outline-none"
+                />
               </div>
 
               {/* VAT Rate Selection */}
@@ -333,6 +423,120 @@ export default function TerraceCalculatorUI() {
               </div>
             </div>
           </div>
+
+          {/* ─── Blok: Dane klienta + Wyślij ofertę ─── */}
+          <div className="panel p-5 space-y-4 border-2 border-[rgba(74,187,195,0.35)] rounded-xl bg-[var(--panel)]">
+            <div className="flex items-center gap-2 border-b border-[var(--line)] pb-3">
+              <Mail className="w-4 h-4 text-[#4ABBC3]" />
+              <h2 className="font-bold text-sm text-[var(--text-strong)]">Wyślij ofertę do klienta</h2>
+            </div>
+
+            {/* Wariant do oferty */}
+            <div>
+              <label className="text-xs font-semibold text-[var(--text-strong)] block mb-1.5 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-[var(--text-mute)]" /> Wariant do oferty
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(["polycarbonate", "glassStandard", "glassNonStandard"] as RoofVariant[]).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setOfferVariant(v)}
+                    className={`py-2 px-2 rounded-lg border text-[10px] font-semibold text-center transition-all leading-tight ${
+                      offerVariant === v
+                        ? "bg-[#4ABBC3] text-white border-[#4ABBC3]"
+                        : "bg-[var(--panel-2)] text-[var(--text-dim)] border-[var(--line)] hover:border-[#4ABBC3]"
+                    }`}
+                  >
+                    {VARIANT_LABELS[v]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Dane klienta */}
+            <div>
+              <div className="text-[11px] font-bold text-[var(--text-mute)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <User className="w-3 h-3" /> Dane klienta (opcjonalne)
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={clientFirstName}
+                  onChange={(e) => setClientFirstName(e.target.value)}
+                  placeholder="Imię"
+                  className="px-3 py-2 text-xs border border-[var(--line)] rounded-lg bg-[var(--panel)] focus:ring-2 focus:ring-[#4ABBC3] focus:outline-none text-[var(--text)]"
+                />
+                <input
+                  type="text"
+                  value={clientLastName}
+                  onChange={(e) => setClientLastName(e.target.value)}
+                  placeholder="Nazwisko"
+                  className="px-3 py-2 text-xs border border-[var(--line)] rounded-lg bg-[var(--panel)] focus:ring-2 focus:ring-[#4ABBC3] focus:outline-none text-[var(--text)]"
+                />
+                <input
+                  type="email"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                  placeholder="E-mail klienta *"
+                  className="col-span-2 px-3 py-2 text-xs border border-[var(--line)] rounded-lg bg-[var(--panel)] focus:ring-2 focus:ring-[#4ABBC3] focus:outline-none text-[var(--text)]"
+                />
+                <input
+                  type="tel"
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(e.target.value)}
+                  placeholder="Telefon"
+                  className="px-3 py-2 text-xs border border-[var(--line)] rounded-lg bg-[var(--panel)] focus:ring-2 focus:ring-[#4ABBC3] focus:outline-none text-[var(--text)]"
+                />
+                <input
+                  type="text"
+                  value={clientCity}
+                  onChange={(e) => setClientCity(e.target.value)}
+                  placeholder="Miasto"
+                  className="px-3 py-2 text-xs border border-[var(--line)] rounded-lg bg-[var(--panel)] focus:ring-2 focus:ring-[#4ABBC3] focus:outline-none text-[var(--text)]"
+                />
+              </div>
+            </div>
+
+            {/* Wartość skrótu dla wybranego wariantu */}
+            <div className="bg-[rgba(74,187,195,0.06)] border border-[rgba(74,187,195,0.25)] rounded-lg p-3 text-xs mono">
+              <div className="flex justify-between text-[var(--text-dim)] mb-1">
+                <span>Wariant:</span>
+                <span className="font-bold text-[var(--text-strong)]">{VARIANT_LABELS[offerVariant]}</span>
+              </div>
+              <div className="flex justify-between text-[var(--text-dim)] mb-1">
+                <span>Wartość netto:</span>
+                <span className="font-bold text-[var(--text-strong)]">{formatPLN(options[offerVariant].totalNet)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#4ABBC3] font-bold">Wartość brutto:</span>
+                <span className="font-extrabold text-[#4ABBC3]">{formatPLN(options[offerVariant].totalGross)}</span>
+              </div>
+            </div>
+
+            {/* Przycisk Wyślij */}
+            <button
+              onClick={handleOpenSendModal}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm text-white transition-all"
+              style={{
+                background: "linear-gradient(135deg,#0f5a9a,#1a80cf)",
+                boxShadow: "0 4px 14px rgba(15,90,154,0.3)",
+              }}
+            >
+              <Mail className="w-4 h-4" />
+              Wyślij ofertę do klienta
+            </button>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleCopyOffer}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-[var(--text-dim)] bg-[var(--panel-2)] hover:bg-[var(--line)] border border-[var(--line)] rounded-lg transition-colors"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? "Skopiowano!" : "Kopiuj tekst oferty"}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Right Column: 3 Cards Comparison (7 cols) */}
@@ -389,6 +593,8 @@ export default function TerraceCalculatorUI() {
               <RoofOptionCard
                 result={options.polycarbonate}
                 vatRate={input.vatRatePercent}
+                isSelectedForOffer={offerVariant === "polycarbonate"}
+                onSelectForOffer={() => setOfferVariant("polycarbonate")}
               />
             )}
 
@@ -397,6 +603,8 @@ export default function TerraceCalculatorUI() {
               <RoofOptionCard
                 result={options.glassStandard}
                 vatRate={input.vatRatePercent}
+                isSelectedForOffer={offerVariant === "glassStandard"}
+                onSelectForOffer={() => setOfferVariant("glassStandard")}
               />
             )}
 
@@ -405,6 +613,8 @@ export default function TerraceCalculatorUI() {
               <RoofOptionCard
                 result={options.glassNonStandard}
                 vatRate={input.vatRatePercent}
+                isSelectedForOffer={offerVariant === "glassNonStandard"}
+                onSelectForOffer={() => setOfferVariant("glassNonStandard")}
               />
             )}
           </div>
@@ -479,6 +689,14 @@ export default function TerraceCalculatorUI() {
           </div>
         </div>
       </div>
+
+      {/* Send Offer Modal */}
+      {sendTarget && (
+        <SendOfferModal
+          estimate={sendTarget}
+          onClose={() => setSendTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -486,17 +704,34 @@ export default function TerraceCalculatorUI() {
 function RoofOptionCard({
   result,
   vatRate,
+  isSelectedForOffer,
+  onSelectForOffer,
 }: {
   result: ReturnType<typeof calculateTerraceEstimate>["options"]["polycarbonate"];
   vatRate: number;
+  isSelectedForOffer: boolean;
+  onSelectForOffer: () => void;
 }) {
   return (
-    <div className="rounded-xl p-4 flex flex-col justify-between transition-all duration-200 relative bg-[var(--panel)] border border-[var(--line)] shadow-xs hover:border-[#4ABBC3] text-[var(--text-strong)]">
+    <div
+      className={`rounded-xl p-4 flex flex-col justify-between transition-all duration-200 relative bg-[var(--panel)] border shadow-xs hover:border-[#4ABBC3] text-[var(--text-strong)] ${
+        isSelectedForOffer
+          ? "border-[#4ABBC3] ring-2 ring-[rgba(74,187,195,0.25)]"
+          : "border-[var(--line)]"
+      }`}
+    >
       <div>
-        {/* Title */}
-        <h3 className="text-base font-bold text-[var(--text-strong)]">
-          {result.title}
-        </h3>
+        {/* Title + badge */}
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <h3 className="text-base font-bold text-[var(--text-strong)]">
+            {result.title}
+          </h3>
+          {isSelectedForOffer && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-[#4ABBC3] text-white rounded-full shrink-0 whitespace-nowrap">
+              DO OFERTY
+            </span>
+          )}
+        </div>
 
         {/* Prices: Both Netto and Brutto */}
         <div className="mt-3 p-3 rounded-lg bg-[var(--panel-2)] border border-[var(--line)] space-y-2">
@@ -546,6 +781,18 @@ function RoofOptionCard({
           )}
         </div>
       </div>
+
+      {/* Select for offer button */}
+      <button
+        onClick={onSelectForOffer}
+        className={`mt-4 w-full py-2 px-3 rounded-lg text-xs font-bold transition-all border ${
+          isSelectedForOffer
+            ? "bg-[#4ABBC3] text-white border-[#4ABBC3]"
+            : "bg-[var(--panel-2)] text-[var(--text-dim)] border-[var(--line)] hover:border-[#4ABBC3] hover:text-[#4ABBC3]"
+        }`}
+      >
+        {isSelectedForOffer ? "✓ Wybrany do oferty" : "Wybierz do oferty"}
+      </button>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import EstimateCardView, {
   type EstimateCardData,
   computeSummary,
 } from "@/components/EstimateCardView";
+import SendOfferModal from "@/components/SendOfferModal";
 import {
   Sparkles,
   Send,
@@ -209,6 +210,7 @@ export default function WycenaAIPage() {
   const [showNewEstimateMenu, setShowNewEstimateMenu] = useState(false);
   const [createdOpportunities, setCreatedOpportunities] = useState<Set<string>>(new Set());
   const [creatingOpportunity, setCreatingOpportunity] = useState<string | null>(null);
+  const [sendOfferTarget, setSendOfferTarget] = useState<EstimateCardData | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const createOpportunity = useMutation(api.salesOpportunities.createManualOpportunity);
@@ -814,6 +816,7 @@ export default function WycenaAIPage() {
                       <div style={{ width: "100%", maxWidth: 780 }}>
                         <EstimateCardView
                           card={msg.estimateCard}
+                          onSendOffer={(card) => setSendOfferTarget(card)}
                           onCardUpdate={(updatedCard) => {
                             // Aktualizuj kartę w miejscu
                             setConversations((prev) =>
@@ -1069,6 +1072,14 @@ export default function WycenaAIPage() {
         }
       `}</style>
         </div>
+      )}
+
+      {/* Send Offer Modal */}
+      {sendOfferTarget && (
+        <SendOfferModal
+          estimate={sendOfferTarget}
+          onClose={() => setSendOfferTarget(null)}
+        />
       )}
     </div>
   );

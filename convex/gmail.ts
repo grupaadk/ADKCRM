@@ -200,6 +200,7 @@ function encodeSubject(subject: string): string {
 function createRawEmail(params: {
   from: string;
   to: string;
+  cc?: string;
   subject: string;
   body: string;
   messageId?: string;
@@ -212,6 +213,10 @@ function createRawEmail(params: {
     `Subject: ${encodeSubject(params.subject)}`,
     "MIME-Version: 1.0",
   ];
+
+  if (params.cc) {
+    headers.push(`Cc: ${params.cc}`);
+  }
 
   if (params.messageId) {
     headers.push(`In-Reply-To: ${params.messageId}`);
@@ -831,6 +836,7 @@ export const getAttachment = action({
 export const sendEmail = action({
   args: {
     to: v.string(),
+    cc: v.optional(v.string()),
     subject: v.string(),
     body: v.string(),
     inReplyToMessageId: v.optional(v.string()),
@@ -848,6 +854,7 @@ export const sendEmail = action({
     const raw = createRawEmail({
       from: connection.connectedEmail,
       to: args.to,
+      cc: args.cc,
       subject: args.subject,
       body: args.body,
       messageId: args.inReplyToMessageId,

@@ -1853,6 +1853,8 @@ export default function OrderDetailPage({
 
   const [newSupplierNoteText, setNewSupplierNoteText] = useState("");
   const [addingSupplierNote, setAddingSupplierNote] = useState(false);
+  const [editingCrmNoteId, setEditingCrmNoteId] = useState<string | null>(null);
+  const [editingCrmNoteText, setEditingCrmNoteText] = useState("");
   const markNotesRead = useMutation(api.orders.markSupplierNotesAsRead);
 
   function startEditDelivery(svcName: string, supplierId?: Id<"suppliers">, index?: number) {
@@ -2126,6 +2128,24 @@ export default function OrderDetailPage({
     });
     setNewSupplierNoteText("");
     setAddingSupplierNote(false);
+  }
+
+  function handleSaveEditedCrmNote(noteId: string) {
+    if (!draftDeliveryEntry) return;
+    const currentFeed = draftDeliveryEntry.notesFeed ?? [];
+    
+    const updatedFeed = currentFeed.map((n) =>
+      n.id === noteId ? { ...n, note: editingCrmNoteText } : n
+    );
+    const combinedNotes = updatedFeed.map((n) => n.note).join("\n---\n");
+    
+    setDraftDeliveryEntry({
+      ...draftDeliveryEntry,
+      notesFeed: updatedFeed,
+      notes: combinedNotes,
+    });
+    setEditingCrmNoteId(null);
+    setEditingCrmNoteText("");
   }
 
   async function handleRetrySendCrmNote(noteId: string) {
@@ -4975,20 +4995,64 @@ export default function OrderDetailPage({
                                       )}
                                     </div>
                                   </div>
-                                  <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
-                                    {nItem.note}
-                                  </p>
+                                  {editingCrmNoteId === nItem.id ? (
+                                    <div className="mt-2 flex flex-col gap-2">
+                                      <textarea
+                                        className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 resize-none"
+                                        rows={3}
+                                        value={editingCrmNoteText}
+                                        onChange={(e) => setEditingCrmNoteText(e.target.value)}
+                                      />
+                                      <div className="flex gap-2 justify-end">
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingCrmNoteId(null)}
+                                          className="px-2 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 rounded"
+                                        >
+                                          Anuluj
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSaveEditedCrmNote(nItem.id)}
+                                          className="px-2 py-1 text-[10px] font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded shadow-sm"
+                                        >
+                                          Zapisz
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+                                      {nItem.note}
+                                    </p>
+                                  )}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteSupplierNoteFromFeed(nItem.id)}
-                                  className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-600 transition-all rounded hover:bg-red-50 shrink-0"
-                                  title="Usuń notatkę"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
+                                <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {!isExalco && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingCrmNoteId(nItem.id);
+                                        setEditingCrmNoteText(nItem.note);
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-amber-600 rounded hover:bg-amber-50 shrink-0 mb-1"
+                                      title="Edytuj notatkę"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSupplierNoteFromFeed(nItem.id)}
+                                    className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 shrink-0"
+                                    title="Usuń notatkę"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
                               </div>
                             );
                           })
