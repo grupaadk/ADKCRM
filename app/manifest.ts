@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Ekipa",
     short_name: "Ekipa",
-    description: "Mobilny kalendarz i aplikacja dla ekip montażowych ADK Okna",
+    description: "Mobilny kalendarz i aplikacja dla ekip montażowych Grupa ADK",
     start_url: "/ekipa",
     scope: "/ekipa",
     display: "standalone",

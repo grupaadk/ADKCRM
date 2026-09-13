@@ -1980,7 +1980,7 @@ export default function OrderDetailPage({
     if (!draftDeliveryEntry || savingDelivery || sendingCrm) return;
     try {
       setSendingCrm(true);
-      // 1. Zapisz dane zamówienia lokalnie w bazie Convex ADK Okna
+      // 1. Zapisz dane zamówienia lokalnie w bazie Convex Grupa ADK
       const currentDeliveries = [...(order?.serviceDeliveries ?? [])];
       let targetIndex = editingDeliveryIndex;
       if (targetIndex !== null && targetIndex >= 0) {
@@ -2165,7 +2165,7 @@ export default function OrderDetailPage({
 
     if (noteItem?.sentToCrm) {
       const confirmDel = confirm(
-        "Ta notatka została już wysłana do systemu Exalco CRM. Usunięcie jej w ADK Okna nie usunie jej po stronie dostawcy. Czy na pewno chcesz usunąć tę wiadomość z feedu ADK?"
+        "Ta notatka została już wysłana do systemu Exalco CRM. Usunięcie jej w Grupa ADK nie usunie jej po stronie dostawcy. Czy na pewno chcesz usunąć tę wiadomość z feedu ADK?"
       );
       if (!confirmDel) return;
     }

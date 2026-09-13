@@ -356,7 +356,7 @@ export const seedShowcaseWorkflow = mutation({
       sampleCompId = existingComp._id;
     } else {
       sampleCompId = await ctx.db.insert("aiPromptComponents", {
-        title: "Ogólne Standardy Jakości ADK Okna",
+        title: "Ogólne Standardy Jakości Grupa ADK",
         category: "guidelines",
         content: "Każda wycena zadaszenia musi uwzględniać bezpłatny pomiar u klienta w promieniu 50 km od siedziby firmy.",
         updatedAt: now,
@@ -374,7 +374,7 @@ export const seedShowcaseWorkflow = mutation({
           promptRole: "Klient zainteresowany zadaszeniem lub zabudową tarasu",
           extractFields: ["widthCm", "lengthCm", "material", "sideWalls", "city"],
           samplePrompt: "Dzień dobry, poproszę o wycenę zadaszenia tarasu 400x300 cm z poliwęglanu we Wrocławiu.",
-          customText: "Wyceniaj w oparciu o cennik standardowy ADK Okna.",
+          customText: "Wyceniaj w oparciu o cennik standardowy Grupa ADK.",
         },
       },
       {
@@ -408,7 +408,7 @@ export const seedShowcaseWorkflow = mutation({
           validationMaxWidth: 600,
           validationMinLength: 200,
           validationMaxLength: 1200,
-          validationErrorMessage: "Wymiar wykracza poza standardowy cennik fabryczny ADK Okna. Wymagana estymacja niestandardowa.",
+          validationErrorMessage: "Wymiar wykracza poza standardowy cennik fabryczny Grupa ADK. Wymagana estymacja niestandardowa.",
         },
       },
       {
@@ -463,7 +463,7 @@ export const seedShowcaseWorkflow = mutation({
         type: "price_source" as const,
         position: { x: 2100, y: 50 },
         data: {
-          label: "9. Wątek A: Cenniki Bazy ADK Okna",
+          label: "9. Wątek A: Cenniki Bazy Grupa ADK",
           priceTables: ["polycarbonate", "glass", "sliding_walls", "installation", "extras"],
         },
       },
@@ -528,7 +528,7 @@ export const seedShowcaseWorkflow = mutation({
     // Wstaw i aktywuj kompleksowy workflow testowy
     const wfId = await ctx.db.insert("aiWorkflows", {
       serviceType: sType,
-      title: "🔥 Kompleksowy Workflow Testowy ADK Okna (Wszystkie Węzły & Wątki Poboczne)",
+      title: "🔥 Kompleksowy Workflow Testowy Grupa ADK (Wszystkie Węzły & Wątki Poboczne)",
       description: "Oficjalny workflow testowy demonstrujący wyzwalacze promptów, pytania, walidację, warunki B2B/B2C, rabaty, dopłaty RAL, podpięte cenniki oraz równoległe wątki poboczne.",
       status: "active",
       version: 1,

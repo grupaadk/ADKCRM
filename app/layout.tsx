@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "ADK Okna",
+    title: "Grupa ADK",
   },
 };
 

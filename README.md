@@ -1,6 +1,6 @@
 # ADK CRM
 
-System zarzadzania klientami i dokumentami dla ADK Okna.
+System zarzadzania klientami i dokumentami dla Grupa ADK.
 
 Stack: **Next.js 16** + **Clerk** + **Convex** + **Google Drive API** + **Jotform** + **Trello**
 

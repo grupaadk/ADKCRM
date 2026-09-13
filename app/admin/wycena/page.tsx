@@ -22,7 +22,9 @@ import {
   Settings,
   AlertTriangle,
   ChevronDown,
+  Calculator,
 } from "lucide-react";
+import TerraceCalculatorUI from "@/components/TerraceCalculatorUI";
 
 type Message = {
   id: string;
@@ -47,7 +49,7 @@ type Conversation = {
 const WELCOME_MESSAGE: Message = {
   id: "welcome",
   sender: "assistant",
-  text: "Cześć! Jestem Twoim Asystentem Wycen ADK Okna. Opisz czego potrzebujesz (np. 'Wycena okien PVC dla Pana Marka z Poznania, 3 okna 120x150 w kolorze Antracyt z montażem') lub zadaj mi dowolne pytanie dotyczące wyceny.",
+  text: "Cześć! Jestem Twoim Asystentem Wycen Grupa ADK. Opisz czego potrzebujesz (np. 'Wycena okien PVC dla Pana Marka z Poznania, 3 okna 120x150 w kolorze Antracyt z montażem') lub zadaj mi dowolne pytanie dotyczące wyceny.",
   timestamp: "10:00",
 };
 
@@ -199,6 +201,7 @@ function extractOpportunityData(card: EstimateCardData) {
 }
 
 export default function WycenaAIPage() {
+  const [mainTab, setMainTab] = useState<"terrace" | "ai">("terrace");
   const [conversations, setConversations] = useState<Conversation[]>(DEMO_CONVERSATIONS);
   const [activeConvId, setActiveConvId] = useState<string>(DEMO_CONVERSATIONS[0].id);
   const [input, setInput] = useState("");
@@ -427,7 +430,38 @@ export default function WycenaAIPage() {
   }
 
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 7rem)", minHeight: 400, gap: 16 }}>
+    <div className="space-y-4">
+      {/* Dynamic CRM Tab Switcher */}
+      <div className="flex items-center gap-2 border-b border-[var(--line)] pb-3">
+        <button
+          onClick={() => setMainTab("terrace")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+            mainTab === "terrace"
+              ? "bg-[#4ABBC3] text-white shadow-sm"
+              : "bg-[var(--panel)] text-[var(--text-dim)] border border-[var(--line)] hover:bg-[var(--panel-2)] hover:text-[var(--text-strong)]"
+          }`}
+        >
+          <Calculator className="w-4 h-4" />
+          Zabudowa Tarasu (Excel)
+        </button>
+
+        <button
+          onClick={() => setMainTab("ai")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+            mainTab === "ai"
+              ? "bg-[#4ABBC3] text-white shadow-sm"
+              : "bg-[var(--panel)] text-[var(--text-dim)] border border-[var(--line)] hover:bg-[var(--panel-2)] hover:text-[var(--text-strong)]"
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          Asystent AI Wycen (Okna/Drzwi)
+        </button>
+      </div>
+
+      {mainTab === "terrace" ? (
+        <TerraceCalculatorUI />
+      ) : (
+        <div style={{ display: "flex", height: "calc(100vh - 10rem)", minHeight: 400, gap: 16 }}>
       {/* ── Lewy panel: Historia wycen ── */}
       <div
         className="panel"
@@ -1034,6 +1068,8 @@ export default function WycenaAIPage() {
           to { transform: rotate(360deg); }
         }
       `}</style>
+        </div>
+      )}
     </div>
   );
 }

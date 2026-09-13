@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: "Ekipa — Mobilny Kalendarz Montażysty",
-  description: "Dedykowana aplikacja PWA dla ekip montażowych ADK Okna",
+  description: "Dedykowana aplikacja PWA dla ekip montażowych Grupa ADK",
   manifest: "/manifest-ekipa.json",
   icons: {
     icon: "/icon-ekipa-192.png",

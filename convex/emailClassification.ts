@@ -109,7 +109,7 @@ export const classifyThread = action({
           messages: [
             {
               role: "user",
-              content: `Jesteś asystentem firmy ADK Okna (sprzedaż i montaż okien, drzwi, rolet, bram, żaluzji i zabudów tarasowych).
+              content: `Jesteś asystentem firmy Grupa ADK (sprzedaż i montaż okien, drzwi, rolet, bram, żaluzji i zabudów tarasowych).
 
 Twoje zadanie: zdecyduj, czy poniższa wiadomość jest zapytaniem o ofertę lub wycenę od potencjalnego klienta.
 

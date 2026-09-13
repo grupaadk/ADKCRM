@@ -2061,7 +2061,7 @@ function SmsTab() {
   const [newRecipientPhone, setNewRecipientPhone] = useState("");
 
   const effectivePhone = phone || config?.internalPhone || "";
-  const effectiveSender = sender || config?.senderName || "ADK Okna";
+  const effectiveSender = sender || config?.senderName || "Grupa ADK";
   const currentRecipients: SmsRecipient[] = config?.recipients ?? [];
 
   const saveWithRecipients = async (recipients: SmsRecipient[]) => {
@@ -2146,7 +2146,7 @@ function SmsTab() {
               type="text"
               value={effectiveSender}
               onChange={(e) => setSender(e.target.value)}
-              placeholder="ADK Okna"
+              placeholder="Grupa ADK"
               maxLength={11}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />

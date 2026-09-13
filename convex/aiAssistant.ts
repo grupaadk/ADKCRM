@@ -419,9 +419,9 @@ export const generateEstimateWithClaude = action({
     // Zbierz ustrukturyzowane wytyczne i logikę z aktywnego workflowu
     const workflowInstructions = buildWorkflowInstructions(activeWfData);
 
-    const systemPrompt: string = `Jesteś profesjonalnym Asystentem Wycen dla firmy ADK Okna. Twoim zadaniem jest pomoc doradcom w kalkulacji kosztów stolarki budowlanej oraz Zabudów Tarasów (Zadaszenia, Ściany Przesuwne i Stałe, Trójkąty Boczne, Montaż).
+    const systemPrompt: string = `Jesteś profesjonalnym Asystentem Wycen dla firmy Grupa ADK. Twoim zadaniem jest pomoc doradcom w kalkulacji kosztów stolarki budowlanej oraz Zabudów Tarasów (Zadaszenia, Ściany Przesuwne i Stałe, Trójkąty Boczne, Montaż).
 
-${workflowInstructions}AKTUALNY CENNIK ZADASZEŃ, ŚCIAN, TRÓJKĄTÓW I MONTAŻU ADK OKNA (Dystrybutor):
+${workflowInstructions}AKTUALNY CENNIK ZADASZEŃ, ŚCIAN, TRÓJKĄTÓW I MONTAŻU GRUPA ADK (Dystrybutor):
 
 ### ZADASZENIE DACH Z POLIWĘGLANU (Wymiary: Szerokość od ściany x Długość wzdłuż ściany):
 ${formatPriceTable(polyPrices)}

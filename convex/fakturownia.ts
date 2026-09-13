@@ -830,7 +830,7 @@ export const testCreateEstimate = action({
         buyer_country: "PL",
         buyer_company: "0",
         oid,
-        description: "TESTOWE zamówienie — automatyczny test integracji ADK Okna (można usunąć)",
+        description: "TESTOWE zamówienie — automatyczny test integracji Grupa ADK (można usunąć)",
         positions: [
           { name: "Okno PVC 120x150 — białe", quantity: 1, tax: 8, total_price_gross: 1080.00 },
           { name: "Montaż okna", quantity: 1, tax: 23, total_price_gross: 246.00 },

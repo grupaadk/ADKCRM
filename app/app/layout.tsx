@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: "Biuro — Mobilna Aplikacja ADK",
-  description: "Aplikacja biurowa PWA dla użytkowników ADK Okna",
+  description: "Aplikacja biurowa PWA dla użytkowników Grupa ADK",
   manifest: "/manifest.json",
   icons: {
     icon: "/icon-biuro-192.png",

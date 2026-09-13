@@ -1001,7 +1001,7 @@ function AppPwaMain() {
             <div className="size-14 rounded-2xl bg-[#4dbdc6] text-white flex items-center justify-center font-extrabold text-xl mx-auto shadow-md">
               ADK
             </div>
-            <h1 className="text-xl font-extrabold text-slate-800">Aplikacja ADK Okna</h1>
+            <h1 className="text-xl font-extrabold text-slate-800">Aplikacja Grupa ADK</h1>
             <p className="text-xs text-slate-400">Zaloguj się swoimi danymi z panelu /admin</p>
           </div>
 

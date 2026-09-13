@@ -1,7 +1,7 @@
 {
   "name": "Biuro",
   "short_name": "Biuro",
-  "description": "Mobilna aplikacja biurowa dla użytkowników ADK Okna",
+  "description": "Mobilna aplikacja biurowa dla użytkowników Grupa ADK",
   "start_url": "/app",
   "scope": "/app",
   "display": "standalone",

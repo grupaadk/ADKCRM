@@ -62,7 +62,8 @@ function SingleEmailMessageCard({ msg }: { msg: ThreadMessage }) {
   const isFromADK = 
     fromStr.includes("aluminiumadk@gmail.com") || 
     fromStr.includes("adkokna.pl") ||
-    fromStr.includes("adk okna");
+    fromStr.includes("adk okna") ||
+    fromStr.includes("grupa adk");
 
   const cardBg = isFromADK ? "#F0F9FF" : "#FFFFFF";
   const borderLeftColor = isFromADK ? "#0284C7" : "#10B981";

@@ -2,7 +2,7 @@
 
 ## 📋 Project Overview
 
-ADK CRM is a comprehensive customer relationship management system designed specifically for ADK Okna (window and door installation company). It replaces a fragmented system of Jotform, Trello, Notion, Google Drive, and Make.com automations with a unified web application.
+ADK CRM is a comprehensive customer relationship management system designed specifically for Grupa ADK (window and door installation company). It replaces a fragmented system of Jotform, Trello, Notion, Google Drive, and Make.com automations with a unified web application.
 
 **Core Purpose**: Streamline lead management, customer workflow, document generation, and file storage for window/door installation projects.
 
@@ -611,7 +611,7 @@ Accessible via direct HTTP requests:
 
 ## 📄 License
 
-This project is proprietary software for ADK Okna. All rights reserved.
+This project is proprietary software for Grupa ADK. All rights reserved.
 
 ---
 

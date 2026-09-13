@@ -39,7 +39,7 @@ export function CrewPinLogin({ onSuccess, errorMsg, loading }: CrewPinLoginProps
       <div className="pt-6 text-center">
         <div className="pill acc shadow-xs font-semibold">
           <Shield className="w-3.5 h-3.5" />
-          <span>ADK Okna PWA Ekipy</span>
+          <span>Grupa ADK PWA Ekipy</span>
         </div>
       </div>
 
@@ -146,7 +146,7 @@ export function CrewPinLogin({ onSuccess, errorMsg, loading }: CrewPinLoginProps
 
         <div className="text-center text-[11px] mute flex items-center gap-1.5 justify-center font-medium">
           <Lock className="w-3.5 h-3.5" />
-          Bezpieczne połączenie z dyspozytornią ADK Okna
+          Bezpieczne połączenie z dyspozytornią Grupa ADK
         </div>
       </div>
     </div>

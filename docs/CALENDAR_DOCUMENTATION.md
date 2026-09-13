@@ -267,4 +267,4 @@ Wspólne ustawienia `<FullCalendar>` (`InstallationCalendar.tsx:659`): `locale=p
 - **Backup:** automatyczny (Convex) + ręczny eksport z *Data → Export*.
 - **Debug:** błędy frontendu w konsoli przeglądarki, błędy backendu w logach Convex.
 
-**Projekt:** ADK OKNA · **Repo:** `/Users/wojtekzapora/Documents/ADK/ADKokna` · **Plik:** `docs/CALENDAR_DOCUMENTATION.md`
+**Projekt:** GRUPA ADK · **Repo:** `/Users/wojtekzapora/Documents/ADK/ADKokna` · **Plik:** `docs/CALENDAR_DOCUMENTATION.md`

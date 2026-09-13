@@ -11,7 +11,7 @@
 
 ### 1.1 AS-IS (obecny stan)
 
-Firma ADK Okna (adkokna.pl) obsługuje klientów przez rozproszony system:
+Firma Grupa ADK (adkokna.pl) obsługuje klientów przez rozproszony system:
 
 | Warstwa | Narzędzie | Rola |
 |---------|-----------|------|

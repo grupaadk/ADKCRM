@@ -53,7 +53,7 @@ function buildEmail(params: {
     "W razie jakichkolwiek pytań dotyczących faktury pozostajemy do dyspozycji.",
     "",
     "Z poważaniem,",
-    "ADK Okna",
+    "Grupa ADK",
   ].join("\n");
 
   const htmlLines = [
@@ -72,7 +72,7 @@ function buildEmail(params: {
     "<br>",
     "W razie jakichkolwiek pytań dotyczących faktury pozostajemy do dyspozycji.",
     "<br>",
-    "Z poważaniem,<br>ADK Okna",
+    "Z poważaniem,<br>Grupa ADK",
   ];
   const body = htmlLines.join("<br>\n");
 

@@ -9,7 +9,7 @@ function normalizePhone(phone: string): string {
 }
 
 // Domyślne wartości konfiguracji SMS
-const DEFAULT_SENDER = "ADK Okna";
+const DEFAULT_SENDER = "Grupa ADK";
 const DEFAULT_INTERNAL_PHONE = "48515453090";
 
 // Pobranie konfiguracji SMS
@@ -204,7 +204,7 @@ export const sendQuoteConfirmation = internalAction({
     const normalized = normalizePhone(args.phone);
     const message =
       `Dziękujemy, ${args.firstName}! Twoja prośba o wycenę została przyjęta. ` +
-      `Czas realizacji: 4 dni robocze. Zespół ADK OKNA`;
+      `Czas realizacji: 4 dni robocze. Zespół GRUPA ADK`;
 
     const body = new URLSearchParams({
       to: normalized,

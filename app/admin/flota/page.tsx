@@ -106,7 +106,7 @@ export function FlotaView() {
             <span className="text-3xl font-bold text-gray-900">{totalCars}</span>
             <span className="text-sm font-medium text-gray-500">samochodów</span>
           </div>
-          <p className="mt-2 text-xs text-blue-600 font-medium">Flota ADK Okna</p>
+          <p className="mt-2 text-xs text-blue-600 font-medium">Flota Grupa ADK</p>
         </div>
 
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
