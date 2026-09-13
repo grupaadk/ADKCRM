@@ -11,6 +11,14 @@ import ModalPortal from "@/components/ModalPortal";
 interface NewOpportunityModalProps {
   onClose: () => void;
   onSuccess: (opportunityId: string) => void;
+  initialClient?: {
+    id: Id<"clients">;
+    name: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+  };
 }
 
 type Step = "client" | "details";
@@ -37,14 +45,14 @@ const EMPTY_CLIENT_FORM = {
   companyName: "",
 };
 
-export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportunityModalProps) {
+export default function NewOpportunityModal({ onClose, onSuccess, initialClient }: NewOpportunityModalProps) {
   const create = useMutation(api.salesOpportunities.createManualOpportunity);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const createClient = useMutation(api.clients.create);
   const lookupNip = useAction(api.whitelist.lookupNip);
 
   // ─── Step & client state ───────────────────────────────────────────────────
-  const [step, setStep] = useState<Step>("client");
+  const [step, setStep] = useState<Step>(initialClient ? "details" : "client");
   const [clientMode, setClientMode] = useState<ClientMode>("search");
   const [clientForm, setClientForm] = useState(EMPTY_CLIENT_FORM);
   const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
@@ -52,9 +60,14 @@ export default function NewOpportunityModal({ onClose, onSuccess }: NewOpportuni
   const [nipFetched, setNipFetched] = useState(false);
   const [creatingClient, setCreatingClient] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [resolvedClientId, setResolvedClientId] = useState<Id<"clients"> | undefined>();
-  const [resolvedClientName, setResolvedClientName] = useState<string>("");
-  const [resolvedContact, setResolvedContact] = useState({ firstName: "", lastName: "", email: "", phone: "" });
+  const [resolvedClientId, setResolvedClientId] = useState<Id<"clients"> | undefined>(initialClient?.id);
+  const [resolvedClientName, setResolvedClientName] = useState<string>(initialClient?.name ?? "");
+  const [resolvedContact, setResolvedContact] = useState({
+    firstName: initialClient?.firstName ?? "",
+    lastName: initialClient?.lastName ?? "",
+    email: initialClient?.email ?? "",
+    phone: initialClient?.phone ?? "",
+  });
 
   // ─── Details state ─────────────────────────────────────────────────────────
   const [investmentStreet, setInvestmentStreet] = useState("");

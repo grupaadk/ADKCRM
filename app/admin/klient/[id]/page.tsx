@@ -23,9 +23,9 @@ import {
 import { StatusPill, CrmAvatar, fmtDate, CrmEmptyState } from "@/components/crm-ui";
 import DocumentProgressTiles from "./DocumentProgressTiles";
 import NewOrderModal from "./NewOrderModal";
+import NewOpportunityModal from "@/components/NewOpportunityModal";
 
-type Tab = "zlecenia" | "notatki";
-
+type Tab = "zlecenia" | "szanse" | "notatki";
 
 const FIELD_LABEL: React.CSSProperties = {
   fontSize: 11,
@@ -58,11 +58,13 @@ export default function ClientDetailPage({
   const [activeTab, setActiveTab] = useState<Tab>("zlecenia");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showNewOrderModal, setShowNewOrderModal] = useState(false);
+  const [showNewOppModal, setShowNewOppModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
 
   const client = useQuery(api.clients.getById, { clientId });
   const orders = useQuery(api.orders.listByClient, { clientId });
+  const opportunities = useQuery(api.salesOpportunities.listByClient, { clientId });
   const updateClient = useMutation(api.clients.update);
   const deleteClient = useAction(api.clients.deleteClient);
   const createClientFolder = useAction(api.googleDrive.createClientFolder);
@@ -126,9 +128,12 @@ export default function ClientDetailPage({
   const totalOrders = orders?.length ?? 0;
   const completedOrders = orders?.filter((o) => o.status === "completed").length ?? 0;
   const totalGross = orders?.reduce((sum, o) => sum + ((o as { totalGross?: number }).totalGross ?? 0), 0) ?? 0;
+  const totalOpportunities = opportunities?.length ?? 0;
+  const totalOppPrice = opportunities?.reduce((sum, o) => sum + (o.price ?? 0), 0) ?? 0;
 
   const tabs: Array<{ key: Tab; label: string; count?: number }> = [
     { key: "zlecenia", label: "Zlecenia", count: orders?.length },
+    { key: "szanse", label: "Szanse sprzedaży", count: opportunities?.length },
     { key: "notatki", label: "Notatki" },
   ];
 
@@ -186,6 +191,13 @@ export default function ClientDetailPage({
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             Nowe zlecenie
+          </button>
+
+          <button onClick={() => setShowNewOppModal(true)} className="btn" style={{ fontSize: 12 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Nowa szansa
           </button>
 
           {folderUrl ? (
@@ -298,10 +310,10 @@ export default function ClientDetailPage({
         )}
 
         {/* KPI stats row */}
-        {orders !== undefined && (
+        {(orders !== undefined || opportunities !== undefined) && (
           <div style={{
             display: "grid",
-            gridTemplateColumns: `repeat(auto-fill, minmax(120px, 1fr))`,
+            gridTemplateColumns: `repeat(auto-fill, minmax(130px, 1fr))`,
             gap: 8,
             padding: "0 24px 20px",
           }}>
@@ -313,11 +325,23 @@ export default function ClientDetailPage({
               <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Zakończone</span>
               <span style={{ fontSize: 20, fontWeight: 700, color: "var(--ok)", lineHeight: 1 }}>{completedOrders}</span>
             </div>
+            <div style={KPI_CARD}>
+              <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Szanse sprzedaży</span>
+              <span style={{ fontSize: 20, fontWeight: 700, color: "#9333ea", lineHeight: 1 }}>{totalOpportunities}</span>
+            </div>
             {totalGross > 0 && (
-              <div style={{ ...KPI_CARD, gridColumn: "span 2" }}>
-                <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Wartość łączna</span>
+              <div style={KPI_CARD}>
+                <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Wartość zleceń</span>
                 <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
                   {totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} zł
+                </span>
+              </div>
+            )}
+            {totalOppPrice > 0 && (
+              <div style={KPI_CARD}>
+                <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Wartość szans</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+                  {totalOppPrice.toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} zł
                 </span>
               </div>
             )}
@@ -473,6 +497,78 @@ export default function ClientDetailPage({
           </TableRoot>
         )}
 
+        {/* Tab: Szanse */}
+        {activeTab === "szanse" && (
+          <TableRoot>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableHeaderCell>Nazwa / Inwestycja</TableHeaderCell>
+                  <TableHeaderCell>Etap</TableHeaderCell>
+                  <TableHeaderCell>Usługi</TableHeaderCell>
+                  <TableHeaderCell>Data utworzenia</TableHeaderCell>
+                  <TableHeaderCell style={{ textAlign: "right" }}>Wartość brutto</TableHeaderCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {opportunities === undefined && Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <TableCell key={j}>
+                        <div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+
+                {opportunities !== undefined && opportunities.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5}>
+                      <CrmEmptyState message="Brak szans sprzedaży dla tego klienta." />
+                    </TableCell>
+                  </TableRow>
+                )}
+
+                {opportunities?.map((opp) => {
+                  return (
+                    <TableRow
+                      key={opp._id}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => router.push(`/admin/szansa/${opp._id}`)}
+                    >
+                      <TableCell>
+                        <div className="strong" style={{ fontWeight: 500, fontSize: 12.5 }}>
+                          {opp.customText ?? <span className="mute">Szansa z {fmtDate(opp._creationTime)}</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <StatusPill status={opp.stage ?? "lead"} />
+                      </TableCell>
+                      <TableCell>
+                        {opp.services && opp.services.length > 0
+                          ? <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                              {opp.services.map((s) => <span key={s} className="chip">{s}</span>)}
+                            </div>
+                          : <span className="mute">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        <div className="mono" style={{ fontSize: 11 }}>
+                          {fmtDate(opp._creationTime)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="mono tnum" style={{ textAlign: "right" }}>
+                        {opp.price != null
+                          ? `${opp.price.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
+                          : <span className="mute">—</span>}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableRoot>
+        )}
+
         {/* Tab: Notatki */}
         {activeTab === "notatki" && (
           <div style={{ padding: 16 }}>
@@ -489,6 +585,21 @@ export default function ClientDetailPage({
           onSuccess={(orderId) => {
             setShowNewOrderModal(false);
             router.push(`/admin/klient/${id}/zlecenie/${orderId}`);
+          }}
+        />
+      )}
+
+      {/* New Opportunity Modal */}
+      {showNewOppModal && (
+        <NewOpportunityModal
+          onClose={() => setShowNewOppModal(false)}
+          initialClient={{
+            id: client._id,
+            name: client.clientType === "business" && client.companyName ? client.companyName : `${client.firstName} ${client.lastName}`,
+            firstName: client.firstName,
+            lastName: client.lastName,
+            email: client.email,
+            phone: client.phone,
           }}
         />
       )}
