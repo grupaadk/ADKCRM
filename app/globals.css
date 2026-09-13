@@ -1,5 +1,5 @@
 @import "tailwindcss";
-
+@import "./search-modal.css";
 :root {
   --background: #f6f7f9;
   --foreground: #0b1220;

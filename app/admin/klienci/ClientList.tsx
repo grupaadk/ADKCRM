@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react"
 import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
-import { CrmSearch, CrmAvatar, CrmEmptyState, fmtDate } from "@/components/crm-ui"
+import { CrmAvatar, CrmEmptyState, fmtDate } from "@/components/crm-ui"
 
 type SortConfig = { field: string; direction: "asc" | "desc" }
 type ViewConfig = {
@@ -45,7 +45,7 @@ function primaryName(c: Client): string {
   return `${c.lastName} ${c.firstName}`
 }
 
-export default function ClientList({ viewConfig, searchQuery }: { viewConfig?: ViewConfig, searchQuery: string }) {
+export default function ClientList({ viewConfig }: { viewConfig?: ViewConfig }) {
   const router = useRouter()
   const updateSortMutation = useMutation(api.viewConfig.updateSort)
 
@@ -70,20 +70,7 @@ export default function ClientList({ viewConfig, searchQuery }: { viewConfig?: V
       )
     }
 
-    if (searchQuery.trim()) {
-      const lower = searchQuery.toLowerCase()
-      filtered = filtered.filter((c) => {
-        const name = `${c.firstName} ${c.lastName}`.toLowerCase()
-        const company = (c.companyName ?? "").toLowerCase()
-        return (
-          name.includes(lower) ||
-          company.includes(lower) ||
-          (c.city ?? "").toLowerCase().includes(lower) ||
-          (c.phone ?? "").toLowerCase().includes(lower) ||
-          (c.email ?? "").toLowerCase().includes(lower)
-        )
-      })
-    }
+
 
     return [...filtered].sort((a, b) => {
       let aVal: string | number, bVal: string | number
@@ -104,7 +91,7 @@ export default function ClientList({ viewConfig, searchQuery }: { viewConfig?: V
         : String(aVal).localeCompare(String(bVal), "pl")
       return sortBy.direction === "asc" ? cmp : -cmp
     })
-  }, [clients, searchQuery, sortBy, clientFilter])
+  }, [clients, sortBy, clientFilter])
 
   const handleSort = useCallback((field: string) => {
     const direction: "asc" | "desc" =

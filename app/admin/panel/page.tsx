@@ -410,7 +410,7 @@ function OrderCard({
 }
 
 // ─── Zakładka Archiwum LEAD ─────────────────────────────────────────
-function ArchivedLeadsTab({ searchQuery }: { searchQuery: string }) {
+function ArchivedLeadsTab() {
   const router = useRouter()
   const archivedLeads = useQuery(api.salesOpportunities.listArchivedOpportunities)
   const unarchive = useMutation(api.salesOpportunities.unarchiveOpportunity)
@@ -599,7 +599,7 @@ function ArchivedLeadsTab({ searchQuery }: { searchQuery: string }) {
 }
 
 // ─── Zakładka Archiwum ──────────────────────────────────────────────
-function ArchivedTab({ searchQuery }: { searchQuery: string }) {
+function ArchivedTab() {
   const statusLabels = useStatusLabels()
   const router = useRouter()
   const archived = useQuery(api.kanban.listArchived)
@@ -608,7 +608,7 @@ function ArchivedTab({ searchQuery }: { searchQuery: string }) {
     return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Ładowanie...</div>
   }
 
-  const q = searchQuery.toLowerCase().trim()
+  const q = ""
   const filtered = q
     ? archived.filter((order) =>
         (order.name ?? "").toLowerCase().includes(q) ||
@@ -716,15 +716,6 @@ export default function PanelPage() {
   const servicesList = useQuery(api.services.listActive) ?? []
   const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set())
   const [activeServiceFilters, setActiveServiceFilters] = useState<Set<string>>(new Set())
-  const [searchQuery, setSearchQuery] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setDebouncedSearch(searchQuery.toLowerCase().trim())
-    }, 300)
-    return () => clearTimeout(t)
-  }, [searchQuery])
 
   useEffect(() => {
     if (!currentUser?._id) return
@@ -798,28 +789,9 @@ export default function PanelPage() {
         return itemServices.some(s => activeServiceFilters.has(s))
       })
     }
-
-    if (debouncedSearch) {
-      filtered = filtered.filter(item => {
-        const clientName = item.clientType === "business" && item.companyName
-          ? `${item.companyName} ${item.clientFirstName} ${item.clientLastName}`
-          : `${item.clientLastName} ${item.clientFirstName}`
-          
-        const fields = [
-          item.type === "order" ? (item.orderName ?? "") : "",
-          item.customText ?? "",
-          item.investmentCity ?? "",
-          item.investmentStreet ?? "",
-          item.comment ?? "",
-          clientName,
-          item.clientCity ?? ""
-        ]
-        return fields.some((f) => f.toLowerCase().includes(debouncedSearch))
-      })
-    }
     
     return filtered
-  }, [items, activeUserFilters, activeServiceFilters, colorToUserId, debouncedSearch])
+  }, [items, activeUserFilters, activeServiceFilters, colorToUserId])
 
   const changeStatus = useMutation(api.orders.changeStatus)
   const promoteToMeasurement = useMutation(api.jotformInternal.promoteToMeasurement)
@@ -1182,57 +1154,6 @@ export default function PanelPage() {
           </p>
         </div>
 
-        {/* Center Search Bar — widoczna dla wszystkich zakładek */}
-        <div style={{ flex: 1, display: "flex", justifyContent: "center", minWidth: 200 }}>
-          <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
-            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)" }} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={
-                activeTab === "archived" ? "Szukaj zlecenia, klienta, usługi…"
-                : activeTab === "archived-leads" ? "Szukaj klienta, e-mailu, usługi…"
-                : "Szukaj zlecenia, klienta, miasta…"
-              }
-              style={{
-                width: "100%",
-                padding: "8px 30px 8px 34px",
-                borderRadius: 999,
-                border: "1px solid var(--line)",
-                background: "#fff",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                fontSize: 13,
-                fontWeight: 500,
-                fontFamily: "inherit",
-                color: "var(--text-strong)",
-                outline: "none",
-                transition: "border-color 0.15s, box-shadow 0.15s",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent)";
-                e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent-line)";
-                e.currentTarget.style.boxShadow = "none";
-              }}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                style={{
-                  position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-                  background: "var(--panel-3)", border: "none", borderRadius: "50%",
-                  cursor: "pointer", color: "var(--text-mute)", width: 20, height: 20,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}
-              >
-                <X style={{ width: 12, height: 12 }} />
-              </button>
-            )}
-          </div>
-        </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "flex-end" }}>
           {(activeTab === "kanban" || activeTab === "opportunities") && (items?.length ?? 0) > 0 && (

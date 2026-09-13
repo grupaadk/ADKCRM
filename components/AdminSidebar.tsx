@@ -1,10 +1,12 @@
 "use client"
 
+import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { UserMenu } from "@/components/UserMenu"
+import { GlobalSearchCommand } from "@/components/GlobalSearchCommand"
 import {
   Sidebar,
   SidebarContent,
@@ -35,6 +37,7 @@ import {
   Truck,
   Kanban,
   Database,
+  Search,
 } from "lucide-react"
 
 type NavItem = {
@@ -164,6 +167,19 @@ export function AdminSidebar() {
   const me = useQuery(api.users.me)
   const { state, toggleSidebar } = useSidebar()
   const collapsed = state === "collapsed"
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+
+  // Listen for global shortcut Cmd+K / Ctrl+K
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setIsSearchOpen((open) => !open)
+      }
+    }
+    document.addEventListener("keydown", down)
+    return () => document.removeEventListener("keydown", down)
+  }, [])
 
   const filterByRole = (items: NavItem[]): NavItem[] =>
     items.filter((it) => !it.roles || (me?.role && it.roles.includes(me.role)))
@@ -189,6 +205,25 @@ export function AdminSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="py-1">
+        <div className="px-3 py-2">
+          <button
+            onClick={() => setIsSearchOpen(true)}
+            className={cx(
+              "flex w-full items-center gap-2 rounded-md border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:border-brand hover:text-brand",
+              collapsed ? "justify-center px-0 py-1.5" : "px-3 py-1.5 text-sm"
+            )}
+            title="Szukaj (Cmd+K)"
+          >
+            <Search className="size-4 shrink-0" />
+            {!collapsed && (
+              <span className="flex flex-1 items-center justify-between">
+                Szukaj...
+                <kbd className="hidden rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] sm:inline-block">⌘K</kbd>
+              </span>
+            )}
+          </button>
+        </div>
+
         <NavSection label="Główne" items={visibleMain} pathname={pathname} counts={counts} collapsed={collapsed} />
         <NavSection label="Narzędzia" items={visibleTools} pathname={pathname} counts={counts} collapsed={collapsed} />
         {visibleAdmin.length > 0 && (
@@ -222,6 +257,7 @@ export function AdminSidebar() {
           </button>
         </div>
       </SidebarFooter>
+      <GlobalSearchCommand isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </Sidebar>
   )
 }

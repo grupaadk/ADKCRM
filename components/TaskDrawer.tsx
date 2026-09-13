@@ -79,6 +79,14 @@ export default function TaskDrawer({
   const [assignOpen, setAssignOpen] = useState(false);
   const assignRef = useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (titleRef.current) {
+      titleRef.current.style.height = "auto";
+      titleRef.current.style.height = `${titleRef.current.scrollHeight + 2}px`;
+    }
+  }, [title]);
 
   // Zmienne dla zadań ogólnych (przypisywanie do zlecenia/szansy)
   const isGeneral = task?.source === "general";
@@ -373,6 +381,7 @@ export default function TaskDrawer({
                 Zadanie
               </label>
               <textarea
+                ref={titleRef}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={saveTitle}
@@ -380,7 +389,7 @@ export default function TaskDrawer({
                   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); (e.target as HTMLTextAreaElement).blur(); }
                 }}
                 rows={2}
-                className="w-full resize-none rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
+                className="w-full resize-none rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400 overflow-hidden min-h-[60px]"
               />
             </div>
 
