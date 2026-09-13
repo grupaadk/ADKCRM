@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Clock } from "lucide-react";
+import { CalendarDays, Clock, ArrowLeft } from "lucide-react";
 import InlineEdit from "./InlineEdit";
 import CityDistance from "./CityDistance";
 import Notes from "./Notes";
@@ -140,18 +140,40 @@ export default function ClientDetailPage({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-      {/* Breadcrumb */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-mute)" }}>
-        <Link
-          href="/admin"
-          style={{ color: "var(--text-mute)", textDecoration: "none" }}
-          onMouseOver={(e) => (e.currentTarget.style.color = "var(--text)")}
-          onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-mute)")}
+      {/* Top navigation with Back CTA & Breadcrumb */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button
+          onClick={() => router.back()}
+          className="btn"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 12,
+            fontWeight: 500,
+            padding: "5px 12px",
+          }}
         >
-          Klienci
-        </Link>
-        <span style={{ opacity: 0.5 }}>›</span>
-        <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>{client.firstName} {client.lastName}</span>
+          <ArrowLeft size={14} />
+          Powrót
+        </button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-mute)" }}>
+          <Link
+            href="/admin"
+            style={{ color: "var(--text-mute)", textDecoration: "none" }}
+            onMouseOver={(e) => (e.currentTarget.style.color = "var(--text)")}
+            onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-mute)")}
+          >
+            Klienci
+          </Link>
+          <span style={{ opacity: 0.5 }}>›</span>
+          <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>
+            {client.clientType === "business" && client.companyName
+              ? client.companyName
+              : `${client.firstName} ${client.lastName}`}
+          </span>
+        </div>
       </div>
 
       {/* ── Main panel ── */}
