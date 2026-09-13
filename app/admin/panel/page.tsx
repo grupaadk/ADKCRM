@@ -1174,35 +1174,6 @@ export default function PanelPage() {
 
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "flex-end" }}>
-          <div style={{ position: "relative", width: 220 }}>
-            <Search
-              size={14}
-              style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-mute)" }}
-            />
-            <input
-              type="text"
-              placeholder="Szukaj w kanbanie..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: "100%", padding: "6px 12px 6px 30px", borderRadius: 6,
-                border: "1px solid var(--line)", background: "var(--panel-2)",
-                fontSize: 12, color: "var(--text-strong)", outline: "none",
-              }}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                style={{
-                  position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-                  background: "none", border: "none", color: "var(--text-mute)", cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center", padding: 2,
-                }}
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
           {(activeTab === "kanban" || activeTab === "opportunities") && (items?.length ?? 0) > 0 && (
             <button
               onClick={toggleAll}
@@ -1425,6 +1396,37 @@ export default function PanelPage() {
       {/* Kanban tab (Zlecenia + Szanse sprzedaży) */}
       {(activeTab === "kanban" || activeTab === "opportunities") && (
         <>
+          <div style={{ marginBottom: 12, position: "relative", width: "100%", maxWidth: 400 }}>
+            <Search
+              size={14}
+              style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-mute)" }}
+            />
+            <input
+              type="text"
+              placeholder="Wyszukaj zlecenia, klienta lub firmę..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: "100%", padding: "8px 12px 8px 34px", borderRadius: 8,
+                border: "1px solid var(--line)", background: "var(--panel-2)",
+                fontSize: 13, color: "var(--text-strong)", outline: "none",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                style={{
+                  position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                  background: "none", border: "none", color: "var(--text-mute)", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: 4,
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
           {/* ── Kontrolki Scrollowania ── */}
           {(showLeftScroll || showRightScroll) && (
             <div className="flex justify-center gap-2 mb-2 w-full">
