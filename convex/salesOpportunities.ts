@@ -193,9 +193,12 @@ export const listForPicker = query({
   },
 });
 
-// Aktywne szanse powiązane z danym klientem (lub szanse z identycznymi danymi)
+// Szanse powiązane z danym klientem (lub szanse z identycznymi danymi)
 export const listByClient = query({
-  args: { clientId: v.id("clients") },
+  args: {
+    clientId: v.id("clients"),
+    includeArchived: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
     const client = await ctx.db.get(args.clientId);
     if (!client) return [];
@@ -215,9 +218,12 @@ export const listByClient = query({
 
     const merged = [...byClient, ...byName];
     const uniqueMap = new Map();
+    const showArchived = args.includeArchived ?? true;
     for (const item of merged) {
-      if (!item.processed && item.archived !== true) {
-        uniqueMap.set(item._id, item);
+      if (!item.processed) {
+        if (showArchived || item.archived !== true) {
+          uniqueMap.set(item._id, item);
+        }
       }
     }
     return Array.from(uniqueMap.values());

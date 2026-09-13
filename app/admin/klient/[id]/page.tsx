@@ -128,6 +128,9 @@ export default function ClientDetailPage({
   const totalOrders = orders?.length ?? 0;
   const completedOrders = orders?.filter((o) => o.status === "completed").length ?? 0;
   const totalGross = orders?.reduce((sum, o) => sum + ((o as { totalGross?: number }).totalGross ?? 0), 0) ?? 0;
+  const totalConfirmedOrdersGross = orders
+    ?.filter((o) => !["measurement", "offer", "lead", "inquiry"].includes(o.status))
+    .reduce((sum, o) => sum + ((o as { totalGross?: number }).totalGross ?? 0), 0) ?? 0;
   const totalOpportunities = opportunities?.length ?? 0;
   const totalOppPrice = opportunities?.reduce((sum, o) => sum + (o.price ?? 0), 0) ?? 0;
 
@@ -359,6 +362,14 @@ export default function ClientDetailPage({
                 </span>
               </div>
             )}
+            {totalConfirmedOrdersGross > 0 && (
+              <div style={KPI_CARD}>
+                <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Wartość od „Do zamówienia”</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+                  {totalConfirmedOrdersGross.toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} zł
+                </span>
+              </div>
+            )}
             {totalOppPrice > 0 && (
               <div style={KPI_CARD}>
                 <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Wartość szans</span>
@@ -564,7 +575,10 @@ export default function ClientDetailPage({
                         </div>
                       </TableCell>
                       <TableCell>
-                        <StatusPill status={opp.stage ?? "lead"} />
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <StatusPill status={opp.stage ?? "lead"} />
+                          {opp.archived && <StatusPill status="archived" />}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {opp.services && opp.services.length > 0
