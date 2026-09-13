@@ -410,7 +410,7 @@ function OrderCard({
 }
 
 // ─── Zakładka Archiwum LEAD ─────────────────────────────────────────
-function ArchivedLeadsTab() {
+function ArchivedLeadsTab({ searchQuery }: { searchQuery: string }) {
   const router = useRouter()
   const archivedLeads = useQuery(api.salesOpportunities.listArchivedOpportunities)
   const unarchive = useMutation(api.salesOpportunities.unarchiveOpportunity)
@@ -599,7 +599,7 @@ function ArchivedLeadsTab() {
 }
 
 // ─── Zakładka Archiwum ──────────────────────────────────────────────
-function ArchivedTab() {
+function ArchivedTab({ searchQuery }: { searchQuery: string }) {
   const statusLabels = useStatusLabels()
   const router = useRouter()
   const archived = useQuery(api.kanban.listArchived)
@@ -608,7 +608,7 @@ function ArchivedTab() {
     return <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-mute)" }}>Ładowanie...</div>
   }
 
-  const q = ""
+  const q = searchQuery.toLowerCase().trim()
   const filtered = q
     ? archived.filter((order) =>
         (order.name ?? "").toLowerCase().includes(q) ||
@@ -704,6 +704,7 @@ export default function PanelPage() {
   const [activeTab, setActiveTab] = useState<"kanban" | "opportunities" | "archived" | "archived-leads">(
     initialTab && ["kanban", "opportunities", "archived", "archived-leads"].includes(initialTab) ? initialTab : "kanban"
   )
+  const [searchQuery, setSearchQuery] = useState("")
   const [draggingItem, setDraggingItem] = useState<KanbanItem | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -790,8 +791,25 @@ export default function PanelPage() {
       })
     }
     
+    const q = searchQuery.toLowerCase().trim()
+    if (q) {
+      filtered = filtered.filter(item => {
+        const name = (item.type === "order" ? item.orderName : "") || ""
+        const clientName = `${item.clientFirstName ?? ""} ${item.clientLastName ?? ""}`.trim()
+        const company = (item.type === "order" && item.clientType === "business" ? item.companyName : "") || ""
+        const customText = item.customText || ""
+        const services = item.services?.join(" ") || ""
+        
+        return name.toLowerCase().includes(q) ||
+               clientName.toLowerCase().includes(q) ||
+               company.toLowerCase().includes(q) ||
+               customText.toLowerCase().includes(q) ||
+               services.toLowerCase().includes(q)
+      })
+    }
+    
     return filtered
-  }, [items, activeUserFilters, activeServiceFilters, colorToUserId])
+  }, [items, activeUserFilters, activeServiceFilters, colorToUserId, searchQuery])
 
   const changeStatus = useMutation(api.orders.changeStatus)
   const promoteToMeasurement = useMutation(api.jotformInternal.promoteToMeasurement)
@@ -1156,6 +1174,35 @@ export default function PanelPage() {
 
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "flex-end" }}>
+          <div style={{ position: "relative", width: 220 }}>
+            <Search
+              size={14}
+              style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-mute)" }}
+            />
+            <input
+              type="text"
+              placeholder="Szukaj w kanbanie..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: "100%", padding: "6px 12px 6px 30px", borderRadius: 6,
+                border: "1px solid var(--line)", background: "var(--panel-2)",
+                fontSize: 12, color: "var(--text-strong)", outline: "none",
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                style={{
+                  position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                  background: "none", border: "none", color: "var(--text-mute)", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: 2,
+                }}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
           {(activeTab === "kanban" || activeTab === "opportunities") && (items?.length ?? 0) > 0 && (
             <button
               onClick={toggleAll}
