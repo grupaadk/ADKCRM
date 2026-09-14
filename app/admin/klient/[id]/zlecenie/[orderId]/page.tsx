@@ -1856,7 +1856,7 @@ export default function OrderDetailPage({
   const [addingSupplierNote, setAddingSupplierNote] = useState(false);
   const [editingCrmNoteId, setEditingCrmNoteId] = useState<string | null>(null);
   const [editingCrmNoteText, setEditingCrmNoteText] = useState("");
-  const [replyingToThreadId, setReplyingToThreadId] = useState<string | null>(null);
+  const [adkNotesTab, setAdkNotesTab] = useState<"all" | "exalco" | "internal">("all");
   const markNotesRead = useMutation(api.orders.markSupplierNotesAsRead);
 
   function startEditDelivery(svcName: string, supplierId?: Id<"suppliers">, index?: number) {
@@ -4915,37 +4915,103 @@ export default function OrderDetailPage({
 
                     {/* Środkowa kolumna (2): Komunikator 2-Way (Czat z dostawcą Exalco) */}
                     <div className="flex flex-col gap-3 p-4 bg-white border border-slate-200 rounded-xl flex-1 min-h-0 shadow-xs">
-                      <div className="flex items-center justify-between shrink-0 pb-2 border-b border-slate-100">
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                            <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                            Czat / Notatki z dostawcą
-                          </label>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                            {(draftDeliveryEntry.notesFeed ?? []).length}
-                          </span>
-                        </div>
-                        {currentSupplier?.isApiEnabled && (
-                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                            ⚡ Sync z Exalco
-                          </span>
-                        )}
-                      </div>
+                      {(() => {
+                        const rawFeed = draftDeliveryEntry.notesFeed ?? [];
+                        const exalcoNotes = rawFeed.filter((n) => n.senderType === "exalco" || n.threadId || n.sentToCrm);
+                        const internalNotes = rawFeed.filter((n) => !n.senderType || (n.senderType === "adk" && !n.sentToCrm && !n.threadId));
 
-                      {/* Feed z notatkami/czatem (najnowsze na górze) */}
-                      <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
-                        {(!draftDeliveryEntry.notesFeed || draftDeliveryEntry.notesFeed.length === 0) ? (
-                          <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
-                            <svg className="w-8 h-8 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                            <p className="text-xs font-medium">Brak wiadomości w czacie</p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">Wpisz wiadomość w formularzu poniżej, aby rozpocząć konwersację z dostawcą.</p>
-                          </div>
-                        ) : (
-                          draftDeliveryEntry.notesFeed.map((nItem) => {
+                        const filteredFeed = adkNotesTab === "exalco"
+                          ? exalcoNotes
+                          : adkNotesTab === "internal"
+                          ? internalNotes
+                          : rawFeed;
+
+                        return (
+                          <>
+                            <div className="flex items-center justify-between shrink-0 pb-2 border-b border-slate-100">
+                              <div className="flex items-center gap-2">
+                                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                  <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                  </svg>
+                                  Czat / Notatki z dostawcą
+                                </label>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                                  {rawFeed.length}
+                                </span>
+                              </div>
+                              {currentSupplier?.isApiEnabled && (
+                                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                  ⚡ Sync z Exalco
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Przełącznik Segmentowy (Segmented Control) */}
+                            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold">
+                              <button
+                                type="button"
+                                onClick={() => setAdkNotesTab("all")}
+                                className={`flex-1 py-1 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                                  adkNotesTab === "all"
+                                    ? "bg-white text-slate-800 shadow-xs font-bold"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                <span>Wszystkie</span>
+                                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 border border-slate-200">
+                                  {rawFeed.length}
+                                </span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setAdkNotesTab("exalco")}
+                                className={`flex-1 py-1 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                                  adkNotesTab === "exalco"
+                                    ? "bg-white text-blue-700 shadow-xs font-bold border border-blue-200"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                <span>💬 Exalco</span>
+                                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                  {exalcoNotes.length}
+                                </span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setAdkNotesTab("internal")}
+                                className={`flex-1 py-1 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                                  adkNotesTab === "internal"
+                                    ? "bg-white text-amber-700 shadow-xs font-bold border border-amber-200"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                <span>📝 Notatki ADK</span>
+                                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                  {internalNotes.length}
+                                </span>
+                              </button>
+                            </div>
+
+                            {/* Feed z notatkami/czatem (najnowsze na górze) */}
+                            <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
+                              {filteredFeed.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+                                  <svg className="w-8 h-8 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                  </svg>
+                                  <p className="text-xs font-medium">
+                                    {adkNotesTab === "exalco"
+                                      ? "Brak wiadomości wymienionych z Exalco"
+                                      : adkNotesTab === "internal"
+                                      ? "Brak notatek wewnętrznych ADK"
+                                      : "Brak wiadomości w czacie"}
+                                  </p>
+                                </div>
+                              ) : (
+                                filteredFeed.map((nItem) => {
                             const isExalco = nItem.senderType === "exalco";
                             const author = nItem.createdByName || (isExalco ? "Exalco CRM" : "Użytkownik");
                             const initials = isExalco ? "EX" : uInitials(author);
@@ -5121,7 +5187,10 @@ export default function OrderDetailPage({
                           </button>
                         </div>
                       </div>
-                    </div>
+                    </>
+                  );
+                })()}
+              </div>
 
                     {/* Prawa kolumna (3): Przeglądarka plików Google Drive do przesyłania po API */}
                     <div className="flex flex-col gap-4 flex-1 min-h-0">
