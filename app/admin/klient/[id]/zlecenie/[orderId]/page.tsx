@@ -1842,6 +1842,7 @@ export default function OrderDetailPage({
       sentToCrm?: boolean;
       errorSending?: boolean;
       errorMessage?: string;
+      threadId?: string;
       attachments?: Array<{
         fileId: string;
         fileName: string;
@@ -1855,6 +1856,7 @@ export default function OrderDetailPage({
   const [addingSupplierNote, setAddingSupplierNote] = useState(false);
   const [editingCrmNoteId, setEditingCrmNoteId] = useState<string | null>(null);
   const [editingCrmNoteText, setEditingCrmNoteText] = useState("");
+  const [replyingToThreadId, setReplyingToThreadId] = useState<string | null>(null);
   const markNotesRead = useMutation(api.orders.markSupplierNotesAsRead);
 
   function startEditDelivery(svcName: string, supplierId?: Id<"suppliers">, index?: number) {
@@ -2080,6 +2082,7 @@ export default function OrderDetailPage({
 
     const authorName = me?.displayName ?? me?.login ?? "Ja";
     const textForExalco = `[${authorName}]: ${noteContent}`;
+    const activeThreadId = replyingToThreadId || undefined;
 
     let sentToCrm = false;
     let errorSending = false;
@@ -2096,6 +2099,7 @@ export default function OrderDetailPage({
           orderId: orderIdTyped,
           deliveryIndex: editingDeliveryIndex,
           noteText: textForExalco,
+          threadId: activeThreadId,
         });
         sentToCrm = true;
       } catch (err) {
@@ -2115,6 +2119,7 @@ export default function OrderDetailPage({
       sentToCrm,
       errorSending,
       errorMessage,
+      threadId: activeThreadId,
     };
 
     const currentFeed = draftDeliveryEntry.notesFeed ?? [];
@@ -2127,6 +2132,7 @@ export default function OrderDetailPage({
       notes: combinedNotes,
     });
     setNewSupplierNoteText("");
+    setReplyingToThreadId(null);
     setAddingSupplierNote(false);
   }
 
@@ -4976,6 +4982,11 @@ export default function OrderDetailPage({
                                       <span className="text-[10px] text-slate-400 font-medium">· {formattedDate}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
+                                      {nItem.threadId && (
+                                        <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded flex items-center gap-0.5" title={`Wątek ID: ${nItem.threadId}`}>
+                                          💬 Wątek
+                                        </span>
+                                      )}
                                       {nItem.sentToCrm && (
                                         <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                                           ⚡ Exalco
@@ -5026,7 +5037,17 @@ export default function OrderDetailPage({
                                     </p>
                                   )}
                                 </div>
-                                <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setReplyingToThreadId(nItem.threadId || nItem.id)}
+                                    className="p-1 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 shrink-0"
+                                    title="Odpowiedz w wątku"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                    </svg>
+                                  </button>
                                   {!isExalco && (
                                     <button
                                       type="button"
@@ -5034,7 +5055,7 @@ export default function OrderDetailPage({
                                         setEditingCrmNoteId(nItem.id);
                                         setEditingCrmNoteText(nItem.note);
                                       }}
-                                      className="p-1 text-slate-400 hover:text-amber-600 rounded hover:bg-amber-50 shrink-0 mb-1"
+                                      className="p-1 text-slate-400 hover:text-amber-600 rounded hover:bg-amber-50 shrink-0"
                                       title="Edytuj notatkę"
                                     >
                                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

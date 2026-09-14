@@ -1408,6 +1408,7 @@ export const recordCrmNoteSent = mutation({
     orderId: v.id("orders"),
     deliveryIndex: v.number(),
     noteText: v.string(),
+    threadId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -1430,7 +1431,7 @@ export const recordCrmNoteSent = mutation({
       const updatedFeed = [...currentFeed];
       const existingIdx = updatedFeed.findIndex((n) => n.note.trim() === args.noteText.trim());
       if (existingIdx >= 0) {
-        updatedFeed[existingIdx] = { ...updatedFeed[existingIdx], sentToCrm: true };
+        updatedFeed[existingIdx] = { ...updatedFeed[existingIdx], sentToCrm: true, threadId: args.threadId ?? updatedFeed[existingIdx].threadId };
       } else {
         updatedFeed.unshift({
           id: `${now}-${Math.random().toString(36).substring(2, 7)}`,
@@ -1439,6 +1440,7 @@ export const recordCrmNoteSent = mutation({
           createdBy: userId,
           createdByName: userNameStr,
           sentToCrm: true,
+          threadId: args.threadId,
         });
       }
       return {
@@ -1584,6 +1586,7 @@ export const receiveNoteFromExalcoWebhook = mutation({
     orderIdOrNumber: v.string(),
     noteText: v.string(),
     authorName: v.optional(v.string()),
+    threadId: v.optional(v.string()),
     attachments: v.optional(
       v.array(
         v.object({
@@ -1630,6 +1633,7 @@ export const receiveNoteFromExalcoWebhook = mutation({
       senderType: "exalco" as const,
       createdByName: args.authorName ? `Exalco · ${args.authorName}` : "Exalco CRM",
       sentToCrm: true,
+      threadId: args.threadId,
       attachments: args.attachments,
     };
 

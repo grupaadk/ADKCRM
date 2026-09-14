@@ -119,13 +119,13 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
   }
 
   // Odczyt nadchodzącej notatki / wiadomości z Exalco
+  const rawNoteObj = (dataObj.note || body.note) as Record<string, unknown> | undefined;
   const incomingNote = String(
-    dataObj.note ||
+    (typeof dataObj.note === "string" ? dataObj.note : rawNoteObj?.content || rawNoteObj?.text) ||
     dataObj.message ||
     dataObj.comment ||
     dataObj.noteText ||
     dataObj.text ||
-    body.note ||
     body.message ||
     body.comment ||
     body.noteText ||
@@ -138,6 +138,8 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     dataObj.author ||
     dataObj.userName ||
     dataObj.sender ||
+    rawNoteObj?.createdByName ||
+    rawNoteObj?.authorName ||
     body.authorName ||
     body.author ||
     body.userName ||
@@ -145,11 +147,19 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     "",
   ).trim();
 
+  const rawThreadId =
+    dataObj.threadId ||
+    rawNoteObj?.threadId ||
+    body.threadId ||
+    "";
+  const threadId = String(rawThreadId).trim() || undefined;
+
   if (incomingNote) {
     await ctx.runMutation(api.orders.receiveNoteFromExalcoWebhook, {
       orderIdOrNumber: String(orderIdOrNumber),
       noteText: incomingNote,
       authorName: authorName || undefined,
+      threadId,
     });
   }
 

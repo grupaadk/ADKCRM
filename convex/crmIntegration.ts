@@ -121,6 +121,7 @@ export const addNoteToCrmOrder = action({
     orderId: v.id("orders"),
     deliveryIndex: v.number(),
     noteText: v.string(),
+    threadId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<unknown> => {
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
@@ -150,6 +151,7 @@ export const addNoteToCrmOrder = action({
       body: JSON.stringify({
         orderIdOrNumber: delivery.externalOrderNumber,
         notes: args.noteText,
+        threadId: args.threadId,
       }),
     });
 
@@ -164,6 +166,7 @@ export const addNoteToCrmOrder = action({
       orderId: args.orderId,
       deliveryIndex: args.deliveryIndex,
       noteText: args.noteText.trim(),
+      threadId: args.threadId,
     });
 
     return resJson;

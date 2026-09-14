@@ -297,5 +297,54 @@ describe("Exalco Webhook Delivery Date Logic", () => {
 
     expect(updatedOrder!.serviceDeliveries![0].unreadNotesCount).toBe(0);
   });
+
+  test("preserves threadId on incoming note from Exalco webhook", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "Exalco",
+        isActive: true,
+        createdBy: "test-user",
+      });
+    });
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Marek",
+      lastName: "Nowak",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(orderId, {
+        serviceDeliveries: [
+          {
+            serviceName: "Okna ALU",
+            supplierId,
+            externalOrderNumber: "EX-THREAD-001",
+          },
+        ],
+      });
+    });
+
+    const res = await t.mutation(api.orders.receiveNoteFromExalcoWebhook, {
+      orderIdOrNumber: "EX-THREAD-001",
+      noteText: "Odpowiedź na pytanie w wątku",
+      authorName: "Krzysztof",
+      threadId: "thread-abc-123",
+    });
+
+    expect(res.success).toBe(true);
+
+    const updatedOrder = await t.run(async (ctx) => {
+      return await ctx.db.get(orderId);
+    });
+
+    const note = updatedOrder!.serviceDeliveries![0].notesFeed![0];
+    expect(note.threadId).toBe("thread-abc-123");
+    expect(note.note).toBe("Odpowiedź na pytanie w wątku");
+  });
 });
 
