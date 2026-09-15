@@ -55,7 +55,7 @@ type NavItem = {
 const mainItems: NavItem[] = [
   { href: "/admin/wycena", label: "Asystent Wycen", icon: Sparkles, exactMatch: true },
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, exactMatch: true },
-  { href: "/admin/panel", label: "Panel", icon: LayoutGrid },
+  { href: "/admin/panel", label: "Zlecenia", icon: LayoutGrid },
   { href: "/admin/kalendarz", label: "Kalendarz", icon: Calendar },
   { href: "/admin/reklamacje", label: "Reklamacje", icon: AlertCircle },
   { href: "/admin/zamowienia-dostawcy", label: "Dostawcy", icon: Truck },

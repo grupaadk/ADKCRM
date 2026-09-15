@@ -8,6 +8,7 @@ import { UserMenu } from "@/components/UserMenu"
 const ROUTE_LABELS: Record<string, string> = {
   "/admin": "Klienci",
   "/admin/dashboard": "Dashboard",
+  "/admin/panel": "Zlecenia",
   "/admin/zamowienia": "Zlecenia",
   "/admin/finanse": "Finanse",
   "/admin/faktury": "Faktury",
@@ -25,7 +26,7 @@ function getTitle(pathname: string): string {
   if (pathname.startsWith("/admin/klient/") && pathname.includes("/zlecenie/")) return "Szczegóły zlecenia"
   if (pathname.startsWith("/admin/klient/")) return "Klient"
   if (pathname.startsWith("/admin/szablony/")) return "Szablon"
-  return ROUTE_LABELS[pathname] ?? "Panel"
+  return ROUTE_LABELS[pathname] ?? "Zlecenia"
 }
 
 export function AdminTopbar() {

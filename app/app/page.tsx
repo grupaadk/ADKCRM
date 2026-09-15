@@ -2598,7 +2598,7 @@ function AppPwaMain() {
             }`}
           >
             <ClipboardList className="size-6 stroke-[1.75]" />
-            <span className="text-[11px] font-medium mt-1">Panel</span>
+            <span className="text-[11px] font-medium mt-1">Zlecenia</span>
           </button>
 
           {/* Profile */}
