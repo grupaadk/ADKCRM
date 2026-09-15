@@ -216,27 +216,6 @@ export default function OpportunityDetailPage({
     });
   };
 
-  function handleAddress(a: AddressData) {
-    const patch: Record<string, string> = {};
-    if (a.street) patch.street = a.street;
-    if (a.buildingNumber) patch.buildingNumber = a.buildingNumber;
-    if (a.postalCode) patch.postalCode = a.postalCode;
-    if (a.city) patch.city = a.city;
-    if (Object.keys(patch).length > 0) {
-      void updateField({ opportunityId, ...patch });
-    }
-  }
-
-  function handleInvestmentAddress(a: AddressData) {
-    const patch: Record<string, string> = {};
-    if (a.street) patch.investmentStreet = a.street;
-    if (a.buildingNumber) patch.investmentBuildingNumber = a.buildingNumber;
-    if (a.postalCode) patch.investmentPostalCode = a.postalCode;
-    if (a.city) patch.investmentCity = a.city;
-    if (Object.keys(patch).length > 0) {
-      void updateField({ opportunityId, ...patch });
-    }
-  }
 
   async function handleStageChange(next: "lead" | "inquiry") {
     if (stage === next) return;
@@ -302,6 +281,91 @@ export default function OpportunityDetailPage({
   const investmentAddressStr = [opp.investmentStreet, opp.investmentPostalCode, opp.investmentCity].filter(Boolean).join(", ");
   const mainMapsUrl = mainAddressStr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mainAddressStr)}` : null;
   const investmentMapsUrl = investmentAddressStr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(investmentAddressStr)}` : null;
+
+  // Wykryj czy adres inwestycji = adres klienta (stan UI-owy)
+  const [sameAddress, setSameAddress] = useState<boolean>(() => {
+    if (!opp) return false;
+    return (
+      (opp.investmentStreet ?? "") === (opp.street ?? "") &&
+      (opp.investmentBuildingNumber ?? "") === (opp.buildingNumber ?? "") &&
+      (opp.investmentPostalCode ?? "") === (opp.postalCode ?? "") &&
+      (opp.investmentCity ?? "") === (opp.city ?? "") &&
+      !!(opp.street || opp.city)
+    );
+  });
+
+  function handleAddress(a: AddressData) {
+    const patch: Record<string, string> = {};
+    if (a.street) patch.street = a.street;
+    if (a.buildingNumber) patch.buildingNumber = a.buildingNumber;
+    if (a.postalCode) patch.postalCode = a.postalCode;
+    if (a.city) patch.city = a.city;
+    if (Object.keys(patch).length > 0) {
+      void updateField({ opportunityId, ...patch });
+      // Jezeli "taki sam" to aktualizuj rowniez adres inwestycji
+      if (sameAddress) {
+        const investPatch: Record<string, string> = {};
+        if (a.street) investPatch.investmentStreet = a.street;
+        if (a.buildingNumber) investPatch.investmentBuildingNumber = a.buildingNumber;
+        if (a.postalCode) investPatch.investmentPostalCode = a.postalCode;
+        if (a.city) investPatch.investmentCity = a.city;
+        void updateField({ opportunityId, ...investPatch });
+      }
+    }
+  }
+
+  function handleInvestmentAddress(a: AddressData) {
+    const patch: Record<string, string> = {};
+    if (a.street) patch.investmentStreet = a.street;
+    if (a.buildingNumber) patch.investmentBuildingNumber = a.buildingNumber;
+    if (a.postalCode) patch.investmentPostalCode = a.postalCode;
+    if (a.city) patch.investmentCity = a.city;
+    if (Object.keys(patch).length > 0) {
+      void updateField({ opportunityId, ...patch });
+    }
+  }
+
+  function handleSameAddressToggle(checked: boolean) {
+    setSameAddress(checked);
+    if (checked) {
+      // Skopiuj adres klienta do adresu inwestycji
+      void updateField({
+        opportunityId,
+        investmentStreet: opp.street,
+        investmentBuildingNumber: opp.buildingNumber,
+        investmentApartmentNumber: opp.apartmentNumber,
+        investmentPostalCode: opp.postalCode,
+        investmentCity: opp.city,
+      });
+    }
+  }
+
+  // Rating finansowy (jak w zleceniu)
+  const profit = opp.profit;
+  const workDays = opp.workDays;
+  const dailyProfit = (profit !== undefined && workDays && workDays > 0) ? Math.round(profit / workDays) : null;
+  let rating: number | null = null;
+  if (dailyProfit !== null) {
+    if (dailyProfit >= 5000) rating = 5;
+    else if (dailyProfit >= 4000) rating = 4;
+    else if (dailyProfit >= 3000) rating = 3;
+    else if (dailyProfit >= 2000) rating = 2;
+    else if (dailyProfit >= 1000) rating = 1;
+    else rating = 0;
+  }
+  const C = 251.327;
+  const pct = (rating ?? 0) / 5;
+  const filledDash = C * pct;
+  const strokeDasharray = `${filledDash} ${C - filledDash}`;
+  const ratingColors: Record<number, string> = {
+    5: "#10b981",
+    4: "#84cc16",
+    3: "#3b82f6",
+    2: "#f97316",
+    1: "#ef4444",
+    0: "#94a3b8",
+  };
+  const ringColor = rating !== null ? (ratingColors[rating] ?? "#3b82f6") : "#cbd5e1";
 
   function startEditServices() {
     setDraftServices(selectedServices);
@@ -584,47 +648,30 @@ export default function OpportunityDetailPage({
         </div>
       )}
 
-      {/* ── Horyzontalny box: Dane klienta + Adresy ── */}
+      {/* ── Główny horyzontalny box: Dane klienta + Adresy + Finanse i Rating — 4 kolumny ── */}
       <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden" }}>
         {/* Nagłówek */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: "1px solid var(--line)" }}>
           <span style={{ width: 4, height: 18, borderRadius: 3, background: "var(--accent)", flexShrink: 0 }} />
           <Building2 size={14} color="var(--accent)" />
           <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            Dane klienta i adresy
+            Dane klienta, Finanse i Adresy
           </span>
         </div>
 
-        {/* 3-kolumnowy układ: Dane | Adres klienta | Adres inwestycji */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 0 }}>
-          {/* Dane klienta */}
+        {/* 4-kolumnowy układ */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 0 }}>
+
+          {/* Kolumna 1: Dane klienta */}
           <div style={{ padding: "14px 16px", borderRight: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ ...FIELD_LABEL, marginBottom: 8 }}>Dane kontaktowe</p>
+            <p style={{ ...FIELD_LABEL, marginBottom: 6 }}>Dane kontaktowe</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <InlineEdit
-                label="Imię"
-                value={opp.firstName}
-                onSave={(v) => save("firstName", v)}
-              />
-              <InlineEdit
-                label="Nazwisko"
-                value={opp.lastName}
-                onSave={(v) => save("lastName", v)}
-              />
-              <InlineEdit
-                label="E-mail"
-                value={opp.email ?? ""}
-                placeholder="—"
-                onSave={(v) => save("email", v || undefined)}
-              />
-              <InlineEdit
-                label="Telefon"
-                value={opp.phone ?? ""}
-                placeholder="—"
-                onSave={(v) => save("phone", v || undefined)}
-              />
+              <InlineEdit label="Imię" value={opp.firstName} onSave={(v) => save("firstName", v)} />
+              <InlineEdit label="Nazwisko" value={opp.lastName} onSave={(v) => save("lastName", v)} />
+              <InlineEdit label="E-mail" value={opp.email ?? ""} placeholder="—" onSave={(v) => save("email", v || undefined)} />
+              <InlineEdit label="Telefon" value={opp.phone ?? ""} placeholder="—" onSave={(v) => save("phone", v || undefined)} />
             </div>
-            <div style={{ marginTop: 4, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
+            <div style={{ marginTop: 4, paddingTop: 8, borderTop: "1px solid var(--line)" }}>
               <InlineEdit
                 label="Identyfikator Kanban"
                 value={opp.customText ?? ""}
@@ -634,7 +681,7 @@ export default function OpportunityDetailPage({
             </div>
           </div>
 
-          {/* Adres klienta */}
+          {/* Kolumna 2: Adres klienta */}
           <div style={{ padding: "14px 16px", borderRight: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
               <p style={FIELD_LABEL}>Adres klienta</p>
@@ -646,92 +693,213 @@ export default function OpportunityDetailPage({
             </div>
             <AddressSearch onSelect={handleAddress} />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-              <InlineEdit label="Ulica" value={opp.street ?? ""} placeholder="—" onSave={(v) => save("street", v || undefined)} />
+              <InlineEdit label="Ulica" value={opp.street ?? ""} placeholder="—" onSave={(v) => { save("street", v || undefined); if (sameAddress) save("investmentStreet", v || undefined); }} />
               <InlineEdit label="Nr bud. / mieszk." value={[opp.buildingNumber, opp.apartmentNumber].filter(Boolean).join("/")} placeholder="—" onSave={(v) => {
                 const parts = v ? v.split("/") : [];
                 save("buildingNumber", parts[0] || undefined);
                 save("apartmentNumber", parts[1] || undefined);
+                if (sameAddress) {
+                  save("investmentBuildingNumber", parts[0] || undefined);
+                  save("investmentApartmentNumber", parts[1] || undefined);
+                }
               }} />
-              <InlineEdit label="Kod pocztowy" value={opp.postalCode ?? ""} placeholder="—" onSave={(v) => save("postalCode", v || undefined)} />
-              <InlineEdit label="Miejscowość" value={opp.city ?? ""} placeholder="—" onSave={(v) => save("city", v || undefined)} />
+              <InlineEdit label="Kod pocztowy" value={opp.postalCode ?? ""} placeholder="—" onSave={(v) => { save("postalCode", v || undefined); if (sameAddress) save("investmentPostalCode", v || undefined); }} />
+              <InlineEdit label="Miejscowość" value={opp.city ?? ""} placeholder="—" onSave={(v) => { save("city", v || undefined); if (sameAddress) save("investmentCity", v || undefined); }} />
             </div>
           </div>
 
-          {/* Adres inwestycji */}
+          {/* Kolumna 3: Finanse i Rating */}
+          <div style={{ padding: "14px 16px", borderRight: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ ...FIELD_LABEL, marginBottom: 6 }}>Finanse i Rating</p>
+
+            {/* Kompaktowy grid: Donut po lewej, pola po prawej */}
+            <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 8, alignItems: "stretch" }}>
+
+              {/* Wykres donut ratingu */}
+              <div style={{
+                background: "var(--card)",
+                borderRadius: 10,
+                border: "1px solid var(--line)",
+                padding: "6px 4px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 4,
+                textAlign: "center",
+              }}>
+                <div style={{ position: "relative", width: 56, height: 56, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="56" height="56" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="var(--line)" strokeWidth="14" />
+                    {rating !== null && (
+                      <circle
+                        cx="50" cy="50" r="40"
+                        fill="none"
+                        stroke={ringColor}
+                        strokeWidth="14"
+                        strokeDasharray={strokeDasharray}
+                        strokeLinecap="round"
+                        style={{ transition: "stroke-dasharray 0.5s ease" }}
+                      />
+                    )}
+                  </svg>
+                  <div style={{ position: "absolute", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
+                    <span style={{ fontSize: 16, fontWeight: 900, color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>
+                      {rating !== null ? rating : "—"}
+                    </span>
+                    <span style={{ fontSize: 7.5, fontWeight: 700, color: "var(--text-mute)", marginTop: 1, textTransform: "uppercase" }}>
+                      {rating !== null ? "z 5" : "brak"}
+                    </span>
+                  </div>
+                </div>
+                {rating !== null ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <div style={{ fontSize: 9.5, fontWeight: 800, color: ringColor }}>
+                      {dailyProfit !== null ? `${dailyProfit.toLocaleString("pl-PL")} zł/d` : "—"}
+                    </div>
+                    <div style={{ fontSize: 8.5, color: "var(--text-mute)", lineHeight: 1.1 }}>
+                      {rating === 5 && "≥ 5k zł/d"}
+                      {rating === 4 && "≥ 4k zł/d"}
+                      {rating === 3 && "≥ 3k zł/d"}
+                      {rating === 2 && "≥ 2k zł/d"}
+                      {rating === 1 && "≥ 1k zł/d"}
+                      {rating === 0 && "< 1k zł/d"}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 8.5, color: "var(--text-mute)", fontStyle: "italic" }}>Wpisz dane</div>
+                )}
+              </div>
+
+              {/* Pola finansowe 2x2 */}
+              <div style={{ background: "var(--card)", padding: 8, borderRadius: 10, border: "1px solid var(--line)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 8px", alignItems: "start" }}>
+                <InlineEdit
+                  label="Koszt (PLN)"
+                  value={opp.cost !== undefined ? String(opp.cost) : ""}
+                  placeholder="0"
+                  onSave={(v) => {
+                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+                    if (num !== undefined && !isNaN(num)) {
+                      save("cost", num);
+                      if (opp.price !== undefined) save("profit", opp.price - num);
+                    } else if (!v) save("cost", undefined);
+                  }}
+                />
+                <InlineEdit
+                  label="Cena (PLN)"
+                  value={opp.price !== undefined ? String(opp.price) : ""}
+                  placeholder="0"
+                  onSave={(v) => {
+                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+                    if (num !== undefined && !isNaN(num)) {
+                      save("price", num);
+                      if (opp.cost !== undefined) save("profit", num - opp.cost);
+                    } else if (!v) save("price", undefined);
+                  }}
+                />
+                {isAdmin && (
+                  <InlineEdit
+                    label="Zarobek (PLN)"
+                    value={opp.profit !== undefined ? String(opp.profit) : ""}
+                    placeholder="0"
+                    onSave={(v) => {
+                      const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+                      if (num !== undefined && !isNaN(num)) save("profit", num);
+                      else if (!v) save("profit", undefined);
+                    }}
+                  />
+                )}
+                <InlineEdit
+                  label="Dni montażu"
+                  value={opp.workDays !== undefined ? String(opp.workDays) : ""}
+                  placeholder="np. 2"
+                  onSave={(v) => {
+                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+                    if (num !== undefined && !isNaN(num) && num >= 0) save("workDays", num);
+                    else if (!v) save("workDays", undefined);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Kolumna 4: Adres inwestycji + toggle */}
           <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
               <p style={FIELD_LABEL}>Adres inwestycji (montaż)</p>
-              {investmentMapsUrl && (
+              {investmentMapsUrl && !sameAddress && (
                 <a href={investmentMapsUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10.5, color: "#0284C7", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3 }}>
                   <MapPin size={11} /> Maps
                 </a>
               )}
             </div>
-            <AddressSearch onSelect={handleInvestmentAddress} />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-              <InlineEdit label="Ulica" value={opp.investmentStreet ?? ""} placeholder="—" onSave={(v) => save("investmentStreet", v || undefined)} />
-              <InlineEdit label="Nr bud. / mieszk." value={[opp.investmentBuildingNumber, opp.investmentApartmentNumber].filter(Boolean).join("/")} placeholder="—" onSave={(v) => {
-                const parts = v ? v.split("/") : [];
-                save("investmentBuildingNumber", parts[0] || undefined);
-                save("investmentApartmentNumber", parts[1] || undefined);
-              }} />
-              <InlineEdit label="Kod pocztowy" value={opp.investmentPostalCode ?? ""} placeholder="—" onSave={(v) => save("investmentPostalCode", v || undefined)} />
-              <InlineEdit label="Miejscowość" value={opp.investmentCity ?? ""} placeholder="—" onSave={(v) => save("investmentCity", v || undefined)} />
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* ── Sekcja Finanse ── */}
-      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: "1px solid var(--line)" }}>
-          <span style={{ width: 4, height: 18, borderRadius: 3, background: "#10b981", flexShrink: 0 }} />
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#10b981" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            Finanse
-          </span>
-        </div>
-        <div style={{ padding: "14px 16px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: isAdmin ? "repeat(3, 1fr)" : "repeat(2, 1fr)", gap: 10 }}>
-            <InlineEdit
-              label="Koszt (PLN)"
-              value={opp.cost !== undefined ? String(opp.cost) : ""}
-              placeholder="0"
-              onSave={(v) => {
-                const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-                if (num !== undefined && !isNaN(num)) {
-                  save("cost", num);
-                  if (opp.price !== undefined) save("profit", opp.price - num);
-                } else if (!v) {
-                  save("cost", undefined);
-                }
-              }}
-            />
-            <InlineEdit
-              label="Cena (PLN)"
-              value={opp.price !== undefined ? String(opp.price) : ""}
-              placeholder="0"
-              onSave={(v) => {
-                const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-                if (num !== undefined && !isNaN(num)) {
-                  save("price", num);
-                  if (opp.cost !== undefined) save("profit", num - opp.cost);
-                } else if (!v) {
-                  save("price", undefined);
-                }
-              }}
-            />
-            {isAdmin && (
-              <InlineEdit
-                label="Zarobek (PLN)"
-                value={opp.profit !== undefined ? String(opp.profit) : ""}
-                placeholder="0"
-                onSave={(v) => {
-                  const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-                  if (num !== undefined && !isNaN(num)) save("profit", num);
-                  else if (!v) save("profit", undefined);
+            {/* Toggle „Taki sam jak klienta” */}
+            <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none" }}>
+              <div
+                onClick={() => handleSameAddressToggle(!sameAddress)}
+                style={{
+                  width: 34,
+                  height: 18,
+                  borderRadius: 9,
+                  background: sameAddress ? "var(--accent)" : "var(--line)",
+                  position: "relative",
+                  flexShrink: 0,
+                  cursor: "pointer",
+                  transition: "background 0.2s",
                 }}
-              />
+              >
+                <div style={{
+                  position: "absolute",
+                  top: 2,
+                  left: sameAddress ? 18 : 2,
+                  width: 14,
+                  height: 14,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                  transition: "left 0.2s",
+                }} />
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 600, color: sameAddress ? "var(--accent)" : "var(--text-mute)" }}>
+                Taki sam jak klienta
+              </span>
+            </label>
+
+            {sameAddress ? (
+              /* Badge gdy adresy są takie same */
+              <div style={{
+                padding: "10px 12px",
+                borderRadius: 8,
+                background: "var(--accent-soft)",
+                border: "1px dashed var(--accent)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flex: 1,
+              }}>
+                <MapPin size={14} color="var(--accent)" />
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)" }}>Taki sam jak adres klienta</div>
+                  {mainAddressStr && (
+                    <div style={{ fontSize: 10.5, color: "var(--text-mute)", marginTop: 2 }}>{mainAddressStr}</div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Pola adresu inwestycji */
+              <>
+                <AddressSearch onSelect={handleInvestmentAddress} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  <InlineEdit label="Ulica" value={opp.investmentStreet ?? ""} placeholder="—" onSave={(v) => save("investmentStreet", v || undefined)} />
+                  <InlineEdit label="Nr bud. / mieszk." value={[opp.investmentBuildingNumber, opp.investmentApartmentNumber].filter(Boolean).join("/")} placeholder="—" onSave={(v) => {
+                    const parts = v ? v.split("/") : [];
+                    save("investmentBuildingNumber", parts[0] || undefined);
+                    save("investmentApartmentNumber", parts[1] || undefined);
+                  }} />
+                  <InlineEdit label="Kod pocztowy" value={opp.investmentPostalCode ?? ""} placeholder="—" onSave={(v) => save("investmentPostalCode", v || undefined)} />
+                  <InlineEdit label="Miejscowość" value={opp.investmentCity ?? ""} placeholder="—" onSave={(v) => save("investmentCity", v || undefined)} />
+                </div>
+              </>
             )}
           </div>
         </div>

@@ -337,6 +337,7 @@ export const updateOpportunity = mutation({
     cost: v.optional(v.number()),
     price: v.optional(v.number()),
     profit: v.optional(v.number()),
+    workDays: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { opportunityId, ...rest } = args;
@@ -541,6 +542,7 @@ export const convertToOrder = mutation({
       cost: opp.cost,
       price: opp.price,
       profit: opp.profit,
+      workDays: opp.workDays,
       projectFiles: opp.projectFiles,
       driveProjectFiles: driveProjectFiles.length > 0 ? driveProjectFiles : undefined,
       comment: initialComment || undefined,
