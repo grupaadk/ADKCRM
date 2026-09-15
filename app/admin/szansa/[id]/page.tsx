@@ -330,7 +330,7 @@ export default function OpportunityDetailPage({
 
   function handleSameAddressToggle(checked: boolean) {
     setSameAddress(checked);
-    if (checked) {
+    if (checked && opp) {
       // Skopiuj adres klienta do adresu inwestycji
       void updateField({
         opportunityId,
@@ -707,7 +707,11 @@ export default function OpportunityDetailPage({
                 }
               }} />
               <InlineEdit label="Kod pocztowy" value={opp.postalCode ?? ""} placeholder="—" onSave={(v) => { save("postalCode", v || undefined); if (sameAddress) save("investmentPostalCode", v || undefined); }} />
-              <InlineEdit label="Miejscowość" value={opp.city ?? ""} placeholder="—" onSave={(v) => { save("city", v || undefined); if (sa          {/* Kolumna 3: Adres inwestycji + toggle */}
+              <InlineEdit label="Miejscowość" value={opp.city ?? ""} placeholder="—" onSave={(v) => { save("city", v || undefined); if (sameAddress) save("investmentCity", v || undefined); }} />
+            </div>
+          </div>
+
+          {/* Kolumna 3: Adres inwestycji + toggle */}
           <div style={{ padding: "14px 16px", borderRight: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
               <p style={FIELD_LABEL}>Adres inwestycji (montaż)</p>
