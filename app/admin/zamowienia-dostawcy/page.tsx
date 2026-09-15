@@ -36,6 +36,8 @@ type Row = {
   confirmedDate?: number
   deliveryDate?: number
   receivedDate?: number
+  externalOrderNumber?: string
+  externalOrderId?: string
 }
 
 function tsToInputValue(ts?: number): string {
@@ -228,6 +230,8 @@ export default function SupplierOrdersPage() {
         confirmedDate: d.confirmedDate,
         deliveryDate: d.deliveryDate,
         receivedDate: d.receivedDate,
+        externalOrderNumber: (d as unknown as { externalOrderNumber?: string }).externalOrderNumber,
+        externalOrderId: (d as unknown as { externalOrderId?: string }).externalOrderId,
       })),
     )
   }, [orders])
@@ -253,7 +257,9 @@ export default function SupplierOrdersPage() {
           r.clientName.toLowerCase().includes(term) ||
           r.serviceName.toLowerCase().includes(term) ||
           r.supplierName.toLowerCase().includes(term) ||
-          (r.customText ?? "").toLowerCase().includes(term)
+          (r.customText ?? "").toLowerCase().includes(term) ||
+          (r.externalOrderNumber ?? "").toLowerCase().includes(term) ||
+          (r.externalOrderId ?? "").toLowerCase().includes(term)
         if (!hit) return false
       }
       if (supplierFilter.size > 0 && !supplierFilter.has(r.supplierName)) return false

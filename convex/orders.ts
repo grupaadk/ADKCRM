@@ -1312,6 +1312,8 @@ export const listSupplierOrders = query({
                 confirmedDate: d.confirmedDate,
                 deliveryDate,
                 receivedDate: d.receivedDate,
+                externalOrderNumber: d.externalOrderNumber,
+                externalOrderId: d.externalOrderId,
               };
             }),
           );

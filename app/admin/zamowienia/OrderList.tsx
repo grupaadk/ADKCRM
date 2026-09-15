@@ -157,6 +157,12 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
             ? `${client.companyName} ${client.firstName} ${client.lastName}`
             : `${client.lastName} ${client.firstName}`
           : ""
+        const alcoNumbers = (o.serviceDeliveries ?? [])
+          .map((d) => d.externalOrderNumber)
+          .filter((n): n is string => Boolean(n))
+        const alcoIds = (o.serviceDeliveries ?? [])
+          .map((d) => d.externalOrderId)
+          .filter((id): id is string => Boolean(id))
         const fields = [
           o.name ?? "",
           o.customText ?? "",
@@ -165,6 +171,8 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
           o.comment ?? "",
           clientName,
           client?.city ?? "",
+          ...alcoNumbers,
+          ...alcoIds,
         ]
         return fields.some((f) => f.toLowerCase().includes(q))
       })

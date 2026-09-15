@@ -317,6 +317,13 @@ export const querySearch = query({
         const team = o.installationTeamId ? teamMap.get(o.installationTeamId) : null;
         const teamName = team ? team.name : "";
 
+        const alcoNumbers = (o.serviceDeliveries ?? [])
+          .map((d) => d.externalOrderNumber)
+          .filter((n): n is string => Boolean(n));
+        const alcoIds = (o.serviceDeliveries ?? [])
+          .map((d) => d.externalOrderId)
+          .filter((id): id is string => Boolean(id));
+
         const fields = [
           { text: o.name ?? "", weight: 10 },
           { text: o.customText ?? "", weight: 8 },
@@ -327,6 +334,8 @@ export const querySearch = query({
           { text: o.investmentCity ?? "", weight: 5 },
           { text: o.investmentStreet ?? "", weight: 5 },
           { text: o.comment ?? "", weight: 3 },
+          ...alcoNumbers.map((num) => ({ text: num, weight: 10 })),
+          ...alcoIds.map((id) => ({ text: id, weight: 10 })),
         ];
 
         const { score, snippet } = calculateScore(queryNorm, queryAlpha, queryTokens, digitsNorm, fields);
@@ -335,6 +344,7 @@ export const querySearch = query({
           const addr = [o.investmentStreet, o.investmentCity].filter(Boolean).join(" ");
           
           const tags: string[] = [];
+          if (alcoNumbers.length > 0) tags.push(`ALCO: ${alcoNumbers.join(", ")}`);
           if (teamName) tags.push(`Ekipa: ${teamName}`);
           if (o.installationStartDate) tags.push(`Montaż: ${new Date(o.installationStartDate).toLocaleDateString("pl-PL")}`);
           if (o._creationTime) tags.push(`Dodano: ${new Date(o._creationTime).toLocaleDateString("pl-PL")}`);
@@ -503,12 +513,21 @@ export const querySearch = query({
         const clientName = client ? [client.firstName, client.lastName].filter(Boolean).join(" ") : "";
         const clientCompany = client?.companyName ?? "";
 
+        const orderAlcoNumbers = (order?.serviceDeliveries ?? [])
+          .map((d) => d.externalOrderNumber)
+          .filter((n): n is string => Boolean(n));
+        const orderAlcoIds = (order?.serviceDeliveries ?? [])
+          .map((d) => d.externalOrderId)
+          .filter((id): id is string => Boolean(id));
+
         const fields = [
           { text: c.description ?? "", weight: 10 },
           { text: c.clientDescription ?? "", weight: 8 },
           { text: clientName, weight: 6 },
           { text: clientCompany, weight: 6 },
           { text: order?.name ?? "", weight: 6 },
+          ...orderAlcoNumbers.map((num) => ({ text: num, weight: 8 })),
+          ...orderAlcoIds.map((id) => ({ text: id, weight: 8 })),
         ];
 
         const { score, snippet } = calculateScore(queryNorm, queryAlpha, queryTokens, digitsNorm, fields);
