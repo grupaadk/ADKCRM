@@ -150,6 +150,8 @@ export default function OpportunityDetailPage({
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [editingServices, setEditingServices] = useState(false);
   const [draftServices, setDraftServices] = useState<string[]>([]);
+  const [sameAddress, setSameAddress] = useState<boolean>(false);
+
   const assignDropdownRef = useRef<HTMLDivElement>(null);
   const commentRef = useRef<HTMLTextAreaElement>(null);
 
@@ -159,6 +161,19 @@ export default function OpportunityDetailPage({
   const assignableUsers = useQuery(api.users.listAllActive) ?? [];
   const servicesList = useQuery(api.services.listActive) ?? [];
   const serviceNames = servicesList.map((s) => s.name);
+
+  // Synchronizacja checkboxa "Taki sam jak klienta" gdy dane opp się załadują
+  useEffect(() => {
+    if (opp) {
+      setSameAddress(
+        (opp.investmentStreet ?? "") === (opp.street ?? "") &&
+        (opp.investmentBuildingNumber ?? "") === (opp.buildingNumber ?? "") &&
+        (opp.investmentPostalCode ?? "") === (opp.postalCode ?? "") &&
+        (opp.investmentCity ?? "") === (opp.city ?? "") &&
+        !!(opp.street || opp.city)
+      );
+    }
+  }, [opp?.street, opp?.buildingNumber, opp?.postalCode, opp?.city, opp?.investmentStreet, opp?.investmentBuildingNumber, opp?.investmentPostalCode, opp?.investmentCity]);
 
   useEffect(() => {
     const el = commentRef.current;
@@ -283,20 +298,7 @@ export default function OpportunityDetailPage({
   const mainMapsUrl = mainAddressStr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mainAddressStr)}` : null;
   const investmentMapsUrl = investmentAddressStr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(investmentAddressStr)}` : null;
 
-  // Wykryj czy adres inwestycji = adres klienta (stan UI-owy)
-  // Inicjalizacja bezpieczna — opp może być null/undefined na etapie hydratacji,
-  // ale useState lazy initializer wywołany jest tylko raz, więc używamy optional chaining
-  const [sameAddress, setSameAddress] = useState<boolean>(() => {
-    if (!opp || typeof opp !== "object" || !("street" in opp)) return false;
-    const o = opp as NonNullable<typeof opp>;
-    return (
-      (o.investmentStreet ?? "") === (o.street ?? "") &&
-      (o.investmentBuildingNumber ?? "") === (o.buildingNumber ?? "") &&
-      (o.investmentPostalCode ?? "") === (o.postalCode ?? "") &&
-      (o.investmentCity ?? "") === (o.city ?? "") &&
-      !!(o.street || o.city)
-    );
-  });
+
 
   function handleAddress(a: AddressData) {
     const patch: Record<string, string> = {};
