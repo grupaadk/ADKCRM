@@ -420,16 +420,18 @@ export default defineSchema({
     connectedBy: v.string(),
   }),
 
-  // 3.6b Notatki do klienta / zlecenia
+  // 3.6b Notatki do klienta / zlecenia / szansy
   clientNotes: defineTable({
-    clientId: v.id("clients"),
+    clientId: v.optional(v.id("clients")),
     orderId: v.optional(v.id("orders")),
+    opportunityId: v.optional(v.id("pendingJotformSubmissions")),
     content: v.string(),
     createdBy: v.string(),
     createdByColor: v.optional(v.string()),
   })
     .index("by_client", ["clientId"])
-    .index("by_order", ["orderId"]),
+    .index("by_order", ["orderId"])
+    .index("by_opportunity", ["opportunityId"]),
 
   // 3.8 Oczekujące zgłoszenia z JotForm (klient tworzony od razu, zlecenie tworzone przy przesunięciu do "Do pomiarów")
   pendingJotformSubmissions: defineTable({

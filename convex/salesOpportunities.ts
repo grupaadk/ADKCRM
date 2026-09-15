@@ -561,6 +561,18 @@ export const convertToOrder = mutation({
       assignedUserId: opp.assignedUserId,
     });
 
+    // Przepisz notatki ze Szansy do nowego Zlecenia
+    const oppNotes = await ctx.db
+      .query("clientNotes")
+      .withIndex("by_opportunity", (q) => q.eq("opportunityId", args.opportunityId))
+      .collect();
+    for (const note of oppNotes) {
+      await ctx.db.patch(note._id, {
+        orderId,
+        clientId,
+      });
+    }
+
     await ctx.db.insert("clientEvents", {
       clientId,
       orderId,

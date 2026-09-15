@@ -24,10 +24,22 @@ export const listByOrder = query({
   },
 });
 
+export const listByOpportunity = query({
+  args: { opportunityId: v.id("pendingJotformSubmissions") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("clientNotes")
+      .withIndex("by_opportunity", (q) => q.eq("opportunityId", args.opportunityId))
+      .order("desc")
+      .collect();
+  },
+});
+
 export const add = mutation({
   args: {
-    clientId: v.id("clients"),
+    clientId: v.optional(v.id("clients")),
     orderId: v.optional(v.id("orders")),
+    opportunityId: v.optional(v.id("pendingJotformSubmissions")),
     content: v.string(),
   },
   handler: async (ctx, args) => {
@@ -37,6 +49,7 @@ export const add = mutation({
     await ctx.db.insert("clientNotes", {
       clientId: args.clientId,
       orderId: args.orderId,
+      opportunityId: args.opportunityId,
       content: args.content.trim(),
       createdBy: userId,
       createdByColor: user.color,

@@ -12,6 +12,7 @@ import { useStatusLabel } from "@/components/StatusLabelsContext";
 import { ArrowLeft, Archive, ArchiveRestore, Trash2, Send, MapPin, Building2, MessageSquare, Sliders } from "lucide-react";
 import DriveFolderButton from "@/components/DriveFolderButton";
 import OpportunityAttachmentsSection from "./OpportunityAttachmentsSection";
+import OpportunityNotesFeed from "./OpportunityNotesFeed";
 
 const FIELD_LABEL: React.CSSProperties = {
   fontSize: 10.5,
@@ -1109,47 +1110,12 @@ export default function OpportunityDetailPage({
           />
         </div>
 
-        {/* Komentarz klienta */}
-        <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ width: 4, height: 18, borderRadius: 3, background: "#8b5cf6", flexShrink: 0 }} />
-            <MessageSquare size={14} color="#8b5cf6" />
-            <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Komentarz / Uwagi klienta
-            </span>
-          </div>
-          <textarea
-            ref={commentRef}
-            defaultValue={displayComment || opp.comment || ""}
-            onInput={(e) => {
-              const el = e.currentTarget;
-              el.style.height = "auto";
-              el.style.height = el.scrollHeight + "px";
-            }}
-            onBlur={(e) => {
-              const next = e.target.value.trim();
-              if (next !== (opp.comment ?? "")) {
-                save("comment", next || undefined);
-              }
-            }}
-            rows={4}
-            placeholder="Uwagi klienta lub notatka wewnętrzna…"
-            style={{
-              width: "100%",
-              resize: "none",
-              overflow: "hidden",
-              border: "1px solid var(--line)",
-              borderRadius: 8,
-              padding: "8px 10px",
-              fontSize: 12.5,
-              color: "var(--text)",
-              background: "var(--panel-2)",
-              outline: "none",
-              fontFamily: "inherit",
-              lineHeight: 1.5,
-            }}
-          />
-        </div>
+        {/* Komentarz / Feed notatek */}
+        <OpportunityNotesFeed
+          opportunityId={opportunityId}
+          clientId={opp.clientId}
+          initialComment={displayComment || opp.comment}
+        />
       </div>
 
       {/* Modal Potwierdzenia usuwania */}
