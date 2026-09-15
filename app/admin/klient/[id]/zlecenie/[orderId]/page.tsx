@@ -2548,8 +2548,8 @@ export default function OrderDetailPage({
     { key: "szczegoly", label: "Szczegóły" },
     { key: "wycena", label: "Wycena" },
     { key: "finanse", label: "Finanse" },
-    { key: "zamowienia", label: "Zamówienia" },
     { key: "montaz", label: "Montaż" },
+    { key: "zamowienia", label: "Zamówienia" },
     { key: "dokumenty", label: "Dokumenty" },
     { key: "reklamacja", label: "Reklamacje" },
     { key: "historia", label: "Historia zdarzeń" },
@@ -3744,20 +3744,6 @@ export default function OrderDetailPage({
 
           {/* Prawa kolumna (3): Notatki oraz Finanse zlecenia */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Notatki */}
-            <div style={{ background: "var(--accent-soft)", borderRadius: 12, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                <span style={{ width: 4, height: 20, borderRadius: 3, background: "#8b5cf6", flexShrink: 0 }} />
-                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#8b5cf6" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                </svg>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
-                  Notatki
-                </span>
-              </div>
-              <Notes clientId={clientId} orderId={orderIdTyped} />
-            </div>
-
             {/* Finanse zlecenia, Rating (Wykres kołowy) & Ekipa montażowa */}
             {(() => {
               const profit = order.profit;
@@ -4011,6 +3997,20 @@ export default function OrderDetailPage({
                 </div>
               );
             })()}
+
+            {/* Notatki */}
+            <div style={{ background: "var(--accent-soft)", borderRadius: 12, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <span style={{ width: 4, height: 20, borderRadius: 3, background: "#8b5cf6", flexShrink: 0 }} />
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#8b5cf6" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                </svg>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+                  Notatki
+                </span>
+              </div>
+              <Notes clientId={clientId} orderId={orderIdTyped} />
+            </div>
           </div>
         </div>
 
