@@ -1099,8 +1099,16 @@ export default function OpportunityDetailPage({
         </div>
       )}
 
-      {/* ── 2-kolumnowy układ: Komentarz + Załączniki ── */}
+      {/* ── 2-kolumnowy układ: Pliki (po lewej) + Komentarz (po prawej) ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        {/* Załączniki (Pliki) */}
+        <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: 14 }}>
+          <OpportunityAttachmentsSection
+            opportunityId={opportunityId}
+            opportunityFolderId={opp.opportunityFolderId}
+          />
+        </div>
+
         {/* Komentarz klienta */}
         <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1140,14 +1148,6 @@ export default function OpportunityDetailPage({
               fontFamily: "inherit",
               lineHeight: 1.5,
             }}
-          />
-        </div>
-
-        {/* Załączniki */}
-        <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: 14 }}>
-          <OpportunityAttachmentsSection
-            opportunityId={opportunityId}
-            opportunityFolderId={opp.opportunityFolderId}
           />
         </div>
       </div>
