@@ -283,14 +283,17 @@ export default function OpportunityDetailPage({
   const investmentMapsUrl = investmentAddressStr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(investmentAddressStr)}` : null;
 
   // Wykryj czy adres inwestycji = adres klienta (stan UI-owy)
+  // Inicjalizacja bezpieczna — opp może być null/undefined na etapie hydratacji,
+  // ale useState lazy initializer wywołany jest tylko raz, więc używamy optional chaining
   const [sameAddress, setSameAddress] = useState<boolean>(() => {
-    if (!opp) return false;
+    if (!opp || typeof opp !== "object" || !("street" in opp)) return false;
+    const o = opp as NonNullable<typeof opp>;
     return (
-      (opp.investmentStreet ?? "") === (opp.street ?? "") &&
-      (opp.investmentBuildingNumber ?? "") === (opp.buildingNumber ?? "") &&
-      (opp.investmentPostalCode ?? "") === (opp.postalCode ?? "") &&
-      (opp.investmentCity ?? "") === (opp.city ?? "") &&
-      !!(opp.street || opp.city)
+      (o.investmentStreet ?? "") === (o.street ?? "") &&
+      (o.investmentBuildingNumber ?? "") === (o.buildingNumber ?? "") &&
+      (o.investmentPostalCode ?? "") === (o.postalCode ?? "") &&
+      (o.investmentCity ?? "") === (o.city ?? "") &&
+      !!(o.street || o.city)
     );
   });
 
@@ -704,126 +707,8 @@ export default function OpportunityDetailPage({
                 }
               }} />
               <InlineEdit label="Kod pocztowy" value={opp.postalCode ?? ""} placeholder="—" onSave={(v) => { save("postalCode", v || undefined); if (sameAddress) save("investmentPostalCode", v || undefined); }} />
-              <InlineEdit label="Miejscowość" value={opp.city ?? ""} placeholder="—" onSave={(v) => { save("city", v || undefined); if (sameAddress) save("investmentCity", v || undefined); }} />
-            </div>
-          </div>
-
-          {/* Kolumna 3: Finanse i Rating */}
-          <div style={{ padding: "14px 16px", borderRight: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ ...FIELD_LABEL, marginBottom: 6 }}>Finanse i Rating</p>
-
-            {/* Kompaktowy grid: Donut po lewej, pola po prawej */}
-            <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 8, alignItems: "stretch" }}>
-
-              {/* Wykres donut ratingu */}
-              <div style={{
-                background: "var(--card)",
-                borderRadius: 10,
-                border: "1px solid var(--line)",
-                padding: "6px 4px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 4,
-                textAlign: "center",
-              }}>
-                <div style={{ position: "relative", width: 56, height: 56, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <svg width="56" height="56" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="var(--line)" strokeWidth="14" />
-                    {rating !== null && (
-                      <circle
-                        cx="50" cy="50" r="40"
-                        fill="none"
-                        stroke={ringColor}
-                        strokeWidth="14"
-                        strokeDasharray={strokeDasharray}
-                        strokeLinecap="round"
-                        style={{ transition: "stroke-dasharray 0.5s ease" }}
-                      />
-                    )}
-                  </svg>
-                  <div style={{ position: "absolute", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
-                    <span style={{ fontSize: 16, fontWeight: 900, color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>
-                      {rating !== null ? rating : "—"}
-                    </span>
-                    <span style={{ fontSize: 7.5, fontWeight: 700, color: "var(--text-mute)", marginTop: 1, textTransform: "uppercase" }}>
-                      {rating !== null ? "z 5" : "brak"}
-                    </span>
-                  </div>
-                </div>
-                {rating !== null ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    <div style={{ fontSize: 9.5, fontWeight: 800, color: ringColor }}>
-                      {dailyProfit !== null ? `${dailyProfit.toLocaleString("pl-PL")} zł/d` : "—"}
-                    </div>
-                    <div style={{ fontSize: 8.5, color: "var(--text-mute)", lineHeight: 1.1 }}>
-                      {rating === 5 && "≥ 5k zł/d"}
-                      {rating === 4 && "≥ 4k zł/d"}
-                      {rating === 3 && "≥ 3k zł/d"}
-                      {rating === 2 && "≥ 2k zł/d"}
-                      {rating === 1 && "≥ 1k zł/d"}
-                      {rating === 0 && "< 1k zł/d"}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 8.5, color: "var(--text-mute)", fontStyle: "italic" }}>Wpisz dane</div>
-                )}
-              </div>
-
-              {/* Pola finansowe 2x2 */}
-              <div style={{ background: "var(--card)", padding: 8, borderRadius: 10, border: "1px solid var(--line)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 8px", alignItems: "start" }}>
-                <InlineEdit
-                  label="Koszt (PLN)"
-                  value={opp.cost !== undefined ? String(opp.cost) : ""}
-                  placeholder="0"
-                  onSave={(v) => {
-                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-                    if (num !== undefined && !isNaN(num)) {
-                      save("cost", num);
-                      if (opp.price !== undefined) save("profit", opp.price - num);
-                    } else if (!v) save("cost", undefined);
-                  }}
-                />
-                <InlineEdit
-                  label="Cena (PLN)"
-                  value={opp.price !== undefined ? String(opp.price) : ""}
-                  placeholder="0"
-                  onSave={(v) => {
-                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-                    if (num !== undefined && !isNaN(num)) {
-                      save("price", num);
-                      if (opp.cost !== undefined) save("profit", num - opp.cost);
-                    } else if (!v) save("price", undefined);
-                  }}
-                />
-                {isAdmin && (
-                  <InlineEdit
-                    label="Zarobek (PLN)"
-                    value={opp.profit !== undefined ? String(opp.profit) : ""}
-                    placeholder="0"
-                    onSave={(v) => {
-                      const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-                      if (num !== undefined && !isNaN(num)) save("profit", num);
-                      else if (!v) save("profit", undefined);
-                    }}
-                  />
-                )}
-                <InlineEdit
-                  label="Dni montażu"
-                  value={opp.workDays !== undefined ? String(opp.workDays) : ""}
-                  placeholder="np. 2"
-                  onSave={(v) => {
-                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-                    if (num !== undefined && !isNaN(num) && num >= 0) save("workDays", num);
-                    else if (!v) save("workDays", undefined);
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Kolumna 4: Adres inwestycji + toggle */}
-          <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <InlineEdit label="Miejscowość" value={opp.city ?? ""} placeholder="—" onSave={(v) => { save("city", v || undefined); if (sa          {/* Kolumna 3: Adres inwestycji + toggle */}
+          <div style={{ padding: "14px 16px", borderRight: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
               <p style={FIELD_LABEL}>Adres inwestycji (montaż)</p>
               {investmentMapsUrl && !sameAddress && (
@@ -833,7 +718,7 @@ export default function OpportunityDetailPage({
               )}
             </div>
 
-            {/* Toggle „Taki sam jak klienta” */}
+            {/* Toggle „Taki sam jak klienta" */}
             <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none" }}>
               <div
                 onClick={() => handleSameAddressToggle(!sameAddress)}
@@ -901,6 +786,120 @@ export default function OpportunityDetailPage({
                 </div>
               </>
             )}
+          </div>
+
+          {/* Kolumna 4 (ostatnia): Finanse i Rating */}
+          <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ ...FIELD_LABEL, marginBottom: 6 }}>Finanse i Rating</p>
+
+            {/* Kompaktowy grid: Donut po lewej, pola po prawej */}
+            <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 8, alignItems: "stretch" }}>
+
+              {/* Wykres donut ratingu */}
+              <div style={{
+                background: "var(--card)",
+                borderRadius: 10,
+                border: "1px solid var(--line)",
+                padding: "6px 4px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 4,
+                textAlign: "center",
+              }}>
+                <div style={{ position: "relative", width: 56, height: 56, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="56" height="56" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="var(--line)" strokeWidth="14" />
+                    {rating !== null && (
+                      <circle
+                        cx="50" cy="50" r="40"
+                        fill="none"
+                        stroke={ringColor}
+                        strokeWidth="14"
+                        strokeDasharray={strokeDasharray}
+                        strokeLinecap="round"
+                        style={{ transition: "stroke-dasharray 0.5s ease" }}
+                      />
+                    )}
+                  </svg>
+                  <div style={{ position: "absolute", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
+                    <span style={{ fontSize: 16, fontWeight: 900, color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>
+                      {rating !== null ? rating : "—"}
+                    </span>
+                    <span style={{ fontSize: 7.5, fontWeight: 700, color: "var(--text-mute)", marginTop: 1, textTransform: "uppercase" }}>
+                      {rating !== null ? "z 5" : "brak"}
+                    </span>
+                  </div>
+                </div>
+                {rating !== null ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <div style={{ fontSize: 9.5, fontWeight: 800, color: ringColor }}>
+                      {dailyProfit !== null ? `${dailyProfit.toLocaleString("pl-PL")} zł/d` : "—"}
+                    </div>
+                    <div style={{ fontSize: 8.5, color: "var(--text-mute)", lineHeight: 1.1 }}>
+                      {rating === 5 && "≥ 5k zł/d"}
+                      {rating === 4 && "≥ 4k zł/d"}
+                      {rating === 3 && "≥ 3k zł/d"}
+                      {rating === 2 && "≥ 2k zł/d"}
+                      {rating === 1 && "≥ 1k zł/d"}
+                      {rating === 0 && "< 1k zł/d"}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 8.5, color: "var(--text-mute)", fontStyle: "italic" }}>Wpisz dane</div>
+                )}
+              </div>
+
+              {/* Pola finansowe — Zarobek tylko dla admina */}
+              <div style={{ background: "var(--card)", padding: 8, borderRadius: 10, border: "1px solid var(--line)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 8px", alignItems: "start" }}>
+                <InlineEdit
+                  label="Koszt (PLN)"
+                  value={opp.cost !== undefined ? String(opp.cost) : ""}
+                  placeholder="0"
+                  onSave={(v) => {
+                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+                    if (num !== undefined && !isNaN(num)) {
+                      save("cost", num);
+                      if (opp.price !== undefined) save("profit", opp.price - num);
+                    } else if (!v) save("cost", undefined);
+                  }}
+                />
+                <InlineEdit
+                  label="Cena (PLN)"
+                  value={opp.price !== undefined ? String(opp.price) : ""}
+                  placeholder="0"
+                  onSave={(v) => {
+                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+                    if (num !== undefined && !isNaN(num)) {
+                      save("price", num);
+                      if (opp.cost !== undefined) save("profit", num - opp.cost);
+                    } else if (!v) save("price", undefined);
+                  }}
+                />
+                <InlineEdit
+                  label="Dni montażu"
+                  value={opp.workDays !== undefined ? String(opp.workDays) : ""}
+                  placeholder="np. 2"
+                  onSave={(v) => {
+                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+                    if (num !== undefined && !isNaN(num) && num >= 0) save("workDays", num);
+                    else if (!v) save("workDays", undefined);
+                  }}
+                />
+                {isAdmin && (
+                  <InlineEdit
+                    label="Zarobek (PLN)"
+                    value={opp.profit !== undefined ? String(opp.profit) : ""}
+                    placeholder="0"
+                    onSave={(v) => {
+                      const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+                      if (num !== undefined && !isNaN(num)) save("profit", num);
+                      else if (!v) save("profit", undefined);
+                    }}
+                  />
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
