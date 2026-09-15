@@ -124,4 +124,74 @@ describe("Search by ALCO order number", () => {
     expect(results).toHaveLength(1);
     expect(results[0].id).toBe(orderId);
   });
+
+  test("does not return orders with similar ALCO numbers via fuzzy matching", async () => {
+    const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "ALCO",
+        isActive: true,
+        createdBy: "admin",
+      });
+    });
+
+    const clientId = await t.run(async (ctx) => {
+      return await ctx.db.insert("clients", {
+        firstName: "Piotr",
+        lastName: "Zieliński",
+        status: "lead",
+        source: "manual",
+        createdBy: "admin",
+      });
+    });
+
+    // Order 1: ST-260910008
+    const orderId1 = await t.run(async (ctx) => {
+      return await ctx.db.insert("orders", {
+        clientId,
+        name: "Zlecenie A",
+        status: "production",
+        documents: DEFAULT_DOCUMENTS,
+        source: "manual",
+        createdBy: "admin",
+        serviceDeliveries: [
+          {
+            serviceName: "Stolarka",
+            supplierId,
+            externalOrderNumber: "ST-260910008",
+          },
+        ],
+      });
+    });
+
+    // Order 2: ST-260910108 (differs by 1 digit)
+    await t.run(async (ctx) => {
+      return await ctx.db.insert("orders", {
+        clientId,
+        name: "Zlecenie B",
+        status: "production",
+        documents: DEFAULT_DOCUMENTS,
+        source: "manual",
+        createdBy: "admin",
+        serviceDeliveries: [
+          {
+            serviceName: "Stolarka",
+            supplierId,
+            externalOrderNumber: "ST-260910108",
+          },
+        ],
+      });
+    });
+
+    // Search for ST-260910008
+    const results = await asUser.query(api.search.querySearch, {
+      query: "ST-260910008",
+      types: ["zlecenia"],
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].id).toBe(orderId1);
+  });
 });

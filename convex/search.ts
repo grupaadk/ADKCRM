@@ -80,7 +80,7 @@ function calculateScore(
   queryAlpha: string,
   queryTokens: string[],
   digitsNorm: string,
-  fields: { text: string; weight: number; isDigits?: boolean }[]
+  fields: { text: string; weight: number; isDigits?: boolean; isCode?: boolean }[]
 ): { score: number; snippet?: string } {
   let totalScore = 0;
   let bestSnippet: string | undefined = undefined;
@@ -109,7 +109,7 @@ function calculateScore(
       fieldScore += field.weight * 4;
     }
 
-    // 3. Token-based fuzzy match
+    // 3. Token-based match
     for (const qToken of queryTokens) {
       if (qToken.length < 3) continue;
 
@@ -118,8 +118,8 @@ function calculateScore(
           fieldScore += field.weight * 2;
         } else if (fToken.includes(qToken)) {
           fieldScore += field.weight * 1;
-        } else {
-          // Typo tolerance (Fuzzy match)
+        } else if (!field.isCode && !field.isDigits && !/^\d+$/.test(qToken) && !/^\d+$/.test(fToken)) {
+          // Typo tolerance (Fuzzy match) — ONLY for words/text, NOT for codes or numbers!
           if (Math.abs(fToken.length - qToken.length) <= 2) {
             const dist = levenshteinDistance(qToken, fToken);
             if (dist <= 1 && qToken.length >= 4) {
@@ -325,7 +325,7 @@ export const querySearch = query({
           .filter((id): id is string => Boolean(id));
 
         const fields = [
-          { text: o.name ?? "", weight: 10 },
+          { text: o.name ?? "", weight: 10, isCode: true },
           { text: o.customText ?? "", weight: 8 },
           { text: clientName, weight: 9 },
           { text: clientCompany, weight: 9 },
@@ -334,8 +334,8 @@ export const querySearch = query({
           { text: o.investmentCity ?? "", weight: 5 },
           { text: o.investmentStreet ?? "", weight: 5 },
           { text: o.comment ?? "", weight: 3 },
-          ...alcoNumbers.map((num) => ({ text: num, weight: 10 })),
-          ...alcoIds.map((id) => ({ text: id, weight: 10 })),
+          ...alcoNumbers.map((num) => ({ text: num, weight: 15, isCode: true })),
+          ...alcoIds.map((id) => ({ text: id, weight: 15, isCode: true })),
         ];
 
         const { score, snippet } = calculateScore(queryNorm, queryAlpha, queryTokens, digitsNorm, fields);
@@ -526,8 +526,8 @@ export const querySearch = query({
           { text: clientName, weight: 6 },
           { text: clientCompany, weight: 6 },
           { text: order?.name ?? "", weight: 6 },
-          ...orderAlcoNumbers.map((num) => ({ text: num, weight: 8 })),
-          ...orderAlcoIds.map((id) => ({ text: id, weight: 8 })),
+          ...orderAlcoNumbers.map((num) => ({ text: num, weight: 8, isCode: true })),
+          ...orderAlcoIds.map((id) => ({ text: id, weight: 8, isCode: true })),
         ];
 
         const { score, snippet } = calculateScore(queryNorm, queryAlpha, queryTokens, digitsNorm, fields);
