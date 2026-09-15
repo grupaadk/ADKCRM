@@ -158,6 +158,8 @@ export default function OpportunityDetailPage({
   const assignDropdownRef = useRef<HTMLDivElement>(null);
   const commentRef = useRef<HTMLTextAreaElement>(null);
 
+  const me = useQuery(api.users.me);
+  const isAdmin = me?.role === "admin";
   const assignOpportunity = useMutation(api.salesOpportunities.assignOpportunity);
   const assignableUsers = useQuery(api.users.listAllActive) ?? [];
   const servicesList = useQuery(api.services.listActive) ?? [];
@@ -647,8 +649,7 @@ export default function OpportunityDetailPage({
 
             <div style={{ height: 1, background: "var(--line)" }} />
 
-            {/* Sekcja Finansów & Tekstu własnego */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isAdmin ? "repeat(3, 1fr)" : "repeat(2, 1fr)", gap: 8 }}>
               <InlineEdit
                 label="Koszt (PLN)"
                 value={opp.cost !== undefined ? String(opp.cost) : ""}
@@ -677,16 +678,18 @@ export default function OpportunityDetailPage({
                   }
                 }}
               />
-              <InlineEdit
-                label="Zarobek (PLN)"
-                value={opp.profit !== undefined ? String(opp.profit) : ""}
-                placeholder="0"
-                onSave={(v) => {
-                  const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-                  if (num !== undefined && !isNaN(num)) save("profit", num);
-                  else if (!v) save("profit", undefined);
-                }}
-              />
+              {isAdmin && (
+                <InlineEdit
+                  label="Zarobek (PLN)"
+                  value={opp.profit !== undefined ? String(opp.profit) : ""}
+                  placeholder="0"
+                  onSave={(v) => {
+                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
+                    if (num !== undefined && !isNaN(num)) save("profit", num);
+                    else if (!v) save("profit", undefined);
+                  }}
+                />
+              )}
             </div>
 
             <div style={{ background: "var(--panel-2)", padding: "6px 10px", borderRadius: 6, border: "1px solid var(--line)" }}>

@@ -197,6 +197,10 @@ export default defineSchema({
 
     // Dane zlecenia
     services: v.optional(v.array(v.string())),
+    cost: v.optional(v.number()),
+    price: v.optional(v.number()),
+    profit: v.optional(v.number()),
+    workDays: v.optional(v.number()),
     // Legacy color fields (exist in old documents, not used by UI/mutations)
     windowColor: v.optional(v.array(v.string())),
     doorColor: v.optional(v.array(v.string())),

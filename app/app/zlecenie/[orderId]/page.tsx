@@ -34,6 +34,7 @@ import {
   Trash2,
   CheckSquare,
   Square,
+  Pencil,
 } from "lucide-react";
 
 const COMPLAINT_STATUS_LABELS: Record<string, string> = {
@@ -145,6 +146,8 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
   // Mutations
   const changeStatus = useMutation(api.orders.changeStatus);
   const addNote = useMutation(api.notes.add);
+  const updateNote = useMutation(api.notes.update);
+  const removeNote = useMutation(api.notes.remove);
   const createComplaint = useMutation(api.complaints.create);
   const updateComplaintStatus = useMutation(api.complaints.updateStatus);
   const updateComplaintDetails = useMutation(api.complaints.updateDetails);
@@ -155,6 +158,9 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
   // Local State
   const [newNoteText, setNewNoteText] = useState("");
   const [submittingNote, setSubmittingNote] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<Id<"clientNotes"> | null>(null);
+  const [editNoteContent, setEditNoteContent] = useState("");
+  const [savingNoteEdit, setSavingNoteEdit] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedComplaintId, setSelectedComplaintId] = useState<Id<"complaints"> | null>(null);
   const [showNewComplaintModal, setShowNewComplaintModal] = useState(false);
@@ -271,13 +277,36 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
       await addNote({
         clientId: order.clientId,
         orderId: order._id,
-        text: newNoteText.trim(),
+        content: newNoteText.trim(),
       });
       setNewNoteText("");
     } catch {
       alert("Błąd dodawania notatki");
     } finally {
       setSubmittingNote(false);
+    }
+  };
+
+  const handleSaveNoteEdit = async (noteId: Id<"clientNotes">) => {
+    if (!editNoteContent.trim()) return;
+    setSavingNoteEdit(true);
+    try {
+      await updateNote({ noteId, content: editNoteContent.trim() });
+      setEditingNoteId(null);
+      setEditNoteContent("");
+    } catch {
+      alert("Błąd zapisu notatki");
+    } finally {
+      setSavingNoteEdit(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: Id<"clientNotes">) => {
+    if (!confirm("Czy na pewno chcesz usunąć tę notatkę?")) return;
+    try {
+      await removeNote({ noteId });
+    } catch {
+      alert("Błąd usuwania notatki");
     }
   };
 
@@ -941,19 +970,84 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
             <p className="text-xs text-slate-400 text-center py-2">Brak notatek w zleceniu</p>
           ) : (
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {notes.map((n) => (
-                <div key={n._id} className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 space-y-1">
-                  <p className="text-xs text-slate-700 leading-relaxed">{n.text}</p>
-                  <p className="text-[10px] text-slate-400 font-medium">
-                    {new Date(n._creationTime).toLocaleString("pl-PL", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-              ))}
+              {notes.map((n) => {
+                const isEditing = editingNoteId === n._id;
+                const noteText = n.content ?? (n as unknown as { text?: string }).text ?? "";
+                return (
+                  <div key={n._id} className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 space-y-1 group">
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <textarea
+                          rows={2}
+                          value={editNoteContent}
+                          onChange={(e) => setEditNoteContent(e.target.value)}
+                          className="w-full bg-white border border-purple-400 rounded-lg p-2 text-xs text-slate-800 focus:outline-none resize-none"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              void handleSaveNoteEdit(n._id);
+                            }
+                            if (e.key === "Escape") setEditingNoteId(null);
+                          }}
+                        />
+                        <div className="flex justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setEditingNoteId(null)}
+                            disabled={savingNoteEdit}
+                            className="px-2 py-1 rounded-md bg-slate-200 text-slate-700 text-[11px] font-medium"
+                          >
+                            Anuluj
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveNoteEdit(n._id)}
+                            disabled={savingNoteEdit || !editNoteContent.trim()}
+                            className="px-2 py-1 rounded-md bg-purple-600 text-white text-[11px] font-medium disabled:opacity-50"
+                          >
+                            {savingNoteEdit ? "Zapisywanie..." : "Zapisz"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">{noteText}</p>
+                          <p className="text-[10px] text-slate-400 font-medium mt-1">
+                            {new Date(n._creationTime).toLocaleString("pl-PL", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingNoteId(n._id);
+                              setEditNoteContent(noteText);
+                            }}
+                            className="p-1 rounded text-slate-400 hover:text-purple-600 hover:bg-slate-200/60"
+                            title="Edytuj notatkę"
+                          >
+                            <Pencil className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteNote(n._id)}
+                            className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-slate-200/60"
+                            title="Usuń notatkę"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>

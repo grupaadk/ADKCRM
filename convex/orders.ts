@@ -278,6 +278,10 @@ export const create = mutation({
   args: {
     clientId: v.id("clients"),
     services: v.optional(v.array(v.string())),
+    cost: v.optional(v.number()),
+    price: v.optional(v.number()),
+    profit: v.optional(v.number()),
+    workDays: v.optional(v.number()),
     projectFiles: v.optional(v.string()),
     comment: v.optional(v.string()),
     customText: v.optional(v.string()),
@@ -370,6 +374,10 @@ export const update = mutation({
   args: {
     orderId: v.id("orders"),
     services: v.optional(v.array(v.string())),
+    cost: v.optional(v.union(v.number(), v.null())),
+    price: v.optional(v.union(v.number(), v.null())),
+    profit: v.optional(v.union(v.number(), v.null())),
+    workDays: v.optional(v.union(v.number(), v.null())),
     projectFiles: v.optional(v.string()),
     comment: v.optional(v.string()),
     customText: v.optional(v.string()),
@@ -382,7 +390,7 @@ export const update = mutation({
     projectStartDate: v.optional(v.number()),
     projectEndDate: v.optional(v.number()),
     installationStartDate: v.optional(v.number()),
-    installationTeamId: v.optional(v.id("installationTeams")),
+    installationTeamId: v.optional(v.union(v.id("installationTeams"), v.null())),
     installationDates: v.optional(v.array(v.object({
       date: v.number(),
       startMins: v.optional(v.number()),
@@ -447,7 +455,11 @@ export const update = mutation({
 
     const filtered: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(updates)) {
-      if (value !== undefined) filtered[key] = value;
+      if (value === null) {
+        filtered[key] = undefined;
+      } else if (value !== undefined) {
+        filtered[key] = value;
+      }
     }
     if (Object.keys(filtered).length === 0) return;
 

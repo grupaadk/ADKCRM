@@ -15,7 +15,7 @@ export const listActive = query({
   args: {},
   handler: async (ctx) => {
     const teams = await ctx.db.query("installationTeams").collect();
-    return teams.filter((t) => t.isActive);
+    return teams.filter((t) => t.isActive !== false);
   },
 });
 

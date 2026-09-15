@@ -52,6 +52,7 @@ export default function Notes({ clientId, orderId }: NotesProps) {
   const allUsers = useQuery(api.users.listForNotes);
   const addNote = useMutation(api.notes.add);
   const removeNote = useMutation(api.notes.remove);
+  const updateNote = useMutation(api.notes.update);
 
   const userMap = useMemo(() => {
     if (!allUsers) return {};
@@ -67,6 +68,9 @@ export default function Notes({ clientId, orderId }: NotesProps) {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<Id<"clientNotes"> | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -89,10 +93,23 @@ export default function Notes({ clientId, orderId }: NotesProps) {
     }
   }
 
+  async function handleSaveEdit(noteId: Id<"clientNotes">) {
+    if (!editContent.trim()) return;
+    setSavingEdit(true);
+    try {
+      await updateNote({ noteId, content: editContent.trim() });
+      setEditingNoteId(null);
+      setEditContent("");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   const NOTE_TRUNCATE_LENGTH = 120;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+
       {/* Compact inline add form */}
       <form onSubmit={handleSubmit} className="flex items-center gap-2">
         <textarea
@@ -137,7 +154,7 @@ export default function Notes({ clientId, orderId }: NotesProps) {
         </button>
       </form>
 
-      {/* Notes list — compact todo-style */}
+      {/* Notes list — compact todo-style with inline editing */}
       {notes === undefined ? (
         <div className="py-4 text-center text-xs text-slate-400">Ladowanie...</div>
       ) : notes.length === 0 ? (
@@ -148,6 +165,7 @@ export default function Notes({ clientId, orderId }: NotesProps) {
         <ul className="space-y-0.5">
           {notes.map((note) => {
             const u = userMap[note.createdBy];
+            const isEditing = editingNoteId === note._id;
             const isLong = note.content.length > NOTE_TRUNCATE_LENGTH;
             const isExpanded = expandedId === note._id;
             const displayContent = isLong && !isExpanded
@@ -168,35 +186,90 @@ export default function Notes({ clientId, orderId }: NotesProps) {
                   {userInitials(u)}
                 </span>
 
-                {/* Content */}
-                <div className="min-w-0 flex-1">
-                  <p
-                    className={`text-sm leading-snug text-slate-800 ${isLong ? "cursor-pointer" : ""}`}
-                    onClick={isLong ? () => setExpandedId(isExpanded ? null : note._id) : undefined}
-                  >
-                    {displayContent}
-                  </p>
-                  <span className="text-[10px] text-slate-400">
-                    {userName(u)} · {new Date(note._creationTime).toLocaleString("pl-PL", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
+                {/* Content / Edit form */}
+                {isEditing ? (
+                  <div className="flex-1 space-y-1.5 min-w-0">
+                    <textarea
+                      autoFocus
+                      rows={2}
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      className="w-full rounded-lg border border-blue-400 bg-white p-2 text-sm text-slate-900 outline-none focus:ring-1 focus:ring-blue-400 resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void handleSaveEdit(note._id);
+                        }
+                        if (e.key === "Escape") setEditingNoteId(null);
+                      }}
+                    />
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveEdit(note._id)}
+                        disabled={savingEdit || !editContent.trim()}
+                        className="px-2.5 py-1 text-xs font-semibold bg-slate-900 text-white rounded-md hover:bg-slate-800 disabled:opacity-50"
+                      >
+                        {savingEdit ? "Zapisywanie..." : "Zapisz"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingNoteId(null)}
+                        disabled={savingEdit}
+                        className="px-2.5 py-1 text-xs font-medium bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200"
+                      >
+                        Anuluj
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`text-sm leading-snug text-slate-800 ${isLong ? "cursor-pointer" : ""}`}
+                        onClick={isLong ? () => setExpandedId(isExpanded ? null : note._id) : undefined}
+                      >
+                        {displayContent}
+                      </p>
+                      <span className="text-[10px] text-slate-400">
+                        {userName(u)} · {new Date(note._creationTime).toLocaleString("pl-PL", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
 
-                {/* Delete button — visible on hover */}
-                <button
-                  onClick={() => handleDelete(note._id)}
-                  disabled={deletingId === note._id}
-                  className="mt-0.5 shrink-0 rounded p-1 text-slate-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 disabled:opacity-50"
-                  title="Usun notatke"
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                    {/* Action buttons (Edit & Delete) — visible on hover */}
+                    <div className="mt-0.5 shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingNoteId(note._id);
+                          setEditContent(note.content);
+                        }}
+                        className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                        title="Edytuj notatkę"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(note._id)}
+                        disabled={deletingId === note._id}
+                        className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50"
+                        title="Usuń notatkę"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </>
+                )}
               </li>
             );
           })}

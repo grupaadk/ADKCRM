@@ -59,3 +59,24 @@ export const remove = mutation({
     await ctx.db.delete(args.noteId);
   },
 });
+
+export const update = mutation({
+  args: {
+    noteId: v.id("clientNotes"),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
+
+    const note = await ctx.db.get(args.noteId);
+    if (!note) throw new Error("Nie znaleziono notatki");
+    if (note.createdBy !== userId && user.role !== "admin") {
+      throw new Error("Brak uprawnień do edycji tej notatki");
+    }
+
+    await ctx.db.patch(args.noteId, {
+      content: args.content.trim(),
+    });
+  },
+});

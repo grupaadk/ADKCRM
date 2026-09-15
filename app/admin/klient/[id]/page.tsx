@@ -134,9 +134,6 @@ export default function ClientDetailPage({
   };
 
   const totalGross = orders?.reduce((sum, o) => sum + getOrderGross(o), 0) ?? 0;
-  const totalConfirmedOrdersGross = orders
-    ?.filter((o) => !["measurement", "offer", "lead", "inquiry"].includes(o.status))
-    .reduce((sum, o) => sum + getOrderGross(o), 0) ?? 0;
   const totalOpportunities = opportunities?.length ?? 0;
   const totalOppPrice = opportunities?.reduce((sum, o) => sum + (o.price ?? 0), 0) ?? 0;
 
@@ -364,12 +361,6 @@ export default function ClientDetailPage({
               <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Wartość zleceń</span>
               <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
                 {totalGross > 0 ? `${totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} zł` : "0 zł"}
-              </span>
-            </div>
-            <div style={KPI_CARD}>
-              <span style={{ fontSize: 10, color: "var(--text-mute)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Wartość od „Do zamówienia”</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-strong)", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
-                {totalConfirmedOrdersGross > 0 ? `${totalConfirmedOrdersGross.toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} zł` : "0 zł"}
               </span>
             </div>
             <div style={KPI_CARD}>

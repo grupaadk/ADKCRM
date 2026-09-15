@@ -20,6 +20,7 @@ import SideDrawer from "@/components/SideDrawer";
 import CreateOrderTaskDrawer from "@/components/CreateOrderTaskDrawer";
 import InvestmentLocation from "../../InvestmentLocation";
 import Notes from "../../Notes";
+import InlineEdit from "../../InlineEdit";
 import EventTimeline from "../../EventTimeline";
 import ReminderModal from "@/app/admin/faktury/ReminderModal";
 import {
@@ -1791,6 +1792,7 @@ export default function OrderDetailPage({
   const deleteOrder = useAction(api.orders.deleteOrder);
   const sendOrderAddressSms = useAction(api.sms.sendOrderAddressSms);
   const me = useQuery(api.users.me);
+  const isAdmin = me?.role === "admin";
   const assignableUsers = useQuery(api.users.listAssignable) ?? [];
   const assignOrder = useMutation(api.orders.assignOrder);
   const servicesList = useQuery(api.services.listActive) ?? [];
@@ -3614,9 +3616,14 @@ export default function OrderDetailPage({
               )}
             </div>
 
-        {/* Zamówienia u dostawców oraz Lista zadań */}
+        {/* Lista zadań, Zamówienia u dostawców oraz Notatki / Finanse zlecenia */}
         <div className="grid grid-cols-3 gap-4" style={{ padding: "16px 20px" }}>
-          {/* Lewa kolumna: Zamówienia u dostawców (Podgląd) */}
+          {/* Lewa kolumna (1): Lista zadań */}
+          <div style={{ background: "var(--accent-soft)", borderRadius: 12, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <TodoSection orderId={orderIdTyped} />
+          </div>
+
+          {/* Środkowa kolumna (2): Zamówienia u dostawców (Podgląd) */}
           <div style={{ background: "var(--accent-soft)", borderRadius: 12, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -3735,23 +3742,275 @@ export default function OrderDetailPage({
             )}
           </div>
 
-          {/* Środkowa kolumna: Lista zadań */}
-          <div style={{ background: "var(--accent-soft)", borderRadius: 12, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-            <TodoSection orderId={orderIdTyped} />
-          </div>
-
-          {/* Prawa kolumna: Notatki */}
-          <div style={{ background: "var(--accent-soft)", borderRadius: 12, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <span style={{ width: 4, height: 20, borderRadius: 3, background: "#8b5cf6", flexShrink: 0 }} />
-              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#8b5cf6" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-              </svg>
-              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
-                Notatki
-              </span>
+          {/* Prawa kolumna (3): Notatki oraz Finanse zlecenia */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Notatki */}
+            <div style={{ background: "var(--accent-soft)", borderRadius: 12, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <span style={{ width: 4, height: 20, borderRadius: 3, background: "#8b5cf6", flexShrink: 0 }} />
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#8b5cf6" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                </svg>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+                  Notatki
+                </span>
+              </div>
+              <Notes clientId={clientId} orderId={orderIdTyped} />
             </div>
-            <Notes clientId={clientId} orderId={orderIdTyped} />
+
+            {/* Finanse zlecenia, Rating (Wykres kołowy) & Ekipa montażowa */}
+            {(() => {
+              const profit = order.profit;
+              const workDays = order.workDays;
+              const dailyProfit = (profit !== undefined && workDays && workDays > 0) ? Math.round(profit / workDays) : null;
+
+              let rating: number | null = null;
+              if (dailyProfit !== null) {
+                if (dailyProfit >= 5000) rating = 5;
+                else if (dailyProfit >= 4000) rating = 4;
+                else if (dailyProfit >= 3000) rating = 3;
+                else if (dailyProfit >= 2000) rating = 2;
+                else if (dailyProfit >= 1000) rating = 1;
+                else if (dailyProfit > 0) rating = 1;
+                else rating = 0;
+              }
+
+              const C = 251.327; // 2 * PI * 40
+              const pct = (rating ?? 0) / 5;
+              const filledDash = C * pct;
+              const strokeDasharray = `${filledDash} ${C - filledDash}`;
+
+              const ratingColors: Record<number, string> = {
+                5: "#10b981", // Zieleń dla najlepszego ratingu 5
+                4: "#84cc16", // Limonkowa/Jasna zieleń dla 4
+                3: "#3b82f6", // Niebieska dla 3
+                2: "#f97316", // Pomarańczowa dla 2
+                1: "#ef4444", // Czerwona dla 1
+                0: "#94a3b8", // Szara dla 0
+              };
+              const ringColor = rating !== null ? (ratingColors[rating] ?? "#3b82f6") : "#cbd5e1";
+
+              return (
+                <div style={{ background: "var(--accent-soft)", borderRadius: 12, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ width: 4, height: 18, borderRadius: 3, background: "var(--accent)", flexShrink: 0 }} />
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                        Finanse i Rating zlecenia
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Kompaktowa siatka 2-kolumnowa: Rating po lewej, Pola 2x2 po prawej */}
+                  <div style={{ display: "grid", gridTemplateColumns: "130px 1fr", gap: 10, alignItems: "stretch" }}>
+                    
+                    {/* Karta Ratingu z wykresem kołowym */}
+                    <div
+                      style={{
+                        background: "var(--card)",
+                        borderRadius: 10,
+                        border: "1px solid var(--line)",
+                        padding: "8px 6px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justify: "center",
+                        gap: 4,
+                        textAlign: "center",
+                        boxShadow: rating === 5 ? "0 4px 14px rgba(16, 185, 129, 0.15)" : "none",
+                      }}
+                    >
+                      <div style={{ position: "relative", width: 64, height: 64, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <svg width="64" height="64" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
+                          <circle cx="50" cy="50" r="40" fill="none" stroke="var(--line)" strokeWidth="10" />
+                          {rating !== null && (
+                            <circle
+                              cx="50"
+                              cy="50"
+                              r="40"
+                              fill="none"
+                              stroke={ringColor}
+                              strokeWidth="10"
+                              strokeDasharray={strokeDasharray}
+                              strokeLinecap="round"
+                              style={{ transition: "stroke-dasharray 0.5s ease" }}
+                            />
+                          )}
+                        </svg>
+                        <div style={{ position: "absolute", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
+                          <span style={{ fontSize: 18, fontWeight: 900, color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>
+                            {rating !== null ? rating : "—"}
+                          </span>
+                          <span style={{ fontSize: 8, fontWeight: 700, color: "var(--text-mute)", marginTop: 1, textTransform: "uppercase" }}>
+                            {rating !== null ? "z 5" : "brak"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        {rating !== null ? (
+                          <>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: ringColor }}>
+                              {dailyProfit !== null ? `${dailyProfit.toLocaleString("pl-PL")} zł/d` : "—"}
+                            </div>
+                            <div style={{ fontSize: 9.5, color: "var(--text-mute)", lineHeight: 1.1 }}>
+                              {rating === 5 && "≥ 5k zł/d (Bardzo wysoki)"}
+                              {rating === 4 && "≥ 4k zł/d (Wysoki)"}
+                              {rating === 3 && "≥ 3k zł/d (Dobry)"}
+                              {rating === 2 && "≥ 2k zł/d (Przeciętny)"}
+                              {rating === 1 && "≥ 1k zł/d (Niski)"}
+                              {rating === 0 && "< 1k zł/d"}
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ fontSize: 9.5, color: "var(--text-mute)", fontStyle: "italic", lineHeight: 1.2 }}>
+                            Wpisz dane
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Siatka 2x2 pól finansowych */}
+                    <div style={{ background: "var(--card)", padding: 8, borderRadius: 10, border: "1px solid var(--line)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 10px", alignItems: "center" }}>
+                      <InlineEdit
+                        label="Koszt (PLN)"
+                        value={order.cost !== undefined ? String(order.cost) : ""}
+                        placeholder="0"
+                        onSave={(v) => {
+                          const num = v.trim() ? parseFloat(v.replace(/,/g, ".")) : null;
+                          if (num !== null && !isNaN(num)) {
+                            const newProfit = order.price !== undefined ? order.price - num : order.profit;
+                            void updateOrder({ orderId: orderIdTyped, cost: num, profit: newProfit });
+                          } else {
+                            void updateOrder({ orderId: orderIdTyped, cost: null });
+                          }
+                        }}
+                      />
+                      <InlineEdit
+                        label="Cena (PLN)"
+                        value={order.price !== undefined ? String(order.price) : ""}
+                        placeholder="0"
+                        onSave={(v) => {
+                          const num = v.trim() ? parseFloat(v.replace(/,/g, ".")) : null;
+                          if (num !== null && !isNaN(num)) {
+                            const newProfit = order.cost !== undefined ? num - order.cost : order.profit;
+                            void updateOrder({ orderId: orderIdTyped, price: num, profit: newProfit });
+                          } else {
+                            void updateOrder({ orderId: orderIdTyped, price: null });
+                          }
+                        }}
+                      />
+                      {isAdmin && (
+                        <InlineEdit
+                          label="Zarobek (PLN)"
+                          value={order.profit !== undefined ? String(order.profit) : ""}
+                          placeholder="0"
+                          onSave={(v) => {
+                            const num = v.trim() ? parseFloat(v.replace(/,/g, ".")) : null;
+                            if (num !== null && !isNaN(num)) {
+                              void updateOrder({ orderId: orderIdTyped, profit: num });
+                            } else {
+                              void updateOrder({ orderId: orderIdTyped, profit: null });
+                            }
+                          }}
+                        />
+                      )}
+                      <InlineEdit
+                        label="Dni montażu"
+                        value={order.workDays !== undefined ? String(order.workDays) : ""}
+                        placeholder="np. 2"
+                        onSave={(v) => {
+                          const num = v.trim() ? parseFloat(v.replace(/,/g, ".")) : null;
+                          if (num !== null && !isNaN(num) && num >= 0) {
+                            void updateOrder({ orderId: orderIdTyped, workDays: num });
+                          } else {
+                            void updateOrder({ orderId: orderIdTyped, workDays: null });
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Pasek Wyboru Ekipy montażowej */}
+                  <div style={{ background: "var(--card)", padding: "6px 10px", borderRadius: 10, border: "1px solid var(--line)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.05em", flexShrink: 0 }}>
+                        Ekipa:
+                      </label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, flex: 1 }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void updateOrder({ orderId: orderIdTyped, installationTeamId: null });
+                          }}
+                          style={{
+                            padding: "3px 10px",
+                            borderRadius: 12,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            border: !order.installationTeamId ? "1.5px solid var(--accent)" : "1px solid var(--line-2)",
+                            background: !order.installationTeamId ? "var(--accent-soft, #eff6ff)" : "var(--panel)",
+                            color: !order.installationTeamId ? "var(--accent)" : "var(--text-mute)",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                            userSelect: "none",
+                          }}
+                        >
+                          Brak
+                        </button>
+                        {installationTeams.map((t) => {
+                          const isSelected = order.installationTeamId === t._id;
+                          return (
+                            <button
+                              key={t._id}
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const nextVal = isSelected ? null : t._id;
+                                void updateOrder({ orderId: orderIdTyped, installationTeamId: nextVal });
+                              }}
+                              style={{
+                                padding: "3px 10px",
+                                borderRadius: 12,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                border: isSelected ? "1.5px solid var(--accent)" : "1px solid var(--line-2)",
+                                background: isSelected ? "var(--accent)" : "var(--panel)",
+                                color: isSelected ? "#fff" : "var(--text-strong)",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 5,
+                                userSelect: "none",
+                              }}
+                            >
+                              {t.color && (
+                                <span
+                                  style={{
+                                    width: 6,
+                                    height: 6,
+                                    borderRadius: "50%",
+                                    background: isSelected ? "#fff" : t.color,
+                                    display: "inline-block",
+                                    flexShrink: 0,
+                                    pointerEvents: "none",
+                                  }}
+                                />
+                              )}
+                              <span style={{ pointerEvents: "none" }}>{t.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
