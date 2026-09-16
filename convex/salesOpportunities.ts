@@ -363,9 +363,9 @@ export const updateOpportunity = mutation({
 
     // Jeśli zmiana dotyczy finansów na przekonwertowanej szansie, dodaj notatkę do zlecenia
     if (opp.processed && isFinancialUpdate && opp.clientId) {
-      const updatedCost = rest.cost !== undefined ? rest.cost : opp.cost;
-      const updatedPrice = rest.price !== undefined ? rest.price : opp.price;
-      const updatedProfit = rest.profit !== undefined ? rest.profit : opp.profit;
+      const updatedCost = (rest.cost !== undefined ? rest.cost : opp.cost) ?? undefined;
+      const updatedPrice = (rest.price !== undefined ? rest.price : opp.price) ?? undefined;
+      const updatedProfit = (rest.profit !== undefined ? rest.profit : opp.profit) ?? undefined;
       const updateNote = formatFinancialsNote(updatedCost, updatedPrice, updatedProfit, true);
 
       if (updateNote) {
