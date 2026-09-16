@@ -89,17 +89,17 @@ export const update = mutation({
   args: {
     clientId: v.id("clients"),
     clientType: v.optional(v.union(v.literal("individual"), v.literal("business"))),
-    firstName: v.optional(v.string()),
-    lastName: v.optional(v.string()),
-    email: v.optional(v.string()),
-    phone: v.optional(v.string()),
-    nip: v.optional(v.string()),
-    companyName: v.optional(v.string()),
-    postalCode: v.optional(v.string()),
-    city: v.optional(v.string()),
-    street: v.optional(v.string()),
-    buildingNumber: v.optional(v.string()),
-    apartmentNumber: v.optional(v.string()),
+    firstName: v.optional(v.union(v.string(), v.null())),
+    lastName: v.optional(v.union(v.string(), v.null())),
+    email: v.optional(v.union(v.string(), v.null())),
+    phone: v.optional(v.union(v.string(), v.null())),
+    nip: v.optional(v.union(v.string(), v.null())),
+    companyName: v.optional(v.union(v.string(), v.null())),
+    postalCode: v.optional(v.union(v.string(), v.null())),
+    city: v.optional(v.union(v.string(), v.null())),
+    street: v.optional(v.union(v.string(), v.null())),
+    buildingNumber: v.optional(v.union(v.string(), v.null())),
+    apartmentNumber: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -107,13 +107,17 @@ export const update = mutation({
 
     const { clientId, ...updates } = args;
     
-    if (updates.phone !== undefined) {
+    if (updates.phone !== undefined && updates.phone !== null) {
       updates.phone = normalizePhoneForDb(updates.phone);
     }
 
     const filtered: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(updates)) {
-      if (value !== undefined) filtered[key] = value;
+      if (value === null) {
+        filtered[key] = undefined;
+      } else if (value !== undefined) {
+        filtered[key] = value;
+      }
     }
     if (Object.keys(filtered).length === 0) return;
 

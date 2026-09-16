@@ -225,7 +225,7 @@ export default function OpportunityDetailPage({
     );
   }
 
-  const save = (field: string, value: string | string[] | number | undefined) => {
+  const save = (field: string, value: string | string[] | number | null | undefined) => {
     updateField({ opportunityId, [field]: value }).catch((err) => {
       setError(err instanceof Error ? err.message : "Wystąpił błąd");
       setTimeout(() => setError(null), 3000);
@@ -672,17 +672,17 @@ export default function OpportunityDetailPage({
           <div style={{ padding: "14px 16px", borderRight: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
             <p style={{ ...FIELD_LABEL, marginBottom: 6 }}>Dane kontaktowe</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <InlineEdit label="Imię" value={opp.firstName} onSave={(v) => save("firstName", v)} />
-              <InlineEdit label="Nazwisko" value={opp.lastName} onSave={(v) => save("lastName", v)} />
-              <InlineEdit label="E-mail" value={opp.email ?? ""} placeholder="—" onSave={(v) => save("email", v || undefined)} />
-              <InlineEdit label="Telefon" value={opp.phone ?? ""} placeholder="—" onSave={(v) => save("phone", v || undefined)} />
+              <InlineEdit label="Imię" value={opp.firstName} onSave={(v) => save("firstName", v || null)} />
+              <InlineEdit label="Nazwisko" value={opp.lastName} onSave={(v) => save("lastName", v || null)} />
+              <InlineEdit label="E-mail" value={opp.email ?? ""} placeholder="—" onSave={(v) => save("email", v || null)} />
+              <InlineEdit label="Telefon" value={opp.phone ?? ""} placeholder="—" onSave={(v) => save("phone", v || null)} />
             </div>
             <div style={{ marginTop: 4, paddingTop: 8, borderTop: "1px solid var(--line)" }}>
               <InlineEdit
                 label="Identyfikator Kanban"
                 value={opp.customText ?? ""}
                 placeholder="np. KOWALSKI – Zabudowa tarasu"
-                onSave={(v) => save("customText", v || undefined)}
+                onSave={(v) => save("customText", v || null)}
               />
             </div>
           </div>
@@ -699,18 +699,18 @@ export default function OpportunityDetailPage({
             </div>
             <AddressSearch onSelect={handleAddress} />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-              <InlineEdit label="Ulica" value={opp.street ?? ""} placeholder="—" onSave={(v) => { save("street", v || undefined); if (sameAddress) save("investmentStreet", v || undefined); }} />
+              <InlineEdit label="Ulica" value={opp.street ?? ""} placeholder="—" onSave={(v) => { save("street", v || null); if (sameAddress) save("investmentStreet", v || null); }} />
               <InlineEdit label="Nr bud. / mieszk." value={[opp.buildingNumber, opp.apartmentNumber].filter(Boolean).join("/")} placeholder="—" onSave={(v) => {
                 const parts = v ? v.split("/") : [];
-                save("buildingNumber", parts[0] || undefined);
-                save("apartmentNumber", parts[1] || undefined);
+                save("buildingNumber", parts[0] || null);
+                save("apartmentNumber", parts[1] || null);
                 if (sameAddress) {
-                  save("investmentBuildingNumber", parts[0] || undefined);
-                  save("investmentApartmentNumber", parts[1] || undefined);
+                  save("investmentBuildingNumber", parts[0] || null);
+                  save("investmentApartmentNumber", parts[1] || null);
                 }
               }} />
-              <InlineEdit label="Kod pocztowy" value={opp.postalCode ?? ""} placeholder="—" onSave={(v) => { save("postalCode", v || undefined); if (sameAddress) save("investmentPostalCode", v || undefined); }} />
-              <InlineEdit label="Miejscowość" value={opp.city ?? ""} placeholder="—" onSave={(v) => { save("city", v || undefined); if (sameAddress) save("investmentCity", v || undefined); }} />
+              <InlineEdit label="Kod pocztowy" value={opp.postalCode ?? ""} placeholder="—" onSave={(v) => { save("postalCode", v || null); if (sameAddress) save("investmentPostalCode", v || null); }} />
+              <InlineEdit label="Miejscowość" value={opp.city ?? ""} placeholder="—" onSave={(v) => { save("city", v || null); if (sameAddress) save("investmentCity", v || null); }} />
             </div>
           </div>
 
@@ -782,14 +782,14 @@ export default function OpportunityDetailPage({
               <>
                 <AddressSearch onSelect={handleInvestmentAddress} />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  <InlineEdit label="Ulica" value={opp.investmentStreet ?? ""} placeholder="—" onSave={(v) => save("investmentStreet", v || undefined)} />
+                  <InlineEdit label="Ulica" value={opp.investmentStreet ?? ""} placeholder="—" onSave={(v) => save("investmentStreet", v || null)} />
                   <InlineEdit label="Nr bud. / mieszk." value={[opp.investmentBuildingNumber, opp.investmentApartmentNumber].filter(Boolean).join("/")} placeholder="—" onSave={(v) => {
                     const parts = v ? v.split("/") : [];
-                    save("investmentBuildingNumber", parts[0] || undefined);
-                    save("investmentApartmentNumber", parts[1] || undefined);
+                    save("investmentBuildingNumber", parts[0] || null);
+                    save("investmentApartmentNumber", parts[1] || null);
                   }} />
-                  <InlineEdit label="Kod pocztowy" value={opp.investmentPostalCode ?? ""} placeholder="—" onSave={(v) => save("investmentPostalCode", v || undefined)} />
-                  <InlineEdit label="Miejscowość" value={opp.investmentCity ?? ""} placeholder="—" onSave={(v) => save("investmentCity", v || undefined)} />
+                  <InlineEdit label="Kod pocztowy" value={opp.investmentPostalCode ?? ""} placeholder="—" onSave={(v) => save("investmentPostalCode", v || null)} />
+                  <InlineEdit label="Miejscowość" value={opp.investmentCity ?? ""} placeholder="—" onSave={(v) => save("investmentCity", v || null)} />
                 </div>
               </>
             )}
@@ -861,47 +861,51 @@ export default function OpportunityDetailPage({
               <div style={{ background: "var(--card)", padding: 8, borderRadius: 10, border: "1px solid var(--line)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 8px", alignItems: "start" }}>
                 <InlineEdit
                   label="Koszt (PLN)"
+                  suffix=" zł"
                   value={opp.cost !== undefined ? String(opp.cost) : ""}
                   placeholder="0"
                   onSave={(v) => {
-                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-                    if (num !== undefined && !isNaN(num)) {
+                    const num = v ? parseFloat(v.replace(/,/g, ".")) : null;
+                    if (num !== null && !isNaN(num)) {
                       save("cost", num);
                       if (opp.price !== undefined) save("profit", opp.price - num);
-                    } else if (!v) save("cost", undefined);
+                    } else save("cost", null);
                   }}
                 />
                 <InlineEdit
                   label="Cena (PLN)"
+                  suffix=" zł"
                   value={opp.price !== undefined ? String(opp.price) : ""}
                   placeholder="0"
                   onSave={(v) => {
-                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-                    if (num !== undefined && !isNaN(num)) {
+                    const num = v ? parseFloat(v.replace(/,/g, ".")) : null;
+                    if (num !== null && !isNaN(num)) {
                       save("price", num);
                       if (opp.cost !== undefined) save("profit", num - opp.cost);
-                    } else if (!v) save("price", undefined);
+                    } else save("price", null);
                   }}
                 />
                 <InlineEdit
                   label="Dni montażu"
+                  suffix=" dni"
                   value={opp.workDays !== undefined ? String(opp.workDays) : ""}
                   placeholder="np. 2"
                   onSave={(v) => {
-                    const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-                    if (num !== undefined && !isNaN(num) && num >= 0) save("workDays", num);
-                    else if (!v) save("workDays", undefined);
+                    const num = v ? parseFloat(v.replace(/,/g, ".")) : null;
+                    if (num !== null && !isNaN(num) && num >= 0) save("workDays", num);
+                    else save("workDays", null);
                   }}
                 />
                 {isAdmin && (
                   <InlineEdit
                     label="Zarobek (PLN)"
+                    suffix=" zł"
                     value={opp.profit !== undefined ? String(opp.profit) : ""}
                     placeholder="0"
                     onSave={(v) => {
-                      const num = v ? parseFloat(v.replace(/,/g, ".")) : undefined;
-                      if (num !== undefined && !isNaN(num)) save("profit", num);
-                      else if (!v) save("profit", undefined);
+                      const num = v ? parseFloat(v.replace(/,/g, ".")) : null;
+                      if (num !== null && !isNaN(num)) save("profit", num);
+                      else save("profit", null);
                     }}
                   />
                 )}

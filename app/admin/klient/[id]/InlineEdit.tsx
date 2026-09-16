@@ -7,6 +7,7 @@ interface InlineEditProps {
   onSave: (value: string) => void;
   label: string;
   placeholder?: string;
+  suffix?: string;
 }
 
 const LABEL_STYLE: React.CSSProperties = {
@@ -19,7 +20,7 @@ const LABEL_STYLE: React.CSSProperties = {
   display: "block",
 };
 
-export default function InlineEdit({ value, onSave, label, placeholder }: InlineEditProps) {
+export default function InlineEdit({ value, onSave, label, placeholder, suffix }: InlineEditProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -108,7 +109,7 @@ export default function InlineEdit({ value, onSave, label, placeholder }: Inline
             fontVariantNumeric: "tabular-nums",
           }}
         >
-          {value ? `${value} zł` : (placeholder ?? "—")}
+          {value ? `${value}${suffix ?? ""}` : (placeholder ?? "—")}
         </span>
         {value && (
           <button

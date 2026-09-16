@@ -87,7 +87,7 @@ export default function ClientDetailPage({
   }
 
   function handleFieldSave(field: string, value: string) {
-    void updateClient({ clientId, [field]: value });
+    void updateClient({ clientId, [field]: value.trim() ? value.trim() : null });
   }
 
   function handleAddressSelect(address: AddressData) {

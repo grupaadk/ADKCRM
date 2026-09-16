@@ -3860,6 +3860,7 @@ export default function OrderDetailPage({
                     <div style={{ background: "var(--card)", padding: 8, borderRadius: 10, border: "1px solid var(--line)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 10px", alignItems: "center" }}>
                       <InlineEdit
                         label="Koszt (PLN)"
+                        suffix=" zł"
                         value={order.cost !== undefined ? String(order.cost) : ""}
                         placeholder="0"
                         onSave={(v) => {
@@ -3874,6 +3875,7 @@ export default function OrderDetailPage({
                       />
                       <InlineEdit
                         label="Cena (PLN)"
+                        suffix=" zł"
                         value={order.price !== undefined ? String(order.price) : ""}
                         placeholder="0"
                         onSave={(v) => {
@@ -3889,6 +3891,7 @@ export default function OrderDetailPage({
                       {isAdmin && (
                         <InlineEdit
                           label="Zarobek (PLN)"
+                          suffix=" zł"
                           value={order.profit !== undefined ? String(order.profit) : ""}
                           placeholder="0"
                           onSave={(v) => {
@@ -3903,6 +3906,7 @@ export default function OrderDetailPage({
                       )}
                       <InlineEdit
                         label="Dni montażu"
+                        suffix=" dni"
                         value={order.workDays !== undefined ? String(order.workDays) : ""}
                         placeholder="np. 2"
                         onSave={(v) => {

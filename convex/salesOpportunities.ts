@@ -317,27 +317,27 @@ function formatFinancialsNote(cost?: number, price?: number, profit?: number, is
 export const updateOpportunity = mutation({
   args: {
     opportunityId: v.id("pendingJotformSubmissions"),
-    firstName: v.optional(v.string()),
-    lastName: v.optional(v.string()),
-    email: v.optional(v.string()),
-    phone: v.optional(v.string()),
-    street: v.optional(v.string()),
-    buildingNumber: v.optional(v.string()),
-    apartmentNumber: v.optional(v.string()),
-    postalCode: v.optional(v.string()),
-    city: v.optional(v.string()),
-    investmentStreet: v.optional(v.string()),
-    investmentBuildingNumber: v.optional(v.string()),
-    investmentApartmentNumber: v.optional(v.string()),
-    investmentPostalCode: v.optional(v.string()),
-    investmentCity: v.optional(v.string()),
+    firstName: v.optional(v.union(v.string(), v.null())),
+    lastName: v.optional(v.union(v.string(), v.null())),
+    email: v.optional(v.union(v.string(), v.null())),
+    phone: v.optional(v.union(v.string(), v.null())),
+    street: v.optional(v.union(v.string(), v.null())),
+    buildingNumber: v.optional(v.union(v.string(), v.null())),
+    apartmentNumber: v.optional(v.union(v.string(), v.null())),
+    postalCode: v.optional(v.union(v.string(), v.null())),
+    city: v.optional(v.union(v.string(), v.null())),
+    investmentStreet: v.optional(v.union(v.string(), v.null())),
+    investmentBuildingNumber: v.optional(v.union(v.string(), v.null())),
+    investmentApartmentNumber: v.optional(v.union(v.string(), v.null())),
+    investmentPostalCode: v.optional(v.union(v.string(), v.null())),
+    investmentCity: v.optional(v.union(v.string(), v.null())),
     services: v.optional(v.array(v.string())),
-    comment: v.optional(v.string()),
-    customText: v.optional(v.string()),
-    cost: v.optional(v.number()),
-    price: v.optional(v.number()),
-    profit: v.optional(v.number()),
-    workDays: v.optional(v.number()),
+    comment: v.optional(v.union(v.string(), v.null())),
+    customText: v.optional(v.union(v.string(), v.null())),
+    cost: v.optional(v.union(v.number(), v.null())),
+    price: v.optional(v.union(v.number(), v.null())),
+    profit: v.optional(v.union(v.number(), v.null())),
+    workDays: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
     const { opportunityId, ...rest } = args;
@@ -351,8 +351,11 @@ export const updateOpportunity = mutation({
 
     const patch: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(rest)) {
-      if (value === undefined) continue;
-      patch[key] = value;
+      if (value === null) {
+        patch[key] = undefined;
+      } else if (value !== undefined) {
+        patch[key] = value;
+      }
     }
     if (Object.keys(patch).length > 0) {
       await ctx.db.patch(opportunityId, patch);
