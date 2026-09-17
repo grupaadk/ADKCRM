@@ -212,18 +212,7 @@ export default function OpportunityDetailPage({
     );
   }
 
-  if (opp.processed) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 256, gap: 12 }}>
-        <span className="mute" style={{ fontSize: 13 }}>
-          Ta szansa została już przekonwertowana do zlecenia.
-        </span>
-        <Link href="/admin/panel?tab=opportunities" style={{ fontSize: 13, color: "var(--accent)" }}>
-          Wróć do panelu
-        </Link>
-      </div>
-    );
-  }
+
 
   const save = (field: string, value: string | string[] | number | null | undefined) => {
     updateField({ opportunityId, [field]: value }).catch((err) => {
@@ -405,6 +394,63 @@ export default function OpportunityDetailPage({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {opp.processed && (
+        <div style={{
+          backgroundColor: "#fef3c7",
+          border: "1px solid #f59e0b",
+          borderRadius: 12,
+          padding: "12px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+          flexWrap: "wrap",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13.5, fontWeight: 600, color: "#92400e" }}>
+            <span style={{ fontSize: 18 }}>ℹ️</span>
+            <span>Ta szansa została już przekonwertowana do zlecenia. Możesz nadal przeglądać jej dane i historię.</span>
+          </div>
+          {opp.convertedOrder ? (
+            <Link
+              href={`/admin/klient/${opp.convertedOrder.clientId}/zlecenie/${opp.convertedOrder._id}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "7px 14px",
+                borderRadius: 8,
+                backgroundColor: "#0284c7",
+                color: "#ffffff",
+                fontWeight: 600,
+                fontSize: 13,
+                textDecoration: "none",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+              }}
+            >
+              Przejdź do Zlecenia ({opp.convertedOrder.name ?? "Zlecenie"}) &rarr;
+            </Link>
+          ) : opp.clientId ? (
+            <Link
+              href={`/admin/klient/${opp.clientId}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "7px 14px",
+                borderRadius: 8,
+                backgroundColor: "#0284c7",
+                color: "#ffffff",
+                fontWeight: 600,
+                fontSize: 13,
+                textDecoration: "none",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+              }}
+            >
+              Przejdź do Klienta &rarr;
+            </Link>
+          ) : null}
+        </div>
+      )}
       {/* ── Header panel ── */}
       <div className="panel" style={{ overflow: "visible" }}>
         {/* Breadcrumb + actions */}
@@ -617,23 +663,59 @@ export default function OpportunityDetailPage({
                 })}
               </div>
             </div>
-            <button
-              onClick={handleConvert}
-              disabled={stage !== "inquiry" || converting}
-              className="btn primary"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 12,
-                padding: "5px 12px",
-                opacity: stage !== "inquiry" || converting ? 0.5 : 1,
-                cursor: stage !== "inquiry" || converting ? "not-allowed" : "pointer",
-              }}
-            >
-              <Send size={13} />
-              {converting ? "Tworzenie..." : "Utwórz zlecenie"}
-            </button>
+            {opp.processed ? (
+              opp.convertedOrder ? (
+                <Link
+                  href={`/admin/klient/${opp.convertedOrder.clientId}/zlecenie/${opp.convertedOrder._id}`}
+                  className="btn primary"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    padding: "5px 12px",
+                    textDecoration: "none",
+                  }}
+                >
+                  <Send size={13} />
+                  Przejdź do zlecenia ({opp.convertedOrder.name ?? "Zlecenie"})
+                </Link>
+              ) : (
+                <button
+                  disabled
+                  className="btn"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    padding: "5px 12px",
+                    opacity: 0.6,
+                    cursor: "not-allowed",
+                  }}
+                >
+                  Zlecenie utworzone
+                </button>
+              )
+            ) : (
+              <button
+                onClick={handleConvert}
+                disabled={stage !== "inquiry" || converting}
+                className="btn primary"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  padding: "5px 12px",
+                  opacity: stage !== "inquiry" || converting ? 0.5 : 1,
+                  cursor: stage !== "inquiry" || converting ? "not-allowed" : "pointer",
+                }}
+              >
+                <Send size={13} />
+                {converting ? "Tworzenie..." : "Utwórz zlecenie"}
+              </button>
+            )}
           </div>
         </div>
       </div>

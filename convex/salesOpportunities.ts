@@ -117,17 +117,42 @@ export const getSalesOpportunity = query({
     const opp = await ctx.db.get(args.opportunityId);
     if (!opp) return null;
 
-    // Preferuj clientFolderUrl ze szansy; jeśli brak, spróbuj pobrać z klienta
-    if (opp.clientFolderUrl) {
-      return opp;
-    }
-
-    if (opp.clientId) {
+    let clientFolderUrl = opp.clientFolderUrl;
+    if (!clientFolderUrl && opp.clientId) {
       const client = await ctx.db.get(opp.clientId);
-      return { ...opp, clientFolderUrl: client?.clientFolderUrl };
+      clientFolderUrl = client?.clientFolderUrl;
     }
 
-    return opp;
+    let convertedOrder: { _id: Id<"orders">; name?: string; clientId: Id<"clients"> } | null = null;
+    if (opp.processed && opp.clientId) {
+      let order = null;
+      if (opp.submissionId) {
+        order = await ctx.db
+          .query("orders")
+          .withIndex("by_jotform_submission", (q) => q.eq("jotformSubmissionId", opp.submissionId!))
+          .first();
+      }
+      if (!order) {
+        order = await ctx.db
+          .query("orders")
+          .withIndex("by_client", (q) => q.eq("clientId", opp.clientId!))
+          .order("desc")
+          .first();
+      }
+      if (order) {
+        convertedOrder = {
+          _id: order._id,
+          name: order.name,
+          clientId: order.clientId,
+        };
+      }
+    }
+
+    return {
+      ...opp,
+      clientFolderUrl,
+      convertedOrder,
+    };
   },
 });
 
