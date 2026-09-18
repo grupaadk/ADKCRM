@@ -49,6 +49,28 @@ describe("Sales Opportunity Financials Transfer to Order", () => {
     expect(order?.comment).toContain("[Finanse z szansy]");
   });
 
+  test("allows setting and updating leadSource on sales opportunity", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const opportunityId = await asUser.mutation(api.salesOpportunities.createManualOpportunity, {
+      firstName: "Marek",
+      lastName: "Nowak",
+      leadSource: "Polecenie - Pan Tomasz",
+    });
+
+    let opp = await t.run(async (ctx) => ctx.db.get(opportunityId));
+    expect(opp?.leadSource).toBe("Polecenie - Pan Tomasz");
+
+    await asUser.mutation(api.salesOpportunities.updateOpportunity, {
+      opportunityId,
+      leadSource: "Targi Budowlane 2026",
+    });
+
+    opp = await t.run(async (ctx) => ctx.db.get(opportunityId));
+    expect(opp?.leadSource).toBe("Targi Budowlane 2026");
+  });
+
   test("allows updating cost, price, profit directly on an order", async () => {
     const t = convexTest(schema);
     const asUser = await setupAuthContext(t);

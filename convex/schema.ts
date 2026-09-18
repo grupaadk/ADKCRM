@@ -487,6 +487,7 @@ export default defineSchema({
     price: v.optional(v.number()),
     profit: v.optional(v.number()),
     workDays: v.optional(v.number()),
+    leadSource: v.optional(v.string()),
   })
     .index("by_client", ["clientId"])
     .index("by_submission", ["submissionId"])

@@ -151,6 +151,27 @@ export default function OpportunityDetailPage({
   const [editingServices, setEditingServices] = useState(false);
   const [draftServices, setDraftServices] = useState<string[]>([]);
   const [sameAddress, setSameAddress] = useState<boolean>(false);
+  const [editingLeadSource, setEditingLeadSource] = useState(false);
+  const [draftLeadSource, setDraftLeadSource] = useState("");
+
+  useEffect(() => {
+    if (opp?.leadSource !== undefined) {
+      setDraftLeadSource(opp.leadSource ?? "");
+    }
+  }, [opp?.leadSource]);
+
+  const handleSaveLeadSource = async () => {
+    try {
+      const val = draftLeadSource.trim();
+      await updateField({
+        opportunityId,
+        leadSource: val ? val : null,
+      });
+      setEditingLeadSource(false);
+    } catch (err: any) {
+      setError(err.message || "Błąd zapisu źródła leada");
+    }
+  };
 
   const assignDropdownRef = useRef<HTMLDivElement>(null);
   const commentRef = useRef<HTMLTextAreaElement>(null);
@@ -627,11 +648,110 @@ export default function OpportunityDetailPage({
             <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-strong)", margin: 0, lineHeight: 1.2 }}>
               {opp.firstName} {opp.lastName}
             </h1>
-            <p style={{ fontSize: 12, color: "var(--text-mute)", margin: "3px 0 0" }}>
-              Szansa sprzedaży · {stageLabel}
-              {opp.submissionId && ` · #${opp.submissionId}`}
-              {opp.archived && " · ZARCHIWIZOWANA"}
-            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+              <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
+                Szansa sprzedaży · {stageLabel}
+                {opp.submissionId && ` · #${opp.submissionId}`}
+                {opp.archived && " · ZARCHIWIZOWANA"}
+              </span>
+
+              <span style={{ fontSize: 12, color: "var(--text-mute)" }}>·</span>
+
+              {editingLeadSource ? (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <input
+                    type="text"
+                    value={draftLeadSource}
+                    onChange={(e) => setDraftLeadSource(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveLeadSource();
+                      if (e.key === "Escape") {
+                        setDraftLeadSource(opp.leadSource ?? "");
+                        setEditingLeadSource(false);
+                      }
+                    }}
+                    autoFocus
+                    placeholder="od kogo lead..."
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: 6,
+                      border: "1px solid var(--accent)",
+                      background: "var(--panel)",
+                      color: "var(--text-strong)",
+                      outline: "none",
+                      width: 170,
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveLeadSource}
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      background: "#2563eb",
+                      color: "#fff",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    OK
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftLeadSource(opp.leadSource ?? "");
+                      setEditingLeadSource(false);
+                    }}
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      background: "transparent",
+                      color: "var(--text-mute)",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Anuluj
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftLeadSource(opp.leadSource ?? "");
+                    setEditingLeadSource(true);
+                  }}
+                  title="Edytuj źródło leada"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: 11.5,
+                    fontWeight: opp.leadSource ? 600 : 500,
+                    padding: "2px 8px",
+                    borderRadius: 6,
+                    border: `1px solid ${opp.leadSource ? "var(--line-2)" : "1px dashed #cbd5e1"}`,
+                    background: opp.leadSource ? "var(--panel)" : "rgba(241, 245, 249, 0.6)",
+                    color: opp.leadSource ? "var(--text-strong)" : "var(--text-mute)",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <span style={{ color: "#2563eb", fontWeight: 700 }}>Źródło:</span>
+                  {opp.leadSource ? (
+                    <span>{opp.leadSource}</span>
+                  ) : (
+                    <span style={{ fontStyle: "italic", opacity: 0.8 }}>+ Dodaj od kogo lead</span>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Etap + konwersja */}
@@ -759,7 +879,13 @@ export default function OpportunityDetailPage({
               <InlineEdit label="E-mail" value={opp.email ?? ""} placeholder="—" onSave={(v) => save("email", v || null)} />
               <InlineEdit label="Telefon" value={opp.phone ?? ""} placeholder="—" onSave={(v) => save("phone", v || null)} />
             </div>
-            <div style={{ marginTop: 4, paddingTop: 8, borderTop: "1px solid var(--line)" }}>
+            <div style={{ marginTop: 4, paddingTop: 8, borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
+              <InlineEdit
+                label="Źródło leada (Od kogo)"
+                value={opp.leadSource ?? ""}
+                placeholder="np. Polecenie, FB, Przedstawiciel..."
+                onSave={(v) => save("leadSource", v || null)}
+              />
               <InlineEdit
                 label="Identyfikator Kanban"
                 value={opp.customText ?? ""}

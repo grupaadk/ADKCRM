@@ -300,7 +300,7 @@ function MobileOpportunityPageMain({ params }: { params: Promise<{ opportunityId
             </span>
           </div>
           <p className="text-xs text-slate-500 font-medium truncate">
-            Szansa sprzedaży {opp.submissionId ? `· Jotform #${opp.submissionId}` : ""}
+            Szansa sprzedaży{opp.leadSource ? ` · Źródło: ${opp.leadSource}` : ""}{opp.submissionId ? ` · Jotform #${opp.submissionId}` : ""}
           </p>
         </div>
       </header>

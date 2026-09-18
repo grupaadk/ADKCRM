@@ -82,6 +82,7 @@ export default function NewOpportunityModal({ onClose, onSuccess, initialClient 
   );
   const [services, setServices] = useState<string[]>([]);
   const [customText, setCustomText] = useState("");
+  const [leadSource, setLeadSource] = useState("");
   const [comment, setComment] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<{ name: string; storageId: string }[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -275,6 +276,7 @@ export default function NewOpportunityModal({ onClose, onSuccess, initialClient 
         investmentCity: investmentCity.trim() || undefined,
         services: services.length > 0 ? services : undefined,
         customText: customText.trim() || undefined,
+        leadSource: leadSource.trim() || undefined,
         comment: comment.trim() || undefined,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         uploadedFileIds: uploadedFiles.length > 0 ? uploadedFiles.map((f) => f.storageId as any) : undefined,
@@ -745,6 +747,18 @@ export default function NewOpportunityModal({ onClose, onSuccess, initialClient 
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
                 />
                 <p className="text-xs text-slate-400">Dodatkowy identyfikator widoczny na karcie kanban</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase tracking-widest text-slate-400">Źródło leada (od kogo)</label>
+                <input
+                  type="text"
+                  value={leadSource}
+                  onChange={(e) => setLeadSource(e.target.value)}
+                  placeholder="np. Polecenie - Jan Nowak, Facebook ADK..."
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                />
+                <p className="text-xs text-slate-400">Nazwa lub osoba, od której pochodzi ten lead</p>
               </div>
 
               <div className="space-y-1.5">

@@ -24,6 +24,7 @@ export const createSalesOpportunity = mutation({
     projectFiles: v.optional(v.string()),
     comment: v.optional(v.string()),
     submissionId: v.optional(v.string()),
+    leadSource: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (args.submissionId) {
@@ -84,6 +85,7 @@ export const createManualOpportunity = mutation({
     cost: v.optional(v.number()),
     price: v.optional(v.number()),
     profit: v.optional(v.number()),
+    leadSource: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (!args.firstName.trim() && !args.lastName.trim()) {
@@ -363,6 +365,7 @@ export const updateOpportunity = mutation({
     price: v.optional(v.union(v.number(), v.null())),
     profit: v.optional(v.union(v.number(), v.null())),
     workDays: v.optional(v.union(v.number(), v.null())),
+    leadSource: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const { opportunityId, ...rest } = args;
