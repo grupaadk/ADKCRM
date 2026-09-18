@@ -86,6 +86,7 @@ export const savePendingSubmission = mutation({
     comment: v.optional(v.string()),
     submissionId: v.optional(v.string()),
     clientId: v.optional(v.id("clients")),
+    leadSource: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Idempotencja: jeśli zgłoszenie z tym submissionId już istnieje, zwróć je

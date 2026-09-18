@@ -39,6 +39,7 @@ export const websiteWebhook = httpAction(async (ctx, request) => {
     services,
     comment,
     projectFiles,
+    leadSource,
   } = payload as {
     firstName?: string;
     lastName?: string;
@@ -52,6 +53,7 @@ export const websiteWebhook = httpAction(async (ctx, request) => {
     services?: string[];
     comment?: string;
     projectFiles?: string;
+    leadSource?: string;
   };
 
   if (!firstName && !lastName) {
@@ -88,6 +90,7 @@ export const websiteWebhook = httpAction(async (ctx, request) => {
     services: Array.isArray(services) ? services : [],
     comment: comment ?? undefined,
     projectFiles: projectFiles ?? undefined,
+    leadSource: leadSource ?? undefined,
     submissionId,
   });
 
