@@ -1469,6 +1469,36 @@ export const recordCrmNoteSent = mutation({
   },
 });
 
+export const addInternalSupplierNote = mutation({
+  args: {
+    orderId: v.id("orders"),
+    deliveryIndex: v.number(),
+    noteText: v.string(),
+    threadId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new ConvexError("Zlecenie nie istnieje.");
+    const deliveries = order.serviceDeliveries ?? [];
+    if (args.deliveryIndex < 0 || args.deliveryIndex >= deliveries.length) throw new ConvexError("Nieprawidłowa dostawa.");
+    
+    const now = Date.now();
+    const userNameStr = user.displayName ?? user.name ?? user.email ?? userId;
+    
+    const next = deliveries.map((d, i) => {
+      if (i !== args.deliveryIndex) return d;
+      const currentFeed = d.notesFeed ?? [];
+      const newNote = { id: `${now}-${Math.random().toString(36).substring(2, 7)}`, note: args.noteText.trim(), createdAt: now, createdBy: userId, createdByName: userNameStr, senderType: "adk" as const, sentToCrm: false, threadId: args.threadId };
+      return { ...d, notesFeed: [newNote, ...currentFeed] };
+    });
+    
+    await ctx.db.patch(args.orderId, { serviceDeliveries: next });
+    return next[args.deliveryIndex].notesFeed![0];
+  }
+});
+
 export const confirmDeliveryByExalcoWebhook = mutation({
   args: {
     orderIdOrNumber: v.string(),

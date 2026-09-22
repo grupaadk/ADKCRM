@@ -1919,6 +1919,7 @@ export default function OrderDetailPage({
   const sendCrmOrder = useAction(api.crmIntegration.sendDeliveryOrderToCrm);
   const sendCrmOrderWithFiles = useAction(api.crmIntegration.sendDeliveryOrderWithFilesToCrm);
   const addCrmNote = useAction(api.crmIntegration.addNoteToCrmOrder);
+  const addInternalSupplierNote = useMutation(api.orders.addInternalSupplierNote);
   const uploadFileToCrm = useAction(api.crmIntegration.uploadFileToCrmOrder);
   const downloadDriveBase64 = useAction(api.googleDrive.downloadDriveFileBase64);
   const listFolderContents = useAction(api.googleDrive.listOrderFolderContents);
@@ -2118,6 +2119,22 @@ export default function OrderDetailPage({
         console.error("Błąd wysyłania notatki do Exalco API:", err);
         errorSending = true;
         errorMessage = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    // Zawsze zapisz notatkę wewnętrzną do bazy od razu (jeśli nie została zapisana przez Exalco API)
+    if (adkNotesTab === "internal" || (adkNotesTab === "exalco" && errorSending)) {
+      if (editingDeliveryIndex !== null) {
+        try {
+          await addInternalSupplierNote({
+            orderId: orderIdTyped,
+            deliveryIndex: editingDeliveryIndex,
+            noteText: noteContent,
+            threadId: activeThreadId,
+          });
+        } catch (e) {
+          console.error("Błąd zapisu notatki wewnętrznej:", e);
+        }
       }
     }
 
