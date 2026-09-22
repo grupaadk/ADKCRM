@@ -217,7 +217,7 @@ export default function TemplateEditorPage() {
   } | null>(null);
 
   useEffect(() => {
-    if (template && config && !initialized) {
+    if (template && config !== undefined && !initialized) {
       setName(template.name);
       setKey(template.key);
       setFileNamePattern(template.fileNamePattern);
@@ -236,10 +236,10 @@ export default function TemplateEditorPage() {
 
       const tf = (template as Record<string, unknown>).targetFolder as string | undefined ?? "";
       const currentFolders = [
-        config.googleDriveFolders?.order?.invoices ?? "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
-        config.googleDriveFolders?.order?.documents ?? "Dokumenty - gwarancje, protokoły, umowy",
-        config.googleDriveFolders?.order?.measurements ?? "Pomiary - ustalenia",
-        ...(config.googleDriveFolders?.customSubfolders ?? ["Zdjęcia budowy", "Rysunki konstrukcji do zamówienia"])
+        config?.googleDriveFolders?.order?.invoices ?? "Faktury - sprzedażowe, kosztowe, potwierdzenia, zamówienia",
+        config?.googleDriveFolders?.order?.documents ?? "Dokumenty - gwarancje, protokoły, umowy",
+        config?.googleDriveFolders?.order?.measurements ?? "Pomiary - ustalenia",
+        ...(config?.googleDriveFolders?.customSubfolders ?? ["Zdjęcia budowy", "Rysunki konstrukcji do zamówienia"])
       ];
       
       if (tf === "" || currentFolders.includes(tf)) {
