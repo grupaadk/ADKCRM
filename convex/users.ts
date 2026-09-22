@@ -290,7 +290,7 @@ export const edit = mutation({
       role: args.role,
     });
     
-    const accounts = await ctx.db.query("authAccounts").withIndex("userId", (q) => q.eq("userId", args.userId)).collect();
+    const accounts = await ctx.db.query("authAccounts").withIndex("userIdAndProvider", (q) => q.eq("userId", args.userId)).collect();
     for (const account of accounts) {
       if (account.provider === "password") {
         await ctx.db.patch(account._id, { providerAccountId: login });
@@ -315,7 +315,7 @@ export const remove = mutation({
     const authSessions = await ctx.db.query("authSessions").withIndex("userId", (q) => q.eq("userId", args.userId)).collect();
     for (const s of authSessions) await ctx.db.delete(s._id);
       
-    const authAccounts = await ctx.db.query("authAccounts").withIndex("userId", (q) => q.eq("userId", args.userId)).collect();
+    const authAccounts = await ctx.db.query("authAccounts").withIndex("userIdAndProvider", (q) => q.eq("userId", args.userId)).collect();
     for (const a of authAccounts) await ctx.db.delete(a._id);
 
     await ctx.db.delete(args.userId);
