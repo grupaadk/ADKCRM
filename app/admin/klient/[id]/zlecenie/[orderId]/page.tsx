@@ -1859,6 +1859,7 @@ export default function OrderDetailPage({
   const [editingCrmNoteId, setEditingCrmNoteId] = useState<string | null>(null);
   const [editingCrmNoteText, setEditingCrmNoteText] = useState("");
   const [adkNotesTab, setAdkNotesTab] = useState<"all" | "exalco" | "internal">("all");
+  const [replyingToThreadId, setReplyingToThreadId] = useState<string | null>(null);
   const markNotesRead = useMutation(api.orders.markSupplierNotesAsRead);
 
   function startEditDelivery(svcName: string, supplierId?: Id<"suppliers">, index?: number) {
