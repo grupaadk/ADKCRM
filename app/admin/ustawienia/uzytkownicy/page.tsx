@@ -28,6 +28,8 @@ export default function UsersAdminPage() {
   const setRole = useMutation(api.users.setRole);
   const setActive = useAction(api.users.setActive);
   const resetPassword = useAction(api.users.resetPassword);
+  const editUser = useMutation(api.users.edit);
+  const removeUser = useMutation(api.users.remove);
   const updateProfile = useMutation(api.users.updateProfile);
   const setColor = useMutation(api.users.setColor);
   const setShowInPickers = useMutation(api.users.setShowInPickers);
@@ -40,6 +42,12 @@ export default function UsersAdminPage() {
   const [newDisplayName, setNewDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [editingUserId, setEditingUserId] = useState<Id<"users"> | null>(null);
+  const [editLogin, setEditLogin] = useState("");
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editRole, setEditRole] = useState<Role>("sales");
+  const [editError, setEditError] = useState<string | null>(null);
 
   if (me === undefined) {
     return <div className="p-6 text-sm text-gray-500">Ładowanie…</div>;
@@ -100,6 +108,18 @@ export default function UsersAdminPage() {
     }
   }
 
+  async function handleDelete(userId: Id<"users">) {
+    if (!confirm("Na pewno usunąć tego użytkownika całkowicie? Ta operacja jest nieodwracalna.")) return;
+    setBusy(true);
+    try {
+      await removeUser({ userId });
+    } catch (e) {
+      alert(convexErrorMessage(e, "Błąd usuwania użytkownika."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleResetPassword(userId: Id<"users">, login: string) {
     const newPw = prompt(`Nowe hasło tymczasowe dla "${login}" (min. 8 znaków):`);
     if (!newPw) return;
@@ -112,6 +132,31 @@ export default function UsersAdminPage() {
       alert(`Hasło zresetowane. Przekaż użytkownikowi: ${newPw}`);
     } catch (e) {
       alert(convexErrorMessage(e, "Błąd resetu hasła."));
+    }
+  }
+
+  function startEdit(u: any) {
+    setEditingUserId(u._id);
+    setEditLogin(u.login ?? "");
+    setEditDisplayName(u.displayName ?? "");
+    setEditRole((u.role as Role) ?? "sales");
+    setEditError(null);
+  }
+
+  async function saveEdit(userId: Id<"users">) {
+    setEditError(null);
+    if (!editLogin.trim()) {
+      setEditError("Login nie może być pusty.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await editUser({ userId, login: editLogin.trim(), displayName: editDisplayName.trim() || undefined, role: editRole });
+      setEditingUserId(null);
+    } catch (e) {
+      setEditError(convexErrorMessage(e, "Błąd zapisu."));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -245,6 +290,44 @@ export default function UsersAdminPage() {
             {users?.map((u) => {
               const isSelf = u._id === me._id;
               const inPickers = u.showInPickers;
+
+              if (editingUserId === u._id) {
+                return (
+                  <tr key={u._id} className="border-t border-gray-100 bg-gray-50">
+                    <td className="px-3 py-2 text-center" colSpan={7}>
+                      <div className="flex items-center gap-4 py-2">
+                        <input
+                          type="text"
+                          value={editLogin}
+                          onChange={e => setEditLogin(e.target.value)}
+                          className="rounded border px-2 py-1 text-sm w-32"
+                          placeholder="Login"
+                        />
+                        <input
+                          type="text"
+                          value={editDisplayName}
+                          onChange={e => setEditDisplayName(e.target.value)}
+                          className="rounded border px-2 py-1 text-sm w-48"
+                          placeholder="Nazwa"
+                        />
+                        <select
+                          value={editRole}
+                          onChange={e => setEditRole(e.target.value as Role)}
+                          className="rounded border px-2 py-1 text-sm"
+                        >
+                          <option value="admin">{ROLE_LABELS.admin}</option>
+                          <option value="sales">{ROLE_LABELS.sales}</option>
+                          <option value="montaz">{ROLE_LABELS.montaz}</option>
+                        </select>
+                        <button disabled={busy} onClick={() => saveEdit(u._id)} className="rounded bg-gray-900 px-3 py-1 text-sm text-white">Zapisz</button>
+                        <button disabled={busy} onClick={() => setEditingUserId(null)} className="rounded border px-3 py-1 text-sm">Anuluj</button>
+                        {editError && <span className="text-red-600 text-sm">{editError}</span>}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }
+
               return (
                 <tr key={u._id} className="border-t border-gray-100">
                   <td className="px-3 py-2 text-center">
@@ -341,6 +424,14 @@ export default function UsersAdminPage() {
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
+                        onClick={() => startEdit(u)}
+                        disabled={busy}
+                        className="rounded border px-2 py-1 text-[12px] hover:bg-gray-50 disabled:opacity-40"
+                      >
+                        Edytuj
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleResetPassword(u._id, u.login ?? "")}
                         className="rounded border px-2 py-1 text-[12px] hover:bg-gray-50"
                       >
@@ -353,6 +444,14 @@ export default function UsersAdminPage() {
                         className="rounded border px-2 py-1 text-[12px] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         {u.isActive ? "Dezaktywuj" : "Aktywuj"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(u._id)}
+                        disabled={isSelf || busy}
+                        className="rounded border border-red-200 text-red-600 px-2 py-1 text-[12px] hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Usuń
                       </button>
                     </div>
                   </td>

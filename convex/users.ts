@@ -264,6 +264,65 @@ export const updateProfile = mutation({
 });
 
 /**
+ * Admin edytuje dane usera.
+ */
+export const edit = mutation({
+  args: {
+    userId: v.id("users"),
+    login: v.string(),
+    displayName: v.optional(v.string()),
+    role: userRoleValidator,
+  },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+    
+    const login = normalizeLogin(args.login);
+    validateLogin(login);
+    
+    const existing = await ctx.db.query("users").withIndex("email", (q) => q.eq("email", login)).unique();
+    if (existing && existing._id !== args.userId) {
+      throw new ConvexError("Login jest już zajęty.");
+    }
+
+    await ctx.db.patch(args.userId, {
+      email: login,
+      displayName: args.displayName,
+      role: args.role,
+    });
+    
+    const accounts = await ctx.db.query("authAccounts").withIndex("userId", (q) => q.eq("userId", args.userId)).collect();
+    for (const account of accounts) {
+      if (account.provider === "password") {
+        await ctx.db.patch(account._id, { providerAccountId: login });
+      }
+    }
+  },
+});
+
+/**
+ * Admin usuwa konto.
+ */
+export const remove = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const admin = await requireRole(ctx, "admin");
+    if (admin._id === args.userId) {
+      throw new ConvexError("Nie możesz usunąć własnego konta.");
+    }
+    
+    const authSessions = await ctx.db.query("authSessions").withIndex("userId", (q) => q.eq("userId", args.userId)).collect();
+    for (const s of authSessions) await ctx.db.delete(s._id);
+      
+    const authAccounts = await ctx.db.query("authAccounts").withIndex("userId", (q) => q.eq("userId", args.userId)).collect();
+    for (const a of authAccounts) await ctx.db.delete(a._id);
+
+    await ctx.db.delete(args.userId);
+  },
+});
+
+/**
  * Admin resetuje hasło wybranego usera (wpisuje nowe). Unieważnia sesje.
  */
 export const resetPassword = action({
