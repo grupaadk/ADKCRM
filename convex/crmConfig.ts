@@ -207,14 +207,6 @@ export const resetStatusLabels = mutation({
 export const saveGoogleDriveFoldersConfig = mutation({
   args: {
     googleDriveFolders: v.object({
-      rootFolders: v.optional(
-        v.object({
-          devClientsFolderId: v.optional(v.string()),
-          prodClientsFolderId: v.optional(v.string()),
-          devTemplatesFolderId: v.optional(v.string()),
-          prodTemplatesFolderId: v.optional(v.string()),
-        })
-      ),
       opportunity: v.object({
         valuationFiles: v.string(),
         offersReceived: v.string(),

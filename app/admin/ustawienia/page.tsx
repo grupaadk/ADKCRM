@@ -291,11 +291,6 @@ function GoogleDriveTab() {
   const [savingFolders, setSavingFolders] = useState(false);
   // document type → folder name routing (persisted in crmConfig)
   const [documentTypeRoutes, setDocumentTypeRoutes] = useState<Record<string, string>>({});
-  
-  const [devClients, setDevClients] = useState("");
-  const [prodClients, setProdClients] = useState("");
-  const [devTemplates, setDevTemplates] = useState("");
-  const [prodTemplates, setProdTemplates] = useState("");
 
   const DOCUMENT_TYPE_OPTIONS = [
     { id: "pomiar", label: "Pomiar" },
@@ -539,12 +534,6 @@ function GoogleDriveTab() {
         },
       };
 
-      const rf = (config.googleDriveFolders as Record<string, unknown>)?.rootFolders as Record<string, string> | undefined;
-      setDevClients(rf?.devClientsFolderId ?? "");
-      setProdClients(rf?.prodClientsFolderId ?? "");
-      setDevTemplates(rf?.devTemplatesFolderId ?? "");
-      setProdTemplates(rf?.prodTemplatesFolderId ?? "");
-
       const oppFolders = folders.opportunity ?? {
         valuationFiles: "Pliki do wyceny od klienta - rzuty i przysłane",
         offersReceived: "Koszta - oferty od dostawców",
@@ -585,12 +574,6 @@ function GoogleDriveTab() {
     try {
       await saveFoldersConfig({
         googleDriveFolders: {
-          rootFolders: {
-            devClientsFolderId: devClients.trim(),
-            prodClientsFolderId: prodClients.trim(),
-            devTemplatesFolderId: devTemplates.trim(),
-            prodTemplatesFolderId: prodTemplates.trim(),
-          },
           opportunity: {
             valuationFiles: oppValuation.trim() || "Pliki do wyceny od klienta - rzuty i przysłane",
             offersReceived: oppReceived.trim() || "Koszta - oferty od dostawców",
@@ -1064,59 +1047,6 @@ function GoogleDriveTab() {
       {/* Folder structure configuration */}
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         <div className="mb-4">
-          <h4 className="text-sm font-semibold text-slate-900">
-            Foldery Główne (DEV / PROD)
-          </h4>
-          <p className="mt-1 text-xs text-slate-500">
-            Ustaw ID folderów nadrzędnych oddzielnie dla środowiska deweloperskiego i produkcyjnego. 
-            Aby system wiedział, którego ID użyć, upewnij się że masz ustawioną flagę APP_ENV=prod w produkcyjnych zmiennych Convex.
-          </p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className="block text-sm text-slate-700 font-medium mb-1">Klienci (DEV)</label>
-            <input
-              type="text"
-              value={devClients}
-              onChange={(e) => setDevClients(e.target.value)}
-              placeholder="ID folderu Klientów dla DEV"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-slate-700 font-medium mb-1">Klienci (PROD)</label>
-            <input
-              type="text"
-              value={prodClients}
-              onChange={(e) => setProdClients(e.target.value)}
-              placeholder="ID folderu Klientów dla PROD"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-slate-700 font-medium mb-1">Szablony (DEV)</label>
-            <input
-              type="text"
-              value={devTemplates}
-              onChange={(e) => setDevTemplates(e.target.value)}
-              placeholder="ID folderu Szablonów dla DEV"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-slate-700 font-medium mb-1">Szablony (PROD)</label>
-            <input
-              type="text"
-              value={prodTemplates}
-              onChange={(e) => setProdTemplates(e.target.value)}
-              placeholder="ID folderu Szablonów dla PROD"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="mb-4 pt-6 border-t border-slate-200">
           <h4 className="text-sm font-semibold text-slate-900">
             Zarządzanie strukturą folderów na Google Drive
           </h4>
