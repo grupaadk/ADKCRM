@@ -1,5 +1,5 @@
 import { action } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { api, internal } from "./_generated/api";
 
 export const sendDeliveryOrderToCrm = action({
@@ -11,23 +11,23 @@ export const sendDeliveryOrderToCrm = action({
     // 1. Pobierz zlecenie
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
     if (!order) {
-      throw new Error("Nie znaleziono zlecenia w systemie ADKokna.");
+      throw new ConvexError("Nie znaleziono zlecenia w systemie ADKokna.");
     }
 
     const deliveries = order.serviceDeliveries ?? [];
     const delivery = deliveries[args.deliveryIndex];
     if (!delivery) {
-      throw new Error("Nie znaleziono pozycji zamówienia u dostawcy.");
+      throw new ConvexError("Nie znaleziono pozycji zamówienia u dostawcy.");
     }
 
     // 2. Pobierz dostawcę
     const supplier = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: delivery.supplierId });
     if (!supplier) {
-      throw new Error("Nie znaleziono dostawcy.");
+      throw new ConvexError("Nie znaleziono dostawcy.");
     }
 
     if (!supplier.isApiEnabled || !supplier.apiEndpoint || !supplier.apiKey) {
-      throw new Error(`Dostawca ${supplier.name} nie ma aktywnej integracji API lub brak skonfigurowanych parametrów.`);
+      throw new ConvexError(`Dostawca ${supplier.name} nie ma aktywnej integracji API lub brak skonfigurowanych parametrów.`);
     }
 
     // 3. Pobierz klienta zlecenia do stworzenia wyczerpującej notatki
@@ -78,7 +78,7 @@ export const sendDeliveryOrderToCrm = action({
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Błąd wysyłania do CRM API (${response.status}): ${errorText}`);
+      throw new ConvexError(`Błąd wysyłania do CRM API (${response.status}): ${errorText}`);
     }
 
     const result = (await response.json()) as {
@@ -89,7 +89,7 @@ export const sendDeliveryOrderToCrm = action({
     };
 
     if (!result.success) {
-      throw new Error(result.message || "Odpowiedź CRM API wskazała niepowodzenie.");
+      throw new ConvexError(result.message || "Odpowiedź CRM API wskazała niepowodzenie.");
     }
 
     // 5. Zapisz zwrócone externalOrderId i externalOrderNumber w Convex
@@ -125,14 +125,14 @@ export const addNoteToCrmOrder = action({
   },
   handler: async (ctx, args): Promise<unknown> => {
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
-    if (!order) throw new Error("Nie znaleziono zlecenia.");
+    if (!order) throw new ConvexError("Nie znaleziono zlecenia.");
     const delivery = order.serviceDeliveries?.[args.deliveryIndex];
     if (!delivery || !delivery.externalOrderNumber) {
-      throw new Error("Zamówienie nie zostało jeszcze utworzone w CRM Exalco.");
+      throw new ConvexError("Zamówienie nie zostało jeszcze utworzone w CRM Exalco.");
     }
     const supplier = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: delivery.supplierId });
     if (!supplier || !supplier.apiEndpoint || !supplier.apiKey) {
-      throw new Error("Dostawca nie posiada skonfigurowanego API.");
+      throw new ConvexError("Dostawca nie posiada skonfigurowanego API.");
     }
 
     let rawEndpoint: string = supplier.apiEndpoint.trim();
@@ -157,7 +157,7 @@ export const addNoteToCrmOrder = action({
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`Błąd dodawania notatki w CRM (${response.status}): ${errText}`);
+      throw new ConvexError(`Błąd dodawania notatki w CRM (${response.status}): ${errText}`);
     }
 
     const resJson = await response.json();
@@ -185,19 +185,19 @@ export const uploadFileToCrmOrder = action({
   },
   handler: async (ctx, args): Promise<unknown> => {
     const order = await ctx.runQuery(api.orders.getById, { orderId: args.orderId });
-    if (!order) throw new Error("Nie znaleziono zlecenia.");
+    if (!order) throw new ConvexError("Nie znaleziono zlecenia.");
     const delivery = order.serviceDeliveries?.[args.deliveryIndex];
     const orderNumberToUse = args.externalOrderNumber || delivery?.externalOrderNumber;
     if (!orderNumberToUse) {
-      throw new Error("Zamówienie nie zostało jeszcze utworzone w CRM Exalco.");
+      throw new ConvexError("Zamówienie nie zostało jeszcze utworzone w CRM Exalco.");
     }
     const supplierIdToUse = delivery?.supplierId;
     if (!supplierIdToUse) {
-      throw new Error("Nie odnaleziono ID dostawcy w zamówieniu.");
+      throw new ConvexError("Nie odnaleziono ID dostawcy w zamówieniu.");
     }
     const supplier = await ctx.runQuery(api.suppliers.getByIdInternal, { supplierId: supplierIdToUse });
     if (!supplier || !supplier.apiEndpoint || !supplier.apiKey) {
-      throw new Error("Dostawca nie posiada skonfigurowanego API.");
+      throw new ConvexError("Dostawca nie posiada skonfigurowanego API.");
     }
 
     let rawEndpoint: string = supplier.apiEndpoint.trim();
