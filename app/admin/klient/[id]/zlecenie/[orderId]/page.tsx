@@ -5140,6 +5140,20 @@ export default function OrderDetailPage({
                           ? internalNotes
                           : rawFeed;
 
+                        // Grupowanie wątków
+                        type FeedNote = typeof filteredFeed[0];
+                        const threadRoots: FeedNote[] = [];
+                        const threadReplies = new Map<string, FeedNote[]>();
+                        filteredFeed.forEach((note) => {
+                          if (note.threadId && note.threadId !== note.id) {
+                            const bucket = threadReplies.get(note.threadId) ?? [];
+                            bucket.push(note);
+                            threadReplies.set(note.threadId, bucket);
+                          } else {
+                            threadRoots.push(note);
+                          }
+                        });
+
                         return (
                           <>
                             {/* Nagłówek panelu czatu */}
@@ -5218,155 +5232,123 @@ export default function OrderDetailPage({
                                       : "Brak wiadomości w czacie"}
                                   </p>
                                 </div>
-                              ) : (() => {
-                                // Grupowanie w wątki
-                                type NoteItem = typeof filteredFeed[0];
-                                const roots: NoteItem[] = [];
-                                const replyMap = new Map<string, NoteItem[]>();
-
-                                filteredFeed.forEach((note) => {
-                                  const isReply = note.threadId && note.threadId !== note.id;
-                                  if (isReply) {
-                                    const bucket = replyMap.get(note.threadId!) ?? [];
-                                    bucket.push(note);
-                                    replyMap.set(note.threadId!, bucket);
-                                  } else {
-                                    roots.push(note);
-                                  }
-                                });
-
-                                const renderNote = (nItem: NoteItem, isReply = false) => {
-                                  const isExalco = nItem.senderType === "exalco";
-                                  const author = nItem.createdByName || (isExalco ? "Exalco CRM" : "Użytkownik");
-                                  const initials = isExalco ? "EX" : uInitials(author);
-                                  const formattedDate = new Date(nItem.createdAt).toLocaleString("pl-PL", {
-                                    day: "2-digit", month: "2-digit", year: "numeric",
-                                    hour: "2-digit", minute: "2-digit",
-                                  });
-
-                                  return (
-                                    <div
-                                      key={nItem.id}
-                                      className={`group relative flex items-start gap-2 p-2.5 rounded-lg border transition-all ${
-                                        isReply
-                                          ? isExalco
-                                            ? "bg-blue-50/60 border-blue-200/60 ml-5 border-l-2 border-l-blue-400"
-                                            : "bg-indigo-50/40 border-indigo-200/60 ml-5 border-l-2 border-l-indigo-400"
-                                          : isExalco
-                                          ? "bg-blue-50/40 border-blue-200/80 shadow-2xs"
-                                          : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-2xs"
-                                      }`}
-                                    >
-                                      <span
-                                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-extrabold text-white shadow-2xs mt-0.5 ${
-                                          isExalco ? "bg-blue-600" : isReply ? "bg-indigo-500" : "bg-amber-500"
-                                        }`}
-                                      >
-                                        {initials}
-                                      </span>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between gap-2 mb-1">
-                                          <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className={`text-xs font-bold ${isExalco ? "text-blue-900" : isReply ? "text-indigo-800" : "text-slate-800"}`}>
-                                              {author}
-                                            </span>
-                                            <span className="text-[10px] text-slate-400 font-medium">· {formattedDate}</span>
-                                          </div>
-                                          <div className="flex items-center gap-1">
-                                            {nItem.sentToCrm && (
-                                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                                                ⚡ Exalco
-                                              </span>
-                                            )}
-                                            {nItem.errorSending && (
-                                              <span className="text-[9px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded flex items-center gap-1">
-                                                ⚠️ Błąd
-                                                <button
-                                                  type="button"
-                                                  onClick={() => handleRetrySendCrmNote(nItem.id)}
-                                                  className="underline text-red-800 hover:text-red-950 font-extrabold ml-1"
-                                                >
-                                                  Ponów
-                                                </button>
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                        {editingCrmNoteId === nItem.id ? (
-                                          <div className="mt-2 flex flex-col gap-2">
-                                            <textarea
-                                              className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 resize-none"
-                                              rows={3}
-                                              value={editingCrmNoteText}
-                                              onChange={(e) => setEditingCrmNoteText(e.target.value)}
-                                            />
-                                            <div className="flex gap-2 justify-end">
-                                              <button type="button" onClick={() => setEditingCrmNoteId(null)} className="px-2 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 rounded">Anuluj</button>
-                                              <button type="button" onClick={() => handleSaveEditedCrmNote(nItem.id)} className="px-2 py-1 text-[10px] font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded shadow-sm">Zapisz</button>
-                                            </div>
-                                          </div>
-                                        ) : (
-                                          <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{nItem.note}</p>
-                                        )}
-                                      </div>
-                                      <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
-                                        {!isReply && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setReplyingToThreadId(nItem.threadId || nItem.id);
-                                              if (adkNotesTab === "all") setAdkNotesTab(isExalco ? "exalco" : "internal");
-                                            }}
-                                            className="p-1 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 shrink-0"
-                                            title="Odpowiedz w wątku"
-                                          >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                            </svg>
-                                          </button>
-                                        )}
-                                        {!isExalco && (
-                                          <button
-                                            type="button"
-                                            onClick={() => { setEditingCrmNoteId(nItem.id); setEditingCrmNoteText(nItem.note); }}
-                                            className="p-1 text-slate-400 hover:text-amber-600 rounded hover:bg-amber-50 shrink-0"
-                                            title="Edytuj notatkę"
-                                          >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                            </svg>
-                                          </button>
-                                        )}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeleteSupplierNoteFromFeed(nItem.id)}
-                                          className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 shrink-0"
-                                          title="Usuń notatkę"
-                                        >
-                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                          </svg>
-                                        </button>
-                                      </div>
-                                    </div>
-                                  );
-                                };
-
-                                return roots.map((root) => {
-                                  const replies = replyMap.get(root.id) ?? replyMap.get(root.threadId ?? "") ?? [];
+                              ) : (
+                                threadRoots.map((root) => {
+                                  const replies = threadReplies.get(root.id) ?? threadReplies.get(root.threadId ?? "") ?? [];
                                   return (
                                     <div key={root.id} className="flex flex-col gap-1.5">
-                                      {renderNote(root, false)}
-                                      {replies.length > 0 && (
-                                        <div className="flex flex-col gap-1">
-                                          {replies.map((reply) => renderNote(reply, true))}
-                                        </div>
-                                      )}
+                                      {[root, ...replies].map((nItem, idx) => {
+                                        const isReply = idx > 0;
+                                        const isExalco = nItem.senderType === "exalco";
+                                        const author = nItem.createdByName || (isExalco ? "Exalco CRM" : "Użytkownik");
+                                        const initials = isExalco ? "EX" : uInitials(author);
+                                        const formattedDate = new Date(nItem.createdAt).toLocaleString("pl-PL", {
+                                          day: "2-digit", month: "2-digit", year: "numeric",
+                                          hour: "2-digit", minute: "2-digit",
+                                        });
+                                        return (
+                                          <div
+                                            key={nItem.id}
+                                            className={`group relative flex items-start gap-2 p-2.5 rounded-lg border transition-all ${
+                                              isReply
+                                                ? isExalco
+                                                  ? "bg-blue-50/60 border-blue-200/60 ml-5 border-l-2 border-l-blue-400"
+                                                  : "bg-indigo-50/40 border-indigo-200/60 ml-5 border-l-2 border-l-indigo-400"
+                                                : isExalco
+                                                ? "bg-blue-50/40 border-blue-200/80 shadow-2xs"
+                                                : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-2xs"
+                                            }`}
+                                          >
+                                            <span
+                                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-extrabold text-white mt-0.5 ${
+                                                isExalco ? "bg-blue-600" : isReply ? "bg-indigo-500" : "bg-amber-500"
+                                              }`}
+                                            >
+                                              {initials}
+                                            </span>
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-center justify-between gap-2 mb-1">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                  <span className={`text-xs font-bold ${isExalco ? "text-blue-900" : isReply ? "text-indigo-800" : "text-slate-800"}`}>
+                                                    {author}
+                                                  </span>
+                                                  <span className="text-[10px] text-slate-400 font-medium">· {formattedDate}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                  {nItem.sentToCrm && (
+                                                    <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">⚡ Exalco</span>
+                                                  )}
+                                                  {nItem.errorSending && (
+                                                    <span className="text-[9px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                      ⚠️
+                                                      <button type="button" onClick={() => handleRetrySendCrmNote(nItem.id)} className="underline font-extrabold">Ponów</button>
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                              {editingCrmNoteId === nItem.id ? (
+                                                <div className="mt-2 flex flex-col gap-2">
+                                                  <textarea
+                                                    className="w-full rounded-lg border border-slate-300 p-2 text-xs focus:border-amber-500 focus:outline-none resize-none"
+                                                    rows={3}
+                                                    value={editingCrmNoteText}
+                                                    onChange={(e) => setEditingCrmNoteText(e.target.value)}
+                                                  />
+                                                  <div className="flex gap-2 justify-end">
+                                                    <button type="button" onClick={() => setEditingCrmNoteId(null)} className="px-2 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 rounded">Anuluj</button>
+                                                    <button type="button" onClick={() => handleSaveEditedCrmNote(nItem.id)} className="px-2 py-1 text-[10px] font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded">Zapisz</button>
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{nItem.note}</p>
+                                              )}
+                                            </div>
+                                            <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
+                                              {!isReply && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setReplyingToThreadId(nItem.threadId || nItem.id);
+                                                    if (adkNotesTab === "all") setAdkNotesTab(isExalco ? "exalco" : "internal");
+                                                  }}
+                                                  className="p-1 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50"
+                                                  title="Odpowiedz w wątku"
+                                                >
+                                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                                  </svg>
+                                                </button>
+                                              )}
+                                              {!isExalco && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => { setEditingCrmNoteId(nItem.id); setEditingCrmNoteText(nItem.note); }}
+                                                  className="p-1 text-slate-400 hover:text-amber-600 rounded hover:bg-amber-50"
+                                                  title="Edytuj notatkę"
+                                                >
+                                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                  </svg>
+                                                </button>
+                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteSupplierNoteFromFeed(nItem.id)}
+                                                className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
+                                                title="Usuń notatkę"
+                                              >
+                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   );
-                                });
-                              })()
-                            )}
+                                })
+                              )}
                       </div>
 
                       {/* Formularz dodawania notatki */}
