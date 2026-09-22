@@ -107,17 +107,6 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     statusLower.includes("accept") ||
     statusLower.includes("potwierdz");
 
-  if (!isAcceptance && !deliveryDateTs) {
-    return new Response(
-      JSON.stringify({
-        success: true,
-        ignored: true,
-        message: `Status '${rawStatus}' does not trigger action and no date provided.`,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  }
-
   // Odczyt nadchodzącej notatki / wiadomości z Exalco
   const rawNoteObj = (dataObj.note || body.note) as Record<string, unknown> | undefined;
   const incomingNote = String(
@@ -154,6 +143,7 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     "";
   const threadId = String(rawThreadId).trim() || undefined;
 
+  // Zawsze zapisz nadchodzącą notatkę z Exalco, niezależnie od statusu
   if (incomingNote) {
     await ctx.runMutation(api.orders.receiveNoteFromExalcoWebhook, {
       orderIdOrNumber: String(orderIdOrNumber),
@@ -161,6 +151,18 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
       authorName: authorName || undefined,
       threadId,
     });
+  }
+
+  // Jeśli brak statusu akceptacji i brak daty dostawy — odpowiedz sukcesem (notatka już zapisana)
+  if (!isAcceptance && !deliveryDateTs) {
+    return new Response(
+      JSON.stringify({
+        success: true,
+        noted: !!incomingNote,
+        message: `Status '${rawStatus}' does not trigger status update. ${incomingNote ? "Note saved." : "No note to save."}`,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
   }
 
   // Wywołaj mutację ustawienia daty potwierdzenia (confirmedDate) oraz daty dostawy/odbioru z Exalco (deliveryDate)
