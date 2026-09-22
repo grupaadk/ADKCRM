@@ -590,6 +590,7 @@ export const convertToOrder = mutation({
       jotformSubmissionId: opp.submissionId,
       createdBy: "system",
       assignedUserId: opp.assignedUserId,
+      leadSource: opp.leadSource,
     });
 
     // Przepisz notatki ze Szansy do nowego Zlecenia

@@ -310,6 +310,9 @@ export default defineSchema({
     jotformSubmissionId: v.optional(v.string()),
     createdBy: v.string(),
 
+    // Źródło leada (Od kogo) — kopiowane z szansy sprzedaży przy konwersji
+    leadSource: v.optional(v.string()),
+
     // Plan fakturowania (VAT / zaliczka + końcowa / 2 zaliczki + końcowa)
     invoicePlan: v.optional(v.object({
       type: v.optional(v.union(v.literal("vat"), v.literal("advance_final"), v.literal("advance_2_final"))),
