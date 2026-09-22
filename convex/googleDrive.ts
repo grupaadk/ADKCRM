@@ -19,12 +19,25 @@ async function requireUserIdentifierInAction(ctx: ActionCtx): Promise<string> {
 const DRIVE_API_BASE = "https://www.googleapis.com/drive/v3";
 const DOCS_API_BASE = "https://docs.googleapis.com/v1";
 
-const CLIENTS_FOLDER_ID = "0AF5F7v0YZWQHUk9PVA";
-const TEMPLATES_FOLDER_ID = "0ANuZnSEtUiLTUk9PVA";
-
 export function resolveFoldersConfig(config: Doc<"crmConfig"> | null | undefined) {
   const legacyCustomFolders = (config?.googleDriveFolders as Record<string, unknown> | undefined)?.customSubfolders as string[] | undefined;
+  
+  const isProd = process.env.APP_ENV === "prod";
+  const rf = (config?.googleDriveFolders as Record<string, unknown>)?.rootFolders as Record<string, string> | undefined;
+
+  const clientsFolderId = isProd
+    ? (rf?.prodClientsFolderId || process.env.GOOGLE_DRIVE_CLIENTS_FOLDER_ID || "0AF5F7v0YZWQHUk9PVA")
+    : (rf?.devClientsFolderId || process.env.GOOGLE_DRIVE_CLIENTS_FOLDER_ID || "0AF5F7v0YZWQHUk9PVA");
+
+  const templatesFolderId = isProd
+    ? (rf?.prodTemplatesFolderId || process.env.GOOGLE_DRIVE_TEMPLATES_FOLDER_ID || "0ANuZnSEtUiLTUk9PVA")
+    : (rf?.devTemplatesFolderId || process.env.GOOGLE_DRIVE_TEMPLATES_FOLDER_ID || "0ANuZnSEtUiLTUk9PVA");
+
   return {
+    rootFolders: {
+      clientsFolderId,
+      templatesFolderId,
+    },
     opportunity: {
       valuationFiles: config?.googleDriveFolders?.opportunity?.valuationFiles ?? "Pliki do wyceny od klienta - rzuty i przysłane",
       offersReceived: config?.googleDriveFolders?.opportunity?.offersReceived ?? "Koszta - oferty od dostawców",
@@ -705,14 +718,16 @@ export const getConnectionStatus = query({
   handler: async (ctx) => {
     const connection = await ctx.db.query("driveConnection").first();
     if (!connection) return null;
+    const config = await ctx.db.query("crmConfig").first();
+    const folders = resolveFoldersConfig(config);
     return {
       _id: connection._id,
       connectionStatus: connection.connectionStatus,
       connectedBy: connection.connectedBy,
       connectedEmail: connection.connectedEmail,
       expiresAt: connection.expiresAt,
-      sharedDriveId: CLIENTS_FOLDER_ID,
-      templatesFolderId: TEMPLATES_FOLDER_ID,
+      sharedDriveId: folders.rootFolders.clientsFolderId,
+      templatesFolderId: folders.rootFolders.templatesFolderId,
       lastCheckedAt: connection.lastCheckedAt,
     };
   },
@@ -947,10 +962,12 @@ export const createClientFolderForOpportunity = action({
         }
 
         await log("info", "creating client folder", { clientFolderName });
+        const config = await ctx.runQuery(api.crmConfig.getConfig);
+        const folders = resolveFoldersConfig(config);
         clientFolderId = await findOrCreateDriveFolder(
           connection.accessToken,
           clientFolderName,
-          CLIENTS_FOLDER_ID,
+          folders.rootFolders.clientsFolderId,
         );
         const clientFolderUrl = `https://drive.google.com/drive/folders/${clientFolderId}`;
 
@@ -1134,11 +1151,14 @@ export const createOrderFolder = action({
         const clientFolderName = client.clientType === "business" && client.companyName
           ? client.companyName
           : `${client.lastName}_${client.firstName}`;
-        await log("info", "creating client folder", { clientFolderName, parentId: CLIENTS_FOLDER_ID });
+        const config = await ctx.runQuery(api.crmConfig.getConfig);
+        const folders = resolveFoldersConfig(config);
+        const clientsFolderId = folders.rootFolders.clientsFolderId;
+        await log("info", "creating client folder", { clientFolderName, parentId: clientsFolderId });
         const { id, url: clientFolderUrl } = await createDriveFolder(
           ctx,
           clientFolderName,
-          CLIENTS_FOLDER_ID,
+          clientsFolderId,
         );
         clientFolderId = id;
         await ctx.runMutation(api.clients.updateClientFolder, {
@@ -1401,9 +1421,12 @@ export const createClientFolder = action({
       const clientFolderName = client.clientType === "business" && client.companyName
         ? client.companyName
         : `${client.lastName}_${client.firstName}`;
-      await log("info", "creating Drive folder", { clientFolderName, parentId: CLIENTS_FOLDER_ID });
+      const config = await ctx.runQuery(api.crmConfig.getConfig);
+      const folders = resolveFoldersConfig(config);
+      const clientsFolderId = folders.rootFolders.clientsFolderId;
+      await log("info", "creating Drive folder", { clientFolderName, parentId: clientsFolderId });
 
-      const { id, url: clientFolderUrl } = await createDriveFolder(ctx, clientFolderName, CLIENTS_FOLDER_ID);
+      const { id, url: clientFolderUrl } = await createDriveFolder(ctx, clientFolderName, clientsFolderId);
       await log("info", "Drive folder created OK", { folderId: id, clientFolderUrl });
 
       await ctx.runMutation(api.clients.updateClientFolder, {
@@ -2395,9 +2418,11 @@ export const listTemplateFiles = action({
   args: {},
   handler: async (ctx): Promise<Array<{ id: string; name: string }>> => {
     await getAuthorizedConnection(ctx);
+    const config = await ctx.runQuery(api.crmConfig.getConfig);
+    const folders = resolveFoldersConfig(config);
 
     const params = new URLSearchParams({
-      q: `'${TEMPLATES_FOLDER_ID}' in parents and trashed=false`,
+      q: `'${folders.rootFolders.templatesFolderId}' in parents and trashed=false`,
       supportsAllDrives: "true",
       includeItemsFromAllDrives: "true",
       fields: "files(id,name,mimeType)",
@@ -3741,6 +3766,9 @@ export const getClientDriveFilesMetadata = action({
     if (!client) {
       return { files: [] };
     }
+
+    const config = await ctx.runQuery(api.crmConfig.getConfig);
+    const folders = resolveFoldersConfig(config);
 
     const folderIdsToScan: Array<{ folderId: string; rootPrefix: string }> = [];
     const visitedFolderIds = new Set<string>();
