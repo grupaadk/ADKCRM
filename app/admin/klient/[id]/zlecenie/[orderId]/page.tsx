@@ -1795,7 +1795,7 @@ export default function OrderDetailPage({
   const isAdmin = me?.role === "admin";
   const assignableUsers = useQuery(api.users.listAssignable) ?? [];
   const assignOrder = useMutation(api.orders.assignOrder);
-  const servicesList = useQuery(api.services.listActive) ?? [];
+  const servicesList = useQuery(api.services.list) ?? [];
   const allSuppliers = useQuery(api.suppliers.listActive) ?? [];
   const installationTeams = useQuery(api.installationTeams.listActive) ?? [];
   const updateOrder = useMutation(api.orders.update);
@@ -2079,6 +2079,12 @@ export default function OrderDetailPage({
 
   async function handleAddSupplierNoteToFeed() {
     if (!newSupplierNoteText.trim() || !draftDeliveryEntry) return;
+
+    if (adkNotesTab === "all") {
+      alert("Proszę wybrać zakładkę 'Exalco' lub 'Notatki ADK', aby zdefiniować typ notatki przed jej wysłaniem.");
+      return;
+    }
+
     const noteContent = newSupplierNoteText.trim();
     setAddingSupplierNote(true);
 
@@ -2091,7 +2097,10 @@ export default function OrderDetailPage({
     let errorMessage: string | undefined = undefined;
 
     const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+    
+    // Wyślij do Exalco API tylko jeśli jesteśmy w zakładce Exalco
     if (
+      adkNotesTab === "exalco" &&
       editingDeliveryIndex !== null &&
       draftDeliveryEntry.externalOrderNumber &&
       currentSupplier?.isApiEnabled
@@ -5336,7 +5345,7 @@ export default function OrderDetailPage({
                       {/* Formularz dodawania notatki */}
                       <div className="shrink-0 pt-2 border-t border-slate-100 flex flex-col gap-2">
                         <textarea
-                          placeholder="Napisz wiadomość / uwagę do dostawcy..."
+                          placeholder={adkNotesTab === "all" ? "Wybierz zakładkę Exalco lub Notatki ADK, aby dodać wiadomość..." : "Napisz wiadomość / uwagę do dostawcy..."}
                           rows={2}
                           value={newSupplierNoteText}
                           onChange={(e) => setNewSupplierNoteText(e.target.value)}
@@ -5346,7 +5355,8 @@ export default function OrderDetailPage({
                               void handleAddSupplierNoteToFeed();
                             }
                           }}
-                          className="w-full rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 resize-none transition-colors"
+                          disabled={adkNotesTab === "all" || addingSupplierNote}
+                          className="w-full rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 resize-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100"
                         />
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] text-slate-400">
@@ -5354,7 +5364,7 @@ export default function OrderDetailPage({
                           </span>
                           <button
                             type="button"
-                            disabled={!newSupplierNoteText.trim() || addingSupplierNote}
+                            disabled={adkNotesTab === "all" || !newSupplierNoteText.trim() || addingSupplierNote}
                             onClick={handleAddSupplierNoteToFeed}
                             className="btn primary text-xs py-1.5 px-3.5 inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
                           >
