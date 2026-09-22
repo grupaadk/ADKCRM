@@ -51,8 +51,14 @@ export const sendDeliveryOrderToCrm = action({
     const siteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL || "https://fearless-firefly-85.eu-west-1.convex.site";
     const webhookUrl = `${siteUrl.replace(/\/+$/, "")}/api/webhooks/exalco`;
 
+    if (!delivery.netAmount || delivery.netAmount <= 0) {
+      throw new ConvexError(
+        "Przed wysłaniem zamówienia do ALCO uzupełnij pole 'Kwota netto' w sekcji realizacji – musi być większa od 0."
+      );
+    }
+
     const payload = {
-      valueNetto: delivery.netAmount ?? 0,
+      valueNetto: delivery.netAmount,
       notes: notesCombined,
       webhookUrl,
       callbackUrl: webhookUrl,
