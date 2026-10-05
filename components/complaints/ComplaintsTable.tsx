@@ -9,17 +9,13 @@ import NewComplaintModal from "./NewComplaintModal";
 import { Search, X, Plus, CheckCircle2 } from "lucide-react";
 
 const STATUS_LABELS: Record<string, string> = {
-  nowa: "Nowa",
-  w_toku: "W toku",
-  rozwiazana: "Rozwiązana",
-  zamknieta: "Zamknięta",
-};
-
-const STATUS_COLORS: Record<string, { bg: string; color: string; border: string }> = {
-  nowa: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-  w_toku: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
-  rozwiazana: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
-  zamknieta: { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" },
+  aktualne: "Aktualne",
+  archiwalne: "Archiwalne",
+  nowa: "Aktualne",
+  w_toku: "Aktualne",
+  rozwiazana: "Archiwalne",
+  zamknieta: "Archiwalne",
+  zakonczona: "Archiwalne",
 };
 
 function formatDate(ts: number) {
@@ -28,26 +24,6 @@ function formatDate(ts: number) {
     month: "2-digit",
     year: "numeric",
   });
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const colors = STATUS_COLORS[status] ?? { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" };
-  return (
-    <span
-      style={{
-        fontSize: 11,
-        fontWeight: 600,
-        padding: "2px 8px",
-        borderRadius: 20,
-        background: colors.bg,
-        color: colors.color,
-        border: `1px solid ${colors.border}`,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {STATUS_LABELS[status] ?? status}
-    </span>
-  );
 }
 
 function formatInvestmentAddress(c: {
@@ -161,7 +137,7 @@ export default function ComplaintsTable({
   compact = false,
   title,
 }: Props) {
-  const [statusFilter, setStatusFilter] = useState<string>("wszystkie");
+  const [statusFilter, setStatusFilter] = useState<string>("aktualne");
   const [clientFilter, setClientFilter] = useState<string>("");
   const [selectedId, setSelectedId] = useState<Id<"complaints"> | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -173,10 +149,14 @@ export default function ComplaintsTable({
     e.stopPropagation();
     setUpdatingId(complaintId);
     try {
-      const isClosed = currentStatus === "zamknieta" || currentStatus === "rozwiazana" || currentStatus === "zakonczona";
+      const isClosed =
+        currentStatus === "archiwalne" ||
+        currentStatus === "zamknieta" ||
+        currentStatus === "rozwiazana" ||
+        currentStatus === "zakonczona";
       await updateComplaintStatus({
         complaintId,
-        status: isClosed ? "w_toku" : "zamknieta",
+        status: isClosed ? "aktualne" : "archiwalne",
       });
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Błąd zmiany statusu reklamacji");
@@ -216,8 +196,8 @@ export default function ComplaintsTable({
   }, [complaints]);
 
   const tableHeaders = compact
-    ? ["DATA ZGŁOSZENIA", "Data serwisu", "Status", "Opis", "Przypisany do", "Ekipa", ""]
-    : ["DATA ZGŁOSZENIA", "Data serwisu", "Klient", "Adres inwestycji", "Telefon", "Status", "Opis", "Przypisany do", "Ekipa", ""];
+    ? ["DATA ZGŁOSZENIA", "Data serwisu", "Opis", "Ekipa", ""]
+    : ["DATA ZGŁOSZENIA", "Data serwisu", "Klient", "Adres inwestycji", "Telefon", "Opis", "Ekipa", ""];
 
   return (
     <>
@@ -280,7 +260,7 @@ export default function ComplaintsTable({
 
         {/* Status tabs */}
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {(["wszystkie", "nowa", "w_toku", "rozwiazana", "zamknieta"] as const).map((s) => {
+          {(["aktualne", "archiwalne", "wszystkie"] as const).map((s) => {
             const active = statusFilter === s;
             return (
               <button
@@ -492,19 +472,9 @@ export default function ComplaintsTable({
                         </td>
                       )}
 
-                      {/* Status */}
-                      <td style={{ padding: "12px 16px" }}>
-                        <StatusBadge status={c.status} />
-                      </td>
-
                       {/* Opis */}
                       <td style={{ padding: "12px 16px", fontSize: 12.5, color: "var(--text-mute)", maxWidth: 240, whiteSpace: "pre-wrap", lineHeight: 1.4 }}>
                         {c.clientDescription || c.description || <em style={{ opacity: 0.5 }}>Brak opisu</em>}
-                      </td>
-
-                      {/* Przypisany do */}
-                      <td style={{ padding: "12px 16px", fontSize: 12.5, color: "var(--text-mute)" }}>
-                        {c.assignedTo ?? "—"}
                       </td>
 
                       {/* Ekipa */}
@@ -521,7 +491,11 @@ export default function ComplaintsTable({
                       {/* Arrow & Action */}
                       <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
                         {(() => {
-                          const isClosed = c.status === "zamknieta" || c.status === "rozwiazana" || c.status === "zakonczona";
+                          const isClosed =
+                            c.status === "archiwalne" ||
+                            c.status === "zamknieta" ||
+                            c.status === "rozwiazana" ||
+                            c.status === "zakonczona";
                           const isUpdating = updatingId === c._id;
                           return (
                             <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -538,16 +512,16 @@ export default function ComplaintsTable({
                                   fontSize: 11.5,
                                   fontWeight: 600,
                                   cursor: "pointer",
-                                  border: isClosed ? "1px solid #bbf7d0" : "1px solid #cbd5e1",
-                                  background: isClosed ? "#f0fdf4" : "#ffffff",
-                                  color: isClosed ? "#15803d" : "#334155",
+                                  border: isClosed ? "1px solid #bfdbfe" : "1px solid #cbd5e1",
+                                  background: isClosed ? "#eff6ff" : "#ffffff",
+                                  color: isClosed ? "#1d4ed8" : "#334155",
                                   opacity: isUpdating ? 0.5 : 1,
                                   transition: "all 0.15s ease",
                                 }}
-                                title={isClosed ? "Kliknij, aby otworzyć ponowne zgłoszenie" : "Kliknij, aby zamknąć tę reklamację"}
+                                title={isClosed ? "Kliknij, aby przywrócić do Aktualne" : "Kliknij, aby zarchiwizować"}
                               >
-                                <CheckCircle2 size={13} style={{ color: isClosed ? "#16a34a" : "#64748b" }} />
-                                {isClosed ? "Zamknięta ✓" : "Zamknij"}
+                                <CheckCircle2 size={13} style={{ color: isClosed ? "#1d4ed8" : "#64748b" }} />
+                                {isClosed ? "Przenieś do Aktualne" : "Zarchiwizuj"}
                               </button>
                               <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: "var(--text-mute)" }}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />

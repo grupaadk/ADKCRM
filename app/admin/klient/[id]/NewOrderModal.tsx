@@ -68,7 +68,7 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
   );
   const recentClients = useQuery(api.clients.list, searchQuery.trim().length < 2 ? {} : "skip");
   const searchItems = searchQuery.trim().length >= 2 ? searchResults : recentClients?.page;
-  const servicesList = useQuery(api.services.listActive) ?? [];
+  const servicesList = useQuery(api.services.list) ?? [];
   const selectedClient = useQuery(api.clients.getById, resolvedClientId ? { clientId: resolvedClientId } : "skip");
   const createOrder = useMutation(api.orders.create);
   const createClient = useMutation(api.clients.create);

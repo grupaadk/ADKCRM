@@ -391,7 +391,7 @@ export default function MobilePanel() {
   const archivedOrders = useQuery(api.kanban.listArchived);
   const archivedOpps = useQuery(api.salesOpportunities.listArchivedOpportunities);
   const users = useQuery(api.users.listAllActive);
-  const servicesList = useQuery(api.services.listActive) ?? [];
+  const servicesList = useQuery(api.services.list) ?? [];
 
   const archiveOpp = useMutation(api.salesOpportunities.archiveOpportunity);
   const unarchiveOpp = useMutation(api.salesOpportunities.unarchiveOpportunity);

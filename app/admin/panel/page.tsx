@@ -714,7 +714,7 @@ export default function PanelPage() {
   const items = useQuery(api.kanban.list)
   const currentUser = useQuery(api.users.me)
   const allUsers = useQuery(api.users.listAllActive)
-  const servicesList = useQuery(api.services.listActive) ?? []
+  const servicesList = useQuery(api.services.list) ?? []
   const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set())
   const [activeServiceFilters, setActiveServiceFilters] = useState<Set<string>>(new Set())
 

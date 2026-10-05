@@ -153,10 +153,10 @@ export const getTeamComplaints = query({
     const orderMap = new Map(orders.map((o) => [o._id, o]));
 
     return teamComplaints.map((c) => {
-      const client = clientMap.get(c.clientId);
+      const client = c.clientId ? clientMap.get(c.clientId) : null;
       const clientName = client
         ? client.companyName || `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || "Klient"
-        : "Klient";
+        : (c.customClientName || "Klient");
       const order = c.orderId ? orderMap.get(c.orderId) : null;
 
       return {
@@ -555,10 +555,10 @@ export const getScheduleByPin = query({
     });
 
     const formattedComplaints = teamComplaints.map((c) => {
-      const client = clientMap.get(c.clientId);
+      const client = c.clientId ? clientMap.get(c.clientId) : null;
       const clientName = client
         ? client.companyName || `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || "Klient"
-        : "Klient";
+        : (c.customClientName || "Klient");
 
       const linkedOrder = c.orderId ? orderMap.get(c.orderId) : undefined;
       const orderName = linkedOrder?.name ?? linkedOrder?.customText ?? undefined;

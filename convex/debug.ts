@@ -11,8 +11,8 @@ export const debugComplaints = query({
     const matches = [];
 
     for (const c of complaints) {
-      const client = clientMap.get(c.clientId);
-      const clientName = client ? `${client.firstName || ""} ${client.lastName || ""}`.toLowerCase() : "";
+      const client = c.clientId ? clientMap.get(c.clientId) : null;
+      const clientName = client ? `${client.firstName || ""} ${client.lastName || ""}`.toLowerCase() : (c.customClientName || "").toLowerCase();
       
       if (clientName.includes(args.search.toLowerCase()) || 
           (c.description || "").toLowerCase().includes(args.search.toLowerCase()) ||

@@ -56,8 +56,8 @@ function levenshteinDistance(a: string, b: string): number {
   }
   if (a.length === 0) return b.length;
 
-  let v0 = new Array(a.length + 1);
-  let v1 = new Array(a.length + 1);
+  const v0 = new Array(a.length + 1);
+  const v1 = new Array(a.length + 1);
 
   for (let i = 0; i <= a.length; i++) v0[i] = i;
 
@@ -507,10 +507,10 @@ export const querySearch = query({
       const orderMap = new Map(orders.map(o => [o._id, o]));
 
       for (const c of complaints) {
-        const client = clientMap.get(c.clientId);
+        const client = c.clientId ? clientMap.get(c.clientId) : null;
         const order = c.orderId ? orderMap.get(c.orderId) : null;
         
-        const clientName = client ? [client.firstName, client.lastName].filter(Boolean).join(" ") : "";
+        const clientName = client ? [client.firstName, client.lastName].filter(Boolean).join(" ") : (c.customClientName || "");
         const clientCompany = client?.companyName ?? "";
 
         const orderAlcoNumbers = (order?.serviceDeliveries ?? [])
@@ -525,6 +525,9 @@ export const querySearch = query({
           { text: c.clientDescription ?? "", weight: 8 },
           { text: clientName, weight: 6 },
           { text: clientCompany, weight: 6 },
+          { text: c.customClientName ?? "", weight: 8 },
+          { text: c.customClientAddress ?? "", weight: 6 },
+          { text: c.customClientPhone ?? "", weight: 6, isDigits: true },
           { text: order?.name ?? "", weight: 6 },
           ...orderAlcoNumbers.map((num) => ({ text: num, weight: 8, isCode: true })),
           ...orderAlcoIds.map((id) => ({ text: id, weight: 8, isCode: true })),

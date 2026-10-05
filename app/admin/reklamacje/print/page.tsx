@@ -107,7 +107,7 @@ export default function PrintComplaintsPage() {
                 const fullStreet = `${street}${apt}`.trim();
                 const city = c.order.investmentCity?.trim() || "";
                 
-                let rawAddr = fullStreet || city ? `${fullStreet ? fullStreet + ", " : ""}${city}` : "";
+                const rawAddr = fullStreet || city ? `${fullStreet ? fullStreet + ", " : ""}${city}` : "";
                 addr = `ADRES INWESTYCJI: ${rawAddr || "Brak danych"}`;
               } else if (c.client) {
                 const rawAddr = getClientAddress(c.client);

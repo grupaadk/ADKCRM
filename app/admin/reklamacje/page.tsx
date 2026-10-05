@@ -2,27 +2,24 @@
 
 import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import ComplaintDetailPanel from "@/components/complaints/ComplaintDetailPanel";
 import NewComplaintModal from "@/components/complaints/NewComplaintModal";
+import ServiceTripsView from "@/components/complaints/ServiceTripsView";
 import { useSearchParams } from "next/navigation";
 import { CrmPageHeader } from "@/components/crm-ui";
-import { Search, X, Plus, Printer, CheckCircle2 } from "lucide-react";
+import { Search, X, Plus, Printer, CheckCircle2, Filter, User, Users, RotateCcw, Car } from "lucide-react";
 
 const STATUS_LABELS: Record<string, string> = {
-  nowa: "Nowa",
-  w_toku: "W toku",
-  rozwiazana: "Rozwiązana",
-  zamknieta: "Zamknięta",
-};
-
-const STATUS_COLORS: Record<string, { bg: string; color: string; border: string }> = {
-  nowa: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-  w_toku: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
-  rozwiazana: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
-  zamknieta: { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" },
+  aktualne: "Aktualne",
+  archiwalne: "Archiwalne",
+  nowa: "Aktualne",
+  w_toku: "Aktualne",
+  rozwiazana: "Archiwalne",
+  zamknieta: "Archiwalne",
+  zakonczona: "Archiwalne",
 };
 
 function formatDate(ts: number) {
@@ -33,27 +30,10 @@ function formatDate(ts: number) {
   });
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const colors = STATUS_COLORS[status] ?? { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" };
-  return (
-    <span
-      style={{
-        fontSize: 11,
-        fontWeight: 600,
-        padding: "2px 8px",
-        borderRadius: 20,
-        background: colors.bg,
-        color: colors.color,
-        border: `1px solid ${colors.border}`,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {STATUS_LABELS[status] ?? status}
-    </span>
-  );
-}
+
 
 function formatInvestmentAddress(c: {
+  customClientAddress?: string;
   order?: {
     investmentStreet?: string;
     investmentBuildingNumber?: string;
@@ -70,6 +50,10 @@ function formatInvestmentAddress(c: {
     address?: string;
   } | null;
 }): { prefix?: string; primary: string; secondary?: string } {
+  if (c.customClientAddress) {
+    return { prefix: "ADRES INWESTYCJI:", primary: c.customClientAddress };
+  }
+
   if (c.order) {
     const street = [c.order.investmentStreet, c.order.investmentBuildingNumber]
       .filter(Boolean)
@@ -119,39 +103,20 @@ export default function ReklamacjePage() {
   const fromTab = searchParams.get("fromTab");
   const backHref = fromTab ? `/admin/panel?tab=${fromTab}` : "/admin/panel";
 
-  const [statusFilter, setStatusFilter] = useState<string>("wszystkie");
+  const [statusFilter, setStatusFilter] = useState<string>("aktualne");
   const [assignedFilter, setAssignedFilter] = useState<string>("");
+  const [teamFilter, setTeamFilter] = useState<string>("");
   const [clientFilter, setClientFilter] = useState<string>("");
-  const [startDateFrom, setStartDateFrom] = useState<string>("");
-  const [startDateTo, setStartDateTo] = useState<string>("");
-  const [serviceDateFrom, setServiceDateFrom] = useState<string>("");
-  const [serviceDateTo, setServiceDateTo] = useState<string>("");
 
   const [selectedId, setSelectedId] = useState<Id<"complaints"> | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<"list" | "trips">("list");
 
   // Print mode state
   const [isPrintMode, setIsPrintMode] = useState(false);
   const [selectedForPrint, setSelectedForPrint] = useState<Set<Id<"complaints">>>(new Set());
 
-  const updateComplaintStatus = useMutation(api.complaints.updateStatus);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const handleToggleStatus = async (e: React.MouseEvent, complaintId: Id<"complaints">, currentStatus: string) => {
-    e.stopPropagation();
-    setUpdatingId(complaintId);
-    try {
-      const isClosed = currentStatus === "zamknieta" || currentStatus === "rozwiazana" || currentStatus === "zakonczona";
-      await updateComplaintStatus({
-        complaintId,
-        status: isClosed ? "w_toku" : "zamknieta",
-      });
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Błąd zmiany statusu reklamacji");
-    } finally {
-      setUpdatingId(null);
-    }
-  };
 
   const complaints = useQuery(api.complaints.getAll, {
     status: statusFilter !== "wszystkie" ? statusFilter : undefined,
@@ -159,24 +124,35 @@ export default function ReklamacjePage() {
   });
 
   const users = useQuery(api.users.listAllActive);
+  const teams = useQuery(api.installationTeams.listActive);
 
-  // Client-side filtering for client name and date
+  // Client-side filtering logic
   const filtered = useMemo(() => {
     if (!complaints) return [];
     let result = complaints;
+
+    // Search filter
     if (clientFilter.trim()) {
       const term = clientFilter.toLowerCase();
       result = result.filter((c) => {
-        const name = [c.client?.firstName, c.client?.lastName].filter(Boolean).join(" ").toLowerCase();
+        const name = (
+          c.customClientName ||
+          [c.client?.firstName, c.client?.lastName].filter(Boolean).join(" ") ||
+          c.client?.companyName ||
+          ""
+        ).toLowerCase();
         const company = (c.client?.companyName ?? "").toLowerCase();
-        const invAddr = [
-          c.order?.investmentStreet,
-          c.order?.investmentCity,
-          c.client?.street,
-          c.client?.city,
-          c.client?.address,
-        ].filter(Boolean).join(" ").toLowerCase();
-        const phone = (c.client?.phone ?? "").toLowerCase();
+        const invAddr = (
+          c.customClientAddress ||
+          [
+            c.order?.investmentStreet,
+            c.order?.investmentCity,
+            c.client?.street,
+            c.client?.city,
+            c.client?.address,
+          ].filter(Boolean).join(" ")
+        ).toLowerCase();
+        const phone = (c.customClientPhone || c.client?.phone || "").toLowerCase();
         const notesText = [
           ...(c.notes ?? []).map((n) => n.text),
           ...(c.entries ?? []).filter((e) => e.type === "note").map((e) => e.text),
@@ -184,24 +160,14 @@ export default function ReklamacjePage() {
         return name.includes(term) || company.includes(term) || invAddr.includes(term) || phone.includes(term) || notesText.includes(term);
       });
     }
-    if (startDateFrom) {
-      const from = new Date(startDateFrom).getTime();
-      result = result.filter((c) => c.startDate >= from);
+
+    // Team filter
+    if (teamFilter) {
+      result = result.filter((c) => c.installationTeamId === teamFilter);
     }
-    if (startDateTo) {
-      const to = new Date(startDateTo).getTime() + 86400000; // inclusive
-      result = result.filter((c) => c.startDate <= to);
-    }
-    if (serviceDateFrom) {
-      const from = new Date(serviceDateFrom).getTime();
-      result = result.filter((c) => c.serviceDate !== undefined && c.serviceDate >= from);
-    }
-    if (serviceDateTo) {
-      const to = new Date(serviceDateTo).getTime() + 86400000; // inclusive
-      result = result.filter((c) => c.serviceDate !== undefined && c.serviceDate <= to);
-    }
+
     return result;
-  }, [complaints, clientFilter, startDateFrom, startDateTo, serviceDateFrom, serviceDateTo]);
+  }, [complaints, clientFilter, teamFilter]);
 
   const statusCounts = useMemo(() => {
     if (!complaints) return {};
@@ -211,6 +177,68 @@ export default function ReklamacjePage() {
     }
     return counts;
   }, [complaints]);
+
+  const userColorMap = useMemo(() => {
+    if (!users) return new Map<string, string>();
+    const map = new Map<string, string>();
+    for (const u of users) {
+      const name = u.displayName ?? u.login ?? "";
+      if (name && u.color) {
+        map.set(name, u.color);
+      }
+    }
+    return map;
+  }, [users]);
+
+  const countsByAssigned = useMemo(() => {
+    if (!complaints) return {};
+    const map: Record<string, number> = {};
+    for (const c of complaints) {
+      const assignedList = c.assignedToUsers && c.assignedToUsers.length > 0
+        ? c.assignedToUsers
+        : c.assignedTo
+          ? c.assignedTo.split(", ").map((s) => s.trim()).filter(Boolean)
+          : [];
+      for (const name of assignedList) {
+        map[name] = (map[name] ?? 0) + 1;
+      }
+    }
+    return map;
+  }, [complaints]);
+
+  const countsByTeam = useMemo(() => {
+    if (!complaints) return {};
+    const map: Record<string, number> = {};
+    for (const c of complaints) {
+      if (c.installationTeamId) {
+        map[c.installationTeamId] = (map[c.installationTeamId] ?? 0) + 1;
+      }
+    }
+    return map;
+  }, [complaints]);
+
+  // Only users who have assigned complaints
+  const activeAssignedUsers = useMemo(() => {
+    if (!users) return [];
+    return users.filter((u) => {
+      const uName = u.displayName ?? u.login ?? "";
+      return Boolean(uName && ((countsByAssigned[uName] ?? 0) > 0 || assignedFilter === uName));
+    });
+  }, [users, countsByAssigned, assignedFilter]);
+
+  // Only teams who have assigned complaints
+  const activeAssignedTeams = useMemo(() => {
+    if (!teams) return [];
+    return teams.filter((t) => (countsByTeam[t._id] ?? 0) > 0 || teamFilter === t._id);
+  }, [teams, countsByTeam, teamFilter]);
+
+  const hasActiveFilters = Boolean(assignedFilter || teamFilter || clientFilter);
+
+  const handleResetFilters = () => {
+    setAssignedFilter("");
+    setTeamFilter("");
+    setClientFilter("");
+  };
 
   return (
     <>
@@ -222,6 +250,7 @@ export default function ReklamacjePage() {
           backHref={backHref}
           backLabel="Powrót do Panelu zleceń"
           center={
+            activeTab === "list" ? (
             <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
               <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)" }} />
               <input
@@ -266,6 +295,7 @@ export default function ReklamacjePage() {
                 </button>
               )}
             </div>
+            ) : null
           }
           actions={
             <div style={{ display: "flex", gap: 8 }}>
@@ -283,7 +313,6 @@ export default function ReklamacjePage() {
                   <button
                     onClick={() => {
                       if (selectedForPrint.size === 0) return;
-                      // Otwieramy nowy widok do druku
                       const ids = Array.from(selectedForPrint).join(",");
                       window.open(`/admin/reklamacje/print?ids=${ids}`, "_blank");
                     }}
@@ -315,186 +344,292 @@ export default function ReklamacjePage() {
           }
         />
 
-        {/* Status tabs */}
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {(["wszystkie", "nowa", "w_toku", "rozwiazana", "zamknieta"] as const).map((s) => {
-            const active = statusFilter === s;
+        {/* Tab switcher */}
+        <div style={{
+          display: "flex",
+          gap: 4,
+          background: "var(--panel-2)",
+          border: "1px solid var(--line)",
+          borderRadius: 10,
+          padding: 4,
+          width: "fit-content",
+        }}>
+          {([
+            { id: "list", label: "Lista reklamacji", icon: <CheckCircle2 size={13} /> },
+            { id: "trips", label: "Wyjazdy serwisowe", icon: <Car size={13} /> },
+          ] as const).map((tab) => {
+            const active = activeTab === tab.id;
             return (
               <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
                 style={{
-                  padding: "5px 12px",
-                  borderRadius: 20,
-                  border: active ? "1px solid var(--accent)" : "1px solid var(--line)",
-                  background: active ? "var(--accent-soft)" : "var(--panel-2)",
-                  color: active ? "var(--accent)" : "var(--text-mute)",
-                  fontSize: 12,
-                  fontWeight: active ? 600 : 400,
+                  display: "flex", alignItems: "center", gap: 6,
+                  fontSize: 13, fontWeight: active ? 600 : 500,
+                  padding: "6px 14px",
+                  borderRadius: 7,
+                  border: "none",
+                  background: active ? "var(--panel)" : "transparent",
+                  color: active ? "var(--text-strong)" : "var(--text-mute)",
                   cursor: "pointer",
+                  boxShadow: active ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+                  transition: "all 0.15s",
                   fontFamily: "inherit",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
                 }}
               >
-                {s === "wszystkie" ? "Wszystkie" : STATUS_LABELS[s]}
-                {statusCounts[s] != null && (
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: "1px 5px",
-                      borderRadius: 10,
-                      background: active ? "var(--accent)" : "var(--line)",
-                      color: active ? "#fff" : "var(--text-mute)",
-                    }}
-                  >
-                    {statusCounts[s]}
-                  </span>
-                )}
+                {tab.icon} {tab.label}
               </button>
             );
           })}
         </div>
 
-        {/* Filters row */}
+        {/* Trips view */}
+        {activeTab === "trips" && <ServiceTripsView />}
+
+        {/* List view */}
+        {activeTab === "list" && (
+        <>
+
+        {/* Refined Interactive Filter Panel */}
         <div
           style={{
             display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            alignItems: "center",
-            padding: "10px 14px",
-            background: "var(--panel-2)",
+            flexDirection: "column",
+            gap: 12,
+            padding: "16px 20px",
+            background: "#ffffff",
             border: "1px solid var(--line)",
-            borderRadius: 8,
+            borderRadius: 12,
+            boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
           }}
         >
-
-          <select
-            value={assignedFilter}
-            onChange={(e) => setAssignedFilter(e.target.value)}
-            style={{
-              fontSize: 12.5,
-              padding: "5px 10px",
-              borderRadius: 6,
-              border: "1px solid var(--line)",
-              background: "var(--panel)",
-              color: assignedFilter ? "var(--text)" : "var(--text-mute)",
-              fontFamily: "inherit",
-            }}
-          >
-            <option value="">Wszyscy pracownicy</option>
-            {users?.map((u) => (
-              <option key={u._id} value={u.displayName ?? u.login ?? ""}>
-                {u.displayName ?? u.login}
-              </option>
-            ))}
-          </select>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 12px", background: "var(--accent-soft)", borderRadius: 8, border: "1px solid rgba(59, 130, 246, 0.2)" }}>
-            <span style={{ fontSize: 11.5, color: "var(--accent)", fontWeight: 600 }}>Zgłoszenie:</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 11.5, color: "var(--accent)", opacity: 0.8 }}>od</span>
-              <input
-                type="date"
-                value={startDateFrom}
-                onChange={(e) => setStartDateFrom(e.target.value)}
-                style={{
-                  fontSize: 12.5,
-                  padding: "5px 10px",
-                  borderRadius: 6,
-                  border: "1px solid var(--line)",
-                  background: "var(--panel)",
-                  color: "var(--text)",
-                  fontFamily: "inherit",
-                }}
-              />
+          {/* Header Bar with Active Indicator & Reset Button */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Filter style={{ width: 15, height: 15, color: "var(--accent)" }} />
+              {hasActiveFilters ? (
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 12, background: "var(--accent-soft)", color: "var(--accent)" }}>
+                  Wyniki: {filtered.length} reklamacji
+                </span>
+              ) : (
+                <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-mute)" }}>
+                  Wyniki: {filtered.length} reklamacji
+                </span>
+              )}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 11.5, color: "var(--accent)", opacity: 0.8 }}>do</span>
-              <input
-                type="date"
-                value={startDateTo}
-                onChange={(e) => setStartDateTo(e.target.value)}
+
+            {hasActiveFilters && (
+              <button
+                onClick={handleResetFilters}
                 style={{
-                  fontSize: 12.5,
-                  padding: "5px 10px",
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  padding: "4px 10px",
                   borderRadius: 6,
-                  border: "1px solid var(--line)",
-                  background: "var(--panel)",
-                  color: "var(--text)",
-                  fontFamily: "inherit",
+                  border: "none",
+                  background: "#fee2e2",
+                  color: "#991b1b",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  transition: "background 0.15s",
                 }}
-              />
+              >
+                <RotateCcw size={12} />
+                Wyczyść filtry
+              </button>
+            )}
+          </div>
+
+          {/* Row 1: Status */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", minWidth: 90, display: "flex", alignItems: "center", gap: 5 }}>
+              <CheckCircle2 size={13} /> Status:
+            </span>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {(["aktualne", "archiwalne", "wszystkie"] as const).map((s) => {
+                const active = statusFilter === s;
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    style={{
+                      padding: "4px 12px",
+                      borderRadius: 20,
+                      border: active ? "1px solid var(--accent)" : "1px solid var(--line)",
+                      background: active ? "var(--accent-soft)" : "var(--panel-2)",
+                      color: active ? "var(--accent)" : "var(--text)",
+                      fontSize: 12,
+                      fontWeight: active ? 600 : 400,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {s === "wszystkie" ? "Wszystkie" : STATUS_LABELS[s]}
+                    {statusCounts[s] != null && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: "1px 6px",
+                          borderRadius: 10,
+                          background: active ? "var(--accent)" : "var(--line)",
+                          color: active ? "#fff" : "var(--text-mute)",
+                        }}
+                      >
+                        {statusCounts[s]}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 12px", background: "rgba(34, 197, 94, 0.1)", borderRadius: 8, border: "1px solid rgba(34, 197, 94, 0.2)" }}>
-            <span style={{ fontSize: 11.5, color: "#166534", fontWeight: 600 }}>Serwis:</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 11.5, color: "#166534", opacity: 0.8 }}>od</span>
-              <input
-                type="date"
-                value={serviceDateFrom}
-                onChange={(e) => setServiceDateFrom(e.target.value)}
+          {/* Row 2: Pracownik (Only Assigned) */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", minWidth: 90, display: "flex", alignItems: "center", gap: 5 }}>
+              <User size={13} /> Pracownik:
+            </span>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <button
+                onClick={() => setAssignedFilter("")}
                 style={{
-                  fontSize: 12.5,
-                  padding: "5px 10px",
-                  borderRadius: 6,
-                  border: "1px solid var(--line)",
-                  background: "var(--panel)",
-                  color: "var(--text)",
-                  fontFamily: "inherit",
+                  padding: "4px 12px",
+                  borderRadius: 20,
+                  border: assignedFilter === "" ? "1px solid var(--accent)" : "1px solid var(--line)",
+                  background: assignedFilter === "" ? "var(--accent-soft)" : "var(--panel-2)",
+                  color: assignedFilter === "" ? "var(--accent)" : "var(--text)",
+                  fontSize: 12,
+                  fontWeight: assignedFilter === "" ? 600 : 400,
+                  cursor: "pointer",
                 }}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 11.5, color: "#166534", opacity: 0.8 }}>do</span>
-              <input
-                type="date"
-                value={serviceDateTo}
-                onChange={(e) => setServiceDateTo(e.target.value)}
-                style={{
-                  fontSize: 12.5,
-                  padding: "5px 10px",
-                  borderRadius: 6,
-                  border: "1px solid var(--line)",
-                  background: "var(--panel)",
-                  color: "var(--text)",
-                  fontFamily: "inherit",
-                }}
-              />
+              >
+                Wszyscy
+              </button>
+              {activeAssignedUsers.length === 0 ? (
+                <span style={{ fontSize: 11.5, color: "var(--text-mute)", fontStyle: "italic" }}>Brak przypisanych reklamacji</span>
+              ) : (
+                activeAssignedUsers.map((u) => {
+                  const uName = u.displayName ?? u.login ?? "";
+                  const active = assignedFilter === uName;
+                  const count = countsByAssigned[uName] ?? 0;
+                  const userColor = u.color ?? "var(--accent)";
+                  return (
+                    <button
+                      key={u._id}
+                      onClick={() => setAssignedFilter(active ? "" : uName)}
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: 20,
+                        border: active ? `1px solid ${userColor}` : "1px solid var(--line)",
+                        background: active ? `${userColor}1a` : "var(--panel-2)",
+                        color: active ? userColor : "var(--text)",
+                        fontSize: 12,
+                        fontWeight: active ? 600 : 400,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: userColor }} />
+                      <span>{uName}</span>
+                      {count > 0 && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: "1px 6px",
+                            borderRadius: 10,
+                            background: active ? userColor : "var(--line)",
+                            color: active ? "#fff" : "var(--text-mute)",
+                          }}
+                        >
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
-          {(clientFilter || assignedFilter || startDateFrom || startDateTo || serviceDateFrom || serviceDateTo) && (
-            <button
-              onClick={() => {
-                setClientFilter("");
-                setAssignedFilter("");
-                setStartDateFrom("");
-                setStartDateTo("");
-                setServiceDateFrom("");
-                setServiceDateTo("");
-              }}
-              style={{
-                fontSize: 11.5,
-                padding: "5px 10px",
-                borderRadius: 6,
-                border: "none",
-                background: "var(--accent-soft)",
-                color: "var(--accent)",
-                cursor: "pointer",
-                fontWeight: 500,
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
-              <X size={12} />
-              Wyczyść filtry
-            </button>
-          )}
+
+          {/* Row 3: Ekipa (Only Assigned) */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)", minWidth: 90, display: "flex", alignItems: "center", gap: 5 }}>
+              <Users size={13} /> Ekipa:
+            </span>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <button
+                onClick={() => setTeamFilter("")}
+                style={{
+                  padding: "4px 12px",
+                  borderRadius: 20,
+                  border: teamFilter === "" ? "1px solid var(--accent)" : "1px solid var(--line)",
+                  background: teamFilter === "" ? "var(--accent-soft)" : "var(--panel-2)",
+                  color: teamFilter === "" ? "var(--accent)" : "var(--text)",
+                  fontSize: 12,
+                  fontWeight: teamFilter === "" ? 600 : 400,
+                  cursor: "pointer",
+                }}
+              >
+                Wszystkie ekipy
+              </button>
+              {activeAssignedTeams.length === 0 ? (
+                <span style={{ fontSize: 11.5, color: "var(--text-mute)", fontStyle: "italic" }}>Brak przypisanych ekip</span>
+              ) : (
+                activeAssignedTeams.map((t) => {
+                  const active = teamFilter === t._id;
+                  const count = countsByTeam[t._id] ?? 0;
+                  const teamColor = t.color ?? "#10b981";
+                  return (
+                    <button
+                      key={t._id}
+                      onClick={() => setTeamFilter(active ? "" : t._id)}
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: 20,
+                        border: active ? `1px solid ${teamColor}` : "1px solid var(--line)",
+                        background: active ? `${teamColor}1a` : "var(--panel-2)",
+                        color: active ? teamColor : "var(--text)",
+                        fontSize: 12,
+                        fontWeight: active ? 600 : 400,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: teamColor }} />
+                      <span>{t.name}</span>
+                      {count > 0 && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: "1px 6px",
+                            borderRadius: 10,
+                            background: active ? teamColor : "var(--line)",
+                            color: active ? "#fff" : "var(--text-mute)",
+                          }}
+                        >
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Table */}
@@ -539,7 +674,7 @@ export default function ReklamacjePage() {
                       />
                     </th>
                   )}
-                  {["DATA ZGŁOSZENIA", "Data serwisu", "Klient", "Adres inwestycji", "Telefon", "Zlecenie", "Status", "Opis", "Notatki wewnętrzne", "Przypisany do", "Ekipa", ""].map((h) => (
+                  {["DATA ZGŁOSZENIA", "Data serwisu", "Klient / Adres / Telefon", "Opis", "Notatki wewnętrzne", "Ekipa", ""].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -562,10 +697,31 @@ export default function ReklamacjePage() {
               <tbody>
                 {filtered.map((c) => {
                   const clientName =
+                    c.customClientName ||
                     [c.client?.firstName, c.client?.lastName].filter(Boolean).join(" ") ||
                     c.client?.companyName ||
                     "—";
+                  const phone = c.customClientPhone || c.client?.phone;
                   const isSelected = selectedId === c._id;
+
+                  const assignedList = c.assignedToUsers && c.assignedToUsers.length > 0
+                    ? c.assignedToUsers
+                    : c.assignedTo
+                      ? c.assignedTo.split(", ").map((s) => s.trim()).filter(Boolean)
+                      : [];
+                  const colors = assignedList.map((name) => userColorMap.get(name)).filter(Boolean) as string[];
+                  const hasMultipleColors = colors.length > 1;
+                  const singleColor = colors.length === 1 ? colors[0] : undefined;
+
+                  let gradientStr = "";
+                  if (hasMultipleColors) {
+                    const step = 100 / colors.length;
+                    const stops = colors.map((col, i) => `${col} ${i * step}%, ${col} ${(i + 1) * step}%`);
+                    gradientStr = `linear-gradient(to bottom, ${stops.join(", ")})`;
+                  }
+
+                  const hasColorStripe = Boolean(singleColor || hasMultipleColors);
+
                   return (
                     <tr
                       key={c._id}
@@ -583,8 +739,21 @@ export default function ReklamacjePage() {
                         if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "transparent";
                       }}
                     >
-                      {isPrintMode && (
-                        <td style={{ padding: "14px 16px", textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                      {isPrintMode ? (
+                        <td style={{ position: "relative", padding: "14px 16px", textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                          {hasColorStripe && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                left: 0,
+                                top: 0,
+                                bottom: 0,
+                                width: 5,
+                                background: hasMultipleColors ? gradientStr : singleColor,
+                              }}
+                              title={`Przypisani: ${assignedList.join(", ")}`}
+                            />
+                          )}
                           <input
                             type="checkbox"
                             checked={selectedForPrint.has(c._id)}
@@ -597,8 +766,21 @@ export default function ReklamacjePage() {
                             style={{ cursor: "pointer" }}
                           />
                         </td>
-                      )}
-                      <td style={{ padding: "14px 16px", fontSize: 12.5, whiteSpace: "nowrap" }}>
+                      ) : null}
+                      <td style={{ position: "relative", padding: "14px 16px", paddingLeft: (!isPrintMode && hasColorStripe) ? 18 : 16, fontSize: 12.5, whiteSpace: "nowrap" }}>
+                        {!isPrintMode && hasColorStripe && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: 0,
+                              top: 0,
+                              bottom: 0,
+                              width: 5,
+                              background: hasMultipleColors ? gradientStr : singleColor,
+                            }}
+                            title={`Przypisani: ${assignedList.join(", ")}`}
+                          />
+                        )}
                         {(() => {
                           const today = new Date();
                           today.setHours(0, 0, 0, 0);
@@ -684,68 +866,51 @@ export default function ReklamacjePage() {
                           );
                         })()}
                       </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        <span style={{ fontSize: 12.5, fontWeight: 500, color: "var(--text)" }}>
-                          {clientName}
-                        </span>
-                        {c.client?.companyName && clientName !== c.client.companyName && (
-                          <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 2 }}>{c.client.companyName}</div>
-                        )}
-                      </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        {(() => {
-                          const addr = formatInvestmentAddress(c);
-                          return (
-                            <div>
-                              {addr.prefix && (
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", marginBottom: 2 }}>
-                                  {addr.prefix}
-                                </div>
-                              )}
-                              <div
-                                style={{
-                                  fontSize: 12.5,
-                                  color: addr.primary === "—" ? "var(--text-mute)" : "var(--text)",
-                                  fontWeight: addr.primary === "—" ? 400 : 500,
-                                }}
-                              >
-                                {addr.primary}
-                              </div>
-                              {addr.secondary && (
-                                <div style={{ fontSize: 11, color: "var(--text-mute)" }}>
-                                  {addr.secondary}
-                                </div>
-                              )}
+                      <td style={{ padding: "14px 16px", minWidth: 260 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)" }}>
+                              {clientName}
+                            </span>
+                            {c.client?.companyName && clientName !== c.client.companyName && (
+                              <span style={{ fontSize: 11, color: "var(--text-mute)", fontStyle: "italic" }}>
+                                ({c.client.companyName})
+                              </span>
+                            )}
+                          </div>
+                          {phone && (
+                            <div style={{ fontSize: 11.5, color: "var(--text)", fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}>
+                              <span style={{ color: "var(--text-mute)", fontSize: 11 }}>📞</span>
+                              <span>{phone}</span>
                             </div>
-                          );
-                        })()}
-                      </td>
-                      <td style={{ padding: "14px 16px", fontSize: 12.5, whiteSpace: "nowrap" }}>
-                        {c.client?.phone ? (
-                          <span style={{ color: "var(--text)", fontWeight: 500 }}>{c.client.phone}</span>
-                        ) : (
-                          <span style={{ color: "var(--text-mute)" }}>—</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        <span style={{ fontSize: 12.5, color: "var(--text)" }}>
-                          {c.order?.name ?? "—"}
-                        </span>
-                      </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        <StatusBadge status={c.status} />
+                          )}
+                          {(() => {
+                            const addr = formatInvestmentAddress(c);
+                            if (addr.primary === "—") return null;
+                            return (
+                              <div style={{ fontSize: 11.5, color: "var(--text-mute)", marginTop: 2, display: "flex", alignItems: "baseline", gap: 4, flexWrap: "wrap" }}>
+                                <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 10 }}>
+                                  📍 {addr.prefix ? addr.prefix.replace("ADRES ", "").replace(":", "") : "ADRES"}:
+                                </span>
+                                <span style={{ color: "var(--text)", fontWeight: 500 }}>{addr.primary}</span>
+                                {addr.secondary && <span style={{ color: "var(--text-mute)" }}>({addr.secondary})</span>}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </td>
                       <td
                         style={{
                           padding: "14px 16px",
-                          fontSize: 12.5,
-                          color: "var(--text-mute)",
-                          maxWidth: 240,
+                          fontSize: 13,
+                          color: "var(--text)",
+                          minWidth: 320,
+                          maxWidth: 520,
                           whiteSpace: "pre-wrap",
-                          lineHeight: 1.4,
+                          lineHeight: 1.45,
                         }}
                       >
-                        {c.clientDescription || c.description || <em style={{ opacity: 0.5 }}>Brak opisu</em>}
+                        {c.clientDescription || c.description || <em style={{ opacity: 0.5, color: "var(--text-mute)" }}>Brak opisu</em>}
                       </td>
                       <td
                         style={{
@@ -794,9 +959,6 @@ export default function ReklamacjePage() {
                           );
                         })()}
                       </td>
-                      <td style={{ padding: "14px 16px", fontSize: 12.5, color: "var(--text-mute)" }}>
-                        {c.assignedTo ?? "—"}
-                      </td>
                       <td style={{ padding: "14px 16px", fontSize: 12.5 }}>
                         {c.installationTeam ? (
                           <span
@@ -820,49 +982,17 @@ export default function ReklamacjePage() {
                         )}
                       </td>
                       <td style={{ padding: "14px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
-                        {(() => {
-                          const isClosed = c.status === "zamknieta" || c.status === "rozwiazana" || c.status === "zakonczona";
-                          const isUpdating = updatingId === c._id;
-                          return (
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                              <button
-                                type="button"
-                                onClick={(e) => handleToggleStatus(e, c._id, c.status)}
-                                disabled={isUpdating}
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: 4,
-                                  padding: "4px 10px",
-                                  borderRadius: 6,
-                                  fontSize: 11.5,
-                                  fontWeight: 600,
-                                  cursor: "pointer",
-                                  border: isClosed ? "1px solid #bbf7d0" : "1px solid #cbd5e1",
-                                  background: isClosed ? "#f0fdf4" : "#ffffff",
-                                  color: isClosed ? "#15803d" : "#334155",
-                                  opacity: isUpdating ? 0.5 : 1,
-                                  transition: "all 0.15s ease",
-                                }}
-                                title={isClosed ? "Kliknij, aby otworzyć ponowne zgłoszenie" : "Kliknij, aby zamknąć tę reklamację"}
-                              >
-                                <CheckCircle2 size={13} style={{ color: isClosed ? "#16a34a" : "#64748b" }} />
-                                {isClosed ? "Zamknięta ✓" : "Zamknij"}
-                              </button>
-                              <svg
-                                width="14"
-                                height="14"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                style={{ color: "var(--text-mute)" }}
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                              </svg>
-                            </div>
-                          );
-                        })()}
+                        <svg
+                          width="14"
+                          height="14"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          style={{ color: "var(--text-mute)" }}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                        </svg>
                       </td>
                     </tr>
                   );
@@ -871,6 +1001,9 @@ export default function ReklamacjePage() {
             </table>
           )}
         </div>
+      </>
+      )}
+
       </div>
 
       {/* Side panel */}

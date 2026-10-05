@@ -170,7 +170,7 @@ export default function UniversalCalendar({
   useEffect(() => {
     if (eventTypes && eventTypes.length > 0) {
       if (!eventTypesInitialized) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setActiveEventTypeFilters(new Set(eventTypes.map((t) => t._id)));
         setEventTypesInitialized(true);
       } else {
@@ -198,7 +198,7 @@ export default function UniversalCalendar({
           changed = true;
         }
         if (changed) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect
+           
           setActiveEventTypeFilters(nextFilters);
         }
       }
@@ -208,7 +208,7 @@ export default function UniversalCalendar({
   const [suppliersInitialized, setSuppliersInitialized] = useState(false);
   useEffect(() => {
     if (activeSuppliers && activeSuppliers.length > 0 && !suppliersInitialized) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setActiveSupplierFilters(new Set(activeSuppliers.map((s) => s._id)));
       setSuppliersInitialized(true);
     }
@@ -217,10 +217,10 @@ export default function UniversalCalendar({
   const [teamsInitialized, setTeamsInitialized] = useState(false);
   useEffect(() => {
     if (initialTeamId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setActiveTeamFilters(new Set([initialTeamId]));
     } else if (installationTeams && installationTeams.length > 0 && !teamsInitialized) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setActiveTeamFilters(new Set(installationTeams.map((t) => t._id)));
       setTeamsInitialized(true);
     }

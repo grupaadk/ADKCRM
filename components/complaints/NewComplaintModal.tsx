@@ -30,8 +30,12 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
   const [serviceTimeStart, setServiceTimeStart] = useState("");
   const [serviceTimeEnd, setServiceTimeEnd] = useState("");
   const [clientDescription, setClientDescription] = useState("");
-  const [assignedTo, setAssignedTo] = useState("");
+  const [assignedToUsers, setAssignedToUsers] = useState<string[]>([]);
   const [installationTeamId, setInstallationTeamId] = useState<Id<"installationTeams"> | "">("");
+  const [clientMode, setClientMode] = useState<"system" | "manual">("system");
+  const [customClientName, setCustomClientName] = useState("");
+  const [customClientAddress, setCustomClientAddress] = useState("");
+  const [customClientPhone, setCustomClientPhone] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,7 +104,12 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!selectedClientId) { setError("Wybierz klienta."); return; }
+    if (clientMode === "system") {
+      if (!selectedClientId) { setError("Wybierz klienta."); return; }
+    } else {
+      if (!customClientName.trim()) { setError("Wpisz imię i nazwisko lub nazwę klienta."); return; }
+    }
+
     setSaving(true);
     setError(null);
     try {
@@ -123,13 +132,16 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
         }
       }
       const id = await createComplaint({
-        clientId: selectedClientId,
-        orderId: selectedOrderId ?? undefined,
+        clientId: clientMode === "system" ? (selectedClientId ?? undefined) : undefined,
+        customClientName: clientMode === "manual" ? customClientName.trim() : undefined,
+        customClientAddress: clientMode === "manual" ? customClientAddress.trim() || undefined : undefined,
+        customClientPhone: clientMode === "manual" ? customClientPhone.trim() || undefined : undefined,
+        orderId: clientMode === "system" ? (selectedOrderId ?? undefined) : undefined,
         startDate: new Date(startDate).getTime(),
         serviceDate: serviceDateTs,
         serviceDateEnd: serviceDateEndTs,
         clientDescription: clientDescription.trim() || undefined,
-        assignedTo: assignedTo || undefined,
+        assignedToUsers: assignedToUsers.length > 0 ? assignedToUsers : undefined,
         installationTeamId: installationTeamId || undefined,
         createdBy: me?.displayName ?? me?.login ?? "Nieznany",
       });
@@ -140,7 +152,7 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
     } finally {
       setSaving(false);
     }
-  }, [selectedClientId, selectedOrderId, startDate, serviceDate, serviceTimeStart, serviceTimeEnd, clientDescription, assignedTo, installationTeamId, me, createComplaint, onCreated, onClose]);
+  }, [clientMode, selectedClientId, customClientName, customClientAddress, customClientPhone, selectedOrderId, startDate, serviceDate, serviceTimeStart, serviceTimeEnd, clientDescription, assignedToUsers, installationTeamId, me, createComplaint, onCreated, onClose]);
 
   const overlayStyle: React.CSSProperties = {
     position: "fixed",
@@ -208,10 +220,118 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
         <div style={{ padding: "16px 18px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
           {/* Klient */}
           <div>
-            <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
-              Klient <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            {selectedClientId ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block" }}>
+                Klient <span style={{ color: "#ef4444" }}>*</span>
+              </label>
+              <div style={{ display: "flex", gap: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => { setClientMode("system"); setError(null); }}
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: 14,
+                    border: clientMode === "system" ? "1px solid var(--accent)" : "1px solid var(--line)",
+                    background: clientMode === "system" ? "var(--accent-soft)" : "var(--panel-2)",
+                    color: clientMode === "system" ? "var(--accent)" : "var(--text-mute)",
+                    fontSize: 11,
+                    fontWeight: clientMode === "system" ? 600 : 400,
+                    cursor: "pointer",
+                  }}
+                >
+                  🔍 Z bazy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setClientMode("manual"); setError(null); }}
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: 14,
+                    border: clientMode === "manual" ? "1px solid var(--accent)" : "1px solid var(--line)",
+                    background: clientMode === "manual" ? "var(--accent-soft)" : "var(--panel-2)",
+                    color: clientMode === "manual" ? "var(--accent)" : "var(--text-mute)",
+                    fontSize: 11,
+                    fontWeight: clientMode === "manual" ? 600 : 400,
+                    cursor: "pointer",
+                  }}
+                >
+                  ✍️ Ręcznie (z palca)
+                </button>
+              </div>
+            </div>
+
+            {clientMode === "manual" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px", border: "1px dashed var(--line)", borderRadius: 8, background: "var(--panel-2)" }}>
+                <div>
+                  <label style={{ fontSize: 11, color: "var(--text-mute)", display: "block", marginBottom: 3 }}>
+                    Imię i nazwisko / Firma <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="np. Jan Kowalski"
+                    value={customClientName}
+                    onChange={(e) => setCustomClientName(e.target.value)}
+                    style={{
+                      width: "100%",
+                      fontSize: 12.5,
+                      padding: "6px 9px",
+                      borderRadius: 6,
+                      border: "1px solid var(--line)",
+                      background: "var(--panel, #fff)",
+                      color: "var(--text)",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--text-mute)", display: "block", marginBottom: 3 }}>
+                      Telefon (opcjonalnie)
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="np. 500 600 700"
+                      value={customClientPhone}
+                      onChange={(e) => setCustomClientPhone(e.target.value)}
+                      style={{
+                        width: "100%",
+                        fontSize: 12,
+                        padding: "6px 9px",
+                        borderRadius: 6,
+                        border: "1px solid var(--line)",
+                        background: "var(--panel, #fff)",
+                        color: "var(--text)",
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--text-mute)", display: "block", marginBottom: 3 }}>
+                      Adres inwestycji (opcjonalnie)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="np. ul. Kwiatowa 5, Poznań"
+                      value={customClientAddress}
+                      onChange={(e) => setCustomClientAddress(e.target.value)}
+                      style={{
+                        width: "100%",
+                        fontSize: 12,
+                        padding: "6px 9px",
+                        borderRadius: 6,
+                        border: "1px solid var(--line)",
+                        background: "var(--panel, #fff)",
+                        color: "var(--text)",
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : selectedClientId ? (
               <div
                 style={{
                   display: "flex",
@@ -737,33 +857,48 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
             />
           </div>
 
-          {/* Przypisany do */}
+          {/* Przypisani do */}
           <div>
             <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mute)", display: "block", marginBottom: 5 }}>
-              Przypisany do
+              Przypisani do
             </label>
-            <select
-              value={assignedTo}
-              onChange={(e) => setAssignedTo(e.target.value)}
-              style={{
-                width: "100%",
-                fontSize: 12.5,
-                padding: "7px 10px",
-                borderRadius: 7,
-                border: "1px solid var(--line)",
-                background: "var(--panel-2)",
-                color: "var(--text)",
-                fontFamily: "inherit",
-                boxSizing: "border-box",
-              }}
-            >
-              <option value="">— Nieprzypisany —</option>
-              {users?.map((u) => (
-                <option key={u._id} value={u.displayName ?? u.login ?? ""}>
-                  {u.displayName ?? u.login}
-                </option>
-              ))}
-            </select>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              {users?.map((u) => {
+                const uName = u.displayName ?? u.login ?? "";
+                if (!uName) return null;
+                const isAssigned = assignedToUsers.includes(uName);
+                const userColor = u.color ?? "var(--accent)";
+                return (
+                  <button
+                    key={u._id}
+                    type="button"
+                    onClick={() => {
+                      setAssignedToUsers((prev) =>
+                        isAssigned ? prev.filter((n) => n !== uName) : [...prev, uName],
+                      );
+                    }}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 20,
+                      border: isAssigned ? `1px solid ${userColor}` : "1px solid var(--line)",
+                      background: isAssigned ? `${userColor}1a` : "var(--panel-2)",
+                      color: isAssigned ? userColor : "var(--text-mute)",
+                      fontSize: 12,
+                      fontWeight: isAssigned ? 600 : 400,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: userColor }} />
+                    <span>{uName}</span>
+                    {isAssigned && <span style={{ fontSize: 11, fontWeight: 700 }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Ekipa montażowa */}
@@ -830,7 +965,7 @@ export default function NewComplaintModal({ onClose, onCreated, defaultClientId,
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || !selectedClientId}
+            disabled={saving || (clientMode === "system" ? !selectedClientId : !customClientName.trim())}
             className="btn"
             style={{ fontSize: 12.5, padding: "7px 18px" }}
           >

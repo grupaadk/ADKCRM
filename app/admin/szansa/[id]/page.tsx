@@ -180,7 +180,7 @@ export default function OpportunityDetailPage({
   const isAdmin = me?.role === "admin";
   const assignOpportunity = useMutation(api.salesOpportunities.assignOpportunity);
   const assignableUsers = useQuery(api.users.listAllActive) ?? [];
-  const servicesList = useQuery(api.services.listActive) ?? [];
+  const servicesList = useQuery(api.services.list) ?? [];
   const serviceNames = servicesList.map((s) => s.name);
 
   // Synchronizacja checkboxa "Taki sam jak klienta" gdy dane opp się załadują

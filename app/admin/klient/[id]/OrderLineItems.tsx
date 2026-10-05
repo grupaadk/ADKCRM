@@ -369,7 +369,7 @@ export default function OrderLineItems({
   const removeItem = useMutation(api.orderLineItems.remove);
   const pushEstimate = useAction(api.fakturownia.pushOrderEstimate);
   const saveInvoicePlan = useMutation(api.orders.saveInvoicePlan);
-  const servicesList = useQuery(api.services.listActive) ?? [];
+  const servicesList = useQuery(api.services.list) ?? [];
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<AddFormState>(EMPTY_FORM);

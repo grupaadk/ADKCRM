@@ -26,7 +26,7 @@ export default function ComplaintPhotoSection({
   complaintId,
   complaintFolderId,
 }: {
-  clientId: Id<"clients">;
+  clientId?: Id<"clients">;
   orderId?: Id<"orders">;
   complaintId: Id<"complaints">;
   complaintFolderId: string | undefined;

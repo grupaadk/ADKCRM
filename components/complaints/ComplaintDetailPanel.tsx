@@ -8,20 +8,26 @@ import { createPortal } from "react-dom";
 import ComplaintPhotoSection from "@/app/admin/klient/[id]/zlecenie/[orderId]/ComplaintPhotoSection";
 import { Search, UserPlus, X, CheckCircle2 } from "lucide-react";
 
-type Status = "nowa" | "w_toku" | "rozwiazana" | "zamknieta";
+type Status = "aktualne" | "archiwalne" | "nowa" | "w_toku" | "rozwiazana" | "zamknieta" | "zakonczona";
 
-const STATUS_LABELS: Record<Status, string> = {
-  nowa: "Nowa",
-  w_toku: "W toku",
-  rozwiazana: "Rozwiązana",
-  zamknieta: "Zamknięta",
+const STATUS_LABELS: Record<string, string> = {
+  aktualne: "Aktualne",
+  archiwalne: "Archiwalne",
+  nowa: "Aktualne",
+  w_toku: "Aktualne",
+  rozwiazana: "Archiwalne",
+  zamknieta: "Archiwalne",
+  zakonczona: "Archiwalne",
 };
 
-const STATUS_COLORS: Record<Status, { bg: string; color: string; border: string }> = {
+const STATUS_COLORS: Record<string, { bg: string; color: string; border: string }> = {
+  aktualne: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+  archiwalne: { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" },
   nowa: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-  w_toku: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
-  rozwiazana: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
+  w_toku: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+  rozwiazana: { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" },
   zamknieta: { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" },
+  zakonczona: { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" },
 };
 
 const FULL_HOURS = [
@@ -222,27 +228,36 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
             >
               {STATUS_LABELS[status]}
             </span>
-            {status !== "zamknieta" && status !== "rozwiazana" && (
-              <button
-                type="button"
-                onClick={() => updateStatus({ complaintId, status: "zamknieta" })}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  padding: "3px 9px",
-                  borderRadius: 20,
-                  background: "#f0fdf4",
-                  color: "#15803d",
-                  border: "1px solid #bbf7d0",
-                  cursor: "pointer",
-                }}
-              >
-                <CheckCircle2 size={12} /> Zamknij
-              </button>
-            )}
+            {(() => {
+              const isClosed =
+                status === "archiwalne" ||
+                status === "zamknieta" ||
+                status === "rozwiazana" ||
+                status === "zakonczona";
+              return (
+                <button
+                  type="button"
+                  onClick={() => updateStatus({ complaintId, status: isClosed ? "aktualne" : "archiwalne" })}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: "3px 9px",
+                    borderRadius: 20,
+                    background: isClosed ? "#eff6ff" : "#ffffff",
+                    color: isClosed ? "#1d4ed8" : "#334155",
+                    border: isClosed ? "1px solid #bfdbfe" : "1px solid #cbd5e1",
+                    cursor: "pointer",
+                  }}
+                  title={isClosed ? "Kliknij, aby przywrócić do Aktualne" : "Kliknij, aby zarchiwizować"}
+                >
+                  <CheckCircle2 size={12} style={{ color: isClosed ? "#1d4ed8" : "#64748b" }} />
+                  {isClosed ? "Przenieś do Aktualne" : "Zarchiwizuj"}
+                </button>
+              );
+            })()}
           </div>
           <button
             onClick={onClose}
@@ -430,12 +445,22 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
               {!showClientPicker ? (
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Klient</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                      {complaint.customClientName ? "Klient (wpisany ręcznie)" : "Klient"}
+                    </div>
                     <div className="text-xs text-gray-700 mt-0.5 font-medium">
-                      {currentClient 
+                      {currentClient
                         ? ([currentClient.firstName, currentClient.lastName].filter(Boolean).join(" ") || currentClient.companyName || currentClient._id)
+                        : complaint.customClientName
+                        ? complaint.customClientName
                         : "Brak przypisanego klienta"}
                     </div>
+                    {complaint.customClientPhone && (
+                      <div className="text-[11px] text-gray-500 mt-0.5">📞 {complaint.customClientPhone}</div>
+                    )}
+                    {complaint.customClientAddress && (
+                      <div className="text-[11px] text-gray-500 mt-0.5">📍 {complaint.customClientAddress}</div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     {complaint.clientId && (
@@ -454,7 +479,7 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
                       onClick={() => setShowClientPicker(true)}
                       className="flex shrink-0 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      <UserPlus className="size-3.5" /> Zmień
+                      <UserPlus className="size-3.5" /> {complaint.customClientName ? "Przypisz z bazy" : "Zmień"}
                     </button>
                   </div>
                 </div>
@@ -591,32 +616,61 @@ export default function ComplaintDetailPanel({ complaintId, onClose }: Props) {
               )}
             </div>
             {/* Assigned to */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11.5, color: "var(--text-mute)", width: 120, flexShrink: 0 }}>Przypisany do</span>
-              <select
-                value={complaint.assignedTo ?? ""}
-                onChange={(e) =>
-                  updateDetails({ complaintId, assignedTo: e.target.value || undefined })
-                }
-                style={{
-                  fontSize: 12,
-                  padding: "3px 8px",
-                  borderRadius: 6,
-                  border: "1px solid var(--line)",
-                  background: "var(--panel-2)",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  flex: 1,
-                }}
-              >
-                <option value="">— Nieprzypisany —</option>
-                {users?.map((u) => (
-                  <option key={u._id} value={u.displayName ?? u.login ?? ""}>
-                    {u.displayName ?? u.login}
-                  </option>
-                ))}
-              </select>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 11.5, color: "var(--text-mute)", fontWeight: 600 }}>Przypisani do</span>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                {(() => {
+                  const currentAssignedUsers = complaint.assignedToUsers && complaint.assignedToUsers.length > 0
+                    ? complaint.assignedToUsers
+                    : complaint.assignedTo
+                      ? complaint.assignedTo.split(", ").map((s) => s.trim()).filter(Boolean)
+                      : [];
+
+                  if (!users || users.length === 0) {
+                    return <span style={{ fontSize: 11.5, color: "var(--text-mute)" }}>Brak pracowników</span>;
+                  }
+
+                  return users.map((u) => {
+                    const uName = u.displayName ?? u.login ?? "";
+                    if (!uName) return null;
+                    const isAssigned = currentAssignedUsers.includes(uName);
+                    const userColor = u.color ?? "var(--accent)";
+                    return (
+                      <button
+                        key={u._id}
+                        type="button"
+                        onClick={() => {
+                          const newAssigned = isAssigned
+                            ? currentAssignedUsers.filter((n) => n !== uName)
+                            : [...currentAssignedUsers, uName];
+                          updateDetails({
+                            complaintId,
+                            assignedToUsers: newAssigned,
+                          });
+                        }}
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: 20,
+                          border: isAssigned ? `1px solid ${userColor}` : "1px solid var(--line)",
+                          background: isAssigned ? `${userColor}1a` : "var(--panel-2)",
+                          color: isAssigned ? userColor : "var(--text-mute)",
+                          fontSize: 12,
+                          fontWeight: isAssigned ? 600 : 400,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: userColor }} />
+                        <span>{uName}</span>
+                        {isAssigned && <span style={{ fontSize: 11, fontWeight: 700 }}>✓</span>}
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
             </div>
 
             {/* Ekipa montażowa */}

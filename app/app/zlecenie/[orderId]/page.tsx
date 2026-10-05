@@ -860,7 +860,7 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
                     <div className="flex items-center gap-1.5 min-w-0">
                       <ShieldAlert className="size-4 text-red-600 shrink-0" />
                       <span className="font-extrabold text-xs text-red-950 truncate">
-                        {c.title || `Reklamacja #${c._id.slice(-4)}`}
+                        {c.description || c.clientDescription || `Reklamacja #${c._id.slice(-4)}`}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -1146,7 +1146,7 @@ function MobileOrderPageMain({ params }: { params: Promise<{ orderId: string }> 
                     Zgłoszenie Reklamacyjne
                   </span>
                   <h3 className="text-sm font-extrabold text-slate-900 truncate">
-                    {selectedComplaint.title || `Reklamacja #${selectedComplaint._id.slice(-6)}`}
+                    {selectedComplaint.description || selectedComplaint.clientDescription || `Reklamacja #${selectedComplaint._id.slice(-6)}`}
                   </h3>
                 </div>
               </div>

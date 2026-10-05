@@ -100,7 +100,7 @@ function MobileOpportunityPageMain({ params }: { params: Promise<{ opportunityId
 
   const opp = useQuery(api.salesOpportunities.getSalesOpportunity, { opportunityId });
   const users = useQuery(api.users.listAllActive) ?? [];
-  const servicesList = useQuery(api.services.listActive) ?? [];
+  const servicesList = useQuery(api.services.list) ?? [];
 
   const updateField = useMutation(api.salesOpportunities.updateOpportunity);
   const updateStage = useMutation(api.salesOpportunities.updateOpportunityStage);

@@ -60,6 +60,7 @@ import type * as scratch from "../scratch.js";
 import type * as search from "../search.js";
 import type * as seed from "../seed.js";
 import type * as servicePricing from "../servicePricing.js";
+import type * as serviceTrips from "../serviceTrips.js";
 import type * as services from "../services.js";
 import type * as sms from "../sms.js";
 import type * as storage from "../storage.js";
@@ -134,6 +135,7 @@ declare const fullApi: ApiFromModules<{
   search: typeof search;
   seed: typeof seed;
   servicePricing: typeof servicePricing;
+  serviceTrips: typeof serviceTrips;
   services: typeof services;
   sms: typeof sms;
   storage: typeof storage;

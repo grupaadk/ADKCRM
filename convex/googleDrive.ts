@@ -3282,7 +3282,7 @@ export const createComplaintFolder = internalAction({
   args: {
     complaintId: v.id("complaints"),
     orderId: v.optional(v.id("orders")),
-    clientId: v.id("clients"),
+    clientId: v.optional(v.id("clients")),
   },
   handler: async (ctx, args): Promise<{ id: string; url: string }> => {
     // ── 1. Resolve parent folder (order folder or client folder) ──────────────
@@ -3302,7 +3302,7 @@ export const createComplaintFolder = internalAction({
       const apt = order.investmentApartmentNumber ? `/${order.investmentApartmentNumber}` : "";
       const city = order.investmentCity?.trim() ?? "";
       investmentAddress = [street + apt, city].filter(Boolean).join(", ");
-    } else {
+    } else if (args.clientId) {
       const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId });
       if (!client) throw new Error("Klient nie znaleziony");
       if (!client.clientFolderId) throw new Error("Ten klient nie ma folderu w Google Drive.");

@@ -97,7 +97,7 @@ export default function NewOpportunityModal({ onClose, onSuccess, initialClient 
   );
   const recentClients = useQuery(api.clients.list, searchQuery.trim().length < 1 ? {} : "skip");
   const searchItems = searchQuery.trim().length >= 1 ? searchResults : recentClients?.page;
-  const servicesList = useQuery(api.services.listActive) ?? [];
+  const servicesList = useQuery(api.services.list) ?? [];
 
   const allSteps: Step[] = ["client", "details"];
   const stepIndex = allSteps.indexOf(step);

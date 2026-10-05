@@ -218,10 +218,12 @@ export const list = query({
           let resolvedClient = client;
           if (!resolvedClient) {
             const cid = order?.clientId ?? complaint.clientId;
-            resolvedClient = clientCache.get(cid);
-            if (resolvedClient === undefined) {
-              resolvedClient = await ctx.db.get(cid);
-              if (resolvedClient) clientCache.set(cid, resolvedClient);
+            if (cid) {
+              resolvedClient = clientCache.get(cid);
+              if (resolvedClient === undefined) {
+                resolvedClient = await ctx.db.get(cid);
+                if (resolvedClient) clientCache.set(cid, resolvedClient);
+              }
             }
           }
 
@@ -241,7 +243,7 @@ export const list = query({
             clientId: order?.clientId ?? complaint.clientId,
             orderName: order?.name ?? null,
             customText: order?.customText ?? null,
-            clientName: clientName(resolvedClient ?? null),
+            clientName: resolvedClient ? clientName(resolvedClient) : (complaint.customClientName || "—"),
             columnId: task.columnId,
             columnChangedAt: task.columnChangedAt,
             position: task.position,
@@ -396,7 +398,7 @@ export const getOne = query({
       if (!complaint) return null;
       const order = complaint.orderId ? await ctx.db.get(complaint.orderId) : null;
       const clientId = order?.clientId ?? complaint.clientId;
-      const client = await ctx.db.get(clientId);
+      const client = clientId ? await ctx.db.get(clientId) : null;
       return {
         _id: task._id,
         title: task.title,
@@ -413,7 +415,7 @@ export const getOne = query({
         clientId,
         orderName: order?.name ?? null,
         customText: order?.customText ?? null,
-        clientName: clientName(client),
+        clientName: client ? clientName(client) : (complaint.customClientName || "—"),
         columnId: task.columnId,
         columnChangedAt: task.columnChangedAt,
         ...assigneeProps,

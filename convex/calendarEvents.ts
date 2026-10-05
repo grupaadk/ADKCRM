@@ -465,7 +465,7 @@ export const getLinkedOrderEvents = query({
           }
 
           if (complaint.serviceDate >= args.startDate && complaint.serviceDate <= args.endDate) {
-            const clientName = clientMap.get(complaint.clientId) ?? "Klient";
+            const clientName = complaint.clientId ? (clientMap.get(complaint.clientId) ?? "Klient") : (complaint.customClientName || "Klient");
             const teamId = complaint.installationTeamId ?? type.linkedInstallationTeamId;
             const team = teamId ? teamMap.get(teamId) : undefined;
 

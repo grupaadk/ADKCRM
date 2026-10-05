@@ -550,7 +550,7 @@ export default function MobileDashboard() {
     archived.sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0));
 
     return { byColumn: groupedCol, bagByColumn: bagCol, archivedTasks: archived, overdueCount: overdue, todayCount: due };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [tasks, today, tomorrow, taskColumns]);
 
   /* ── aktywna kolumna ── */

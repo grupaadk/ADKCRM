@@ -705,17 +705,23 @@ export default defineSchema({
   // 3.17 Reklamacje
   complaints: defineTable({
     orderId: v.optional(v.id("orders")),
-    clientId: v.id("clients"),
+    clientId: v.optional(v.id("clients")),
+    customClientName: v.optional(v.string()),
+    customClientAddress: v.optional(v.string()),
+    customClientPhone: v.optional(v.string()),
     status: v.union(
-      v.literal("nowa"),
-      v.literal("w_toku"),
-      v.literal("rozwiazana"),
-      v.literal("zamknieta"),
-      v.literal("zakonczona"), // legacy — stare rekordy
+      v.literal("aktualne"),
+      v.literal("archiwalne"),
+      v.literal("nowa"), // legacy dla migracji
+      v.literal("w_toku"), // legacy dla migracji
+      v.literal("rozwiazana"), // legacy dla migracji
+      v.literal("zamknieta"), // legacy dla migracji
+      v.literal("zakonczona"), // legacy dla migracji
     ),
     description: v.optional(v.string()),
     clientDescription: v.optional(v.string()),
     assignedTo: v.optional(v.string()),
+    assignedToUsers: v.optional(v.array(v.string())),
     notes: v.optional(v.array(
       v.object({
         id: v.string(),
@@ -749,11 +755,25 @@ export default defineSchema({
     createdBy: v.string(),
     complaintFolderId: v.optional(v.string()),
     complaintFolderUrl: v.optional(v.string()),
+    serviceTripId: v.optional(v.id("serviceTrips")),
+    serviceTripPosition: v.optional(v.number()),
   })
     .index("by_order", ["orderId"])
     .index("by_client", ["clientId"])
     .index("by_status", ["status"])
-    .index("by_startDate", ["startDate"]),
+    .index("by_startDate", ["startDate"])
+    .index("by_service_trip", ["serviceTripId"]),
+
+  // 3.17b Wyjazdy serwisowe — grupowanie reklamacji w wyjazdy jak sprinty
+  serviceTrips: defineTable({
+    name: v.string(),
+    date: v.number(),
+    status: v.union(v.literal("open"), v.literal("closed")),
+    createdBy: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_date", ["date"]),
 
   // 3.18 Załączniki do zleceń (pliki w folderze "Załączniki" w Google Drive)
   orderAttachments: defineTable({
