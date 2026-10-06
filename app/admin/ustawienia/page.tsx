@@ -32,6 +32,7 @@ import { ITKanbanTab } from "./ITKanbanTab";
 import { EventTypesTab } from "./EventTypesTab";
 import { InstallationTeamsTab } from "./InstallationTeamsTab";
 import { TaskTemplatesTab } from "./TaskTemplatesTab";
+import { VatRateNamesTab } from "./VatRateNamesTab";
 
 const IconMap: Record<string, React.ComponentType<any>> = {
   AppWindow,
@@ -58,7 +59,7 @@ function ServiceIcon({ name, className = "h-4 w-4" }: { name?: string; className
   return <IconComponent className={className} />;
 }
 
-type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe" | "szablony-zadan";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "nazwy-vat" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe" | "szablony-zadan";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -4325,6 +4326,7 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "szablony", label: "Szablony" },
   { key: "crm", label: "CRM" },
   { key: "uslugi", label: "Usługi" },
+  { key: "nazwy-vat", label: "Nazwy pozycji (VAT)" },
   { key: "dostawcy", label: "Dostawcy" },
   { key: "wydatki", label: "Kategorie wydatków" },
   { key: "logi", label: "Logi" },
@@ -4374,6 +4376,7 @@ export default function UstawieniaPage() {
       {activeTab === "szablony" && <SzablonyTab />}
       {activeTab === "crm" && <CrmTab />}
       {activeTab === "uslugi" && <ServicesTab />}
+      {activeTab === "nazwy-vat" && <VatRateNamesTab />}
       {activeTab === "dostawcy" && <SuppliersTab />}
       {activeTab === "wydatki" && <ExpenseCategoriesTab />}
       {activeTab === "logi" && <LogiTab />}

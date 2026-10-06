@@ -72,6 +72,7 @@ import type * as taskLabels from "../taskLabels.js";
 import type * as taskTemplates from "../taskTemplates.js";
 import type * as terracePricing from "../terracePricing.js";
 import type * as users from "../users.js";
+import type * as vatRateNames from "../vatRateNames.js";
 import type * as viewConfig from "../viewConfig.js";
 import type * as websiteWebhook from "../websiteWebhook.js";
 import type * as whitelist from "../whitelist.js";
@@ -147,6 +148,7 @@ declare const fullApi: ApiFromModules<{
   taskTemplates: typeof taskTemplates;
   terracePricing: typeof terracePricing;
   users: typeof users;
+  vatRateNames: typeof vatRateNames;
   viewConfig: typeof viewConfig;
   websiteWebhook: typeof websiteWebhook;
   whitelist: typeof whitelist;

@@ -574,6 +574,17 @@ export default defineSchema({
     .index("by_active", ["isActive"])
     .index("by_name", ["name"]),
 
+  // 3.12c Predefiniowane nazwy pozycji wg stawki VAT
+  vatRateNames: defineTable({
+    vatRate: v.number(),
+    name: v.string(),
+    label: v.optional(v.string()),
+    sortOrder: v.number(),
+    isActive: v.boolean(),
+  })
+    .index("by_vat_rate", ["vatRate"])
+    .index("by_vat_rate_and_active", ["vatRate", "isActive"]),
+
   // 3.13 Pozycje zamówienia
   orderLineItems: defineTable({
     orderId: v.id("orders"),

@@ -8,41 +8,6 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 const VAT_RATES = [0, 8, 23];
 const UNITS = ["szt.", "m²", "mb", "usł.", "kpl.", "godz."];
 
-const PRODUCT_TYPES_23 = [
-  "Stolarka okienna",
-  "Stolarka drzwiowa",
-  "Brama garażowa",
-  "Zabudowa tarasu",
-  "Konstrukcje aluminiowe",
-  "Ogrodzenie",
-  "System przeciwsłoneczny",
-];
-
-const PRODUCT_TYPES_8 = [
-  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (brama garażowa z montażem) PKWiU 43.32.10.0.",
-  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (drzwi zewnętrzne z montażem) PKWiU 43.32.10.0.",
-  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (przygotowanie mebli do montażu) PKWiU 43.32.10.0.",
-  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (zabudowa tarasu z montażem) PKWiU 43.32.10.0.",
-  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (zadaszenie z montażem) PKWiU 43.32.10.0.",
-  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (stolarka budowlana z montażem) PKWiU 43.32.10.0.",
-  "Usługa remontowo budowlana w budynku mieszkalnym do 300m2 w XXXXXXX (stolarka okienna z montażem) PKWiU 43.32.10.0.",
-];
-
-const VAT_NAMES: Record<number, string[]> = {
-  23: PRODUCT_TYPES_23,
-  8: PRODUCT_TYPES_8,
-};
-
-type NameChip = { label: string; value: string };
-
-const NAME_CHIPS: Record<number, NameChip[]> = {
-  23: PRODUCT_TYPES_23.map((t) => ({ label: t, value: t })),
-  8: PRODUCT_TYPES_8.map((t) => {
-    const match = t.match(/\(([^)]+)\)/);
-    return { label: match ? match[1] : t, value: t };
-  }),
-};
-
 function NameSelector({
   value,
   onChange,
@@ -56,7 +21,7 @@ function NameSelector({
   disabled?: boolean;
   id?: string;
 }) {
-  const chips = NAME_CHIPS[vatRate] ?? [];
+  const vatNames = useQuery(api.vatRateNames.list, vatRate !== undefined ? { vatRate, includeInactive: false } : "skip") ?? [];
 
   return (
     <div className="space-y-2">
@@ -67,25 +32,26 @@ function NameSelector({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        placeholder={chips.length > 0 ? "Wybierz poniżej lub wpisz..." : "Wpisz nazwę..."}
+        placeholder={vatNames.length > 0 ? "Wybierz poniżej lub wpisz..." : "Wpisz nazwę..."}
       />
-      {chips.length > 0 && !disabled && (
+      {vatNames.length > 0 && !disabled && (
         <div className="flex flex-wrap gap-1.5">
-          {chips.map((chip) => {
-            const selected = value === chip.value;
+          {vatNames.map((chip) => {
+            const selected = value === chip.name;
+            const chipLabel = chip.label || chip.name;
             return (
               <button
-                key={chip.value}
+                key={chip._id}
                 type="button"
-                onClick={() => onChange(selected ? "" : chip.value)}
-                title={chip.value}
+                onClick={() => onChange(selected ? "" : chip.name)}
+                title={chip.name}
                 className={`rounded-full border px-3 py-1 text-xs font-medium transition-all ${
                   selected
                     ? "border-slate-800 bg-slate-900 text-white"
                     : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-400 hover:bg-slate-100"
                 }`}
               >
-                {chip.label}
+                {chipLabel}
               </button>
             );
           })}
@@ -369,7 +335,6 @@ export default function OrderLineItems({
   const removeItem = useMutation(api.orderLineItems.remove);
   const pushEstimate = useAction(api.fakturownia.pushOrderEstimate);
   const saveInvoicePlan = useMutation(api.orders.saveInvoicePlan);
-  const servicesList = useQuery(api.services.list) ?? [];
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<AddFormState>(EMPTY_FORM);
@@ -578,34 +543,6 @@ export default function OrderLineItems({
 
           {/* Rest of form — locked when vatRate === 0 */}
           <div className={form.vatRate === 0 ? "pointer-events-none select-none opacity-40" : ""}>
-            {/* Wybór usługi z cennika */}
-            {servicesList.length > 0 && (
-              <div className="mb-4" style={form.vatRate === 0 ? { pointerEvents: "auto" } : undefined}>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                  Wybierz z cennika
-                </label>
-                <select
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  value=""
-                  onChange={(e) => {
-                    const svc = servicesList.find((s) => s._id === e.target.value);
-                    if (svc) {
-                      setForm((f) => ({
-                        ...f,
-                        name: svc.name,
-                      }));
-                    }
-                  }}
-                >
-                  <option value="">-- Wybierz usługę --</option>
-                  {servicesList.map((s) => (
-                    <option key={s._id} value={s._id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="col-span-2 sm:col-span-4">
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>
