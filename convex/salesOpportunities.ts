@@ -88,14 +88,70 @@ export const createManualOpportunity = mutation({
     leadSource: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    if (!args.firstName.trim() && !args.lastName.trim()) {
+    const {
+      clientId,
+      investmentStreet,
+      investmentBuildingNumber,
+      investmentApartmentNumber,
+      investmentPostalCode,
+      investmentCity,
+      uploadedFileIds,
+      ...rest
+    } = args;
+
+    let firstName = args.firstName;
+    let lastName = args.lastName;
+    let email = args.email;
+    let phone = args.phone;
+    let street = args.street;
+    let buildingNumber = args.buildingNumber;
+    let apartmentNumber = args.apartmentNumber;
+    let postalCode = args.postalCode;
+    let city = args.city;
+
+    if (clientId) {
+      const client = await ctx.db.get(clientId);
+      if (client) {
+        if (!firstName?.trim()) firstName = client.companyName || `${client.firstName} ${client.lastName}`.trim() || "Klient";
+        if (!lastName?.trim()) lastName = client.lastName || client.companyName || "";
+        if (!email && client.email) email = client.email;
+        if (!phone && client.phone) phone = client.phone;
+        if (!street && client.street) street = client.street;
+        if (!buildingNumber && client.buildingNumber) buildingNumber = client.buildingNumber;
+        if (!apartmentNumber && client.apartmentNumber) apartmentNumber = client.apartmentNumber;
+        if (!postalCode && client.postalCode) postalCode = client.postalCode;
+        if (!city && client.city) city = client.city;
+      }
+    }
+
+    if (!firstName.trim() && !lastName.trim()) {
       throw new Error("Imię i nazwisko są wymagane");
     }
-    const { uploadedFileIds, ...rest } = args;
-    const phone = normalizePhoneForDb(rest.phone);
+
+    const finalInvestmentStreet = investmentStreet?.trim() || street?.trim() || undefined;
+    const finalInvestmentBuildingNumber = investmentBuildingNumber?.trim() || buildingNumber?.trim() || undefined;
+    const finalInvestmentApartmentNumber = investmentApartmentNumber?.trim() || apartmentNumber?.trim() || undefined;
+    const finalInvestmentPostalCode = investmentPostalCode?.trim() || postalCode?.trim() || undefined;
+    const finalInvestmentCity = investmentCity?.trim() || city?.trim() || undefined;
+
+    const normalizedPhone = normalizePhoneForDb(phone);
     const opportunityId = await ctx.db.insert("pendingJotformSubmissions", {
       ...rest,
-      phone,
+      clientId,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email?.trim() || undefined,
+      phone: normalizedPhone,
+      street: street?.trim() || undefined,
+      buildingNumber: buildingNumber?.trim() || undefined,
+      apartmentNumber: apartmentNumber?.trim() || undefined,
+      postalCode: postalCode?.trim() || undefined,
+      city: city?.trim() || undefined,
+      investmentStreet: finalInvestmentStreet,
+      investmentBuildingNumber: finalInvestmentBuildingNumber,
+      investmentApartmentNumber: finalInvestmentApartmentNumber,
+      investmentPostalCode: finalInvestmentPostalCode,
+      investmentCity: finalInvestmentCity,
       stage: "lead",
       stageChangedAt: Date.now(),
       processed: false,

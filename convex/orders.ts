@@ -381,6 +381,7 @@ export const update = mutation({
     projectFiles: v.optional(v.string()),
     comment: v.optional(v.string()),
     customText: v.optional(v.string()),
+    leadSource: v.optional(v.union(v.string(), v.null())),
     name: v.optional(v.string()),
     investmentStreet: v.optional(v.string()),
     investmentBuildingNumber: v.optional(v.string()),

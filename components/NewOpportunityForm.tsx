@@ -104,6 +104,13 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
     email: "",
     phone: "",
   });
+  const [resolvedAddress, setResolvedAddress] = useState({
+    street: "",
+    buildingNumber: "",
+    apartmentNumber: "",
+    postalCode: "",
+    city: "",
+  });
 
   const resolvedClientDoc = useQuery(
     api.clients.getById,
@@ -125,6 +132,13 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
         lastName: doc.lastName || doc.companyName || "",
         email: doc.email ?? "",
         phone: doc.phone ?? "",
+      });
+      setResolvedAddress({
+        street: doc.street ?? "",
+        buildingNumber: doc.buildingNumber ?? "",
+        apartmentNumber: doc.apartmentNumber ?? "",
+        postalCode: doc.postalCode ?? "",
+        city: doc.city ?? "",
       });
     }
   }, [initialClientDoc, resolvedClientDoc]);
@@ -158,12 +172,13 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
   // Sync investment address when sameAsClientAddress is active
   useEffect(() => {
     if (sameAsClientAddress) {
-      if (resolvedClientDoc) {
-        setInvestmentStreet(resolvedClientDoc.street ?? "");
-        setInvestmentBuildingNumber(resolvedClientDoc.buildingNumber ?? "");
-        setInvestmentApartmentNumber(resolvedClientDoc.apartmentNumber ?? "");
-        setInvestmentPostalCode(resolvedClientDoc.postalCode ?? "");
-        setInvestmentCity(resolvedClientDoc.city ?? "");
+      const src = resolvedClientDoc || (resolvedAddress.street || resolvedAddress.city ? resolvedAddress : null);
+      if (src) {
+        setInvestmentStreet(src.street ?? "");
+        setInvestmentBuildingNumber(src.buildingNumber ?? "");
+        setInvestmentApartmentNumber(src.apartmentNumber ?? "");
+        setInvestmentPostalCode(src.postalCode ?? "");
+        setInvestmentCity(src.city ?? "");
       } else if (clientForm.street || clientForm.city) {
         setInvestmentStreet(clientForm.street);
         setInvestmentBuildingNumber(clientForm.buildingNumber);
@@ -172,7 +187,7 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
         setInvestmentCity(clientForm.city);
       }
     }
-  }, [sameAsClientAddress, resolvedClientDoc, clientForm.street, clientForm.buildingNumber, clientForm.apartmentNumber, clientForm.postalCode, clientForm.city]);
+  }, [sameAsClientAddress, resolvedClientDoc, resolvedAddress, clientForm.street, clientForm.buildingNumber, clientForm.apartmentNumber, clientForm.postalCode, clientForm.city]);
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -204,6 +219,13 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
       lastName,
       email: c.email ?? "",
       phone: c.phone ?? "",
+    });
+    setResolvedAddress({
+      street: c.street ?? "",
+      buildingNumber: c.buildingNumber ?? "",
+      apartmentNumber: c.apartmentNumber ?? "",
+      postalCode: c.postalCode ?? "",
+      city: c.city ?? "",
     });
 
     if (sameAsClientAddress) {
@@ -326,6 +348,13 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
         email: clientForm.email.trim(),
         phone: clientForm.phone.trim(),
       });
+      setResolvedAddress({
+        street: clientForm.street.trim(),
+        buildingNumber: clientForm.buildingNumber.trim(),
+        apartmentNumber: clientForm.apartmentNumber.trim(),
+        postalCode: clientForm.postalCode.trim(),
+        city: clientForm.city.trim(),
+      });
 
       if (sameAsClientAddress) {
         setInvestmentStreet(clientForm.street.trim());
@@ -382,17 +411,44 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
     try {
       const finalLeadSource = leadSource === "Inne" ? customLeadSource.trim() : leadSource.trim();
 
+      const clientStreet = resolvedAddress.street.trim() || clientForm.street.trim() || undefined;
+      const clientBuildingNumber = resolvedAddress.buildingNumber.trim() || clientForm.buildingNumber.trim() || undefined;
+      const clientApartmentNumber = resolvedAddress.apartmentNumber.trim() || clientForm.apartmentNumber.trim() || undefined;
+      const clientPostalCode = resolvedAddress.postalCode.trim() || clientForm.postalCode.trim() || undefined;
+      const clientCity = resolvedAddress.city.trim() || clientForm.city.trim() || undefined;
+
+      const finalInvestmentStreet = sameAsClientAddress
+        ? clientStreet
+        : (investmentStreet.trim() || undefined);
+      const finalInvestmentBuildingNumber = sameAsClientAddress
+        ? clientBuildingNumber
+        : (investmentBuildingNumber.trim() || undefined);
+      const finalInvestmentApartmentNumber = sameAsClientAddress
+        ? clientApartmentNumber
+        : (investmentApartmentNumber.trim() || undefined);
+      const finalInvestmentPostalCode = sameAsClientAddress
+        ? clientPostalCode
+        : (investmentPostalCode.trim() || undefined);
+      const finalInvestmentCity = sameAsClientAddress
+        ? clientCity
+        : (investmentCity.trim() || undefined);
+
       const opportunityId = await createOpportunity({
         clientId: resolvedClientId,
         firstName: resolvedContact.firstName,
         lastName: resolvedContact.lastName,
         email: resolvedContact.email || undefined,
         phone: resolvedContact.phone || undefined,
-        investmentStreet: investmentStreet.trim() || undefined,
-        investmentBuildingNumber: investmentBuildingNumber.trim() || undefined,
-        investmentApartmentNumber: investmentApartmentNumber.trim() || undefined,
-        investmentPostalCode: investmentPostalCode.trim() || undefined,
-        investmentCity: investmentCity.trim() || undefined,
+        street: clientStreet,
+        buildingNumber: clientBuildingNumber,
+        apartmentNumber: clientApartmentNumber,
+        postalCode: clientPostalCode,
+        city: clientCity,
+        investmentStreet: finalInvestmentStreet,
+        investmentBuildingNumber: finalInvestmentBuildingNumber,
+        investmentApartmentNumber: finalInvestmentApartmentNumber,
+        investmentPostalCode: finalInvestmentPostalCode,
+        investmentCity: finalInvestmentCity,
         services: selectedServices.length > 0 ? selectedServices : undefined,
         customText: customText.trim() || undefined,
         leadSource: finalLeadSource || undefined,
@@ -441,6 +497,27 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
       setCurrentStep((prev) => (prev - 1) as WizardStep);
     }
   }
+
+  const currentClientStreet = resolvedAddress.street || clientForm.street || resolvedClientDoc?.street || "";
+  const currentClientBuilding = resolvedAddress.buildingNumber || clientForm.buildingNumber || resolvedClientDoc?.buildingNumber || "";
+  const currentClientApartment = resolvedAddress.apartmentNumber || clientForm.apartmentNumber || resolvedClientDoc?.apartmentNumber || "";
+  const currentClientPostal = resolvedAddress.postalCode || clientForm.postalCode || resolvedClientDoc?.postalCode || "";
+  const currentClientCity = resolvedAddress.city || clientForm.city || resolvedClientDoc?.city || "";
+
+  const formattedClientStreetWithNumber = [
+    currentClientStreet,
+    [currentClientBuilding, currentClientApartment].filter(Boolean).join("/"),
+  ].filter(Boolean).join(" ");
+
+  const formattedClientCityWithPostal = [
+    currentClientPostal,
+    currentClientCity,
+  ].filter(Boolean).join(" ");
+
+  const formattedClientAddress = [
+    formattedClientStreetWithNumber,
+    formattedClientCityWithPostal,
+  ].filter(Boolean).join(", ");
 
   const fieldCls = (field: string, forceDisabled = false) =>
     forceDisabled
@@ -494,7 +571,6 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
       <div className="bg-[var(--panel)] rounded-2xl border border-[var(--line)] p-4 md:p-5 shadow-2xs">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {STEP_DEFINITIONS.map((s) => {
-            const Icon = s.icon;
             const isActive = currentStep === s.id;
             const isCompleted = currentStep > s.id;
             const isSelectable = canGoToStep(s.id);
@@ -1070,96 +1146,125 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
           </div>
 
           {/* ── SECTION 1: ADRES INWESTYCJII / MONTAŻU ────────────────────────── */}
-          <div className="border border-[var(--line)] rounded-2xl p-5 md:p-6 bg-[var(--panel-2)]/40 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--line-2)] pb-3">
-              <div className="font-bold text-sm text-[var(--text-strong)] flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-brand" />
-                Adres inwestycji / montażu
-              </div>
+          {sameAsClientAddress ? (
+            <div className="border border-brand/25 bg-brand/[0.04] rounded-2xl p-4 md:p-4.5 transition-all">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center shrink-0 text-brand shadow-2xs">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-[var(--text-strong)]">Adres inwestycji / montażu</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-950 bg-emerald-100/90 border border-emerald-200/80 px-2 py-0.5 rounded-full">
+                        <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
+                        Taki sam jak adres klienta
+                      </span>
+                    </div>
+                    <p className="text-xs text-[var(--text-dim)] truncate mt-0.5 font-medium">
+                      {formattedClientAddress ? (
+                        <span className="text-[var(--text-strong)]">{formattedClientAddress}</span>
+                      ) : (
+                        <span className="text-[var(--text-mute)] italic">Adres zostanie automatycznie pobrany z danych klienta</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
 
-              {/* Checkbox: Taki sam adres jak adres klienta */}
-              <label className="flex items-center gap-2.5 text-xs font-semibold text-[var(--text-strong)] cursor-pointer bg-white px-3.5 py-2 rounded-xl border border-[var(--line-2)] hover:border-brand transition-colors">
-                <input
-                  type="checkbox"
-                  checked={sameAsClientAddress}
-                  onChange={(e) => setSameAsClientAddress(e.target.checked)}
-                  className="rounded border-[var(--line-2)] text-brand focus:ring-brand w-4 h-4"
-                />
-                Taki sam adres jak adres klienta
-              </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSameAsClientAddress(false);
+                    // Pre-fill with current client address as starting point for editing if user wishes
+                    if (!investmentStreet && !investmentCity) {
+                      setInvestmentStreet(resolvedAddress.street || clientForm.street || "");
+                      setInvestmentBuildingNumber(resolvedAddress.buildingNumber || clientForm.buildingNumber || "");
+                      setInvestmentApartmentNumber(resolvedAddress.apartmentNumber || clientForm.apartmentNumber || "");
+                      setInvestmentPostalCode(resolvedAddress.postalCode || clientForm.postalCode || "");
+                      setInvestmentCity(resolvedAddress.city || clientForm.city || "");
+                    }
+                  }}
+                  className="self-start sm:self-center px-3.5 py-1.5 rounded-xl border border-[var(--line-2)] bg-white hover:bg-[var(--panel-2)] hover:border-brand/40 text-xs font-semibold text-[var(--text-strong)] transition-all shrink-0 shadow-2xs"
+                >
+                  Podaj inny adres montażu
+                </button>
+              </div>
             </div>
+          ) : (
+            <div className="border border-[var(--line)] rounded-2xl p-5 md:p-6 bg-[var(--panel-2)]/40 space-y-4 transition-all">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--line-2)] pb-3">
+                <div className="font-bold text-sm text-[var(--text-strong)] flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-brand" />
+                  Adres inwestycji / montażu
+                </div>
 
-            {sameAsClientAddress && (
-              <div className="rounded-xl border border-brand/30 bg-brand/5 p-3.5 text-xs text-slate-800 flex items-center gap-2">
-                <Info className="w-4 h-4 text-brand shrink-0" />
-                <span>
-                  Adres inwestycji jest automatycznie pobierany z danych wybranego klienta.
-                </span>
+                <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text-strong)] cursor-pointer bg-white px-3.5 py-2 rounded-xl border border-[var(--line-2)] hover:border-brand transition-colors shadow-2xs">
+                  <input
+                    type="checkbox"
+                    checked={sameAsClientAddress}
+                    onChange={(e) => setSameAsClientAddress(e.target.checked)}
+                    className="rounded border-[var(--line-2)] text-brand focus:ring-brand w-4 h-4"
+                  />
+                  Taki sam adres jak adres klienta
+                </label>
               </div>
-            )}
 
-            {!sameAsClientAddress && (
               <AddressSearch onSelect={handleInvestmentAddressSelect} />
-            )}
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="col-span-2">
-                <label className="block text-[11px] font-medium text-[var(--text-mute)] mb-1">Ulica</label>
-                <input
-                  type="text"
-                  placeholder="Ulica"
-                  value={investmentStreet}
-                  disabled={sameAsClientAddress}
-                  onChange={(e) => setInvestmentStreet(e.target.value)}
-                  className={fieldCls("investmentStreet", sameAsClientAddress)}
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-medium text-[var(--text-mute)] mb-1">Nr budynku</label>
-                <input
-                  type="text"
-                  placeholder="Nr budynku"
-                  value={investmentBuildingNumber}
-                  disabled={sameAsClientAddress}
-                  onChange={(e) => setInvestmentBuildingNumber(e.target.value)}
-                  className={fieldCls("investmentBuildingNumber", sameAsClientAddress)}
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-medium text-[var(--text-mute)] mb-1">Nr lokalu</label>
-                <input
-                  type="text"
-                  placeholder="Nr lokalu"
-                  value={investmentApartmentNumber}
-                  disabled={sameAsClientAddress}
-                  onChange={(e) => setInvestmentApartmentNumber(e.target.value)}
-                  className={fieldCls("investmentApartmentNumber", sameAsClientAddress)}
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-medium text-[var(--text-mute)] mb-1">Kod pocztowy</label>
-                <input
-                  type="text"
-                  placeholder="Kod pocztowy"
-                  value={investmentPostalCode}
-                  disabled={sameAsClientAddress}
-                  onChange={(e) => setInvestmentPostalCode(e.target.value)}
-                  className={fieldCls("investmentPostalCode", sameAsClientAddress)}
-                />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-[11px] font-medium text-[var(--text-mute)] mb-1">Miasto</label>
-                <input
-                  type="text"
-                  placeholder="Miasto"
-                  value={investmentCity}
-                  disabled={sameAsClientAddress}
-                  onChange={(e) => setInvestmentCity(e.target.value)}
-                  className={fieldCls("investmentCity", sameAsClientAddress)}
-                />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-medium text-[var(--text-mute)] mb-1">Ulica</label>
+                  <input
+                    type="text"
+                    placeholder="Ulica"
+                    value={investmentStreet}
+                    onChange={(e) => setInvestmentStreet(e.target.value)}
+                    className={fieldCls("investmentStreet")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-[var(--text-mute)] mb-1">Nr budynku</label>
+                  <input
+                    type="text"
+                    placeholder="Nr budynku"
+                    value={investmentBuildingNumber}
+                    onChange={(e) => setInvestmentBuildingNumber(e.target.value)}
+                    className={fieldCls("investmentBuildingNumber")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-[var(--text-mute)] mb-1">Nr lokalu</label>
+                  <input
+                    type="text"
+                    placeholder="Nr lokalu"
+                    value={investmentApartmentNumber}
+                    onChange={(e) => setInvestmentApartmentNumber(e.target.value)}
+                    className={fieldCls("investmentApartmentNumber")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-[var(--text-mute)] mb-1">Kod pocztowy</label>
+                  <input
+                    type="text"
+                    placeholder="Kod pocztowy"
+                    value={investmentPostalCode}
+                    onChange={(e) => setInvestmentPostalCode(e.target.value)}
+                    className={fieldCls("investmentPostalCode")}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-medium text-[var(--text-mute)] mb-1">Miasto</label>
+                  <input
+                    type="text"
+                    placeholder="Miasto"
+                    value={investmentCity}
+                    onChange={(e) => setInvestmentCity(e.target.value)}
+                    className={fieldCls("investmentCity")}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* ── SECTION 2: TEKST WŁASNY & ŹRÓDŁO LEADA ─────────────────────────── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

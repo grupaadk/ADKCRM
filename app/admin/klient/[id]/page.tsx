@@ -463,6 +463,9 @@ export default function ClientDetailPage({
                           {order.customText && (
                             <span className="chip-custom">{order.customText}</span>
                           )}
+                          {order.leadSource && (
+                            <span className="chip" style={{ color: "#2563eb", fontWeight: 600, fontSize: 10 }}>Źródło: {order.leadSource}</span>
+                          )}
                           {hasFinalInvoice && (
                             <span className="chip">Faktura wystawiona</span>
                           )}

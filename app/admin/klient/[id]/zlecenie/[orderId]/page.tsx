@@ -1806,6 +1806,28 @@ export default function OrderDetailPage({
   const clearInstallationDate = useMutation(api.orders.clearInstallationDate);
   const [editingCustomText, setEditingCustomText] = useState(false);
   const [customTextDraft, setCustomTextDraft] = useState("");
+  const [editingLeadSource, setEditingLeadSource] = useState(false);
+  const [draftLeadSource, setDraftLeadSource] = useState("");
+
+  useEffect(() => {
+    if (order?.leadSource !== undefined) {
+      setDraftLeadSource(order.leadSource ?? "");
+    }
+  }, [order?.leadSource]);
+
+  const handleSaveLeadSource = async () => {
+    try {
+      const val = draftLeadSource.trim();
+      await updateOrder({
+        orderId: orderIdTyped,
+        leadSource: val ? val : null,
+      });
+      setEditingLeadSource(false);
+    } catch (err: any) {
+      alert(err.message || "Błąd zapisu źródła leada");
+    }
+  };
+
   const [editingServices, setEditingServices] = useState(false);
   const [draftServices, setDraftServices] = useState<string[]>([]);
   const [editingDeliverySvc, setEditingDeliverySvc] = useState<string | null>(null);
@@ -2671,34 +2693,6 @@ export default function OrderDetailPage({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {/* Oś czasu - mini */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                background: "rgba(255, 255, 255, 0.35)",
-                padding: "4px 10px",
-                borderRadius: 8,
-                border: "1px solid rgba(0, 0, 0, 0.1)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: order.projectStartDate ? "#2563eb" : "#4b5563", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: "#000000", fontWeight: 600, whiteSpace: "nowrap" }}>
-                  {order.projectStartDate ? `Start: ${fmtLocalDate(order.projectStartDate)}` : "Start: oczekuje"}
-                </span>
-              </div>
-              <div style={{ width: 1, height: 10, background: "rgba(0, 0, 0, 0.15)" }} />
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: order.projectEndDate ? "#059669" : "#4b5563", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: "#000000", fontWeight: 600, whiteSpace: "nowrap" }}>
-                  {order.projectEndDate ? `Koniec: ${fmtLocalDate(order.projectEndDate)}` : "Koniec: w trakcie"}
-                </span>
-              </div>
-            </div>
-            <span style={{ width: 1, height: 14, background: "rgba(0, 0, 0, 0.15)", display: "inline-block" }} />
-
             {/* Przypisana osoba */}
             {(() => {
               const assigneesArray = Array.from(new Set([
@@ -3292,6 +3286,99 @@ export default function OrderDetailPage({
                     onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--line-2)"; e.currentTarget.style.color = "var(--text-mute)"; }}
                   >
                     + Dodaj tekst własny
+                  </button>
+                )}
+                {/* Źródło leada (Od kogo) */}
+                {editingLeadSource ? (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={draftLeadSource}
+                      onChange={(e) => setDraftLeadSource(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveLeadSource();
+                        if (e.key === "Escape") setEditingLeadSource(false);
+                      }}
+                      placeholder="np. FB, Polecenie..."
+                      style={{
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        fontFamily: "inherit",
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        border: "1px solid var(--accent)",
+                        background: "var(--panel)",
+                        color: "var(--text-strong)",
+                        outline: "none",
+                        width: 170,
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveLeadSource}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: "3px 7px",
+                        borderRadius: 4,
+                        background: "#2563eb",
+                        color: "#fff",
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      OK
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraftLeadSource(order.leadSource ?? "");
+                        setEditingLeadSource(false);
+                      }}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: "3px 7px",
+                        borderRadius: 4,
+                        background: "transparent",
+                        color: "var(--text-mute)",
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Anuluj
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftLeadSource(order.leadSource ?? "");
+                      setEditingLeadSource(true);
+                    }}
+                    title="Edytuj źródło leada"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      fontSize: 11.5,
+                      fontWeight: order.leadSource ? 600 : 500,
+                      padding: "3px 8px",
+                      borderRadius: 6,
+                      border: `1px solid ${order.leadSource ? "var(--line-2)" : "1px dashed var(--line-2)"}`,
+                      background: order.leadSource ? "var(--panel-2)" : "transparent",
+                      color: order.leadSource ? "var(--text-strong)" : "var(--text-mute)",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <span style={{ color: "#2563eb", fontWeight: 700 }}>Źródło:</span>
+                    {order.leadSource ? (
+                      <span>{order.leadSource}</span>
+                    ) : (
+                      <span style={{ fontStyle: "italic", opacity: 0.8 }}>+ Dodaj źródło leada</span>
+                    )}
                   </button>
                 )}
               </div>

@@ -303,8 +303,14 @@ export default function OpportunityDetailPage({
   const isTerraceService = selectedServices.includes("Zabudowa tarasu");
   const { parsedConfig, displayComment } = parseConfiguratorData(opp.comment);
 
-  const mainAddressStr = [opp.street, opp.postalCode, opp.city].filter(Boolean).join(", ");
-  const investmentAddressStr = [opp.investmentStreet, opp.investmentPostalCode, opp.investmentCity].filter(Boolean).join(", ");
+  const mainStreetPart = [opp.street, [opp.buildingNumber, opp.apartmentNumber].filter(Boolean).join("/")].filter(Boolean).join(" ");
+  const mainCityPart = [opp.postalCode, opp.city].filter(Boolean).join(" ");
+  const mainAddressStr = [mainStreetPart, mainCityPart].filter(Boolean).join(", ");
+
+  const investStreetPart = [opp.investmentStreet, [opp.investmentBuildingNumber, opp.investmentApartmentNumber].filter(Boolean).join("/")].filter(Boolean).join(" ");
+  const investCityPart = [opp.investmentPostalCode, opp.investmentCity].filter(Boolean).join(" ");
+  const investmentAddressStr = [investStreetPart, investCityPart].filter(Boolean).join(", ");
+
   const mainMapsUrl = mainAddressStr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mainAddressStr)}` : null;
   const investmentMapsUrl = investmentAddressStr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(investmentAddressStr)}` : null;
 
@@ -655,6 +661,29 @@ export default function OpportunityDetailPage({
                 {opp.archived && " · ZARCHIWIZOWANA"}
               </span>
 
+              {opp.clientId && (
+                <>
+                  <span style={{ fontSize: 12, color: "var(--text-mute)" }}>·</span>
+                  <Link
+                    href={`/admin/klient/${opp.clientId}`}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "var(--accent)",
+                      textDecoration: "none",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+                  >
+                    <Building2 size={13} />
+                    <span>Profil klienta &rarr;</span>
+                  </Link>
+                </>
+              )}
+
               <span style={{ fontSize: 12, color: "var(--text-mute)" }}>·</span>
 
               {editingLeadSource ? (
@@ -926,69 +955,79 @@ export default function OpportunityDetailPage({
           <div style={{ padding: "14px 16px", borderRight: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
               <p style={FIELD_LABEL}>Adres inwestycji (montaż)</p>
-              {investmentMapsUrl && !sameAddress && (
-                <a href={investmentMapsUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10.5, color: "#0284C7", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3 }}>
-                  <MapPin size={11} /> Maps
-                </a>
-              )}
+
+              {/* Toggle „Taki sam jak klienta" */}
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
+                <div
+                  onClick={() => handleSameAddressToggle(!sameAddress)}
+                  style={{
+                    width: 30,
+                    height: 16,
+                    borderRadius: 8,
+                    background: sameAddress ? "var(--accent)" : "var(--line)",
+                    position: "relative",
+                    flexShrink: 0,
+                    cursor: "pointer",
+                    transition: "background 0.2s",
+                  }}
+                >
+                  <div style={{
+                    position: "absolute",
+                    top: 2,
+                    left: sameAddress ? 16 : 2,
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    background: "#fff",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                    transition: "left 0.2s",
+                  }} />
+                </div>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: sameAddress ? "var(--accent)" : "var(--text-mute)" }}>
+                  Taki sam
+                </span>
+              </label>
             </div>
 
-            {/* Toggle „Taki sam jak klienta" */}
-            <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none" }}>
-              <div
-                onClick={() => handleSameAddressToggle(!sameAddress)}
-                style={{
-                  width: 34,
-                  height: 18,
-                  borderRadius: 9,
-                  background: sameAddress ? "var(--accent)" : "var(--line)",
-                  position: "relative",
-                  flexShrink: 0,
-                  cursor: "pointer",
-                  transition: "background 0.2s",
-                }}
-              >
-                <div style={{
-                  position: "absolute",
-                  top: 2,
-                  left: sameAddress ? 18 : 2,
-                  width: 14,
-                  height: 14,
-                  borderRadius: "50%",
-                  background: "#fff",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                  transition: "left 0.2s",
-                }} />
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 600, color: sameAddress ? "var(--accent)" : "var(--text-mute)" }}>
-                Taki sam jak klienta
-              </span>
-            </label>
-
             {sameAddress ? (
-              /* Badge gdy adresy są takie same */
+              /* Kompaktowy box gdy adresy są takie same */
               <div style={{
-                padding: "10px 12px",
+                padding: "8px 10px",
                 borderRadius: 8,
                 background: "var(--accent-soft)",
-                border: "1px dashed var(--accent)",
+                border: "1px solid rgba(74, 187, 195, 0.25)",
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "space-between",
                 gap: 8,
-                flex: 1,
               }}>
-                <MapPin size={14} color="var(--accent)" />
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)" }}>Taki sam jak adres klienta</div>
-                  {mainAddressStr && (
-                    <div style={{ fontSize: 10.5, color: "var(--text-mute)", marginTop: 2 }}>{mainAddressStr}</div>
-                  )}
+                <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+                  <MapPin size={13} color="var(--accent)" style={{ flexShrink: 0 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {mainAddressStr || "Identyczny jak adres klienta"}
+                    </div>
+                  </div>
                 </div>
+                {mainMapsUrl && (
+                  <a href={mainMapsUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10.5, color: "var(--accent)", fontWeight: 700, textDecoration: "none", flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 2 }}>
+                    Maps &rarr;
+                  </a>
+                )}
               </div>
             ) : (
               /* Pola adresu inwestycji */
               <>
-                <AddressSearch onSelect={handleInvestmentAddress} />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <AddressSearch onSelect={handleInvestmentAddress} />
+                  </div>
+                  {investmentMapsUrl && (
+                    <a href={investmentMapsUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10.5, color: "#0284C7", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                      <MapPin size={11} /> Maps
+                    </a>
+                  )}
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                   <InlineEdit label="Ulica" value={opp.investmentStreet ?? ""} placeholder="—" onSave={(v) => save("investmentStreet", v || null)} />
                   <InlineEdit label="Nr bud. / mieszk." value={[opp.investmentBuildingNumber, opp.investmentApartmentNumber].filter(Boolean).join("/")} placeholder="—" onSave={(v) => {
