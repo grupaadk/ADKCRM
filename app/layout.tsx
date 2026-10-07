@@ -28,7 +28,9 @@ export const metadata: Metadata = {
   description:
     "ADK CRM — panel zarzadzania klientami, harmonogramem i ustawieniami.",
   icons: {
-    icon: "/convex.svg",
+    icon: "/favicon.jpg",
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.jpg",
   },
   appleWebApp: {
     capable: true,
