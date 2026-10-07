@@ -699,7 +699,7 @@ export default function OrderLineItems({
                         <div className="flex flex-col items-center gap-1">
                           {!hasAdvance2 && (
                             <div className="flex gap-1">
-                              {[20, 30, 50, 70].map((preset) => (
+                              {[20, 30, 50, 70, 100].map((preset) => (
                                 <button
                                   key={preset}
                                   type="button"
@@ -728,14 +728,14 @@ export default function OrderLineItems({
                               inputMode="numeric"
                               pattern="[0-9]*"
                               min={1}
-                              max={99}
+                              max={100}
                               value={advanceTranche.pct}
                               onChange={(e) => {
                                 setPlanSaved(false);
-                                const v = Math.min(99, Math.max(1, parseInt(e.target.value) || 1));
+                                const v = Math.min(100, Math.max(1, parseInt(e.target.value) || 1));
                                 setTranches((ts) => {
                                   const adv2 = ts.find(t => t.kind === "advance2")?.pct ?? 0;
-                                  const val = Math.min(v, 99 - adv2);
+                                  const val = Math.min(v, 100 - adv2);
                                   return ts.map((t) =>
                                     t.kind === "advance" ? { ...t, pct: val } :
                                     t.kind === "final" ? { ...t, pct: 100 - val - adv2 } : t
@@ -763,14 +763,14 @@ export default function OrderLineItems({
                               inputMode="numeric"
                               pattern="[0-9]*"
                               min={1}
-                              max={99}
+                              max={100}
                               value={advance2Tranche.pct}
                               onChange={(e) => {
                                 setPlanSaved(false);
-                                const v = Math.min(99, Math.max(1, parseInt(e.target.value) || 1));
+                                const v = Math.min(100, Math.max(1, parseInt(e.target.value) || 1));
                                 setTranches((ts) => {
                                   const adv1 = ts.find(t => t.kind === "advance")?.pct ?? 0;
-                                  const val = Math.min(v, 99 - adv1);
+                                  const val = Math.min(v, 100 - adv1);
                                   return ts.map((t) =>
                                     t.kind === "advance2" ? { ...t, pct: val } :
                                     t.kind === "final" ? { ...t, pct: 100 - adv1 - val } : t
