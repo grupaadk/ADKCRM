@@ -25,9 +25,7 @@ import {
   Filter,
   FilePlus,
   SlidersHorizontal,
-} from "lucide-react";
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal";
-import NewOpportunityModal from "@/components/NewOpportunityModal";
 
 /* ─────────── stałe / typy ─────────── */
 
@@ -636,7 +634,7 @@ export default function MobilePanel() {
                       type="button"
                       onClick={() => {
                         setShowAddMenu(false);
-                        setShowNewOppModal(true);
+                        router.push("/admin/szansa/nowa");
                       }}
                       className="w-full text-left px-3 py-2 rounded-xl hover:bg-purple-50 text-xs font-bold text-purple-700 flex items-center gap-2"
                     >
@@ -951,12 +949,6 @@ export default function MobilePanel() {
         />
       )}
 
-      {showNewOppModal && (
-        <NewOpportunityModal
-          onClose={() => setShowNewOppModal(false)}
-          onSuccess={() => setShowNewOppModal(false)}
-        />
-      )}
     </div>
   );
 }

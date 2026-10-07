@@ -21,9 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/Table";
 import { StatusPill, CrmAvatar, fmtDate, CrmEmptyState } from "@/components/crm-ui";
-import DocumentProgressTiles from "./DocumentProgressTiles";
 import NewOrderModal from "./NewOrderModal";
-import NewOpportunityModal from "@/components/NewOpportunityModal";
 
 type Tab = "zlecenia" | "szanse" | "notatki";
 
@@ -221,7 +219,7 @@ export default function ClientDetailPage({
             Nowe zlecenie
           </button>
 
-          <button onClick={() => setShowNewOppModal(true)} className="btn" style={{ fontSize: 12 }}>
+          <button onClick={() => router.push(`/admin/szansa/nowa?clientId=${client._id}`)} className="btn" style={{ fontSize: 12 }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
@@ -616,20 +614,6 @@ export default function ClientDetailPage({
         />
       )}
 
-      {/* New Opportunity Modal */}
-      {showNewOppModal && (
-        <NewOpportunityModal
-          onClose={() => setShowNewOppModal(false)}
-          initialClient={{
-            id: client._id,
-            name: client.clientType === "business" && client.companyName ? client.companyName : `${client.firstName} ${client.lastName}`,
-            firstName: client.firstName,
-            lastName: client.lastName,
-            email: client.email,
-            phone: client.phone,
-          }}
-        />
-      )}
 
       {/* Delete confirm modal */}
       {showDeleteConfirm && (

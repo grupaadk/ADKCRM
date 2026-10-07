@@ -10,7 +10,6 @@ import { deriveStatusStyle } from "@/lib/statuses"
 import type { KanbanItem } from "@/convex/kanban"
 import { Plus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Archive, ArchiveRestore, Search, X, ClipboardList, Users, AlertTriangle, Package } from "lucide-react"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
-import NewOpportunityModal from "@/components/NewOpportunityModal"
 
 type DocState = "gray" | "red" | "green"
 
@@ -1191,7 +1190,7 @@ export default function PanelPage() {
             </button>
           )}
           {activeTab === "opportunities" || activeTab === "archived-leads" ? (
-            <button className="btn primary" onClick={() => setShowNewOpportunityModal(true)}>
+            <button className="btn primary" onClick={() => router.push("/admin/szansa/nowa")}>
               <Plus size={13} /> Nowa szansa sprzedaży
             </button>
           ) : (
@@ -1595,15 +1594,6 @@ export default function PanelPage() {
         />
       )}
 
-      {showNewOpportunityModal && (
-        <NewOpportunityModal
-          onClose={() => setShowNewOpportunityModal(false)}
-          onSuccess={(opportunityId) => {
-            setShowNewOpportunityModal(false)
-            router.push(`/admin/szansa/${opportunityId}`)
-          }}
-        />
-      )}
     </div>
   )
 }
