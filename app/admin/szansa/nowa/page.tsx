@@ -10,7 +10,7 @@ export default function NowaSzansaPage() {
   const initialClientId = clientIdRaw ? (clientIdRaw as Id<"clients">) : undefined;
 
   return (
-    <div className="py-6 px-4 sm:px-6">
+    <div className="w-full min-h-screen py-6 px-4 md:px-8 max-w-7xl mx-auto">
       <NewOpportunityForm initialClientId={initialClientId} />
     </div>
   );

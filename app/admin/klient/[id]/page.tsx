@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/Table";
 import { StatusPill, CrmAvatar, fmtDate, CrmEmptyState } from "@/components/crm-ui";
+import DocumentProgressTiles from "./DocumentProgressTiles";
 import NewOrderModal from "./NewOrderModal";
 
 type Tab = "zlecenia" | "szanse" | "notatki";

@@ -25,6 +25,7 @@ import {
   Filter,
   FilePlus,
   SlidersHorizontal,
+} from "lucide-react";
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal";
 
 /* ─────────── stałe / typy ─────────── */
