@@ -31,8 +31,14 @@ export const STANDARD_DEPTHS = [
   { depth: 600, series: "PRO+" as const },
 ];
 
+export interface TerraceRoofDimensions {
+  depthCm: number; // Wysięg / głębokość w cm (np. 300)
+  widthCm: number; // Szerokość w cm (np. 306)
+}
+
 export interface PriceListRow {
   key: string;
+  dimensions: TerraceRoofDimensions; // Obiekt wymiarów { depthCm, widthCm }
   dimension: string;
   dimensionMeters: string;
   depthCm: number;

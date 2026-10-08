@@ -131,6 +131,10 @@ export function PriceListsTab() {
 
         rows.push({
           key: matrixKey,
+          dimensions: {
+            depthCm: d.depth,
+            widthCm: w,
+          },
           dimension: `${d.depth} × ${w} cm`,
           dimensionMeters: `${(d.depth / 100).toFixed(2)} × ${(w / 100).toFixed(2)} m`,
           depthCm: d.depth,
@@ -356,24 +360,37 @@ export function PriceListsTab() {
                         }`}
                       >
                         {/* Dimensions + Series Badge */}
-                        <td className="p-3.5 font-semibold sticky left-0 bg-inherit z-10 border-r border-[var(--line)] flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2.5">
-                            <span className="font-bold text-slate-900 text-sm">
-                              {row.dimension}
-                            </span>
-                            <span className="text-xs text-[var(--text-mute)] font-normal">
-                              ({row.dimensionMeters})
+                        <td className="p-3.5 sticky left-0 bg-inherit z-10 border-r border-[var(--line)]">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2.5">
+                                <span className="font-bold text-slate-900 text-sm">
+                                  {row.dimension}
+                                </span>
+                                <span className="text-xs text-[var(--text-mute)] font-normal">
+                                  ({row.dimensionMeters})
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] text-[var(--text-mute)] font-medium">
+                                <span>
+                                  Wysięg: <strong className="text-slate-800 font-semibold">{row.dimensions.depthCm} cm</strong>
+                                </span>
+                                <span>×</span>
+                                <span>
+                                  Szerokość: <strong className="text-slate-800 font-semibold">{row.dimensions.widthCm} cm</strong>
+                                </span>
+                              </div>
+                            </div>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md self-start sm:self-center shrink-0 ${
+                                isPro
+                                  ? "bg-purple-100 text-purple-800 border border-purple-200"
+                                  : "bg-blue-100 text-blue-800 border border-blue-200"
+                              }`}
+                            >
+                              {row.series}
                             </span>
                           </div>
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
-                              isPro
-                                ? "bg-purple-100 text-purple-800 border border-purple-200"
-                                : "bg-blue-100 text-blue-800 border border-blue-200"
-                            }`}
-                          >
-                            {row.series}
-                          </span>
                         </td>
 
                         {/* Price */}
