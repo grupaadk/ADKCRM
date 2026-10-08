@@ -172,11 +172,11 @@ export function TerraceRoofConfigurator({
   return (
     <div className="space-y-6">
       {/* ─── Input Fields Panel ────────────────────────────────────────────── */}
-      <div className="bg-[var(--panel)] rounded-2xl border border-[var(--line)] p-5 md:p-6 shadow-2xs space-y-5">
-        <div className="flex items-center justify-between border-b border-[var(--line)] pb-4">
+      <div className="bg-white rounded-xl border border-slate-200 p-5 md:p-6 shadow-2xs space-y-5">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand">
-              <Ruler className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700">
+              <Ruler className="w-4 h-4" />
             </div>
             <div>
               <h3 className="font-bold text-sm text-[var(--text-strong)]">
@@ -190,13 +190,13 @@ export function TerraceRoofConfigurator({
 
           <div className="flex items-center gap-2">
             <span
-              className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
+              className={`text-[11px] font-semibold px-2.5 py-1 rounded-md border ${
                 isStd
-                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  ? "bg-slate-100 text-slate-700 border-slate-200"
                   : "bg-amber-50 text-amber-800 border-amber-200"
               }`}
             >
-              {isStd ? "Wymiar Standardowy" : "Wymiar Niestandardowy"}
+              {isStd ? "Wymiar standardowy" : "Wymiar niestandardowy"}
             </span>
           </div>
         </div>
@@ -243,12 +243,32 @@ export function TerraceRoofConfigurator({
                     setIsCustomDepth(false);
                     setDepthCm(350);
                   }}
-                  className="px-3 py-2.5 rounded-xl border border-[var(--line-2)] bg-[var(--panel-2)] hover:bg-slate-200 text-xs font-semibold text-[var(--text-dim)] shrink-0"
+                  className="px-3 py-2.5 rounded-xl border border-[var(--line-2)] bg-[var(--panel-2)] hover:bg-slate-200 text-xs font-semibold text-[var(--text-dim)] shrink-0 cursor-pointer"
                 >
                   Lista ▾
                 </button>
               </div>
             )}
+            {/* Quick preset chips */}
+            <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+              {[300, 350, 400].map((dPreset) => (
+                <button
+                  key={dPreset}
+                  type="button"
+                  onClick={() => {
+                    setIsCustomDepth(false);
+                    setDepthCm(dPreset);
+                  }}
+                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+                    depthCm === dPreset && !isCustomDepth
+                      ? "bg-brand text-white border-brand shadow-2xs"
+                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  {dPreset} cm ({(dPreset / 100).toFixed(1)} m)
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Szerokość */}
@@ -291,12 +311,32 @@ export function TerraceRoofConfigurator({
                     setIsCustomWidth(false);
                     setWidthCm(506);
                   }}
-                  className="px-3 py-2.5 rounded-xl border border-[var(--line-2)] bg-[var(--panel-2)] hover:bg-slate-200 text-xs font-semibold text-[var(--text-dim)] shrink-0"
+                  className="px-3 py-2.5 rounded-xl border border-[var(--line-2)] bg-[var(--panel-2)] hover:bg-slate-200 text-xs font-semibold text-[var(--text-dim)] shrink-0 cursor-pointer"
                 >
                   Lista ▾
                 </button>
               </div>
             )}
+            {/* Quick preset chips */}
+            <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+              {[306, 406, 506, 606, 706].map((wPreset) => (
+                <button
+                  key={wPreset}
+                  type="button"
+                  onClick={() => {
+                    setIsCustomWidth(false);
+                    setWidthCm(wPreset);
+                  }}
+                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+                    widthCm === wPreset && !isCustomWidth
+                      ? "bg-brand text-white border-brand shadow-2xs"
+                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  {wPreset} cm
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -369,6 +409,42 @@ export function TerraceRoofConfigurator({
             <span>{calcResult.warning}</span>
           </div>
         )}
+      </div>
+
+      {/* ─── Podsumowanie finansowe zadaszenia ──────────────────────────────── */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            Razem Zadaszenie Tarasu (Netto)
+          </div>
+          <div className="text-2xl font-bold text-slate-900 tracking-tight mt-1 flex items-baseline gap-1.5">
+            <span>{Math.round(calcResult.options.polycarbonate.totalNet).toLocaleString("pl-PL")}</span>
+            <span className="text-sm font-semibold text-slate-500">zł netto</span>
+          </div>
+          <div className="text-xs text-slate-500 font-medium mt-1">
+            Brutto (VAT {effectiveVatPercent}%): <strong className="text-slate-800">{Math.round(calcResult.options.polycarbonate.totalGross).toLocaleString("pl-PL")} zł</strong>
+          </div>
+        </div>
+        <div className="flex sm:flex-col items-center sm:items-end justify-between border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-200 text-right gap-2">
+          <div className="bg-white px-3.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
+            <span className="text-xs text-slate-500 font-medium">Wymiar: </span>
+            <strong className="text-sm font-semibold text-slate-800">
+              {calcResult.input.widthCm} × {calcResult.input.depthCm} cm ({calcResult.input.areaSqM.toFixed(2)} m²)
+            </strong>
+          </div>
+          <div className="bg-white px-3.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
+            <span className="text-xs text-slate-500 font-medium">Materiały z narzutem: </span>
+            <strong className="text-sm font-semibold text-slate-800">
+              {Math.round(calcResult.options.polycarbonate.materialCostNet).toLocaleString("pl-PL")} zł
+            </strong>
+          </div>
+          <div className="bg-white px-3.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
+            <span className="text-xs text-slate-500 font-medium">Montaż: </span>
+            <strong className="text-sm font-semibold text-slate-800">
+              {Math.round(calcResult.options.polycarbonate.assemblyCostNet).toLocaleString("pl-PL")} zł
+            </strong>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import InlineEdit from "@/app/admin/klient/[id]/InlineEdit";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { useStatusLabel } from "@/components/StatusLabelsContext";
 import { ArrowLeft, Archive, ArchiveRestore, Trash2, Send, MapPin, Building2, MessageSquare, Sliders } from "lucide-react";
+import { formatPLN } from "@/lib/terraceCalculatorEngine";
 import DriveFolderButton from "@/components/DriveFolderButton";
 import OpportunityAttachmentsSection from "./OpportunityAttachmentsSection";
 import OpportunityNotesFeed from "./OpportunityNotesFeed";
@@ -1312,52 +1313,238 @@ export default function OpportunityDetailPage({
         )}
       </div>
 
-      {/* ── Parametry konfiguratora (Zabudowa tarasu) ── */}
-      {(isTerraceService || parsedConfig) && (
-        <div style={{ background: "#F0FDFD", border: "1px solid #99F6E4", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0F766E", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
-              <Sliders size={15} className="text-teal-600" />
-              Parametry z konfiguratora (Zabudowa tarasu)
-            </h3>
-            <span style={{ fontSize: 10.5, fontWeight: 700, background: "#CCFBF1", color: "#0F766E", padding: "2px 8px", borderRadius: 12 }}>
-              Formularz online
-            </span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-            {parsedConfig?.variant && (
-              <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wybrany wariant</span>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.variant}</span>
-              </div>
-            )}
-            {parsedConfig?.dimensions && (
-              <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wymiary (Szer. x Głęb.)</span>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.dimensions}</span>
-              </div>
-            )}
-            {parsedConfig?.area && (
-              <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Powierzchnia tarasu</span>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F766E" }}>{parsedConfig.area}</span>
-              </div>
-            )}
-            {parsedConfig?.location && (
-              <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Deklarowana miejscowość</span>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.location}</span>
-              </div>
-            )}
-          </div>
-          {parsedConfig?.options && (
-            <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wyposażenie dodatkowe</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#1E293B" }}>{parsedConfig.options}</span>
+      {/* ── Parametry z konfiguratora (Wszystkie usługi lub formularz online) ── */}
+      {(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const configs: any[] = (opp as any).serviceConfigurations || [];
+        const hasConfigurations = configs.length > 0;
+        const showSection = hasConfigurations || isTerraceService || parsedConfig;
+
+        if (!showSection) return null;
+
+        return (
+          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                <Sliders size={15} className="text-brand" />
+                Parametry z konfiguratora
+              </h3>
+              <span style={{ fontSize: 10.5, fontWeight: 700, background: "#F1F5F9", color: "#475569", padding: "2px 8px", borderRadius: 12, border: "1px solid #E2E8F0" }}>
+                {hasConfigurations ? `Skonfigurowano pozycji: ${configs.length}` : "Formularz online"}
+              </span>
             </div>
-          )}
-        </div>
-      )}
+
+            {hasConfigurations ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {configs.map((cfg: any, cIdx: number) => {
+                  const sName = cfg.serviceName || `Usługa #${cIdx + 1}`;
+                  const isGlass = cfg.calculatorType === "GLASS_ENCLOSURE" || sName.toLowerCase().includes("zabudow");
+                  const isRoof = cfg.calculatorType === "terrace_roof" || sName.toLowerCase().includes("zadaszen");
+
+                  return (
+                    <div
+                      key={cIdx}
+                      style={{
+                        background: "#ffffff",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: 10,
+                        padding: 12,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 10,
+                      }}
+                    >
+                      {/* Nagłówek usługi */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #F1F5F9", paddingBottom: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span
+                            style={{
+                              width: 20,
+                              height: 20,
+                              borderRadius: 4,
+                              background: "#0F766E",
+                              color: "#fff",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            {cIdx + 1}
+                          </span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{sName}</span>
+                        </div>
+
+                        {cfg.result && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11 }}>
+                            {cfg.result.installationNet !== undefined && (
+                              <span style={{ color: "#0F766E", fontWeight: 600 }}>
+                                Montaż: {formatPLN(cfg.result.installationNet)}
+                              </span>
+                            )}
+                            <span style={{ color: "#0F172A", fontWeight: 700, background: "#F1F5F9", padding: "2px 6px", borderRadius: 4 }}>
+                              Razem: {formatPLN(cfg.result.totalNetPrice ?? cfg.result.finalPriceNet ?? cfg.result.totalNet ?? 0)} netto
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Szczegóły dla Zabudowy Szklanej */}
+                      {isGlass && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {/* Ścianki */}
+                          {cfg.input?.walls && cfg.input.walls.length > 0 && (
+                            <div>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
+                                Ścianki szklane ({cfg.input.walls.length} szt.)
+                              </span>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 6 }}>
+                                {cfg.input.walls.map((w: any, wIdx: number) => {
+                                  const wRes = cfg.result?.walls?.find((item: any) => item.id === w.id);
+                                  const typeName = w.type === "FRONT" ? "Ścianka frontowa" : "Ścianka boczna";
+                                  return (
+                                    <div
+                                      key={w.id || wIdx}
+                                      style={{
+                                        background: "#F8FAFC",
+                                        border: "1px solid #E2E8F0",
+                                        borderRadius: 6,
+                                        padding: "6px 8px",
+                                        fontSize: 11,
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 700, color: "#1E293B" }}>
+                                        #{wIdx + 1} {typeName} {w.quantity > 1 ? `(x${w.quantity} szt.)` : ""}
+                                      </div>
+                                      <div style={{ color: "#475569", marginTop: 2 }}>
+                                        Wymiary: <strong>{w.widthCm} × {w.heightCm} cm</strong>
+                                        {wRes?.areaSqm && ` (${wRes.areaSqm.toFixed(2)} m²)`}
+                                      </div>
+                                      {wRes && (
+                                        <div style={{ color: "#0F766E", marginTop: 2, fontSize: 10.5 }}>
+                                          Profil std: {wRes.standardWidthCm} cm | Materiał: {formatPLN(wRes.unitClientNet * (w.quantity || 1))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Lamele i dodatki */}
+                          {cfg.input?.accessories && cfg.input.accessories.length > 0 && (
+                            <div>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
+                                Lamele i dodatki ({cfg.input.accessories.length} szt.)
+                              </span>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 6 }}>
+                                {cfg.input.accessories.map((a: any, aIdx: number) => {
+                                  const aRes = cfg.result?.accessories?.find((item: any) => item.id === a.id);
+                                  return (
+                                    <div
+                                      key={a.id || aIdx}
+                                      style={{
+                                        background: "#F8FAFC",
+                                        border: "1px solid #E2E8F0",
+                                        borderRadius: 6,
+                                        padding: "6px 8px",
+                                        fontSize: 11,
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 700, color: "#1E293B" }}>
+                                        #{aIdx + 1} {aRes?.name || "Dodatek"} {a.quantity > 1 ? `(x${a.quantity} szt.)` : ""}
+                                      </div>
+                                      {aRes?.effectiveWidthCm && (
+                                        <div style={{ color: "#475569", marginTop: 2 }}>
+                                          Szerokość: <strong>{aRes.effectiveWidthCm} cm</strong>
+                                          {aRes.linkedWallLabel && ` [ze ściany: ${aRes.linkedWallLabel}]`}
+                                        </div>
+                                      )}
+                                      {aRes && (
+                                        <div style={{ color: "#0F766E", marginTop: 2, fontSize: 10.5 }}>
+                                          Razem: {formatPLN(aRes.totalClientNet)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Szczegóły dla Zadaszenia tarasu */}
+                      {isRoof && cfg.input && (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
+                          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 10px" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wymiary (Szer. × Głęb.)</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>
+                              {cfg.input.widthCm} cm × {cfg.input.depthCm} cm
+                            </span>
+                          </div>
+                          {cfg.result?.input?.areaSqM && (
+                            <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 10px" }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Powierzchnia zadaszenia</span>
+                              <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F766E" }}>
+                                {Number(cfg.result.input.areaSqM).toFixed(2)} m²
+                              </span>
+                            </div>
+                          )}
+                          {cfg.input.materialMarkupPercent && (
+                            <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 10px" }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Narzut materiału</span>
+                              <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>
+                                {cfg.input.materialMarkupPercent}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Fallback dla zgłoszeń zewnętrznych z JotForm/parsedConfig */
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                {parsedConfig?.variant && (
+                  <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wybrany wariant</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.variant}</span>
+                  </div>
+                )}
+                {parsedConfig?.dimensions && (
+                  <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wymiary (Szer. x Głęb.)</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.dimensions}</span>
+                  </div>
+                )}
+                {parsedConfig?.area && (
+                  <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Powierzchnia tarasu</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F766E" }}>{parsedConfig.area}</span>
+                  </div>
+                )}
+                {parsedConfig?.location && (
+                  <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Deklarowana miejscowość</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.location}</span>
+                  </div>
+                )}
+                {parsedConfig?.options && (
+                  <div style={{ gridColumn: "span 2", background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wyposażenie dodatkowe</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#1E293B" }}>{parsedConfig.options}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── 2-kolumnowy układ: Pliki (po lewej) + Komentarz (po prawej) ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>

@@ -222,38 +222,46 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
   return (
     <div className="space-y-6">
       {/* ─── SEKCJA 1: ŚCIANKI SZKLANE ────────────────────────────────────────────── */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between border-b border-[var(--line-2)] pb-2.5">
-          <div className="flex items-center gap-2">
-            <Box className="w-4 h-4 text-brand" />
-            <h3 className="font-bold text-sm text-[var(--text-strong)]">
-              Ścianki szklane ({walls.length})
-            </h3>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center">
+              <Box className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <span>Ścianki szklane</span>
+                <span className="bg-slate-100 text-slate-700 text-xs font-semibold px-2 py-0.5 rounded-md border border-slate-200">
+                  {walls.length} {walls.length === 1 ? "pozycja" : walls.length > 4 ? "pozycji" : "pozycje"}
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-500 font-medium">Główne ściany przesuwne ze szkła hartowanego</p>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => addWall("FRONT")}
-              className="px-2.5 py-1.5 rounded-lg border border-brand/30 bg-brand/5 hover:bg-brand/10 text-brand text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" /> Dodaj front
+              <Plus className="w-3.5 h-3.5" /> + Dodaj ściankę frontową
             </button>
             <button
               type="button"
               onClick={() => addWall("SIDE")}
-              className="px-2.5 py-1.5 rounded-lg border border-brand/30 bg-brand/5 hover:bg-brand/10 text-brand text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" /> Dodaj bok
+              <Plus className="w-3.5 h-3.5" /> + Dodaj ściankę boczną
             </button>
           </div>
         </div>
 
         {walls.length === 0 ? (
-          <div className="text-xs text-slate-500 italic p-4 border border-dashed border-slate-200 rounded-xl text-center">
-            Brak dodanych ścianek. Kliknij przycisk powyżej, aby dodać ściankę.
+          <div className="text-xs text-slate-500 italic p-6 border-2 border-dashed border-slate-200 rounded-2xl text-center bg-slate-50/50">
+            Brak dodanych ścianek. Kliknij przycisk powyżej, aby dodać pierwszą ściankę.
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-3.5">
             {walls.map((wall, index) => {
               const itemResult = result.walls.find((w) => w.id === wall.id);
               const linkedAccessories = accessories.filter((a) => a.linkedWallId === wall.id);
@@ -261,88 +269,123 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
               return (
                 <div
                   key={wall.id}
-                  className="border border-slate-200 rounded-xl bg-white shadow-2xs overflow-hidden transition-all"
+                  className="border border-slate-200 rounded-xl bg-white shadow-2xs overflow-hidden transition-all hover:border-slate-300"
                 >
                   <div
-                    className="flex items-center justify-between p-3 bg-slate-50/80 hover:bg-slate-50 border-b border-slate-200/60 cursor-pointer"
+                    className="flex items-center justify-between p-3.5 bg-slate-50/80 border-b border-slate-200 cursor-pointer"
                     onClick={() => updateWall(wall.id, { isExpanded: !wall.isExpanded })}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="w-5 h-5 rounded-md bg-white border border-slate-200 flex items-center justify-center text-[11px] font-bold text-slate-500 shadow-2xs">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
+                      <span className="w-6 h-6 rounded-md bg-slate-800 text-white flex items-center justify-center text-xs font-semibold shrink-0">
                         {index + 1}
                       </span>
-                      <span className="text-xs font-bold text-slate-800 uppercase">
+                      <span className="text-xs font-bold text-slate-900 uppercase tracking-tight">
                         {wall.type === "FRONT" ? "Ścianka frontowa" : "Ścianka boczna"}
                       </span>
+                      <span className="text-[11px] font-semibold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-md shadow-2xs">
+                        {wall.widthCm} × {wall.heightCm} cm
+                      </span>
                       {wall.quantity > 1 && (
-                        <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
-                          x{wall.quantity}
+                        <span className="text-[10px] font-semibold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md">
+                          x{wall.quantity} szt.
                         </span>
                       )}
                       {linkedAccessories.length > 0 && (
-                        <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <Link2 className="w-3 h-3" />
-                          {linkedAccessories.length} powiązane dodatki
+                        <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <Link2 className="w-3 h-3 text-slate-400" />
+                          {linkedAccessories.length} powiązane
                         </span>
                       )}
-                      {!wall.isExpanded && itemResult && !itemResult.error && (
-                        <span className="text-xs text-brand font-bold bg-brand/10 px-2 py-0.5 rounded-full ml-1">
+                      {itemResult && !itemResult.error && (
+                        <span className="text-xs font-bold text-slate-900 bg-white border border-slate-200 px-2.5 py-0.5 rounded-md ml-auto sm:ml-2 shadow-2xs">
                           {Math.round(itemResult.totalClientNet).toLocaleString("pl-PL")} zł netto
                         </span>
                       )}
                       {itemResult?.error && (
-                        <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">
+                        <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold border border-red-200">
                           Błąd wymiaru
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           removeWall(wall.id);
                         }}
-                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                        title="Usuń ściankę"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Usuń pozycję"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      <div className="p-1 text-slate-400">
+                      <div className="p-1 text-slate-500">
                         {wall.isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </div>
                     </div>
                   </div>
 
                   {wall.isExpanded && (
-                    <div className="p-3.5 space-y-3">
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    <div className="p-4 bg-slate-50/40 space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             Szerokość (cm)
                           </label>
                           <input
                             type="number"
                             value={wall.widthCm || ""}
                             onChange={(e) => updateWall(wall.id, { widthCm: parseInt(e.target.value) || 0 })}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                             placeholder="np. 386"
                           />
+                          <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                            {(wall.type === "FRONT" ? [306, 386, 406, 506] : [290, 300, 350, 400]).map((wPreset) => (
+                              <button
+                                key={wPreset}
+                                type="button"
+                                onClick={() => updateWall(wall.id, { widthCm: wPreset })}
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                                  wall.widthCm === wPreset
+                                    ? "bg-brand text-white border-brand shadow-2xs"
+                                    : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                                }`}
+                              >
+                                {wPreset} cm
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             Wysokość (cm)
                           </label>
                           <input
                             type="number"
                             value={wall.heightCm || ""}
                             onChange={(e) => updateWall(wall.id, { heightCm: parseInt(e.target.value) || 0 })}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                             placeholder="np. 250"
                           />
+                          <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                            {[230, 240, 250, 260].map((hPreset) => (
+                              <button
+                                key={hPreset}
+                                type="button"
+                                onClick={() => updateWall(wall.id, { heightCm: hPreset })}
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                                  wall.heightCm === hPreset
+                                    ? "bg-brand text-white border-brand shadow-2xs"
+                                    : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                                }`}
+                              >
+                                {hPreset} cm
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             Ilość sztuk
                           </label>
                           <input
@@ -350,82 +393,103 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                             min="1"
                             value={wall.quantity || 1}
                             onChange={(e) => updateWall(wall.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                           />
+                          <div className="flex items-center gap-1.5 pt-1">
+                            {[1, 2].map((qPreset) => (
+                              <button
+                                key={qPreset}
+                                type="button"
+                                onClick={() => updateWall(wall.id, { quantity: qPreset })}
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                                  wall.quantity === qPreset
+                                    ? "bg-brand text-white border-brand shadow-2xs"
+                                    : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                                }`}
+                              >
+                                x{qPreset}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
 
                       {/* Szybkie dodanie dodatku bezpośrednio powiązanego z tą ścianą */}
-                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        <span className="text-[11px] text-slate-500 font-medium mr-1">Powiąż dodatek:</span>
-                        {wall.type === "SIDE" ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => addAccessory("ADDON_TRIANGLE", wall.id)}
-                              className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-medium text-slate-700 flex items-center gap-1 cursor-pointer"
-                            >
-                              + Trójkąt ({wall.widthCm} cm)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => addAccessory("ADDON_FOUNDATION", wall.id)}
-                              className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-medium text-slate-700 flex items-center gap-1 cursor-pointer"
-                            >
-                              + Fundament ({wall.widthCm} cm)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => addAccessory("LAMELLA_SIDE", wall.id)}
-                              className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-medium text-slate-700 flex items-center gap-1 cursor-pointer"
-                            >
-                              + Lamela boczna ({wall.widthCm} cm)
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => addAccessory("LAMELLA_FRONT", wall.id)}
-                              className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-medium text-slate-700 flex items-center gap-1 cursor-pointer"
-                            >
-                              + Lamela frontowa ({wall.widthCm} cm)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => addAccessory("ADDON_FOUNDATION", wall.id)}
-                              className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-medium text-slate-700 flex items-center gap-1 cursor-pointer"
-                            >
-                              + Fundament ({wall.widthCm} cm)
-                            </button>
-                          </>
-                        )}
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                        <div className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5">
+                          <Link2 className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Szybkie powiązanie dodatku z tą ścianką (dziedziczy szer. {wall.widthCm} cm):</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {wall.type === "SIDE" ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => addAccessory("ADDON_TRIANGLE", wall.id)}
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                              >
+                                + Trójkąt ({wall.widthCm} cm)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => addAccessory("ADDON_FOUNDATION", wall.id)}
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                              >
+                                + Fundament ({wall.widthCm} cm)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => addAccessory("LAMELLA_SIDE", wall.id)}
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                              >
+                                + Lamela boczna ({wall.widthCm} cm)
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => addAccessory("LAMELLA_FRONT", wall.id)}
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                              >
+                                + Lamela frontowa ({wall.widthCm} cm)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => addAccessory("ADDON_FOUNDATION", wall.id)}
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                              >
+                                + Fundament ({wall.widthCm} cm)
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
 
                       {itemResult && (
-                        <div className="pt-2 border-t border-dashed border-slate-200">
+                        <div className="pt-2">
                           {itemResult.error ? (
-                            <div className="text-xs text-red-600 font-medium bg-red-50 p-2 rounded-lg border border-red-100">
+                            <div className="text-xs text-rose-700 font-semibold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
                               {itemResult.error}
                             </div>
                           ) : (
-                            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
-                              <div className="flex items-center gap-3">
-                                <span>
-                                  Szkło: <strong>{itemResult.areaSqm.toFixed(2)} m²</strong>
+                            <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                              <div className="flex items-center gap-2">
+                                <span className="bg-white border border-slate-200 text-slate-700 px-2.5 py-1 rounded-md font-semibold text-[11px]">
+                                  Powierzchnia szkła: <strong className="text-slate-900">{itemResult.areaSqm.toFixed(2)} m²</strong>
                                 </span>
-                                <span>
-                                  Profil std: <strong>{itemResult.standardWidthCm} cm</strong>
+                                <span className="bg-white border border-slate-200 text-slate-700 px-2.5 py-1 rounded-md font-semibold text-[11px]">
+                                  Profil standard: <strong className="text-slate-900">{itemResult.standardWidthCm} cm</strong>
                                 </span>
                               </div>
-                              <div className="flex items-center gap-3">
-                                <span>
-                                  Materiały: <strong>{Math.round(itemResult.unitClientNet * itemResult.quantity).toLocaleString("pl-PL")} zł</strong>
+                              <div className="flex items-center gap-2.5">
+                                <span className="text-[11px] text-slate-600">
+                                  Materiały: <strong className="text-slate-900">{Math.round(itemResult.unitClientNet * itemResult.quantity).toLocaleString("pl-PL")} zł</strong>
                                 </span>
-                                <span>
-                                  Montaż: <strong>{Math.round(itemResult.unitInstallClientNet * itemResult.quantity).toLocaleString("pl-PL")} zł</strong>
+                                <span className="text-[11px] text-slate-600">
+                                  Montaż: <strong className="text-slate-900">{Math.round(itemResult.unitInstallClientNet * itemResult.quantity).toLocaleString("pl-PL")} zł</strong>
                                 </span>
-                                <span className="text-slate-900 font-bold bg-slate-100 px-2 py-0.5 rounded">
+                                <span className="text-slate-900 font-bold bg-white border border-slate-200 px-3 py-1 rounded-lg text-xs shadow-2xs">
                                   Razem: {Math.round(itemResult.totalClientNet).toLocaleString("pl-PL")} zł netto
                                 </span>
                               </div>
@@ -443,72 +507,87 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
       </div>
 
       {/* ─── SEKCJA 2: NIEZALEŻNE ELEMENTY I DODATKI ─────────────────────────────── */}
-      <div className="space-y-3 pt-2">
-        <div className="flex items-center justify-between border-b border-[var(--line-2)] pb-2.5">
-          <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-indigo-600" />
-            <h3 className="font-bold text-sm text-[var(--text-strong)]">
-              Lamele i dodatki ({accessories.length})
-            </h3>
+      <div className="space-y-4 pt-3">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center">
+              <Layers className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <span>Lamele i dodatki</span>
+                <span className="bg-slate-100 text-slate-700 text-xs font-semibold px-2 py-0.5 rounded-md border border-slate-200">
+                  {accessories.length} {accessories.length === 1 ? "pozycja" : accessories.length > 4 ? "pozycji" : "pozycje"}
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-500 font-medium">Elementy uzupełniające: lamele, profile, trójkąty, fundamenty</p>
+            </div>
           </div>
-          <span className="text-[11px] text-slate-400 font-medium">Elementy uzupełniające</span>
+          <span className="text-xs text-slate-500 font-medium">
+            Wyposażenie
+          </span>
         </div>
 
         {/* Przyciski szybkiego dodawania dodatków */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          <button
-            type="button"
-            onClick={() => addAccessory("LAMELLA_FRONT")}
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-left text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
-          >
-            <span>+ Lamela frontowa</span>
-            <span className="text-[10px] text-slate-400 font-normal">850 zł</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => addAccessory("LAMELLA_SIDE")}
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-left text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
-          >
-            <span>+ Lamela boczna kpl</span>
-            <span className="text-[10px] text-slate-400 font-normal">850 zł</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => addAccessory("ADDON_TRIANGLE")}
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-left text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
-          >
-            <span>+ Dodatek - trójkąt</span>
-            <span className="text-[10px] text-slate-400 font-normal">wg szerokości</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => addAccessory("ADDON_FOUNDATION")}
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-left text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
-          >
-            <span>+ Dodatek - fundament</span>
-            <span className="text-[10px] text-slate-400 font-normal">wg szerokości</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => addAccessory("ADDON_PROFILE")}
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-left text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
-          >
-            <span>+ Dodatek - profil</span>
-            <span className="text-[10px] text-slate-400 font-normal">500 zł</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => addAccessory("ADDON_OTHER")}
-            className="p-2 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-300 text-left text-xs font-semibold text-indigo-900 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
-          >
-            <span>+ Dodatek - inne</span>
-            <span className="text-[10px] text-indigo-600 font-normal">własna kwota</span>
-          </button>
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+          <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+            Dodaj nową pozycję wyposażenia:
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <button
+              type="button"
+              onClick={() => addAccessory("LAMELLA_FRONT")}
+              className="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left text-xs font-semibold text-slate-700 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
+            >
+              <span>+ Lamela frontowa</span>
+              <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">850 zł</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => addAccessory("LAMELLA_SIDE")}
+              className="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left text-xs font-semibold text-slate-700 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
+            >
+              <span>+ Lamela boczna kpl</span>
+              <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">850 zł</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => addAccessory("ADDON_TRIANGLE")}
+              className="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left text-xs font-semibold text-slate-700 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
+            >
+              <span>+ Dodatek - trójkąt</span>
+              <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">wg szer.</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => addAccessory("ADDON_FOUNDATION")}
+              className="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left text-xs font-semibold text-slate-700 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
+            >
+              <span>+ Dodatek - fundament</span>
+              <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">wg szer.</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => addAccessory("ADDON_PROFILE")}
+              className="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left text-xs font-semibold text-slate-700 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
+            >
+              <span>+ Dodatek - profil</span>
+              <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">500 zł</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => addAccessory("ADDON_OTHER")}
+              className="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left text-xs font-semibold text-slate-700 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
+            >
+              <span>+ Dodatek - inne</span>
+              <span className="text-[10px] text-slate-700 font-semibold bg-slate-100 px-2 py-0.5 rounded-md">własna kwota</span>
+            </button>
+          </div>
         </div>
 
         {/* Lista dodanych akcesoriów */}
         {accessories.length > 0 && (
-          <div className="space-y-2 mt-3">
+          <div className="space-y-3.5">
             {accessories.map((acc, index) => {
               const accResult = result.accessories.find((a) => a.id === acc.id);
               const isLinked = !!acc.linkedWallId;
@@ -516,61 +595,66 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
               return (
                 <div
                   key={acc.id}
-                  className="border border-slate-200 rounded-xl bg-white shadow-2xs overflow-hidden transition-all"
+                  className="border border-slate-200 rounded-xl bg-white shadow-2xs overflow-hidden transition-all hover:border-slate-300"
                 >
                   <div
-                    className="flex items-center justify-between p-3 bg-slate-50/60 hover:bg-slate-50 border-b border-slate-200/60 cursor-pointer"
+                    className="flex items-center justify-between p-3.5 bg-slate-50/80 border-b border-slate-200 cursor-pointer"
                     onClick={() => updateAccessory(acc.id, { isExpanded: !acc.isExpanded })}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="w-5 h-5 rounded-md bg-white border border-slate-200 flex items-center justify-center text-[11px] font-bold text-slate-500 shadow-2xs">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
+                      <span className="w-6 h-6 rounded-md bg-slate-800 text-white flex items-center justify-center text-xs font-semibold shrink-0">
                         {index + 1}
                       </span>
-                      <span className="text-xs font-bold text-slate-800">
+                      <span className="text-xs font-bold text-slate-900">
                         {accResult?.name || "Dodatek"}
                       </span>
                       {accResult?.linkedWallLabel && (
-                        <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <Link2 className="w-3 h-3" />
+                        <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <Link2 className="w-3 h-3 text-slate-400" />
                           {accResult.linkedWallLabel}
                         </span>
                       )}
-                      {acc.quantity > 1 && (
-                        <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
-                          x{acc.quantity}
+                      {accResult?.effectiveWidthCm && (
+                        <span className="text-[11px] font-semibold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-md shadow-2xs">
+                          szer. {accResult.effectiveWidthCm} cm
                         </span>
                       )}
-                      {!acc.isExpanded && accResult && (
-                        <span className="text-xs text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-full ml-1">
+                      {acc.quantity > 1 && (
+                        <span className="text-[10px] font-semibold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md">
+                          x{acc.quantity} szt.
+                        </span>
+                      )}
+                      {accResult && (
+                        <span className="text-xs font-bold text-slate-900 bg-white border border-slate-200 px-2.5 py-0.5 rounded-md ml-auto sm:ml-2 shadow-2xs">
                           {Math.round(accResult.totalClientNet).toLocaleString("pl-PL")} zł netto
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           removeAccessory(acc.id);
                         }}
-                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                         title="Usuń pozycję"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      <div className="p-1 text-slate-400">
+                      <div className="p-1 text-slate-500">
                         {acc.isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </div>
                     </div>
                   </div>
 
                   {acc.isExpanded && (
-                    <div className="p-3.5 space-y-3">
+                    <div className="p-4 bg-slate-50/40 space-y-4">
                       {/* Opcja powiązania ze ścianą */}
                       {walls.length > 0 && (
-                        <div className="p-2.5 rounded-lg bg-indigo-50/50 border border-indigo-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <label className="text-[11px] font-semibold text-indigo-900 flex items-center gap-1.5">
-                            <Link2 className="w-3.5 h-3.5 text-indigo-600" />
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                            <Link2 className="w-4 h-4 text-slate-400" />
                             Powiązanie ze ścianką (dziedziczy szerokość):
                           </label>
                           <select
@@ -580,7 +664,7 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                                 linkedWallId: e.target.value || undefined,
                               })
                             }
-                            className="bg-white border border-indigo-200 rounded-md px-2.5 py-1 text-xs text-slate-800 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                            className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand cursor-pointer"
                           >
                             <option value="">Brak powiązania (własna szerokość)</option>
                             {walls.map((w, wIdx) => (
@@ -593,11 +677,11 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                       )}
 
                       {(acc.type === "ADDON_TRIANGLE" || acc.type === "ADDON_FOUNDATION") && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                               Szerokość elementu (cm)
-                              {isLinked && <span className="text-indigo-600 lowercase ml-1">(z powiązanej ściany)</span>}
+                              {isLinked && <span className="text-slate-500 lowercase ml-1">(ze ściany)</span>}
                             </label>
                             <input
                               type="number"
@@ -606,16 +690,16 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                               onChange={(e) =>
                                 updateAccessory(acc.id, { widthCm: parseInt(e.target.value) || 0 })
                               }
-                              className={`w-full border rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none ${
+                              className={`w-full border rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none ${
                                 isLinked
                                   ? "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
-                                  : "bg-slate-50 border-slate-200 focus:border-brand focus:ring-1 focus:ring-brand"
+                                  : "bg-slate-50 border-slate-200 focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                               }`}
                               placeholder="np. 290"
                             />
                           </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                               Ilość (szt.)
                             </label>
                             <input
@@ -627,18 +711,18 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                                   quantity: Math.max(1, parseInt(e.target.value) || 1),
                                 })
                               }
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                             />
                           </div>
                         </div>
                       )}
 
                       {(acc.type === "LAMELLA_FRONT" || acc.type === "LAMELLA_SIDE") && (
-                        <div className="grid grid-cols-3 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                               Szerokość (cm)
-                              {isLinked && <span className="text-indigo-600 lowercase ml-1">(ze ściany)</span>}
+                              {isLinked && <span className="text-slate-500 lowercase ml-1">(ze ściany)</span>}
                             </label>
                             <input
                               type="number"
@@ -647,16 +731,16 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                               onChange={(e) =>
                                 updateAccessory(acc.id, { widthCm: parseInt(e.target.value) || 0 })
                               }
-                              className={`w-full border rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none ${
+                              className={`w-full border rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none ${
                                 isLinked
                                   ? "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
-                                  : "bg-slate-50 border-slate-200 focus:border-brand focus:ring-1 focus:ring-brand"
+                                  : "bg-slate-50 border-slate-200 focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                               }`}
                               placeholder="np. 300"
                             />
                           </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                               Koszt zakupu netto (zł)
                             </label>
                             <input
@@ -667,11 +751,11 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                                   priceNetCost: parseInt(e.target.value) || 0,
                                 })
                               }
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                             />
                           </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                               Ilość (szt.)
                             </label>
                             <input
@@ -683,16 +767,16 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                                   quantity: Math.max(1, parseInt(e.target.value) || 1),
                                 })
                               }
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                             />
                           </div>
                         </div>
                       )}
 
                       {(acc.type === "ADDON_PROFILE" || acc.type === "ADDON_OTHER") && (
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        <div className="space-y-3.5">
+                          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                               Opis elementu
                             </label>
                             <input
@@ -701,13 +785,13 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                               onChange={(e) =>
                                 updateAccessory(acc.id, { customDescription: e.target.value })
                               }
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                               placeholder={acc.type === "ADDON_PROFILE" ? "Profil" : "Wpisz nazwę dodatku..."}
                             />
                           </div>
-                          <div className="grid grid-cols-3 gap-3">
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                                 Koszt zakupu netto (zł)
                               </label>
                               <input
@@ -718,11 +802,11 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                                     priceNetCost: parseInt(e.target.value) || 0,
                                   })
                                 }
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                               />
                             </div>
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                                 Montaż netto (zł)
                               </label>
                               <input
@@ -734,11 +818,11 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                                     installNetClient: parseInt(e.target.value) || 0,
                                   })
                                 }
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                               />
                             </div>
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                                 Ilość (szt.)
                               </label>
                               <input
@@ -750,7 +834,7 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                                     quantity: Math.max(1, parseInt(e.target.value) || 1),
                                   })
                                 }
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                               />
                             </div>
                           </div>
@@ -758,13 +842,17 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                       )}
 
                       {accResult && (
-                        <div className="pt-2 border-t border-dashed border-slate-200 flex items-center justify-between text-[11px] text-slate-600">
-                          <div>
-                            Cena jedn. z narzutem: <strong>{Math.round(accResult.unitClientNet).toLocaleString("pl-PL")} zł</strong>
-                            {accResult.unitInstallClientNet > 0 && ` + montaż: ${Math.round(accResult.unitInstallClientNet).toLocaleString("pl-PL")} zł`}
-                          </div>
-                          <div className="text-slate-900 font-bold bg-slate-100 px-2 py-0.5 rounded">
-                            Razem: {Math.round(accResult.totalClientNet).toLocaleString("pl-PL")} zł netto
+                        <div className="pt-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                            <div className="text-[11px] text-slate-600">
+                              Cena jedn. z narzutem: <strong className="text-slate-900">{Math.round(accResult.unitClientNet).toLocaleString("pl-PL")} zł</strong>
+                              {accResult.unitInstallClientNet > 0 && (
+                                <> + montaż: <strong className="text-slate-900">{Math.round(accResult.unitInstallClientNet).toLocaleString("pl-PL")} zł</strong></>
+                              )}
+                            </div>
+                            <div className="text-slate-900 font-bold bg-white border border-slate-200 px-3 py-1 rounded-lg text-xs shadow-2xs">
+                              Razem pozycja: {Math.round(accResult.totalClientNet).toLocaleString("pl-PL")} zł netto
+                            </div>
                           </div>
                         </div>
                       )}
@@ -778,31 +866,31 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
       </div>
 
       {/* ─── PODSUMOWANIE FINANSOWE KONFIGURATORA ─────────────────────────────────── */}
-      <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-            Razem Zabudowa Netto
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            Razem Zabudowa Szklana (Netto)
           </div>
-          <div className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">
-            {Math.round(result.totalClientNet).toLocaleString("pl-PL")}{" "}
-            <span className="text-base font-bold text-slate-500">zł</span>
+          <div className="text-2xl font-bold text-slate-900 tracking-tight mt-1 flex items-baseline gap-1.5">
+            <span>{Math.round(result.totalClientNet).toLocaleString("pl-PL")}</span>
+            <span className="text-sm font-semibold text-slate-500">zł netto</span>
           </div>
-          <div className="text-[11px] text-slate-500 font-medium">
-            Brutto (VAT 8%): {Math.round(result.totalClientNet * 1.08).toLocaleString("pl-PL")} zł
+          <div className="text-xs text-slate-500 font-medium mt-1">
+            Brutto (VAT 8%): <strong className="text-slate-800">{Math.round(result.totalClientNet * 1.08).toLocaleString("pl-PL")} zł</strong>
           </div>
         </div>
-        <div className="flex sm:flex-col items-center sm:items-end justify-between border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-200 text-right">
-          <div>
-            <span className="text-[11px] text-slate-500 font-medium">W tym materiały: </span>
-            <span className="text-xs font-bold text-slate-800">
+        <div className="flex sm:flex-col items-center sm:items-end justify-between border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-200 text-right gap-2">
+          <div className="bg-white px-3.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
+            <span className="text-xs text-slate-500 font-medium">Materiały z narzutem: </span>
+            <strong className="text-sm font-semibold text-slate-800">
               {Math.round(result.materialsClientNet).toLocaleString("pl-PL")} zł
-            </span>
+            </strong>
           </div>
-          <div>
-            <span className="text-[11px] text-slate-500 font-medium">W tym montaż: </span>
-            <span className="text-xs font-bold text-brand">
+          <div className="bg-white px-3.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
+            <span className="text-xs text-slate-500 font-medium">Montaż: </span>
+            <strong className="text-sm font-semibold text-slate-800">
               {Math.round(result.installationClientNet).toLocaleString("pl-PL")} zł
-            </span>
+            </strong>
           </div>
         </div>
       </div>
