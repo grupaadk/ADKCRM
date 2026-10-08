@@ -20,8 +20,9 @@ export interface WallInput {
 export interface AccessoryInput {
   id: string;
   type: AccessoryType;
+  linkedWallId?: string; // ID ścianki, z której pobierany jest wymiar
   quantity: number;
-  widthCm?: number; // dla trójkąta / fundamentu / lameli
+  widthCm?: number; // dla trójkąta / fundamentu / lameli (jeśli brak powiązania lub nadpisanie)
   heightCm?: number;
   customDescription?: string; // dla Dodatek - inne / profil
   priceNetCost?: number; // koszt bazowy netto (jeśli ręczny lub domyślny)
@@ -39,7 +40,6 @@ export interface EnclosureInput {
   installFrontClient: number; // np. 300
   installSideCost: number; // np. 500
   installSideClient: number; // np. 650
-  // Ceny stawek montażu dodatków z Excela:
   installTriangleCostPerMb: number; // 200
   installTriangleClientPerMb: number; // 250
   installFoundationCostPerMb: number; // 50
@@ -69,8 +69,10 @@ export interface AccessoryResult {
   id: string;
   type: AccessoryType;
   name: string;
+  linkedWallId?: string;
+  linkedWallLabel?: string;
   quantity: number;
-  widthCm?: number;
+  effectiveWidthCm: number;
   heightCm?: number;
   unitCostNet: number;
   unitClientNet: number;
@@ -127,8 +129,10 @@ export function calculateGlassEnclosure(input: EnclosureInput): EnclosureResult 
   };
 
   const marginMultiplier = 1 + input.marginPercent / 100;
+  const wallsMap = new Map<string, WallInput>();
+  input.walls.forEach((w) => wallsMap.set(w.id, w));
 
-  // 1. Ścianki (tylko szkło + profile bazowe)
+  // 1. Ścianki szklane
   for (const wall of input.walls) {
     const qty = Math.max(1, wall.quantity || 1);
     const std = getStandardProfile(wall.widthCm);
@@ -155,11 +159,10 @@ export function calculateGlassEnclosure(input: EnclosureInput): EnclosureResult 
     }
 
     const area = (wall.widthCm / 100) * (wall.heightCm / 100);
-    const glassCost = area * input.glassPricePerSqm;
-    // Ścianka boczna i frontowa jako same ścianki bazują na profilach systemowych bez dodatków
+    const glassCostNet = area * input.glassPricePerSqm;
     const profileCost = std.baseFront;
 
-    const unitCostNet = glassCost + profileCost;
+    const unitCostNet = glassCostNet + profileCost;
     const unitClientNet = unitCostNet * marginMultiplier;
 
     const stdWidthMeters = std.width / 100;
@@ -194,9 +197,15 @@ export function calculateGlassEnclosure(input: EnclosureInput): EnclosureResult 
     });
   }
 
-  // 2. Niezależne dodatki z arkusza
+  // 2. Dodatki i Lamele z obsługą powiązania ze ścianami
   for (const acc of input.accessories) {
     const qty = Math.max(1, acc.quantity || 1);
+    const linkedWall = acc.linkedWallId ? wallsMap.get(acc.linkedWallId) : undefined;
+    const effectiveWidth = linkedWall ? linkedWall.widthCm : (acc.widthCm || 290);
+    const linkedWallLabel = linkedWall
+      ? `${linkedWall.type === "FRONT" ? "Ścianka frontowa" : "Ścianka boczna"} (${linkedWall.widthCm} cm)`
+      : undefined;
+
     let unitCostNet = 0;
     let unitInstallCostNet = 0;
     let unitInstallClientNet = 0;
@@ -206,7 +215,6 @@ export function calculateGlassEnclosure(input: EnclosureInput): EnclosureResult 
       case "LAMELLA_FRONT":
       case "LAMELLA_SIDE": {
         name = acc.type === "LAMELLA_FRONT" ? "Lamela frontowa" : "Lamela boczna kpl";
-        // Domyślny zakup z tabeli Dodatki = 850 zł jeśli nie podano ręcznie
         unitCostNet = acc.priceNetCost !== undefined ? acc.priceNetCost : 850;
         unitInstallCostNet = acc.installNetCost || 0;
         unitInstallClientNet = acc.installNetClient || 0;
@@ -214,28 +222,28 @@ export function calculateGlassEnclosure(input: EnclosureInput): EnclosureResult 
       }
       case "ADDON_TRIANGLE": {
         name = "Dodatek - trójkąt";
-        // Jeśli podano szerokość, dobieramy z tabeli lub bierzemy stawkę
-        const width = acc.widthCm || 290;
-        const std = getStandardProfile(width);
+        const std = getStandardProfile(effectiveWidth);
         unitCostNet = acc.priceNetCost !== undefined ? acc.priceNetCost : (std?.triangle ?? 854);
-        const meters = (std?.width ?? width) / 100;
-        unitInstallCostNet = acc.installNetCost !== undefined ? acc.installNetCost : meters * input.installTriangleCostPerMb;
-        unitInstallClientNet = acc.installNetClient !== undefined ? acc.installNetClient : meters * input.installTriangleClientPerMb;
+        const meters = (std?.width ?? effectiveWidth) / 100;
+        unitInstallCostNet =
+          acc.installNetCost !== undefined ? acc.installNetCost : meters * input.installTriangleCostPerMb;
+        unitInstallClientNet =
+          acc.installNetClient !== undefined ? acc.installNetClient : meters * input.installTriangleClientPerMb;
         break;
       }
       case "ADDON_FOUNDATION": {
         name = "Dodatek - fundament";
-        const width = acc.widthCm || 290;
-        const std = getStandardProfile(width);
+        const std = getStandardProfile(effectiveWidth);
         unitCostNet = acc.priceNetCost !== undefined ? acc.priceNetCost : (std?.foundation ?? 179);
-        const meters = (std?.width ?? width) / 100;
-        unitInstallCostNet = acc.installNetCost !== undefined ? acc.installNetCost : meters * input.installFoundationCostPerMb;
-        unitInstallClientNet = acc.installNetClient !== undefined ? acc.installNetClient : meters * input.installFoundationClientPerMb;
+        const meters = (std?.width ?? effectiveWidth) / 100;
+        unitInstallCostNet =
+          acc.installNetCost !== undefined ? acc.installNetCost : meters * input.installFoundationCostPerMb;
+        unitInstallClientNet =
+          acc.installNetClient !== undefined ? acc.installNetClient : meters * input.installFoundationClientPerMb;
         break;
       }
       case "ADDON_PROFILE": {
         name = acc.customDescription?.trim() ? `Dodatek - profil (${acc.customDescription})` : "Dodatek - profil";
-        // Cennik dodatków w Excelu: Profil = 500 zł
         unitCostNet = acc.priceNetCost !== undefined ? acc.priceNetCost : 500;
         unitInstallCostNet = acc.installNetCost || 0;
         unitInstallClientNet = acc.installNetClient || 0;
@@ -258,8 +266,10 @@ export function calculateGlassEnclosure(input: EnclosureInput): EnclosureResult 
       id: acc.id,
       type: acc.type,
       name,
+      linkedWallId: acc.linkedWallId,
+      linkedWallLabel,
       quantity: qty,
-      widthCm: acc.widthCm,
+      effectiveWidthCm: effectiveWidth,
       heightCm: acc.heightCm,
       unitCostNet,
       unitClientNet,
@@ -270,7 +280,7 @@ export function calculateGlassEnclosure(input: EnclosureInput): EnclosureResult 
     });
   }
 
-  // 3. Sumowanie całości
+  // 3. Sumowanie
   for (const item of result.walls) {
     if (item.error) continue;
     result.materialsCostNet += item.unitCostNet * item.quantity;

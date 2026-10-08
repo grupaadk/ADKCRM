@@ -17,7 +17,7 @@ import {
   ChevronUp,
   Box,
   Layers,
-  Sparkles,
+  Link2,
 } from "lucide-react";
 
 interface Props {
@@ -102,8 +102,9 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
       lines.push("Dodatki i elementy uzupełniające:");
       result.accessories.forEach((acc, idx) => {
         const qtyLabel = acc.quantity > 1 ? ` (x${acc.quantity} szt.)` : "";
-        const dimLabel = acc.widthCm ? ` [szer. ${acc.widthCm} cm]` : "";
-        lines.push(`${idx + 1}. ${acc.name}${dimLabel}${qtyLabel}`);
+        const dimLabel = acc.effectiveWidthCm ? ` [szer. ${acc.effectiveWidthCm} cm]` : "";
+        const linkLabel = acc.linkedWallLabel ? ` [powiązane: ${acc.linkedWallLabel}]` : "";
+        lines.push(`${idx + 1}. ${acc.name}${dimLabel}${linkLabel}${qtyLabel}`);
       });
       lines.push("");
     }
@@ -155,21 +156,41 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
   }
 
   function removeWall(id: string) {
+    // Usuń ściankę i odepnij ewentualne powiązane dodatki
     setWalls((prev) => prev.filter((w) => w.id !== id));
+    setAccessories((prev) =>
+      prev.map((acc) => (acc.linkedWallId === id ? { ...acc, linkedWallId: undefined } : acc))
+    );
   }
 
   // Accessory Actions
-  function addAccessory(type: AccessoryType) {
+  function addAccessory(type: AccessoryType, preferredLinkedWallId?: string) {
     let defaultWidth: number | undefined = undefined;
     let defaultPrice: number | undefined = undefined;
     let customDescription: string | undefined = undefined;
 
-    if (type === "ADDON_TRIANGLE" || type === "ADDON_FOUNDATION") {
-      defaultWidth = 290;
-    } else if (type === "LAMELLA_FRONT" || type === "LAMELLA_SIDE") {
-      defaultPrice = 850;
-      defaultWidth = 300;
-    } else if (type === "ADDON_PROFILE") {
+    // Automatycznie powiąż z odpowiednią ścianką jeśli istnieje
+    let linkedWallId = preferredLinkedWallId;
+    if (!linkedWallId) {
+      if (type === "ADDON_TRIANGLE" || type === "LAMELLA_SIDE") {
+        const sideWall = walls.find((w) => w.type === "SIDE");
+        if (sideWall) linkedWallId = sideWall.id;
+      } else if (type === "LAMELLA_FRONT") {
+        const frontWall = walls.find((w) => w.type === "FRONT");
+        if (frontWall) linkedWallId = frontWall.id;
+      } else if (type === "ADDON_FOUNDATION") {
+        const anyWall = walls[0];
+        if (anyWall) linkedWallId = anyWall.id;
+      }
+    }
+
+    if (!linkedWallId) {
+      if (type === "ADDON_TRIANGLE" || type === "ADDON_FOUNDATION") defaultWidth = 290;
+      else if (type === "LAMELLA_FRONT" || type === "LAMELLA_SIDE") defaultWidth = 300;
+    }
+
+    if (type === "LAMELLA_FRONT" || type === "LAMELLA_SIDE") defaultPrice = 850;
+    else if (type === "ADDON_PROFILE") {
       defaultPrice = 500;
       customDescription = "Profil aluminiowy";
     }
@@ -179,6 +200,7 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
       {
         id: crypto.randomUUID(),
         type,
+        linkedWallId,
         quantity: 1,
         widthCm: defaultWidth,
         heightCm: 250,
@@ -234,6 +256,8 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
           <div className="space-y-2.5">
             {walls.map((wall, index) => {
               const itemResult = result.walls.find((w) => w.id === wall.id);
+              const linkedAccessories = accessories.filter((a) => a.linkedWallId === wall.id);
+
               return (
                 <div
                   key={wall.id}
@@ -253,6 +277,12 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                       {wall.quantity > 1 && (
                         <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
                           x{wall.quantity}
+                        </span>
+                      )}
+                      {linkedAccessories.length > 0 && (
+                        <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Link2 className="w-3 h-3" />
+                          {linkedAccessories.length} powiązane dodatki
                         </span>
                       )}
                       {!wall.isExpanded && itemResult && !itemResult.error && (
@@ -325,6 +355,53 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                         </div>
                       </div>
 
+                      {/* Szybkie dodanie dodatku bezpośrednio powiązanego z tą ścianą */}
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <span className="text-[11px] text-slate-500 font-medium mr-1">Powiąż dodatek:</span>
+                        {wall.type === "SIDE" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => addAccessory("ADDON_TRIANGLE", wall.id)}
+                              className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-medium text-slate-700 flex items-center gap-1 cursor-pointer"
+                            >
+                              + Trójkąt ({wall.widthCm} cm)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => addAccessory("ADDON_FOUNDATION", wall.id)}
+                              className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-medium text-slate-700 flex items-center gap-1 cursor-pointer"
+                            >
+                              + Fundament ({wall.widthCm} cm)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => addAccessory("LAMELLA_SIDE", wall.id)}
+                              className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-medium text-slate-700 flex items-center gap-1 cursor-pointer"
+                            >
+                              + Lamela boczna ({wall.widthCm} cm)
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => addAccessory("LAMELLA_FRONT", wall.id)}
+                              className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-medium text-slate-700 flex items-center gap-1 cursor-pointer"
+                            >
+                              + Lamela frontowa ({wall.widthCm} cm)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => addAccessory("ADDON_FOUNDATION", wall.id)}
+                              className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-medium text-slate-700 flex items-center gap-1 cursor-pointer"
+                            >
+                              + Fundament ({wall.widthCm} cm)
+                            </button>
+                          </>
+                        )}
+                      </div>
+
                       {itemResult && (
                         <div className="pt-2 border-t border-dashed border-slate-200">
                           {itemResult.error ? (
@@ -374,7 +451,7 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
               Lamele i dodatki ({accessories.length})
             </h3>
           </div>
-          <span className="text-[11px] text-slate-400 font-medium">Niezależne od ścianek</span>
+          <span className="text-[11px] text-slate-400 font-medium">Elementy uzupełniające</span>
         </div>
 
         {/* Przyciski szybkiego dodawania dodatków */}
@@ -401,7 +478,7 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
             className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-left text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
           >
             <span>+ Dodatek - trójkąt</span>
-            <span className="text-[10px] text-slate-400 font-normal">wg cennika</span>
+            <span className="text-[10px] text-slate-400 font-normal">wg szerokości</span>
           </button>
           <button
             type="button"
@@ -409,7 +486,7 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
             className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-left text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
           >
             <span>+ Dodatek - fundament</span>
-            <span className="text-[10px] text-slate-400 font-normal">wg cennika</span>
+            <span className="text-[10px] text-slate-400 font-normal">wg szerokości</span>
           </button>
           <button
             type="button"
@@ -434,6 +511,8 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
           <div className="space-y-2 mt-3">
             {accessories.map((acc, index) => {
               const accResult = result.accessories.find((a) => a.id === acc.id);
+              const isLinked = !!acc.linkedWallId;
+
               return (
                 <div
                   key={acc.id}
@@ -450,6 +529,12 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                       <span className="text-xs font-bold text-slate-800">
                         {accResult?.name || "Dodatek"}
                       </span>
+                      {accResult?.linkedWallLabel && (
+                        <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Link2 className="w-3 h-3" />
+                          {accResult.linkedWallLabel}
+                        </span>
+                      )}
                       {acc.quantity > 1 && (
                         <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
                           x{acc.quantity}
@@ -481,19 +566,51 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
 
                   {acc.isExpanded && (
                     <div className="p-3.5 space-y-3">
+                      {/* Opcja powiązania ze ścianą */}
+                      {walls.length > 0 && (
+                        <div className="p-2.5 rounded-lg bg-indigo-50/50 border border-indigo-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <label className="text-[11px] font-semibold text-indigo-900 flex items-center gap-1.5">
+                            <Link2 className="w-3.5 h-3.5 text-indigo-600" />
+                            Powiązanie ze ścianką (dziedziczy szerokość):
+                          </label>
+                          <select
+                            value={acc.linkedWallId || ""}
+                            onChange={(e) =>
+                              updateAccessory(acc.id, {
+                                linkedWallId: e.target.value || undefined,
+                              })
+                            }
+                            className="bg-white border border-indigo-200 rounded-md px-2.5 py-1 text-xs text-slate-800 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                          >
+                            <option value="">Brak powiązania (własna szerokość)</option>
+                            {walls.map((w, wIdx) => (
+                              <option key={w.id} value={w.id}>
+                                #{wIdx + 1} {w.type === "FRONT" ? "Ścianka frontowa" : "Ścianka boczna"} (szer. {w.widthCm} cm)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
                       {(acc.type === "ADDON_TRIANGLE" || acc.type === "ADDON_FOUNDATION") && (
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                               Szerokość elementu (cm)
+                              {isLinked && <span className="text-indigo-600 lowercase ml-1">(z powiązanej ściany)</span>}
                             </label>
                             <input
                               type="number"
-                              value={acc.widthCm || ""}
+                              disabled={isLinked}
+                              value={accResult?.effectiveWidthCm || acc.widthCm || ""}
                               onChange={(e) =>
                                 updateAccessory(acc.id, { widthCm: parseInt(e.target.value) || 0 })
                               }
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                              className={`w-full border rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none ${
+                                isLinked
+                                  ? "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
+                                  : "bg-slate-50 border-slate-200 focus:border-brand focus:ring-1 focus:ring-brand"
+                              }`}
                               placeholder="np. 290"
                             />
                           </div>
@@ -521,14 +638,20 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                               Szerokość (cm)
+                              {isLinked && <span className="text-indigo-600 lowercase ml-1">(ze ściany)</span>}
                             </label>
                             <input
                               type="number"
-                              value={acc.widthCm || ""}
+                              disabled={isLinked}
+                              value={accResult?.effectiveWidthCm || acc.widthCm || ""}
                               onChange={(e) =>
                                 updateAccessory(acc.id, { widthCm: parseInt(e.target.value) || 0 })
                               }
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                              className={`w-full border rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none ${
+                                isLinked
+                                  ? "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
+                                  : "bg-slate-50 border-slate-200 focus:border-brand focus:ring-1 focus:ring-brand"
+                              }`}
                               placeholder="np. 300"
                             />
                           </div>
