@@ -395,22 +395,6 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                             onChange={(e) => updateWall(wall.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand focus:bg-white"
                           />
-                          <div className="flex items-center gap-1.5 pt-1">
-                            {[1, 2].map((qPreset) => (
-                              <button
-                                key={qPreset}
-                                type="button"
-                                onClick={() => updateWall(wall.id, { quantity: qPreset })}
-                                className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                                  wall.quantity === qPreset
-                                    ? "bg-brand text-white border-brand shadow-2xs"
-                                    : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
-                                }`}
-                              >
-                                x{qPreset}
-                              </button>
-                            ))}
-                          </div>
                         </div>
                       </div>
 
