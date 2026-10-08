@@ -1,47 +1,88 @@
-export type WallType = "FRONT" | "SIDE" | "LAMELLA" | "CUSTOM";
+export type WallType = "FRONT" | "SIDE";
+
+export type AccessoryType =
+  | "LAMELLA_FRONT"
+  | "LAMELLA_SIDE"
+  | "ADDON_TRIANGLE"
+  | "ADDON_FOUNDATION"
+  | "ADDON_PROFILE"
+  | "ADDON_OTHER";
 
 export interface WallInput {
   id: string;
   type: WallType;
   widthCm: number;
   heightCm: number;
-  hasTriangle: boolean;
-  hasFoundation: boolean;
-  customDescription?: string;
-  customPriceNet?: number;
-  customInstallNet?: number;
+  quantity: number;
+  isExpanded?: boolean;
+}
+
+export interface AccessoryInput {
+  id: string;
+  type: AccessoryType;
+  quantity: number;
+  widthCm?: number; // dla trójkąta / fundamentu / lameli
+  heightCm?: number;
+  customDescription?: string; // dla Dodatek - inne / profil
+  priceNetCost?: number; // koszt bazowy netto (jeśli ręczny lub domyślny)
+  installNetCost?: number; // montaż koszt netto (jeśli ręczny lub domyślny)
+  installNetClient?: number; // montaż klient netto
   isExpanded?: boolean;
 }
 
 export interface EnclosureInput {
   walls: WallInput[];
-  marginPercent: number;
-  glassPricePerSqm: number;
-  installFrontCost: number;
-  installFrontClient: number;
-  installSideCost: number;
-  installSideClient: number;
+  accessories: AccessoryInput[];
+  marginPercent: number; // np. 52
+  glassPricePerSqm: number; // np. 225
+  installFrontCost: number; // np. 250
+  installFrontClient: number; // np. 300
+  installSideCost: number; // np. 500
+  installSideClient: number; // np. 650
+  // Ceny stawek montażu dodatków z Excela:
+  installTriangleCostPerMb: number; // 200
+  installTriangleClientPerMb: number; // 250
+  installFoundationCostPerMb: number; // 50
+  installFoundationClientPerMb: number; // 100
 }
 
 export interface WallResult {
   id: string;
   type: WallType;
+  quantity: number;
   widthCm: number;
   heightCm: number;
   standardWidthCm?: number;
   areaSqm: number;
   glassCostNet: number;
   profileCostNet: number;
-  wallCostNet: number;
-  wallClientNet: number;
-  installCostNet: number;
-  installClientNet: number;
+  unitCostNet: number;
+  unitClientNet: number;
+  unitInstallCostNet: number;
+  unitInstallClientNet: number;
+  totalCostNet: number;
   totalClientNet: number;
   error?: string;
 }
 
+export interface AccessoryResult {
+  id: string;
+  type: AccessoryType;
+  name: string;
+  quantity: number;
+  widthCm?: number;
+  heightCm?: number;
+  unitCostNet: number;
+  unitClientNet: number;
+  unitInstallCostNet: number;
+  unitInstallClientNet: number;
+  totalCostNet: number;
+  totalClientNet: number;
+}
+
 export interface EnclosureResult {
-  items: WallResult[];
+  walls: WallResult[];
+  accessories: AccessoryResult[];
   materialsCostNet: number;
   materialsClientNet: number;
   installationCostNet: number;
@@ -52,20 +93,20 @@ export interface EnclosureResult {
 }
 
 // Baza profili standardowych co ~50cm (zgodnie z "NIESTANDARD bez szkła")
-const PROFILES = [
-  { width: 94, baseFront: 1155, triangle: 854, foundation: 106 },
-  { width: 194, baseFront: 1155, triangle: 854, foundation: 106 },
-  { width: 241, baseFront: 1650, triangle: 854, foundation: 179 },
-  { width: 290, baseFront: 1650, triangle: 854, foundation: 179 },
-  { width: 337, baseFront: 2285, triangle: 1016, foundation: 272 },
-  { width: 386, baseFront: 2285, triangle: 1179, foundation: 272 },
-  { width: 433, baseFront: 3072, triangle: 1463, foundation: 382 },
-  { width: 482, baseFront: 3072, triangle: 1707, foundation: 382 },
-  { width: 529, baseFront: 4017, triangle: 2439, foundation: 618 },
-  { width: 578, baseFront: 4017, triangle: 2683, foundation: 618 },
+export const PROFILES = [
+  { width: 94, baseFront: 1155, triangle: 854, foundation: 106, sideBase: 1155 },
+  { width: 194, baseFront: 1155, triangle: 854, foundation: 106, sideBase: 1155 },
+  { width: 241, baseFront: 1650, triangle: 854, foundation: 179, sideBase: 1650 },
+  { width: 290, baseFront: 1650, triangle: 854, foundation: 179, sideBase: 1650 },
+  { width: 337, baseFront: 2285, triangle: 1016, foundation: 272, sideBase: 2285 },
+  { width: 386, baseFront: 2285, triangle: 1179, foundation: 272, sideBase: 2285 },
+  { width: 433, baseFront: 3072, triangle: 1463, foundation: 382, sideBase: 3072 },
+  { width: 482, baseFront: 3072, triangle: 1707, foundation: 382, sideBase: 3072 },
+  { width: 529, baseFront: 4017, triangle: 2439, foundation: 618, sideBase: 4017 },
+  { width: 578, baseFront: 4017, triangle: 2683, foundation: 618, sideBase: 4017 },
 ];
 
-function getStandardProfile(widthCm: number) {
+export function getStandardProfile(widthCm: number) {
   for (const p of PROFILES) {
     if (widthCm <= p.width) return p;
   }
@@ -74,7 +115,8 @@ function getStandardProfile(widthCm: number) {
 
 export function calculateGlassEnclosure(input: EnclosureInput): EnclosureResult {
   const result: EnclosureResult = {
-    items: [],
+    walls: [],
+    accessories: [],
     materialsCostNet: 0,
     materialsClientNet: 0,
     installationCostNet: 0,
@@ -84,42 +126,28 @@ export function calculateGlassEnclosure(input: EnclosureInput): EnclosureResult 
     totalProfitZ: 0,
   };
 
-  for (const wall of input.walls) {
-    if (wall.type === "LAMELLA" || wall.type === "CUSTOM") {
-      const price = wall.customPriceNet || 0;
-      const install = wall.customInstallNet || 0;
-      const clientPrice = price * (1 + input.marginPercent / 100);
-      result.items.push({
-        id: wall.id,
-        type: wall.type,
-        widthCm: wall.widthCm,
-        heightCm: wall.heightCm,
-        areaSqm: 0,
-        glassCostNet: 0,
-        profileCostNet: price,
-        wallCostNet: price,
-        wallClientNet: clientPrice,
-        installCostNet: install,
-        installClientNet: install,
-        totalClientNet: clientPrice + install,
-      });
-      continue;
-    }
+  const marginMultiplier = 1 + input.marginPercent / 100;
 
+  // 1. Ścianki (tylko szkło + profile bazowe)
+  for (const wall of input.walls) {
+    const qty = Math.max(1, wall.quantity || 1);
     const std = getStandardProfile(wall.widthCm);
+
     if (!std) {
-      result.items.push({
+      result.walls.push({
         id: wall.id,
         type: wall.type,
+        quantity: qty,
         widthCm: wall.widthCm,
         heightCm: wall.heightCm,
         areaSqm: 0,
         glassCostNet: 0,
         profileCostNet: 0,
-        wallCostNet: 0,
-        wallClientNet: 0,
-        installCostNet: 0,
-        installClientNet: 0,
+        unitCostNet: 0,
+        unitClientNet: 0,
+        unitInstallCostNet: 0,
+        unitInstallClientNet: 0,
+        totalCostNet: 0,
         totalClientNet: 0,
         error: `Szerokość ${wall.widthCm} cm przekracza limit systemu (max 578 cm). Proszę podzielić na mniejsze ścianki.`,
       });
@@ -128,51 +156,134 @@ export function calculateGlassEnclosure(input: EnclosureInput): EnclosureResult 
 
     const area = (wall.widthCm / 100) * (wall.heightCm / 100);
     const glassCost = area * input.glassPricePerSqm;
-    
-    let profileCost = std.baseFront;
-    if (wall.type === "SIDE") {
-      if (wall.hasTriangle) profileCost += std.triangle;
-      if (wall.hasFoundation) profileCost += std.foundation;
-    }
+    // Ścianka boczna i frontowa jako same ścianki bazują na profilach systemowych bez dodatków
+    const profileCost = std.baseFront;
 
-    const wallCostNet = glassCost + profileCost;
-    const wallClientNet = wallCostNet * (1 + input.marginPercent / 100);
+    const unitCostNet = glassCost + profileCost;
+    const unitClientNet = unitCostNet * marginMultiplier;
 
     const stdWidthMeters = std.width / 100;
-    let installCost = 0;
-    let installClient = 0;
+    const unitInstallCostNet =
+      wall.type === "FRONT"
+        ? stdWidthMeters * input.installFrontCost
+        : stdWidthMeters * input.installSideCost;
+    const unitInstallClientNet =
+      wall.type === "FRONT"
+        ? stdWidthMeters * input.installFrontClient
+        : stdWidthMeters * input.installSideClient;
 
-    if (wall.type === "FRONT") {
-      installCost = stdWidthMeters * input.installFrontCost;
-      installClient = stdWidthMeters * input.installFrontClient;
-    } else {
-      installCost = stdWidthMeters * input.installSideCost;
-      installClient = stdWidthMeters * input.installSideClient;
-    }
+    const totalCostNet = (unitCostNet + unitInstallCostNet) * qty;
+    const totalClientNet = (unitClientNet + unitInstallClientNet) * qty;
 
-    result.items.push({
+    result.walls.push({
       id: wall.id,
       type: wall.type,
+      quantity: qty,
       widthCm: wall.widthCm,
       heightCm: wall.heightCm,
       standardWidthCm: std.width,
       areaSqm: area,
-      glassCostNet: glassCost,
+      glassCostNet,
       profileCostNet: profileCost,
-      wallCostNet: wallCostNet,
-      wallClientNet: wallClientNet,
-      installCostNet: installCost,
-      installClientNet: installClient,
-      totalClientNet: wallClientNet + installClient,
+      unitCostNet,
+      unitClientNet,
+      unitInstallCostNet,
+      unitInstallClientNet,
+      totalCostNet,
+      totalClientNet,
     });
   }
 
-  for (const item of result.items) {
+  // 2. Niezależne dodatki z arkusza
+  for (const acc of input.accessories) {
+    const qty = Math.max(1, acc.quantity || 1);
+    let unitCostNet = 0;
+    let unitInstallCostNet = 0;
+    let unitInstallClientNet = 0;
+    let name = "";
+
+    switch (acc.type) {
+      case "LAMELLA_FRONT":
+      case "LAMELLA_SIDE": {
+        name = acc.type === "LAMELLA_FRONT" ? "Lamela frontowa" : "Lamela boczna kpl";
+        // Domyślny zakup z tabeli Dodatki = 850 zł jeśli nie podano ręcznie
+        unitCostNet = acc.priceNetCost !== undefined ? acc.priceNetCost : 850;
+        unitInstallCostNet = acc.installNetCost || 0;
+        unitInstallClientNet = acc.installNetClient || 0;
+        break;
+      }
+      case "ADDON_TRIANGLE": {
+        name = "Dodatek - trójkąt";
+        // Jeśli podano szerokość, dobieramy z tabeli lub bierzemy stawkę
+        const width = acc.widthCm || 290;
+        const std = getStandardProfile(width);
+        unitCostNet = acc.priceNetCost !== undefined ? acc.priceNetCost : (std?.triangle ?? 854);
+        const meters = (std?.width ?? width) / 100;
+        unitInstallCostNet = acc.installNetCost !== undefined ? acc.installNetCost : meters * input.installTriangleCostPerMb;
+        unitInstallClientNet = acc.installNetClient !== undefined ? acc.installNetClient : meters * input.installTriangleClientPerMb;
+        break;
+      }
+      case "ADDON_FOUNDATION": {
+        name = "Dodatek - fundament";
+        const width = acc.widthCm || 290;
+        const std = getStandardProfile(width);
+        unitCostNet = acc.priceNetCost !== undefined ? acc.priceNetCost : (std?.foundation ?? 179);
+        const meters = (std?.width ?? width) / 100;
+        unitInstallCostNet = acc.installNetCost !== undefined ? acc.installNetCost : meters * input.installFoundationCostPerMb;
+        unitInstallClientNet = acc.installNetClient !== undefined ? acc.installNetClient : meters * input.installFoundationClientPerMb;
+        break;
+      }
+      case "ADDON_PROFILE": {
+        name = acc.customDescription?.trim() ? `Dodatek - profil (${acc.customDescription})` : "Dodatek - profil";
+        // Cennik dodatków w Excelu: Profil = 500 zł
+        unitCostNet = acc.priceNetCost !== undefined ? acc.priceNetCost : 500;
+        unitInstallCostNet = acc.installNetCost || 0;
+        unitInstallClientNet = acc.installNetClient || 0;
+        break;
+      }
+      case "ADDON_OTHER": {
+        name = acc.customDescription?.trim() ? `Dodatek - inne (${acc.customDescription})` : "Dodatek - inne";
+        unitCostNet = acc.priceNetCost || 0;
+        unitInstallCostNet = acc.installNetCost || 0;
+        unitInstallClientNet = acc.installNetClient || 0;
+        break;
+      }
+    }
+
+    const unitClientNet = unitCostNet * marginMultiplier;
+    const totalCostNet = (unitCostNet + unitInstallCostNet) * qty;
+    const totalClientNet = (unitClientNet + unitInstallClientNet) * qty;
+
+    result.accessories.push({
+      id: acc.id,
+      type: acc.type,
+      name,
+      quantity: qty,
+      widthCm: acc.widthCm,
+      heightCm: acc.heightCm,
+      unitCostNet,
+      unitClientNet,
+      unitInstallCostNet,
+      unitInstallClientNet,
+      totalCostNet,
+      totalClientNet,
+    });
+  }
+
+  // 3. Sumowanie całości
+  for (const item of result.walls) {
     if (item.error) continue;
-    result.materialsCostNet += item.wallCostNet;
-    result.materialsClientNet += item.wallClientNet;
-    result.installationCostNet += item.installCostNet;
-    result.installationClientNet += item.installClientNet;
+    result.materialsCostNet += item.unitCostNet * item.quantity;
+    result.materialsClientNet += item.unitClientNet * item.quantity;
+    result.installationCostNet += item.unitInstallCostNet * item.quantity;
+    result.installationClientNet += item.unitInstallClientNet * item.quantity;
+  }
+
+  for (const acc of result.accessories) {
+    result.materialsCostNet += acc.unitCostNet * acc.quantity;
+    result.materialsClientNet += acc.unitClientNet * acc.quantity;
+    result.installationCostNet += acc.unitInstallCostNet * acc.quantity;
+    result.installationClientNet += acc.unitInstallClientNet * acc.quantity;
   }
 
   result.totalCostNet = result.materialsCostNet + result.installationCostNet;

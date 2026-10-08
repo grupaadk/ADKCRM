@@ -1869,7 +1869,10 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
                                   <p className="text-[11px] text-slate-500 font-medium mt-0.5">
                                     {cfg.calculatorType === "GLASS_ENCLOSURE" ? (
                                       <>
-                                        Elementy: <strong className="text-slate-700">{cfg.input.walls?.length ?? 0} szt.</strong>
+                                        Ścianki: <strong className="text-slate-700">{cfg.input.walls?.length ?? 0} szt.</strong>
+                                        {(cfg.input.accessories?.length ?? 0) > 0 && (
+                                          <>, dodatki: <strong className="text-slate-700">{cfg.input.accessories.length} szt.</strong></>
+                                        )}
                                         {totals.areaSqM > 0 && ` (szkło: ${totals.areaSqM.toFixed(2)} m²)`}
                                       </>
                                     ) : (
@@ -1911,8 +1914,13 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
                               {cfg.calculatorType === "GLASS_ENCLOSURE" ? (
                                 <div className="flex flex-wrap items-center gap-2 text-[11px]">
                                   <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 font-medium">
-                                    Liczba ścianek/elementów: <strong>{cfg.input.walls?.length ?? 0}</strong>
+                                    Ścianki: <strong>{cfg.input.walls?.length ?? 0} szt.</strong>
                                   </span>
+                                  {(cfg.input.accessories?.length ?? 0) > 0 && (
+                                    <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 font-medium">
+                                      Dodatki/lamele: <strong>{cfg.input.accessories.length} szt.</strong>
+                                    </span>
+                                  )}
                                   {totals.areaSqM > 0 && (
                                     <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 font-medium">
                                       Łącznie szkło: <strong>{totals.areaSqM.toFixed(2)} m²</strong>
