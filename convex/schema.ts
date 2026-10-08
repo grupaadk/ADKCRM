@@ -1264,5 +1264,68 @@ export default defineSchema({
   })
     .index("by_service", ["serviceType"])
     .index("by_service_status", ["serviceType", "status"]),
+
+  // 14. Moduł Cenników (Poliwęglan, Szkło, Rolety itd.)
+  priceLists: defineTable({
+    key: v.string(), // np. "polycarbonate_roofs"
+    category: v.string(), // np. "Zadaszenia Poliwęglan"
+    title: v.string(),
+    spreadsheetId: v.string(),
+    sheetGid: v.string(),
+    sheetName: v.string(),
+    sourceUrl: v.string(),
+    widths: v.optional(v.array(v.number())), // [306, 406, 506, ...]
+    depths: v.optional(v.array(v.number())), // [300, 350, 400, ...]
+    matrix: v.optional(
+      v.array(
+        v.object({
+          depth: v.number(),
+          series: v.string(), // "STANDARD" | "PRO+"
+          prices: v.record(v.string(), v.number()), // { "306": 3358, "406": 4285, ... }
+        })
+      )
+    ),
+    items: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          name: v.string(), // Kolumna A: Produkt / wymiary
+          dimensions: v.optional(
+            v.object({
+              widthCm: v.number(), // szerokość otworu (cm)
+              heightCm: v.number(), // wysokość otworu (cm)
+            })
+          ),
+          widthCm: v.optional(v.number()),
+          heightCm: v.optional(v.number()),
+          trackCount: v.optional(v.number()),
+          priceNet: v.number(), // Kolumna C: Cena netto
+          priceGross: v.optional(v.number()), // Cena brutto
+          category: v.optional(v.string()),
+        })
+      )
+    ),
+    rawHeaders: v.optional(v.array(v.string())),
+    syncedAt: v.number(),
+    syncedBy: v.string(),
+    status: v.union(v.literal("active"), v.literal("syncing"), v.literal("error")),
+    errorMessage: v.optional(v.string()),
+    itemCount: v.number(),
+  })
+    .index("by_key", ["key"])
+    .index("by_category", ["category"]),
+
+  priceListSyncLogs: defineTable({
+    priceListKey: v.string(),
+    syncedAt: v.number(),
+    syncedBy: v.string(),
+    itemCount: v.number(),
+    status: v.union(v.literal("success"), v.literal("error")),
+    errorMessage: v.optional(v.string()),
+    sheetUrl: v.optional(v.string()),
+  })
+    .index("by_key", ["priceListKey"])
+    .index("by_date", ["syncedAt"]),
 });
+
 
