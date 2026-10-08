@@ -35,6 +35,7 @@ import {
   Hammer,
   Pencil,
   RotateCcw,
+  Building2,
 } from "lucide-react";
 
 interface NewOpportunityFormProps {
@@ -1140,43 +1141,101 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[380px] overflow-y-auto pr-1">
+                      {/* Lista klientów do wyboru */}
+                      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
                         {searchItems === undefined && (
-                          <div className="col-span-full rounded-xl border border-slate-200 p-6 text-center text-xs text-slate-400">
+                          <div className="p-8 text-center text-xs text-slate-400">
                             Wyszukiwanie klientów…
                           </div>
                         )}
                         {searchItems?.length === 0 && (
-                          <div className="col-span-full rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-400">
+                          <div className="p-8 text-center text-xs text-slate-400">
                             Nie znaleziono klienta. Możesz przełączyć powyżej na &quot;Dodaj nowego klienta&quot;.
                           </div>
                         )}
-                        {searchItems?.map((c) => (
-                          <button
-                            key={c._id}
-                            type="button"
-                            onClick={() => handleSelectClient(c)}
-                            className="group w-full rounded-xl border border-slate-200 p-3.5 text-left transition-all hover:border-slate-400 hover:bg-slate-50/50 bg-white cursor-pointer shadow-2xs"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="font-semibold text-xs text-slate-900 group-hover:text-brand truncate">
-                                {c.companyName || `${c.firstName} ${c.lastName}`}
-                              </div>
-                              <span className="text-[10px] font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded shrink-0">
-                                {c.clientType === "business" ? "Firma (VAT 23%)" : "Osoba (VAT 8%)"}
-                              </span>
+                        {searchItems && searchItems.length > 0 && (
+                          <div className="max-h-[440px] overflow-y-auto divide-y divide-slate-100">
+                            {/* Nagłówek listy widoczny na desktopie */}
+                            <div className="hidden md:grid grid-cols-12 gap-3 px-4 py-2.5 bg-slate-50 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200 sticky top-0 z-10">
+                              <div className="col-span-4">Klient / Firma</div>
+                              <div className="col-span-3">Kontakt</div>
+                              <div className="col-span-3">Adres</div>
+                              <div className="col-span-2 text-right">Akcja</div>
                             </div>
-                            <div className="mt-1.5 text-xs text-slate-500 space-y-0.5">
-                              {c.email && <div>{c.email}</div>}
-                              {c.phone && <div>{c.phone}</div>}
-                              {c.city && (
-                                <div className="text-slate-400 text-[11px]">
-                                  {[c.street, c.buildingNumber, c.city].filter(Boolean).join(" ")}
+
+                            {searchItems.map((c) => {
+                              const isBusiness = c.clientType === "business";
+                              const displayName = c.companyName || `${c.firstName} ${c.lastName}`;
+                              const fullAddress = [c.street, c.buildingNumber, c.city].filter(Boolean).join(" ");
+
+                              return (
+                                <div
+                                  key={c._id}
+                                  onClick={() => handleSelectClient(c)}
+                                  className="group flex flex-col md:grid md:grid-cols-12 gap-2 md:gap-3 items-start md:items-center px-4 py-3 text-xs hover:bg-slate-50/80 transition-colors cursor-pointer"
+                                >
+                                  {/* Kolumna 1: Klient / Firma */}
+                                  <div className="md:col-span-4 min-w-0 flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-600 group-hover:text-brand group-hover:border-brand/40 transition-colors">
+                                      {isBusiness ? <Building2 className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="font-semibold text-slate-900 group-hover:text-brand truncate">
+                                        {displayName}
+                                      </div>
+                                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                        <span className="text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded">
+                                          {isBusiness ? "Firma (23%)" : "Osoba (8%)"}
+                                        </span>
+                                        {c.nip && (
+                                          <span className="text-[10px] text-slate-400">
+                                            NIP: {c.nip}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Kolumna 2: Kontakt */}
+                                  <div className="md:col-span-3 min-w-0 text-slate-600 space-y-0.5">
+                                    {c.phone ? (
+                                      <div className="font-medium text-slate-800 truncate">{c.phone}</div>
+                                    ) : null}
+                                    {c.email ? (
+                                      <div className="text-[11px] text-slate-500 truncate">{c.email}</div>
+                                    ) : null}
+                                    {!c.phone && !c.email && (
+                                      <span className="text-slate-400 text-[11px]">—</span>
+                                    )}
+                                  </div>
+
+                                  {/* Kolumna 3: Adres */}
+                                  <div className="md:col-span-3 min-w-0 text-slate-600">
+                                    {fullAddress ? (
+                                      <div className="truncate text-slate-700">{fullAddress}</div>
+                                    ) : (
+                                      <span className="text-slate-400 text-[11px]">—</span>
+                                    )}
+                                  </div>
+
+                                  {/* Kolumna 4: Przycisk wyboru */}
+                                  <div className="md:col-span-2 w-full md:w-auto flex md:justify-end mt-1 md:mt-0">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSelectClient(c);
+                                      }}
+                                      className="w-full md:w-auto px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white group-hover:bg-brand group-hover:text-white group-hover:border-brand text-xs font-semibold text-slate-700 transition-all shadow-2xs cursor-pointer"
+                                    >
+                                      Wybierz →
+                                    </button>
+                                  </div>
                                 </div>
-                              )}
-                            </div>
-                          </button>
-                        ))}
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
