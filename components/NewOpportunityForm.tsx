@@ -32,6 +32,9 @@ import {
   Copy,
   Eye,
   ExternalLink,
+  Hammer,
+  Pencil,
+  RotateCcw,
 } from "lucide-react";
 
 interface NewOpportunityFormProps {
@@ -181,6 +184,9 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
       }
     >
   >({});
+  const [customInstallationOverrides, setCustomInstallationOverrides] = useState<Record<string, number>>({});
+  const [editingInstallationService, setEditingInstallationService] = useState<string | null>(null);
+  const [inlineInstallationInput, setInlineInstallationInput] = useState<string>("");
 
   const configurableServices = selectedServices.filter(
     (s) => s === "Zadaszenie tarasu" || s.toLowerCase().includes("zadaszen") || s === "Zabudowa tarasu" || s.toLowerCase().includes("zabudow")
@@ -238,15 +244,29 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
 
   // ─── Helper to extract calculation totals from configurator results ─────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function getResultTotals(res: any) {
-    if (!res) return { net: 0, gross: 0, kc: 0, profitZ: 0, areaSqM: 0 };
+  function getResultTotals(res: any, serviceName?: string) {
+    if (!res) return { net: 0, gross: 0, kc: 0, profitZ: 0, areaSqM: 0, installationNet: 0, materialNet: 0, isInstallationOverridden: false };
     const poly = res.options?.polycarbonate;
-    const net = poly?.totalNet ?? res.finalPriceNet ?? res.totalNet ?? res.totalNetPrice ?? res.totalClientNet ?? 0;
-    const gross = poly?.totalGross ?? res.finalPriceGross ?? res.totalGross ?? (net > 0 ? Math.round(net * (1 + vatRatePercent / 100)) : 0);
-    const kc = poly?.costBasisKc ?? res.costKc ?? res.costBasisKc ?? res.totalCostNet ?? 0;
-    const profitZ = poly?.profitZ ?? res.profitZ ?? res.totalProfitZ ?? (net - kc);
+    const baseInstallation = poly?.assemblyCostNet ?? res.installationNet ?? res.installationClientNet ?? 0;
+    const isOverridden = serviceName ? serviceName in customInstallationOverrides : false;
+    const installationNet = isOverridden && serviceName ? customInstallationOverrides[serviceName] : baseInstallation;
+
+    const rawNet = poly?.totalNet ?? res.finalPriceNet ?? res.totalNet ?? res.totalNetPrice ?? res.totalClientNet ?? 0;
+    const materialNet = poly?.materialCostNet ?? res.materialsClientNet ?? (rawNet > baseInstallation ? rawNet - baseInstallation : rawNet);
+    
+    // Netto końcowe to materiał z narzutem + montaż (z uwzględnieniem edycji inline)
+    const net = materialNet + installationNet;
+    const gross = net > 0 ? Math.round(net * (1 + vatRatePercent / 100)) : 0;
+    
+    // Koszt własny Kc
+    const baseKc = poly?.costBasisKc ?? res.costKc ?? res.costBasisKc ?? res.totalCostNet ?? 0;
+    // Różnica w montażu przenosi się proporcjonalnie na zysk Z
+    const installDelta = installationNet - baseInstallation;
+    const kc = baseKc;
+    const profitZ = (poly?.profitZ ?? res.profitZ ?? res.totalProfitZ ?? (rawNet - baseKc)) + installDelta;
     const areaSqM = res.input?.areaSqM ?? poly?.areaSqM ?? res.areaSqM ?? 0;
-    return { net, gross, kc, profitZ, areaSqM };
+
+    return { net, gross, kc, profitZ, areaSqM, installationNet, materialNet, isInstallationOverridden: isOverridden };
   }
 
   // ─── Calculated Totals across Configurations ────────────────────────────────
@@ -258,7 +278,7 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
 
   activeConfigs.forEach((cfg) => {
     if (cfg?.result) {
-      const { net, gross, kc, profitZ } = getResultTotals(cfg.result);
+      const { net, gross, kc, profitZ } = getResultTotals(cfg.result, cfg.serviceName);
       totalNetPrice += net;
       totalGrossPrice += gross;
       totalCostKc += kc;
@@ -555,7 +575,7 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
         let totalProfit = 0;
         for (const cfg of configurationsArray) {
           if (cfg.result) {
-            const { net, kc, profitZ } = getResultTotals(cfg.result);
+            const { net, kc, profitZ } = getResultTotals(cfg.result, cfg.serviceName);
             totalPrice += net;
             totalCost += kc;
             totalProfit += profitZ;
@@ -621,6 +641,7 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
         setError("Wybierz klienta z listy lub utwórz nowego w kroku 2 przed przejściem do konfiguracji.");
         return;
       }
+      setActiveConfigIndex(0);
     }
     if (currentStep < 5) {
       setCurrentStep((prev) => (prev + 1) as WizardStep);
@@ -855,13 +876,19 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
                         </div>
 
                         <div
-                          className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ml-3 transition-colors ${
+                          className={`min-w-6 h-6 px-1 rounded-full border flex items-center justify-center shrink-0 ml-3 transition-colors ${
                             isSelected
-                              ? "bg-brand border-brand text-white"
+                              ? "bg-brand border-brand text-white font-bold text-[11px]"
                               : "border-[var(--line-2)] bg-white group-hover:border-brand"
                           }`}
                         >
-                          {isSelected && <Check className="w-4 h-4 stroke-[3]" />}
+                          {isSelected && (
+                            selectedServices.length > 1 ? (
+                              <span>{selectedServices.indexOf(service.name) + 1}</span>
+                            ) : (
+                              <Check className="w-4 h-4 stroke-[3]" />
+                            )
+                          )}
                         </div>
                       </button>
                     );
@@ -872,12 +899,17 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
               {selectedServices.length > 0 && (
                 <div className="rounded-xl border border-brand/30 bg-brand/5 p-4 flex items-center justify-between text-xs text-slate-800">
                   <span className="font-medium">
-                    Wybrane usługi ({selectedServices.length}):{" "}
-                    <strong className="font-bold text-brand">{selectedServices.join(", ")}</strong>
+                    Kolejność konfiguracji ({selectedServices.length}):{" "}
+                    <strong className="font-bold text-brand">
+                      {selectedServices.map((s, i) => `${i + 1}. ${s}`).join(" → ")}
+                    </strong>
                   </span>
                   <button
                     type="button"
-                    onClick={() => setSelectedServices([])}
+                    onClick={() => {
+                      setSelectedServices([]);
+                      setActiveConfigIndex(0);
+                    }}
                     className="text-brand hover:underline font-semibold"
                   >
                     Wyczyszczenie
@@ -1847,8 +1879,9 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
                   <div className="space-y-3">
                     {selectedServices.map((serviceName, idx) => {
                       const cfg = serviceConfigurationsMap[serviceName];
-                      const totals = getResultTotals(cfg?.result);
+                      const totals = getResultTotals(cfg?.result, serviceName);
                       const isConfigured = totals.net > 0;
+                      const isEditingInstall = editingInstallationService === serviceName;
 
                       return (
                         <div
@@ -1910,7 +1943,8 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
 
                           {/* Specyfikacja szczegółowa pozycji jeśli skonfigurowana */}
                           {cfg?.input && (
-                            <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                            <div className="space-y-3 pt-0.5">
+                              {/* Wskaźniki wymiarów */}
                               {cfg.calculatorType === "GLASS_ENCLOSURE" ? (
                                 <div className="flex flex-wrap items-center gap-2 text-[11px]">
                                   <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 font-medium">
@@ -1924,11 +1958,6 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
                                   {totals.areaSqM > 0 && (
                                     <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 font-medium">
                                       Łącznie szkło: <strong>{totals.areaSqM.toFixed(2)} m²</strong>
-                                    </span>
-                                  )}
-                                  {cfg.result?.installationNet > 0 && (
-                                    <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 font-medium">
-                                      Montaż: <strong>{formatPLN(cfg.result.installationNet)} netto</strong>
                                     </span>
                                   )}
                                 </div>
@@ -1951,20 +1980,126 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
                                 </div>
                               )}
 
-                              {cfg.offerText && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(cfg.offerText);
-                                    setCopiedOfferText(true);
-                                    setTimeout(() => setCopiedOfferText(false), 2000);
-                                  }}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-brand/30 bg-brand/5 hover:bg-brand/15 text-brand text-[11px] font-semibold transition-colors cursor-pointer"
-                                  title="Skopiuj treść oferty dla tej pozycji"
-                                >
-                                  <Copy className="w-3.5 h-3.5" />
-                                  <span>Kopiuj opis pozycji</span>
-                                </button>
+                              {/* Ujednolicona lista podpozycji finansowych z edycją montażu inline */}
+                              {isConfigured && (
+                                <div className="rounded-xl bg-white border border-slate-200 overflow-hidden divide-y divide-slate-100 text-xs shadow-2xs">
+                                  {/* 1. Cena materiału z narzutem (netto) */}
+                                  <div className="flex items-center justify-between px-3.5 py-2.5 hover:bg-slate-50/50 transition-colors">
+                                    <div className="flex items-center gap-2 text-slate-600">
+                                      <span className="w-4 h-4 text-slate-500 shrink-0 flex items-center justify-center">
+                                        <ServiceIcon name={serviceName} size={15} />
+                                      </span>
+                                      <span className="font-medium">Cena materiału z narzutem (netto):</span>
+                                    </div>
+                                    <span className="font-bold text-slate-900 text-sm">
+                                      {formatPLN(totals.materialNet)}
+                                    </span>
+                                  </div>
+
+                                  {/* 2. Montaż (netto) - wiersz z możliwością edycji inline */}
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3.5 py-2.5 bg-brand/[0.03] hover:bg-brand/[0.06] transition-colors">
+                                    <div className="flex items-center gap-2 text-slate-700">
+                                      <Hammer className="w-3.5 h-3.5 text-brand shrink-0" />
+                                      <span className="font-medium">Montaż (netto):</span>
+                                      {totals.isInstallationOverridden && (
+                                        <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded border border-amber-200">
+                                          zmieniono ręcznie
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                                      {isEditingInstall ? (
+                                        <div className="flex items-center gap-1.5">
+                                          <div className="relative">
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              autoFocus
+                                              value={inlineInstallationInput}
+                                              onChange={(e) => setInlineInstallationInput(e.target.value)}
+                                              onKeyDown={(e) => {
+                                                if (e.key === "Enter") {
+                                                  const val = parseFloat(inlineInstallationInput);
+                                                  if (!isNaN(val) && val >= 0) {
+                                                    setCustomInstallationOverrides((prev) => ({
+                                                      ...prev,
+                                                      [serviceName]: Math.round(val),
+                                                    }));
+                                                  }
+                                                  setEditingInstallationService(null);
+                                                } else if (e.key === "Escape") {
+                                                  setEditingInstallationService(null);
+                                                }
+                                              }}
+                                              className="w-28 px-2 py-1 bg-white border-2 border-brand rounded-lg text-xs font-bold text-slate-900 outline-none text-right shadow-2xs"
+                                              placeholder="Kwota montażu"
+                                            />
+                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400 pointer-events-none">
+                                              zł
+                                            </span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const val = parseFloat(inlineInstallationInput);
+                                              if (!isNaN(val) && val >= 0) {
+                                                setCustomInstallationOverrides((prev) => ({
+                                                  ...prev,
+                                                  [serviceName]: Math.round(val),
+                                                }));
+                                              }
+                                              setEditingInstallationService(null);
+                                            }}
+                                            className="px-2.5 py-1 bg-brand text-white rounded-lg text-xs font-semibold hover:bg-brand-hover transition-colors shadow-2xs cursor-pointer"
+                                          >
+                                            Zapisz
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingInstallationService(null)}
+                                            className="px-2 py-1 text-slate-500 hover:text-slate-800 text-xs font-medium cursor-pointer"
+                                          >
+                                            Anuluj
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-bold text-brand text-sm">
+                                            {formatPLN(totals.installationNet)}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingInstallationService(serviceName);
+                                              setInlineInstallationInput(String(Math.round(totals.installationNet)));
+                                            }}
+                                            className="p-1 rounded-md text-slate-400 hover:text-brand hover:bg-brand/10 transition-colors cursor-pointer"
+                                            title="Zmień kwotę montażu dla tej pozycji"
+                                          >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </button>
+                                          {totals.isInstallationOverridden && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setCustomInstallationOverrides((prev) => {
+                                                  const next = { ...prev };
+                                                  delete next[serviceName];
+                                                  return next;
+                                                });
+                                              }}
+                                              className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                                              title="Przywróć kwotę montażu z kalkulatora"
+                                            >
+                                              <RotateCcw className="w-3.5 h-3.5" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
                               )}
                             </div>
                           )}
@@ -1987,36 +2122,6 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
                       Pliki wgrane do szansy sprzedaży (zdjęcia, projekty, rzuty)
                     </p>
                   </div>
-
-                  {Object.values(serviceConfigurationsMap).some((cfg) => cfg.offerText) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const texts = Object.values(serviceConfigurationsMap)
-                          .map((cfg) => cfg.offerText)
-                          .filter(Boolean)
-                          .join("\n\n---\n\n");
-                        if (texts) {
-                          navigator.clipboard.writeText(texts);
-                          setCopiedOfferText(true);
-                          setTimeout(() => setCopiedOfferText(false), 2000);
-                        }
-                      }}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-brand/30 bg-brand/10 hover:bg-brand/20 text-brand text-xs font-semibold transition-colors shadow-2xs cursor-pointer self-start sm:self-auto"
-                    >
-                      {copiedOfferText ? (
-                        <>
-                          <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
-                          <span>Skopiowano treść oferty!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4 text-brand" />
-                          <span>Kopiuj pełną treść oferty</span>
-                        </>
-                      )}
-                    </button>
-                  )}
                 </div>
 
                 {/* Grid załączników z podglądem */}
@@ -2139,7 +2244,7 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
               </div>
 
               {/* ── 6. PRZYCISKI AKCJI (CTA) ── */}
-              <div className="flex items-center justify-between pt-5 border-t border-[var(--line)]">
+              <div className="flex items-center justify-between pt-4 border-t border-[var(--line)]">
                 <button
                   type="button"
                   onClick={handlePrevStep}
@@ -2148,24 +2253,57 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
                   ← Wstecz (adres i szczegóły)
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={submitting || uploading}
-                  className="flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-brand text-white text-base font-bold hover:bg-brand-hover transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Tworzenie szansy…</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-5 h-5 text-white stroke-[2.5]" />
-                      <span>Utwórz szansę sprzedaży</span>
-                    </>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                  {Object.values(serviceConfigurationsMap).some((cfg) => cfg?.offerText) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const texts = selectedServices
+                          .map((srv) => serviceConfigurationsMap[srv]?.offerText)
+                          .filter(Boolean)
+                          .join("\n\n---\n\n");
+                        if (texts) {
+                          navigator.clipboard.writeText(texts);
+                          setCopiedOfferText(true);
+                          setTimeout(() => setCopiedOfferText(false), 2500);
+                        }
+                      }}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-brand/30 bg-brand/5 hover:bg-brand/10 text-brand text-sm font-semibold transition-all shadow-2xs cursor-pointer"
+                      title="Kopiuj pełną treść oferty ze wszystkimi pozycjami"
+                    >
+                      {copiedOfferText ? (
+                        <>
+                          <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+                          <span className="text-emerald-700">Skopiowano treść!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 text-brand" />
+                          <span>Kopiuj treść oferty</span>
+                        </>
+                      )}
+                    </button>
                   )}
-                </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={submitting || uploading}
+                    className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-hover transition-colors shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Tworzenie…</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-white stroke-[2.5]" />
+                        <span>Utwórz szansę sprzedaży</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}
