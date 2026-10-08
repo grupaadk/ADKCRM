@@ -2059,13 +2059,10 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
                                     );
                                   }
                                   return (
-                                    <div className="text-slate-600 space-y-0.5">
+                                    <div className="text-slate-600">
                                       <div className="font-medium text-slate-800">
                                         {String(input.widthCm ?? "—")} cm × {String(input.depthCm ?? "—")} cm
                                         {totals.areaSqM > 0 && <span className="text-slate-400 font-normal"> ({totals.areaSqM.toFixed(2)} m²)</span>}
-                                      </div>
-                                      <div className="text-[11px] text-slate-500">
-                                        Poliwęglan komorowy
                                       </div>
                                     </div>
                                   );
