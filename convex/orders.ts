@@ -291,6 +291,19 @@ export const create = mutation({
     investmentApartmentNumber: v.optional(v.string()),
     investmentPostalCode: v.optional(v.string()),
     investmentCity: v.optional(v.string()),
+    serviceConfigurations: v.optional(
+      v.array(
+        v.object({
+          serviceName: v.string(),
+          calculatorType: v.optional(v.string()),
+          input: v.any(),
+          result: v.any(),
+          offerText: v.optional(v.string()),
+          updatedAt: v.number(),
+          updatedBy: v.optional(v.string()),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -1736,4 +1749,50 @@ export const markSupplierNotesAsRead = mutation({
     }
   },
 });
+
+export const updateServiceConfigurations = mutation({
+  args: {
+    orderId: v.id("orders"),
+    serviceConfigurations: v.array(
+      v.object({
+        serviceName: v.string(),
+        calculatorType: v.optional(v.string()),
+        input: v.any(),
+        result: v.any(),
+        offerText: v.optional(v.string()),
+        updatedAt: v.number(),
+        updatedBy: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
+    const order = await ctx.db.get(args.orderId);
+    if (!order) {
+      throw new ConvexError("Nie znaleziono szansy/zlecenia");
+    }
+
+    const currentHistory = order.serviceConfigurationsHistory ?? [];
+    const newHistory = [...currentHistory];
+
+    for (const config of args.serviceConfigurations) {
+      newHistory.push({
+        serviceName: config.serviceName,
+        input: config.input,
+        result: config.result,
+        updatedAt: config.updatedAt || Date.now(),
+        updatedBy: config.updatedBy || (user.displayName ?? user.email ?? userId),
+      });
+    }
+
+    await ctx.db.patch(args.orderId, {
+      serviceConfigurations: args.serviceConfigurations,
+      serviceConfigurationsHistory: newHistory.slice(-50),
+    });
+
+    return args.orderId;
+  },
+});
+
 

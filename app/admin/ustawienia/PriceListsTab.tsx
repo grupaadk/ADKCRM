@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useQuery, useAction } from "convex/react";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
   FileSpreadsheet,
@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   Table,
+  Save,
 } from "lucide-react";
 import {
   POLYCARBONATE_CONFIG,
@@ -41,11 +42,11 @@ type PriceCategory =
 const CATEGORIES: Array<{ id: PriceCategory; label: string; available: boolean; configKey: string }> = [
   { id: "polycarbonate", label: "Zadaszenia Poliwęglan", available: true, configKey: POLYCARBONATE_CONFIG.key },
   { id: "walls", label: "Ściany przesuwne, stałe, trójkąt", available: true, configKey: WALLS_CONFIG.key },
+  { id: "assembly", label: "Stawki Montażu & Narzut", available: true, configKey: "assembly" },
   { id: "glass", label: "Zadaszenia Szkło", available: false, configKey: "glass_roofs" },
   { id: "pergolas", label: "Pergole Lamelowe", available: false, configKey: "pergolas" },
   { id: "zip_screens", label: "Rolety ZIP / Ekrany", available: false, configKey: "zip_screens" },
   { id: "accessories", label: "Akcesoria & Oświetlenie", available: false, configKey: "accessories" },
-  { id: "assembly", label: "Stawki Montażu", available: false, configKey: "assembly" },
 ];
 
 export function PriceListsTab() {
@@ -649,8 +650,10 @@ export function PriceListsTab() {
         </div>
       )}
 
+      {activeCategory === "assembly" && <AssemblyParamsEditor isAdmin={isAdmin} />}
+
       {/* ─── Upcoming Categories Placeholder ─────────────────────────────────── */}
-      {activeCategory !== "polycarbonate" && activeCategory !== "walls" && (
+      {activeCategory !== "polycarbonate" && activeCategory !== "walls" && activeCategory !== "assembly" && (
         <div className="bg-[var(--panel)] rounded-2xl border border-[var(--line)] p-12 text-center space-y-3 shadow-2xs">
           <div className="w-12 h-12 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand mx-auto">
             <Sparkles className="w-6 h-6" />
@@ -663,6 +666,221 @@ export function PriceListsTab() {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function AssemblyParamsEditor({ isAdmin }: { isAdmin: boolean }) {
+  const assemblyParams = useQuery(api.terraceAssemblyParams.getParams);
+  const updateParams = useMutation(api.terraceAssemblyParams.updateParams);
+
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const [markupPercent, setMarkupPercent] = useState<number>(52);
+  const [standardRates, setStandardRates] = useState<
+    Array<{ maxAreaSqM: number; rateNetPerSqM: number; costNetPerSqM: number }>
+  >([]);
+  const [nonStandardRates, setNonStandardRates] = useState<
+    Array<{ maxAreaSqM: number; rateNetPerSqM: number; costNetPerSqM: number }>
+  >([]);
+
+  useEffect(() => {
+    if (assemblyParams) {
+      setMarkupPercent(assemblyParams.defaultMarkupPercent ?? 52);
+      setStandardRates(assemblyParams.assemblyRatesStandard ?? []);
+      setNonStandardRates(assemblyParams.assemblyRatesNonStandard ?? []);
+    }
+  }, [assemblyParams]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setFeedback(null);
+    try {
+      await updateParams({
+        defaultMarkupPercent: Number(markupPercent),
+        assemblyRatesStandard: standardRates,
+        assemblyRatesNonStandard: nonStandardRates,
+      });
+      setFeedback({ type: "success", message: "Parametry montażu i narzutu zostały zapisane." });
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err.message || "Błąd podczas zapisywania parametrów." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRateChange = (
+    type: "standard" | "nonstandard",
+    index: number,
+    field: "rateNetPerSqM" | "costNetPerSqM",
+    value: number
+  ) => {
+    if (type === "standard") {
+      const copy = [...standardRates];
+      copy[index] = { ...copy[index], [field]: value };
+      setStandardRates(copy);
+    } else {
+      const copy = [...nonStandardRates];
+      copy[index] = { ...copy[index], [field]: value };
+      setNonStandardRates(copy);
+    }
+  };
+
+  if (!assemblyParams) {
+    return <div className="p-8 text-center text-xs text-[var(--text-mute)]">Wczytywanie parametrów montażu...</div>;
+  }
+
+  return (
+    <div className="space-y-6 bg-[var(--panel)] p-6 rounded-2xl border border-[var(--line)] shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--line-2)] pb-4">
+        <div>
+          <h3 className="text-base font-bold text-[var(--text-strong)]">Ustawienia stawek montażu i narzutu</h3>
+          <p className="text-xs text-[var(--text-mute)] mt-0.5">
+            Parametry używane przez automatyczny silnik wyceny zadaszeń poliwęglanowych.
+          </p>
+        </div>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-5 py-2.5 bg-brand text-white rounded-xl text-xs font-semibold hover:bg-brand-hover transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+            <span>{saving ? "Zapisywanie..." : "Zapisz parametry"}</span>
+          </button>
+        )}
+      </div>
+
+      {feedback && (
+        <div
+          className={`p-4 rounded-xl text-xs font-medium border flex items-center justify-between gap-3 ${
+            feedback.type === "success"
+              ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+              : "bg-amber-50 text-amber-900 border-amber-200"
+          }`}
+        >
+          <span>{feedback.message}</span>
+          <button type="button" onClick={() => setFeedback(null)} className="text-xs font-bold opacity-60">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Material Markup Field */}
+      <div className="max-w-xs space-y-1.5">
+        <label className="block text-xs font-bold text-[var(--text-strong)]">
+          Domyślny narzut materiałowy (%):
+        </label>
+        <input
+          type="number"
+          value={markupPercent}
+          disabled={!isAdmin}
+          onChange={(e) => setMarkupPercent(parseFloat(e.target.value) || 0)}
+          className="w-full rounded-xl border border-[var(--line-2)] px-3.5 py-2 text-sm font-semibold text-[var(--text-strong)] bg-white"
+        />
+        <p className="text-[11px] text-[var(--text-mute)]">Domyślnie w Excelu wynosi 52%.</p>
+      </div>
+
+      {/* Assembly Tables */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+        {/* Standard Rates */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-bold text-[var(--text-strong)] flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+            Stawki Montażu — STANDARD (cm)
+          </h4>
+          <div className="rounded-xl border border-[var(--line-2)] overflow-hidden">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-[var(--panel-2)] font-semibold border-b border-[var(--line-2)] text-[var(--text-dim)]">
+                <tr>
+                  <th className="p-2.5">Powierzchnia do</th>
+                  <th className="p-2.5 text-right">Cena montażu (zł/m²)</th>
+                  <th className="p-2.5 text-right">Koszt montażu (Kc zł/m²)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--line-2)]">
+                {standardRates.map((row, idx) => (
+                  <tr key={idx}>
+                    <td className="p-2.5 font-medium">do {row.maxAreaSqM >= 999 ? "powyżej 25" : `${row.maxAreaSqM} m²`}</td>
+                    <td className="p-2.5 text-right">
+                      <input
+                        type="number"
+                        disabled={!isAdmin}
+                        value={row.rateNetPerSqM}
+                        onChange={(e) =>
+                          handleRateChange("standard", idx, "rateNetPerSqM", parseFloat(e.target.value) || 0)
+                        }
+                        className="w-24 text-right rounded-lg border border-[var(--line-2)] px-2 py-1 text-xs font-semibold"
+                      />
+                    </td>
+                    <td className="p-2.5 text-right">
+                      <input
+                        type="number"
+                        disabled={!isAdmin}
+                        value={row.costNetPerSqM}
+                        onChange={(e) =>
+                          handleRateChange("standard", idx, "costNetPerSqM", parseFloat(e.target.value) || 0)
+                        }
+                        className="w-24 text-right rounded-lg border border-[var(--line-2)] px-2 py-1 text-xs font-semibold"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Non-standard Rates */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-bold text-[var(--text-strong)] flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+            Stawki Montażu — NIESTANDARD (cm)
+          </h4>
+          <div className="rounded-xl border border-[var(--line-2)] overflow-hidden">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-[var(--panel-2)] font-semibold border-b border-[var(--line-2)] text-[var(--text-dim)]">
+                <tr>
+                  <th className="p-2.5">Powierzchnia do</th>
+                  <th className="p-2.5 text-right">Cena montażu (zł/m²)</th>
+                  <th className="p-2.5 text-right">Koszt montażu (Kc zł/m²)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--line-2)]">
+                {nonStandardRates.map((row, idx) => (
+                  <tr key={idx}>
+                    <td className="p-2.5 font-medium">do {row.maxAreaSqM >= 999 ? "powyżej 25" : `${row.maxAreaSqM} m²`}</td>
+                    <td className="p-2.5 text-right">
+                      <input
+                        type="number"
+                        disabled={!isAdmin}
+                        value={row.rateNetPerSqM}
+                        onChange={(e) =>
+                          handleRateChange("nonstandard", idx, "rateNetPerSqM", parseFloat(e.target.value) || 0)
+                        }
+                        className="w-24 text-right rounded-lg border border-[var(--line-2)] px-2 py-1 text-xs font-semibold"
+                      />
+                    </td>
+                    <td className="p-2.5 text-right">
+                      <input
+                        type="number"
+                        disabled={!isAdmin}
+                        value={row.costNetPerSqM}
+                        onChange={(e) =>
+                          handleRateChange("nonstandard", idx, "costNetPerSqM", parseFloat(e.target.value) || 0)
+                        }
+                        className="w-24 text-right rounded-lg border border-[var(--line-2)] px-2 py-1 text-xs font-semibold"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

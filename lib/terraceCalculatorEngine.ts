@@ -1,9 +1,10 @@
 export interface TerraceInput {
-  depthCm: number; // Głębokość w cm (np. 550)
-  widthCm: number; // Szerokość w cm (np. 1106)
+  depthCm: number; // Głębokość w cm wpisana przez użytkownika (np. 350)
+  widthCm: number; // Szerokość w cm wpisana przez użytkownika (np. 506)
   materialMarkupPercent?: number; // Domyślnie 52 (%)
-  customAssemblyRateNetPerSqM?: number | null; // Opcjonalna własna stawka montażu za m²
+  customAssemblyRateNetPerSqM?: number | null; // Opcjonalna własna stawka montażu za m² (zł/m²)
   vatRatePercent?: number; // 8 lub 23 (%)
+  clientType?: "individual" | "business"; // Służy do automatycznego doboru VAT (individual: 8%, business: 23%)
 }
 
 export interface OptionResult {
@@ -11,15 +12,29 @@ export interface OptionResult {
   roofType: "polycarbonate" | "glass_standard" | "glass_nonstandard";
   materialCostNet: number; // Materiał netto z narzutem
   assemblyCostNet: number; // Łączny montaż netto
-  assemblyRateNetPerSqM: number; // Stawka montażu za m²
+  assemblyRateNetPerSqM: number; // Stawka montażu dla klienta za m²
+  assemblyCostRateNetPerSqM: number; // Stawka kosztu montażu za m² (stawka - 50 zł)
   totalNet: number; // Razem netto (Materiał + Montaż)
   totalGross: number; // Razem brutto (Z wybranym VAT)
   pricePerSqMNet: number; // Cena netto za m²
   pricePerSqMGross: number; // Cena brutto za m²
-  costBasisKc: number; // Koszt własny (Kc)
-  profitZ: number; // Zysk (Z)
-  marginPercent: number; // Marża %
-  extraGlassGrossDelta?: number; // Szacowana dopłata brutto względem poliwęglanu
+  costBasisKc: number; // Koszt własny Kc (Cena bazowa + Koszt montażu)
+  profitZ: number; // Zysk Z (Razem Netto - Koszt Własny Kc)
+  marginPercent: number; // Marża % (Zysk Z / Koszt Własny Kc)
+  extraGlassGrossDelta?: number;
+}
+
+export interface AssemblyRateThreshold {
+  maxAreaSqM: number;
+  rateNetPerSqM: number;
+  costNetPerSqM: number;
+}
+
+export interface DynamicCalculationParams {
+  defaultMarkupPercent?: number;
+  assemblyRatesStandard?: AssemblyRateThreshold[];
+  assemblyRatesNonStandard?: AssemblyRateThreshold[];
+  customPriceMatrix?: Record<string, number>; // Mapa np. { "STANDARD_300x306": 3358 }
 }
 
 export interface TerraceCalculationResult {
@@ -33,9 +48,8 @@ export interface TerraceCalculationResult {
     isOutOfRange: boolean;
     areaSqM: number;
     suggestedAssemblyRateNetPerSqM: number;
-    suggestedGlassAssemblyRateNetPerSqM: number;
+    suggestedAssemblyCostRateNetPerSqM: number;
     effectiveAssemblyRateNetPerSqM: number;
-    effectiveGlassAssemblyRateNetPerSqM: number;
     materialMarkupPercent: number;
     vatRatePercent: number;
     lookupKey: string;
@@ -43,9 +57,8 @@ export interface TerraceCalculationResult {
   };
   options: {
     polycarbonate: OptionResult;
-    glassStandard: OptionResult;
-    glassNonStandard: OptionResult;
   };
+  offerText: string;
   warning?: string;
 }
 
@@ -130,6 +143,10 @@ export const STANDARD_WIDTHS = [
   206, 306, 406, 506, 606, 706, 806, 906, 1006, 1106, 1206,
 ];
 
+/**
+ * Szuka odpowiedniej głębokości do wyceny w cenniku (zaokrąglanie w górę).
+ * Formuła Excel: IF(C5<=300,300,IF(C5<=350,350,IF(C5<=400,400,IF(C5<=450,450,IF(C5<=500,500,IF(C5<=550,550,600))))))
+ */
 export function findMatchedDepth(depthCm: number): number {
   for (const d of STANDARD_DEPTHS) {
     if (depthCm <= d) return d;
@@ -137,15 +154,23 @@ export function findMatchedDepth(depthCm: number): number {
   return 600;
 }
 
+/**
+ * Szuka odpowiedniej szerokości do wyceny w cenniku (zaokrąglanie w górę).
+ * Formuła Excel: IF(C6<=206,206,IF(C6<=306,306,IF(C6<=406,406,IF(C6<=506,506,IF(C6<=606,606,IF(C6<=706,706,IF(C6<=806,806,IF(C6<=906,906,IF(C6<=1006,1006,IF(C6<=1106,1106,1206))))))))))
+ */
 export function findMatchedWidth(widthCm: number): number {
+  if (widthCm <= 206) return 306; // cennik startuje od 306 dla opcji poliwęglan
   for (const w of STANDARD_WIDTHS) {
-    if (widthCm <= w) return w;
+    if (w >= 306 && widthCm <= w) return w;
   }
   return 1206;
 }
 
+/**
+ * Określa, czy podany wymiar klienta spełnia wymóg wymiaru standardowego.
+ * Formuła Excel: IF(AND(C5>=300, C5<=400, MOD(C5,50)=0), MOD(C6-6,100)=0), "STANDARD", "NIESTANDARD")
+ */
 export function isStandardDimension(depthCm: number, widthCm: number): boolean {
-  // Wg Excela: IF(AND(C5=C5, AND(C5>=300, C5<=400, MOD(C5,50)=0), MOD(C6-6,100)=0), "STANDARD", "NIESTANDARD")
   const isDepthStd = depthCm >= 300 && depthCm <= 400 && depthCm % 50 === 0;
   const isWidthStd = (widthCm - 6) % 100 === 0;
   return isDepthStd && isWidthStd;
@@ -155,70 +180,111 @@ export function isOutOfRange(depthCm: number, widthCm: number): boolean {
   return depthCm > 600 || widthCm > 1206 || depthCm < 200 || widthCm < 200;
 }
 
+/**
+ * Wyznacza sugerowaną stawkę montażu netto za m² oraz stawkę kosztu montażu (stawka - 50 zł).
+ */
 export function getSuggestedAssemblyRate(
   areaSqM: number,
-  isStandard: boolean
-): number {
+  isStandard: boolean,
+  customThresholdsStandard?: AssemblyRateThreshold[],
+  customThresholdsNonStandard?: AssemblyRateThreshold[]
+): { rateNetPerSqM: number; costNetPerSqM: number } {
+  const thresholds = isStandard ? customThresholdsStandard : customThresholdsNonStandard;
+
+  if (thresholds && thresholds.length > 0) {
+    for (const item of thresholds) {
+      if (areaSqM <= item.maxAreaSqM) {
+        return { rateNetPerSqM: item.rateNetPerSqM, costNetPerSqM: item.costNetPerSqM };
+      }
+    }
+    const last = thresholds[thresholds.length - 1];
+    return { rateNetPerSqM: last.rateNetPerSqM, costNetPerSqM: last.costNetPerSqM };
+  }
+
+  // Wartości z Excela (domyślne)
   if (isStandard) {
-    if (areaSqM <= 10) return 400;
-    if (areaSqM <= 15) return 350;
-    if (areaSqM <= 20) return 300;
-    if (areaSqM <= 25) return 250;
-    return 200;
+    if (areaSqM <= 10) return { rateNetPerSqM: 400, costNetPerSqM: 350 };
+    if (areaSqM <= 15) return { rateNetPerSqM: 350, costNetPerSqM: 300 };
+    if (areaSqM <= 20) return { rateNetPerSqM: 300, costNetPerSqM: 250 };
+    if (areaSqM <= 25) return { rateNetPerSqM: 250, costNetPerSqM: 200 };
+    return { rateNetPerSqM: 200, costNetPerSqM: 180 };
   } else {
-    if (areaSqM <= 10) return 450;
-    if (areaSqM <= 15) return 400;
-    if (areaSqM <= 20) return 350;
-    if (areaSqM <= 25) return 300;
-    return 250;
+    if (areaSqM <= 10) return { rateNetPerSqM: 450, costNetPerSqM: 400 };
+    if (areaSqM <= 15) return { rateNetPerSqM: 400, costNetPerSqM: 350 };
+    if (areaSqM <= 20) return { rateNetPerSqM: 350, costNetPerSqM: 300 };
+    if (areaSqM <= 25) return { rateNetPerSqM: 300, costNetPerSqM: 250 };
+    return { rateNetPerSqM: 250, costNetPerSqM: 200 };
   }
 }
 
+/**
+ * Kalkulator wyceny zadaszeń poliwęglanowych — 1:1 z arkuszem Excela.
+ */
 export function calculateTerraceEstimate(
-  input: TerraceInput
+  input: TerraceInput,
+  dynamicParams?: DynamicCalculationParams
 ): TerraceCalculationResult {
   const depth = input.depthCm;
   const width = input.widthCm;
+
+  // Narzut domyślny z parametrów dynamicznych lub z wejścia / domyślny 52%
   const markupPercent =
-    input.materialMarkupPercent !== undefined ? input.materialMarkupPercent / 100 : 0.52;
-  const vatRate = (input.vatRatePercent ?? 8) / 100;
+    input.materialMarkupPercent !== undefined
+      ? input.materialMarkupPercent / 100
+      : (dynamicParams?.defaultMarkupPercent ?? 52) / 100;
+
+  // VAT: automatycznie z typu klienta (individual: 8%, business: 23%) lub przekazany wprost
+  let vatRate = 0.08;
+  if (input.vatRatePercent !== undefined) {
+    vatRate = input.vatRatePercent / 100;
+  } else if (input.clientType === "business") {
+    vatRate = 0.23;
+  }
 
   const outOfRange = isOutOfRange(depth, width);
   const matchedDepth = findMatchedDepth(depth);
   const matchedWidth = findMatchedWidth(width);
 
   const series: "STANDARD" | "PRO+" = matchedDepth <= 400 ? "STANDARD" : "PRO+";
-  const isStdDim = isStandardDimension(matchedDepth, matchedWidth);
+  const isStdDim = isStandardDimension(depth, width);
 
   const lookupKey = `${series}_${matchedDepth}x${matchedWidth}`;
-  const basePriceData = BASE_PRICE_MATRIX[lookupKey] || {
-    area: (matchedDepth * matchedWidth) / 10000,
-    basePriceNet: 0,
-  };
+
+  // Szukanie ceny bazowej materiału netto
+  let basePriceNet = 0;
+  if (dynamicParams?.customPriceMatrix && dynamicParams.customPriceMatrix[lookupKey] !== undefined) {
+    basePriceNet = dynamicParams.customPriceMatrix[lookupKey];
+  } else if (BASE_PRICE_MATRIX[lookupKey]) {
+    basePriceNet = BASE_PRICE_MATRIX[lookupKey].basePriceNet;
+  }
 
   const areaSqM = (depth * width) / 10000;
-  const basePriceNet = basePriceData.basePriceNet;
 
-  // Poliwęglan używa stawki montażu w zależności od isStdDim (komórka B11 w Excelu)
-  const suggestedAssemblyRate = getSuggestedAssemblyRate(areaSqM, isStdDim);
+  // Pobranie stawek montażu
+  const suggestedAssemblyRates = getSuggestedAssemblyRate(
+    areaSqM,
+    isStdDim,
+    dynamicParams?.assemblyRatesStandard,
+    dynamicParams?.assemblyRatesNonStandard
+  );
+
   const effectiveAssemblyRate =
-    input.customAssemblyRateNetPerSqM ?? suggestedAssemblyRate;
-  const totalAssemblyCostNet = areaSqM * effectiveAssemblyRate;
+    input.customAssemblyRateNetPerSqM ?? suggestedAssemblyRates.rateNetPerSqM;
+  const effectiveAssemblyCostRate =
+    input.customAssemblyRateNetPerSqM !== undefined && input.customAssemblyRateNetPerSqM !== null
+      ? Math.max(0, input.customAssemblyRateNetPerSqM - 50)
+      : suggestedAssemblyRates.costNetPerSqM;
 
-  // Szkło w Excelu (komórka C11) ZAWSZE używa tabeli stawek niestandardowych (G4:G8) dla montażu!
-  const suggestedGlassAssemblyRate = getSuggestedAssemblyRate(areaSqM, false);
-  const effectiveGlassAssemblyRate =
-    input.customAssemblyRateNetPerSqM ?? suggestedGlassAssemblyRate;
-  const glassAssemblyCostNet = areaSqM * effectiveGlassAssemblyRate;
+  // Obliczenia finansowe Poliwęglan (zgodnie z arkuszem)
+  const polyMaterialCostNet = basePriceNet * (1 + markupPercent); // B13 = B12 * (1 + B7)
+  const totalAssemblyCostNet = areaSqM * effectiveAssemblyRate; // B14 = B10 * B11
+  const polyTotalNet = polyMaterialCostNet + totalAssemblyCostNet; // B15 = B13 + B14
+  const polyTotalGross = polyTotalNet * (1 + vatRate); // B19 = B18 * (1 + VAT)
 
-  // 1. Poliwęglan (Polycarbonate)
-  const polyMaterialCostNet = basePriceNet * (1 + markupPercent);
-  const polyTotalNet = polyMaterialCostNet + totalAssemblyCostNet;
-  const polyTotalGross = polyTotalNet * (1 + vatRate);
-  const polyAssemblyCostKc = areaSqM * (effectiveAssemblyRate - 50); // H18 = B11 - 50
-  const polyTotalCostKc = basePriceNet + polyAssemblyCostKc; // F18 = B12 + H19
-  const polyProfitZ = polyTotalNet - polyTotalCostKc; // F20 = F19 - F18
-  const polyMarginPercent = polyTotalCostKc > 0 ? polyProfitZ / polyTotalCostKc : 0;
+  const polyAssemblyCostKc = areaSqM * effectiveAssemblyCostRate; // H19 = B10 * (B11 - 50)
+  const costBasisKc = basePriceNet + polyAssemblyCostKc; // F18 = B12 + H19
+  const profitZ = polyTotalNet - costBasisKc; // F20 = F19 - F18
+  const marginPercent = costBasisKc > 0 ? (profitZ / costBasisKc) * 100 : 0; // F21 = F20 / F18
 
   const polycarbonateResult: OptionResult = {
     title: "Poliwęglan",
@@ -226,84 +292,17 @@ export function calculateTerraceEstimate(
     materialCostNet: polyMaterialCostNet,
     assemblyCostNet: totalAssemblyCostNet,
     assemblyRateNetPerSqM: effectiveAssemblyRate,
+    assemblyCostRateNetPerSqM: effectiveAssemblyCostRate,
     totalNet: polyTotalNet,
     totalGross: polyTotalGross,
     pricePerSqMNet: areaSqM > 0 ? polyTotalNet / areaSqM : 0,
     pricePerSqMGross: areaSqM > 0 ? polyTotalGross / areaSqM : 0,
-    costBasisKc: polyTotalCostKc,
-    profitZ: polyProfitZ,
-    marginPercent: polyMarginPercent * 100,
+    costBasisKc,
+    profitZ,
+    marginPercent,
   };
 
-  // 2. Szkło Standard (Glass Standard)
-  // Formuła z Excela C12: =IF(C7="STANDARD", IF(B5<=300, B12*(1+0.44), IF(B5<=350, B12*(1+0.57), B12*(1+0.68))), IF(B5<=300, B12*(1+0.806), IF(B5<=350, B12*(1+0.996), B12*(1+1.271))))
-  let glassStdMaterialBaseNet = 0;
-  if (isStdDim) {
-    if (matchedDepth <= 300) glassStdMaterialBaseNet = basePriceNet * (1 + 0.44);
-    else if (matchedDepth <= 350) glassStdMaterialBaseNet = basePriceNet * (1 + 0.57);
-    else glassStdMaterialBaseNet = basePriceNet * (1 + 0.68);
-  } else {
-    if (matchedDepth <= 300) glassStdMaterialBaseNet = basePriceNet * (1 + 0.806);
-    else if (matchedDepth <= 350) glassStdMaterialBaseNet = basePriceNet * (1 + 0.996);
-    else glassStdMaterialBaseNet = basePriceNet * (1 + 1.271);
-  }
-
-  const glassStdMaterialCostNet = glassStdMaterialBaseNet * (1 + markupPercent);
-  const glassStdTotalNet = glassStdMaterialCostNet + glassAssemblyCostNet;
-  const glassStdTotalGross = glassStdTotalNet * (1 + vatRate);
-  const glassStdAssemblyCostKc = areaSqM * (effectiveGlassAssemblyRate - 50);
-  const glassStdTotalCostKc = glassStdMaterialBaseNet + glassStdAssemblyCostKc;
-  const glassStdProfitZ = glassStdTotalNet - glassStdTotalCostKc;
-  const glassStdMarginPercent =
-    glassStdTotalCostKc > 0 ? glassStdProfitZ / glassStdTotalCostKc : 0;
-
-  const glassStandardResult: OptionResult = {
-    title: "Szkło Standard",
-    roofType: "glass_standard",
-    materialCostNet: glassStdMaterialCostNet,
-    assemblyCostNet: glassAssemblyCostNet,
-    assemblyRateNetPerSqM: effectiveGlassAssemblyRate,
-    totalNet: glassStdTotalNet,
-    totalGross: glassStdTotalGross,
-    pricePerSqMNet: areaSqM > 0 ? glassStdTotalNet / areaSqM : 0,
-    pricePerSqMGross: areaSqM > 0 ? glassStdTotalGross / areaSqM : 0,
-    costBasisKc: glassStdTotalCostKc,
-    profitZ: glassStdProfitZ,
-    marginPercent: glassStdMarginPercent * 100,
-    extraGlassGrossDelta: glassStdTotalGross - polyTotalGross,
-  };
-
-  // 3. Szkło Niestandard (Glass Non-Standard / Niestandardowe dopłata)
-  let glassNonStdMaterialBaseNet = 0;
-  if (matchedDepth <= 300) glassNonStdMaterialBaseNet = basePriceNet * (1 + 0.806);
-  else if (matchedDepth <= 350) glassNonStdMaterialBaseNet = basePriceNet * (1 + 0.996);
-  else glassNonStdMaterialBaseNet = basePriceNet * (1 + 1.271);
-
-  const glassNonStdMaterialCostNet = glassNonStdMaterialBaseNet * (1 + markupPercent);
-  const glassNonStdTotalNet = glassNonStdMaterialCostNet + glassAssemblyCostNet;
-  const glassNonStdTotalGross = glassNonStdTotalNet * (1 + vatRate);
-  const glassNonStdTotalCostKc = glassNonStdMaterialBaseNet + glassStdAssemblyCostKc;
-  const glassNonStdProfitZ = glassNonStdTotalNet - glassNonStdTotalCostKc;
-  const glassNonStdMarginPercent =
-    glassNonStdTotalCostKc > 0 ? glassNonStdProfitZ / glassNonStdTotalCostKc : 0;
-
-  const glassNonStandardResult: OptionResult = {
-    title: "Szkło Niestandard",
-    roofType: "glass_nonstandard",
-    materialCostNet: glassNonStdMaterialCostNet,
-    assemblyCostNet: glassAssemblyCostNet,
-    assemblyRateNetPerSqM: effectiveGlassAssemblyRate,
-    totalNet: glassNonStdTotalNet,
-    totalGross: glassNonStdTotalGross,
-    pricePerSqMNet: areaSqM > 0 ? glassNonStdTotalNet / areaSqM : 0,
-    pricePerSqMGross: areaSqM > 0 ? glassNonStdTotalGross / areaSqM : 0,
-    costBasisKc: glassNonStdTotalCostKc,
-    profitZ: glassNonStdProfitZ,
-    marginPercent: glassNonStdMarginPercent * 100,
-    extraGlassGrossDelta: glassNonStdTotalGross - polyTotalGross,
-  };
-
-  return {
+  const calcResult: TerraceCalculationResult = {
     input: {
       depthCm: depth,
       widthCm: width,
@@ -313,10 +312,9 @@ export function calculateTerraceEstimate(
       isStandardDimension: isStdDim,
       isOutOfRange: outOfRange,
       areaSqM,
-      suggestedAssemblyRateNetPerSqM: suggestedAssemblyRate,
-      suggestedGlassAssemblyRateNetPerSqM: suggestedGlassAssemblyRate,
+      suggestedAssemblyRateNetPerSqM: suggestedAssemblyRates.rateNetPerSqM,
+      suggestedAssemblyCostRateNetPerSqM: suggestedAssemblyRates.costNetPerSqM,
       effectiveAssemblyRateNetPerSqM: effectiveAssemblyRate,
-      effectiveGlassAssemblyRateNetPerSqM: effectiveGlassAssemblyRate,
       materialMarkupPercent: markupPercent * 100,
       vatRatePercent: vatRate * 100,
       lookupKey,
@@ -324,13 +322,15 @@ export function calculateTerraceEstimate(
     },
     options: {
       polycarbonate: polycarbonateResult,
-      glassStandard: glassStandardResult,
-      glassNonStandard: glassNonStandardResult,
     },
+    offerText: "",
     warning: outOfRange
       ? "Uwaga: Wprowadzone wymiary przekraczają standardową matrycę cennikową (maksymalnie 600x1206 cm). Wymagana wycena indywidualna."
       : undefined,
   };
+
+  calcResult.offerText = generateOfferText(calcResult);
+  return calcResult;
 }
 
 export function formatPLN(amount: number): string {
@@ -343,30 +343,22 @@ export function formatPLN(amount: number): string {
 
 export function generateOfferText(res: TerraceCalculationResult): string {
   const { input, options } = res;
-  return `WSTĘPNA WYCENA ZADASZENIA ALUMINIOWEGO (GRUPA ADK)
+  return `WSTĘPNA WYCENA ZADASZENIA TARASU (GRUPA ADK)
 --------------------------------------------------
 Parametry zamówienia:
-- Wymiary: ${input.widthCm} cm (szerokość) x ${input.depthCm} cm (głębokość)
+- Wymiary otworu: ${input.widthCm} cm (szerokość) x ${input.depthCm} cm (głębokość)
+- Wymiar w cenniku: ${input.matchedWidthCm} cm x ${input.matchedDepthCm} cm (${input.series})
+- Typ wymiaru: ${input.isStandardDimension ? "Wymiar Standardowy" : "Wymiar Niestandardowy"}
 - Powierzchnia: ${input.areaSqM.toFixed(2)} m²
-- Seria konstrukcji: ${input.series} (${input.isStandardDimension ? "Wymiar Standardowy" : "Wymiar Niestandardowy"})
 - Stawka montażu: ${input.effectiveAssemblyRateNetPerSqM} zł/m² netto
 - Stawka VAT: ${input.vatRatePercent}%
 
-OPCJE POKRYCIA DACHU:
-
-1. POLIWĘGLAN (Cena z montażem):
-   - Netto: ${formatPLN(options.polycarbonate.totalNet)} (${formatPLN(options.polycarbonate.pricePerSqMNet)}/m²)
-   - Brutto (VAT ${input.vatRatePercent}%): ${formatPLN(options.polycarbonate.totalGross)} (${formatPLN(options.polycarbonate.pricePerSqMGross)}/m²)
-
-2. SZKŁO HARTO STANDARD (Cena z montażem):
-   - Netto: ${formatPLN(options.glassStandard.totalNet)} (${formatPLN(options.glassStandard.pricePerSqMNet)}/m²)
-   - Brutto (VAT ${input.vatRatePercent}%): ${formatPLN(options.glassStandard.totalGross)} (${formatPLN(options.glassStandard.pricePerSqMGross)}/m²)
-   - Dopłata względem poliwęglanu: +${formatPLN(options.glassStandard.extraGlassGrossDelta || 0)} brutto
-
-3. SZKŁO HARTO NIESTANDARDOWE (Cena z montażem):
-   - Netto: ${formatPLN(options.glassNonStandard.totalNet)} (${formatPLN(options.glassNonStandard.pricePerSqMNet)}/m²)
-   - Brutto (VAT ${input.vatRatePercent}%): ${formatPLN(options.glassNonStandard.totalGross)} (${formatPLN(options.glassNonStandard.pricePerSqMGross)}/m²)
-
+WYCENA DLA POKRYCIA Z POLIWĘGLANU:
+- Materiał z narzutem (netto): ${formatPLN(options.polycarbonate.materialCostNet)}
+- Montaż (netto): ${formatPLN(options.polycarbonate.assemblyCostNet)}
+--------------------------------------------------
+- ŁĄCZNIE NETTO: ${formatPLN(options.polycarbonate.totalNet)} (${formatPLN(options.polycarbonate.pricePerSqMNet)}/m²)
+- ŁĄCZNIE BRUTTO (VAT ${input.vatRatePercent}%): ${formatPLN(options.polycarbonate.totalGross)} (${formatPLN(options.polycarbonate.pricePerSqMGross)}/m²)
 --------------------------------------------------
 Podane kwoty mają charakter wstępnej wyceny i mogą ulec zmianie po dokładnym pomiarze na budowie.`;
 }

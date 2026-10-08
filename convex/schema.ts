@@ -280,6 +280,30 @@ export default defineSchema({
       earningsAmount: v.optional(v.number()), // kwota zarobku (przychód z usługi)
       workDays: v.optional(v.number()),       // ilość dni pracy
     }))),
+    serviceConfigurations: v.optional(
+      v.array(
+        v.object({
+          serviceName: v.string(),
+          calculatorType: v.optional(v.string()),
+          input: v.any(),
+          result: v.any(),
+          offerText: v.optional(v.string()),
+          updatedAt: v.number(),
+          updatedBy: v.optional(v.string()),
+        })
+      )
+    ),
+    serviceConfigurationsHistory: v.optional(
+      v.array(
+        v.object({
+          serviceName: v.string(),
+          input: v.any(),
+          result: v.any(),
+          updatedAt: v.number(),
+          updatedBy: v.optional(v.string()),
+        })
+      )
+    ),
 
     // Dokumenty
     documents: documentSet,
@@ -491,6 +515,32 @@ export default defineSchema({
     profit: v.optional(v.number()),
     workDays: v.optional(v.number()),
     leadSource: v.optional(v.string()),
+    // Konfiguratory wycen usług
+    serviceConfigurations: v.optional(
+      v.array(
+        v.object({
+          serviceName: v.string(),
+          calculatorType: v.string(),
+          input: v.any(),
+          result: v.any(),
+          updatedAt: v.number(),
+          updatedBy: v.optional(v.string()),
+        })
+      )
+    ),
+    serviceConfigurationsHistory: v.optional(
+      v.array(
+        v.object({
+          historyId: v.string(),
+          serviceName: v.string(),
+          calculatorType: v.string(),
+          input: v.any(),
+          result: v.any(),
+          updatedAt: v.number(),
+          updatedBy: v.optional(v.string()),
+        })
+      )
+    ),
   })
     .index("by_client", ["clientId"])
     .index("by_submission", ["submissionId"])
@@ -1326,6 +1376,43 @@ export default defineSchema({
   })
     .index("by_key", ["priceListKey"])
     .index("by_date", ["syncedAt"]),
+
+  terraceAssemblyParams: defineTable({
+    key: v.string(), // "default"
+    defaultMarkupPercent: v.number(), // 52
+    assemblyRatesStandard: v.array(
+      v.object({
+        maxAreaSqM: v.number(),
+        rateNetPerSqM: v.number(),
+        costNetPerSqM: v.number(),
+      })
+    ),
+    assemblyRatesNonStandard: v.array(
+      v.object({
+        maxAreaSqM: v.number(),
+        rateNetPerSqM: v.number(),
+        costNetPerSqM: v.number(),
+      })
+    ),
+    glassAddonsStandard: v.optional(
+      v.array(
+        v.object({
+          maxDepthCm: v.number(),
+          addonNetPerSqM: v.number(),
+        })
+      )
+    ),
+    glassAddonsNonStandard: v.optional(
+      v.array(
+        v.object({
+          maxDepthCm: v.number(),
+          addonNetPerSqM: v.number(),
+        })
+      )
+    ),
+    updatedAt: v.number(),
+    updatedBy: v.optional(v.string()),
+  }).index("by_key", ["key"]),
 });
 
 

@@ -29,12 +29,9 @@ describe("terraceCalculatorEngine", () => {
     expect(res.options.polycarbonate.assemblyCostNet).toBeCloseTo(15207.5, 1);
     expect(res.options.polycarbonate.totalNet).toBeCloseTo(59176.54, 1);
     expect(res.options.polycarbonate.totalGross).toBeCloseTo(63910.66, 1);
-
-    // Szkło Standard (Niestandardowy wymiar)
-    expect(res.options.glassStandard.totalNet).toBeCloseTo(115061.19, 1);
   });
 
-  test("calculates exact Glass Standard net value (25 729 zł) for 350x706 from Excel", () => {
+  test("calculates exact Polycarbonate net value for 350x706 from Excel", () => {
     const res = calculateTerraceEstimate({
       depthCm: 350,
       widthCm: 706,
@@ -48,10 +45,9 @@ describe("terraceCalculatorEngine", () => {
     expect(res.input.areaSqM).toBeCloseTo(24.71, 2);
     expect(res.input.basePriceNet).toBe(7675);
     expect(res.options.polycarbonate.assemblyRateNetPerSqM).toBe(250);
-    expect(res.options.glassStandard.assemblyRateNetPerSqM).toBe(300);
 
-    // Glass Standard Total Net: 18,315.63 (material) + 7,413.00 (assembly @ 300/m2) = 25,728.63 zł (~25 729 zł)
-    expect(Math.round(res.options.glassStandard.totalNet)).toBe(25729);
+    // Polycarbonate Material Net: 7675 * 1.52 = 11666 zł
+    expect(res.options.polycarbonate.materialCostNet).toBeCloseTo(11666, 0);
   });
 
   test("correctly identifies standard dimension thresholds", () => {

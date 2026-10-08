@@ -86,6 +86,18 @@ export const createManualOpportunity = mutation({
     price: v.optional(v.number()),
     profit: v.optional(v.number()),
     leadSource: v.optional(v.string()),
+    serviceConfigurations: v.optional(
+      v.array(
+        v.object({
+          serviceName: v.string(),
+          calculatorType: v.string(),
+          input: v.any(),
+          result: v.any(),
+          updatedAt: v.number(),
+          updatedBy: v.optional(v.string()),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const {
@@ -647,6 +659,7 @@ export const convertToOrder = mutation({
       createdBy: "system",
       assignedUserId: opp.assignedUserId,
       leadSource: opp.leadSource,
+      serviceConfigurations: opp.serviceConfigurations,
     });
 
     // Przepisz notatki ze Szansy do nowego Zlecenia

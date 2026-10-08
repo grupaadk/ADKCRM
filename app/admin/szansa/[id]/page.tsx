@@ -1109,33 +1109,39 @@ export default function OpportunityDetailPage({
                 <InlineEdit
                   label="Koszt (PLN)"
                   suffix=" zł"
-                  value={opp.cost !== undefined ? String(opp.cost) : ""}
+                  value={opp.cost !== undefined && opp.cost !== null ? String(Math.round(opp.cost)) : ""}
                   placeholder="0"
                   onSave={(v) => {
                     const num = v ? parseFloat(v.replace(/,/g, ".")) : null;
                     if (num !== null && !isNaN(num)) {
-                      save("cost", num);
-                      if (opp.price !== undefined) save("profit", opp.price - num);
+                      const roundedCost = Math.round(num);
+                      save("cost", roundedCost);
+                      if (opp.price !== undefined && opp.price !== null) {
+                        save("profit", Math.round(opp.price - roundedCost));
+                      }
                     } else save("cost", null);
                   }}
                 />
                 <InlineEdit
                   label="Cena (PLN)"
                   suffix=" zł"
-                  value={opp.price !== undefined ? String(opp.price) : ""}
+                  value={opp.price !== undefined && opp.price !== null ? String(Math.round(opp.price)) : ""}
                   placeholder="0"
                   onSave={(v) => {
                     const num = v ? parseFloat(v.replace(/,/g, ".")) : null;
                     if (num !== null && !isNaN(num)) {
-                      save("price", num);
-                      if (opp.cost !== undefined) save("profit", num - opp.cost);
+                      const roundedPrice = Math.round(num);
+                      save("price", roundedPrice);
+                      if (opp.cost !== undefined && opp.cost !== null) {
+                        save("profit", Math.round(roundedPrice - opp.cost));
+                      }
                     } else save("price", null);
                   }}
                 />
                 <InlineEdit
                   label="Dni montażu"
                   suffix=" dni"
-                  value={opp.workDays !== undefined ? String(opp.workDays) : ""}
+                  value={opp.workDays !== undefined && opp.workDays !== null ? String(opp.workDays) : ""}
                   placeholder="np. 2"
                   onSave={(v) => {
                     const num = v ? parseFloat(v.replace(/,/g, ".")) : null;
@@ -1147,11 +1153,11 @@ export default function OpportunityDetailPage({
                   <InlineEdit
                     label="Zarobek (PLN)"
                     suffix=" zł"
-                    value={opp.profit !== undefined ? String(opp.profit) : ""}
+                    value={opp.profit !== undefined && opp.profit !== null ? String(Math.round(opp.profit)) : ""}
                     placeholder="0"
                     onSave={(v) => {
                       const num = v ? parseFloat(v.replace(/,/g, ".")) : null;
-                      if (num !== null && !isNaN(num)) save("profit", num);
+                      if (num !== null && !isNaN(num)) save("profit", Math.round(num));
                       else save("profit", null);
                     }}
                   />
