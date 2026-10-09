@@ -8,9 +8,14 @@ export type AccessoryType =
   | "ADDON_PROFILE"
   | "ADDON_OTHER";
 
+export type SidePlacement = "LEFT" | "RIGHT";
+
 export interface WallInput {
   id: string;
   type: WallType;
+  sidePlacement?: SidePlacement; // dla ścianek bocznych: LEFT (lewa) lub RIGHT (prawa)
+  colorRal?: string; // np. "RAL 7016"
+  slopeCm?: number; // spadek posadzki w cm, np. 3
   widthCm: number;
   heightCm: number;
   quantity: number;
@@ -221,7 +226,7 @@ export function calculateGlassEnclosure(input: EnclosureInput): EnclosureResult 
         break;
       }
       case "ADDON_TRIANGLE": {
-        name = "Dodatek - trójkąt";
+        name = "Dodatek - trójkąt (poliwęglan)";
         const std = getStandardProfile(effectiveWidth);
         unitCostNet = acc.priceNetCost !== undefined ? acc.priceNetCost : (std?.triangle ?? 854);
         const meters = (std?.width ?? effectiveWidth) / 100;

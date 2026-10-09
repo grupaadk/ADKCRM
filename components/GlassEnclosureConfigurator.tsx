@@ -8,8 +8,8 @@ import {
   type WallInput,
   type AccessoryInput,
   type EnclosureInput,
-  type EnclosureResult,
 } from "@/lib/glassEnclosureCalculatorEngine";
+import { TerraceWallVisualizer, STANDARD_RAL_COLORS } from "@/components/TerraceWallVisualizer";
 import {
   Plus,
   Trash2,
@@ -25,8 +25,8 @@ interface Props {
   onChange: (data: {
     serviceName: string;
     calculatorType: string;
-    input: any;
-    result: any;
+    input: EnclosureInput;
+    result: Record<string, unknown>;
     offerText: string;
     isValid: boolean;
   }) => void;
@@ -34,16 +34,7 @@ interface Props {
 
 export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
   const [walls, setWalls] = useState<WallInput[]>(
-    initialInput?.walls || [
-      {
-        id: crypto.randomUUID(),
-        type: "FRONT",
-        widthCm: 386,
-        heightCm: 250,
-        quantity: 1,
-        isExpanded: true,
-      },
-    ]
+    initialInput?.walls || []
   );
 
   const [accessories, setAccessories] = useState<AccessoryInput[]>(
@@ -89,7 +80,13 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
     if (result.walls.length > 0) {
       lines.push("Ścianki szklane:");
       result.walls.forEach((item, idx) => {
-        const typeLabel = item.type === "FRONT" ? "Ścianka frontowa" : "Ścianka boczna";
+        const matchingWall = walls.find((w) => w.id === item.id);
+        const typeLabel =
+          item.type === "FRONT"
+            ? "Ścianka frontowa"
+            : matchingWall?.sidePlacement === "RIGHT"
+            ? "Ścianka boczna prawa"
+            : "Ścianka boczna lewa";
         const qtyLabel = item.quantity > 1 ? ` (x${item.quantity} szt.)` : "";
         lines.push(
           `${idx + 1}. ${typeLabel}: szer. ${item.widthCm} cm × wys. ${item.heightCm} cm${qtyLabel} [szkło: ${item.areaSqm.toFixed(2)} m²]`
@@ -137,12 +134,15 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
   }, [walls, accessories, isValid]);
 
   // Wall Actions
-  function addWall(type: WallType) {
+  function addWall(type: WallType, sidePlacement: "LEFT" | "RIGHT" = "LEFT") {
     setWalls((prev) => [
       ...prev,
       {
         id: crypto.randomUUID(),
         type,
+        sidePlacement: type === "SIDE" ? sidePlacement : undefined,
+        colorRal: "RAL 7016",
+        slopeCm: 3,
         widthCm: type === "FRONT" ? 386 : 290,
         heightCm: 250,
         quantity: 1,
@@ -241,17 +241,17 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => addWall("FRONT")}
+              onClick={() => addWall("SIDE", "LEFT")}
               className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" /> + Dodaj ściankę frontową
+              <Plus className="w-3.5 h-3.5" /> + Dodaj ściankę boczną lewą
             </button>
             <button
               type="button"
-              onClick={() => addWall("SIDE")}
+              onClick={() => addWall("SIDE", "RIGHT")}
               className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" /> + Dodaj ściankę boczną
+              <Plus className="w-3.5 h-3.5" /> + Dodaj ściankę boczną prawą
             </button>
           </div>
         </div>
@@ -280,8 +280,17 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                         {index + 1}
                       </span>
                       <span className="text-xs font-bold text-slate-900 uppercase tracking-tight">
-                        {wall.type === "FRONT" ? "Ścianka frontowa" : "Ścianka boczna"}
+                        {wall.type === "FRONT"
+                          ? "Ścianka frontowa"
+                          : wall.sidePlacement === "RIGHT"
+                          ? "Ścianka boczna (Prawa)"
+                          : "Ścianka boczna (Lewa)"}
                       </span>
+                      {wall.colorRal && (
+                        <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-md">
+                          {wall.colorRal}
+                        </span>
+                      )}
                       <span className="text-[11px] font-semibold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-md shadow-2xs">
                         {wall.widthCm} × {wall.heightCm} cm
                       </span>
@@ -327,6 +336,25 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
 
                   {wall.isExpanded && (
                     <div className="p-4 bg-slate-50/40 space-y-4">
+                      {/* Wizualizacja techniczna ścianki */}
+                      <TerraceWallVisualizer
+                        wall={wall}
+                        linkedTriangle={accessories.find(
+                          (a) => a.linkedWallId === wall.id && a.type === "ADDON_TRIANGLE"
+                        )}
+                        linkedFoundation={accessories.find(
+                          (a) => a.linkedWallId === wall.id && a.type === "ADDON_FOUNDATION"
+                        )}
+                        linkedLamella={accessories.find(
+                          (a) =>
+                            a.linkedWallId === wall.id &&
+                            (a.type === "LAMELLA_SIDE" || a.type === "LAMELLA_FRONT")
+                        )}
+                        onAddAccessory={(accType) => addAccessory(accType, wall.id)}
+                        onRemoveAccessory={(accId) => removeAccessory(accId)}
+                        onUpdateWall={(updates) => updateWall(wall.id, updates)}
+                      />
+
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
                           <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
@@ -398,6 +426,84 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                         </div>
                       </div>
 
+                      {/* Konfiguracja strony montażu, koloru RAL i spadku */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+                        {wall.type === "SIDE" ? (
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                              Strona montażu ścianki
+                            </label>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => updateWall(wall.id, { sidePlacement: "LEFT" })}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                                  wall.sidePlacement !== "RIGHT"
+                                    ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
+                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                ⬅️ Lewa (dom l.)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateWall(wall.id, { sidePlacement: "RIGHT" })}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                                  wall.sidePlacement === "RIGHT"
+                                    ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
+                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                ➡️ Prawa (dom p.)
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                              Typ pozycji
+                            </label>
+                            <div className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700">
+                              Ścianka frontowa (przesuwna)
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            Kolor konstrukcji (RAL)
+                          </label>
+                          <select
+                            value={wall.colorRal || "RAL 7016"}
+                            onChange={(e) => updateWall(wall.id, { colorRal: e.target.value })}
+                            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand cursor-pointer"
+                          >
+                            {STANDARD_RAL_COLORS.map((ral) => (
+                              <option key={ral.code} value={ral.code}>
+                                {ral.code} - {ral.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            Spadek posadzki (cm)
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              max="25"
+                              value={wall.slopeCm !== undefined ? wall.slopeCm : 3}
+                              onChange={(e) => updateWall(wall.id, { slopeCm: Math.max(0, parseInt(e.target.value) || 0) })}
+                              className="w-20 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                            />
+                            <span className="text-xs font-medium text-slate-500">cm różnicy</span>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Szybkie dodanie dodatku bezpośrednio powiązanego z tą ścianą */}
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2">
                         <div className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5">
@@ -412,7 +518,7 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                                 onClick={() => addAccessory("ADDON_TRIANGLE", wall.id)}
                                 className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                               >
-                                + Trójkąt ({wall.widthCm} cm)
+                                + Klin (poliwęglan) ({wall.widthCm} cm)
                               </button>
                               <button
                                 type="button"
@@ -539,7 +645,7 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
               onClick={() => addAccessory("ADDON_TRIANGLE")}
               className="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left text-xs font-semibold text-slate-700 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
             >
-              <span>+ Dodatek - trójkąt</span>
+              <span>+ Dodatek - trójkąt (poliwęglan)</span>
               <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">wg szer.</span>
             </button>
             <button
