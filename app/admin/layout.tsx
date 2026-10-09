@@ -60,7 +60,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <AdminTopbar />
               <StatusLabelsProvider>
                 <main
-                  className="flex-1 overflow-auto"
+                  className="flex-1"
                   style={{ background: "var(--background)", padding: "20px 24px 40px" }}
                 >
                   {children}

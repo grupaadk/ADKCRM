@@ -887,7 +887,7 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
       )}
 
       {/* ─── MAIN GRID LAYOUT (Wizard Steps + Sticky Right Summary on Steps 3 & 4) ───── */}
-      <div className={`grid grid-cols-1 ${isSidebarActive ? "lg:grid-cols-12 gap-6 items-start" : "w-full space-y-6"}`}>
+      <div className={`grid grid-cols-1 ${isSidebarActive ? "lg:grid-cols-12 gap-6" : "w-full space-y-6"}`}>
         {/* ─── LEFT COLUMN: ACTIVE STEP CONTENT ──────────────────────────────── */}
         <div className={isSidebarActive ? "lg:col-span-8 space-y-6" : "w-full space-y-6"}>
           {/* ─────────────────────────────────────────────────────────────────────── */}
@@ -2385,152 +2385,155 @@ export default function NewOpportunityForm({ initialClientId, onSuccess, onCance
 
         {/* ─── RIGHT COLUMN: FLOATING STICKY SUMMARY PANEL (lg:col-span-4) ───── */}
         {isSidebarActive && (
-          <div className="lg:col-span-4 lg:sticky lg:top-6 space-y-4">
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
-              {/* Nagłówek panelu */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div>
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-brand" />
-                    <span>Bieżąca wycena</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Aktualizowane na bieżąco
-                  </p>
-                </div>
-              </div>
-
-              {/* Klient */}
-              {resolvedClientName ? (
-                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
-                  <div className="min-w-0 pr-2">
-                    <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Klient</div>
-                    <div className="font-semibold text-slate-900 truncate mt-0.5">{resolvedClientName}</div>
+          <div className="lg:col-span-4">
+            <div className="lg:sticky lg:top-20 z-10 space-y-4">
+              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4 max-h-[calc(100vh-6.5rem)] overflow-y-auto">
+                {/* Nagłówek panelu */}
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-brand" />
+                      <span>Bieżąca wycena</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Aktualizowane na bieżąco
+                    </p>
                   </div>
-                  <span className="text-[10px] font-medium text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded shrink-0">
-                    VAT {vatRatePercent}%
-                  </span>
                 </div>
-              ) : (
-                <div className="p-3 rounded-lg bg-slate-50/50 border border-dashed border-slate-200 text-xs text-slate-400">
-                  Klient: do wyboru w Kroku 2
-                </div>
-              )}
 
-              {/* Pozycje wyceny */}
-              <div className="space-y-2">
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Pozycje ({selectedServices.length})
-                </div>
-                {selectedServices.length === 0 ? (
-                  <div className="text-xs text-slate-400 italic p-3 border border-dashed border-slate-200 rounded-lg text-center">
-                    Brak wybranych usług
+                {/* Klient */}
+                {resolvedClientName ? (
+                  <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
+                    <div className="min-w-0 pr-2">
+                      <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Klient</div>
+                      <div className="font-semibold text-slate-900 truncate mt-0.5">{resolvedClientName}</div>
+                    </div>
+                    <span className="text-[10px] font-medium text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded shrink-0">
+                      VAT {vatRatePercent}%
+                    </span>
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                    {selectedServices.map((serviceName) => {
-                      const cfg = serviceConfigurationsMap[serviceName];
-                      const totals = getResultTotals(cfg?.result, serviceName);
-                      const isConfigured = totals.net > 0;
-                      return (
-                        <div
-                          key={serviceName}
-                          className="p-2.5 rounded-lg border border-slate-200 bg-white text-xs space-y-1.5"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-slate-900 truncate">{serviceName}</span>
-                            {isConfigured ? (
-                              <span className="font-bold text-slate-900 shrink-0">{formatPLN(totals.net)}</span>
-                            ) : (
-                              <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
-                                Wycena
-                              </span>
-                            )}
-                          </div>
-                          {cfg?.input && (
-                            <div className="text-[11px] text-slate-500 truncate">
-                              {(cfg.input as any)?.widthCm && (cfg.input as any)?.depthCm
-                                ? `${(cfg.input as any).widthCm} × ${(cfg.input as any).depthCm} cm`
-                                : (cfg.input as any)?.walls
-                                ? `${(cfg.input as any).walls.length} ścianki`
-                                : "Skonfigurowano"}
-                              {totals.areaSqM > 0 && ` • ${totals.areaSqM.toFixed(2)} m²`}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                  <div className="p-3 rounded-lg bg-slate-50/50 border border-dashed border-slate-200 text-xs text-slate-400">
+                    Klient: do wyboru w Kroku 2
                   </div>
                 )}
-              </div>
 
-              {/* Finanse podsumowanie */}
-              <div className="pt-3 border-t border-slate-100 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between text-slate-600">
-                  <span>Netto:</span>
-                  <span className="font-semibold text-slate-900">{formatPLN(totalNetPrice)}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-600">
-                  <span>VAT ({resolvedClientName ? `${vatRatePercent}%` : "8%"}):</span>
-                  <span className="font-medium text-slate-700">{formatPLN(totalVatAmount)}</span>
-                </div>
-                <div className="pt-2 border-t border-slate-200 flex items-baseline justify-between">
-                  <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">Brutto:</span>
-                  <span className="text-lg font-bold text-slate-900">{formatPLN(totalGrossPrice)}</span>
-                </div>
-              </div>
-
-              {/* Rentowność */}
-              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1.5 text-xs">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Dane wewnętrzne
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center pt-0.5">
-                  <div>
-                    <div className="text-[10px] text-slate-500">Koszt (Kc)</div>
-                    <div className="font-semibold text-slate-800 text-[11px] mt-0.5">{formatPLN(totalCostKc)}</div>
+                {/* Pozycje wyceny */}
+                <div className="space-y-2">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Pozycje ({selectedServices.length})
                   </div>
-                  <div>
-                    <div className="text-[10px] text-slate-500">Zysk (Z)</div>
-                    <div className="font-bold text-slate-900 text-[11px] mt-0.5">{formatPLN(totalProfitZ)}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-slate-500">Marża</div>
-                    <div className="font-bold text-slate-900 text-[11px] mt-0.5">{marginPercent.toFixed(1)}%</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Przycisk Kopiowania Treści Oferty */}
-              {Object.values(serviceConfigurationsMap).some((cfg) => cfg.offerText) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const texts = Object.values(serviceConfigurationsMap)
-                      .map((cfg) => cfg.offerText)
-                      .filter(Boolean)
-                      .join("\n\n---\n\n");
-                    if (texts) {
-                      navigator.clipboard.writeText(texts);
-                      setCopiedOfferText(true);
-                      setTimeout(() => setCopiedOfferText(false), 2000);
-                    }
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  {copiedOfferText ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-brand stroke-[3]" />
-                      <span className="text-brand font-semibold">Skopiowano treść!</span>
-                    </>
+                  {selectedServices.length === 0 ? (
+                    <div className="text-xs text-slate-400 italic p-3 border border-dashed border-slate-200 rounded-lg text-center">
+                      Brak wybranych usług
+                    </div>
                   ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Kopiuj treść oferty</span>
-                    </>
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                      {selectedServices.map((serviceName) => {
+                        const cfg = serviceConfigurationsMap[serviceName];
+                        const totals = getResultTotals(cfg?.result, serviceName);
+                        const isConfigured = totals.net > 0;
+                        const input = cfg?.input as { widthCm?: number; depthCm?: number; walls?: unknown[] } | undefined;
+                        return (
+                          <div
+                            key={serviceName}
+                            className="p-2.5 rounded-lg border border-slate-200 bg-white text-xs space-y-1.5"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold text-slate-900 truncate">{serviceName}</span>
+                              {isConfigured ? (
+                                <span className="font-bold text-slate-900 shrink-0">{formatPLN(totals.net)}</span>
+                              ) : (
+                                <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
+                                  Wycena
+                                </span>
+                              )}
+                            </div>
+                            {input && (
+                              <div className="text-[11px] text-slate-500 truncate">
+                                {input.widthCm && input.depthCm
+                                  ? `${input.widthCm} × ${input.depthCm} cm`
+                                  : input.walls
+                                  ? `${input.walls.length} ścianki`
+                                  : "Skonfigurowano"}
+                                {totals.areaSqM > 0 && ` • ${totals.areaSqM.toFixed(2)} m²`}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
-                </button>
-              )}
+                </div>
+
+                {/* Finanse podsumowanie */}
+                <div className="pt-3 border-t border-slate-100 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span>Netto:</span>
+                    <span className="font-semibold text-slate-900">{formatPLN(totalNetPrice)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span>VAT ({resolvedClientName ? `${vatRatePercent}%` : "8%"}):</span>
+                    <span className="font-medium text-slate-700">{formatPLN(totalVatAmount)}</span>
+                  </div>
+                  <div className="pt-2 border-t border-slate-200 flex items-baseline justify-between">
+                    <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">Brutto:</span>
+                    <span className="text-lg font-bold text-slate-900">{formatPLN(totalGrossPrice)}</span>
+                  </div>
+                </div>
+
+                {/* Rentowność */}
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1.5 text-xs">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Dane wewnętrzne
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center pt-0.5">
+                    <div>
+                      <div className="text-[10px] text-slate-500">Koszt (Kc)</div>
+                      <div className="font-semibold text-slate-800 text-[11px] mt-0.5">{formatPLN(totalCostKc)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-slate-500">Zysk (Z)</div>
+                      <div className="font-bold text-slate-900 text-[11px] mt-0.5">{formatPLN(totalProfitZ)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-slate-500">Marża</div>
+                      <div className="font-bold text-slate-900 text-[11px] mt-0.5">{marginPercent.toFixed(1)}%</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Przycisk Kopiowania Treści Oferty */}
+                {Object.values(serviceConfigurationsMap).some((cfg) => cfg.offerText) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const texts = Object.values(serviceConfigurationsMap)
+                        .map((cfg) => cfg.offerText)
+                        .filter(Boolean)
+                        .join("\n\n---\n\n");
+                      if (texts) {
+                        navigator.clipboard.writeText(texts);
+                        setCopiedOfferText(true);
+                        setTimeout(() => setCopiedOfferText(false), 2000);
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    {copiedOfferText ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-brand stroke-[3]" />
+                        <span className="text-brand font-semibold">Skopiowano treść!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Kopiuj treść oferty</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
