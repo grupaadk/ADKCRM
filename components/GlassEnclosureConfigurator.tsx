@@ -518,7 +518,7 @@ export function GlassEnclosureConfigurator({ initialInput, onChange }: Props) {
                                 onClick={() => addAccessory("ADDON_TRIANGLE", wall.id)}
                                 className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                               >
-                                + Klin (poliwęglan) ({wall.widthCm} cm)
+                                + Trójkąt (poliwęglan) ({wall.widthCm} cm)
                               </button>
                               <button
                                 type="button"

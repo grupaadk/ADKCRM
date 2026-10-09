@@ -203,7 +203,7 @@ export function TerraceWallVisualizer({
           <button
             type="button"
             onClick={() => setShowTechnicalDetails((v) => !v)}
-            title="Pokaż/ukryj wymiary i przekrój profilu"
+            title="Pokaż/ukryj wymiary i oznaczenia techniczne"
             className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
               showTechnicalDetails
                 ? "bg-emerald-50 border-emerald-200 text-emerald-700"
@@ -294,7 +294,7 @@ export function TerraceWallVisualizer({
               title="Kliknij, aby odpiąć trójkąt z wyceny"
             >
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              Klin z poliwęglanu (w wycenie ✓)
+              Trójkąt z poliwęglanu (w wycenie ✓)
             </button>
           ) : (
             <button
@@ -304,7 +304,7 @@ export function TerraceWallVisualizer({
               title="Kliknij, aby dodać trójkąt z poliwęglanu do wyceny"
             >
               <PlusCircle className="w-3.5 h-3.5 text-amber-500" />
-              + Dodaj klin (poliwęglan: +{triangleHeightCm} cm)
+              + Dodaj trójkąt (poliwęglan: +{triangleHeightCm} cm)
             </button>
           )}
 
@@ -342,7 +342,7 @@ export function TerraceWallVisualizer({
         {/* Wskaźnik wysokości z możliwością kliknięcia do edycji */}
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-slate-500 font-medium">
-            Wys. całkowita z klinem: <strong className="text-slate-800">{totalHeightCm} cm</strong>
+            Wys. całkowita z trójkątem: <strong className="text-slate-800">{totalHeightCm} cm</strong>
           </span>
           <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
             Wypełnienie: Poliwęglan
@@ -437,11 +437,11 @@ export function TerraceWallVisualizer({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-xs bg-[#e0f2fe] border border-[#0284c7] inline-block" />
-            <span>Klin: Poliwęglan komorowy</span>
+            <span>Trójkąt: Poliwęglan komorowy</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-xs bg-[#bae6fd]/60 border border-[#0284c7] inline-block" />
-            <span>Szkło hartowane ESG (przesuwne)</span>
+            <span>Szkło hartowane (przesuwne)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block ring-2 ring-white" />
@@ -496,8 +496,8 @@ function SideWallSvg({
   onEditDimension,
 }: SideWallSvgProps) {
   // Koordynaty geometryczne:
-  // Dla isRight === false (LEWA ŚCIANKA): dom po lewej (X=220), słup po prawej (X=680-705), detal szyny (X=810)
-  // Dla isRight === true (PRAWA ŚCIANKA): dom po prawej (X=780), słup po lewej (X=295-320), detal szyny (X=140)
+  // Dla isRight === false (LEWA ŚCIANKA): dom po lewej (X=220), słup po prawej (X=680-705)
+  // Dla isRight === true (PRAWA ŚCIANKA): dom po prawej (X=780), słup po lewej (X=295-320)
 
   const wallFaceX = isRight ? 780 : 220;
   const postLeftX = isRight ? 295 : 680;
@@ -521,9 +521,6 @@ function SideWallSvg({
   const rafterBottomWallY = 145;
   const rafterTopPostY = 200;
   const rafterBottomPostY = 216;
-
-  // Przekrój szyny:
-  const detailTrackX = isRight ? 130 : 810;
 
   // Kolory profilu: tryb CAD (zielony/żółty ze szkicu) vs tryb RAL (kolor wybrany)
   const isCad = mode === "cad";
@@ -715,15 +712,15 @@ function SideWallSvg({
           />
         )}
 
-        {/* Etykieta klinu z poliwęglanu */}
+        {/* Etykieta trójkąta z poliwęglanu */}
         <text
-          x={isRight ? wallFaceX - 90 : wallFaceX + 60}
+          x={isRight ? wallFaceX - 105 : wallFaceX + 60}
           y={profilHTopY - 18}
           fontSize="10"
           fontWeight="800"
           fill={hasTriangle ? "#0369a1" : "#94a3b8"}
         >
-          {hasTriangle ? "KLIN (POLIWĘGLAN)" : "+ Kliknij: Poliwęglan"}
+          {hasTriangle ? "TRÓJKĄT (POLIWĘGLAN)" : "+ Kliknij: Poliwęglan"}
         </text>
       </g>
 
@@ -749,17 +746,6 @@ function SideWallSvg({
         >
           PROFIL H
         </text>
-
-        {/* Szyna górna jezdna */}
-        <rect
-          x={isRight ? postRightX : wallFaceX}
-          y={profilHBottomY}
-          width={widthSpan}
-          height="8"
-          fill="#e2e8f0"
-          stroke="#64748b"
-          strokeWidth="1"
-        />
       </g>
 
       {/* ─── 5. ŚCIANKA PRZESUWNA (PANELE SZKLANE) ────────────────────────────── */}
@@ -767,12 +753,12 @@ function SideWallSvg({
         {Array.from({ length: panelCount }).map((_, i) => {
           const pLeft = (isRight ? postRightX : wallFaceX) + i * panelWidth;
           const pRight = pLeft + panelWidth;
-          const pTop = profilHBottomY + 8;
+          const pTop = profilHBottomY;
           const pBottom = foundationTopY;
 
           return (
             <g key={i} className="panel">
-              {/* Szkło bezpieczne ESG */}
+              {/* Szkło bezpieczne */}
               <rect
                 x={pLeft}
                 y={pTop}
@@ -936,107 +922,7 @@ function SideWallSvg({
         </text>
       </g>
 
-      {/* ─── 8. PRZEKRÓJ PROFILU JEZDNEGO ─────────────────────────────────────── */}
-      {showTechnicalDetails && (
-        <g id="rail-cross-section">
-          <line
-            x1={isRight ? postLeftX : postRightX}
-            y1={profilHTopY}
-            x2={detailTrackX + (isRight ? -10 : 35)}
-            y2={profilHTopY}
-            stroke="#94a3b8"
-            strokeWidth="1"
-            strokeDasharray="4 4"
-          />
-          <line
-            x1={isRight ? postLeftX : postRightX}
-            y1={foundationTopY}
-            x2={detailTrackX + (isRight ? -10 : 35)}
-            y2={foundationTopY}
-            stroke="#94a3b8"
-            strokeWidth="1"
-            strokeDasharray="4 4"
-          />
-
-          {/* Profil górny jezdny */}
-          <path
-            d={`
-              M ${detailTrackX} ${profilHTopY - 2}
-              L ${detailTrackX + 26} ${profilHTopY - 2}
-              L ${detailTrackX + 26} ${profilHTopY + 16}
-              L ${detailTrackX + 22} ${profilHTopY + 16}
-              L ${detailTrackX + 22} ${profilHTopY + 4}
-              L ${detailTrackX + 16} ${profilHTopY + 4}
-              L ${detailTrackX + 16} ${profilHTopY + 16}
-              L ${detailTrackX + 12} ${profilHTopY + 16}
-              L ${detailTrackX + 12} ${profilHTopY + 4}
-              L ${detailTrackX + 6} ${profilHTopY + 4}
-              L ${detailTrackX + 6} ${profilHTopY + 16}
-              L ${detailTrackX} ${profilHTopY + 16}
-              Z
-            `}
-            fill="#e2e8f0"
-            stroke="#475569"
-            strokeWidth="1.2"
-          />
-
-          {/* Tafla szkła przekrój */}
-          <line
-            x1={detailTrackX + 14}
-            y1={profilHTopY + 16}
-            x2={detailTrackX + 14}
-            y2={foundationTopY - 14}
-            stroke="#0284c7"
-            strokeWidth="3.5"
-          />
-
-          {/* Wózek dolny z rolką */}
-          <rect
-            x={detailTrackX + 9}
-            y={foundationTopY - 14}
-            width="10"
-            height="14"
-            fill="#64748b"
-            stroke="#334155"
-            strokeWidth="1"
-            rx="1"
-          />
-          <circle cx={detailTrackX + 14} cy={foundationTopY - 4} r="3" fill="#cbd5e1" stroke="#0f172a" strokeWidth="1" />
-
-          {/* Szyna dolna posadzkowa */}
-          <rect
-            x={detailTrackX - 4}
-            y={foundationTopY}
-            width="34"
-            height="12"
-            fill="#cbd5e1"
-            stroke="#475569"
-            strokeWidth="1.2"
-          />
-          <rect
-            x={detailTrackX - 8}
-            y={foundationTopY + 12}
-            width="42"
-            height="18"
-            fill="#f1f5f9"
-            stroke="#94a3b8"
-            strokeWidth="1"
-            strokeDasharray="2 2"
-          />
-          <text
-            x={detailTrackX + 13}
-            y={foundationTopY + 42}
-            fontSize="9"
-            fontWeight="bold"
-            fill="#64748b"
-            textAnchor="middle"
-          >
-            SZYNA
-          </text>
-        </g>
-      )}
-
-      {/* ─── 9. CZERWONE PUNKTY POMIAROWE ──────────────────────────────────────── */}
+      {/* ─── 8. CZERWONE PUNKTY POMIAROWE ──────────────────────────────────────── */}
       <g id="red-control-points">
         <circle cx={wallFaceX} cy={baselineY} r="4.5" fill="#ef4444" stroke="#ffffff" strokeWidth="1.5" />
         <circle cx={wallFaceX} cy={profilHTopY} r="4.5" fill="#ef4444" stroke="#ffffff" strokeWidth="1.5" />
@@ -1046,7 +932,7 @@ function SideWallSvg({
         <circle cx={isRight ? postRightX : postLeftX} cy={baselineY + slopeDeltaPx} r="4.5" fill="#ef4444" stroke="#ffffff" strokeWidth="1.5" />
       </g>
 
-      {/* ─── 10. LINIE WYMIAROWE I INTERAKTYWNA EDYCJA WYMIARÓW ───────────────── */}
+      {/* ─── 9. LINIE WYMIAROWE I INTERAKTYWNA EDYCJA WYMIARÓW ───────────────── */}
       {showTechnicalDetails && (
         <g id="dimensions">
           {/* Linia wymiarowa dolna: SZEROKOŚĆ ŚCIANKI */}
