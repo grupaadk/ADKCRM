@@ -50,7 +50,7 @@ export function ITServicesManager() {
     cost: 0,
     currency: "PLN",
     billingCycle: "monthly" as BillingCycle,
-    renewalDay: 1,
+    renewalDay: "" as number | string,
     renewalDate: "",
     paymentMethod: "Karta firmowa",
     websiteUrl: "",
@@ -116,7 +116,7 @@ export function ITServicesManager() {
       cost: 0,
       currency: "PLN",
       billingCycle: "monthly",
-      renewalDay: 1,
+      renewalDay: "",
       renewalDate: "",
       paymentMethod: "Karta firmowa",
       websiteUrl: "",
@@ -135,7 +135,7 @@ export function ITServicesManager() {
       cost: service.cost,
       currency: "PLN",
       billingCycle: service.billingCycle,
-      renewalDay: service.renewalDay || 1,
+      renewalDay: service.renewalDay ?? "",
       renewalDate: service.renewalDate || "",
       paymentMethod: service.paymentMethod || "Karta firmowa",
       websiteUrl: service.websiteUrl || "",
@@ -149,6 +149,9 @@ export function ITServicesManager() {
     e.preventDefault();
     if (!formData.name.trim()) return;
 
+    const parsedDay = formData.renewalDay !== "" ? parseInt(String(formData.renewalDay), 10) : undefined;
+    const cleanDate = formData.renewalDate.trim() || undefined;
+
     if (editingServiceId) {
       await updateService({
         id: editingServiceId,
@@ -157,8 +160,8 @@ export function ITServicesManager() {
         cost: Number(formData.cost) || 0,
         currency: "PLN",
         billingCycle: formData.billingCycle,
-        renewalDay: Number(formData.renewalDay) || undefined,
-        renewalDate: formData.renewalDate || undefined,
+        renewalDay: parsedDay,
+        renewalDate: cleanDate,
         paymentMethod: formData.paymentMethod || undefined,
         websiteUrl: formData.websiteUrl || undefined,
         adminEmail: formData.adminEmail || undefined,
@@ -171,8 +174,8 @@ export function ITServicesManager() {
         cost: Number(formData.cost) || 0,
         currency: "PLN",
         billingCycle: formData.billingCycle,
-        renewalDay: Number(formData.renewalDay) || undefined,
-        renewalDate: formData.renewalDate || undefined,
+        renewalDay: parsedDay,
+        renewalDate: cleanDate,
         paymentMethod: formData.paymentMethod || undefined,
         websiteUrl: formData.websiteUrl || undefined,
         adminEmail: formData.adminEmail || undefined,
@@ -354,9 +357,14 @@ export function ITServicesManager() {
                         </div>
                       </td>
 
-                      {/* Dzień odnowienia i płatność */}
+                      {/* Dzień odnowienia / data i płatność */}
                       <td className="py-3.5 px-4">
-                        {service.renewalDay ? (
+                        {service.renewalDate ? (
+                          <div className="flex items-center gap-1.5 text-slate-800 font-medium">
+                            <Calendar className="size-3.5 text-brand" />
+                            <span>{service.renewalDate}</span>
+                          </div>
+                        ) : service.renewalDay ? (
                           <div className="flex items-center gap-1.5 text-slate-700">
                             <Calendar className="size-3.5 text-slate-400" />
                             <span>{service.renewalDay}. dzień msc</span>
@@ -553,20 +561,31 @@ export function ITServicesManager() {
                 </div>
               </div>
 
-              {/* Dzień odnowienia i metoda płatności */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Dzień odnowienia, data i metoda płatności */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Dzień odnowienia (1-31)
+                    Dzień msc (1-31)
                   </label>
                   <input
                     type="number"
                     min="1"
                     max="31"
                     value={formData.renewalDay}
-                    onChange={(e) => setFormData({ ...formData, renewalDay: parseInt(e.target.value, 10) || 1 })}
-                    placeholder="np. 15 (15-ty dzień każdego miesiąca)"
+                    onChange={(e) => setFormData({ ...formData, renewalDay: e.target.value })}
+                    placeholder="np. 15 (co msc)"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Data odnowienia
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.renewalDate}
+                    onChange={(e) => setFormData({ ...formData, renewalDate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-brand focus:ring-1 focus:ring-brand bg-white"
                   />
                 </div>
                 <div>
@@ -577,7 +596,7 @@ export function ITServicesManager() {
                     type="text"
                     value={formData.paymentMethod}
                     onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                    placeholder="np. Karta firmowa, Przelew, Pre-paid"
+                    placeholder="np. Karta, Przelew"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                   />
                 </div>

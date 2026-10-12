@@ -52,4 +52,27 @@ describe("IT Services Management (convex/itServices.ts)", () => {
     const emptyServices = await t.query(api.itServices.getServices, {});
     expect(emptyServices).toHaveLength(0);
   });
+
+  test("creates a service with specific renewalDate (e.g. domain)", async () => {
+    const t = convexTest(schema);
+
+    const domainServiceId = await t.mutation(api.itServices.createService, {
+      name: "Domena grupaadk.pl",
+      provider: "Cyberfolks S.A.",
+      cost: 140,
+      currency: "PLN",
+      billingCycle: "yearly",
+      renewalDate: "2027-05-18",
+      paymentMethod: "Przelew proforma",
+      websiteUrl: "https://cyberfolks.pl",
+    });
+
+    expect(domainServiceId).toBeDefined();
+
+    const services = await t.query(api.itServices.getServices, {});
+    expect(services).toHaveLength(1);
+    expect(services[0].name).toBe("Domena grupaadk.pl");
+    expect(services[0].renewalDate).toBe("2027-05-18");
+    expect(services[0].billingCycle).toBe("yearly");
+  });
 });
