@@ -540,7 +540,7 @@ export const saveOpportunityConfigurations = mutation({
       if (cfg.result) {
         const res = cfg.result;
         const poly = res.options?.polycarbonate;
-        const rawNet = poly?.totalNet ?? res.finalPriceNet ?? res.totalNet ?? res.totalNetPrice ?? res.totalClientNet ?? 0;
+        const rawNet = poly?.totalNet ?? res.finalPriceNet ?? res.totalNet ?? res.totalNetPrice ?? res.totalClientNet ?? res.totalPriceNet ?? 0;
         const baseKc = poly?.costBasisKc ?? res.costKc ?? res.costBasisKc ?? res.totalCostNet ?? 0;
         const profit = poly?.profitZ ?? res.profitZ ?? res.totalProfitZ ?? (rawNet - baseKc);
 

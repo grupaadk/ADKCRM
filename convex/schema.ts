@@ -1435,6 +1435,76 @@ export default defineSchema({
     updatedAt: v.number(),
     updatedBy: v.optional(v.string()),
   }).index("by_key", ["key"]),
+
+  // 3.22 Komponenty systemu PROKAL (profile, szkło, wózki, uszczelki, okucia)
+  prokalComponents: defineTable({
+    code: v.string(), // np. "5448", "5450", "HART 10", "WOZ-01"
+    name: v.string(), // np. "Profil ramy górny 3-torowy", "Szkło hartowane ESG 10mm"
+    category: v.union(
+      v.literal("profile_upper"),
+      v.literal("profile_lower"),
+      v.literal("profile_side"),
+      v.literal("profile_sash"),
+      v.literal("glass"),
+      v.literal("hardware"),
+      v.literal("gasket"),
+      v.literal("accessory")
+    ),
+    unit: v.union(v.literal("mb"), v.literal("m2"), v.literal("szt"), v.literal("kpl")),
+    priceCostNet: v.number(), // Koszt zakupu w PLN
+    priceClientNet: v.number(), // Cena sprzedaży / bazowa klienta w PLN
+    weightPerUnit: v.number(), // Waga w kg na jednostkę (np. 2.4 kg/mb, 25 kg/m2, 0.4 kg/szt)
+    tracksCount: v.optional(v.number()), // np. 2, 3, 4, 5 (lub undefined / 0 dla uniwersalnych)
+    color: v.optional(v.string()), // np. "RAL 7016MAT"
+    producer: v.optional(v.string()), // np. "PROCURAL", "ALUPROF", "ADK"
+    description: v.optional(v.string()),
+    isActive: v.boolean(),
+    updatedAt: v.number(),
+  })
+    .index("by_category", ["category"])
+    .index("by_code", ["code"])
+    .index("by_active", ["isActive"]),
+
+  // 3.23 Systemy przesuwne PROKAL (2-torowy, 3-torowy, 4-torowy, 5-torowy)
+  prokalSystems: defineTable({
+    key: v.string(), // np. "SLIDING_2_TRACK", "SLIDING_3_TRACK", "SLIDING_4_TRACK", "SLIDING_5_TRACK"
+    name: v.string(), // np. "System przesuwny 3-torowy"
+    tracksCount: v.number(), // 2, 3, 4, 5
+    defaultSashesCount: v.number(), // np. 3
+    producer: v.string(), // np. "PROCURAL"
+    description: v.optional(v.string()),
+    glassOverlapMm: v.number(), // Zakładka skrzydeł (np. 25 mm)
+    heightDeductionMm: v.number(), // Redukcja wysokości szkła od ramy (np. 103 mm)
+    minWidthMm: v.number(), // np. 1200
+    maxWidthMm: v.number(), // np. 7000
+    minHeightMm: v.number(), // np. 1500
+    maxHeightMm: v.number(), // np. 2800
+    maxSashWeightKg: v.number(), // np. 70 kg
+    componentAssignments: v.array(
+      v.object({
+        role: v.union(
+          v.literal("top_rail"),
+          v.literal("bottom_rail"),
+          v.literal("side_frame"),
+          v.literal("sash_bottom_profile"),
+          v.literal("glass"),
+          v.literal("rollers"),
+          v.literal("brush_gasket"),
+          v.literal("interlock_gasket"),
+          v.literal("lock_handle"),
+          v.literal("accessory")
+        ),
+        componentId: v.optional(v.id("prokalComponents")),
+        defaultCode: v.string(),
+        multiplier: v.number(),
+      })
+    ),
+    isActive: v.boolean(),
+    updatedAt: v.number(),
+  })
+    .index("by_key", ["key"])
+    .index("by_tracks", ["tracksCount"])
+    .index("by_active", ["isActive"]),
 });
 
 

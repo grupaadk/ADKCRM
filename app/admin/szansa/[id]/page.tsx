@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useState, useRef, useEffect } from "react";
+import { use, useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -22,9 +22,12 @@ import {
   X,
   SlidersHorizontal,
   Loader2,
+  ArrowLeft,
+  Settings,
 } from "lucide-react";
 import { TerraceRoofConfigurator } from "@/components/TerraceRoofConfigurator";
 import { GlassEnclosureConfigurator } from "@/components/GlassEnclosureConfigurator";
+import { ProkalConfigurator, type ProkalPositionData } from "@/components/ProkalConfigurator";
 import { formatPLN } from "@/lib/terraceCalculatorEngine";
 import DriveFolderButton from "@/components/DriveFolderButton";
 import OpportunityAttachmentsSection from "./OpportunityAttachmentsSection";
@@ -210,6 +213,32 @@ export default function OpportunityDetailPage({
   const { id } = use(params);
   const opportunityId = id as Id<"pendingJotformSubmissions">;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<"szczegoly" | "wyceny">(
+    tabParam === "wyceny" || tabParam === "konfigurator" ? "wyceny" : "szczegoly"
+  );
+
+  useEffect(() => {
+    if (tabParam === "wyceny" || tabParam === "konfigurator") {
+      setActiveTab("wyceny");
+    } else if (tabParam === "szczegoly") {
+      setActiveTab("szczegoly");
+    }
+  }, [tabParam]);
+
+  const handleTabChange = (tab: "szczegoly" | "wyceny") => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (tab === "wyceny") {
+        url.searchParams.set("tab", "wyceny");
+      } else {
+        url.searchParams.delete("tab");
+      }
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
 
   const opp = useQuery(api.salesOpportunities.getSalesOpportunity, { opportunityId });
   const updateField = useMutation(api.salesOpportunities.updateOpportunity);
@@ -246,11 +275,18 @@ export default function OpportunityDetailPage({
     isValid: boolean;
   } | null>(null);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [configuratorWorkspaceMode, setConfiguratorWorkspaceMode] = useState<"PROKAL" | "TERRACE_ROOF" | "ALL_POSITIONS">("PROKAL");
 
   const handleStartAdd = (type: "TERRACE_ROOF" | "GLASS_ENCLOSURE") => {
     setEditingConfigIndex(null);
     setDraftConfigData(null);
     setActiveConfiguratorType(type);
+    if (type === "TERRACE_ROOF") {
+      setConfiguratorWorkspaceMode("TERRACE_ROOF");
+    } else {
+      setConfiguratorWorkspaceMode("PROKAL");
+    }
+    handleTabChange("wyceny");
   };
 
   const handleStartEdit = (index: number) => {
@@ -268,6 +304,7 @@ export default function OpportunityDetailPage({
     } else {
       setActiveConfiguratorType("TERRACE_ROOF");
     }
+    handleTabChange("wyceny");
   };
 
   const handleCancelConfig = () => {
@@ -395,6 +432,26 @@ export default function OpportunityDetailPage({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const configurationsList: ServiceConfigItem[] = useMemo(() => {
+    return ((opp as unknown as Record<string, unknown>)?.serviceConfigurations as ServiceConfigItem[] | undefined) || [];
+  }, [opp]);
+
+  // Pozycje PROKAL wyciągnięte z configurationsList
+  const initialProkalPositions: ProkalPositionData[] = useMemo(() => {
+    const prokalConfigs = configurationsList.filter((c) => c.calculatorType === "PROKAL_SLIDING");
+    if (prokalConfigs.length === 0) return [];
+    return prokalConfigs.map((c, idx) => ({
+      id: `pos-${idx + 1}`,
+      name: c.serviceName,
+      quantity: 1,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      input: c.input as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      result: c.result as any,
+      notes: c.offerText,
+    }));
+  }, [configurationsList]);
+
   const stage = opp?.stage ?? "lead";
   const stageLabel = useStatusLabel(stage);
 
@@ -483,6 +540,46 @@ export default function OpportunityDetailPage({
 
   const selectedServices = opp.services ?? [];
   const { parsedConfig, displayComment } = parseConfiguratorData(opp.comment);
+
+  const handleSaveProkalPositions = async (prokalPositions: ProkalPositionData[]) => {
+    setIsSavingConfig(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const currentConfigs = [...(((opp as any)?.serviceConfigurations as any[]) || [])];
+      const nonProkalConfigs = currentConfigs.filter(
+        (c) => c.calculatorType !== "PROKAL_SLIDING"
+      );
+
+      const newProkalConfigs = prokalPositions.map((pos) => ({
+        serviceName: pos.name,
+        calculatorType: "PROKAL_SLIDING",
+        input: pos.input,
+        result: {
+          ...pos.result,
+          totalPriceNet: pos.result.totalPriceNet * pos.quantity,
+          totalCostNet: pos.result.totalCostNet * pos.quantity,
+          profitNet: pos.result.profitNet * pos.quantity,
+        },
+        offerText: pos.result.offerSummaryText,
+        updatedAt: Date.now(),
+      }));
+
+      const finalConfigs = [...nonProkalConfigs, ...newProkalConfigs];
+
+      await saveConfigs({
+        opportunityId,
+        serviceConfigurations: finalConfigs,
+      });
+
+      alert("Wycena PROKAL została pomyślnie zapisana! Wartość szansy została zaktualizowana.");
+    } catch (err: unknown) {
+      console.error("Failed to save PROKAL positions:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      alert("Błąd zapisu wyceny PROKAL: " + msg);
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
 
   const mainStreetPart = [opp.street, [opp.buildingNumber, opp.apartmentNumber].filter(Boolean).join("/")].filter(Boolean).join(" ");
   const mainCityPart = [opp.postalCode, opp.city].filter(Boolean).join(" ");
@@ -1048,6 +1145,89 @@ export default function OpportunityDetailPage({
             )}
           </div>
         </div>
+
+        {/* Tabs */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            padding: "0 16px",
+            borderTop: "1px solid var(--line)",
+            background: "var(--panel)",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => handleTabChange("szczegoly")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 16px",
+              fontSize: 13,
+              fontWeight: activeTab === "szczegoly" ? 600 : 500,
+              color: activeTab === "szczegoly" ? "var(--accent)" : "var(--text-mute)",
+              borderTop: "none",
+              borderLeft: "none",
+              borderRight: "none",
+              borderBottom: activeTab === "szczegoly" ? "2px solid var(--accent)" : "2px solid transparent",
+              marginBottom: -1,
+              background: "none",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <Building2 size={15} />
+            Szczegóły szansy
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange("wyceny")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 16px",
+              fontSize: 13,
+              fontWeight: activeTab === "wyceny" ? 600 : 500,
+              color: activeTab === "wyceny" ? "var(--accent)" : "var(--text-mute)",
+              borderTop: "none",
+              borderLeft: "none",
+              borderRight: "none",
+              borderBottom: activeTab === "wyceny" ? "2px solid var(--accent)" : "2px solid transparent",
+              marginBottom: -1,
+              background: "none",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <SlidersHorizontal size={15} />
+            Wyceny i konfiguratory techniczne
+            {configurationsList.length > 0 && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: 20,
+                  height: 20,
+                  padding: "0 6px",
+                  borderRadius: 10,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  background: activeTab === "wyceny" ? "var(--accent)" : "var(--line)",
+                  color: activeTab === "wyceny" ? "#fff" : "var(--text)",
+                }}
+              >
+                {configurationsList.length}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -1066,7 +1246,9 @@ export default function OpportunityDetailPage({
         </div>
       )}
 
-      {/* ── Główny horyzontalny box: Dane klienta + Adresy + Finanse i Rating — 4 kolumny ── */}
+      {activeTab === "szczegoly" && (
+        <>
+          {/* ── Główny horyzontalny box: Dane klienta + Adresy + Finanse i Rating — 4 kolumny ── */}
       <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden" }}>
         {/* Nagłówek */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: "1px solid var(--line)" }}>
@@ -1493,7 +1675,288 @@ export default function OpportunityDetailPage({
         )}
       </div>
 
-      {/* ── Wyceny i konfiguratory techniczne ── */}
+      {/* ── Skrót do wycen i konfiguratora technicznego ── */}
+      <div
+        style={{
+          background: "var(--panel)",
+          border: "1px solid var(--line)",
+          borderRadius: 12,
+          padding: "16px 20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 10,
+              background: "#0F766E15",
+              color: "#0F766E",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <SlidersHorizontal size={20} />
+          </div>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-strong)" }}>
+                Wyceny i konfiguratory techniczne
+              </span>
+              <span
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: 12,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: configurationsList.length > 0 ? "#ecfdf5" : "#f1f5f9",
+                  color: configurationsList.length > 0 ? "#047857" : "#64748b",
+                  border: configurationsList.length > 0 ? "1px solid #a7f3d0" : "1px solid #e2e8f0",
+                }}
+              >
+                {configurationsList.length > 0
+                  ? `${configurationsList.length} ${configurationsList.length === 1 ? "skonfigurowana pozycja" : "skonfigurowane pozycje"}`
+                  : "Brak skonfigurowanych pozycji"}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 2 }}>
+              {configurationsList.length > 0
+                ? "Wyceny pozycji (zadaszenia tarasów, zabudowy szklane) są aktywne w osobnym widoku. Kliknij, aby przejść do kalkulatora."
+                : "Skorzystaj z kalkulatorów zadaszeń i zabudów, aby precyzyjnie wyliczyć koszt, marżę i cenę oferty."}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => handleTabChange("wyceny")}
+            className="btn primary"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12.5,
+              padding: "7px 14px",
+            }}
+          >
+            <SlidersHorizontal size={14} />
+            {configurationsList.length > 0 ? "Otwórz wyceny i kalkulatory" : "Przejdź do wyceny"} &rarr;
+          </button>
+        </div>
+      </div>
+
+      {/* ── 2-kolumnowy układ: Pliki (po lewej) + Komentarz (po prawej) ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        {/* Załączniki (Pliki) */}
+        <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: 14 }}>
+          <OpportunityAttachmentsSection
+            opportunityId={opportunityId}
+            opportunityFolderId={opp.opportunityFolderId}
+          />
+        </div>
+
+        {/* Komentarz / Feed notatek */}
+        <OpportunityNotesFeed
+          opportunityId={opportunityId}
+          clientId={opp.clientId}
+          initialComment={displayComment || opp.comment}
+        />
+      </div>
+    </>
+  )}
+
+  {activeTab === "wyceny" && (
+    <>
+      {/* ── Pasek nawigacyjny i finansowy dla widoku wycen ── */}
+      <div
+        style={{
+          background: "var(--panel)",
+          border: "1px solid var(--line)",
+          borderRadius: 12,
+          padding: "10px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => handleTabChange("szczegoly")}
+          className="btn"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 12,
+            padding: "6px 12px",
+          }}
+        >
+          <ArrowLeft size={13} />
+          Wróć do szczegółów szansy
+        </button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+            <span style={{ color: "var(--text-mute)" }}>Wartość oferty:</span>
+            <span style={{ fontWeight: 700, color: "var(--text-strong)" }}>
+              {opp.price !== undefined && opp.price !== null
+                ? `${Number(opp.price).toLocaleString("pl-PL")} zł`
+                : "—"}
+            </span>
+          </div>
+          <div style={{ width: 1, height: 14, background: "var(--line)" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+            <span style={{ color: "var(--text-mute)" }}>Koszt:</span>
+            <span style={{ fontWeight: 600, color: "var(--text)" }}>
+              {opp.cost !== undefined && opp.cost !== null
+                ? `${Number(opp.cost).toLocaleString("pl-PL")} zł`
+                : "—"}
+            </span>
+          </div>
+          {opp.profit !== undefined && opp.profit !== null && (
+            <>
+              <div style={{ width: 1, height: 14, background: "var(--line)" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                <span style={{ color: "var(--text-mute)" }}>Zysk szacowany:</span>
+                <span
+                  style={{
+                    fontWeight: 700,
+                    color: opp.profit >= 0 ? "var(--good, #16a34a)" : "var(--bad, #dc2626)",
+                  }}
+                >
+                  {Number(opp.profit).toLocaleString("pl-PL")} zł
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Przełącznik modułów wyceny: PROKAL vs Zadaszenia ── */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 10,
+          background: "var(--panel)",
+          border: "1px solid var(--line)",
+          borderRadius: 10,
+          padding: "8px 14px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => setConfiguratorWorkspaceMode("PROKAL")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 14px",
+              borderRadius: 6,
+              fontSize: 12.5,
+              fontWeight: configuratorWorkspaceMode === "PROKAL" ? 700 : 500,
+              background: configuratorWorkspaceMode === "PROKAL" ? "#0284C7" : "transparent",
+              color: configuratorWorkspaceMode === "PROKAL" ? "#FFFFFF" : "var(--text)",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            <SlidersHorizontal size={14} />
+            PROKAL CAD — Systemy całoszklane przesuwne
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setConfiguratorWorkspaceMode("TERRACE_ROOF")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 14px",
+              borderRadius: 6,
+              fontSize: 12.5,
+              fontWeight: configuratorWorkspaceMode === "TERRACE_ROOF" ? 700 : 500,
+              background: configuratorWorkspaceMode === "TERRACE_ROOF" ? "#0284C7" : "transparent",
+              color: configuratorWorkspaceMode === "TERRACE_ROOF" ? "#FFFFFF" : "var(--text)",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            <Plus size={14} />
+            Kalkulator Zadaszeń Tarasów
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setConfiguratorWorkspaceMode("ALL_POSITIONS")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 14px",
+              borderRadius: 6,
+              fontSize: 12.5,
+              fontWeight: configuratorWorkspaceMode === "ALL_POSITIONS" ? 700 : 500,
+              background: configuratorWorkspaceMode === "ALL_POSITIONS" ? "#0284C7" : "transparent",
+              color: configuratorWorkspaceMode === "ALL_POSITIONS" ? "#FFFFFF" : "var(--text)",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            Wszystkie pozycje szansy ({configurationsList.length})
+          </button>
+        </div>
+
+        <Link
+          href="/admin/ustawienia?tab=prokal"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            fontSize: 11.5,
+            color: "var(--accent)",
+            textDecoration: "none",
+            fontWeight: 600,
+          }}
+        >
+          <Settings size={13} />
+          Ustawienia komponentów PROKAL &rarr;
+        </Link>
+      </div>
+
+      {configuratorWorkspaceMode === "PROKAL" && (
+        <ProkalConfigurator
+          initialPositions={initialProkalPositions}
+          onSavePositions={handleSaveProkalPositions}
+          isSaving={isSavingConfig}
+          clientInfo={{
+            name: [opp.firstName, opp.lastName].filter(Boolean).join(" ") || opp.clientName,
+            phone: opp.phone,
+            email: opp.email,
+            address: mainAddressStr,
+            investmentAddress: investmentAddressStr,
+            orderNumber: opp.submissionId ? `#${opp.submissionId}` : undefined,
+            projectNumber: opp.leadSource || "Oferta CRM",
+          }}
+        />
+      )}
+
+      {configuratorWorkspaceMode !== "PROKAL" && (
+        <>
+          {/* ── Wyceny i konfiguratory techniczne ── */}
       {(() => {
         const configs: ServiceConfigItem[] =
           ((opp as unknown as Record<string, unknown>).serviceConfigurations as ServiceConfigItem[] | undefined) || [];
@@ -2017,24 +2480,10 @@ export default function OpportunityDetailPage({
           </div>
         );
       })()}
-
-      {/* ── 2-kolumnowy układ: Pliki (po lewej) + Komentarz (po prawej) ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-        {/* Załączniki (Pliki) */}
-        <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: 14 }}>
-          <OpportunityAttachmentsSection
-            opportunityId={opportunityId}
-            opportunityFolderId={opp.opportunityFolderId}
-          />
-        </div>
-
-        {/* Komentarz / Feed notatek */}
-        <OpportunityNotesFeed
-          opportunityId={opportunityId}
-          clientId={opp.clientId}
-          initialComment={displayComment || opp.comment}
-        />
-      </div>
+        </>
+      )}
+    </>
+  )}
 
       {/* Modal Potwierdzenia usuwania */}
       {confirmDelete && (

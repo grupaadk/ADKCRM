@@ -34,8 +34,9 @@ import { InstallationTeamsTab } from "./InstallationTeamsTab";
 import { TaskTemplatesTab } from "./TaskTemplatesTab";
 import { VatRateNamesTab } from "./VatRateNamesTab";
 import { PriceListsTab } from "./PriceListsTab";
+import { ProkalSettingsTab } from "./ProkalSettingsTab";
 
-const IconMap: Record<string, React.ComponentType<any>> = {
+const IconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   AppWindow,
   DoorClosed,
   Warehouse,
@@ -60,7 +61,7 @@ function ServiceIcon({ name, className = "h-4 w-4" }: { name?: string; className
   return <IconComponent className={className} />;
 }
 
-type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "cenniki" | "nazwy-vat" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe" | "szablony-zadan";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "cenniki" | "nazwy-vat" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe" | "szablony-zadan" | "prokal";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -4328,6 +4329,7 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "crm", label: "CRM" },
   { key: "uslugi", label: "Usługi" },
   { key: "cenniki", label: "Cenniki" },
+  { key: "prokal", label: "Systemy PROKAL" },
   { key: "nazwy-vat", label: "Nazwy pozycji (VAT)" },
   { key: "dostawcy", label: "Dostawcy" },
   { key: "wydatki", label: "Kategorie wydatków" },
@@ -4379,6 +4381,7 @@ export default function UstawieniaPage() {
       {activeTab === "crm" && <CrmTab />}
       {activeTab === "uslugi" && <ServicesTab />}
       {activeTab === "cenniki" && <PriceListsTab />}
+      {activeTab === "prokal" && <ProkalSettingsTab />}
       {activeTab === "nazwy-vat" && <VatRateNamesTab />}
       {activeTab === "dostawcy" && <SuppliersTab />}
       {activeTab === "wydatki" && <ExpenseCategoriesTab />}

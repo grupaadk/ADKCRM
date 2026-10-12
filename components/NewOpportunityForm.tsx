@@ -251,8 +251,8 @@ export default function NewOpportunityForm({
       if (onSuccess) {
         onSuccess(oppId);
       } else {
-        // Redirect directly to the created opportunity page
-        router.push(`/admin/szansa/${oppId}`);
+        // Redirect directly to the created opportunity page on the wyceny tab
+        router.push(`/admin/szansa/${oppId}?tab=wyceny`);
       }
     } catch (err: unknown) {
       console.error("Failed to create opportunity:", err);

@@ -56,6 +56,7 @@ import type * as orders from "../orders.js";
 import type * as paymentReminders from "../paymentReminders.js";
 import type * as places from "../places.js";
 import type * as priceLists from "../priceLists.js";
+import type * as prokal from "../prokal.js";
 import type * as publicApi from "../publicApi.js";
 import type * as salesOpportunities from "../salesOpportunities.js";
 import type * as scratch from "../scratch.js";
@@ -135,6 +136,7 @@ declare const fullApi: ApiFromModules<{
   paymentReminders: typeof paymentReminders;
   places: typeof places;
   priceLists: typeof priceLists;
+  prokal: typeof prokal;
   publicApi: typeof publicApi;
   salesOpportunities: typeof salesOpportunities;
   scratch: typeof scratch;
