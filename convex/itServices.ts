@@ -4,6 +4,7 @@ import { v } from "convex/values";
 const serviceValidator = {
   name: v.string(),
   provider: v.optional(v.string()),
+  description: v.optional(v.string()),
   category: v.optional(v.string()),
   cost: v.number(),
   currency: v.string(),

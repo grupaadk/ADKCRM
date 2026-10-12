@@ -4,13 +4,14 @@ import { api } from "../_generated/api";
 import schema from "../schema";
 
 describe("IT Services Management (convex/itServices.ts)", () => {
-  test("creates, lists, updates and deletes an IT service with password", async () => {
+  test("creates, lists, updates and deletes an IT service with password and description", async () => {
     const t = convexTest(schema);
 
-    // 1. Create a service with password
+    // 1. Create a service with password and description
     const serviceId = await t.mutation(api.itServices.createService, {
       name: "Google Workspace",
       provider: "Google LLC",
+      description: "Poczta domenowa i dyski współdzielone",
       cost: 150,
       currency: "PLN",
       billingCycle: "monthly",
@@ -27,15 +28,17 @@ describe("IT Services Management (convex/itServices.ts)", () => {
     const services = await t.query(api.itServices.getServices, {});
     expect(services).toHaveLength(1);
     expect(services[0].name).toBe("Google Workspace");
+    expect(services[0].description).toBe("Poczta domenowa i dyski współdzielone");
     expect(services[0].cost).toBe(150);
     expect(services[0].currency).toBe("PLN");
     expect(services[0].billingCycle).toBe("monthly");
     expect(services[0].password).toBe("SuperSecretPassword123!");
 
-    // 3. Update service (e.g. change password and cost)
+    // 3. Update service (e.g. change password, description and cost)
     await t.mutation(api.itServices.updateService, {
       id: serviceId,
       name: "Google Workspace Business Plus",
+      description: "Zaktualizowany pakiet biurowy",
       cost: 180,
       currency: "PLN",
       billingCycle: "monthly",
@@ -44,6 +47,7 @@ describe("IT Services Management (convex/itServices.ts)", () => {
 
     const updatedServices = await t.query(api.itServices.getServices, {});
     expect(updatedServices[0].name).toBe("Google Workspace Business Plus");
+    expect(updatedServices[0].description).toBe("Zaktualizowany pakiet biurowy");
     expect(updatedServices[0].cost).toBe(180);
     expect(updatedServices[0].password).toBe("NewPassword456!");
 
@@ -59,6 +63,7 @@ describe("IT Services Management (convex/itServices.ts)", () => {
     const domainServiceId = await t.mutation(api.itServices.createService, {
       name: "Domena grupaadk.pl",
       provider: "Cyberfolks S.A.",
+      description: "Utrzymanie domeny głównej",
       cost: 140,
       currency: "PLN",
       billingCycle: "yearly",
@@ -72,6 +77,7 @@ describe("IT Services Management (convex/itServices.ts)", () => {
     const services = await t.query(api.itServices.getServices, {});
     expect(services).toHaveLength(1);
     expect(services[0].name).toBe("Domena grupaadk.pl");
+    expect(services[0].description).toBe("Utrzymanie domeny głównej");
     expect(services[0].renewalDate).toBe("2027-05-18");
     expect(services[0].billingCycle).toBe("yearly");
   });

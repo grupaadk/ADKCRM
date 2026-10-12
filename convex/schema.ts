@@ -1041,6 +1041,7 @@ export default defineSchema({
   itServices: defineTable({
     name: v.string(),
     provider: v.optional(v.string()),
+    description: v.optional(v.string()), // Opis usługi / przeznaczenie
     category: v.optional(v.string()),
     cost: v.number(),
     currency: v.string(), // "PLN"

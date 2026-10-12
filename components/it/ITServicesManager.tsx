@@ -43,10 +43,11 @@ export function ITServicesManager() {
   // Identyfikator ostatnio skopiowanego elementu (do pokazywania ikony Check)
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Stan formularza modala (tylko potrzebne pola: bez kategorii, statusu, NIPu i notatek)
+  // Stan formularza modala
   const [formData, setFormData] = useState({
     name: "",
     provider: "",
+    description: "",
     cost: 0,
     currency: "PLN",
     billingCycle: "monthly" as BillingCycle,
@@ -58,7 +59,7 @@ export function ITServicesManager() {
     password: "",
   });
 
-  // Filtrowanie listy usług wyłącznie po wyszukiwaniu tekstowym
+  // Filtrowanie listy usług po wyszukiwaniu tekstowym
   const filteredServices = useMemo(() => {
     if (!services) return [];
     if (!searchQuery.trim()) return services;
@@ -68,6 +69,7 @@ export function ITServicesManager() {
       return (
         srv.name.toLowerCase().includes(q) ||
         (srv.provider && srv.provider.toLowerCase().includes(q)) ||
+        (srv.description && srv.description.toLowerCase().includes(q)) ||
         (srv.adminEmail && srv.adminEmail.toLowerCase().includes(q))
       );
     });
@@ -113,6 +115,7 @@ export function ITServicesManager() {
     setFormData({
       name: "",
       provider: "",
+      description: "",
       cost: 0,
       currency: "PLN",
       billingCycle: "monthly",
@@ -132,6 +135,7 @@ export function ITServicesManager() {
     setFormData({
       name: service.name,
       provider: service.provider || "",
+      description: service.description || "",
       cost: service.cost,
       currency: "PLN",
       billingCycle: service.billingCycle,
@@ -151,12 +155,14 @@ export function ITServicesManager() {
 
     const parsedDay = formData.renewalDay !== "" ? parseInt(String(formData.renewalDay), 10) : undefined;
     const cleanDate = formData.renewalDate.trim() || undefined;
+    const cleanDesc = formData.description.trim() || undefined;
 
     if (editingServiceId) {
       await updateService({
         id: editingServiceId,
         name: formData.name.trim(),
         provider: formData.provider.trim() || undefined,
+        description: cleanDesc,
         cost: Number(formData.cost) || 0,
         currency: "PLN",
         billingCycle: formData.billingCycle,
@@ -171,6 +177,7 @@ export function ITServicesManager() {
       await createService({
         name: formData.name.trim(),
         provider: formData.provider.trim() || undefined,
+        description: cleanDesc,
         cost: Number(formData.cost) || 0,
         currency: "PLN",
         billingCycle: formData.billingCycle,
@@ -338,7 +345,12 @@ export function ITServicesManager() {
                               )}
                             </div>
                             {service.provider && (
-                              <div className="text-[11px] text-slate-400 mt-0.5">{service.provider}</div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">{service.provider}</div>
+                            )}
+                            {service.description && (
+                              <div className="text-[11px] text-slate-400 mt-0.5 max-w-xs line-clamp-2" title={service.description}>
+                                {service.description}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -521,6 +533,20 @@ export function ITServicesManager() {
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                   />
                 </div>
+              </div>
+
+              {/* Opis usługi */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Opis usługi
+                </label>
+                <textarea
+                  rows={2}
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Krótki opis przeznaczenia usługi, np. Poczta firmowa, hosting bazy, powiadomienia SMS..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                />
               </div>
 
               {/* Koszt w PLN i cykl rozliczeniowy */}
