@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation, action, internalMutation } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 import { requireUser, userIdentifier } from "./lib/auth";
 import { normalizePhoneForDb } from "./lib/phone";
 
@@ -13,22 +14,87 @@ export const list = query({
   },
 });
 
-// Wyszukiwanie klientów po nazwisku, imieniu lub nazwie firmy
+// Wyszukiwanie klientów po nazwisku, imieniu, nazwie firmy, NIP lub telefonie
 export const search = query({
   args: {
     searchTerm: v.string(),
   },
   handler: async (ctx, args) => {
-    const term = args.searchTerm.toLowerCase().trim();
+    const rawTerm = args.searchTerm.trim();
+    const term = rawTerm.toLowerCase();
+    const cleanTerm = rawTerm.replace(/[\s-]/g, "");
     const clients = await ctx.db.query("clients").collect();
     return clients
       .filter(
         (c) =>
           (c.lastName ?? "").toLowerCase().includes(term) ||
           (c.firstName ?? "").toLowerCase().includes(term) ||
-          (c.companyName ?? "").toLowerCase().includes(term),
+          (c.companyName ?? "").toLowerCase().includes(term) ||
+          (cleanTerm.length >= 3 && (c.nip ? c.nip.replace(/[\s-]/g, "").includes(cleanTerm) : false)) ||
+          (cleanTerm.length >= 3 && (c.phone ? c.phone.replace(/[\s-]/g, "").includes(cleanTerm) : false)),
       )
       .slice(0, 20);
+  },
+});
+
+// Najczęściej wybierani / aktywni klienci w systemie (do szybkiego wyboru)
+export const getPopularClients = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 5;
+
+    // Pobierz ostatnie zlecenia i szanse aby zliczyć popularność
+    const orders = await ctx.db.query("orders").order("desc").take(300);
+    const opps = await ctx.db.query("pendingJotformSubmissions").order("desc").take(300);
+
+    const clientCounts = new Map<string, number>();
+
+    for (const o of orders) {
+      if (o.clientId) {
+        clientCounts.set(o.clientId, (clientCounts.get(o.clientId) ?? 0) + 1);
+      }
+    }
+
+    for (const op of opps) {
+      if (op.clientId) {
+        clientCounts.set(op.clientId, (clientCounts.get(op.clientId) ?? 0) + 1);
+      }
+    }
+
+    // Posortuj ID klientów malejąco wg liczby powiązań
+    const sortedClientIds = Array.from(clientCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([id]) => id as Id<"clients">);
+
+    const results = [];
+    for (const cId of sortedClientIds) {
+      if (results.length >= limit) break;
+      const client = await ctx.db.get(cId);
+      if (client) {
+        results.push({
+          ...client,
+          usageCount: clientCounts.get(cId) ?? 0,
+        });
+      }
+    }
+
+    // Jeśli w historii powiązań jest mniej niż limit, dopełnij najnowszymi klientami z bazy
+    if (results.length < limit) {
+      const recentClients = await ctx.db.query("clients").order("desc").take(limit * 2);
+      for (const rc of recentClients) {
+        if (results.length >= limit) break;
+        if (!results.some((r) => r._id === rc._id)) {
+          results.push({
+            ...rc,
+            usageCount: clientCounts.get(rc._id) ?? 0,
+          });
+        }
+      }
+    }
+
+    return results;
   },
 });
 

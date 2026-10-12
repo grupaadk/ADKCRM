@@ -243,4 +243,111 @@ describe("Sales Opportunity Creation & Field Integrity", () => {
     });
     expect(updatedOrder?.leadSource).toBe("Polecenie od sąsiada");
   });
+
+  test("creates opportunity with default current user assignee and supports saving technical configurations with auto recalculated financials", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const opportunityId = await asUser.mutation(api.salesOpportunities.createManualOpportunity, {
+      firstName: "Marek",
+      lastName: "Nowicki",
+      phone: "600 700 800",
+      services: ["Zadaszenie tarasu", "Zabudowa tarasu"],
+      leadSource: "Telefon / Kontakt bezpośredni",
+      price: 0,
+      cost: 0,
+      profit: 0,
+    });
+
+    const opp = await t.query(api.salesOpportunities.getSalesOpportunity, { opportunityId });
+    expect(opp).not.toBeNull();
+    expect(opp?.assignedUserId).toBeDefined();
+    expect(opp?.assignedUserIds).toContain(opp?.assignedUserId);
+
+    // Dodajemy konfiguracje techniczne
+    const saveRes = await asUser.mutation(api.salesOpportunities.saveOpportunityConfigurations, {
+      opportunityId,
+      serviceConfigurations: [
+        {
+          serviceName: "Zadaszenie tarasu",
+          calculatorType: "terrace_roof",
+          input: { widthCm: 506, depthCm: 350 },
+          result: {
+            options: {
+              polycarbonate: {
+                totalNet: 24500,
+                costBasisKc: 15200,
+                profitZ: 9300,
+              },
+            },
+            finalPriceNet: 24500,
+            costKc: 15200,
+            profitZ: 9300,
+          },
+          updatedAt: Date.now(),
+        },
+        {
+          serviceName: "Zabudowa tarasu",
+          calculatorType: "GLASS_ENCLOSURE",
+          input: { walls: [], accessories: [] },
+          result: {
+            totalClientNet: 12000,
+            totalCostNet: 7500,
+            totalProfitZ: 4500,
+          },
+          updatedAt: Date.now(),
+        },
+      ],
+    });
+
+    expect(saveRes.count).toBe(2);
+    expect(saveRes.price).toBe(36500); // 24500 + 12000
+    expect(saveRes.cost).toBe(22700);  // 15200 + 7500
+    expect(saveRes.profit).toBe(13800); // 9300 + 4500
+
+    const updatedOpp = await t.query(api.salesOpportunities.getSalesOpportunity, { opportunityId });
+    expect(updatedOpp?.price).toBe(36500);
+    expect(updatedOpp?.cost).toBe(22700);
+    expect(updatedOpp?.profit).toBe(13800);
+    expect(updatedOpp?.serviceConfigurations?.length).toBe(2);
+
+    // Usunięcie jednej konfiguracji przelicza wartości
+    const deleteRes = await asUser.mutation(api.salesOpportunities.saveOpportunityConfigurations, {
+      opportunityId,
+      serviceConfigurations: [
+        {
+          serviceName: "Zadaszenie tarasu",
+          calculatorType: "terrace_roof",
+          input: { widthCm: 506, depthCm: 350 },
+          result: {
+            finalPriceNet: 24500,
+            costKc: 15200,
+            profitZ: 9300,
+          },
+          updatedAt: Date.now(),
+        },
+      ],
+    });
+
+    expect(deleteRes.count).toBe(1);
+    expect(deleteRes.price).toBe(24500);
+    expect(deleteRes.cost).toBe(15200);
+    expect(deleteRes.profit).toBe(9300);
+
+    // Usunięcie wszystkich konfiguracji resetuje do 0
+    const emptyRes = await asUser.mutation(api.salesOpportunities.saveOpportunityConfigurations, {
+      opportunityId,
+      serviceConfigurations: [],
+    });
+
+    expect(emptyRes.count).toBe(0);
+    expect(emptyRes.price).toBe(0);
+    expect(emptyRes.cost).toBe(0);
+    expect(emptyRes.profit).toBe(0);
+
+    const emptyOpp = await t.query(api.salesOpportunities.getSalesOpportunity, { opportunityId });
+    expect(emptyOpp?.price).toBe(0);
+    expect(emptyOpp?.cost).toBe(0);
+    expect(emptyOpp?.profit).toBe(0);
+  });
 });

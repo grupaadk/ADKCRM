@@ -9,7 +9,22 @@ import { Id } from "@/convex/_generated/dataModel";
 import InlineEdit from "@/app/admin/klient/[id]/InlineEdit";
 import AddressSearch, { type AddressData } from "@/components/AddressSearch";
 import { useStatusLabel } from "@/components/StatusLabelsContext";
-import { ArrowLeft, Archive, ArchiveRestore, Trash2, Send, MapPin, Building2, MessageSquare, Sliders } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  Trash2,
+  Send,
+  MapPin,
+  Building2,
+  Plus,
+  Pencil,
+  Check,
+  X,
+  SlidersHorizontal,
+  Loader2,
+} from "lucide-react";
+import { TerraceRoofConfigurator } from "@/components/TerraceRoofConfigurator";
+import { GlassEnclosureConfigurator } from "@/components/GlassEnclosureConfigurator";
 import { formatPLN } from "@/lib/terraceCalculatorEngine";
 import DriveFolderButton from "@/components/DriveFolderButton";
 import OpportunityAttachmentsSection from "./OpportunityAttachmentsSection";
@@ -34,6 +49,67 @@ interface ConfiguratorObject {
   options?: string;
   location?: string;
   userNotes?: string;
+}
+
+interface ServiceConfigWall {
+  id?: string;
+  type?: string;
+  widthCm?: number;
+  heightCm?: number;
+  quantity?: number;
+}
+
+interface ServiceConfigAccessory {
+  id?: string;
+  name?: string;
+  quantity?: number;
+  effectiveWidthCm?: number;
+  linkedWallLabel?: string;
+}
+
+interface ServiceConfigItem {
+  serviceName: string;
+  calculatorType: string;
+  input?: {
+    walls?: ServiceConfigWall[];
+    accessories?: ServiceConfigAccessory[];
+    widthCm?: number;
+    depthCm?: number;
+    materialMarkupPercent?: number;
+    [key: string]: unknown;
+  };
+  result?: {
+    installationNet?: number;
+    totalNetPrice?: number;
+    finalPriceNet?: number;
+    totalNet?: number;
+    totalClientNet?: number;
+    options?: {
+      polycarbonate?: {
+        totalNet?: number;
+      };
+    };
+    input?: {
+      areaSqM?: number;
+    };
+    walls?: Array<{
+      id?: string;
+      areaSqm?: number;
+      standardWidthCm?: number;
+      unitClientNet: number;
+    }>;
+    accessories?: Array<{
+      id?: string;
+      name?: string;
+      effectiveWidthCm?: number;
+      linkedWallLabel?: string;
+      totalClientNet: number;
+    }>;
+    [key: string]: unknown;
+  };
+  updatedAt?: number;
+  updatedBy?: string;
+  offerText?: string;
 }
 
 function parseConfiguratorData(commentStr?: string): { parsedConfig: ConfiguratorObject | null; displayComment: string } {
@@ -143,6 +219,7 @@ export default function OpportunityDetailPage({
   const deleteOpp = useMutation(api.salesOpportunities.deleteSalesOpportunity);
   const convert = useMutation(api.salesOpportunities.convertToOrder);
   const retryFolder = useMutation(api.salesOpportunities.retryCreateFolderAndUploadFiles);
+  const saveConfigs = useMutation(api.salesOpportunities.saveOpportunityConfigurations);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -154,6 +231,110 @@ export default function OpportunityDetailPage({
   const [sameAddress, setSameAddress] = useState<boolean>(false);
   const [editingLeadSource, setEditingLeadSource] = useState(false);
   const [draftLeadSource, setDraftLeadSource] = useState("");
+
+  // Inline Configurator state
+  const [activeConfiguratorType, setActiveConfiguratorType] = useState<"TERRACE_ROOF" | "GLASS_ENCLOSURE" | null>(null);
+  const [editingConfigIndex, setEditingConfigIndex] = useState<number | null>(null);
+  const [draftConfigData, setDraftConfigData] = useState<{
+    serviceName: string;
+    calculatorType: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    input: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    result: any;
+    offerText?: string;
+    isValid: boolean;
+  } | null>(null);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+
+  const handleStartAdd = (type: "TERRACE_ROOF" | "GLASS_ENCLOSURE") => {
+    setEditingConfigIndex(null);
+    setDraftConfigData(null);
+    setActiveConfiguratorType(type);
+  };
+
+  const handleStartEdit = (index: number) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const configs: any[] = (opp as any)?.serviceConfigurations || [];
+    const target = configs[index];
+    if (!target) return;
+    setEditingConfigIndex(index);
+    setDraftConfigData(null);
+    if (
+      target.calculatorType === "GLASS_ENCLOSURE" ||
+      (target.serviceName && target.serviceName.toLowerCase().includes("zabudow"))
+    ) {
+      setActiveConfiguratorType("GLASS_ENCLOSURE");
+    } else {
+      setActiveConfiguratorType("TERRACE_ROOF");
+    }
+  };
+
+  const handleCancelConfig = () => {
+    setActiveConfiguratorType(null);
+    setEditingConfigIndex(null);
+    setDraftConfigData(null);
+  };
+
+  const handleSaveConfig = async () => {
+    if (!draftConfigData || !draftConfigData.isValid) return;
+    setIsSavingConfig(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const currentConfigs = [...(((opp as any)?.serviceConfigurations as any[]) || [])];
+      const itemToSave = {
+        serviceName: draftConfigData.serviceName,
+        calculatorType: draftConfigData.calculatorType,
+        input: draftConfigData.input,
+        result: draftConfigData.result,
+        offerText: draftConfigData.offerText,
+        updatedAt: Date.now(),
+      };
+
+      if (editingConfigIndex !== null && editingConfigIndex >= 0 && editingConfigIndex < currentConfigs.length) {
+        currentConfigs[editingConfigIndex] = itemToSave;
+      } else {
+        currentConfigs.push(itemToSave);
+      }
+
+      await saveConfigs({
+        opportunityId,
+        serviceConfigurations: currentConfigs,
+      });
+
+      setActiveConfiguratorType(null);
+      setEditingConfigIndex(null);
+      setDraftConfigData(null);
+    } catch (err: unknown) {
+      console.error("Failed to save configuration:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      alert("Wystąpił błąd podczas zapisywania konfiguracji: " + msg);
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
+  const handleDeleteConfig = async (index: number) => {
+    if (!confirm("Czy na pewno chcesz usunąć tę wycenę? Wartość szansy zostanie automatycznie przeliczona.")) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const currentConfigs = [...(((opp as any)?.serviceConfigurations as any[]) || [])];
+      currentConfigs.splice(index, 1);
+      await saveConfigs({
+        opportunityId,
+        serviceConfigurations: currentConfigs,
+      });
+      if (editingConfigIndex === index) {
+        setActiveConfiguratorType(null);
+        setEditingConfigIndex(null);
+        setDraftConfigData(null);
+      }
+    } catch (err: unknown) {
+      console.error("Failed to delete configuration:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      alert("Wystąpił błąd podczas usuwania konfiguracji: " + msg);
+    }
+  };
 
   useEffect(() => {
     if (opp?.leadSource !== undefined) {
@@ -169,8 +350,9 @@ export default function OpportunityDetailPage({
         leadSource: val ? val : null,
       });
       setEditingLeadSource(false);
-    } catch (err: any) {
-      setError(err.message || "Błąd zapisu źródła leada");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Błąd zapisu źródła leada";
+      setError(msg);
     }
   };
 
@@ -181,8 +363,7 @@ export default function OpportunityDetailPage({
   const isAdmin = me?.role === "admin";
   const assignOpportunity = useMutation(api.salesOpportunities.assignOpportunity);
   const assignableUsers = useQuery(api.users.listAllActive) ?? [];
-  const servicesList = useQuery(api.services.list) ?? [];
-  const serviceNames = servicesList.map((s) => s.name);
+  const servicesList = useQuery(api.services.list, {}) ?? [];
 
   // Synchronizacja checkboxa "Taki sam jak klienta" gdy dane opp się załadują
   useEffect(() => {
@@ -195,7 +376,7 @@ export default function OpportunityDetailPage({
         !!(opp.street || opp.city)
       );
     }
-  }, [opp?.street, opp?.buildingNumber, opp?.postalCode, opp?.city, opp?.investmentStreet, opp?.investmentBuildingNumber, opp?.investmentPostalCode, opp?.investmentCity]);
+  }, [opp, opp?.street, opp?.buildingNumber, opp?.postalCode, opp?.city, opp?.investmentStreet, opp?.investmentBuildingNumber, opp?.investmentPostalCode, opp?.investmentCity]);
 
   useEffect(() => {
     const el = commentRef.current;
@@ -301,7 +482,6 @@ export default function OpportunityDetailPage({
   }
 
   const selectedServices = opp.services ?? [];
-  const isTerraceService = selectedServices.includes("Zabudowa tarasu");
   const { parsedConfig, displayComment } = parseConfiguratorData(opp.comment);
 
   const mainStreetPart = [opp.street, [opp.buildingNumber, opp.apartmentNumber].filter(Boolean).join("/")].filter(Boolean).join(" ");
@@ -1271,7 +1451,7 @@ export default function OpportunityDetailPage({
         {/* Kafelki wybranych usług */}
         {selectedServices.length === 0 ? (
           <div style={{ fontSize: 13, color: "var(--text-mute)", padding: "16px", borderRadius: 10, background: "var(--panel-2)", border: "1px dashed var(--line)", textAlign: "center" }}>
-            Brak przypisanych usług — kliknij <strong>„Dodaj usługi"</strong> powyżej, aby dodać zakres prac.
+            Brak przypisanych usług — kliknij <strong>&bdquo;Dodaj usługi&rdquo;</strong> powyżej, aby dodać zakres prac.
           </div>
         ) : (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -1313,58 +1493,275 @@ export default function OpportunityDetailPage({
         )}
       </div>
 
-      {/* ── Parametry z konfiguratora (Wszystkie usługi lub formularz online) ── */}
+      {/* ── Wyceny i konfiguratory techniczne ── */}
       {(() => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const configs: any[] = (opp as any).serviceConfigurations || [];
+        const configs: ServiceConfigItem[] =
+          ((opp as unknown as Record<string, unknown>).serviceConfigurations as ServiceConfigItem[] | undefined) || [];
         const hasConfigurations = configs.length > 0;
-        const showSection = hasConfigurations || isTerraceService || parsedConfig;
-
-        if (!showSection) return null;
 
         return (
-          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
-                <Sliders size={15} className="text-brand" />
-                Parametry z konfiguratora
-              </h3>
-              <span style={{ fontSize: 10.5, fontWeight: 700, background: "#F1F5F9", color: "#475569", padding: "2px 8px", borderRadius: 12, border: "1px solid #E2E8F0" }}>
-                {hasConfigurations ? `Skonfigurowano pozycji: ${configs.length}` : "Formularz online"}
-              </span>
+          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 14, padding: 18, display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Nagłówek sekcji */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, background: "#0F766E", color: "#fff" }}>
+                  <SlidersHorizontal size={17} />
+                </span>
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: "#1E293B", margin: 0 }}>
+                    Wyceny i konfiguratory techniczne
+                  </h3>
+                  <p style={{ fontSize: 11, color: "#64748B", margin: 0 }}>
+                    Kalkulatory ofertowe (Zadaszenia tarasów, Zabudowy szklane). Wartość szansy przelicza się automatycznie.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {activeConfiguratorType === null ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleStartAdd("TERRACE_ROOF")}
+                      className="btn"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 12px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        borderRadius: 8,
+                        background: "#ffffff",
+                        border: "1px solid #CBD5E1",
+                        color: "#0F172A",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Plus size={14} className="text-teal-700" />
+                      + Dodaj zadaszenie tarasu
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleStartAdd("GLASS_ENCLOSURE")}
+                      className="btn"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 12px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        borderRadius: 8,
+                        background: "#0F766E",
+                        border: "1px solid #0F766E",
+                        color: "#ffffff",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Plus size={14} />
+                      + Dodaj zabudowę szklaną
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCancelConfig}
+                    className="btn"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 12px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      borderRadius: 8,
+                      background: "#ffffff",
+                      border: "1px solid #E2E8F0",
+                      color: "#64748B",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <X size={14} />
+                    Zamknij konfigurator
+                  </button>
+                )}
+              </div>
             </div>
 
+            {/* ── Aktywny moduł konfiguratora (Inline Expandable Form) ── */}
+            {activeConfiguratorType !== null && (
+              <div
+                style={{
+                  background: "#ffffff",
+                  border: "2px solid #0F766E",
+                  borderRadius: 12,
+                  padding: 16,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #E2E8F0", paddingBottom: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#0F766E" }}>
+                      {editingConfigIndex !== null
+                        ? `Edycja pozycji #${editingConfigIndex + 1}: ${configs[editingConfigIndex]?.serviceName || "Wycena"}`
+                        : activeConfiguratorType === "TERRACE_ROOF"
+                        ? "Nowa pozycja: Zadaszenie tarasu"
+                        : "Nowa pozycja: Zabudowa szklana"}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#64748B" }}>
+                      (Wprowadź dane i zatwierdź przyciskiem poniżej)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCancelConfig}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#94A3B8",
+                      padding: 4,
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                    title="Anuluj"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Komponent kalkulatora */}
+                <div style={{ overflowX: "auto" }}>
+                  {activeConfiguratorType === "TERRACE_ROOF" ? (
+                    <TerraceRoofConfigurator
+                      initialInput={editingConfigIndex !== null ? configs[editingConfigIndex]?.input : undefined}
+                      clientType={opp.clientId ? "individual" : undefined}
+                      onChange={(data) => setDraftConfigData(data)}
+                    />
+                  ) : (
+                    <GlassEnclosureConfigurator
+                      initialInput={editingConfigIndex !== null ? configs[editingConfigIndex]?.input : undefined}
+                      onChange={(data) => setDraftConfigData(data)}
+                    />
+                  )}
+                </div>
+
+                {/* Pasek zatwierdzenia konfiguratora */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    borderTop: "1px solid #E2E8F0",
+                    background: "#F8FAFC",
+                    margin: "-16px -16px -16px -16px",
+                    padding: "12px 16px",
+                    borderBottomLeftRadius: 10,
+                    borderBottomRightRadius: 10,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {draftConfigData?.result && (
+                      <div style={{ fontSize: 12, color: "#475569" }}>
+                        Wycena pozycji:{" "}
+                        <strong style={{ fontSize: 14, color: "#0F766E" }}>
+                          {formatPLN(
+                            draftConfigData.result?.options?.polycarbonate?.totalNet ??
+                            draftConfigData.result?.finalPriceNet ??
+                            draftConfigData.result?.totalNet ??
+                            draftConfigData.result?.totalNetPrice ??
+                            draftConfigData.result?.totalClientNet ?? 0
+                          )} netto
+                        </strong>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={handleCancelConfig}
+                      className="btn"
+                      style={{
+                        padding: "7px 14px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        borderRadius: 8,
+                        background: "#ffffff",
+                        border: "1px solid #CBD5E1",
+                        color: "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Anuluj
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveConfig}
+                      disabled={!draftConfigData?.isValid || isSavingConfig}
+                      className="btn"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "7px 16px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        borderRadius: 8,
+                        background: !draftConfigData?.isValid || isSavingConfig ? "#94A3B8" : "#0F766E",
+                        border: "none",
+                        color: "#ffffff",
+                        cursor: !draftConfigData?.isValid || isSavingConfig ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {isSavingConfig ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                      <span>{editingConfigIndex !== null ? "Zaktualizuj pozycję w szansie" : "Zapisz wycenę i dodaj do szansy"}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Lista zapisanych wycen ── */}
             {hasConfigurations ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {configs.map((cfg: any, cIdx: number) => {
+                {configs.map((cfg: ServiceConfigItem, cIdx: number) => {
                   const sName = cfg.serviceName || `Usługa #${cIdx + 1}`;
                   const isGlass = cfg.calculatorType === "GLASS_ENCLOSURE" || sName.toLowerCase().includes("zabudow");
                   const isRoof = cfg.calculatorType === "terrace_roof" || sName.toLowerCase().includes("zadaszen");
+                  const isBeingEdited = editingConfigIndex === cIdx && activeConfiguratorType !== null;
 
                   return (
                     <div
                       key={cIdx}
                       style={{
-                        background: "#ffffff",
-                        border: "1px solid #CBD5E1",
+                        background: isBeingEdited ? "#F0FDFA" : "#ffffff",
+                        border: isBeingEdited ? "2px solid #0F766E" : "1px solid #CBD5E1",
                         borderRadius: 10,
-                        padding: 12,
+                        padding: 14,
                         display: "flex",
                         flexDirection: "column",
                         gap: 10,
+                        transition: "all 0.2s ease",
                       }}
                     >
-                      {/* Nagłówek usługi */}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #F1F5F9", paddingBottom: 8 }}>
+                      {/* Nagłówek pozycji */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, borderBottom: "1px solid #F1F5F9", paddingBottom: 10 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span
                             style={{
-                              width: 20,
-                              height: 20,
-                              borderRadius: 4,
+                              width: 22,
+                              height: 22,
+                              borderRadius: 6,
                               background: "#0F766E",
                               color: "#fff",
-                              fontSize: 10,
+                              fontSize: 11,
                               fontWeight: 700,
                               display: "inline-flex",
                               alignItems: "center",
@@ -1373,21 +1770,75 @@ export default function OpportunityDetailPage({
                           >
                             {cIdx + 1}
                           </span>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{sName}</span>
+                          <span style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A" }}>{sName}</span>
+                          {cfg.updatedAt && (
+                            <span style={{ fontSize: 10.5, color: "#64748B" }}>
+                              (Zaktualizowano: {new Date(cfg.updatedAt).toLocaleDateString("pl-PL")})
+                            </span>
+                          )}
                         </div>
 
-                        {cfg.result && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11 }}>
-                            {cfg.result.installationNet !== undefined && (
-                              <span style={{ color: "#0F766E", fontWeight: 600 }}>
-                                Montaż: {formatPLN(cfg.result.installationNet)}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {cfg.result && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5 }}>
+                              {cfg.result.installationNet !== undefined && (
+                                <span style={{ color: "#0F766E", fontWeight: 600 }}>
+                                  Montaż: {formatPLN(cfg.result.installationNet)}
+                                </span>
+                              )}
+                              <span style={{ color: "#0F172A", fontWeight: 700, background: "#F1F5F9", padding: "3px 8px", borderRadius: 6, border: "1px solid #E2E8F0" }}>
+                                Razem: {formatPLN(cfg.result.totalNetPrice ?? cfg.result.finalPriceNet ?? cfg.result.totalNet ?? cfg.result.totalClientNet ?? 0)} netto
                               </span>
-                            )}
-                            <span style={{ color: "#0F172A", fontWeight: 700, background: "#F1F5F9", padding: "2px 6px", borderRadius: 4 }}>
-                              Razem: {formatPLN(cfg.result.totalNetPrice ?? cfg.result.finalPriceNet ?? cfg.result.totalNet ?? 0)} netto
-                            </span>
-                          </div>
-                        )}
+                            </div>
+                          )}
+
+                          {/* Akcje dla pozycji: Edytuj & Usuń */}
+                          <button
+                            type="button"
+                            onClick={() => handleStartEdit(cIdx)}
+                            className="btn"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              padding: "4px 8px",
+                              fontSize: 11,
+                              fontWeight: 600,
+                              borderRadius: 6,
+                              background: "#ffffff",
+                              border: "1px solid #CBD5E1",
+                              color: "#1E293B",
+                              cursor: "pointer",
+                            }}
+                            title="Edytuj tę wycenę"
+                          >
+                            <Pencil size={12} className="text-teal-700" />
+                            Edytuj
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteConfig(cIdx)}
+                            className="btn"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              padding: "4px 8px",
+                              fontSize: 11,
+                              fontWeight: 600,
+                              borderRadius: 6,
+                              background: "#ffffff",
+                              border: "1px solid #FCA5A5",
+                              color: "#DC2626",
+                              cursor: "pointer",
+                            }}
+                            title="Usuń tę wycenę"
+                          >
+                            <Trash2 size={12} />
+                            Usuń
+                          </button>
+                        </div>
                       </div>
 
                       {/* Szczegóły dla Zabudowy Szklanej */}
@@ -1400,8 +1851,8 @@ export default function OpportunityDetailPage({
                                 Ścianki szklane ({cfg.input.walls.length} szt.)
                               </span>
                               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 6 }}>
-                                {cfg.input.walls.map((w: any, wIdx: number) => {
-                                  const wRes = cfg.result?.walls?.find((item: any) => item.id === w.id);
+                                {cfg.input.walls.map((w: ServiceConfigWall, wIdx: number) => {
+                                  const wRes = cfg.result?.walls?.find((item) => item.id === w.id);
                                   const typeName = w.type === "FRONT" ? "Ścianka frontowa" : "Ścianka boczna";
                                   return (
                                     <div
@@ -1415,7 +1866,7 @@ export default function OpportunityDetailPage({
                                       }}
                                     >
                                       <div style={{ fontWeight: 700, color: "#1E293B" }}>
-                                        #{wIdx + 1} {typeName} {w.quantity > 1 ? `(x${w.quantity} szt.)` : ""}
+                                        #{wIdx + 1} {typeName} {w.quantity && w.quantity > 1 ? `(x${w.quantity} szt.)` : ""}
                                       </div>
                                       <div style={{ color: "#475569", marginTop: 2 }}>
                                         Wymiary: <strong>{w.widthCm} × {w.heightCm} cm</strong>
@@ -1440,8 +1891,8 @@ export default function OpportunityDetailPage({
                                 Lamele i dodatki ({cfg.input.accessories.length} szt.)
                               </span>
                               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 6 }}>
-                                {cfg.input.accessories.map((a: any, aIdx: number) => {
-                                  const aRes = cfg.result?.accessories?.find((item: any) => item.id === a.id);
+                                {cfg.input.accessories.map((a: ServiceConfigAccessory, aIdx: number) => {
+                                  const aRes = cfg.result?.accessories?.find((item) => item.id === a.id);
                                   return (
                                     <div
                                       key={a.id || aIdx}
@@ -1454,7 +1905,7 @@ export default function OpportunityDetailPage({
                                       }}
                                     >
                                       <div style={{ fontWeight: 700, color: "#1E293B" }}>
-                                        #{aIdx + 1} {aRes?.name || "Dodatek"} {a.quantity > 1 ? `(x${a.quantity} szt.)` : ""}
+                                        #{aIdx + 1} {aRes?.name || "Dodatek"} {a.quantity && a.quantity > 1 ? `(x${a.quantity} szt.)` : ""}
                                       </div>
                                       {aRes?.effectiveWidthCm && (
                                         <div style={{ color: "#475569", marginTop: 2 }}>
@@ -1507,41 +1958,62 @@ export default function OpportunityDetailPage({
                   );
                 })}
               </div>
-            ) : (
-              /* Fallback dla zgłoszeń zewnętrznych z JotForm/parsedConfig */
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-                {parsedConfig?.variant && (
-                  <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wybrany wariant</span>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.variant}</span>
+            ) : activeConfiguratorType === null ? (
+              /* Empty state gdy brak konfiguracji i brak aktywnego edytora */
+              parsedConfig ? (
+                /* Fallback dla zgłoszeń z JotForm z parametrami tekstowymi */
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                  {parsedConfig?.variant && (
+                    <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wybrany wariant (Jotform)</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.variant}</span>
+                    </div>
+                  )}
+                  {parsedConfig?.dimensions && (
+                    <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wymiary (Jotform)</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.dimensions}</span>
+                    </div>
+                  )}
+                  {parsedConfig?.area && (
+                    <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Powierzchnia (Jotform)</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F766E" }}>{parsedConfig.area}</span>
+                    </div>
+                  )}
+                  {parsedConfig?.options && (
+                    <div style={{ gridColumn: "span 2", background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wyposażenie dodatkowe (Jotform)</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#1E293B" }}>{parsedConfig.options}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    background: "#ffffff",
+                    border: "1px dashed #CBD5E1",
+                    borderRadius: 10,
+                    padding: "24px 16px",
+                    textAlign: "center",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B" }}>
+                    <SlidersHorizontal size={18} />
                   </div>
-                )}
-                {parsedConfig?.dimensions && (
-                  <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wymiary (Szer. x Głęb.)</span>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.dimensions}</span>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>
+                    Brak skonfigurowanych wycen dla tej szansy
                   </div>
-                )}
-                {parsedConfig?.area && (
-                  <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Powierzchnia tarasu</span>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F766E" }}>{parsedConfig.area}</span>
+                  <div style={{ fontSize: 11.5, color: "#64748B", maxWidth: 420 }}>
+                    Dodaj wycenę zadaszenia tarasu lub zabudowy szklanej za pomocą powyższych przycisków, aby precyzyjnie wyliczyć koszt, cenę oraz zysk szansy sprzedaży.
                   </div>
-                )}
-                {parsedConfig?.location && (
-                  <div style={{ background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Deklarowana miejscowość</span>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{parsedConfig.location}</span>
-                  </div>
-                )}
-                {parsedConfig?.options && (
-                  <div style={{ gridColumn: "span 2", background: "#ffffff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "8px 10px" }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wyposażenie dodatkowe</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "#1E293B" }}>{parsedConfig.options}</span>
-                  </div>
-                )}
-              </div>
-            )}
+                </div>
+              )
+            ) : null}
           </div>
         );
       })()}

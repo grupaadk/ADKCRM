@@ -233,5 +233,34 @@ describe("Deduplication", () => {
     expect(duplicateEvent!.details.submissionId).toBe("jotform-002");
     expect(duplicateEvent!.performedBy).toBe("system");
   });
+
+  test("getPopularClients returns most frequently used clients and falls back to recent clients", async () => {
+    const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
+
+    const client1 = await asUser.mutation(api.clients.create, {
+      firstName: "Popular",
+      lastName: "One",
+    });
+    const client2 = await asUser.mutation(api.clients.create, {
+      firstName: "Popular",
+      lastName: "Two",
+    });
+
+    // Create an opportunity for client1 so client1 has usageCount > 0
+    await t.run(async (ctx) => {
+      await ctx.db.insert("pendingJotformSubmissions", {
+        firstName: "Popular",
+        lastName: "One",
+        clientId: client1,
+        processed: false,
+      });
+    });
+
+    const popular = await asUser.query(api.clients.getPopularClients, { limit: 5 });
+    expect(popular.length).toBeGreaterThanOrEqual(2);
+    expect(popular[0]._id).toBe(client1);
+    expect(popular[0].usageCount).toBe(1);
+  });
 });
 

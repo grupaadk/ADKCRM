@@ -3,7 +3,7 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { DEFAULT_DOCUMENTS, nextOrderNumber } from "./orders";
-import { requireUser } from "./lib/auth";
+import { requireUser, getCurrentUser } from "./lib/auth";
 import { normalizePhoneForDb } from "./lib/phone";
 
 // Zapis nowej szansy sprzedaży (z webhooka Jotform lub ręcznie z panelu).
@@ -86,6 +86,8 @@ export const createManualOpportunity = mutation({
     price: v.optional(v.number()),
     profit: v.optional(v.number()),
     leadSource: v.optional(v.string()),
+    assignedUserId: v.optional(v.id("users")),
+    assignedUserIds: v.optional(v.array(v.id("users"))),
     serviceConfigurations: v.optional(
       v.array(
         v.object({
@@ -108,8 +110,14 @@ export const createManualOpportunity = mutation({
       investmentPostalCode,
       investmentCity,
       uploadedFileIds,
+      assignedUserId: customAssignedUserId,
+      assignedUserIds: customAssignedUserIds,
       ...rest
     } = args;
+
+    const currentUser = await getCurrentUser(ctx);
+    const assignedUserId = customAssignedUserId || currentUser?._id;
+    const assignedUserIds = customAssignedUserIds || (assignedUserId ? [assignedUserId] : undefined);
 
     let firstName = args.firstName;
     let lastName = args.lastName;
@@ -150,6 +158,8 @@ export const createManualOpportunity = mutation({
     const opportunityId = await ctx.db.insert("pendingJotformSubmissions", {
       ...rest,
       clientId,
+      assignedUserId,
+      assignedUserIds,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: email?.trim() || undefined,
@@ -493,6 +503,76 @@ export const updateOpportunity = mutation({
         }
       }
     }
+  },
+});
+
+/**
+ * Zapisuje i aktualizuje konfiguracje techniczne (wyceny) na szansie sprzedaży.
+ * Automatycznie przelicza łączną wartość zlecenia (cena, koszt, zysk).
+ */
+export const saveOpportunityConfigurations = mutation({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+    serviceConfigurations: v.array(
+      v.object({
+        serviceName: v.string(),
+        calculatorType: v.string(),
+        input: v.any(),
+        result: v.any(),
+        updatedAt: v.number(),
+        updatedBy: v.optional(v.string()),
+        offerText: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const opp = await ctx.db.get(args.opportunityId);
+    if (!opp) throw new Error("Szansa sprzedaży nie znaleziona");
+
+    const identity = await ctx.auth.getUserIdentity();
+    const currentUserEmail = identity?.email || identity?.name || undefined;
+
+    let totalNetPrice = 0;
+    let totalCostKc = 0;
+    let totalProfitZ = 0;
+
+    const normalizedConfigs = args.serviceConfigurations.map((cfg) => {
+      if (cfg.result) {
+        const res = cfg.result;
+        const poly = res.options?.polycarbonate;
+        const rawNet = poly?.totalNet ?? res.finalPriceNet ?? res.totalNet ?? res.totalNetPrice ?? res.totalClientNet ?? 0;
+        const baseKc = poly?.costBasisKc ?? res.costKc ?? res.costBasisKc ?? res.totalCostNet ?? 0;
+        const profit = poly?.profitZ ?? res.profitZ ?? res.totalProfitZ ?? (rawNet - baseKc);
+
+        totalNetPrice += rawNet;
+        totalCostKc += baseKc;
+        totalProfitZ += profit;
+      }
+      return {
+        ...cfg,
+        updatedAt: Date.now(),
+        updatedBy: cfg.updatedBy || currentUserEmail,
+      };
+    });
+
+    const price = totalNetPrice > 0 ? Math.round(totalNetPrice) : 0;
+    const cost = totalCostKc > 0 ? Math.round(totalCostKc) : 0;
+    const profit = totalProfitZ > 0 ? Math.round(totalProfitZ) : 0;
+
+    await ctx.db.patch(args.opportunityId, {
+      serviceConfigurations: normalizedConfigs,
+      price,
+      cost,
+      profit,
+    });
+
+    return {
+      opportunityId: args.opportunityId,
+      price: price ?? 0,
+      cost: cost ?? 0,
+      profit: profit ?? 0,
+      count: normalizedConfigs.length,
+    };
   },
 });
 
