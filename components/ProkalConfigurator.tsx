@@ -9,7 +9,6 @@ import {
 import {
   Maximize2,
   Grid,
-  Layers,
   FileSpreadsheet,
   Check,
   AlertTriangle,
@@ -496,7 +495,7 @@ export function ProkalConfigurator({
       {/* ── 2. GŁÓWNY UKŁAD ROBOCZY: [OFERTA] (Szczegóły obliczeń) lub CAD dla pozycji ── */}
       {activeTabMode === "order" || positions.length === 0 ? (
         <div className="grid grid-cols-[1fr_280px] min-h-[640px] bg-slate-50/40 gap-3 p-3 overflow-x-auto">
-          {/* ══ KOLUMNA GŁÓWNA: OFERTA, CENY I RABATY NA KONSTRUKCJE, DEFINICJE ══ */}
+          {/* ══ KOLUMNA GŁÓWNA: OFERTA ORAZ CENY I RABATY NA KONSTRUKCJE ══ */}
           <div className="flex flex-col gap-3 overflow-y-auto max-h-[740px]">
             {/* Box OFERTA */}
             <ProkalCard title="OFERTA" icon={Building2}>
@@ -707,33 +706,6 @@ export function ProkalConfigurator({
                       </tr>
                     </tfoot>
                   </table>
-                </div>
-              </div>
-            </ProkalCard>
-
-            {/* Box DEFINICJE: */}
-            <ProkalCard title="DEFINICJE" icon={Layers}>
-              <div className="flex flex-col gap-1.5 text-xs text-slate-600">
-                <div>
-                  <strong className="text-slate-900 font-semibold">Profile:</strong> 5450 {currentInput.color} 5448 X 5450 X Pusty profil (szczelina) 7850E X 5452
-                </div>
-                <div>
-                  <strong className="text-slate-900 font-semibold">Grupy:</strong> Systemy przesuwne bezramowe dolnopodparte
-                </div>
-                <div>
-                  <strong className="text-slate-900 font-semibold">Wypełnienia:</strong> {currentInput.glassCode} (Szkło hartowane ESG 10mm Float przezierne, krawędzie szlifowane)
-                </div>
-                <div>
-                  <strong className="text-slate-900 font-semibold">Kolory:</strong> {currentInput.color} - Szary / Proszkowo RAL
-                </div>
-                <div>
-                  <strong className="text-slate-900 font-semibold">Okucia:</strong> PROCURAL Wózki jezdne dolne z rolkami łożyskowanymi
-                </div>
-                <div>
-                  <strong className="text-slate-900 font-semibold">Klamki:</strong> Pochwyt muszelkowy wpuszczany inox
-                </div>
-                <div>
-                  <strong className="text-slate-900 font-semibold">Dodatki:</strong> Uszczelki szczotkowe międzyszybowe 6.7x12mm, odbojniki, profile kompensacyjne
                 </div>
               </div>
             </ProkalCard>

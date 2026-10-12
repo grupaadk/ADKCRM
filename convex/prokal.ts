@@ -43,11 +43,13 @@ export const listComponents = query({
     activeOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    let q = ctx.db.query("prokalComponents");
-    if (args.category) {
-      q = q.withIndex("by_category", (b) => b.eq("category", args.category!));
-    }
-    const list = await q.collect();
+    const list = args.category
+      ? await ctx.db
+          .query("prokalComponents")
+          .withIndex("by_category", (b) => b.eq("category", args.category!))
+          .collect()
+      : await ctx.db.query("prokalComponents").collect();
+
     if (args.activeOnly) {
       return list.filter((c) => c.isActive);
     }
