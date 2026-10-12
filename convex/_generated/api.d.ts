@@ -37,6 +37,7 @@ import type * as hr from "../hr.js";
 import type * as http from "../http.js";
 import type * as installationTeams from "../installationTeams.js";
 import type * as itKanban from "../itKanban.js";
+import type * as itServices from "../itServices.js";
 import type * as itTimeTracker from "../itTimeTracker.js";
 import type * as jotform from "../jotform.js";
 import type * as jotformAdmin from "../jotformAdmin.js";
@@ -115,6 +116,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   installationTeams: typeof installationTeams;
   itKanban: typeof itKanban;
+  itServices: typeof itServices;
   itTimeTracker: typeof itTimeTracker;
   jotform: typeof jotform;
   jotformAdmin: typeof jotformAdmin;

@@ -4,10 +4,11 @@ import { useState } from "react";
 import { ITKanbanTab } from "@/app/admin/ustawienia/ITKanbanTab";
 import { ITTimeTrackerWidget } from "@/components/it/ITTimeTrackerWidget";
 import { ITTimeReportsView } from "@/components/it/ITTimeReportsView";
-import { Kanban, BarChart2 } from "lucide-react";
+import { ITServicesManager } from "@/components/it/ITServicesManager";
+import { Kanban, BarChart2, CreditCard } from "lucide-react";
 
 export default function PracaITPage() {
-  const [activeTab, setActiveTab] = useState<"board" | "reports">("board");
+  const [activeTab, setActiveTab] = useState<"board" | "reports" | "services">("board");
 
   return (
     <div className="w-full px-4 py-8 sm:px-6 lg:px-8">
@@ -16,7 +17,7 @@ export default function PracaITPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Praca IT</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Tracker czasu pracy, tablica zadań IT, sprinty oraz raporty.
+            Tracker czasu pracy, tablica zadań IT, raporty oraz subskrypcje i usługi IT.
           </p>
         </div>
 
@@ -46,6 +47,18 @@ export default function PracaITPage() {
             <BarChart2 className="size-4 text-[#4dbdc6]" />
             Raporty czasu
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("services")}
+            className={`px-3.5 py-2 rounded-lg transition flex items-center gap-2 ${
+              activeTab === "services"
+                ? "bg-white text-slate-800 shadow-xs border border-slate-200"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <CreditCard className="size-4 text-[#4dbdc6]" />
+            Subskrypcje IT
+          </button>
         </div>
       </div>
 
@@ -57,9 +70,12 @@ export default function PracaITPage() {
           {/* Kanban i Backlog */}
           <ITKanbanTab />
         </>
-      ) : (
+      ) : activeTab === "reports" ? (
         /* Widok Raportowania Czasowego */
         <ITTimeReportsView />
+      ) : (
+        /* Widok Spisu Usług i Subskrypcji IT */
+        <ITServicesManager />
       )}
     </div>
   );

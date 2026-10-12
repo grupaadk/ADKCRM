@@ -1037,6 +1037,27 @@ export default defineSchema({
     .index("by_task", ["taskId"])
     .index("by_start_time", ["startTime"]),
 
+  // Usługi i subskrypcje IT (SaaS, API, hosting itp.)
+  itServices: defineTable({
+    name: v.string(),
+    provider: v.optional(v.string()),
+    category: v.optional(v.string()),
+    cost: v.number(),
+    currency: v.string(), // "PLN"
+    billingCycle: v.union(v.literal("monthly"), v.literal("yearly"), v.literal("quarterly"), v.literal("usage_based")),
+    status: v.optional(v.union(v.literal("active"), v.literal("paused"), v.literal("trial"), v.literal("cancelled"))),
+    renewalDay: v.optional(v.number()), // Dzień miesiąca (1-31)
+    renewalDate: v.optional(v.string()), // Konkretna data odnowienia w formacie YYYY-MM-DD
+    paymentMethod: v.optional(v.string()), // np. "Karta firmowa", "Przelew"
+    websiteUrl: v.optional(v.string()), // URL do panelu zarządzania / logowania
+    adminEmail: v.optional(v.string()), // Email administratora / login
+    password: v.optional(v.string()), // Hasło dostępowe do usługi
+    invoiceRecipient: v.optional(v.string()), // Nabywca na fakturze / uwagi księgowe
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  }),
+
   // Logi systemowe
   systemLogs: defineTable({
     level: v.union(v.literal("info"), v.literal("warn"), v.literal("error")),
