@@ -123,7 +123,6 @@ export function ProkalConfigurator({
   const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
 
   const [orderName, setOrderName] = useState("Oferta konstrukcji całoszklanych");
-  const [orderDescription, setOrderDescription] = useState("Systemy przesuwne bezramowe z wypełnieniem HART 10");
   const [orderDiscountPercent] = useState(0);
   const [orderAdditionalDiscountPercent] = useState(0);
   const [pricingScope, setPricingScope] = useState("A+B) Konstrukcja + malowanie");
@@ -499,25 +498,14 @@ export function ProkalConfigurator({
           <div className="flex flex-col gap-3 overflow-y-auto max-h-[740px]">
             {/* Box OFERTA */}
             <ProkalCard title="OFERTA" icon={Building2}>
-              <div className="flex flex-col gap-2">
-                <div>
-                  <span className="text-[10px] font-semibold text-slate-500 block mb-0.5">Nazwa oferty:</span>
-                  <input
-                    type="text"
-                    value={orderName}
-                    onChange={(e) => setOrderName(e.target.value)}
-                    className="w-full px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                  />
-                </div>
-                <div>
-                  <span className="text-[10px] font-semibold text-slate-500 block mb-0.5">Opis oferty:</span>
-                  <input
-                    type="text"
-                    value={orderDescription}
-                    onChange={(e) => setOrderDescription(e.target.value)}
-                    className="w-full px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                  />
-                </div>
+              <div>
+                <span className="text-[10px] font-semibold text-slate-500 block mb-0.5">Nazwa oferty:</span>
+                <input
+                  type="text"
+                  value={orderName}
+                  onChange={(e) => setOrderName(e.target.value)}
+                  className="w-full px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                />
               </div>
             </ProkalCard>
 
@@ -749,11 +737,11 @@ export function ProkalConfigurator({
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Nazwa konstrukcji:
               </label>
-              <input
-                type="text"
+              <textarea
+                rows={3}
                 value={currentInput.name || ""}
                 onChange={(e) => handleUpdateInput({ name: e.target.value })}
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 resize-y"
               />
             </div>
 
