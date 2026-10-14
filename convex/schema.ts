@@ -525,6 +525,7 @@ export default defineSchema({
           result: v.any(),
           updatedAt: v.number(),
           updatedBy: v.optional(v.string()),
+          offerText: v.optional(v.string()),
         })
       )
     ),

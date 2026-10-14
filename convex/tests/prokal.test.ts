@@ -127,4 +127,37 @@ describe("PROKAL CAD & System Configurator", () => {
     expect(calc.totalPriceNet).toBeGreaterThan(calc.totalCostNet);
     expect(calc.profitMarginPercent).toBeGreaterThan(0);
   });
+
+  test("powers PROKAL calculations using Excel price list data and Google Sheets overview", async () => {
+    const t = convexTest(schema);
+
+    // Test terracePricing.getPriceList query
+    const wallsPriceList = await t.query(api.terracePricing.getPriceList, { key: "terrace_walls" });
+    expect(wallsPriceList).toBeDefined();
+    expect(wallsPriceList?.items).toBeDefined();
+
+    // Test getProkalPricingOverview query
+    const overview = await t.query(api.prokal.getProkalPricingOverview, {});
+    expect(overview).toBeDefined();
+    expect(overview.components).toBeDefined();
+
+    // Test calculateProkal with Excel matching
+    const calc = calculateProkal({
+      widthMm: 2880,
+      heightMm: 2300,
+      tracksCount: 3,
+      sashesCount: 3,
+      color: "RAL 7016MAT",
+      glassCode: "HART 10",
+    });
+
+    expect(calc.excelPricing).toBeDefined();
+    expect(calc.excelPricing?.isPoweredByExcel).toBe(true);
+    expect(calc.excelPricing?.matchedWidthCm).toBe(290);
+    expect(calc.excelPricing?.matchedTracksCount).toBe(3);
+    expect(calc.excelPricing?.excelBasePriceNet).toBe(2431);
+    expect(calc.excelPricing?.excelPriceGross).toBe(2990);
+    expect(calc.totalPriceNet).toBe(2431);
+    expect(calc.offerSummaryText).toContain("Cennik: Arkusz Excel");
+  });
 });

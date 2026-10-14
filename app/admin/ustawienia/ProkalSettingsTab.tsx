@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
@@ -12,7 +12,12 @@ import {
   X,
   Sparkles,
   Search,
+  FileSpreadsheet,
+  RefreshCw,
+  ExternalLink,
 } from "lucide-react";
+import { DEFAULT_WALL_ITEMS, WALLS_CONFIG } from "@/lib/priceListConstants";
+import { PROFILES } from "@/lib/glassEnclosureCalculatorEngine";
 
 export function ProkalSettingsTab() {
   const components = useQuery(api.prokal.listComponents, {}) ?? [];
@@ -23,7 +28,40 @@ export function ProkalSettingsTab() {
   const deleteSystemMutation = useMutation(api.prokal.deleteSystem);
   const seedMutation = useMutation(api.prokal.seedDefaultProkalData);
 
-  const [activeSubTab, setActiveSubTab] = useState<"components" | "systems">("components");
+  const wallsPriceList = useQuery(api.terracePricing.getPriceList, {
+    key: "terrace_walls",
+  });
+  const syncWallsAction = useAction(api.terracePricing.syncWalls);
+  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const handleSyncSheets = async () => {
+    setIsSyncingSheets(true);
+    setSyncFeedback(null);
+    try {
+      const res = await syncWallsAction({});
+      if (res.success) {
+        setSyncFeedback({
+          type: "success",
+          message: `Pomyślnie zsynchronizowano cennik ścian z Google Sheets (${res.itemCount} stawek).`,
+        });
+      } else {
+        setSyncFeedback({
+          type: "error",
+          message: res.errorMessage || "Wystąpił błąd podczas synchronizacji arkusza.",
+        });
+      }
+    } catch (err: unknown) {
+      setSyncFeedback({
+        type: "error",
+        message: err instanceof Error ? err.message : "Błąd połączenia z Google Sheets.",
+      });
+    } finally {
+      setIsSyncingSheets(false);
+    }
+  };
+
+  const [activeSubTab, setActiveSubTab] = useState<"components" | "systems" | "excel">("components");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isSeeding, setIsSeeding] = useState(false);
@@ -157,7 +195,7 @@ export function ProkalSettingsTab() {
           </div>
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-strong)", margin: 0 }}>
-              Konfigurator PROKAL — Komponenty i Systemy Przesuwne
+              Systemy Całoszklane — Komponenty i Wyceny
             </h2>
             <p style={{ fontSize: 12, color: "var(--text-mute)", margin: "3px 0 0 0" }}>
               Zarządzanie profilami aluminiowymi, formatkami szkła, okuciami, wózkami i szablonami systemów wielotorowych.
@@ -174,7 +212,7 @@ export function ProkalSettingsTab() {
             style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 }}
           >
             <Sparkles size={14} color="#0284C7" />
-            {isSeeding ? "Inicjalizacja..." : "Zasiej wzorce PROKAL"}
+            {isSeeding ? "Inicjalizacja..." : "Zasiej wzorce komponentów"}
           </button>
 
           {activeSubTab === "components" ? (
@@ -268,6 +306,29 @@ export function ProkalSettingsTab() {
           }}
         >
           Systemy Przesuwne (2-, 3-, 4-, 5-torowe) ({systems.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab("excel")}
+          style={{
+            padding: "9px 18px",
+            fontSize: 13,
+            fontWeight: activeSubTab === "excel" ? 700 : 500,
+            color: activeSubTab === "excel" ? "var(--accent)" : "var(--text-mute)",
+            borderBottom: activeSubTab === "excel" ? "2px solid var(--accent)" : "2px solid transparent",
+            background: "none",
+            borderTop: "none",
+            borderLeft: "none",
+            borderRight: "none",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <FileSpreadsheet size={15} />
+          Cennik Excel / Google Sheets
         </button>
       </div>
 
@@ -566,6 +627,248 @@ export function ProkalSettingsTab() {
         </div>
       )}
 
+      {/* ── 3. PODZAKŁADKA: CENNIK EXCEL / GOOGLE SHEETS ── */}
+      {activeSubTab === "excel" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Karta statusu połączenia z arkuszem */}
+          <div
+            style={{
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              borderRadius: 12,
+              padding: "18px 22px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 16,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div
+                style={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: 10,
+                  background: "#10B98115",
+                  color: "#10B981",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <FileSpreadsheet size={24} />
+              </div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "var(--text-strong)" }}>
+                    Arkusz Google Sheets: {WALLS_CONFIG.sheetName}
+                  </h3>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: 9999,
+                      background: "#10B98120",
+                      color: "#059669",
+                    }}
+                  >
+                    Aktywne źródło danych
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <span>
+                    Ostatnia synchronizacja:{" "}
+                    <strong>
+                      {wallsPriceList?.syncedAt
+                        ? new Date(wallsPriceList.syncedAt).toLocaleString("pl-PL")
+                        : "Cennik bazowy ADK"}
+                    </strong>
+                  </span>
+                  <span>
+                    Stawki w bazie:{" "}
+                    <strong>
+                      {(wallsPriceList?.items?.length || DEFAULT_WALL_ITEMS.length)} pozycji
+                    </strong>
+                  </span>
+                  {wallsPriceList?.syncedBy && (
+                    <span>
+                      Użytkownik: <strong>{wallsPriceList.syncedBy}</strong>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <a
+                href={WALLS_CONFIG.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 }}
+              >
+                <ExternalLink size={13} />
+                Otwórz arkusz Google
+              </a>
+              <button
+                type="button"
+                onClick={handleSyncSheets}
+                disabled={isSyncingSheets}
+                className="btn primary"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  background: "#059669",
+                  borderColor: "#059669",
+                }}
+              >
+                <RefreshCw size={13} className={isSyncingSheets ? "animate-spin" : ""} />
+                {isSyncingSheets ? "Pobieranie stawek..." : "Synchronizuj z arkuszem Google"}
+              </button>
+            </div>
+          </div>
+
+          {/* Feedback po synchronizacji */}
+          {syncFeedback && (
+            <div
+              style={{
+                padding: "12px 16px",
+                borderRadius: 8,
+                fontSize: 12.5,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                background: syncFeedback.type === "success" ? "#ECFDF5" : "#FEF2F2",
+                border: `1px solid ${syncFeedback.type === "success" ? "#A7F3D0" : "#FECACA"}`,
+                color: syncFeedback.type === "success" ? "#065F46" : "#991B1B",
+              }}
+            >
+              <span>{syncFeedback.message}</span>
+              <button
+                type="button"
+                onClick={() => setSyncFeedback(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}
+              >
+                &times;
+              </button>
+            </div>
+          )}
+
+          {/* Karta informacyjna jak konfigurator korzysta z Excela */}
+          <div
+            style={{
+              background: "#F8FAFC",
+              border: "1px solid #E2E8F0",
+              borderRadius: 12,
+              padding: "16px 20px",
+            }}
+          >
+            <h4 style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px 0", color: "#1E293B" }}>
+              Jak moduł całoszklany jest zasilany danymi z cennika Excel?
+            </h4>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, fontSize: 12, color: "#475569" }}>
+              <div style={{ background: "#FFFFFF", padding: "10px 14px", borderRadius: 8, border: "1px solid #E2E8F0" }}>
+                <strong style={{ color: "#0F172A", display: "block", marginBottom: 2 }}>1. Gotowy komplet (Prowadnice + Szkło)</strong>
+                Tabela w arkuszu zawiera bezpośrednie ceny sprzedaży kompletnych systemów całoszklanych (np. 3-torowy 290 cm = 2 431 zł netto / 2 990 zł brutto).
+              </div>
+              <div style={{ background: "#FFFFFF", padding: "10px 14px", borderRadius: 8, border: "1px solid #E2E8F0" }}>
+                <strong style={{ color: "#0F172A", display: "block", marginBottom: 2 }}>2. Dopasowanie po wymiarach</strong>
+                System automatycznie paruje otwór konstrukcji z najbliższym rozmiarem z arkusza (np. szerokość 288 cm wpada w przedział do 290 cm).
+              </div>
+              <div style={{ background: "#FFFFFF", padding: "10px 14px", borderRadius: 8, border: "1px solid #E2E8F0" }}>
+                <strong style={{ color: "#0F172A", display: "block", marginBottom: 2 }}>3. 100% zgodność cenowa</strong>
+                Cena dla klienta w wycenie, tabeli i ofercie zgadza się 1:1 z arkuszem Google Sheets / Excel.
+              </div>
+            </div>
+          </div>
+
+          {/* Tabela stawek ścian zsynchronizowanych z arkusza */}
+          <div
+            style={{
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              borderRadius: 12,
+              overflow: "hidden",
+            }}
+          >
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-strong)" }}>
+                Stawki systemów przesuwnych pobrane z arkusza Excel
+              </div>
+              <span style={{ fontSize: 11, color: "var(--text-mute)" }}>
+                Aktualizowane automatycznie przy każdej synchronizacji
+              </span>
+            </div>
+
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "var(--bg-subtle, #F8FAFC)", textAlign: "left", borderBottom: "1px solid var(--line)" }}>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, color: "var(--text-mute)" }}>Produkt z arkusza</th>
+                    <th style={{ padding: "10px 12px", fontWeight: 600, color: "var(--text-mute)" }}>Liczba torów</th>
+                    <th style={{ padding: "10px 12px", fontWeight: 600, color: "var(--text-mute)" }}>Szerokość otworu</th>
+                    <th style={{ padding: "10px 12px", fontWeight: 600, color: "var(--text-mute)" }}>Profil bazowy (koszt)</th>
+                    <th style={{ padding: "10px 12px", fontWeight: 600, color: "var(--text-mute)", textAlign: "right" }}>Cena netto w Excelu</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, color: "var(--text-mute)", textAlign: "right" }}>Cena brutto (23%)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(wallsPriceList?.items && wallsPriceList.items.length > 0 ? wallsPriceList.items : DEFAULT_WALL_ITEMS).map((item, idx) => {
+                    const widthCm = item.widthCm || 0;
+                    const matchedProfile = PROFILES.find((p) => widthCm <= p.width);
+                    const baseCost = matchedProfile?.baseFront ?? Math.round(item.priceNet * 0.68);
+
+                    return (
+                      <tr
+                        key={item.id || idx}
+                        style={{
+                          borderBottom: "1px solid var(--line)",
+                          background: idx % 2 === 0 ? "transparent" : "var(--bg-subtle, #FAFAFA)",
+                        }}
+                      >
+                        <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--text-strong)" }}>
+                          {item.name}
+                        </td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <span
+                            style={{
+                              padding: "2px 7px",
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background: "#0284C715",
+                              color: "#0284C7",
+                            }}
+                          >
+                            {item.trackCount || 3}-torowy
+                          </span>
+                        </td>
+                        <td style={{ padding: "10px 12px", color: "var(--text-mute)" }}>
+                          {item.widthCm ? `${item.widthCm} cm` : "wg wymiaru"}
+                        </td>
+                        <td style={{ padding: "10px 12px", fontVariantNumeric: "tabular-nums" }}>
+                          <strong>{baseCost.toLocaleString("pl-PL")} zł</strong>
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                          <strong style={{ color: "#059669" }}>{item.priceNet.toLocaleString("pl-PL")} zł</strong>
+                        </td>
+                        <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--text-mute)", fontVariantNumeric: "tabular-nums" }}>
+                          {(item.priceGross || Math.round(item.priceNet * 1.23)).toLocaleString("pl-PL")} zł
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── MODAL EDYCJI KOMPONENTU ── */}
       {editingComponent && (
         <div
@@ -595,7 +898,7 @@ export function ProkalSettingsTab() {
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--text-strong)" }}>
-                {editingComponent.id ? "Edycja komponentu" : "Nowy komponent PROKAL"}
+                {editingComponent.id ? "Edycja komponentu" : "Nowy komponent"}
               </h3>
               <button
                 type="button"
@@ -787,7 +1090,7 @@ export function ProkalSettingsTab() {
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--text-strong)" }}>
-                {editingSystem.id ? "Edycja systemu przesuwnego" : "Nowy system przesuwny PROKAL"}
+                {editingSystem.id ? "Edycja systemu przesuwnego" : "Nowy system przesuwny"}
               </h3>
               <button
                 type="button"

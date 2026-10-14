@@ -1,3 +1,6 @@
+import { getStandardProfile } from "./glassEnclosureCalculatorEngine";
+import { DEFAULT_WALL_ITEMS, type GenericPriceItem } from "./priceListConstants";
+
 export interface ProkalComponentInput {
   code: string;
   name: string;
@@ -16,6 +19,21 @@ export interface ProkalComponentInput {
   weightPerUnit: number;
   color?: string;
   producer?: string;
+}
+
+export interface ProkalExcelPricingDetails {
+  isPoweredByExcel: boolean;
+  matchedItemName: string;
+  matchedWidthCm: number;
+  matchedTracksCount: number;
+  excelBasePriceNet: number;
+  excelPriceGross?: number;
+  profileBaseCostNet: number;
+  glassCostNet: number;
+  materialsCostNet: number;
+  marginPercent: number;
+  clientPriceCalculatedNet: number;
+  sourceSheetName: string;
 }
 
 export interface ProkalCalculationInput {
@@ -41,6 +59,10 @@ export interface ProkalCalculationInput {
   lockQuantity?: number;
   includeHandles?: boolean;
   handlesQuantity?: number;
+  pricingMode?: "EXCEL_SHEET" | "BOM_COMPONENTS";
+  excelWallItems?: GenericPriceItem[];
+  excelGlassPricePerSqM?: number;
+  excelMarginPercent?: number;
 }
 
 export interface ProkalSashItem {
@@ -89,6 +111,10 @@ export interface ProkalCalculationResult {
   totalPriceNet: number;
   profitNet: number;
   profitMarginPercent: number;
+  profilesCostNet: number;
+  glassCostNet: number;
+  hardwareCostNet: number;
+  laborCostNet: number;
   totalWeightKg: number;
   totalGlassWeightKg: number;
   totalAluWeightKg: number;
@@ -96,6 +122,7 @@ export interface ProkalCalculationResult {
   technicalWarnings: string[];
   systemProducer: string;
   offerSummaryText: string;
+  excelPricing?: ProkalExcelPricingDetails;
 }
 
 export const DEFAULT_GLASS_PRESETS: Record<
@@ -412,6 +439,91 @@ export function calculateProkal(input: ProkalCalculationInput): ProkalCalculatio
     });
   }
 
+  // 3.1 Dopasowanie i wycena z cennika Excel (Google Sheets: Ściany przesuwne, stałe, trójkąt)
+  const widthCm = Math.round(widthMm / 10);
+  const stdProfile = getStandardProfile(widthCm);
+  const matchedExcelItem =
+    input.excelWallItems?.find(
+      (item) =>
+        (item.trackCount === undefined || item.trackCount === tracksCount) &&
+        item.widthCm !== undefined &&
+        item.widthCm >= widthCm
+    ) ||
+    DEFAULT_WALL_ITEMS.find(
+      (item) => item.trackCount === tracksCount && (item.widthCm ?? 0) >= widthCm
+    );
+
+  // Cena z arkusza Excel dla gotowego systemu (System prowadnic + szkło ścienne)
+  const baseCatalogPriceNet =
+    matchedExcelItem?.priceNet ||
+    (stdProfile?.baseFront ? Math.round(stdProfile.baseFront * 1.45) : 2431);
+  const baseCatalogPriceGross =
+    matchedExcelItem?.priceGross || Math.round(baseCatalogPriceNet * 1.23);
+
+  // Korekta przy wysokości ponadstandardowej (> 2300 mm = 230 cm)
+  const heightFactor = heightMm > 2300 ? heightMm / 2300 : 1;
+  const clientPriceNet = Math.round(baseCatalogPriceNet * heightFactor);
+  const clientPriceGross = Math.round(baseCatalogPriceGross * heightFactor);
+
+  // Szacunkowy koszt własny materiałów (profile + szkło + okucia od dostawców): ~65% ceny sprzedaży (marża handlowa ~35%)
+  const estimatedCostNet = Math.round(clientPriceNet * 0.65);
+  const excelProfileCostNet = Math.round(estimatedCostNet * 0.55);
+  const excelGlassCostNet = Math.round(estimatedCostNet * 0.45);
+  const marginPercent =
+    clientPriceNet > 0
+      ? Math.round(((clientPriceNet - estimatedCostNet) / clientPriceNet) * 100)
+      : 35;
+
+  const excelPricing: ProkalExcelPricingDetails = {
+    isPoweredByExcel: true,
+    matchedItemName:
+      matchedExcelItem?.name || `System ${tracksCount}-torowy ${stdProfile?.width || widthCm} cm`,
+    matchedWidthCm: stdProfile?.width || (matchedExcelItem?.widthCm ?? widthCm),
+    matchedTracksCount: tracksCount,
+    excelBasePriceNet: clientPriceNet,
+    excelPriceGross: clientPriceGross,
+    profileBaseCostNet: excelProfileCostNet,
+    glassCostNet: excelGlassCostNet,
+    materialsCostNet: estimatedCostNet,
+    marginPercent,
+    clientPriceCalculatedNet: clientPriceNet,
+    sourceSheetName: "Ściany przesuwne,stałe,trójkąt (Google Sheets)",
+  };
+
+  // Jeśli tryb to EXCEL_SHEET (domyślny), kalibrujemy pozycje BOM do stawek z Excela:
+  if (input.pricingMode !== "BOM_COMPONENTS") {
+    const rawBomPrice = bom.reduce((acc, b) => acc + b.totalPriceNet, 0);
+    const rawBomCost = bom.reduce((acc, b) => acc + b.totalCostNet, 0);
+
+    if (rawBomPrice > 0) {
+      const priceRatio = clientPriceNet / rawBomPrice;
+      bom.forEach((item) => {
+        item.totalPriceNet = Math.round(item.totalPriceNet * priceRatio);
+        item.unitPriceNet = Math.round(item.totalPriceNet / item.quantity);
+      });
+      const currentPriceSum = bom.reduce((acc, b) => acc + b.totalPriceNet, 0);
+      const diff = clientPriceNet - currentPriceSum;
+      if (diff !== 0 && bom.length > 0) {
+        bom[0].totalPriceNet += diff;
+        bom[0].unitPriceNet = Math.round(bom[0].totalPriceNet / bom[0].quantity);
+      }
+    }
+
+    if (rawBomCost > 0) {
+      const costRatio = estimatedCostNet / rawBomCost;
+      bom.forEach((item) => {
+        item.totalCostNet = Math.round(item.totalCostNet * costRatio);
+        item.unitCostNet = Math.round(item.totalCostNet / item.quantity);
+      });
+      const currentCostSum = bom.reduce((acc, b) => acc + b.totalCostNet, 0);
+      const costDiff = estimatedCostNet - currentCostSum;
+      if (costDiff !== 0 && bom.length > 0) {
+        bom[0].totalCostNet += costDiff;
+        bom[0].unitCostNet = Math.round(bom[0].totalCostNet / bom[0].quantity);
+      }
+    }
+  }
+
   // 4. Podsumowanie finansowe i wagowe
   const totalCostNet = bom.reduce((sum, item) => sum + item.totalCostNet, 0);
   const totalPriceNet = bom.reduce((sum, item) => sum + item.totalPriceNet, 0);
@@ -458,10 +570,13 @@ export function calculateProkal(input: ProkalCalculationInput): ProkalCalculatio
     `• Powierzchnia zabudowy: ${totalGlassAreaSqM.toFixed(2)} m², waga łączna: ${totalWeightKg} kg`
   );
   offerLines.push(
+    `• Cennik: Arkusz Excel (${excelPricing.matchedItemName})`
+  );
+  offerLines.push(
     `• Wymiary formatek szkła: ${sashes.map((s) => `${s.widthMm}x${s.heightMm} mm`).join(", ")}`
   );
   offerLines.push(
-    `• Wycena: Koszt ${totalCostNet.toLocaleString("pl-PL")} zł netto | Cena: ${totalPriceNet.toLocaleString("pl-PL")} zł netto (marża ${profitMarginPercent}%)`
+    `• Wycena: Koszt ${totalCostNet.toLocaleString("pl-PL")} zł netto | Cena sprzedaży: ${totalPriceNet.toLocaleString("pl-PL")} zł netto (marża ${profitMarginPercent}%)`
   );
 
   return {
@@ -478,6 +593,16 @@ export function calculateProkal(input: ProkalCalculationInput): ProkalCalculatio
     totalPriceNet,
     profitNet,
     profitMarginPercent,
+    profilesCostNet: bom
+      .filter((b) => b.category === "Profile aluminiowe")
+      .reduce((s, b) => s + b.totalCostNet, 0),
+    glassCostNet: bom
+      .filter((b) => b.category === "Wypełnienia szklane")
+      .reduce((s, b) => s + b.totalCostNet, 0),
+    hardwareCostNet: bom
+      .filter((b) => b.category === "Okucia i mechanika" || b.category === "Uszczelnienia")
+      .reduce((s, b) => s + b.totalCostNet, 0),
+    laborCostNet: 0,
     totalWeightKg,
     totalGlassWeightKg,
     totalAluWeightKg,
@@ -485,5 +610,6 @@ export function calculateProkal(input: ProkalCalculationInput): ProkalCalculatio
     technicalWarnings,
     systemProducer: "PROCURAL Okucia: PROCURAL-OKUCIA",
     offerSummaryText: offerLines.join("\n"),
+    excelPricing,
   };
 }

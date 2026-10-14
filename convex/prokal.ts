@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, action } from "./_generated/server";
+import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
 export const componentCategoryValidator = v.union(
@@ -486,3 +487,53 @@ export const seedDefaultProkalData = mutation({
     return { status: "seeded", countComponents: defaultComponentsData.length, countSystems: systemsToInsert.length };
   },
 });
+
+// ──────────────────────────────────────────
+// Wyceny i integracja z cennikiem Excel (Google Sheets)
+// ──────────────────────────────────────────
+
+export const getProkalPricingOverview = query({
+  args: {},
+  handler: async (ctx) => {
+    const terraceWallsPriceList = await ctx.db
+      .query("priceLists")
+      .withIndex("by_key", (q) => q.eq("key", "terrace_walls"))
+      .first();
+
+    const components = await ctx.db.query("prokalComponents").collect();
+    const systems = await ctx.db.query("prokalSystems").collect();
+
+    const syncLogs = await ctx.db
+      .query("priceListSyncLogs")
+      .withIndex("by_key", (q) => q.eq("priceListKey", "terrace_walls"))
+      .take(10);
+
+    const latestSyncLog =
+      syncLogs.length > 0
+        ? syncLogs.reduce((latest, current) => (current.syncedAt > latest.syncedAt ? current : latest), syncLogs[0])
+        : null;
+
+    return {
+      priceList: terraceWallsPriceList,
+      components,
+      systems,
+      lastSyncLog: latestSyncLog,
+      syncedAt: terraceWallsPriceList?.syncedAt ?? null,
+      syncedBy: terraceWallsPriceList?.syncedBy ?? null,
+      itemCount: terraceWallsPriceList?.itemCount ?? 0,
+      items: terraceWallsPriceList?.items ?? [],
+    };
+  },
+});
+
+export const syncProkalFromSheets = action({
+  args: {
+    customUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.runAction(api.terracePricing.syncWalls, {
+      customUrl: args.customUrl,
+    });
+  },
+});
+

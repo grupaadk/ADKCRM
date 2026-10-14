@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useAction } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import {
   calculateProkal,
   type ProkalCalculationInput,
@@ -128,6 +130,53 @@ export function ProkalConfigurator({
   const [pricingScope, setPricingScope] = useState("A+B) Konstrukcja + malowanie");
   const [priceDisplayMode, setPriceDisplayMode] = useState<"NETTO" | "BRUTTO">("NETTO");
 
+  // Pobranie cennika zsynchronizowanego z arkuszem Google Sheets / Excel
+  const wallsPriceList = useQuery(api.terracePricing.getPriceList, {
+    key: "terrace_walls",
+  });
+  const syncWallsAction = useAction(api.terracePricing.syncWalls);
+  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
+  const excelWallItems = useMemo(() => {
+    return wallsPriceList?.items && wallsPriceList.items.length > 0 ? wallsPriceList.items : undefined;
+  }, [wallsPriceList?.items]);
+
+  // Gdy zostaną załadowane lub zsynchronizowane stawki z arkusza Excel, automatycznie przelicz pozycje
+  useEffect(() => {
+    if (!excelWallItems || excelWallItems.length === 0) return;
+    setPositions((prev) =>
+      prev.map((pos) => {
+        const newResult = calculateProkal({
+          ...pos.input,
+          excelWallItems,
+        });
+        return {
+          ...pos,
+          result: newResult,
+        };
+      })
+    );
+  }, [excelWallItems]);
+
+  const handleSyncSheets = async () => {
+    setIsSyncingSheets(true);
+    setSyncFeedback(null);
+    try {
+      const res = await syncWallsAction({});
+      if (res.success) {
+        setSyncFeedback(`Pomyślnie zsynchronizowano ${res.itemCount} stawek z arkusza Google Sheets.`);
+        setTimeout(() => setSyncFeedback(null), 5000);
+      } else {
+        setSyncFeedback(res.errorMessage || "Wystąpił problem z synchronizacją.");
+      }
+    } catch (err: unknown) {
+      setSyncFeedback(err instanceof Error ? err.message : "Błąd pobierania danych z Google Sheets.");
+    } finally {
+      setIsSyncingSheets(false);
+    }
+  };
+
   // Aktywne parametry edytowanej pozycji
   const currentInput = activePosition?.input || {
     widthMm: 2880,
@@ -145,6 +194,7 @@ export function ProkalConfigurator({
     const updatedInput: ProkalCalculationInput = {
       ...currentInput,
       ...patch,
+      excelWallItems,
     };
 
     // Automatyczna korekta liczby skrzydeł przy zmianie torów jeśli użytkownik nie wymusił innej
@@ -187,6 +237,7 @@ export function ProkalConfigurator({
       glassCode: currentInput.glassCode || "HART 10",
       includeInterlockGaskets: true,
       includeHandles: true,
+      excelWallItems,
     };
     const newResult = calculateProkal(newInput);
     const newPos: ProkalPositionData = {
@@ -282,7 +333,10 @@ export function ProkalConfigurator({
 
     const discountMultiplier = Math.max(0, 1 - (orderDiscountPercent + orderAdditionalDiscountPercent) / 100);
     const finalPriceNet = Math.round(basePriceNet * discountMultiplier);
-    const finalPriceGross = Math.round(finalPriceNet * 1.23);
+    const finalPriceGross = positions.reduce((acc, p) => {
+      const grossUnit = p.result.excelPricing?.excelPriceGross ?? Math.round(p.result.totalPriceNet * 1.23);
+      return acc + Math.round(grossUnit * discountMultiplier) * p.quantity;
+    }, 0);
 
     return {
       totalConstructions,
@@ -371,7 +425,7 @@ export function ProkalConfigurator({
                 {/* Szczegóły i akcje */}
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-teal-700 font-mono">
-                    {(pos.result.totalPriceNet * pos.quantity).toLocaleString("pl-PL")} zł
+                    {(pos.result.totalPriceNet * pos.quantity).toLocaleString("pl-PL")} zł netto
                   </span>
                   <div className="flex items-center gap-1">
                     <button
@@ -412,7 +466,7 @@ export function ProkalConfigurator({
       <div className="bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <span className="font-bold text-[11px] tracking-wider uppercase bg-teal-50 text-teal-700 border border-teal-200 px-2.5 py-1 rounded-md">
-            PROKAL 4930
+            SYSTEM CAŁOSZKLANY
           </span>
           <div>
             <div className="text-sm font-bold text-slate-900">
@@ -426,7 +480,28 @@ export function ProkalConfigurator({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Status cennika Excel / Google Sheets */}
+          <div className="flex items-center gap-2 px-2.5 py-1 bg-emerald-50/90 border border-emerald-200 rounded-lg text-xs text-emerald-900 font-medium">
+            <FileSpreadsheet size={13} className="text-emerald-600 shrink-0" />
+            <div className="flex items-center gap-1.5 text-[11px]">
+              <span>Cennik: <strong>Google Sheets</strong></span>
+              <span className="text-emerald-700 hidden md:inline">
+                {wallsPriceList?.syncedAt ? `(${new Date(wallsPriceList.syncedAt).toLocaleDateString("pl-PL")})` : "(baza standard)"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleSyncSheets}
+              disabled={isSyncingSheets}
+              className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded text-[10px] font-semibold cursor-pointer transition-colors shadow-2xs"
+              title="Pobierz najświeższe ceny z arkusza Google Sheets"
+            >
+              <RefreshCw size={10} className={isSyncingSheets ? "animate-spin" : ""} />
+              {isSyncingSheets ? "Pobieram..." : "Odśwież"}
+            </button>
+          </div>
+
           {positions.length > 0 && (
             activeTabMode === "order" ? (
               <button
@@ -467,6 +542,22 @@ export function ProkalConfigurator({
           </button>
         </div>
       </div>
+
+      {syncFeedback && (
+        <div className="bg-emerald-50 border-b border-emerald-200 px-5 py-1.5 text-xs text-emerald-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Check size={14} className="text-emerald-600" />
+            <span>{syncFeedback}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSyncFeedback(null)}
+            className="text-emerald-700 hover:text-emerald-950 font-bold text-xs"
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* Pasek narzędzi akcji */}
       <div className="bg-slate-50/80 border-b border-slate-200 px-5 py-2 flex items-center justify-between gap-3 flex-wrap">
@@ -619,9 +710,13 @@ export function ProkalConfigurator({
                         <th className="py-2 px-2.5">Konstrukcja</th>
                         <th className="py-2 px-2">Wymiary</th>
                         <th className="py-2 px-2 text-center">Ilość</th>
-                        <th className="py-2 px-2 text-right">Cena / szt.</th>
+                        <th className="py-2 px-2 text-right">
+                          {priceDisplayMode === "NETTO" ? "Cena netto / szt." : "Cena brutto / szt."}
+                        </th>
                         <th className="py-2 px-2 text-center">Rabaty</th>
-                        <th className="py-2 px-2.5 text-right">Po rabacie</th>
+                        <th className="py-2 px-2.5 text-right">
+                          {priceDisplayMode === "NETTO" ? "Wartość netto" : "Wartość brutto"}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -633,9 +728,12 @@ export function ProkalConfigurator({
                         </tr>
                       ) : (
                         positions.map((pos, idx) => {
-                        const isPosActive = idx === activePositionIndex;
-                        const unitPrice = priceDisplayMode === "NETTO" ? pos.result.totalPriceNet : pos.result.totalPriceNet * 1.23;
-                        const rowTotal = unitPrice * pos.quantity;
+                          const isPosActive = idx === activePositionIndex;
+                          const unitPrice =
+                            priceDisplayMode === "NETTO"
+                              ? pos.result.totalPriceNet
+                              : (pos.result.excelPricing?.excelPriceGross ?? Math.round(pos.result.totalPriceNet * 1.23));
+                          const rowTotal = unitPrice * pos.quantity;
 
                         return (
                           <tr
@@ -654,8 +752,14 @@ export function ProkalConfigurator({
                             }`}
                             title="Kliknij dwukrotnie, aby otworzyć rysunek CAD tej konstrukcji"
                           >
-                            <td className="py-2 px-2.5 font-semibold max-w-[180px] truncate">
-                              {idx + 1}. {pos.name}
+                            <td className="py-2 px-2.5 font-semibold max-w-[200px]">
+                              <div className="truncate">{idx + 1}. {pos.name}</div>
+                              {pos.result.excelPricing && (
+                                <div className="text-[10px] text-emerald-700 font-medium truncate flex items-center gap-1">
+                                  <FileSpreadsheet size={10} className="text-emerald-600 shrink-0" />
+                                  <span>{pos.result.excelPricing.matchedItemName}</span>
+                                </div>
+                              )}
                             </td>
                             <td className="py-2 px-2 text-slate-500 whitespace-nowrap">
                               {pos.input.widthMm}x{pos.input.heightMm}
@@ -679,7 +783,9 @@ export function ProkalConfigurator({
                   </tbody>
                     <tfoot>
                       <tr className="bg-slate-900 text-white font-bold text-xs">
-                        <td className="py-2.5 px-2.5">RAZEM: [PLN]</td>
+                        <td className="py-2.5 px-2.5">
+                          {priceDisplayMode === "NETTO" ? "RAZEM NETTO: [PLN]" : "RAZEM BRUTTO: [PLN]"}
+                        </td>
                         <td className="py-2.5 px-2"></td>
                         <td className="py-2.5 px-2 text-center text-slate-200">{detailedMetrics.totalConstructions}</td>
                         <td className="py-2.5 px-2 text-right font-mono text-slate-200">
@@ -707,6 +813,39 @@ export function ProkalConfigurator({
         <div className="grid grid-cols-[300px_1fr_240px] min-h-[580px] bg-white">
           {/* ── LEWA KOLUMNA: PARAMETRY POZYCJI ── */}
           <div className="border-r border-slate-200 p-4 flex flex-col gap-3.5 bg-slate-50/70 overflow-y-auto max-h-[740px]">
+            {/* Informacja o dopasowaniu z cennika Excel */}
+            {activePosition?.result?.excelPricing && (
+              <div className="bg-emerald-50/90 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-950 shadow-2xs">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-900 mb-1">
+                  <FileSpreadsheet size={13} className="text-emerald-600 shrink-0" />
+                  <span>Dopasowano z cennika Excel:</span>
+                </div>
+                <div className="text-[11px] text-emerald-800 font-semibold mb-1">
+                  {activePosition.result.excelPricing.matchedItemName}
+                </div>
+                <div className="text-[10px] text-emerald-700 flex items-center justify-between">
+                  <span>Cena katalogowa netto:</span>
+                  <strong>{activePosition.result.excelPricing.excelBasePriceNet.toLocaleString("pl-PL")} zł</strong>
+                </div>
+                <div className="text-[10px] text-emerald-700 flex items-center justify-between">
+                  <span>Cena katalogowa brutto:</span>
+                  <strong>{(activePosition.result.excelPricing.excelPriceGross ?? Math.round(activePosition.result.excelPricing.excelBasePriceNet * 1.23)).toLocaleString("pl-PL")} zł</strong>
+                </div>
+                <div className="text-[10px] text-emerald-700 flex items-center justify-between">
+                  <span>Szacunkowy koszt własny:</span>
+                  <strong>{activePosition.result.excelPricing.materialsCostNet.toLocaleString("pl-PL")} zł</strong>
+                </div>
+                <div className="text-[10px] text-emerald-700 flex items-center justify-between">
+                  <span>Marża handlowa:</span>
+                  <strong>{activePosition.result.excelPricing.marginPercent}%</strong>
+                </div>
+                <div className="mt-1.5 pt-1.5 border-t border-emerald-200/80 flex items-center justify-between text-[11px] font-bold text-emerald-950">
+                  <span>Cena sprzedaży (netto):</span>
+                  <span className="text-emerald-900 font-extrabold">{activePosition.result.totalPriceNet.toLocaleString("pl-PL")} zł netto</span>
+                </div>
+              </div>
+            )}
+
             {/* Header pozycji */}
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -995,7 +1134,7 @@ export function ProkalConfigurator({
                   </div>
                   {[
                     { tracks: 2, label: "2-torowy", tag: null },
-                    { tracks: 3, label: "3-torowy", tag: "PROKAL" },
+                    { tracks: 3, label: "3-torowy", tag: "Popularny" },
                     { tracks: 4, label: "4-torowy", tag: null },
                     { tracks: 5, label: "5-torowy", tag: null },
                   ].map((sys) => (

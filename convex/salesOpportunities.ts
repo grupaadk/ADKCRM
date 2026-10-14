@@ -548,8 +548,9 @@ export const saveOpportunityConfigurations = mutation({
         totalCostKc += baseKc;
         totalProfitZ += profit;
       }
+      const { offerText: _ignored, ...rest } = cfg;
       return {
-        ...cfg,
+        ...rest,
         updatedAt: Date.now(),
         updatedBy: cfg.updatedBy || currentUserEmail,
       };

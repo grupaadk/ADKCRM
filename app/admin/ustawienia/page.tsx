@@ -4329,7 +4329,7 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "crm", label: "CRM" },
   { key: "uslugi", label: "Usługi" },
   { key: "cenniki", label: "Cenniki" },
-  { key: "prokal", label: "Systemy PROKAL" },
+  { key: "prokal", label: "Systemy całoszklane" },
   { key: "nazwy-vat", label: "Nazwy pozycji (VAT)" },
   { key: "dostawcy", label: "Dostawcy" },
   { key: "wydatki", label: "Kategorie wydatków" },

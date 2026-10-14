@@ -275,6 +275,12 @@ export default function OpportunityDetailPage({
     isValid: boolean;
   } | null>(null);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [feedbackModal, setFeedbackModal] = useState<{
+    isOpen: boolean;
+    type: "success" | "error";
+    title: string;
+    message: string;
+  } | null>(null);
   const [configuratorWorkspaceMode, setConfiguratorWorkspaceMode] = useState<"PROKAL" | "TERRACE_ROOF" | "ALL_POSITIONS">("PROKAL");
 
   const handleStartAdd = (type: "TERRACE_ROOF" | "GLASS_ENCLOSURE") => {
@@ -560,22 +566,39 @@ export default function OpportunityDetailPage({
           totalCostNet: pos.result.totalCostNet * pos.quantity,
           profitNet: pos.result.profitNet * pos.quantity,
         },
-        offerText: pos.result.offerSummaryText,
         updatedAt: Date.now(),
       }));
 
-      const finalConfigs = [...nonProkalConfigs, ...newProkalConfigs];
+      // Upewniamy się, że konfiguracje nie zawierają pól poza walidatorem (np. offerText)
+      const finalConfigs = [...nonProkalConfigs, ...newProkalConfigs].map(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (cfg: any) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { offerText: _ignored, ...clean } = cfg;
+          return clean;
+        }
+      );
 
       await saveConfigs({
         opportunityId,
         serviceConfigurations: finalConfigs,
       });
 
-      alert("Wycena PROKAL została pomyślnie zapisana! Wartość szansy została zaktualizowana.");
+      setFeedbackModal({
+        isOpen: true,
+        type: "success",
+        title: "Wycena zapisana",
+        message: "Wycena została pomyślnie zapisana! Wartość szansy została zaktualizowana.",
+      });
     } catch (err: unknown) {
-      console.error("Failed to save PROKAL positions:", err);
+      console.error("Failed to save glass positions:", err);
       const msg = err instanceof Error ? err.message : String(err);
-      alert("Błąd zapisu wyceny PROKAL: " + msg);
+      setFeedbackModal({
+        isOpen: true,
+        type: "error",
+        title: "Błąd zapisu wyceny",
+        message: "Wystąpił błąd podczas zapisu wyceny: " + msg,
+      });
     } finally {
       setIsSavingConfig(false);
     }
@@ -1875,7 +1898,7 @@ export default function OpportunityDetailPage({
             }}
           >
             <SlidersHorizontal size={14} />
-            PROKAL CAD — Systemy całoszklane przesuwne
+            Systemy całoszklane przesuwne
           </button>
 
           <button
@@ -1933,7 +1956,7 @@ export default function OpportunityDetailPage({
           }}
         >
           <Settings size={13} />
-          Ustawienia komponentów PROKAL &rarr;
+          Ustawienia komponentów i cennika &rarr;
         </Link>
       </div>
 
@@ -2250,7 +2273,7 @@ export default function OpportunityDetailPage({
                                 </span>
                               )}
                               <span style={{ color: "#0F172A", fontWeight: 700, background: "#F1F5F9", padding: "3px 8px", borderRadius: 6, border: "1px solid #E2E8F0" }}>
-                                Razem: {formatPLN(cfg.result.totalNetPrice ?? cfg.result.finalPriceNet ?? cfg.result.totalNet ?? cfg.result.totalClientNet ?? 0)} netto
+                                Razem: {formatPLN(cfg.result.totalNetPrice ?? cfg.result.finalPriceNet ?? cfg.result.totalNet ?? cfg.result.totalClientNet ?? cfg.result.totalPriceNet ?? 0)} netto
                               </span>
                             </div>
                           )}
@@ -2417,6 +2440,38 @@ export default function OpportunityDetailPage({
                           )}
                         </div>
                       )}
+
+                      {/* Szczegóły dla Systemu Całoszklanego */}
+                      {cfg.calculatorType === "PROKAL_SLIDING" && cfg.result && (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
+                          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 10px" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Wymiary (Szer. × Wys.)</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>
+                              {cfg.input?.widthMm ?? cfg.result.widthMm} mm × {cfg.input?.heightMm ?? cfg.result.heightMm} mm
+                            </span>
+                          </div>
+                          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 10px" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Tory i skrzydła</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F766E" }}>
+                              {cfg.result.tracksCount}-torowy ({cfg.result.sashesCount} skrzydeł)
+                            </span>
+                          </div>
+                          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 10px" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Szkło i waga</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>
+                              {cfg.result.glassCode} ({cfg.result.totalGlassAreaSqM} m², {cfg.result.totalWeightKg} kg)
+                            </span>
+                          </div>
+                          {cfg.result.excelPricing && (
+                            <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 10px" }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", textTransform: "uppercase", display: "block" }}>Cena z cennika Excel</span>
+                              <span style={{ fontSize: 12.5, fontWeight: 700, color: "#059669" }}>
+                                {formatPLN(cfg.result.totalPriceNet)} netto
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -2533,6 +2588,85 @@ export default function OpportunityDetailPage({
                 style={{ background: "#ef4444", color: "#fff", borderColor: "#dc2626" }}
               >
                 Usuń
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal powiadomienia o zapisie wyceny */}
+      {feedbackModal?.isOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 60,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            background: "rgba(15,23,42,0.5)",
+            backdropFilter: "blur(2px)",
+          }}
+          onClick={() => setFeedbackModal(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 420,
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: "50%",
+                  background: feedbackModal.type === "success" ? "#ecfdf5" : "#fef2f2",
+                  color: feedbackModal.type === "success" ? "#059669" : "#dc2626",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                {feedbackModal.type === "success" ? <Check size={22} /> : <X size={22} />}
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
+                  {feedbackModal.title}
+                </h3>
+                <p style={{ fontSize: 13, color: "var(--text-mute)", margin: "6px 0 0 0", lineHeight: 1.5 }}>
+                  {feedbackModal.message}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => setFeedbackModal(null)}
+                className="btn"
+                style={{
+                  background: feedbackModal.type === "success" ? "#0284c7" : "#475569",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "8px 20px",
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Rozumiem
               </button>
             </div>
           </div>
