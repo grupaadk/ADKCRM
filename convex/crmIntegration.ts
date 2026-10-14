@@ -38,7 +38,7 @@ export const sendDeliveryOrderToCrm = action({
     const investmentParts = [order.investmentStreet, order.investmentBuildingNumber, order.investmentCity].filter(Boolean);
     const investmentAddress = investmentParts.length > 0 ? ` | Inwestycja: ${investmentParts.join(" ")}` : "";
 
-    const feedNotesText = (delivery.notesFeed ?? []).map((n) => n.note).join("\n---\n");
+    const feedNotesText = (delivery.notesFeed ?? []).map((n: { note?: string }) => n.note).filter(Boolean).join("\n---\n");
     const notesTextToUse = feedNotesText || delivery.notes || "";
 
     const notesCombined = [

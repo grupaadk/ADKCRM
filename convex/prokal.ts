@@ -530,7 +530,7 @@ export const syncProkalFromSheets = action({
   args: {
     customUrl: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     return await ctx.runAction(api.terracePricing.syncWalls, {
       customUrl: args.customUrl,
     });
