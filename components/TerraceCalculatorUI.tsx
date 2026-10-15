@@ -47,7 +47,7 @@ function buildEstimateCardData(
   },
 ): EstimateCardData {
   const { input, options } = calc;
-  const opt = options[variant];
+  const opt = options[variant] ?? options.polycarbonate;
   const vat = input.vatRatePercent;
 
   const widthM = (input.widthCm / 100).toFixed(2);
@@ -506,11 +506,11 @@ export default function TerraceCalculatorUI() {
               </div>
               <div className="flex justify-between text-[var(--text-dim)] mb-1">
                 <span>Wartość netto:</span>
-                <span className="font-bold text-[var(--text-strong)]">{formatPLN(options[offerVariant].totalNet)}</span>
+                <span className="font-bold text-[var(--text-strong)]">{formatPLN(options[offerVariant]?.totalNet ?? 0)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#4ABBC3] font-bold">Wartość brutto:</span>
-                <span className="font-extrabold text-[#4ABBC3]">{formatPLN(options[offerVariant].totalGross)}</span>
+                <span className="font-extrabold text-[#4ABBC3]">{formatPLN(options[offerVariant]?.totalGross ?? 0)}</span>
               </div>
             </div>
 
@@ -589,7 +589,7 @@ export default function TerraceCalculatorUI() {
             }`}
           >
             {/* Card 1: Poliwęglan */}
-            {(selectedTab === "all" || selectedTab === "polycarbonate") && (
+            {(selectedTab === "all" || selectedTab === "polycarbonate") && options.polycarbonate && (
               <RoofOptionCard
                 result={options.polycarbonate}
                 vatRate={input.vatRatePercent}
@@ -599,7 +599,7 @@ export default function TerraceCalculatorUI() {
             )}
 
             {/* Card 2: Szkło Standard */}
-            {(selectedTab === "all" || selectedTab === "glassStandard") && (
+            {(selectedTab === "all" || selectedTab === "glassStandard") && options.glassStandard && (
               <RoofOptionCard
                 result={options.glassStandard}
                 vatRate={input.vatRatePercent}
@@ -609,7 +609,7 @@ export default function TerraceCalculatorUI() {
             )}
 
             {/* Card 3: Szkło Niestandard */}
-            {(selectedTab === "all" || selectedTab === "glassNonStandard") && (
+            {(selectedTab === "all" || selectedTab === "glassNonStandard") && options.glassNonStandard && (
               <RoofOptionCard
                 result={options.glassNonStandard}
                 vatRate={input.vatRatePercent}
@@ -646,27 +646,27 @@ export default function TerraceCalculatorUI() {
                     <td className="py-2.5 px-3 font-sans font-medium text-[var(--text-strong)]">
                       <span className="font-bold text-[#4ABBC3] mr-1.5">Kc</span> Koszt własny (netto)
                     </td>
-                    <td className="py-2.5 px-3 text-right font-medium">{formatPLN(options.polycarbonate.costBasisKc)}</td>
-                    <td className="py-2.5 px-3 text-right font-medium">{formatPLN(options.glassStandard.costBasisKc)}</td>
-                    <td className="py-2.5 px-3 text-right font-medium">{formatPLN(options.glassNonStandard.costBasisKc)}</td>
+                    <td className="py-2.5 px-3 text-right font-medium">{formatPLN(options.polycarbonate?.costBasisKc ?? 0)}</td>
+                    <td className="py-2.5 px-3 text-right font-medium">{formatPLN(options.glassStandard?.costBasisKc ?? 0)}</td>
+                    <td className="py-2.5 px-3 text-right font-medium">{formatPLN(options.glassNonStandard?.costBasisKc ?? 0)}</td>
                   </tr>
                   {/* C */}
                   <tr className="hover:bg-[var(--panel-2)] transition-colors">
                     <td className="py-2.5 px-3 font-sans font-medium text-[var(--text-strong)]">
                       <span className="font-bold text-[#4ABBC3] mr-1.5">C</span> Cena dla klienta (netto)
                     </td>
-                    <td className="py-2.5 px-3 text-right font-bold text-[var(--text-strong)]">{formatPLN(options.polycarbonate.totalNet)}</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-[var(--text-strong)]">{formatPLN(options.glassStandard.totalNet)}</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-[var(--text-strong)]">{formatPLN(options.glassNonStandard.totalNet)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-[var(--text-strong)]">{formatPLN(options.polycarbonate?.totalNet ?? 0)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-[var(--text-strong)]">{formatPLN(options.glassStandard?.totalNet ?? 0)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-[var(--text-strong)]">{formatPLN(options.glassNonStandard?.totalNet ?? 0)}</td>
                   </tr>
                   {/* Z */}
                   <tr className="hover:bg-[var(--panel-2)] transition-colors">
                     <td className="py-2.5 px-3 font-sans font-medium text-[var(--text-strong)]">
                       <span className="font-bold text-[#4ABBC3] mr-1.5">Z</span> Zysk kwotowy (netto)
                     </td>
-                    <td className="py-2.5 px-3 text-right font-extrabold text-[#4ABBC3]">+{formatPLN(options.polycarbonate.profitZ)}</td>
-                    <td className="py-2.5 px-3 text-right font-extrabold text-[#4ABBC3]">+{formatPLN(options.glassStandard.profitZ)}</td>
-                    <td className="py-2.5 px-3 text-right font-extrabold text-[#4ABBC3]">+{formatPLN(options.glassNonStandard.profitZ)}</td>
+                    <td className="py-2.5 px-3 text-right font-extrabold text-[#4ABBC3]">+{formatPLN(options.polycarbonate?.profitZ ?? 0)}</td>
+                    <td className="py-2.5 px-3 text-right font-extrabold text-[#4ABBC3]">+{formatPLN(options.glassStandard?.profitZ ?? 0)}</td>
+                    <td className="py-2.5 px-3 text-right font-extrabold text-[#4ABBC3]">+{formatPLN(options.glassNonStandard?.profitZ ?? 0)}</td>
                   </tr>
                   {/* % marża */}
                   <tr className="hover:bg-[var(--panel-2)] transition-colors bg-[rgba(74,187,195,0.04)]">
@@ -674,13 +674,13 @@ export default function TerraceCalculatorUI() {
                       <span className="font-bold text-[#4ABBC3] mr-1.5">% marża</span> Marża procentowa
                     </td>
                     <td className="py-2.5 px-3 text-right font-extrabold text-[#4ABBC3] text-sm">
-                      {options.polycarbonate.marginPercent.toFixed(2)}%
+                      {options.polycarbonate?.marginPercent?.toFixed(2) ?? "0.00"}%
                     </td>
                     <td className="py-2.5 px-3 text-right font-extrabold text-[#4ABBC3] text-sm">
-                      {options.glassStandard.marginPercent.toFixed(2)}%
+                      {options.glassStandard?.marginPercent?.toFixed(2) ?? "0.00"}%
                     </td>
                     <td className="py-2.5 px-3 text-right font-extrabold text-[#4ABBC3] text-sm">
-                      {options.glassNonStandard.marginPercent.toFixed(2)}%
+                      {options.glassNonStandard?.marginPercent?.toFixed(2) ?? "0.00"}%
                     </td>
                   </tr>
                 </tbody>
@@ -712,6 +712,8 @@ function RoofOptionCard({
   isSelectedForOffer: boolean;
   onSelectForOffer: () => void;
 }) {
+  if (!result) return null;
+
   return (
     <div
       className={`rounded-xl p-4 flex flex-col justify-between transition-all duration-200 relative bg-[var(--panel)] border shadow-xs hover:border-[#4ABBC3] text-[var(--text-strong)] ${

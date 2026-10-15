@@ -57,6 +57,8 @@ export interface TerraceCalculationResult {
   };
   options: {
     polycarbonate: OptionResult;
+    glassStandard: OptionResult;
+    glassNonStandard: OptionResult;
   };
   offerText: string;
   warning?: string;
@@ -302,6 +304,92 @@ export function calculateTerraceEstimate(
     marginPercent,
   };
 
+  // Pobranie stawek montażu dla szkła (w Excelu komórka C11 szkło używa stawek niestandardowych G4:G8)
+  const suggestedGlassAssemblyRates = getSuggestedAssemblyRate(
+    areaSqM,
+    false,
+    dynamicParams?.assemblyRatesStandard,
+    dynamicParams?.assemblyRatesNonStandard
+  );
+  const effectiveGlassAssemblyRate =
+    input.customAssemblyRateNetPerSqM ?? suggestedGlassAssemblyRates.rateNetPerSqM;
+  const effectiveGlassAssemblyCostRate =
+    input.customAssemblyRateNetPerSqM !== undefined && input.customAssemblyRateNetPerSqM !== null
+      ? Math.max(0, input.customAssemblyRateNetPerSqM - 50)
+      : suggestedGlassAssemblyRates.costNetPerSqM;
+
+  const glassAssemblyCostNet = areaSqM * effectiveGlassAssemblyRate;
+  const glassAssemblyCostKc = areaSqM * effectiveGlassAssemblyCostRate;
+
+  // 2. Szkło Standard (Glass Standard)
+  // Formuła z Excela C12: =IF(C7="STANDARD", IF(B5<=300, B12*(1+0.44), IF(B5<=350, B12*(1+0.57), B12*(1+0.68))), IF(B5<=300, B12*(1+0.806), IF(B5<=350, B12*(1+0.996), B12*(1+1.271))))
+  let glassStdMaterialBaseNet = 0;
+  if (isStdDim) {
+    if (matchedDepth <= 300) glassStdMaterialBaseNet = basePriceNet * (1 + 0.44);
+    else if (matchedDepth <= 350) glassStdMaterialBaseNet = basePriceNet * (1 + 0.57);
+    else glassStdMaterialBaseNet = basePriceNet * (1 + 0.68);
+  } else {
+    if (matchedDepth <= 300) glassStdMaterialBaseNet = basePriceNet * (1 + 0.806);
+    else if (matchedDepth <= 350) glassStdMaterialBaseNet = basePriceNet * (1 + 0.996);
+    else glassStdMaterialBaseNet = basePriceNet * (1 + 1.271);
+  }
+
+  const glassStdMaterialCostNet = glassStdMaterialBaseNet * (1 + markupPercent);
+  const glassStdTotalNet = glassStdMaterialCostNet + glassAssemblyCostNet;
+  const glassStdTotalGross = glassStdTotalNet * (1 + vatRate);
+  const glassStdTotalCostKc = glassStdMaterialBaseNet + glassAssemblyCostKc;
+  const glassStdProfitZ = glassStdTotalNet - glassStdTotalCostKc;
+  const glassStdMarginPercent =
+    glassStdTotalCostKc > 0 ? (glassStdProfitZ / glassStdTotalCostKc) * 100 : 0;
+
+  const glassStandardResult: OptionResult = {
+    title: "Szkło Standard",
+    roofType: "glass_standard",
+    materialCostNet: glassStdMaterialCostNet,
+    assemblyCostNet: glassAssemblyCostNet,
+    assemblyRateNetPerSqM: effectiveGlassAssemblyRate,
+    assemblyCostRateNetPerSqM: effectiveGlassAssemblyCostRate,
+    totalNet: glassStdTotalNet,
+    totalGross: glassStdTotalGross,
+    pricePerSqMNet: areaSqM > 0 ? glassStdTotalNet / areaSqM : 0,
+    pricePerSqMGross: areaSqM > 0 ? glassStdTotalGross / areaSqM : 0,
+    costBasisKc: glassStdTotalCostKc,
+    profitZ: glassStdProfitZ,
+    marginPercent: glassStdMarginPercent,
+    extraGlassGrossDelta: glassStdTotalGross - polyTotalGross,
+  };
+
+  // 3. Szkło Niestandard (Glass Non-Standard / Niestandardowe dopłata)
+  let glassNonStdMaterialBaseNet = 0;
+  if (matchedDepth <= 300) glassNonStdMaterialBaseNet = basePriceNet * (1 + 0.806);
+  else if (matchedDepth <= 350) glassNonStdMaterialBaseNet = basePriceNet * (1 + 0.996);
+  else glassNonStdMaterialBaseNet = basePriceNet * (1 + 1.271);
+
+  const glassNonStdMaterialCostNet = glassNonStdMaterialBaseNet * (1 + markupPercent);
+  const glassNonStdTotalNet = glassNonStdMaterialCostNet + glassAssemblyCostNet;
+  const glassNonStdTotalGross = glassNonStdTotalNet * (1 + vatRate);
+  const glassNonStdTotalCostKc = glassNonStdMaterialBaseNet + glassAssemblyCostKc;
+  const glassNonStdProfitZ = glassNonStdTotalNet - glassNonStdTotalCostKc;
+  const glassNonStdMarginPercent =
+    glassNonStdTotalCostKc > 0 ? (glassNonStdProfitZ / glassNonStdTotalCostKc) * 100 : 0;
+
+  const glassNonStandardResult: OptionResult = {
+    title: "Szkło Niestandard",
+    roofType: "glass_nonstandard",
+    materialCostNet: glassNonStdMaterialCostNet,
+    assemblyCostNet: glassAssemblyCostNet,
+    assemblyRateNetPerSqM: effectiveGlassAssemblyRate,
+    assemblyCostRateNetPerSqM: effectiveGlassAssemblyCostRate,
+    totalNet: glassNonStdTotalNet,
+    totalGross: glassNonStdTotalGross,
+    pricePerSqMNet: areaSqM > 0 ? glassNonStdTotalNet / areaSqM : 0,
+    pricePerSqMGross: areaSqM > 0 ? glassNonStdTotalGross / areaSqM : 0,
+    costBasisKc: glassNonStdTotalCostKc,
+    profitZ: glassNonStdProfitZ,
+    marginPercent: glassNonStdMarginPercent,
+    extraGlassGrossDelta: glassNonStdTotalGross - polyTotalGross,
+  };
+
   const calcResult: TerraceCalculationResult = {
     input: {
       depthCm: depth,
@@ -322,6 +410,8 @@ export function calculateTerraceEstimate(
     },
     options: {
       polycarbonate: polycarbonateResult,
+      glassStandard: glassStandardResult,
+      glassNonStandard: glassNonStandardResult,
     },
     offerText: "",
     warning: outOfRange
