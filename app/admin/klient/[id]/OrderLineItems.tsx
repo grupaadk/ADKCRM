@@ -74,7 +74,7 @@ type LineItem = {
   unitPrice: number;
   vatRate: number;
   discountPercent?: number;
-  serviceId?: Id<"servicePricing">;
+  serviceId?: string;
 };
 
 type EditState = Partial<Omit<LineItem, "_id" | "serviceId">>;
@@ -297,7 +297,7 @@ function LineItemRow({
 }
 
 type AddFormState = {
-  serviceId: Id<"servicePricing"> | "";
+  serviceId: string;
   name: string;
   description: string;
   quantity: string;

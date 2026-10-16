@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/Sidebar"
 import { cx, focusRing } from "@/components/ui/utils"
 import {
-  Sparkles,
   LayoutDashboard,
   LayoutGrid,
   UserCog,
@@ -53,7 +52,6 @@ type NavItem = {
 }
 
 const mainItems: NavItem[] = [
-  { href: "/admin/wycena", label: "Asystent Wycen", icon: Sparkles, exactMatch: true },
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, exactMatch: true },
   { href: "/admin/panel", label: "Zlecenia", icon: LayoutGrid },
   { href: "/admin/kalendarz", label: "Kalendarz", icon: Calendar },

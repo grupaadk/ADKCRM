@@ -35,7 +35,7 @@ export const listByOrder = query({
 export const add = mutation({
   args: {
     orderId: v.id("orders"),
-    serviceId: v.optional(v.id("servicePricing")),
+    serviceId: v.optional(v.string()),
     name: v.string(),
     description: v.optional(v.string()),
     quantity: v.number(),

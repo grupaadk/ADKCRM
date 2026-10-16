@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { deriveStatusStyle, makeCustomStatusKey, type StatusDef } from "@/lib/statuses";
 import { api } from "@/convex/_generated/api";
@@ -33,8 +32,6 @@ import { EventTypesTab } from "./EventTypesTab";
 import { InstallationTeamsTab } from "./InstallationTeamsTab";
 import { TaskTemplatesTab } from "./TaskTemplatesTab";
 import { VatRateNamesTab } from "./VatRateNamesTab";
-import { PriceListsTab } from "./PriceListsTab";
-import { ProkalSettingsTab } from "./ProkalSettingsTab";
 
 const IconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   AppWindow,
@@ -61,7 +58,7 @@ function ServiceIcon({ name, className = "h-4 w-4" }: { name?: string; className
   return <IconComponent className={className} />;
 }
 
-type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "cenniki" | "nazwy-vat" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe" | "szablony-zadan" | "prokal";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "nazwy-vat" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe" | "szablony-zadan";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -2712,369 +2709,7 @@ function SzablonyTab() {
   );
 }
 
-// --- CennikTab ---
 
-const VAT_RATES = [23, 8, 0];
-const UNITS = ["szt.", "m²", "mb", "usł.", "kpl.", "godz."];
-
-function fmt(n: number) {
-  return n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-type PricingEntry = {
-  _id: Id<"servicePricing">;
-  name: string;
-  description?: string;
-  unit: string;
-  unitPrice: number;
-  vatRate: number;
-  isActive: boolean;
-};
-
-type PricingForm = {
-  name: string;
-  description: string;
-  unit: string;
-  unitPrice: string;
-  vatRate: number;
-};
-
-const EMPTY_PRICING_FORM: PricingForm = {
-  name: "",
-  description: "",
-  unit: "szt.",
-  unitPrice: "",
-  vatRate: 23,
-};
-
-function PricingRow({
-  entry,
-  onSave,
-  onToggle,
-  onDelete,
-}: {
-  entry: PricingEntry;
-  onSave: (id: Id<"servicePricing">, data: Partial<PricingForm>) => Promise<void>;
-  onToggle: (id: Id<"servicePricing">) => Promise<void>;
-  onDelete: (id: Id<"servicePricing">) => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<PricingForm>({
-    name: entry.name,
-    description: entry.description ?? "",
-    unit: entry.unit,
-    unitPrice: String(entry.unitPrice),
-    vatRate: entry.vatRate,
-  });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save() {
-    setBusy(true);
-    setError(null);
-    try {
-      await onSave(entry._id, {
-        ...draft,
-        description: draft.description || undefined,
-      } as Partial<PricingForm>);
-      setEditing(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Błąd zapisu");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function del() {
-    if (!confirm(`Usunąć "${entry.name}" z cennika?`)) return;
-    setBusy(true);
-    try {
-      await onDelete(entry._id);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Błąd usuwania");
-      setBusy(false);
-    }
-  }
-
-  if (editing) {
-    return (
-      <tr className="bg-blue-50">
-        <td className="px-4 py-3" colSpan={6}>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="col-span-2">
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa</label>
-                <input
-                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-                  value={draft.name}
-                  onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-                />
-              </div>
-              <div className="col-span-2">
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Opis</label>
-                <input
-                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-                  value={draft.description}
-                  onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-                  placeholder="opcjonalny opis"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cena netto</label>
-                <input
-                  type="number" min="0" step="0.01"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-                  value={draft.unitPrice}
-                  onChange={(e) => setDraft((d) => ({ ...d, unitPrice: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Jednostka</label>
-                <select
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-                  value={draft.unit}
-                  onChange={(e) => setDraft((d) => ({ ...d, unit: e.target.value }))}
-                >
-                  {UNITS.map((u) => <option key={u}>{u}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">VAT %</label>
-                <select
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-                  value={draft.vatRate}
-                  onChange={(e) => setDraft((d) => ({ ...d, vatRate: parseInt(e.target.value) }))}
-                >
-                  {VAT_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
-                </select>
-              </div>
-            </div>
-            {error && <p className="text-xs text-red-600">{error}</p>}
-            <div className="flex gap-2">
-              <button onClick={save} disabled={busy || !draft.name}
-                className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
-                Zapisz
-              </button>
-              <button onClick={() => setEditing(false)}
-                className="rounded-lg border border-slate-300 px-4 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
-                Anuluj
-              </button>
-            </div>
-          </div>
-        </td>
-      </tr>
-    );
-  }
-
-  return (
-    <tr className={`group border-b border-slate-100 hover:bg-slate-50 ${!entry.isActive ? "opacity-50" : ""}`}>
-      <td className="px-4 py-3 text-sm font-medium text-slate-800">
-        {entry.name}
-        {entry.description && <span className="ml-1.5 text-xs text-slate-400">{entry.description}</span>}
-      </td>
-      <td className="px-4 py-3 text-sm text-slate-600">{fmt(entry.unitPrice)} zł</td>
-      <td className="px-4 py-3 text-sm text-slate-600">{entry.unit}</td>
-      <td className="px-4 py-3 text-sm text-slate-600">{entry.vatRate}%</td>
-      <td className="px-4 py-3">
-        <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${entry.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
-          {entry.isActive ? "Aktywna" : "Nieaktywna"}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-right">
-        <div className="invisible flex justify-end gap-1 group-hover:visible">
-          <button onClick={() => setEditing(true)}
-            className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200">Edytuj</button>
-          <button onClick={() => onToggle(entry._id)} disabled={busy}
-            className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200">
-            {entry.isActive ? "Dezaktywuj" : "Aktywuj"}
-          </button>
-          <button onClick={del} disabled={busy}
-            className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">Usuń</button>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-function CennikTab() {
-  const entries = useQuery(api.servicePricing.list, { includeInactive: true });
-  const createEntry = useMutation(api.servicePricing.create);
-  const updateEntry = useMutation(api.servicePricing.update);
-  const toggleActive = useMutation(api.servicePricing.toggleActive);
-  const removeEntry = useMutation(api.servicePricing.remove);
-
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<PricingForm>(EMPTY_PRICING_FORM);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
-    try {
-      await createEntry({
-        name: form.name,
-        description: form.description || undefined,
-        unit: form.unit,
-        unitPrice: parseFloat(form.unitPrice) || 0,
-        vatRate: form.vatRate,
-      });
-      setForm(EMPTY_PRICING_FORM);
-      setShowForm(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Błąd zapisu");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleSave(id: Id<"servicePricing">, data: Partial<PricingForm>) {
-    await updateEntry({
-      id,
-      name: data.name,
-      description: data.description,
-      unit: data.unit,
-      unitPrice: data.unitPrice ? parseFloat(data.unitPrice) : undefined,
-      vatRate: data.vatRate,
-    });
-  }
-
-  async function handleToggle(id: Id<"servicePricing">) {
-    await toggleActive({ id });
-  }
-
-  async function handleDelete(id: Id<"servicePricing">) {
-    await removeEntry({ id });
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-slate-900">Cennik usług</h2>
-          <p className="mt-0.5 text-sm text-slate-500">
-            Definiuj usługi z cenami bazowymi. Przy tworzeniu wyceny można wybrać pozycję z cennika lub wpisać własną.
-          </p>
-        </div>
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700"
-          >
-            + Dodaj usługę
-          </button>
-        )}
-      </div>
-
-      {showForm && (
-        <form onSubmit={handleCreate} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-          <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">Nowa usługa</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="col-span-2">
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>
-              <input
-                required
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="np. Okna PVC"
-              />
-            </div>
-            <div className="col-span-2">
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Opis</label>
-              <input
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                placeholder="opcjonalny opis"
-              />
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-3">
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cena netto *</label>
-              <input
-                required type="number" min="0" step="0.01"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                value={form.unitPrice}
-                onChange={(e) => setForm((f) => ({ ...f, unitPrice: e.target.value }))}
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Jednostka</label>
-              <select
-                className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
-                value={form.unit}
-                onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
-              >
-                {UNITS.map((u) => <option key={u}>{u}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">VAT %</label>
-              <select
-                className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
-                value={form.vatRate}
-                onChange={(e) => setForm((f) => ({ ...f, vatRate: parseInt(e.target.value) }))}
-              >
-                {VAT_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
-              </select>
-            </div>
-          </div>
-          {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
-          <div className="mt-4 flex gap-2">
-            <button type="submit" disabled={busy}
-              className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
-              Dodaj
-            </button>
-            <button type="button" onClick={() => { setShowForm(false); setForm(EMPTY_PRICING_FORM); setError(null); }}
-              className="rounded-lg border border-slate-300 px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
-              Anuluj
-            </button>
-          </div>
-        </form>
-      )}
-
-      {entries === undefined ? (
-        <p className="text-sm text-slate-400">Ładowanie...</p>
-      ) : entries.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 py-12 text-center">
-          <p className="text-sm text-slate-400">Brak pozycji w cenniku — dodaj pierwszą usługę</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-slate-100">
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Usługa</th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Cena netto</th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Jedn.</th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">VAT</th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
-                <th className="w-32" />
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => (
-                <PricingRow
-                  key={entry._id}
-                  entry={entry}
-                  onSave={handleSave}
-                  onToggle={handleToggle}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // --- Usługi Tab ---
 
@@ -3173,9 +2808,9 @@ function ServicesTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">Usługi</h2>
+          <h2 className="text-base font-semibold text-slate-900">Katalog Usług</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            Lista usług oferowanych przez firmę. Zarządzaj nazwami, przypisanymi dostawcami oraz widocznością na stronie WWW.
+            Lista usług, przypisanych dostawców oraz widoczności na stronie WWW.
           </p>
         </div>
         {!showForm && (
@@ -4328,8 +3963,6 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "szablony", label: "Szablony" },
   { key: "crm", label: "CRM" },
   { key: "uslugi", label: "Usługi" },
-  { key: "cenniki", label: "Cenniki" },
-  { key: "prokal", label: "Systemy całoszklane" },
   { key: "nazwy-vat", label: "Nazwy pozycji (VAT)" },
   { key: "dostawcy", label: "Dostawcy" },
   { key: "wydatki", label: "Kategorie wydatków" },
@@ -4343,8 +3976,38 @@ const TABS: Array<{ key: Tab; label: string }> = [
 // --- Main Page ---
 
 export default function UstawieniaPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("google-drive");
-  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam === "uslugi" || tabParam === "konstrukcje") return "uslugi";
+      if (tabParam && TABS.some((t) => t.key === tabParam)) return tabParam as Tab;
+    }
+    return "google-drive";
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam === "uslugi" || tabParam === "konstrukcje") {
+        setActiveTab("uslugi");
+      } else if (tabParam && TABS.some((t) => t.key === tabParam)) {
+        setActiveTab(tabParam as Tab);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const handleSelectTab = (key: Tab) => {
+    setActiveTab(key);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", key);
+      window.history.pushState({}, "", url.toString());
+    }
+  };
 
   return (
     <div>
@@ -4359,7 +4022,7 @@ export default function UstawieniaPage() {
           {TABS.map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => handleSelectTab(tab.key)}
               className={`pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === tab.key
                   ? "border-slate-900 text-slate-900"
@@ -4380,8 +4043,6 @@ export default function UstawieniaPage() {
       {activeTab === "szablony" && <SzablonyTab />}
       {activeTab === "crm" && <CrmTab />}
       {activeTab === "uslugi" && <ServicesTab />}
-      {activeTab === "cenniki" && <PriceListsTab />}
-      {activeTab === "prokal" && <ProkalSettingsTab />}
       {activeTab === "nazwy-vat" && <VatRateNamesTab />}
       {activeTab === "dostawcy" && <SuppliersTab />}
       {activeTab === "wydatki" && <ExpenseCategoriesTab />}

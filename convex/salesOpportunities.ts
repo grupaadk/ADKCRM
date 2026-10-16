@@ -548,6 +548,7 @@ export const saveOpportunityConfigurations = mutation({
         totalCostKc += baseKc;
         totalProfitZ += profit;
       }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { offerText: _ignored, ...rest } = cfg;
       return {
         ...rest,
@@ -935,3 +936,4 @@ export const getConversionReport = query({
     };
   },
 });
+

@@ -19,7 +19,6 @@ import {
   Phone,
   Mail,
   ChevronRight,
-  SlidersHorizontal,
   Sparkles,
 } from "lucide-react";
 
@@ -881,9 +880,6 @@ export default function NewOpportunityForm({
               ) : (
                 servicesList.map((svc) => {
                   const isSelected = selectedServices.includes(svc.name);
-                  const hasConfigurator =
-                    svc.name.toLowerCase().includes("zadaszen") ||
-                    svc.name.toLowerCase().includes("zabudow");
 
                   return (
                     <button
@@ -909,14 +905,6 @@ export default function NewOpportunityForm({
                         <span className="text-xs truncate font-medium">
                           {svc.name}
                         </span>
-                        {hasConfigurator && (
-                          <span
-                            title="Kalkulator wyceny"
-                            className="inline-flex items-center text-teal-600 opacity-75 shrink-0"
-                          >
-                            <SlidersHorizontal size={10} />
-                          </span>
-                        )}
                       </div>
 
                       <div

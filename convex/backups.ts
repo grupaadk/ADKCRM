@@ -31,7 +31,6 @@ export const getBackupStats = query({
       "installationTeams",
       "cars",
       "hrLeaves",
-      "aiAssistantConfig",
     ] as const;
 
     const stats: Record<string, number> = {};
@@ -81,7 +80,6 @@ export const exportFullBackup = query({
       "emailClassifications",
       "services",
       "suppliers",
-      "servicePricing",
       "orderLineItems",
       "smsConfig",
       "crmConfig",
@@ -95,10 +93,6 @@ export const exportFullBackup = query({
       "orderTasks",
       "taskTemplates",
       "taskLabels",
-      "terraceRoofPricing",
-      "terraceWallPricing",
-      "terraceExtrasPricing",
-      "terraceInstallationPricing",
       "taskComments",
       "itKanbanColumns",
       "itKanbanSprints",
@@ -112,8 +106,6 @@ export const exportFullBackup = query({
       "hrLeaves",
       "hrOvertime",
       "hrLeaveAllowances",
-      "aiAssistantConfig",
-      "aiPromptComponents",
     ] as const;
 
     const data: Record<string, unknown[]> = {};
@@ -194,10 +186,7 @@ export const restoreFullBackup = mutation({
       "fakturowniaConfig",
       "gmailSettings",
       "smsConfig",
-      "aiAssistantConfig",
-      "aiPromptComponents",
       "services",
-      "servicePricing",
       "expenseCategories",
       "taskColumns",
       "taskTemplates",
@@ -221,10 +210,6 @@ export const restoreFullBackup = mutation({
       "hrOvertime",
       "hrLeaveAllowances",
       "systemLogs",
-      "terraceRoofPricing",
-      "terraceWallPricing",
-      "terraceExtrasPricing",
-      "terraceInstallationPricing",
       "itKanbanColumns",
       "itKanbanSprints",
       "itKanbanTasks",
@@ -283,6 +268,7 @@ export const restoreFullBackup = mutation({
         }
 
         // Czyszczenie pol systemowych (_id, _creationTime)
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { _id, _creationTime, ...restDoc } = doc;
 
         // Podmiana relacji w dokumencie

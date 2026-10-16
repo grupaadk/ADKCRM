@@ -42,7 +42,6 @@ const TABLE_LABELS: Record<string, string> = {
   installationTeams: "Ekipy montażowe",
   cars: "Flota samochodowa",
   hrLeaves: "Urlopy i wniosek HR",
-  aiAssistantConfig: "Konfiguracja Asystenta AI",
 };
 
 interface ParsedBackupPayload {

@@ -8,8 +8,6 @@
  * @module
  */
 
-import type * as aiAssistant from "../aiAssistant.js";
-import type * as aiWorkflows from "../aiWorkflows.js";
 import type * as attachments from "../attachments.js";
 import type * as auth from "../auth.js";
 import type * as backups from "../backups.js";
@@ -55,14 +53,11 @@ import type * as orderTasks from "../orderTasks.js";
 import type * as orders from "../orders.js";
 import type * as paymentReminders from "../paymentReminders.js";
 import type * as places from "../places.js";
-import type * as priceLists from "../priceLists.js";
-import type * as prokal from "../prokal.js";
 import type * as publicApi from "../publicApi.js";
 import type * as salesOpportunities from "../salesOpportunities.js";
 import type * as scratch from "../scratch.js";
 import type * as search from "../search.js";
 import type * as seed from "../seed.js";
-import type * as servicePricing from "../servicePricing.js";
 import type * as serviceTrips from "../serviceTrips.js";
 import type * as services from "../services.js";
 import type * as sms from "../sms.js";
@@ -73,8 +68,6 @@ import type * as taskColumns from "../taskColumns.js";
 import type * as taskComments from "../taskComments.js";
 import type * as taskLabels from "../taskLabels.js";
 import type * as taskTemplates from "../taskTemplates.js";
-import type * as terraceAssemblyParams from "../terraceAssemblyParams.js";
-import type * as terracePricing from "../terracePricing.js";
 import type * as users from "../users.js";
 import type * as vatRateNames from "../vatRateNames.js";
 import type * as viewConfig from "../viewConfig.js";
@@ -88,8 +81,6 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  aiAssistant: typeof aiAssistant;
-  aiWorkflows: typeof aiWorkflows;
   attachments: typeof attachments;
   auth: typeof auth;
   backups: typeof backups;
@@ -135,14 +126,11 @@ declare const fullApi: ApiFromModules<{
   orders: typeof orders;
   paymentReminders: typeof paymentReminders;
   places: typeof places;
-  priceLists: typeof priceLists;
-  prokal: typeof prokal;
   publicApi: typeof publicApi;
   salesOpportunities: typeof salesOpportunities;
   scratch: typeof scratch;
   search: typeof search;
   seed: typeof seed;
-  servicePricing: typeof servicePricing;
   serviceTrips: typeof serviceTrips;
   services: typeof services;
   sms: typeof sms;
@@ -153,8 +141,6 @@ declare const fullApi: ApiFromModules<{
   taskComments: typeof taskComments;
   taskLabels: typeof taskLabels;
   taskTemplates: typeof taskTemplates;
-  terraceAssemblyParams: typeof terraceAssemblyParams;
-  terracePricing: typeof terracePricing;
   users: typeof users;
   vatRateNames: typeof vatRateNames;
   viewConfig: typeof viewConfig;
