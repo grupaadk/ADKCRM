@@ -7,14 +7,22 @@ import {
   X,
   Search,
   Check,
-  ChevronRight,
+  Plus,
+  Minus,
+  Loader2,
 } from "lucide-react";
+
+export interface SelectedConstructionEntry {
+  templateId: string;
+  quantity: number;
+}
 
 interface AddConstructionModalProps {
   isOpen: boolean;
   onClose: () => void;
   templates: ConstructionTemplate[];
   onSelectTemplate: (templateId?: string) => void;
+  onSelectMultipleTemplates?: (entries: SelectedConstructionEntry[]) => Promise<void> | void;
 }
 
 export function AddConstructionModal({
@@ -22,8 +30,11 @@ export function AddConstructionModal({
   onClose,
   templates,
   onSelectTemplate,
+  onSelectMultipleTemplates,
 }: AddConstructionModalProps) {
   const [search, setSearch] = useState("");
+  const [selectedMap, setSelectedMap] = useState<Record<string, number>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   const filteredTemplates = useMemo(() => {
     if (!search.trim()) return templates;
@@ -38,11 +49,89 @@ export function AddConstructionModal({
     });
   }, [templates, search]);
 
+  const selectedEntries = useMemo(() => {
+    return Object.entries(selectedMap)
+      .filter(([, qty]) => qty > 0)
+      .map(([templateId, quantity]) => ({ templateId, quantity }));
+  }, [selectedMap]);
+
+  const totalPositionsCount = useMemo(
+    () => selectedEntries.reduce((acc, e) => acc + e.quantity, 0),
+    [selectedEntries]
+  );
+
+  const totalSelectedPriceNet = useMemo(() => {
+    return selectedEntries.reduce((acc, entry) => {
+      const tpl = templates.find((t) => t._id === entry.templateId);
+      return acc + (tpl?.defaultPriceNet || 0) * entry.quantity;
+    }, 0);
+  }, [selectedEntries, templates]);
+
   if (!isOpen) return null;
 
+  const toggleTemplate = (templateId: string) => {
+    setSelectedMap((prev) => {
+      const next = { ...prev };
+      if (next[templateId]) {
+        delete next[templateId];
+      } else {
+        next[templateId] = 1;
+      }
+      return next;
+    });
+  };
+
+  const updateQuantity = (templateId: string, delta: number) => {
+    setSelectedMap((prev) => {
+      const current = prev[templateId] || 0;
+      const nextVal = current + delta;
+      const next = { ...prev };
+      if (nextVal <= 0) {
+        delete next[templateId];
+      } else {
+        next[templateId] = nextVal;
+      }
+      return next;
+    });
+  };
+
+  const handleClose = () => {
+    if (submitting) return;
+    setSelectedMap({});
+    setSearch("");
+    onClose();
+  };
+
+  const handleConfirmSubmit = async () => {
+    if (selectedEntries.length === 0 || submitting) return;
+    setSubmitting(true);
+    try {
+      if (onSelectMultipleTemplates) {
+        await onSelectMultipleTemplates(selectedEntries);
+      } else {
+        for (const entry of selectedEntries) {
+          for (let i = 0; i < entry.quantity; i++) {
+            onSelectTemplate(entry.templateId);
+          }
+        }
+      }
+      setSelectedMap({});
+      setSearch("");
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-[#0b1220]/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full border border-[#e3e7ee] overflow-hidden flex flex-col max-h-[85vh]">
+    <div
+      className="fixed inset-0 bg-[#0b1220]/50 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+      onClick={handleClose}
+    >
+      <div
+        className="bg-white rounded-xl shadow-2xl max-w-3xl w-full border border-[#e3e7ee] overflow-hidden flex flex-col max-h-[85vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-[#e3e7ee] flex items-center justify-between bg-[#f8fafc] shrink-0">
           <div className="flex items-center gap-2.5">
@@ -54,14 +143,14 @@ export function AddConstructionModal({
                 Dodaj konstrukcję do oferty
               </h3>
               <p className="text-[11px] text-[#7c8597]">
-                Wybierz gotową konstrukcję z bazy szablonów lub utwórz pozycję parametryczną
+                Zaznacz jedną lub kilka konstrukcji z bazy szablonów, aby dodać je jednocześnie do oferty
               </p>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 text-[#7c8597] hover:text-[#0b1220] rounded-md hover:bg-[#e8ecf2] transition-colors"
           >
             <X size={16} />
@@ -94,19 +183,55 @@ export function AddConstructionModal({
             )}
           </div>
           <div className="flex items-center justify-between text-[10px] text-[#7c8597] mt-1.5 px-1 font-mono">
-            <span>Dostępne szablony: {filteredTemplates.length} z {templates.length}</span>
-            {search && (
-              <span className="text-[#0e7490] font-semibold">
-                Filtrowanie: &quot;{search}&quot;
-              </span>
-            )}
+            <span>
+              Dostępne szablony: {filteredTemplates.length} z {templates.length}
+            </span>
+            <div className="flex items-center gap-3">
+              {search && (
+                <span className="text-[#0e7490] font-semibold">
+                  Filtrowanie: &quot;{search}&quot;
+                </span>
+              )}
+              {filteredTemplates.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allFilteredSelected = filteredTemplates.every(
+                      (t) => (selectedMap[t._id] || 0) > 0
+                    );
+                    if (allFilteredSelected) {
+                      setSelectedMap((prev) => {
+                        const next = { ...prev };
+                        for (const t of filteredTemplates) {
+                          delete next[t._id];
+                        }
+                        return next;
+                      });
+                    } else {
+                      setSelectedMap((prev) => {
+                        const next = { ...prev };
+                        for (const t of filteredTemplates) {
+                          if (!next[t._id]) next[t._id] = 1;
+                        }
+                        return next;
+                      });
+                    }
+                  }}
+                  className="text-[#0e7490] hover:underline font-sans font-semibold cursor-pointer"
+                >
+                  {filteredTemplates.every((t) => (selectedMap[t._id] || 0) > 0)
+                    ? "Odznacz widoczne"
+                    : "Zaznacz wszystkie widoczne"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Scrollable List of Templates */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-2">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-2 bg-[#f8fafc]/40">
           {filteredTemplates.length === 0 ? (
-            <div className="panel p-8 text-center text-xs text-[#7c8597] space-y-2">
+            <div className="panel p-8 text-center text-xs text-[#7c8597] space-y-2 bg-white">
               <p className="font-semibold text-[#0b1220]">
                 {templates.length === 0
                   ? "Brak zdefiniowanych szablonów w bazie konstrukcji."
@@ -123,18 +248,38 @@ export function AddConstructionModal({
               const panes = Math.max(1, tpl.defaultPanesCount || 3);
               const width = tpl.defaultWidthMm || 2880;
               const height = tpl.defaultHeightMm || 2300;
+              const qty = selectedMap[tpl._id] || 0;
+              const isSelected = qty > 0;
 
               return (
                 <div
                   key={tpl._id}
-                  onClick={() => {
-                    onSelectTemplate(tpl._id);
-                    onClose();
-                  }}
-                  className="group bg-white hover:bg-[#fafbfd] border border-[#e3e7ee] hover:border-[#4ABBC3] rounded-lg p-3 transition-all cursor-pointer flex items-center justify-between gap-4 shadow-2xs hover:shadow-xs"
+                  onClick={() => toggleTemplate(tpl._id)}
+                  className={`group rounded-lg p-3 transition-all cursor-pointer flex items-center justify-between gap-3.5 border ${
+                    isSelected
+                      ? "bg-[#f0fdff] border-[#4ABBC3] ring-2 ring-[#4ABBC3]/20 shadow-xs"
+                      : "bg-white hover:bg-[#fafbfd] border-[#e3e7ee] hover:border-[#cbd5e1] shadow-2xs"
+                  }`}
                 >
+                  {/* Checkbox indicator */}
+                  <div
+                    className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 border transition-colors ${
+                      isSelected
+                        ? "bg-[#0e7490] border-[#0e7490] text-white"
+                        : "bg-white border-[#cbd5e1] group-hover:border-[#4ABBC3]"
+                    }`}
+                  >
+                    {isSelected && <Check size={13} strokeWidth={3} />}
+                  </div>
+
                   {/* Left: Compact CAD Miniature */}
-                  <div className="w-24 h-16 bg-white rounded border border-[#cbd5e1] flex items-center justify-center p-1 shrink-0 group-hover:border-[#4ABBC3] transition-colors shadow-2xs">
+                  <div
+                    className={`w-24 h-16 bg-white rounded border flex items-center justify-center p-1 shrink-0 transition-colors shadow-2xs ${
+                      isSelected
+                        ? "border-[#4ABBC3]"
+                        : "border-[#cbd5e1] group-hover:border-[#4ABBC3]"
+                    }`}
+                  >
                     <svg
                       viewBox="0 0 140 70"
                       className="w-full h-full"
@@ -228,7 +373,7 @@ export function AddConstructionModal({
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px] font-mono text-[#4b5563]">
                       <span>
-                        Wymiary: <strong className="text-[#0b1220]">{width} × {height} mm</strong> ({panes} kwatery)
+                        Wymiary: <strong className="text-[#0b1220]">{width} × {height} mm</strong>
                       </span>
                       {tpl.defaultFillType && (
                         <span>
@@ -243,30 +388,133 @@ export function AddConstructionModal({
                     </div>
                   </div>
 
-                  {/* Right: Select Action */}
-                  <div className="shrink-0 flex items-center gap-3">
+                  {/* Right: Price & Quantity / Select Action */}
+                  <div
+                    className="shrink-0 flex items-center gap-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {tpl.defaultPriceNet !== undefined && tpl.defaultPriceNet !== null ? (
                       <div className="text-right hidden sm:block">
-                        <span className="block text-[9px] uppercase font-bold text-[#7c8597]">Cena netto</span>
-                        <span className="font-mono font-bold text-xs text-[#0e7490]">
+                        <span className="block text-[9px] uppercase font-bold text-[#7c8597]">
+                          Cena netto
+                        </span>
+                        <span className="font-mono font-bold text-xs text-[#0b1220]">
                           {tpl.defaultPriceNet.toLocaleString("pl-PL")} zł
                         </span>
                       </div>
                     ) : null}
-                    <button
-                      type="button"
-                      className="btn primary flex items-center gap-1 group-hover:bg-[#35a3ab]"
-                      style={{ padding: "5px 12px", fontSize: 12 }}
-                    >
-                      <Check size={13} />
-                      <span className="hidden sm:inline">Wybierz</span>
-                      <ChevronRight size={13} className="sm:hidden" />
-                    </button>
+
+                    {isSelected ? (
+                      <div className="inline-flex items-center rounded-lg border border-[#4ABBC3] bg-white shadow-2xs overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(tpl._id, -1)}
+                          className="p-1.5 text-[#475569] hover:text-[#0b1220] hover:bg-slate-100 transition-colors cursor-pointer"
+                          title="Zmniejsz ilość"
+                        >
+                          <Minus size={12} />
+                        </button>
+                        <span className="px-2.5 text-xs font-mono font-bold text-[#0e7490] min-w-[28px] text-center">
+                          {qty}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(tpl._id, 1)}
+                          className="p-1.5 text-[#475569] hover:text-[#0b1220] hover:bg-slate-100 transition-colors cursor-pointer"
+                          title="Dodaj kolejną sztukę tej konstrukcji"
+                        >
+                          <Plus size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => toggleTemplate(tpl._id)}
+                        className="btn ghost border border-[#d4dae3] hover:border-[#4ABBC3] hover:text-[#0e7490] flex items-center gap-1"
+                        style={{ padding: "5px 11px", fontSize: 11.5 }}
+                      >
+                        <Plus size={13} />
+                        <span className="hidden sm:inline">Zaznacz</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               );
             })
           )}
+        </div>
+
+        {/* Sticky Footer with Summary & Bulk Add Action */}
+        <div className="px-6 py-3.5 border-t border-[#e3e7ee] bg-[#f8fafc] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-3 text-xs">
+            {totalPositionsCount > 0 ? (
+              <>
+                <span className="text-[#475569]">
+                  Wybrano:{" "}
+                  <strong className="text-[#0b1220] font-mono">
+                    {totalPositionsCount}{" "}
+                    {totalPositionsCount === 1
+                      ? "konstrukcję"
+                      : totalPositionsCount >= 2 && totalPositionsCount <= 4
+                        ? "konstrukcje"
+                        : "konstrukcji"}
+                  </strong>
+                </span>
+                {totalSelectedPriceNet > 0 && (
+                  <>
+                    <span className="text-slate-300">·</span>
+                    <span className="text-[#475569]">
+                      Suma netto:{" "}
+                      <strong className="text-[#0e7490] font-mono">
+                        {totalSelectedPriceNet.toLocaleString("pl-PL")} zł
+                      </strong>
+                    </span>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedMap({})}
+                  className="text-[11px] text-[#64748b] hover:text-[#dc2626] underline ml-1 cursor-pointer"
+                >
+                  Wyczyść
+                </button>
+              </>
+            ) : (
+              <span className="text-[#7c8597]">
+                Kliknij dowolne konstrukcje na liście, aby zaznaczyć je do dodania
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 shrink-0">
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={handleClose}
+              className="btn ghost"
+              style={{ padding: "6px 12px", fontSize: 12 }}
+            >
+              Anuluj
+            </button>
+            <button
+              type="button"
+              disabled={totalPositionsCount === 0 || submitting}
+              onClick={() => void handleConfirmSubmit()}
+              className="btn primary"
+              style={{ padding: "6px 16px", fontSize: 12 }}
+            >
+              {submitting ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Check size={14} />
+              )}
+              <span>
+                {totalPositionsCount > 0
+                  ? `Dodaj do oferty (${totalPositionsCount})`
+                  : "Dodaj do oferty"}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

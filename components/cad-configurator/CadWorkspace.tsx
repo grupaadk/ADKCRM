@@ -10,9 +10,8 @@ import { LeftPropertiesPanel } from "./LeftPropertiesPanel";
 import { VerticalPositionsList } from "./VerticalPositionsList";
 import { BottomTabsBar, ConstructionTemplate } from "./BottomTabsBar";
 import { OfferSummaryTab, OfferData, OpportunityData } from "./OfferSummaryTab";
-import { AddConstructionModal } from "./AddConstructionModal";
+import { AddConstructionModal, SelectedConstructionEntry } from "./AddConstructionModal";
 import {
-  Layers,
   ArrowLeft,
   Check,
   Loader2,
@@ -126,6 +125,30 @@ export function CadWorkspace({ offerId }: CadWorkspaceProps) {
       setSaveStatus("saved");
     } catch (err) {
       console.error("Błąd dodawania konstrukcji:", err);
+      setSaveStatus("idle");
+    }
+  };
+
+  const handleAddMultipleConstructions = async (entries: SelectedConstructionEntry[]) => {
+    if (entries.length === 0) return;
+    setSaveStatus("saving");
+    try {
+      let lastItemId: string | null = null;
+      for (const entry of entries) {
+        for (let i = 0; i < entry.quantity; i++) {
+          const newItemId = await addPosition({
+            offerId,
+            constructionId: entry.templateId as Id<"constructions">,
+          });
+          lastItemId = newItemId;
+        }
+      }
+      if (lastItemId && entries.length === 1 && entries[0].quantity === 1) {
+        setActiveTab(lastItemId);
+      }
+      setSaveStatus("saved");
+    } catch (err) {
+      console.error("Błąd dodawania wielu konstrukcji:", err);
       setSaveStatus("idle");
     }
   };
@@ -297,6 +320,7 @@ export function CadWorkspace({ offerId }: CadWorkspaceProps) {
         onClose={() => setIsAddModalOpen(false)}
         templates={templates}
         onSelectTemplate={handleAddConstruction}
+        onSelectMultipleTemplates={handleAddMultipleConstructions}
       />
 
       {/* Dyskretny natywny potykacz potwierdzenia usunięcia */}
