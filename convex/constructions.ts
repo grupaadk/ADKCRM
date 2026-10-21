@@ -230,6 +230,23 @@ export const seedDefault = mutation({
         createdAt: now,
         updatedAt: now,
       },
+      {
+        name: "Trójkąt do zabudowy tarasu",
+        code: "TROJKAT-TARAS",
+        category: "Trójkąt",
+        description: "Konstrukcja trójkąta bocznego pod krokwie tarasu (Profil H dolny + Krokiew skośna, wypełnienie szklane)",
+        defaultSystem: "Profil H + Krokiew",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 3000,
+        defaultHeightMm: 600,
+        defaultPanesCount: 1,
+        defaultFillType: "HART 10",
+        defaultPriceNet: 2400,
+        isActive: true,
+        sortOrder: 3,
+        createdAt: now,
+        updatedAt: now,
+      },
     ];
 
     for (const d of defaults) {
@@ -237,5 +254,96 @@ export const seedDefault = mutation({
     }
 
     return { created: defaults.length };
+  },
+});
+
+/**
+ * Zapewnia istnienie kategorii "Trójkąt" oraz szablonu konstrukcji trójkąta do zabudowy tarasu
+ */
+export const ensureTriangleConstruction = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // 1. Sprawdź lub utwórz kategorię "Trójkąt"
+    const existingCategories = await ctx.db.query("constructionCategories").collect();
+    let triangleCategory = existingCategories.find(
+      (cat) =>
+        cat.name.toLowerCase().includes("trójką") ||
+        (cat.code && cat.code.toUpperCase() === "TROJKAT")
+    );
+
+    if (!triangleCategory) {
+      const nextCatOrder =
+        existingCategories.length > 0
+          ? Math.max(...existingCategories.map((c) => c.sortOrder)) + 1
+          : 0;
+      const catId = await ctx.db.insert("constructionCategories", {
+        name: "Trójkąt",
+        code: "TROJKAT",
+        description: "Trójkąty szczytowe i kliny podkrokwiowe konieczne do zabudowy tarasu",
+        color: "amber",
+        isActive: true,
+        sortOrder: nextCatOrder,
+        createdAt: now,
+        updatedAt: now,
+      });
+      triangleCategory = (await ctx.db.get(catId))!;
+    }
+
+    // 2. Sprawdź lub utwórz konstrukcję trójkąta
+    const existingConstructions = await ctx.db.query("constructions").collect();
+    const triangleConstruction = existingConstructions.find(
+      (c) =>
+        c.code === "TROJKAT-TARAS" ||
+        c.name.toLowerCase().includes("trójkąt") ||
+        (c.defaultSystem && c.defaultSystem.toLowerCase().includes("profil h"))
+    );
+
+    if (!triangleConstruction) {
+      const nextConstrOrder =
+        existingConstructions.length > 0
+          ? Math.max(...existingConstructions.map((c) => c.sortOrder)) + 1
+          : 0;
+      const constrId = await ctx.db.insert("constructions", {
+        name: "Trójkąt do zabudowy tarasu",
+        code: "TROJKAT-TARAS",
+        categoryId: triangleCategory._id,
+        category: triangleCategory.name,
+        description:
+          "Konstrukcja trójkąta bocznego pod krokwie tarasu (Profil H dolny + Krokiew skośna, wypełnienie szklane)",
+        defaultSystem: "Profil H + Krokiew",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 3000,
+        defaultHeightMm: 600,
+        defaultPanesCount: 1,
+        defaultFillType: "HART 10",
+        defaultPriceNet: 2400,
+        isActive: true,
+        sortOrder: nextConstrOrder,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      return {
+        created: true,
+        categoryId: triangleCategory._id,
+        constructionId: constrId,
+      };
+    } else {
+      // Upewnij się, że ma przypisaną kategorię
+      if (!triangleConstruction.categoryId || triangleConstruction.category !== triangleCategory.name) {
+        await ctx.db.patch(triangleConstruction._id, {
+          categoryId: triangleCategory._id,
+          category: triangleCategory.name,
+          updatedAt: now,
+        });
+      }
+      return {
+        created: false,
+        categoryId: triangleCategory._id,
+        constructionId: triangleConstruction._id,
+      };
+    }
   },
 });

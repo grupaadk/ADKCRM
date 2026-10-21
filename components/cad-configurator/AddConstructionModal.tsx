@@ -251,6 +251,16 @@ export function AddConstructionModal({
               const qty = selectedMap[tpl._id] || 0;
               const isSelected = qty > 0;
 
+              const isTriangle =
+                tpl.name.toLowerCase().includes("trójką") ||
+                Boolean(tpl.category && tpl.category.toLowerCase().includes("trójką")) ||
+                Boolean(tpl.code && tpl.code.toLowerCase().includes("trojkat")) ||
+                Boolean(
+                  tpl.defaultSystem &&
+                    (tpl.defaultSystem.toLowerCase().includes("krokiew") ||
+                      tpl.defaultSystem.toLowerCase().includes("profil h"))
+                );
+
               return (
                 <div
                   key={tpl._id}
@@ -285,73 +295,154 @@ export function AddConstructionModal({
                       className="w-full h-full"
                       preserveAspectRatio="xMidYMid meet"
                     >
-                      <rect
-                        x="2"
-                        y="2"
-                        width="136"
-                        height="66"
-                        fill="none"
-                        stroke="#dc2626"
-                        strokeWidth="1"
-                      />
-                      <rect
-                        x="3"
-                        y="3"
-                        width="134"
-                        height="64"
-                        fill="#29323d"
-                        stroke="#1e242b"
-                        strokeWidth="1"
-                      />
-                      <rect
-                        x="7"
-                        y="7"
-                        width="126"
-                        height="56"
-                        fill="#ffffff"
-                      />
-                      {Array.from({ length: panes }).map((_, i) => {
-                        const pw = 126 / panes;
-                        const px = 7 + i * pw;
-                        const cx = px + pw / 2;
-                        return (
-                          <g key={i}>
-                            <rect
-                              key={i}
-                              x={px + 0.5}
-                              y="7.5"
-                              width={pw - 1}
-                              height="55"
-                              fill="#ffffff"
-                              stroke="#e2e8f0"
-                              strokeWidth="0.5"
-                            />
-                            {i > 0 && (
-                              <line
-                                x1={px}
-                                y1="7"
-                                x2={px}
-                                y2="63"
-                                stroke="#dc2626"
-                                strokeWidth="1"
-                              />
-                            )}
-                            <text
-                              x={cx}
-                              y="35"
-                              transform={`rotate(90, ${cx}, 35)`}
-                              fill="#1e293b"
-                              fontSize={Math.min(9, Math.max(5, pw / 3.2))}
-                              fontWeight="800"
-                              letterSpacing="1px"
-                              textAnchor="middle"
-                              dominantBaseline="central"
-                            >
-                              {tpl.defaultFillType || "HART 10"}
-                            </text>
-                          </g>
-                        );
-                      })}
+                      {isTriangle ? (
+                        <g>
+                          {/* Czerwony obrys trójkąta */}
+                          <polygon
+                            points="6,10 134,64 6,64"
+                            fill="none"
+                            stroke="#dc2626"
+                            strokeWidth="1"
+                          />
+                          {/* Dolny profil H */}
+                          <rect
+                            x="6"
+                            y="58"
+                            width="128"
+                            height="6"
+                            fill="#29323d"
+                            stroke="#1e242b"
+                            strokeWidth="0.5"
+                          />
+                          <text
+                            x="70"
+                            y="63"
+                            fill="#ffffff"
+                            fontSize="4"
+                            fontWeight="900"
+                            textAnchor="middle"
+                            letterSpacing="1px"
+                          >
+                            PROFIL H
+                          </text>
+                          {/* Lewy pionowy profil */}
+                          <rect
+                            x="6"
+                            y="12"
+                            width="6"
+                            height="46"
+                            fill="#29323d"
+                            stroke="#1e242b"
+                            strokeWidth="0.5"
+                          />
+                          {/* Krokiew skośna */}
+                          <polygon
+                            points="6,12 134,64 134,58 6,6"
+                            fill="#84cc16"
+                            stroke="#4d7c0f"
+                            strokeWidth="0.8"
+                          />
+                          <text
+                            x="74"
+                            y="32"
+                            fill="#0b1220"
+                            fontSize="5.5"
+                            fontWeight="900"
+                            textAnchor="middle"
+                            transform="rotate(22, 74, 32)"
+                            letterSpacing="0.5px"
+                          >
+                            KROKIEW
+                          </text>
+                          {/* Szkło */}
+                          <polygon
+                            points="13,18 122,57 13,57"
+                            fill="#ffffff"
+                            stroke="#38bdf8"
+                            strokeWidth="0.8"
+                          />
+                          <text
+                            x="45"
+                            y="48"
+                            fill="#0b1220"
+                            fontSize="6.5"
+                            fontWeight="800"
+                            textAnchor="middle"
+                          >
+                            {tpl.defaultFillType || "HART 10"}
+                          </text>
+                        </g>
+                      ) : (
+                        <>
+                          <rect
+                            x="2"
+                            y="2"
+                            width="136"
+                            height="66"
+                            fill="none"
+                            stroke="#dc2626"
+                            strokeWidth="1"
+                          />
+                          <rect
+                            x="3"
+                            y="3"
+                            width="134"
+                            height="64"
+                            fill="#29323d"
+                            stroke="#1e242b"
+                            strokeWidth="1"
+                          />
+                          <rect
+                            x="7"
+                            y="7"
+                            width="126"
+                            height="56"
+                            fill="#ffffff"
+                          />
+                          {Array.from({ length: panes }).map((_, i) => {
+                            const pw = 126 / panes;
+                            const px = 7 + i * pw;
+                            const cx = px + pw / 2;
+                            return (
+                              <g key={i}>
+                                <rect
+                                  key={i}
+                                  x={px + 0.5}
+                                  y="7.5"
+                                  width={pw - 1}
+                                  height="55"
+                                  fill="#ffffff"
+                                  stroke="#e2e8f0"
+                                  strokeWidth="0.5"
+                                />
+                                {i > 0 && (
+                                  <line
+                                    x1={px}
+                                    y1="7"
+                                    x2={px}
+                                    y2="63"
+                                    stroke="#dc2626"
+                                    strokeWidth="1"
+                                  />
+                                )}
+                                <text
+                                  x={cx}
+                                  y="35"
+                                  transform={`rotate(90, ${cx}, 35)`}
+                                  fill="#1e293b"
+                                  fontSize={Math.min(9, Math.max(5, pw / 3.2))}
+                                  fontWeight="800"
+                                  letterSpacing="1px"
+                                  textAnchor="middle"
+                                  dominantBaseline="central"
+                                >
+                                  {tpl.defaultFillType || "HART 10"}
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </>
+                      )}
                     </svg>
                   </div>
 

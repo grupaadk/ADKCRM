@@ -71,6 +71,18 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
   const fill = item.fillType || "HART 10";
   const color = item.color || "RAL 7016MAT";
 
+  const isTriangle =
+    item.name.toLowerCase().includes("trójką") ||
+    Boolean(item.shortName && item.shortName.toLowerCase().includes("trójką")) ||
+    Boolean(
+      item.systemName &&
+        (item.systemName.toLowerCase().includes("krokiew") ||
+          item.systemName.toLowerCase().includes("profil h"))
+    );
+
+  const slopeAngleDeg = Math.round(Math.atan2(height, width) * (180 / Math.PI) * 10) / 10;
+  const hypotenuseMm = Math.round(Math.sqrt(width * width + height * height));
+
   // Obliczenia wymiarów kwater
   const paneWidth = Math.round(width / panes);
   const segments: CadSegment[] =
@@ -247,283 +259,507 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
 
             {/* ─── CONSTRUCTION DRAWING ─── */}
             <g id="construction">
-              {/* Cienka czerwona linia obrysu zewnętrznego (charakterystyczna dla CAD/Prokal) */}
-              <rect
-                x={originX - 2}
-                y={originY - 2}
-                width={width + 4}
-                height={height + 4}
-                fill="none"
-                stroke="#dc2626"
-                strokeWidth="2"
-              />
+              {isTriangle ? (
+                <>
+                  {/* Cienka czerwona linia obrysu zewnętrznego */}
+                  <polygon
+                    points={`${originX - 2},${originY - 2} ${originX + width + 2},${originY + height + 2} ${originX - 2},${originY + height + 2}`}
+                    fill="none"
+                    stroke="#dc2626"
+                    strokeWidth="2.5"
+                  />
 
-              {/* Aluminiowa ościeżnica / Rama główna (RAL 7016) */}
-              <rect
-                x={originX}
-                y={originY}
-                width={width}
-                height={height}
-                fill="#29323d"
-                stroke="#1e242b"
-                strokeWidth="1.5"
-              />
+                  {/* Aluminiowy profil dolny poziomy (PROFIL H) */}
+                  <rect
+                    x={originX}
+                    y={originY + height - frameThickness}
+                    width={width}
+                    height={frameThickness}
+                    fill="#29323d"
+                    stroke="#1e242b"
+                    strokeWidth="2"
+                  />
+                  <text
+                    x={originX + width / 2}
+                    y={originY + height - 17}
+                    fill="#ffffff"
+                    fontSize="22"
+                    fontWeight="900"
+                    textAnchor="middle"
+                    letterSpacing="4px"
+                  >
+                    PROFIL H
+                  </text>
 
-              {/* Wnętrze ramy (światło konstrukcji) */}
-              <rect
-                x={originX + frameThickness}
-                y={originY + frameThickness}
-                width={width - frameThickness * 2}
-                height={height - frameThickness * 2}
-                fill="#ffffff"
-                stroke="#1e242b"
-                strokeWidth="1.5"
-              />
+                  {/* Lewy pionowy profil przyścienny */}
+                  <rect
+                    x={originX}
+                    y={originY}
+                    width={frameThickness}
+                    height={height - frameThickness}
+                    fill="#29323d"
+                    stroke="#1e242b"
+                    strokeWidth="2"
+                  />
 
-              {/* Narożne cięcia ukośne (miter joints 45°) */}
-              <line
-                x1={originX}
-                y1={originY}
-                x2={originX + frameThickness}
-                y2={originY + frameThickness}
-                stroke="#475569"
-                strokeWidth="1.5"
-              />
-              <line
-                x1={originX + width}
-                y1={originY}
-                x2={originX + width - frameThickness}
-                y2={originY + frameThickness}
-                stroke="#475569"
-                strokeWidth="1.5"
-              />
-              <line
-                x1={originX}
-                y1={originY + height}
-                x2={originX + frameThickness}
-                y2={originY + height - frameThickness}
-                stroke="#475569"
-                strokeWidth="1.5"
-              />
-              <line
-                x1={originX + width}
-                y1={originY + height}
-                x2={originX + width - frameThickness}
-                y2={originY + height - frameThickness}
-                stroke="#475569"
-                strokeWidth="1.5"
-              />
-
-              {/* Kwatery / Skrzydła szklane */}
-              {segments.map((seg, idx) => {
-                const openingW = width - frameThickness * 2;
-                const openingH = height - frameThickness * 2;
-                const segW = openingW / panes;
-                const segX = originX + frameThickness + idx * segW;
-                const segY = originY + frameThickness;
-
-                const centerX = segX + segW / 2;
-
-                const glassW = Math.round(segW - 10);
-                const glassH = Math.round(openingH - 12);
-
-                return (
-                  <g key={idx} id={`cad-pane-${idx}`}>
-                    {/* Tło kwatery szklanej (czyste białe) */}
-                    <rect
-                      x={segX + 2}
-                      y={segY + 2}
-                      width={segW - 4}
-                      height={openingH - 4}
-                      fill="#ffffff"
-                      stroke="#e2e8f0"
-                      strokeWidth="1.5"
-                    />
-
-                    {/* Pionowa czerwona linia podziału / zachodzenia skrzydeł */}
-                    {idx > 0 && (
-                      <line
-                        x1={segX}
-                        y1={segY}
-                        x2={segX}
-                        y2={segY + openingH}
-                        stroke="#dc2626"
-                        strokeWidth="2"
-                      />
-                    )}
-
-                    {/* Półprzezroczysty subtelny odblask szkła */}
-                    <line
-                      x1={segX + 24}
-                      y1={segY + openingH - 50}
-                      x2={segX + segW - 24}
-                      y2={segY + 50}
-                      stroke="#38bdf8"
-                      strokeWidth="1.5"
-                      strokeOpacity="0.25"
-                    />
-
-                    {/* Wymiar kwatery u góry szkła */}
+                  {/* Górna belka skośna (KROKIEW) */}
+                  <polygon
+                    points={`
+                      ${originX},${originY}
+                      ${originX + width},${originY + height}
+                      ${originX + width},${originY + height - 40}
+                      ${originX},${originY - 50}
+                    `}
+                    fill="#84cc16"
+                    stroke="#4d7c0f"
+                    strokeWidth="2"
+                  />
+                  {/* Podkrokiew / listwa montażowa */}
+                  <polygon
+                    points={`
+                      ${originX + 15},${originY + 12}
+                      ${originX + width - 10},${originY + height}
+                      ${originX + width - 30},${originY + height}
+                      ${originX + frameThickness},${originY + frameThickness + 10}
+                    `}
+                    fill="#29323d"
+                    stroke="#1e242b"
+                    strokeWidth="1.5"
+                  />
+                  {/* Etykieta KROKIEW */}
+                  <g
+                    transform={`translate(${originX + width * 0.46}, ${originY + height * 0.46 - 22}) rotate(${slopeAngleDeg})`}
+                  >
                     <text
-                      x={centerX}
-                      y={segY + 64}
+                      x="0"
+                      y="0"
                       fill="#0b1220"
-                      fontSize={Math.min(
-                        46,
-                        Math.max(30, Math.round(segW / 14)),
-                      )}
-                      fontWeight="800"
+                      fontSize="30"
+                      fontWeight="900"
                       textAnchor="middle"
-                      letterSpacing="0.5px"
+                      letterSpacing="4px"
                     >
-                      {glassW} × {glassH} mm
+                      KROKIEW
                     </text>
                   </g>
-                );
-              })}
 
-              {/* ─── LINIE WYMIAROWE (Architektoniczne czarne CAD, duże i wyraźne) ─── */}
-              {showDimensions && (
-                <g id="dimensionChains">
-                  {/* GÓRA: Wymiary poszczególnych kwater (np. 960 | 960 | 960) */}
+                  {/* Wypełnienie szklane trójkąta */}
+                  <polygon
+                    points={`
+                      ${originX + frameThickness + 8},${originY + frameThickness + 30}
+                      ${originX + width - 45},${originY + height - frameThickness - 8}
+                      ${originX + frameThickness + 8},${originY + height - frameThickness - 8}
+                    `}
+                    fill="#ffffff"
+                    stroke="#38bdf8"
+                    strokeWidth="2"
+                  />
+
+                  {/* Odblaski szkła */}
+                  <line
+                    x1={originX + frameThickness + 40}
+                    y1={originY + height * 0.65}
+                    x2={originX + width * 0.45}
+                    y2={originY + height * 0.45}
+                    stroke="#38bdf8"
+                    strokeWidth="2.5"
+                    strokeOpacity="0.4"
+                  />
+
+                  {/* Parametry wewnątrz trójkąta */}
+                  <text
+                    x={originX + width * 0.35}
+                    y={originY + height * 0.72}
+                    fill="#0b1220"
+                    fontSize="42"
+                    fontWeight="900"
+                    textAnchor="middle"
+                  >
+                    {fill}
+                  </text>
+                  <text
+                    x={originX + width * 0.35}
+                    y={originY + height * 0.72 + 45}
+                    fill="#0e7490"
+                    fontSize="28"
+                    fontWeight="800"
+                    textAnchor="middle"
+                  >
+                    Spadek dachu: {slopeAngleDeg}° · Krokiew: {hypotenuseMm} mm
+                  </text>
+                </>
+              ) : (
+                <>
+                  {/* Cienka czerwona linia obrysu zewnętrznego (charakterystyczna dla CAD/Prokal) */}
+                  <rect
+                    x={originX - 2}
+                    y={originY - 2}
+                    width={width + 4}
+                    height={height + 4}
+                    fill="none"
+                    stroke="#dc2626"
+                    strokeWidth="2"
+                  />
+
+                  {/* Aluminiowa ościeżnica / Rama główna (RAL 7016) */}
+                  <rect
+                    x={originX}
+                    y={originY}
+                    width={width}
+                    height={height}
+                    fill="#29323d"
+                    stroke="#1e242b"
+                    strokeWidth="1.5"
+                  />
+
+                  {/* Wnętrze ramy (światło konstrukcji) */}
+                  <rect
+                    x={originX + frameThickness}
+                    y={originY + frameThickness}
+                    width={width - frameThickness * 2}
+                    height={height - frameThickness * 2}
+                    fill="#ffffff"
+                    stroke="#1e242b"
+                    strokeWidth="1.5"
+                  />
+
+                  {/* Narożne cięcia ukośne (miter joints 45°) */}
+                  <line
+                    x1={originX}
+                    y1={originY}
+                    x2={originX + frameThickness}
+                    y2={originY + frameThickness}
+                    stroke="#475569"
+                    strokeWidth="1.5"
+                  />
+                  <line
+                    x1={originX + width}
+                    y1={originY}
+                    x2={originX + width - frameThickness}
+                    y2={originY + frameThickness}
+                    stroke="#475569"
+                    strokeWidth="1.5"
+                  />
+                  <line
+                    x1={originX}
+                    y1={originY + height}
+                    x2={originX + frameThickness}
+                    y2={originY + height - frameThickness}
+                    stroke="#475569"
+                    strokeWidth="1.5"
+                  />
+                  <line
+                    x1={originX + width}
+                    y1={originY + height}
+                    x2={originX + width - frameThickness}
+                    y2={originY + height - frameThickness}
+                    stroke="#475569"
+                    strokeWidth="1.5"
+                  />
+
+                  {/* Kwatery / Skrzydła szklane */}
                   {segments.map((seg, idx) => {
-                    const segStartX = originX + (idx * width) / panes;
-                    const segEndX = originX + ((idx + 1) * width) / panes;
-                    const dimY = originY - 60;
+                    const openingW = width - frameThickness * 2;
+                    const openingH = height - frameThickness * 2;
+                    const segW = openingW / panes;
+                    const segX = originX + frameThickness + idx * segW;
+                    const segY = originY + frameThickness;
+
+                    const centerX = segX + segW / 2;
+
+                    const glassW = Math.round(segW - 10);
+                    const glassH = Math.round(openingH - 12);
 
                     return (
-                      <g key={idx}>
-                        {/* Linie pomocnicze (świadkowe przerywane) */}
-                        <line
-                          x1={segStartX}
-                          y1={originY - 5}
-                          x2={segStartX}
-                          y2={dimY - 14}
-                          stroke="#64748b"
-                          strokeWidth="2"
-                          strokeDasharray="6 6"
-                        />
-                        <line
-                          x1={segEndX}
-                          y1={originY - 5}
-                          x2={segEndX}
-                          y2={dimY - 14}
-                          stroke="#64748b"
-                          strokeWidth="2"
-                          strokeDasharray="6 6"
+                      <g key={idx} id={`cad-pane-${idx}`}>
+                        {/* Tło kwatery szklanej (czyste białe) */}
+                        <rect
+                          x={segX + 2}
+                          y={segY + 2}
+                          width={segW - 4}
+                          height={openingH - 4}
+                          fill="#ffffff"
+                          stroke="#e2e8f0"
+                          strokeWidth="1.5"
                         />
 
-                        {/* Główna linia wymiaru ze strzałkami */}
+                        {/* Pionowa czerwona linia podziału / zachodzenia skrzydeł */}
+                        {idx > 0 && (
+                          <line
+                            x1={segX}
+                            y1={segY}
+                            x2={segX}
+                            y2={segY + openingH}
+                            stroke="#dc2626"
+                            strokeWidth="2"
+                          />
+                        )}
+
+                        {/* Półprzezroczysty subtelny odblask szkła */}
                         <line
-                          x1={segStartX}
-                          y1={dimY}
-                          x2={segEndX}
-                          y2={dimY}
-                          stroke="#0b1220"
-                          strokeWidth="3"
-                          markerStart="url(#cadArrowStart)"
-                          markerEnd="url(#cadArrowEnd)"
+                          x1={segX + 24}
+                          y1={segY + openingH - 50}
+                          x2={segX + segW - 24}
+                          y2={segY + 50}
+                          stroke="#38bdf8"
+                          strokeWidth="1.5"
+                          strokeOpacity="0.25"
                         />
 
-                        {/* Wartość wymiaru nad linią - duży, czytelny font */}
+                        {/* Wymiar kwatery u góry szkła */}
                         <text
-                          x={(segStartX + segEndX) / 2}
-                          y={dimY - 12}
+                          x={centerX}
+                          y={segY + 64}
                           fill="#0b1220"
-                          fontSize="44"
+                          fontSize={Math.min(
+                            46,
+                            Math.max(30, Math.round(segW / 14)),
+                          )}
                           fontWeight="800"
                           textAnchor="middle"
+                          letterSpacing="0.5px"
                         >
-                          {seg.widthMm}
+                          {glassW} × {glassH} mm
                         </text>
                       </g>
                     );
                   })}
+                </>
+              )}
 
-                  {/* GÓRA: Całkowity wymiar szerokości (np. 2880) */}
-                  <g>
-                    <line
-                      x1={originX}
-                      y1={originY - 5}
-                      x2={originX}
-                      y2={originY - 155}
-                      stroke="#64748b"
-                      strokeWidth="2.5"
-                      strokeDasharray="6 6"
-                    />
-                    <line
-                      x1={originX + width}
-                      y1={originY - 5}
-                      x2={originX + width}
-                      y2={originY - 155}
-                      stroke="#64748b"
-                      strokeWidth="2.5"
-                      strokeDasharray="6 6"
-                    />
-                    <line
-                      x1={originX}
-                      y1={originY - 140}
-                      x2={originX + width}
-                      y2={originY - 140}
-                      stroke="#0b1220"
-                      strokeWidth="3.5"
-                      markerStart="url(#cadArrowStart)"
-                      markerEnd="url(#cadArrowEnd)"
-                    />
-                    <text
-                      x={originX + width / 2}
-                      y={originY - 152}
-                      fill="#0b1220"
-                      fontSize="52"
-                      fontWeight="900"
-                      textAnchor="middle"
-                    >
-                      {width}
-                    </text>
-                  </g>
+              {/* ─── LINIE WYMIAROWE (Architektoniczne czarne CAD, duże i wyraźne) ─── */}
+              {showDimensions && (
+                <g id="dimensionChains">
+                  {isTriangle ? (
+                    <>
+                      {/* DÓŁ: Całkowity wymiar szerokości B */}
+                      <g>
+                        <line
+                          x1={originX}
+                          y1={originY + height + 5}
+                          x2={originX}
+                          y2={originY + height + 75}
+                          stroke="#64748b"
+                          strokeWidth="2"
+                          strokeDasharray="6 6"
+                        />
+                        <line
+                          x1={originX + width}
+                          y1={originY + height + 5}
+                          x2={originX + width}
+                          y2={originY + height + 75}
+                          stroke="#64748b"
+                          strokeWidth="2"
+                          strokeDasharray="6 6"
+                        />
+                        <line
+                          x1={originX}
+                          y1={originY + height + 60}
+                          x2={originX + width}
+                          y2={originY + height + 60}
+                          stroke="#0b1220"
+                          strokeWidth="3.5"
+                          markerStart="url(#cadArrowStart)"
+                          markerEnd="url(#cadArrowEnd)"
+                        />
+                        <text
+                          x={originX + width / 2}
+                          y={originY + height + 105}
+                          fill="#0b1220"
+                          fontSize="50"
+                          fontWeight="900"
+                          textAnchor="middle"
+                        >
+                          B = {width}
+                        </text>
+                      </g>
 
-                  {/* PRAWO: Całkowity wymiar wysokości (np. 2300) */}
-                  <g>
-                    <line
-                      x1={originX + width + 5}
-                      y1={originY}
-                      x2={originX + width + 105}
-                      y2={originY}
-                      stroke="#64748b"
-                      strokeWidth="2.5"
-                      strokeDasharray="6 6"
-                    />
-                    <line
-                      x1={originX + width + 5}
-                      y1={originY + height}
-                      x2={originX + width + 105}
-                      y2={originY + height}
-                      stroke="#64748b"
-                      strokeWidth="2.5"
-                      strokeDasharray="6 6"
-                    />
-                    <line
-                      x1={originX + width + 90}
-                      y1={originY}
-                      x2={originX + width + 90}
-                      y2={originY + height}
-                      stroke="#0b1220"
-                      strokeWidth="3.5"
-                      markerStart="url(#cadArrowStart)"
-                      markerEnd="url(#cadArrowEnd)"
-                    />
-                    <text
-                      x={originX + width + 120}
-                      y={originY + height / 2}
-                      fill="#0b1220"
-                      fontSize="52"
-                      fontWeight="900"
-                      textAnchor="middle"
-                      transform={`rotate(90, ${originX + width + 120}, ${originY + height / 2})`}
-                    >
-                      {height}
-                    </text>
-                  </g>
+                      {/* LEWO: Całkowity wymiar wysokości H */}
+                      <g>
+                        <line
+                          x1={originX - 5}
+                          y1={originY}
+                          x2={originX - 75}
+                          y2={originY}
+                          stroke="#64748b"
+                          strokeWidth="2"
+                          strokeDasharray="6 6"
+                        />
+                        <line
+                          x1={originX - 5}
+                          y1={originY + height}
+                          x2={originX - 75}
+                          y2={originY + height}
+                          stroke="#64748b"
+                          strokeWidth="2"
+                          strokeDasharray="6 6"
+                        />
+                        <line
+                          x1={originX - 60}
+                          y1={originY}
+                          x2={originX - 60}
+                          y2={originY + height}
+                          stroke="#0b1220"
+                          strokeWidth="3.5"
+                          markerStart="url(#cadArrowStart)"
+                          markerEnd="url(#cadArrowEnd)"
+                        />
+                        <text
+                          x={originX - 85}
+                          y={originY + height / 2}
+                          fill="#0b1220"
+                          fontSize="50"
+                          fontWeight="900"
+                          textAnchor="middle"
+                          transform={`rotate(-90, ${originX - 85}, ${originY + height / 2})`}
+                        >
+                          H = {height}
+                        </text>
+                      </g>
+                    </>
+                  ) : (
+                    <>
+                      {/* GÓRA: Wymiary poszczególnych kwater (np. 960 | 960 | 960) */}
+                      {segments.map((seg, idx) => {
+                        const segStartX = originX + (idx * width) / panes;
+                        const segEndX = originX + ((idx + 1) * width) / panes;
+                        const dimY = originY - 60;
+
+                        return (
+                          <g key={idx}>
+                            {/* Linie pomocnicze (świadkowe przerywane) */}
+                            <line
+                              x1={segStartX}
+                              y1={originY - 5}
+                              x2={segStartX}
+                              y2={dimY - 14}
+                              stroke="#64748b"
+                              strokeWidth="2"
+                              strokeDasharray="6 6"
+                            />
+                            <line
+                              x1={segEndX}
+                              y1={originY - 5}
+                              x2={segEndX}
+                              y2={dimY - 14}
+                              stroke="#64748b"
+                              strokeWidth="2"
+                              strokeDasharray="6 6"
+                            />
+
+                            {/* Główna linia wymiaru ze strzałkami */}
+                            <line
+                              x1={segStartX}
+                              y1={dimY}
+                              x2={segEndX}
+                              y2={dimY}
+                              stroke="#0b1220"
+                              strokeWidth="3"
+                              markerStart="url(#cadArrowStart)"
+                              markerEnd="url(#cadArrowEnd)"
+                            />
+
+                            {/* Wartość wymiaru nad linią - duży, czytelny font */}
+                            <text
+                              x={(segStartX + segEndX) / 2}
+                              y={dimY - 12}
+                              fill="#0b1220"
+                              fontSize="44"
+                              fontWeight="800"
+                              textAnchor="middle"
+                            >
+                              {seg.widthMm}
+                            </text>
+                          </g>
+                        );
+                      })}
+
+                      {/* GÓRA: Całkowity wymiar szerokości (np. 2880) */}
+                      <g>
+                        <line
+                          x1={originX}
+                          y1={originY - 5}
+                          x2={originX}
+                          y2={originY - 155}
+                          stroke="#64748b"
+                          strokeWidth="2.5"
+                          strokeDasharray="6 6"
+                        />
+                        <line
+                          x1={originX + width}
+                          y1={originY - 5}
+                          x2={originX + width}
+                          y2={originY - 155}
+                          stroke="#64748b"
+                          strokeWidth="2.5"
+                          strokeDasharray="6 6"
+                        />
+                        <line
+                          x1={originX}
+                          y1={originY - 140}
+                          x2={originX + width}
+                          y2={originY - 140}
+                          stroke="#0b1220"
+                          strokeWidth="3.5"
+                          markerStart="url(#cadArrowStart)"
+                          markerEnd="url(#cadArrowEnd)"
+                        />
+                        <text
+                          x={originX + width / 2}
+                          y={originY - 152}
+                          fill="#0b1220"
+                          fontSize="52"
+                          fontWeight="900"
+                          textAnchor="middle"
+                        >
+                          {width}
+                        </text>
+                      </g>
+
+                      {/* PRAWO: Całkowity wymiar wysokości (np. 2300) */}
+                      <g>
+                        <line
+                          x1={originX + width + 5}
+                          y1={originY}
+                          x2={originX + width + 105}
+                          y2={originY}
+                          stroke="#64748b"
+                          strokeWidth="2.5"
+                          strokeDasharray="6 6"
+                        />
+                        <line
+                          x1={originX + width + 5}
+                          y1={originY + height}
+                          x2={originX + width + 105}
+                          y2={originY + height}
+                          stroke="#64748b"
+                          strokeWidth="2.5"
+                          strokeDasharray="6 6"
+                        />
+                        <line
+                          x1={originX + width + 90}
+                          y1={originY}
+                          x2={originX + width + 90}
+                          y2={originY + height}
+                          stroke="#0b1220"
+                          strokeWidth="3.5"
+                          markerStart="url(#cadArrowStart)"
+                          markerEnd="url(#cadArrowEnd)"
+                        />
+                        <text
+                          x={originX + width + 120}
+                          y={originY + height / 2}
+                          fill="#0b1220"
+                          fontSize="52"
+                          fontWeight="900"
+                          textAnchor="middle"
+                          transform={`rotate(90, ${originX + width + 120}, ${originY + height / 2})`}
+                        >
+                          {height}
+                        </text>
+                      </g>
+                    </>
+                  )}
                 </g>
               )}
             </g>

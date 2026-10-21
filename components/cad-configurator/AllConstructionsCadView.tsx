@@ -390,6 +390,18 @@ export function AllConstructionsCadView({
                       const color = item.color || "RAL 7016MAT";
                       const isHovered = hoveredItemId === item._id;
 
+                      const isTriangle =
+                        item.name.toLowerCase().includes("trójką") ||
+                        Boolean(item.shortName && item.shortName.toLowerCase().includes("trójką")) ||
+                        Boolean(
+                          item.systemName &&
+                            (item.systemName.toLowerCase().includes("krokiew") ||
+                              item.systemName.toLowerCase().includes("profil h"))
+                        );
+
+                      const slopeAngleDeg = Math.round(Math.atan2(height, width) * (180 / Math.PI) * 10) / 10;
+                      const hypotenuseMm = Math.round(Math.sqrt(width * width + height * height));
+
                       // Wyrównanie dolnej krawędzi konstrukcji do wspólnej posadzki (floorY)
                       const originX = cursorX;
                       const originY = floorY - height;
@@ -471,269 +483,507 @@ export function AllConstructionsCadView({
                             </text>
                           </g>
 
-                          {/* Cienka czerwona linia obrysu zewnętrznego Prokal */}
-                          <rect
-                            x={originX - 2}
-                            y={originY - 2}
-                            width={width + 4}
-                            height={height + 4}
-                            fill="none"
-                            stroke="#dc2626"
-                            strokeWidth="2.5"
-                          />
+                          {isTriangle ? (
+                            <>
+                              {/* Cienka czerwona linia obrysu zewnętrznego */}
+                              <polygon
+                                points={`${originX - 2},${originY - 2} ${originX + width + 2},${originY + height + 2} ${originX - 2},${originY + height + 2}`}
+                                fill="none"
+                                stroke="#dc2626"
+                                strokeWidth="2.5"
+                              />
 
-                          {/* Aluminiowa ościeżnica / Rama główna */}
-                          <rect
-                            x={originX}
-                            y={originY}
-                            width={width}
-                            height={height}
-                            fill="#29323d"
-                            stroke="#1e242b"
-                            strokeWidth="2"
-                          />
+                              {/* Aluminiowy profil dolny poziomy (PROFIL H) */}
+                              <rect
+                                x={originX}
+                                y={originY + height - frameThickness}
+                                width={width}
+                                height={frameThickness}
+                                fill="#29323d"
+                                stroke="#1e242b"
+                                strokeWidth="2"
+                              />
+                              <text
+                                x={originX + width / 2}
+                                y={originY + height - 17}
+                                fill="#ffffff"
+                                fontSize="24"
+                                fontWeight="900"
+                                textAnchor="middle"
+                                letterSpacing="4px"
+                              >
+                                PROFIL H
+                              </text>
 
-                          {/* Światło konstrukcji */}
-                          <rect
-                            x={originX + frameThickness}
-                            y={originY + frameThickness}
-                            width={width - frameThickness * 2}
-                            height={height - frameThickness * 2}
-                            fill="#ffffff"
-                            stroke="#1e242b"
-                            strokeWidth="1.5"
-                          />
+                              {/* Lewy pionowy profil przyścienny */}
+                              <rect
+                                x={originX}
+                                y={originY}
+                                width={frameThickness}
+                                height={height - frameThickness}
+                                fill="#29323d"
+                                stroke="#1e242b"
+                                strokeWidth="2"
+                              />
 
-                          {/* Narożne cięcia ukośne (45°) */}
-                          <line
-                            x1={originX}
-                            y1={originY}
-                            x2={originX + frameThickness}
-                            y2={originY + frameThickness}
-                            stroke="#475569"
-                            strokeWidth="1.5"
-                          />
-                          <line
-                            x1={originX + width}
-                            y1={originY}
-                            x2={originX + width - frameThickness}
-                            y2={originY + frameThickness}
-                            stroke="#475569"
-                            strokeWidth="1.5"
-                          />
-                          <line
-                            x1={originX}
-                            y1={originY + height}
-                            x2={originX + frameThickness}
-                            y2={originY + height - frameThickness}
-                            stroke="#475569"
-                            strokeWidth="1.5"
-                          />
-                          <line
-                            x1={originX + width}
-                            y1={originY + height}
-                            x2={originX + width - frameThickness}
-                            y2={originY + height - frameThickness}
-                            stroke="#475569"
-                            strokeWidth="1.5"
-                          />
-
-                          {/* Kwatery szklane */}
-                          {segments.map((seg, idx) => {
-                            const openingW = width - frameThickness * 2;
-                            const openingH = height - frameThickness * 2;
-                            const segW = openingW / panes;
-                            const segX = originX + frameThickness + idx * segW;
-                            const segY = originY + frameThickness;
-                            const centerX = segX + segW / 2;
-                            const glassW = Math.round(segW - 10);
-                            const glassH = Math.round(openingH - 12);
-
-                            return (
-                              <g key={idx}>
-                                <rect
-                                  x={segX + 2}
-                                  y={segY + 2}
-                                  width={segW - 4}
-                                  height={openingH - 4}
-                                  fill="#ffffff"
-                                  stroke="#e2e8f0"
-                                  strokeWidth="1.5"
-                                />
-                                {idx > 0 && (
-                                  <line
-                                    x1={segX}
-                                    y1={segY}
-                                    x2={segX}
-                                    y2={segY + openingH}
-                                    stroke="#dc2626"
-                                    strokeWidth="2.5"
-                                  />
-                                )}
-                                <line
-                                  x1={segX + 24}
-                                  y1={segY + openingH - 50}
-                                  x2={segX + segW - 24}
-                                  y2={segY + 50}
-                                  stroke="#38bdf8"
-                                  strokeWidth="2"
-                                  strokeOpacity="0.25"
-                                />
+                              {/* Górna belka skośna (KROKIEW) */}
+                              <polygon
+                                points={`
+                                  ${originX},${originY}
+                                  ${originX + width},${originY + height}
+                                  ${originX + width},${originY + height - 40}
+                                  ${originX},${originY - 50}
+                                `}
+                                fill="#84cc16"
+                                stroke="#4d7c0f"
+                                strokeWidth="2"
+                              />
+                              <polygon
+                                points={`
+                                  ${originX + 15},${originY + 12}
+                                  ${originX + width - 10},${originY + height}
+                                  ${originX + width - 30},${originY + height}
+                                  ${originX + frameThickness},${originY + frameThickness + 10}
+                                `}
+                                fill="#29323d"
+                                stroke="#1e242b"
+                                strokeWidth="1.5"
+                              />
+                              <g
+                                transform={`translate(${originX + width * 0.46}, ${originY + height * 0.46 - 22}) rotate(${slopeAngleDeg})`}
+                              >
                                 <text
-                                  x={centerX}
-                                  y={segY + 72}
+                                  x="0"
+                                  y="0"
                                   fill="#0b1220"
-                                  fontSize={Math.min(
-                                    44,
-                                    Math.max(28, Math.round(segW / 14))
-                                  )}
-                                  fontWeight="800"
+                                  fontSize="30"
+                                  fontWeight="900"
                                   textAnchor="middle"
+                                  letterSpacing="4px"
                                 >
-                                  {glassW} × {glassH} mm
+                                  KROKIEW
                                 </text>
                               </g>
-                            );
-                          })}
 
-                          {/* Linie wymiarowe */}
-                          {showDimensions && (
-                            <g>
-                              {/* Wymiary poszczególnych kwater */}
+                              {/* Wypełnienie szklane trójkąta */}
+                              <polygon
+                                points={`
+                                  ${originX + frameThickness + 8},${originY + frameThickness + 30}
+                                  ${originX + width - 45},${originY + height - frameThickness - 8}
+                                  ${originX + frameThickness + 8},${originY + height - frameThickness - 8}
+                                `}
+                                fill="#ffffff"
+                                stroke="#38bdf8"
+                                strokeWidth="2"
+                              />
+
+                              {/* Odblaski szkła */}
+                              <line
+                                x1={originX + frameThickness + 40}
+                                y1={originY + height * 0.65}
+                                x2={originX + width * 0.45}
+                                y2={originY + height * 0.45}
+                                stroke="#38bdf8"
+                                strokeWidth="2.5"
+                                strokeOpacity="0.4"
+                              />
+
+                              {/* Parametry wewnątrz trójkąta */}
+                              <text
+                                x={originX + width * 0.35}
+                                y={originY + height * 0.72}
+                                fill="#0b1220"
+                                fontSize="42"
+                                fontWeight="900"
+                                textAnchor="middle"
+                              >
+                                {fill}
+                              </text>
+                              <text
+                                x={originX + width * 0.35}
+                                y={originY + height * 0.72 + 45}
+                                fill="#0e7490"
+                                fontSize="28"
+                                fontWeight="800"
+                                textAnchor="middle"
+                              >
+                                Spadek dachu: {slopeAngleDeg}° · Krokiew: {hypotenuseMm} mm
+                              </text>
+                            </>
+                          ) : (
+                            <>
+                              {/* Cienka czerwona linia obrysu zewnętrznego Prokal */}
+                              <rect
+                                x={originX - 2}
+                                y={originY - 2}
+                                width={width + 4}
+                                height={height + 4}
+                                fill="none"
+                                stroke="#dc2626"
+                                strokeWidth="2.5"
+                              />
+
+                              {/* Aluminiowa ościeżnica / Rama główna */}
+                              <rect
+                                x={originX}
+                                y={originY}
+                                width={width}
+                                height={height}
+                                fill="#29323d"
+                                stroke="#1e242b"
+                                strokeWidth="2"
+                              />
+
+                              {/* Światło konstrukcji */}
+                              <rect
+                                x={originX + frameThickness}
+                                y={originY + frameThickness}
+                                width={width - frameThickness * 2}
+                                height={height - frameThickness * 2}
+                                fill="#ffffff"
+                                stroke="#1e242b"
+                                strokeWidth="1.5"
+                              />
+
+                              {/* Narożne cięcia ukośne (45°) */}
+                              <line
+                                x1={originX}
+                                y1={originY}
+                                x2={originX + frameThickness}
+                                y2={originY + frameThickness}
+                                stroke="#475569"
+                                strokeWidth="1.5"
+                              />
+                              <line
+                                x1={originX + width}
+                                y1={originY}
+                                x2={originX + width - frameThickness}
+                                y2={originY + frameThickness}
+                                stroke="#475569"
+                                strokeWidth="1.5"
+                              />
+                              <line
+                                x1={originX}
+                                y1={originY + height}
+                                x2={originX + frameThickness}
+                                y2={originY + height - frameThickness}
+                                stroke="#475569"
+                                strokeWidth="1.5"
+                              />
+                              <line
+                                x1={originX + width}
+                                y1={originY + height}
+                                x2={originX + width - frameThickness}
+                                y2={originY + height - frameThickness}
+                                stroke="#475569"
+                                strokeWidth="1.5"
+                              />
+
+                              {/* Kwatery szklane */}
                               {segments.map((seg, idx) => {
-                                const segStartX = originX + (idx * width) / panes;
-                                const segEndX =
-                                  originX + ((idx + 1) * width) / panes;
-                                const dimY = originY - 60;
+                                const openingW = width - frameThickness * 2;
+                                const openingH = height - frameThickness * 2;
+                                const segW = openingW / panes;
+                                const segX = originX + frameThickness + idx * segW;
+                                const segY = originY + frameThickness;
+                                const centerX = segX + segW / 2;
+                                const glassW = Math.round(segW - 10);
+                                const glassH = Math.round(openingH - 12);
 
                                 return (
                                   <g key={idx}>
-                                    <line
-                                      x1={segStartX}
-                                      y1={originY - 5}
-                                      x2={segStartX}
-                                      y2={dimY - 14}
-                                      stroke="#64748b"
-                                      strokeWidth="2"
-                                      strokeDasharray="6 6"
+                                    <rect
+                                      x={segX + 2}
+                                      y={segY + 2}
+                                      width={segW - 4}
+                                      height={openingH - 4}
+                                      fill="#ffffff"
+                                      stroke="#e2e8f0"
+                                      strokeWidth="1.5"
                                     />
+                                    {idx > 0 && (
+                                      <line
+                                        x1={segX}
+                                        y1={segY}
+                                        x2={segX}
+                                        y2={segY + openingH}
+                                        stroke="#dc2626"
+                                        strokeWidth="2.5"
+                                      />
+                                    )}
                                     <line
-                                      x1={segEndX}
-                                      y1={originY - 5}
-                                      x2={segEndX}
-                                      y2={dimY - 14}
-                                      stroke="#64748b"
+                                      x1={segX + 24}
+                                      y1={segY + openingH - 50}
+                                      x2={segX + segW - 24}
+                                      y2={segY + 50}
+                                      stroke="#38bdf8"
                                       strokeWidth="2"
-                                      strokeDasharray="6 6"
-                                    />
-                                    <line
-                                      x1={segStartX}
-                                      y1={dimY}
-                                      x2={segEndX}
-                                      y2={dimY}
-                                      stroke="#0b1220"
-                                      strokeWidth="3"
-                                      markerStart="url(#multiCadArrowStart)"
-                                      markerEnd="url(#multiCadArrowEnd)"
+                                      strokeOpacity="0.25"
                                     />
                                     <text
-                                      x={(segStartX + segEndX) / 2}
-                                      y={dimY - 12}
+                                      x={centerX}
+                                      y={segY + 72}
                                       fill="#0b1220"
-                                      fontSize="42"
+                                      fontSize={Math.min(
+                                        44,
+                                        Math.max(28, Math.round(segW / 14))
+                                      )}
                                       fontWeight="800"
                                       textAnchor="middle"
                                     >
-                                      {seg.widthMm}
+                                      {glassW} × {glassH} mm
                                     </text>
                                   </g>
                                 );
                               })}
+                            </>
+                          )}
 
-                              {/* Całkowita szerokość */}
-                              <g>
-                                <line
-                                  x1={originX}
-                                  y1={originY - 5}
-                                  x2={originX}
-                                  y2={originY - 155}
-                                  stroke="#64748b"
-                                  strokeWidth="2.5"
-                                  strokeDasharray="6 6"
-                                />
-                                <line
-                                  x1={originX + width}
-                                  y1={originY - 5}
-                                  x2={originX + width}
-                                  y2={originY - 155}
-                                  stroke="#64748b"
-                                  strokeWidth="2.5"
-                                  strokeDasharray="6 6"
-                                />
-                                <line
-                                  x1={originX}
-                                  y1={originY - 140}
-                                  x2={originX + width}
-                                  y2={originY - 140}
-                                  stroke="#0b1220"
-                                  strokeWidth="3.5"
-                                  markerStart="url(#multiCadArrowStart)"
-                                  markerEnd="url(#multiCadArrowEnd)"
-                                />
-                                <text
-                                  x={originX + width / 2}
-                                  y={originY - 152}
-                                  fill="#0b1220"
-                                  fontSize="50"
-                                  fontWeight="900"
-                                  textAnchor="middle"
-                                >
-                                  {width}
-                                </text>
-                              </g>
+                          {/* Linie wymiarowe */}
+                          {showDimensions && (
+                            <g>
+                              {isTriangle ? (
+                                <>
+                                  {/* DÓŁ: Całkowity wymiar szerokości B */}
+                                  <g>
+                                    <line
+                                      x1={originX}
+                                      y1={originY + height + 5}
+                                      x2={originX}
+                                      y2={originY + height + 75}
+                                      stroke="#64748b"
+                                      strokeWidth="2"
+                                      strokeDasharray="6 6"
+                                    />
+                                    <line
+                                      x1={originX + width}
+                                      y1={originY + height + 5}
+                                      x2={originX + width}
+                                      y2={originY + height + 75}
+                                      stroke="#64748b"
+                                      strokeWidth="2"
+                                      strokeDasharray="6 6"
+                                    />
+                                    <line
+                                      x1={originX}
+                                      y1={originY + height + 60}
+                                      x2={originX + width}
+                                      y2={originY + height + 60}
+                                      stroke="#0b1220"
+                                      strokeWidth="3.5"
+                                      markerStart="url(#multiCadArrowStart)"
+                                      markerEnd="url(#multiCadArrowEnd)"
+                                    />
+                                    <text
+                                      x={originX + width / 2}
+                                      y={originY + height + 105}
+                                      fill="#0b1220"
+                                      fontSize="50"
+                                      fontWeight="900"
+                                      textAnchor="middle"
+                                    >
+                                      B = {width}
+                                    </text>
+                                  </g>
 
-                              {/* Całkowita wysokość */}
-                              <g>
-                                <line
-                                  x1={originX + width + 5}
-                                  y1={originY}
-                                  x2={originX + width + 105}
-                                  y2={originY}
-                                  stroke="#64748b"
-                                  strokeWidth="2.5"
-                                  strokeDasharray="6 6"
-                                />
-                                <line
-                                  x1={originX + width + 5}
-                                  y1={originY + height}
-                                  x2={originX + width + 105}
-                                  y2={originY + height}
-                                  stroke="#64748b"
-                                  strokeWidth="2.5"
-                                  strokeDasharray="6 6"
-                                />
-                                <line
-                                  x1={originX + width + 90}
-                                  y1={originY}
-                                  x2={originX + width + 90}
-                                  y2={originY + height}
-                                  stroke="#0b1220"
-                                  strokeWidth="3.5"
-                                  markerStart="url(#multiCadArrowStart)"
-                                  markerEnd="url(#multiCadArrowEnd)"
-                                />
-                                <text
-                                  x={originX + width + 125}
-                                  y={originY + height / 2}
-                                  fill="#0b1220"
-                                  fontSize="50"
-                                  fontWeight="900"
-                                  textAnchor="middle"
-                                  transform={`rotate(90, ${originX + width + 125}, ${originY + height / 2})`}
-                                >
-                                  {height}
-                                </text>
-                              </g>
+                                  {/* LEWO: Całkowity wymiar wysokości H */}
+                                  <g>
+                                    <line
+                                      x1={originX - 5}
+                                      y1={originY}
+                                      x2={originX - 75}
+                                      y2={originY}
+                                      stroke="#64748b"
+                                      strokeWidth="2"
+                                      strokeDasharray="6 6"
+                                    />
+                                    <line
+                                      x1={originX - 5}
+                                      y1={originY + height}
+                                      x2={originX - 75}
+                                      y2={originY + height}
+                                      stroke="#64748b"
+                                      strokeWidth="2"
+                                      strokeDasharray="6 6"
+                                    />
+                                    <line
+                                      x1={originX - 60}
+                                      y1={originY}
+                                      x2={originX - 60}
+                                      y2={originY + height}
+                                      stroke="#0b1220"
+                                      strokeWidth="3.5"
+                                      markerStart="url(#multiCadArrowStart)"
+                                      markerEnd="url(#multiCadArrowEnd)"
+                                    />
+                                    <text
+                                      x={originX - 90}
+                                      y={originY + height / 2}
+                                      fill="#0b1220"
+                                      fontSize="50"
+                                      fontWeight="900"
+                                      textAnchor="middle"
+                                      transform={`rotate(-90, ${originX - 90}, ${originY + height / 2})`}
+                                    >
+                                      H = {height}
+                                    </text>
+                                  </g>
+
+                                  {/* UKOŚNY WYMIAR KROKWI */}
+                                  <g
+                                    transform={`translate(${originX + width * 0.52}, ${originY + height * 0.52 - 60}) rotate(${slopeAngleDeg})`}
+                                  >
+                                    <text
+                                      x="0"
+                                      y="0"
+                                      fill="#15803d"
+                                      fontSize="38"
+                                      fontWeight="900"
+                                      textAnchor="middle"
+                                    >
+                                      L = {hypotenuseMm} mm (∠ {slopeAngleDeg}°)
+                                    </text>
+                                  </g>
+                                </>
+                              ) : (
+                                <>
+                                  {/* Wymiary poszczególnych kwater */}
+                                  {segments.map((seg, idx) => {
+                                    const segStartX = originX + (idx * width) / panes;
+                                    const segEndX =
+                                      originX + ((idx + 1) * width) / panes;
+                                    const dimY = originY - 60;
+
+                                    return (
+                                      <g key={idx}>
+                                        <line
+                                          x1={segStartX}
+                                          y1={originY - 5}
+                                          x2={segStartX}
+                                          y2={dimY - 14}
+                                          stroke="#64748b"
+                                          strokeWidth="2"
+                                          strokeDasharray="6 6"
+                                        />
+                                        <line
+                                          x1={segEndX}
+                                          y1={originY - 5}
+                                          x2={segEndX}
+                                          y2={dimY - 14}
+                                          stroke="#64748b"
+                                          strokeWidth="2"
+                                          strokeDasharray="6 6"
+                                        />
+                                        <line
+                                          x1={segStartX}
+                                          y1={dimY}
+                                          x2={segEndX}
+                                          y2={dimY}
+                                          stroke="#0b1220"
+                                          strokeWidth="3"
+                                          markerStart="url(#multiCadArrowStart)"
+                                          markerEnd="url(#multiCadArrowEnd)"
+                                        />
+                                        <text
+                                          x={(segStartX + segEndX) / 2}
+                                          y={dimY - 12}
+                                          fill="#0b1220"
+                                          fontSize="42"
+                                          fontWeight="800"
+                                          textAnchor="middle"
+                                        >
+                                          {seg.widthMm}
+                                        </text>
+                                      </g>
+                                    );
+                                  })}
+
+                                  {/* Całkowita szerokość */}
+                                  <g>
+                                    <line
+                                      x1={originX}
+                                      y1={originY - 5}
+                                      x2={originX}
+                                      y2={originY - 155}
+                                      stroke="#64748b"
+                                      strokeWidth="2.5"
+                                      strokeDasharray="6 6"
+                                    />
+                                    <line
+                                      x1={originX + width}
+                                      y1={originY - 5}
+                                      x2={originX + width}
+                                      y2={originY - 155}
+                                      stroke="#64748b"
+                                      strokeWidth="2.5"
+                                      strokeDasharray="6 6"
+                                    />
+                                    <line
+                                      x1={originX}
+                                      y1={originY - 140}
+                                      x2={originX + width}
+                                      y2={originY - 140}
+                                      stroke="#0b1220"
+                                      strokeWidth="3.5"
+                                      markerStart="url(#multiCadArrowStart)"
+                                      markerEnd="url(#multiCadArrowEnd)"
+                                    />
+                                    <text
+                                      x={originX + width / 2}
+                                      y={originY - 152}
+                                      fill="#0b1220"
+                                      fontSize="50"
+                                      fontWeight="900"
+                                      textAnchor="middle"
+                                    >
+                                      {width}
+                                    </text>
+                                  </g>
+
+                                  {/* Całkowita wysokość */}
+                                  <g>
+                                    <line
+                                      x1={originX + width + 5}
+                                      y1={originY}
+                                      x2={originX + width + 105}
+                                      y2={originY}
+                                      stroke="#64748b"
+                                      strokeWidth="2.5"
+                                      strokeDasharray="6 6"
+                                    />
+                                    <line
+                                      x1={originX + width + 5}
+                                      y1={originY + height}
+                                      x2={originX + width + 105}
+                                      y2={originY + height}
+                                      stroke="#64748b"
+                                      strokeWidth="2.5"
+                                      strokeDasharray="6 6"
+                                    />
+                                    <line
+                                      x1={originX + width + 90}
+                                      y1={originY}
+                                      x2={originX + width + 90}
+                                      y2={originY + height}
+                                      stroke="#0b1220"
+                                      strokeWidth="3.5"
+                                      markerStart="url(#multiCadArrowStart)"
+                                      markerEnd="url(#multiCadArrowEnd)"
+                                    />
+                                    <text
+                                      x={originX + width + 125}
+                                      y={originY + height / 2}
+                                      fill="#0b1220"
+                                      fontSize="50"
+                                      fontWeight="900"
+                                      textAnchor="middle"
+                                      transform={`rotate(90, ${originX + width + 125}, ${originY + height / 2})`}
+                                    >
+                                      {height}
+                                    </text>
+                                  </g>
+                                </>
+                              )}
                             </g>
                           )}
                         </g>
@@ -756,6 +1006,18 @@ export function AllConstructionsCadView({
               const fill = item.fillType || "HART 10";
               const color = item.color || "RAL 7016MAT";
               const paneWidth = Math.round(width / panes);
+
+              const isTriangle =
+                item.name.toLowerCase().includes("trójką") ||
+                Boolean(item.shortName && item.shortName.toLowerCase().includes("trójką")) ||
+                Boolean(
+                  item.systemName &&
+                    (item.systemName.toLowerCase().includes("krokiew") ||
+                      item.systemName.toLowerCase().includes("profil h"))
+                );
+              const slopeAngleDeg = Math.round(Math.atan2(height, width) * (180 / Math.PI) * 10) / 10;
+              const hypotenuseMm = Math.round(Math.sqrt(width * width + height * height));
+
               const segments: CadSegment[] =
                 item.segments && item.segments.length === panes
                   ? item.segments
@@ -795,7 +1057,7 @@ export function AllConstructionsCadView({
                             {width} × {height} mm
                           </span>
                           <span>·</span>
-                          <span>{panes}-torowy</span>
+                          <span>{isTriangle ? "Trójkąt dachowy" : `${panes}-torowy`}</span>
                           <span>·</span>
                           <span>{fill}</span>
                           <span>·</span>
@@ -826,162 +1088,325 @@ export function AllConstructionsCadView({
                           "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
                       }}
                     >
-                      <g>
-                        <rect
-                          x={padLeft - 2}
-                          y={padTop - 2}
-                          width={width + 4}
-                          height={height + 4}
-                          fill="none"
-                          stroke="#dc2626"
-                          strokeWidth="2"
-                        />
-                        <rect
-                          x={padLeft}
-                          y={padTop}
-                          width={width}
-                          height={height}
-                          fill="#29323d"
-                          stroke="#1e242b"
-                          strokeWidth="1.5"
-                        />
-                        <rect
-                          x={padLeft + frameThickness}
-                          y={padTop + frameThickness}
-                          width={width - frameThickness * 2}
-                          height={height - frameThickness * 2}
-                          fill="#ffffff"
-                          stroke="#1e242b"
-                          strokeWidth="1.5"
-                        />
-
-                        {segments.map((seg, idx) => {
-                          const openingW = width - frameThickness * 2;
-                          const openingH = height - frameThickness * 2;
-                          const segW = openingW / panes;
-                          const segX = padLeft + frameThickness + idx * segW;
-                          const segY = padTop + frameThickness;
-                          const centerX = segX + segW / 2;
-                          const glassW = Math.round(segW - 10);
-                          const glassH = Math.round(openingH - 12);
-
-                          return (
-                            <g key={idx}>
-                              <rect
-                                x={segX + 2}
-                                y={segY + 2}
-                                width={segW - 4}
-                                height={openingH - 4}
-                                fill="#ffffff"
-                                stroke="#e2e8f0"
-                                strokeWidth="1.5"
-                              />
-                              {idx > 0 && (
-                                <line
-                                  x1={segX}
-                                  y1={segY}
-                                  x2={segX}
-                                  y2={segY + openingH}
-                                  stroke="#dc2626"
-                                  strokeWidth="2"
-                                />
-                              )}
-                              <line
-                                x1={segX + 24}
-                                y1={segY + openingH - 50}
-                                x2={segX + segW - 24}
-                                y2={segY + 50}
-                                stroke="#38bdf8"
-                                strokeWidth="1.5"
-                                strokeOpacity="0.25"
-                              />
-                              <text
-                                x={centerX}
-                                y={segY + 64}
-                                fill="#0b1220"
-                                fontSize={Math.min(
-                                  44,
-                                  Math.max(28, Math.round(segW / 14))
-                                )}
-                                fontWeight="800"
-                                textAnchor="middle"
-                              >
-                                {glassW} × {glassH} mm
-                              </text>
-                            </g>
-                          );
-                        })}
-
-                        {showDimensions && (
-                          <g>
-                            {segments.map((seg, idx) => {
-                              const segStartX = padLeft + (idx * width) / panes;
-                              const segEndX =
-                                padLeft + ((idx + 1) * width) / panes;
-                              const dimY = padTop - 55;
-                              return (
-                                <g key={idx}>
-                                  <line
-                                    x1={segStartX}
-                                    y1={dimY}
-                                    x2={segEndX}
-                                    y2={dimY}
-                                    stroke="#0b1220"
-                                    strokeWidth="3"
-                                  />
-                                  <text
-                                    x={(segStartX + segEndX) / 2}
-                                    y={dimY - 12}
-                                    fill="#0b1220"
-                                    fontSize="42"
-                                    fontWeight="800"
-                                    textAnchor="middle"
-                                  >
-                                    {seg.widthMm}
-                                  </text>
-                                </g>
-                              );
-                            })}
-                            <line
-                              x1={padLeft}
-                              y1={padTop - 130}
-                              x2={padLeft + width}
-                              y2={padTop - 130}
-                              stroke="#0b1220"
-                              strokeWidth="3.5"
-                            />
+                      {isTriangle ? (
+                        <g>
+                          {/* Czerwony obrys */}
+                          <polygon
+                            points={`${padLeft - 2},${padTop - 2} ${padLeft + width + 2},${padTop + height + 2} ${padLeft - 2},${padTop + height + 2}`}
+                            fill="none"
+                            stroke="#dc2626"
+                            strokeWidth="2"
+                          />
+                          {/* Dolny profil H */}
+                          <rect
+                            x={padLeft}
+                            y={padTop + height - frameThickness}
+                            width={width}
+                            height={frameThickness}
+                            fill="#29323d"
+                            stroke="#1e242b"
+                            strokeWidth="1.5"
+                          />
+                          <text
+                            x={padLeft + width / 2}
+                            y={padTop + height - 17}
+                            fill="#ffffff"
+                            fontSize="22"
+                            fontWeight="900"
+                            textAnchor="middle"
+                            letterSpacing="4px"
+                          >
+                            PROFIL H
+                          </text>
+                          {/* Lewy pionowy słupek */}
+                          <rect
+                            x={padLeft}
+                            y={padTop}
+                            width={frameThickness}
+                            height={height - frameThickness}
+                            fill="#29323d"
+                            stroke="#1e242b"
+                            strokeWidth="1.5"
+                          />
+                          {/* Belka skośna (KROKIEW) */}
+                          <polygon
+                            points={`
+                              ${padLeft},${padTop}
+                              ${padLeft + width},${padTop + height}
+                              ${padLeft + width},${padTop + height - 40}
+                              ${padLeft},${padTop - 50}
+                            `}
+                            fill="#84cc16"
+                            stroke="#4d7c0f"
+                            strokeWidth="2"
+                          />
+                          <polygon
+                            points={`
+                              ${padLeft + 15},${padTop + 12}
+                              ${padLeft + width - 10},${padTop + height}
+                              ${padLeft + width - 30},${padTop + height}
+                              ${padLeft + frameThickness},${padTop + frameThickness + 10}
+                            `}
+                            fill="#29323d"
+                            stroke="#1e242b"
+                            strokeWidth="1.5"
+                          />
+                          <g
+                            transform={`translate(${padLeft + width * 0.46}, ${padTop + height * 0.46 - 22}) rotate(${slopeAngleDeg})`}
+                          >
                             <text
-                              x={padLeft + width / 2}
-                              y={padTop - 142}
+                              x="0"
+                              y="0"
                               fill="#0b1220"
-                              fontSize="50"
+                              fontSize="30"
                               fontWeight="900"
                               textAnchor="middle"
+                              letterSpacing="4px"
                             >
-                              {width}
-                            </text>
-                            <line
-                              x1={padLeft + width + 80}
-                              y1={padTop}
-                              x2={padLeft + width + 80}
-                              y2={padTop + height}
-                              stroke="#0b1220"
-                              strokeWidth="3.5"
-                            />
-                            <text
-                              x={padLeft + width + 115}
-                              y={padTop + height / 2}
-                              fill="#0b1220"
-                              fontSize="50"
-                              fontWeight="900"
-                              textAnchor="middle"
-                              transform={`rotate(90, ${padLeft + width + 115}, ${padTop + height / 2})`}
-                            >
-                              {height}
+                              KROKIEW
                             </text>
                           </g>
-                        )}
-                      </g>
+                          {/* Szkło */}
+                          <polygon
+                            points={`
+                              ${padLeft + frameThickness + 8},${padTop + frameThickness + 30}
+                              ${padLeft + width - 45},${padTop + height - frameThickness - 8}
+                              ${padLeft + frameThickness + 8},${padTop + height - frameThickness - 8}
+                            `}
+                            fill="#ffffff"
+                            stroke="#38bdf8"
+                            strokeWidth="2"
+                          />
+                          <line
+                            x1={padLeft + frameThickness + 40}
+                            y1={padTop + height * 0.65}
+                            x2={padLeft + width * 0.45}
+                            y2={padTop + height * 0.45}
+                            stroke="#38bdf8"
+                            strokeWidth="2.5"
+                            strokeOpacity="0.4"
+                          />
+                          <text
+                            x={padLeft + width * 0.35}
+                            y={padTop + height * 0.72}
+                            fill="#0b1220"
+                            fontSize="42"
+                            fontWeight="900"
+                            textAnchor="middle"
+                          >
+                            {fill}
+                          </text>
+                          <text
+                            x={padLeft + width * 0.35}
+                            y={padTop + height * 0.72 + 45}
+                            fill="#0e7490"
+                            fontSize="26"
+                            fontWeight="800"
+                            textAnchor="middle"
+                          >
+                            Spadek: {slopeAngleDeg}° · Krokiew: {hypotenuseMm} mm
+                          </text>
+
+                          {showDimensions && (
+                            <g>
+                              <line
+                                x1={padLeft}
+                                y1={padTop - 130}
+                                x2={padLeft + width}
+                                y2={padTop - 130}
+                                stroke="#0b1220"
+                                strokeWidth="3.5"
+                              />
+                              <text
+                                x={padLeft + width / 2}
+                                y={padTop - 142}
+                                fill="#0b1220"
+                                fontSize="50"
+                                fontWeight="900"
+                                textAnchor="middle"
+                              >
+                                {width}
+                              </text>
+                              <line
+                                x1={padLeft + width + 80}
+                                y1={padTop}
+                                x2={padLeft + width + 80}
+                                y2={padTop + height}
+                                stroke="#0b1220"
+                                strokeWidth="3.5"
+                              />
+                              <text
+                                x={padLeft + width + 115}
+                                y={padTop + height / 2}
+                                fill="#0b1220"
+                                fontSize="50"
+                                fontWeight="900"
+                                textAnchor="middle"
+                                transform={`rotate(90, ${padLeft + width + 115}, ${padTop + height / 2})`}
+                              >
+                                {height}
+                              </text>
+                            </g>
+                          )}
+                        </g>
+                      ) : (
+                        <g>
+                          <rect
+                            x={padLeft - 2}
+                            y={padTop - 2}
+                            width={width + 4}
+                            height={height + 4}
+                            fill="none"
+                            stroke="#dc2626"
+                            strokeWidth="2"
+                          />
+                          <rect
+                            x={padLeft}
+                            y={padTop}
+                            width={width}
+                            height={height}
+                            fill="#29323d"
+                            stroke="#1e242b"
+                            strokeWidth="1.5"
+                          />
+                          <rect
+                            x={padLeft + frameThickness}
+                            y={padTop + frameThickness}
+                            width={width - frameThickness * 2}
+                            height={height - frameThickness * 2}
+                            fill="#ffffff"
+                            stroke="#1e242b"
+                            strokeWidth="1.5"
+                          />
+
+                          {segments.map((seg, idx) => {
+                            const openingW = width - frameThickness * 2;
+                            const openingH = height - frameThickness * 2;
+                            const segW = openingW / panes;
+                            const segX = padLeft + frameThickness + idx * segW;
+                            const segY = padTop + frameThickness;
+                            const centerX = segX + segW / 2;
+                            const glassW = Math.round(segW - 10);
+                            const glassH = Math.round(openingH - 12);
+
+                            return (
+                              <g key={idx}>
+                                <rect
+                                  x={segX + 2}
+                                  y={segY + 2}
+                                  width={segW - 4}
+                                  height={openingH - 4}
+                                  fill="#ffffff"
+                                  stroke="#e2e8f0"
+                                  strokeWidth="1.5"
+                                />
+                                {idx > 0 && (
+                                  <line
+                                    x1={segX}
+                                    y1={segY}
+                                    x2={segX}
+                                    y2={segY + openingH}
+                                    stroke="#dc2626"
+                                    strokeWidth="2"
+                                  />
+                                )}
+                                <line
+                                  x1={segX + 24}
+                                  y1={segY + openingH - 50}
+                                  x2={segX + segW - 24}
+                                  y2={segY + 50}
+                                  stroke="#38bdf8"
+                                  strokeWidth="1.5"
+                                  strokeOpacity="0.25"
+                                />
+                                <text
+                                  x={centerX}
+                                  y={segY + 64}
+                                  fill="#0b1220"
+                                  fontSize={Math.min(
+                                    44,
+                                    Math.max(28, Math.round(segW / 14))
+                                  )}
+                                  fontWeight="800"
+                                  textAnchor="middle"
+                                >
+                                  {glassW} × {glassH} mm
+                                </text>
+                              </g>
+                            );
+                          })}
+
+                          {showDimensions && (
+                            <g>
+                              {segments.map((seg, idx) => {
+                                const segStartX = padLeft + (idx * width) / panes;
+                                const segEndX =
+                                  padLeft + ((idx + 1) * width) / panes;
+                                const dimY = padTop - 55;
+                                return (
+                                  <g key={idx}>
+                                    <line
+                                      x1={segStartX}
+                                      y1={dimY}
+                                      x2={segEndX}
+                                      y2={dimY}
+                                      stroke="#0b1220"
+                                      strokeWidth="3"
+                                    />
+                                    <text
+                                      x={(segStartX + segEndX) / 2}
+                                      y={dimY - 12}
+                                      fill="#0b1220"
+                                      fontSize="42"
+                                      fontWeight="800"
+                                      textAnchor="middle"
+                                    >
+                                      {seg.widthMm}
+                                    </text>
+                                  </g>
+                                );
+                              })}
+                              <line
+                                x1={padLeft}
+                                y1={padTop - 130}
+                                x2={padLeft + width}
+                                y2={padTop - 130}
+                                stroke="#0b1220"
+                                strokeWidth="3.5"
+                              />
+                              <text
+                                x={padLeft + width / 2}
+                                y={padTop - 142}
+                                fill="#0b1220"
+                                fontSize="50"
+                                fontWeight="900"
+                                textAnchor="middle"
+                              >
+                                {width}
+                              </text>
+                              <line
+                                x1={padLeft + width + 80}
+                                y1={padTop}
+                                x2={padLeft + width + 80}
+                                y2={padTop + height}
+                                stroke="#0b1220"
+                                strokeWidth="3.5"
+                              />
+                              <text
+                                x={padLeft + width + 115}
+                                y={padTop + height / 2}
+                                fill="#0b1220"
+                                fontSize="50"
+                                fontWeight="900"
+                                textAnchor="middle"
+                                transform={`rotate(90, ${padLeft + width + 115}, ${padTop + height / 2})`}
+                              >
+                                {height}
+                              </text>
+                            </g>
+                          )}
+                        </g>
+                      )}
                     </svg>
                   </div>
                 </div>

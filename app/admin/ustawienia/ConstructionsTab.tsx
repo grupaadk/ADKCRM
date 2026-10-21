@@ -61,13 +61,15 @@ export function ConstructionsTab() {
   const deleteCategory = useMutation(api.constructionCategories.remove);
   const reorderCategory = useMutation(api.constructionCategories.reorder);
   const seedCategories = useMutation(api.constructionCategories.seedDefault);
+  const ensureTriangle = useMutation(api.constructions.ensureTriangleConstruction);
 
-  // Auto-seed categories if empty
+  // Auto-seed categories if empty & ensure triangle category exists
   useEffect(() => {
     if (categories !== undefined && categories.length === 0) {
       seedCategories().catch(() => {});
     }
-  }, [categories, seedCategories]);
+    ensureTriangle().catch(() => {});
+  }, [categories, seedCategories, ensureTriangle]);
 
   // View state: 'constructions' | 'categories'
   const [activeView, setActiveView] = useState<"constructions" | "categories">("constructions");

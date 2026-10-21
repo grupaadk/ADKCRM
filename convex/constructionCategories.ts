@@ -195,6 +195,16 @@ export const seedDefault = mutation({
         createdAt: now,
         updatedAt: now,
       },
+      {
+        name: "Trójkąt",
+        code: "TROJKAT",
+        description: "Trójkąty szczytowe i kliny podkrokwiowe do zabudowy tarasu",
+        color: "amber",
+        isActive: true,
+        sortOrder: 4,
+        createdAt: now,
+        updatedAt: now,
+      },
     ];
 
     const insertedMap = new Map<string, typeof existing[0]["_id"]>();

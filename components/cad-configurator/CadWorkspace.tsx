@@ -37,6 +37,12 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
   const updatePosition = useMutation(api.offers.updateConstructionPosition);
   const removePosition = useMutation(api.offers.removeConstructionPosition);
   const duplicatePosition = useMutation(api.offers.duplicateConstructionPosition);
+  const ensureTriangle = useMutation(api.constructions.ensureTriangleConstruction);
+
+  // Zapewnij istnienie kategorii i konstrukcji trójkąta
+  React.useEffect(() => {
+    ensureTriangle().catch(() => {});
+  }, [ensureTriangle]);
 
   // Aktywna zakładka: 'offer', 'all-cad' lub ID pozycji
   const [activeTab, setActiveTab] = useState<"offer" | "all-cad" | string>("offer");

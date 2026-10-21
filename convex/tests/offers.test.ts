@@ -98,12 +98,16 @@ describe("CAD Offers and Constructions Module", () => {
 
     // Seed defaults
     const seedResult = await t.mutation(api.constructions.seedDefault, {});
-    expect(seedResult.created).toBe(3);
+    expect(seedResult.created).toBe(4);
 
     // List templates
     const list = await t.query(api.constructions.list, {});
-    expect(list.length).toBe(3);
+    expect(list.length).toBe(4);
     expect(list[0].code).toBe("SZKLO-3T");
+    const triangleTemplate = list.find((c) => c.code === "TROJKAT-TARAS");
+    expect(triangleTemplate).toBeDefined();
+    expect(triangleTemplate?.name).toBe("Trójkąt do zabudowy tarasu");
+    expect(triangleTemplate?.defaultSystem).toBe("Profil H + Krokiew");
 
     // Create custom construction template
     const newId = await t.mutation(api.constructions.create, {
@@ -118,7 +122,7 @@ describe("CAD Offers and Constructions Module", () => {
     expect(newId).toBeDefined();
 
     const updatedList = await t.query(api.constructions.list, {});
-    expect(updatedList.length).toBe(4);
+    expect(updatedList.length).toBe(5);
 
     // Update description then clear it
     await t.mutation(api.constructions.update, {
@@ -141,14 +145,17 @@ describe("CAD Offers and Constructions Module", () => {
 
     // 1. Seed default categories
     const seedResult = await t.mutation(api.constructionCategories.seedDefault, {});
-    expect(seedResult.created).toBe(4);
+    expect(seedResult.created).toBe(5);
 
     // 2. List categories
     const categories = await t.query(api.constructionCategories.list, {});
-    expect(categories.length).toBe(4);
+    expect(categories.length).toBe(5);
     const glassCat = categories.find((c) => c.code === "SZKLO")!;
     expect(glassCat).toBeDefined();
     expect(glassCat.name).toBe("Systemy szklane");
+    const triangleCat = categories.find((c) => c.code === "TROJKAT")!;
+    expect(triangleCat).toBeDefined();
+    expect(triangleCat.name).toBe("Trójkąt");
 
     // 3. Create a new category
     const catId = await t.mutation(api.constructionCategories.create, {
@@ -189,6 +196,10 @@ describe("CAD Offers and Constructions Module", () => {
     expect(unlinkedConst?.categoryId).toBeUndefined();
 
     const finalCategories = await t.query(api.constructionCategories.list, {});
-    expect(finalCategories.length).toBe(4);
+    expect(finalCategories.length).toBe(5);
+
+    // 7. Test ensureTriangleConstruction mutation idempotency
+    const ensureResult = await t.mutation(api.constructions.ensureTriangleConstruction, {});
+    expect(ensureResult).toBeDefined();
   });
 });
