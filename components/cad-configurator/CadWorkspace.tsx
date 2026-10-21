@@ -130,6 +130,21 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
     }
   };
 
+  const handleUpdatePositionPlacement = async (
+    itemId: string,
+    patch: { placedAboveItemId?: string | null; rowIndex?: number | null }
+  ) => {
+    try {
+      await updatePosition({
+        itemId: itemId as Id<"offerConstructions">,
+        placedAboveItemId: patch.placedAboveItemId ?? (patch.placedAboveItemId === null ? null : undefined),
+        rowIndex: patch.rowIndex ?? (patch.rowIndex === null ? null : undefined),
+      });
+    } catch (err) {
+      console.error("Błąd aktualizacji położenia konstrukcji:", err);
+    }
+  };
+
   const handleOfferChange = async (patch: Partial<OfferData>) => {
     if (!offer) return;
     setSaveStatus("saving");
@@ -325,6 +340,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
             onSelectPosition={(itemId) => setActiveTab(itemId)}
             onBackToOffer={() => setActiveTab("offer")}
             onAddNewPosition={() => setIsAddModalOpen(true)}
+            onUpdatePlacement={handleUpdatePositionPlacement}
           />
         ) : effectiveActiveTab === "offer" || !activeItem ? (
           <OfferSummaryTab

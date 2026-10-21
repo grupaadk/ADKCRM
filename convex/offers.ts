@@ -249,6 +249,9 @@ export const updateConstructionPosition = mutation({
     fillType: v.optional(v.string()),
     priceNet: v.optional(v.number()),
     costNet: v.optional(v.number()),
+    placedAboveItemId: v.optional(v.union(v.string(), v.null())),
+    placedBelowItemId: v.optional(v.union(v.string(), v.null())),
+    rowIndex: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
     const { itemId, ...fields } = args;
@@ -257,7 +260,11 @@ export const updateConstructionPosition = mutation({
 
     const patch: Record<string, unknown> = { updatedAt: Date.now() };
     for (const [key, val] of Object.entries(fields)) {
-      if (val !== undefined) patch[key] = val;
+      if (val === null) {
+        patch[key] = undefined;
+      } else if (val !== undefined) {
+        patch[key] = val;
+      }
     }
 
     // Jeśli zmieniły się wymiary lub ilość skrzydeł, przelicz segmenty CAD

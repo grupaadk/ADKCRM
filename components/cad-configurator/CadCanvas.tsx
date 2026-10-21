@@ -32,6 +32,9 @@ export interface CadConstructionItem {
   priceNet?: number;
   costNet?: number;
   segments?: CadSegment[];
+  placedAboveItemId?: string;
+  placedBelowItemId?: string;
+  rowIndex?: number;
 }
 
 interface CadCanvasProps {

@@ -1228,6 +1228,9 @@ export default defineSchema({
         })
       )
     ),
+    placedAboveItemId: v.optional(v.string()),
+    placedBelowItemId: v.optional(v.string()),
+    rowIndex: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

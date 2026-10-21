@@ -202,4 +202,78 @@ describe("CAD Offers and Constructions Module", () => {
     const ensureResult = await t.mutation(api.constructions.ensureTriangleConstruction, {});
     expect(ensureResult).toBeDefined();
   });
+
+  test("manages spatial CAD placement (placedAboveItemId, rowIndex)", async () => {
+    const t = convexTest(schema);
+
+    // 1. Create opportunity and offer
+    const oppId = await t.run(async (ctx) => {
+      return await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-CAD-1",
+        firstName: "Tomasz",
+        lastName: "Nowak",
+        email: "tomasz@example.pl",
+        phone: "+48 500 600 700",
+        processed: false,
+        stage: "lead",
+      });
+    });
+
+    const offerId = await t.mutation(api.offers.getOrCreateForOpportunity, {
+      opportunityId: oppId,
+    });
+
+    // 2. Add base wall sliding door (Row 0, floor level)
+    const baseDoorId = await t.mutation(api.offers.addConstructionPosition, {
+      offerId,
+      name: "Ściana przesuwna 3-torowa",
+      widthMm: 2880,
+      heightMm: 2300,
+      panesCount: 3,
+    });
+
+    // 3. Add gable triangle intended to sit on top of the door
+    const triangleId = await t.mutation(api.offers.addConstructionPosition, {
+      offerId,
+      name: "Trójkąt do zabudowy tarasu",
+      widthMm: 2880,
+      heightMm: 1000,
+    });
+
+    // 4. Update triangle placement to sit ABOVE baseDoor
+    await t.mutation(api.offers.updateConstructionPosition, {
+      itemId: triangleId,
+      placedAboveItemId: baseDoorId,
+      rowIndex: 0,
+    });
+
+    let offerData = await t.query(api.offers.getOfferWithItems, { offerId });
+    let triangleItem = offerData!.items.find((it) => it._id === triangleId);
+    expect(triangleItem?.placedAboveItemId).toBe(baseDoorId);
+    expect(triangleItem?.rowIndex).toBe(0);
+
+    // 5. Move a construction to row 1 (kolejny rząd poniżej)
+    await t.mutation(api.offers.updateConstructionPosition, {
+      itemId: triangleId,
+      placedAboveItemId: null,
+      rowIndex: 1,
+    });
+
+    offerData = await t.query(api.offers.getOfferWithItems, { offerId });
+    triangleItem = offerData!.items.find((it) => it._id === triangleId);
+    expect(triangleItem?.placedAboveItemId).toBeUndefined();
+    expect(triangleItem?.rowIndex).toBe(1);
+
+    // 6. Reset back to floor level (Row 0, no parent)
+    await t.mutation(api.offers.updateConstructionPosition, {
+      itemId: triangleId,
+      placedAboveItemId: null,
+      rowIndex: null,
+    });
+
+    offerData = await t.query(api.offers.getOfferWithItems, { offerId });
+    triangleItem = offerData!.items.find((it) => it._id === triangleId);
+    expect(triangleItem?.placedAboveItemId).toBeUndefined();
+    expect(triangleItem?.rowIndex).toBeUndefined();
+  });
 });
