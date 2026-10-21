@@ -145,6 +145,24 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
     }
   };
 
+  const handleUpdatePositionDimensions = async (
+    itemId: string,
+    patch: { widthMm?: number; heightMm?: number }
+  ) => {
+    setSaveStatus("saving");
+    try {
+      await updatePosition({
+        itemId: itemId as Id<"offerConstructions">,
+        widthMm: patch.widthMm,
+        heightMm: patch.heightMm,
+      });
+      setSaveStatus("saved");
+    } catch (err) {
+      console.error("Błąd aktualizacji wymiarów konstrukcji:", err);
+      setSaveStatus("idle");
+    }
+  };
+
   const handleOfferChange = async (patch: Partial<OfferData>) => {
     if (!offer) return;
     setSaveStatus("saving");
@@ -341,6 +359,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
             onBackToOffer={() => setActiveTab("offer")}
             onAddNewPosition={() => setIsAddModalOpen(true)}
             onUpdatePlacement={handleUpdatePositionPlacement}
+            onUpdateDimensions={handleUpdatePositionDimensions}
           />
         ) : effectiveActiveTab === "offer" || !activeItem ? (
           <OfferSummaryTab
@@ -363,7 +382,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
             />
 
             {/* Centralny widok CAD */}
-            <CadCanvas item={activeItem} />
+            <CadCanvas item={activeItem} onChange={handleItemChange} />
 
             {/* Prawy panel pozycji z miniaturami */}
             <VerticalPositionsList

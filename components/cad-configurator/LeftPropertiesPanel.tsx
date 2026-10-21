@@ -5,6 +5,7 @@ import { CadConstructionItem } from "./CadCanvas";
 import {
   Settings2,
   DollarSign,
+  Ruler,
 } from "lucide-react";
 
 interface LeftPropertiesPanelProps {
@@ -77,6 +78,85 @@ export function LeftPropertiesPanel({
             className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1.5 text-[#0b1220] font-medium focus:border-[#4ABBC3] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none text-xs"
             placeholder="np. System całoszklany 3-torowy"
           />
+        </div>
+
+        {/* Sekcja: Wymiary i podział CAD */}
+        <div className="bg-[#f8fafc] p-3 rounded-lg border border-[#e3e7ee] space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[#0e7490] font-bold text-[11px] uppercase tracking-wide">
+              <Ruler size={13} className="text-[#4ABBC3]" /> Wymiary CAD
+            </div>
+            <span className="text-[10px] text-[#7c8597] font-mono">
+              {Math.round(((item.widthMm || 0) * (item.heightMm || 0)) / 10000) / 100} m²
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[10px] font-medium text-[#7c8597] mb-1">
+                Szerokość B (mm)
+              </label>
+              <input
+                type="number"
+                step={10}
+                min={300}
+                max={12000}
+                disabled={readOnly}
+                value={item.widthMm || 2880}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value);
+                  if (!Number.isNaN(val) && val >= 300) {
+                    onChange({ widthMm: Math.min(12000, val) });
+                  }
+                }}
+                className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-medium text-[#7c8597] mb-1">
+                Wysokość H (mm)
+              </label>
+              <input
+                type="number"
+                step={10}
+                min={300}
+                max={6000}
+                disabled={readOnly}
+                value={item.heightMm || 2300}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value);
+                  if (!Number.isNaN(val) && val >= 300) {
+                    onChange({ heightMm: Math.min(6000, val) });
+                  }
+                }}
+                className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-medium text-[#7c8597] mb-1">
+              Liczba kwater / torów
+            </label>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5, 6].map((cnt) => (
+                <button
+                  key={cnt}
+                  type="button"
+                  disabled={readOnly}
+                  onClick={() => onChange({ panesCount: cnt })}
+                  className={`flex-1 py-1 rounded text-[11px] font-mono font-bold transition-colors cursor-pointer ${
+                    (item.panesCount || 3) === cnt
+                      ? "bg-[#0b1220] text-[#4ABBC3]"
+                      : "bg-white hover:bg-slate-100 text-slate-700 border border-[#d4dae3]"
+                  }`}
+                >
+                  {cnt}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Opis / Skrót */}

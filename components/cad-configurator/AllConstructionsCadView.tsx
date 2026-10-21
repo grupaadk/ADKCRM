@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from "react";
 import { CadConstructionItem, CadSegment } from "./CadCanvas";
 import { OfferData, OpportunityData } from "./OfferSummaryTab";
 import {
@@ -15,10 +15,9 @@ import {
   Plus,
   Edit3,
   ArrowUp,
-  ArrowDown,
-  RotateCcw,
   Rows,
   X,
+  Check,
   MoveVertical,
 } from "lucide-react";
 
@@ -37,6 +36,13 @@ interface AllConstructionsCadViewProps {
       rowIndex?: number | null;
     }
   ) => void;
+  onUpdateDimensions?: (
+    itemId: string,
+    patch: {
+      widthMm?: number;
+      heightMm?: number;
+    }
+  ) => void;
 }
 
 export function AllConstructionsCadView({
@@ -45,11 +51,13 @@ export function AllConstructionsCadView({
   onBackToOffer,
   onAddNewPosition,
   onUpdatePlacement,
+  onUpdateDimensions,
 }: AllConstructionsCadViewProps) {
   const [zoom, setZoom] = useState(1);
   const [showDimensions, setShowDimensions] = useState(true);
   const [displayMode, setDisplayMode] = useState<"sheet" | "grid">("sheet");
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
+  const [hoveredDimKey, setHoveredDimKey] = useState<string | null>(null);
 
   // Lokalne nadpisania położenia dla natychmiastowej responsywności UI (optimistic updates)
   const [localPlacements, setLocalPlacements] = useState<
@@ -63,6 +71,22 @@ export function AllConstructionsCadView({
     >
   >({});
 
+  // Lokalne nadpisania wymiarów (0 ms opóźnienia na rysunku CAD)
+  const [localDimensions, setLocalDimensions] = useState<
+    Record<string, { widthMm?: number; heightMm?: number }>
+  >({});
+
+  // Stan otwartego edytora wymiaru bezpośrednio na rzucie CAD
+  const [activeDimEdit, setActiveDimEdit] = useState<{
+    itemId: string;
+    target: "width" | "height" | "segment";
+    segmentIndex?: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [draftDimValue, setDraftDimValue] = useState<string>("");
+  const dimInputRef = useRef<HTMLInputElement | null>(null);
+
   // Stan otwartego menu rozwijanego po kliknięciu LPM na konstrukcję
   const [activeDropdown, setActiveDropdown] = useState<{
     itemId: string;
@@ -71,8 +95,23 @@ export function AllConstructionsCadView({
   } | null>(null);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const zoomOriginRef = useRef<{
+    cursorClientX: number;
+    cursorClientY: number;
+    ratioX: number;
+    ratioY: number;
+  } | null>(null);
 
-  // Obsługa przybliżania i oddalania za pomocą Ctrl + Scroll myszki
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef<{
+    x: number;
+    y: number;
+    scrollLeft: number;
+    scrollTop: number;
+  } | null>(null);
+
+  // Obsługa przybliżania i oddalania (Ctrl/Cmd + Scroll) wycentrowana na pozycji kursora myszy (jak w AutoCAD)
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
@@ -80,9 +119,27 @@ export function AllConstructionsCadView({
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        const step = e.deltaY < 0 ? 0.12 : -0.12;
+        const viewport = viewportRef.current;
+        const content = contentRef.current;
+        if (!viewport || !content) return;
+
+        const contentRect = content.getBoundingClientRect();
+        if (contentRect.width > 0 && contentRect.height > 0) {
+          // Precyzyjna pozycja kursora wewnątrz rysunku CAD (0.0 do 1.0)
+          const ratioX = (e.clientX - contentRect.left) / contentRect.width;
+          const ratioY = (e.clientY - contentRect.top) / contentRect.height;
+          zoomOriginRef.current = {
+            cursorClientX: e.clientX,
+            cursorClientY: e.clientY,
+            ratioX,
+            ratioY,
+          };
+        }
+
+        // Płynne, proporcjonalne skalowanie geometryczne (jak w AutoCAD / Figma)
+        const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
         setZoom((prev) =>
-          Math.min(4, Math.max(0.4, Math.round((prev + step) * 100) / 100))
+          Math.min(5, Math.max(0.3, Math.round(prev * factor * 100) / 100))
         );
       }
     };
@@ -90,6 +147,73 @@ export function AllConstructionsCadView({
     el.addEventListener("wheel", handleWheel, { passive: false });
     return () => {
       el.removeEventListener("wheel", handleWheel);
+    };
+  }, [displayMode]);
+
+  // Natychmiastowe przeliczenie przesunięcia scrolla przed narysowaniem klatki,
+  // aby punkt pod kursorem pozostał idealnie w tym samym miejscu na ekranie
+  useLayoutEffect(() => {
+    if (!zoomOriginRef.current) return;
+    const { cursorClientX, cursorClientY, ratioX, ratioY } =
+      zoomOriginRef.current;
+    zoomOriginRef.current = null;
+
+    const viewport = viewportRef.current;
+    const content = contentRef.current;
+    if (!viewport || !content) return;
+
+    const newContentRect = content.getBoundingClientRect();
+    const currentPointX = newContentRect.left + ratioX * newContentRect.width;
+    const currentPointY = newContentRect.top + ratioY * newContentRect.height;
+
+    const deltaX = currentPointX - cursorClientX;
+    const deltaY = currentPointY - cursorClientY;
+
+    viewport.scrollLeft += deltaX;
+    viewport.scrollTop += deltaY;
+  }, [zoom]);
+
+  // Przesuwanie widoku (PAN) środkowym przyciskiem myszy (scroll click) lub Alt+LPM jak w AutoCAD
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 1 || (e.button === 0 && e.altKey)) {
+        e.preventDefault();
+        setIsPanning(true);
+        panStartRef.current = {
+          x: e.clientX,
+          y: e.clientY,
+          scrollLeft: viewport.scrollLeft,
+          scrollTop: viewport.scrollTop,
+        };
+      }
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!panStartRef.current || !viewportRef.current) return;
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      viewportRef.current.scrollLeft = panStartRef.current.scrollLeft - dx;
+      viewportRef.current.scrollTop = panStartRef.current.scrollTop - dy;
+    };
+
+    const onMouseUp = (e: MouseEvent) => {
+      if (e.button === 1 || (e.button === 0 && e.altKey)) {
+        setIsPanning(false);
+        panStartRef.current = null;
+      }
+    };
+
+    viewport.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      viewport.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
     };
   }, [displayMode]);
 
@@ -151,27 +275,111 @@ export function AllConstructionsCadView({
     maxStackHeight: number;
   }
 
-  const computedRows: RenderRow[] = useMemo(() => {
-    const effectiveItems = items.map((it) => {
+  const effectiveItems: CadConstructionItem[] = useMemo(() => {
+    return items.map((it) => {
       const override = localPlacements[it._id];
-      if (!override) return it;
+      const dimOverride = localDimensions[it._id];
+      if (!override && !dimOverride) return it;
+      const nextWidth = dimOverride?.widthMm ?? it.widthMm;
+      const nextHeight = dimOverride?.heightMm ?? it.heightMm;
+      const panes = Math.max(1, it.panesCount || 3);
+      const paneW = Math.round(nextWidth / panes);
+      const nextSegments =
+        dimOverride?.widthMm !== undefined || dimOverride?.heightMm !== undefined
+          ? Array.from({ length: panes }).map((_, i) => ({
+              widthMm: i === panes - 1 ? nextWidth - paneW * (panes - 1) : paneW,
+              heightMm: nextHeight - 103,
+              fill: it.fillType || "HART 10",
+            }))
+          : it.segments;
       return {
         ...it,
+        widthMm: nextWidth,
+        heightMm: nextHeight,
+        segments: nextSegments,
         placedAboveItemId:
-          override.placedAboveItemId !== undefined
+          override?.placedAboveItemId !== undefined
             ? override.placedAboveItemId ?? undefined
             : it.placedAboveItemId,
         placedBelowItemId:
-          override.placedBelowItemId !== undefined
+          override?.placedBelowItemId !== undefined
             ? override.placedBelowItemId ?? undefined
             : it.placedBelowItemId,
         rowIndex:
-          override.rowIndex !== undefined
+          override?.rowIndex !== undefined
             ? override.rowIndex ?? 0
             : it.rowIndex ?? 0,
       };
     });
+  }, [items, localPlacements, localDimensions]);
 
+  const openDimEditor = (
+    e: React.MouseEvent,
+    item: CadConstructionItem,
+    target: "width" | "height" | "segment",
+    segmentIndex?: number
+  ) => {
+    e.stopPropagation();
+    setActiveDropdown(null);
+    const w = Math.max(item.widthMm || 2880, 300);
+    const h = Math.max(item.heightMm || 2300, 200);
+    const panes = Math.max(item.panesCount || 3, 1);
+    const paneW = Math.round(w / panes);
+    const initialVal =
+      target === "width"
+        ? w
+        : target === "height"
+        ? h
+        : item.segments?.[segmentIndex ?? 0]?.widthMm || paneW;
+    setDraftDimValue(String(initialVal));
+    setActiveDimEdit({
+      itemId: item._id,
+      target,
+      segmentIndex,
+      x: e.clientX,
+      y: e.clientY,
+    });
+    setTimeout(() => {
+      dimInputRef.current?.focus();
+      dimInputRef.current?.select();
+    }, 10);
+  };
+
+  const handleApplyDimension = () => {
+    if (!activeDimEdit) return;
+    const item = effectiveItems.find((it) => it._id === activeDimEdit.itemId);
+    if (!item) return;
+
+    const parsed = parseInt(draftDimValue, 10);
+    if (isNaN(parsed) || parsed < 200) return;
+
+    const panes = Math.max(item.panesCount || 3, 1);
+    let patch: { widthMm?: number; heightMm?: number } = {};
+
+    if (activeDimEdit.target === "width") {
+      patch = { widthMm: Math.min(15000, Math.max(300, parsed)) };
+    } else if (activeDimEdit.target === "height") {
+      patch = { heightMm: Math.min(10000, Math.max(200, parsed)) };
+    } else if (activeDimEdit.target === "segment") {
+      const nextSegW = Math.min(5000, Math.max(200, parsed));
+      patch = { widthMm: Math.min(15000, Math.max(300, nextSegW * panes)) };
+    }
+
+    setLocalDimensions((prev) => ({
+      ...prev,
+      [item._id]: {
+        ...prev[item._id],
+        ...patch,
+      },
+    }));
+
+    if (onUpdateDimensions) {
+      onUpdateDimensions(item._id, patch);
+    }
+    setActiveDimEdit(null);
+  };
+
+  const computedRows: RenderRow[] = useMemo(() => {
     const rowMap = new Map<number, CadConstructionItem[]>();
     effectiveItems.forEach((it) => {
       const r = Math.max(0, it.rowIndex ?? 0);
@@ -246,7 +454,7 @@ export function AllConstructionsCadView({
         maxStackHeight,
       };
     });
-  }, [items, localPlacements]);
+  }, [effectiveItems]);
 
   const maxRowWidth = Math.max(
     ...computedRows.map((r) => r.rowWidth),
@@ -437,9 +645,12 @@ export function AllConstructionsCadView({
         /* ── TRYB 1: WSPÓLNY ARKUSZ RYSUNKOWY CAD (Wszystkie konstrukcje na jednym rysunku SVG) ── */
         <div
           ref={viewportRef}
-          className="relative flex-1 min-h-0 min-w-0 overflow-auto p-2 sm:p-4 bg-slate-100/70"
+          className={`relative flex-1 min-h-0 min-w-0 overflow-auto p-2 sm:p-4 bg-slate-100/70 ${
+            isPanning ? "cursor-grabbing select-none" : ""
+          }`}
         >
           <div
+            ref={contentRef}
             style={{
               width: `${Math.round(zoom * 100)}%`,
               height: `${Math.round(zoom * 100)}%`,
@@ -991,6 +1202,10 @@ export function AllConstructionsCadView({
                                       )}
                                       fontWeight="800"
                                       textAnchor="middle"
+                                      className="cursor-pointer hover:fill-[#0284c7]"
+                                      onClick={(e) =>
+                                        openDimEditor(e, item, "width")
+                                      }
                                     >
                                       {glassW} × {glassH} mm
                                     </text>
@@ -1000,13 +1215,22 @@ export function AllConstructionsCadView({
                             </>
                           )}
 
-                          {/* Linie wymiarowe */}
+                          {/* Linie wymiarowe (interaktywne kliknięcie zmienia wymiar) */}
                           {showDimensions && (
                             <g>
                               {isTriangle ? (
                                 <>
                                   {/* DÓŁ: Całkowity wymiar szerokości B */}
-                                  <g>
+                                  <g
+                                    className="cursor-pointer"
+                                    onMouseEnter={() =>
+                                      setHoveredDimKey(`${item._id}-width`)
+                                    }
+                                    onMouseLeave={() => setHoveredDimKey(null)}
+                                    onClick={(e) =>
+                                      openDimEditor(e, item, "width")
+                                    }
+                                  >
                                     <line
                                       x1={originX}
                                       y1={originY + height + 5}
@@ -1030,16 +1254,63 @@ export function AllConstructionsCadView({
                                       y1={originY + height + 60}
                                       x2={originX + width}
                                       y2={originY + height + 60}
-                                      stroke="#0b1220"
-                                      strokeWidth="3.5"
+                                      stroke={
+                                        hoveredDimKey === `${item._id}-width` ||
+                                        (activeDimEdit?.itemId === item._id &&
+                                          activeDimEdit?.mode === "width")
+                                          ? "#0284c7"
+                                          : "#0b1220"
+                                      }
+                                      strokeWidth={
+                                        hoveredDimKey === `${item._id}-width` ||
+                                        (activeDimEdit?.itemId === item._id &&
+                                          activeDimEdit?.mode === "width")
+                                          ? "5"
+                                          : "3.5"
+                                      }
                                       markerStart="url(#multiCadArrowStart)"
                                       markerEnd="url(#multiCadArrowEnd)"
+                                    />
+                                    <rect
+                                      x={originX + width / 2 - 150}
+                                      y={originY + height + 66}
+                                      width={300}
+                                      height={54}
+                                      rx="10"
+                                      fill={
+                                        hoveredDimKey === `${item._id}-width` ||
+                                        (activeDimEdit?.itemId === item._id &&
+                                          activeDimEdit?.mode === "width")
+                                          ? "#e0f2fe"
+                                          : "#ffffff"
+                                      }
+                                      fillOpacity="0.95"
+                                      stroke={
+                                        hoveredDimKey === `${item._id}-width` ||
+                                        (activeDimEdit?.itemId === item._id &&
+                                          activeDimEdit?.mode === "width")
+                                          ? "#0284c7"
+                                          : "#cbd5e1"
+                                      }
+                                      strokeWidth={
+                                        hoveredDimKey === `${item._id}-width` ||
+                                        (activeDimEdit?.itemId === item._id &&
+                                          activeDimEdit?.mode === "width")
+                                          ? "2.5"
+                                          : "1.5"
+                                      }
                                     />
                                     <text
                                       x={originX + width / 2}
                                       y={originY + height + 105}
-                                      fill="#0b1220"
-                                      fontSize="50"
+                                      fill={
+                                        hoveredDimKey === `${item._id}-width` ||
+                                        (activeDimEdit?.itemId === item._id &&
+                                          activeDimEdit?.mode === "width")
+                                          ? "#0369a1"
+                                          : "#0b1220"
+                                      }
+                                      fontSize="46"
                                       fontWeight="900"
                                       textAnchor="middle"
                                     >
@@ -1048,7 +1319,16 @@ export function AllConstructionsCadView({
                                   </g>
 
                                   {/* LEWO: Całkowity wymiar wysokości H */}
-                                  <g>
+                                  <g
+                                    className="cursor-pointer"
+                                    onMouseEnter={() =>
+                                      setHoveredDimKey(`${item._id}-height`)
+                                    }
+                                    onMouseLeave={() => setHoveredDimKey(null)}
+                                    onClick={(e) =>
+                                      openDimEditor(e, item, "height")
+                                    }
+                                  >
                                     <line
                                       x1={originX - 5}
                                       y1={originY}
@@ -1072,22 +1352,72 @@ export function AllConstructionsCadView({
                                       y1={originY}
                                       x2={originX - 60}
                                       y2={originY + height}
-                                      stroke="#0b1220"
-                                      strokeWidth="3.5"
+                                      stroke={
+                                        hoveredDimKey === `${item._id}-height` ||
+                                        (activeDimEdit?.itemId === item._id &&
+                                          activeDimEdit?.mode === "height")
+                                          ? "#0284c7"
+                                          : "#0b1220"
+                                      }
+                                      strokeWidth={
+                                        hoveredDimKey === `${item._id}-height` ||
+                                        (activeDimEdit?.itemId === item._id &&
+                                          activeDimEdit?.mode === "height")
+                                          ? "5"
+                                          : "3.5"
+                                      }
                                       markerStart="url(#multiCadArrowStart)"
                                       markerEnd="url(#multiCadArrowEnd)"
                                     />
-                                    <text
-                                      x={originX - 90}
-                                      y={originY + height / 2}
-                                      fill="#0b1220"
-                                      fontSize="50"
-                                      fontWeight="900"
-                                      textAnchor="middle"
-                                      transform={`rotate(-90, ${originX - 90}, ${originY + height / 2})`}
+                                    <g
+                                      transform={`translate(${originX - 96}, ${originY + height / 2}) rotate(-90)`}
                                     >
-                                      H = {height}
-                                    </text>
+                                      <rect
+                                        x={-150}
+                                        y={-38}
+                                        width={300}
+                                        height={54}
+                                        rx="10"
+                                        fill={
+                                          hoveredDimKey === `${item._id}-height` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "height")
+                                            ? "#e0f2fe"
+                                            : "#ffffff"
+                                        }
+                                        fillOpacity="0.95"
+                                        stroke={
+                                          hoveredDimKey === `${item._id}-height` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "height")
+                                            ? "#0284c7"
+                                            : "#cbd5e1"
+                                        }
+                                        strokeWidth={
+                                          hoveredDimKey === `${item._id}-height` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "height")
+                                            ? "2.5"
+                                            : "1.5"
+                                        }
+                                      />
+                                      <text
+                                        x={0}
+                                        y={4}
+                                        fill={
+                                          hoveredDimKey === `${item._id}-height` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "height")
+                                            ? "#0369a1"
+                                            : "#0b1220"
+                                        }
+                                        fontSize="46"
+                                        fontWeight="900"
+                                        textAnchor="middle"
+                                      >
+                                        H = {height}
+                                      </text>
+                                    </g>
                                   </g>
 
                                   {/* UKOŚNY WYMIAR KROKWI */}
@@ -1115,9 +1445,32 @@ export function AllConstructionsCadView({
                                       const segEndX =
                                         originX + ((idx + 1) * width) / panes;
                                       const dimY = originY - 60;
+                                      const segKey = `${item._id}-seg-${idx}`;
+                                      const isSegActive =
+                                        hoveredDimKey === segKey ||
+                                        (activeDimEdit?.itemId === item._id &&
+                                          activeDimEdit?.mode === "pane_width" &&
+                                          activeDimEdit?.paneIndex === idx);
 
                                       return (
-                                        <g key={idx}>
+                                        <g
+                                          key={idx}
+                                          className="cursor-pointer"
+                                          onMouseEnter={() =>
+                                            setHoveredDimKey(segKey)
+                                          }
+                                          onMouseLeave={() =>
+                                            setHoveredDimKey(null)
+                                          }
+                                          onClick={(e) =>
+                                            openDimEditor(
+                                              e,
+                                              item,
+                                              "pane_width",
+                                              idx
+                                            )
+                                          }
+                                        >
                                           <line
                                             x1={segStartX}
                                             y1={originY - 5}
@@ -1141,16 +1494,35 @@ export function AllConstructionsCadView({
                                             y1={dimY}
                                             x2={segEndX}
                                             y2={dimY}
-                                            stroke="#0b1220"
-                                            strokeWidth="3"
+                                            stroke={
+                                              isSegActive ? "#0284c7" : "#0b1220"
+                                            }
+                                            strokeWidth={isSegActive ? "4.5" : "3"}
                                             markerStart="url(#multiCadArrowStart)"
                                             markerEnd="url(#multiCadArrowEnd)"
                                           />
+                                          <rect
+                                            x={(segStartX + segEndX) / 2 - 80}
+                                            y={dimY - 54}
+                                            width={160}
+                                            height={46}
+                                            rx="8"
+                                            fill={
+                                              isSegActive ? "#e0f2fe" : "#ffffff"
+                                            }
+                                            fillOpacity="0.95"
+                                            stroke={
+                                              isSegActive ? "#0284c7" : "#cbd5e1"
+                                            }
+                                            strokeWidth={isSegActive ? "2" : "1"}
+                                          />
                                           <text
                                             x={(segStartX + segEndX) / 2}
-                                            y={dimY - 12}
-                                            fill="#0b1220"
-                                            fontSize="42"
+                                            y={dimY - 18}
+                                            fill={
+                                              isSegActive ? "#0369a1" : "#0b1220"
+                                            }
+                                            fontSize="40"
                                             fontWeight="800"
                                             textAnchor="middle"
                                           >
@@ -1162,7 +1534,16 @@ export function AllConstructionsCadView({
 
                                   {/* Całkowita szerokość */}
                                   {!hasItemAbove && (
-                                    <g>
+                                    <g
+                                      className="cursor-pointer"
+                                      onMouseEnter={() =>
+                                        setHoveredDimKey(`${item._id}-width`)
+                                      }
+                                      onMouseLeave={() => setHoveredDimKey(null)}
+                                      onClick={(e) =>
+                                        openDimEditor(e, item, "width")
+                                      }
+                                    >
                                       <line
                                         x1={originX}
                                         y1={originY - 5}
@@ -1186,16 +1567,63 @@ export function AllConstructionsCadView({
                                         y1={originY - 140}
                                         x2={originX + width}
                                         y2={originY - 140}
-                                        stroke="#0b1220"
-                                        strokeWidth="3.5"
+                                        stroke={
+                                          hoveredDimKey === `${item._id}-width` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "width")
+                                            ? "#0284c7"
+                                            : "#0b1220"
+                                        }
+                                        strokeWidth={
+                                          hoveredDimKey === `${item._id}-width` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "width")
+                                            ? "5"
+                                            : "3.5"
+                                        }
                                         markerStart="url(#multiCadArrowStart)"
                                         markerEnd="url(#multiCadArrowEnd)"
                                       />
+                                      <rect
+                                        x={originX + width / 2 - 110}
+                                        y={originY - 196}
+                                        width={220}
+                                        height={54}
+                                        rx="10"
+                                        fill={
+                                          hoveredDimKey === `${item._id}-width` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "width")
+                                            ? "#e0f2fe"
+                                            : "#ffffff"
+                                        }
+                                        fillOpacity="0.95"
+                                        stroke={
+                                          hoveredDimKey === `${item._id}-width` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "width")
+                                            ? "#0284c7"
+                                            : "#cbd5e1"
+                                        }
+                                        strokeWidth={
+                                          hoveredDimKey === `${item._id}-width` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "width")
+                                            ? "2.5"
+                                            : "1.5"
+                                        }
+                                      />
                                       <text
                                         x={originX + width / 2}
-                                        y={originY - 152}
-                                        fill="#0b1220"
-                                        fontSize="50"
+                                        y={originY - 154}
+                                        fill={
+                                          hoveredDimKey === `${item._id}-width` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "width")
+                                            ? "#0369a1"
+                                            : "#0b1220"
+                                        }
+                                        fontSize="48"
                                         fontWeight="900"
                                         textAnchor="middle"
                                       >
@@ -1205,7 +1633,16 @@ export function AllConstructionsCadView({
                                   )}
 
                                   {/* Całkowita wysokość */}
-                                  <g>
+                                  <g
+                                    className="cursor-pointer"
+                                    onMouseEnter={() =>
+                                      setHoveredDimKey(`${item._id}-height`)
+                                    }
+                                    onMouseLeave={() => setHoveredDimKey(null)}
+                                    onClick={(e) =>
+                                      openDimEditor(e, item, "height")
+                                    }
+                                  >
                                     <line
                                       x1={originX + width + 5}
                                       y1={originY}
@@ -1229,22 +1666,72 @@ export function AllConstructionsCadView({
                                       y1={originY}
                                       x2={originX + width + 90}
                                       y2={originY + height}
-                                      stroke="#0b1220"
-                                      strokeWidth="3.5"
+                                      stroke={
+                                        hoveredDimKey === `${item._id}-height` ||
+                                        (activeDimEdit?.itemId === item._id &&
+                                          activeDimEdit?.mode === "height")
+                                          ? "#0284c7"
+                                          : "#0b1220"
+                                      }
+                                      strokeWidth={
+                                        hoveredDimKey === `${item._id}-height` ||
+                                        (activeDimEdit?.itemId === item._id &&
+                                          activeDimEdit?.mode === "height")
+                                          ? "5"
+                                          : "3.5"
+                                      }
                                       markerStart="url(#multiCadArrowStart)"
                                       markerEnd="url(#multiCadArrowEnd)"
                                     />
-                                    <text
-                                      x={originX + width + 125}
-                                      y={originY + height / 2}
-                                      fill="#0b1220"
-                                      fontSize="50"
-                                      fontWeight="900"
-                                      textAnchor="middle"
-                                      transform={`rotate(90, ${originX + width + 125}, ${originY + height / 2})`}
+                                    <g
+                                      transform={`translate(${originX + width + 130}, ${originY + height / 2}) rotate(90)`}
                                     >
-                                      {height}
-                                    </text>
+                                      <rect
+                                        x={-110}
+                                        y={-38}
+                                        width={220}
+                                        height={54}
+                                        rx="10"
+                                        fill={
+                                          hoveredDimKey === `${item._id}-height` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "height")
+                                            ? "#e0f2fe"
+                                            : "#ffffff"
+                                        }
+                                        fillOpacity="0.95"
+                                        stroke={
+                                          hoveredDimKey === `${item._id}-height` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "height")
+                                            ? "#0284c7"
+                                            : "#cbd5e1"
+                                        }
+                                        strokeWidth={
+                                          hoveredDimKey === `${item._id}-height` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "height")
+                                            ? "2.5"
+                                            : "1.5"
+                                        }
+                                      />
+                                      <text
+                                        x={0}
+                                        y={4}
+                                        fill={
+                                          hoveredDimKey === `${item._id}-height` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "height")
+                                            ? "#0369a1"
+                                            : "#0b1220"
+                                        }
+                                        fontSize="48"
+                                        fontWeight="900"
+                                        textAnchor="middle"
+                                      >
+                                        {height}
+                                      </text>
+                                    </g>
                                   </g>
                                 </>
                               )}
@@ -1293,7 +1780,7 @@ export function AllConstructionsCadView({
         /* ── TRYB 2: SIATKA KART CAD (Każda konstrukcja w czytelnej karcie z rysunkiem CAD) ── */
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 max-w-[1600px] mx-auto">
-            {items.map((item) => {
+            {effectiveItems.map((item) => {
               const width = Math.max(item.widthMm || 2880, 400);
               const height = Math.max(item.heightMm || 2300, 400);
               const panes = Math.max(item.panesCount || 3, 1);
@@ -1377,9 +1864,14 @@ export function AllConstructionsCadView({
                           {item.name}
                         </h4>
                         <div className="flex items-center gap-2 text-[11px] text-[#64748b] font-mono">
-                          <span>
+                          <button
+                            type="button"
+                            onClick={(e) => openDimEditor(e, item, "width")}
+                            className="px-1.5 py-0.5 rounded bg-sky-50 hover:bg-sky-100 text-[#0284c7] border border-sky-200 font-bold transition-colors cursor-pointer"
+                            title="Kliknij, aby zmienić wymiar konstrukcji"
+                          >
                             {width} × {height} mm
-                          </span>
+                          </button>
                           <span>·</span>
                           <span>{isTriangle ? "Trójkąt dachowy" : `${panes}-torowy`}</span>
                           <span>·</span>
@@ -1562,43 +2054,76 @@ export function AllConstructionsCadView({
 
                           {showDimensions && (
                             <g>
-                              <line
-                                x1={padLeft}
-                                y1={padTop - 130}
-                                x2={padLeft + width}
-                                y2={padTop - 130}
-                                stroke="#0b1220"
-                                strokeWidth="3.5"
-                              />
-                              <text
-                                x={padLeft + width / 2}
-                                y={padTop - 142}
-                                fill="#0b1220"
-                                fontSize="50"
-                                fontWeight="900"
-                                textAnchor="middle"
+                              <g
+                                className="cursor-pointer"
+                                onClick={(e) => openDimEditor(e, item, "width")}
                               >
-                                {width}
-                              </text>
-                              <line
-                                x1={padLeft + width + 80}
-                                y1={padTop}
-                                x2={padLeft + width + 80}
-                                y2={padTop + height}
-                                stroke="#0b1220"
-                                strokeWidth="3.5"
-                              />
-                              <text
-                                x={padLeft + width + 115}
-                                y={padTop + height / 2}
-                                fill="#0b1220"
-                                fontSize="50"
-                                fontWeight="900"
-                                textAnchor="middle"
-                                transform={`rotate(90, ${padLeft + width + 115}, ${padTop + height / 2})`}
+                                <line
+                                  x1={padLeft}
+                                  y1={padTop - 130}
+                                  x2={padLeft + width}
+                                  y2={padTop - 130}
+                                  stroke="#0b1220"
+                                  strokeWidth="3.5"
+                                />
+                                <rect
+                                  x={padLeft + width / 2 - 110}
+                                  y={padTop - 186}
+                                  width={220}
+                                  height={54}
+                                  rx="10"
+                                  fill="#ffffff"
+                                  stroke="#cbd5e1"
+                                  strokeWidth="1.5"
+                                />
+                                <text
+                                  x={padLeft + width / 2}
+                                  y={padTop - 144}
+                                  fill="#0b1220"
+                                  fontSize="48"
+                                  fontWeight="900"
+                                  textAnchor="middle"
+                                >
+                                  {width}
+                                </text>
+                              </g>
+                              <g
+                                className="cursor-pointer"
+                                onClick={(e) => openDimEditor(e, item, "height")}
                               >
-                                {height}
-                              </text>
+                                <line
+                                  x1={padLeft + width + 80}
+                                  y1={padTop}
+                                  x2={padLeft + width + 80}
+                                  y2={padTop + height}
+                                  stroke="#0b1220"
+                                  strokeWidth="3.5"
+                                />
+                                <g
+                                  transform={`translate(${padLeft + width + 115}, ${padTop + height / 2}) rotate(90)`}
+                                >
+                                  <rect
+                                    x={-110}
+                                    y={-38}
+                                    width={220}
+                                    height={54}
+                                    rx="10"
+                                    fill="#ffffff"
+                                    stroke="#cbd5e1"
+                                    strokeWidth="1.5"
+                                  />
+                                  <text
+                                    x={0}
+                                    y={4}
+                                    fill="#0b1220"
+                                    fontSize="48"
+                                    fontWeight="900"
+                                    textAnchor="middle"
+                                  >
+                                    {height}
+                                  </text>
+                                </g>
+                              </g>
                             </g>
                           )}
                         </g>
@@ -1682,6 +2207,10 @@ export function AllConstructionsCadView({
                                   )}
                                   fontWeight="800"
                                   textAnchor="middle"
+                                  className="cursor-pointer hover:fill-[#0284c7]"
+                                  onClick={(e) =>
+                                    openDimEditor(e, item, "width")
+                                  }
                                 >
                                   {glassW} × {glassH} mm
                                 </text>
@@ -1697,7 +2226,13 @@ export function AllConstructionsCadView({
                                   padLeft + ((idx + 1) * width) / panes;
                                 const dimY = padTop - 55;
                                 return (
-                                  <g key={idx}>
+                                  <g
+                                    key={idx}
+                                    className="cursor-pointer"
+                                    onClick={(e) =>
+                                      openDimEditor(e, item, "pane_width", idx)
+                                    }
+                                  >
                                     <line
                                       x1={segStartX}
                                       y1={dimY}
@@ -1706,11 +2241,21 @@ export function AllConstructionsCadView({
                                       stroke="#0b1220"
                                       strokeWidth="3"
                                     />
+                                    <rect
+                                      x={(segStartX + segEndX) / 2 - 80}
+                                      y={dimY - 52}
+                                      width={160}
+                                      height={44}
+                                      rx="8"
+                                      fill="#ffffff"
+                                      stroke="#cbd5e1"
+                                      strokeWidth="1"
+                                    />
                                     <text
                                       x={(segStartX + segEndX) / 2}
-                                      y={dimY - 12}
+                                      y={dimY - 16}
                                       fill="#0b1220"
-                                      fontSize="42"
+                                      fontSize="40"
                                       fontWeight="800"
                                       textAnchor="middle"
                                     >
@@ -1719,43 +2264,76 @@ export function AllConstructionsCadView({
                                   </g>
                                 );
                               })}
-                              <line
-                                x1={padLeft}
-                                y1={padTop - 130}
-                                x2={padLeft + width}
-                                y2={padTop - 130}
-                                stroke="#0b1220"
-                                strokeWidth="3.5"
-                              />
-                              <text
-                                x={padLeft + width / 2}
-                                y={padTop - 142}
-                                fill="#0b1220"
-                                fontSize="50"
-                                fontWeight="900"
-                                textAnchor="middle"
+                              <g
+                                className="cursor-pointer"
+                                onClick={(e) => openDimEditor(e, item, "width")}
                               >
-                                {width}
-                              </text>
-                              <line
-                                x1={padLeft + width + 80}
-                                y1={padTop}
-                                x2={padLeft + width + 80}
-                                y2={padTop + height}
-                                stroke="#0b1220"
-                                strokeWidth="3.5"
-                              />
-                              <text
-                                x={padLeft + width + 115}
-                                y={padTop + height / 2}
-                                fill="#0b1220"
-                                fontSize="50"
-                                fontWeight="900"
-                                textAnchor="middle"
-                                transform={`rotate(90, ${padLeft + width + 115}, ${padTop + height / 2})`}
+                                <line
+                                  x1={padLeft}
+                                  y1={padTop - 130}
+                                  x2={padLeft + width}
+                                  y2={padTop - 130}
+                                  stroke="#0b1220"
+                                  strokeWidth="3.5"
+                                />
+                                <rect
+                                  x={padLeft + width / 2 - 110}
+                                  y={padTop - 186}
+                                  width={220}
+                                  height={54}
+                                  rx="10"
+                                  fill="#ffffff"
+                                  stroke="#cbd5e1"
+                                  strokeWidth="1.5"
+                                />
+                                <text
+                                  x={padLeft + width / 2}
+                                  y={padTop - 144}
+                                  fill="#0b1220"
+                                  fontSize="48"
+                                  fontWeight="900"
+                                  textAnchor="middle"
+                                >
+                                  {width}
+                                </text>
+                              </g>
+                              <g
+                                className="cursor-pointer"
+                                onClick={(e) => openDimEditor(e, item, "height")}
                               >
-                                {height}
-                              </text>
+                                <line
+                                  x1={padLeft + width + 80}
+                                  y1={padTop}
+                                  x2={padLeft + width + 80}
+                                  y2={padTop + height}
+                                  stroke="#0b1220"
+                                  strokeWidth="3.5"
+                                />
+                                <g
+                                  transform={`translate(${padLeft + width + 115}, ${padTop + height / 2}) rotate(90)`}
+                                >
+                                  <rect
+                                    x={-110}
+                                    y={-38}
+                                    width={220}
+                                    height={54}
+                                    rx="10"
+                                    fill="#ffffff"
+                                    stroke="#cbd5e1"
+                                    strokeWidth="1.5"
+                                  />
+                                  <text
+                                    x={0}
+                                    y={4}
+                                    fill="#0b1220"
+                                    fontSize="48"
+                                    fontWeight="900"
+                                    textAnchor="middle"
+                                  >
+                                    {height}
+                                  </text>
+                                </g>
+                              </g>
                             </g>
                           )}
                         </g>
@@ -1781,11 +2359,11 @@ export function AllConstructionsCadView({
 
         const popoverX =
           typeof window !== "undefined"
-            ? Math.min(window.innerWidth - 365, Math.max(16, activeDropdown.x - 20))
+            ? Math.min(window.innerWidth - 300, Math.max(16, activeDropdown.x - 20))
             : 200;
         const popoverY =
           typeof window !== "undefined"
-            ? Math.min(window.innerHeight - 520, Math.max(16, activeDropdown.y - 20))
+            ? Math.min(window.innerHeight - 260, Math.max(16, activeDropdown.y - 20))
             : 200;
 
         // Inne pozycje w ofercie
@@ -1810,7 +2388,7 @@ export function AllConstructionsCadView({
 
         return (
           <div
-            className="fixed inset-0 z-50 bg-[#0b1220]/30 backdrop-blur-[1px] flex"
+            className="fixed inset-0 z-50 bg-[#0b1220]/25 backdrop-blur-[1px] flex"
             onClick={() => setActiveDropdown(null)}
           >
             <div
@@ -1818,154 +2396,101 @@ export function AllConstructionsCadView({
                 position: "fixed",
                 left: `${popoverX}px`,
                 top: `${popoverY}px`,
-                maxHeight: "calc(100vh - 40px)",
               }}
-              className="bg-white rounded-xl shadow-2xl border border-[#cbd5e1] w-[350px] p-4 z-50 text-[#0b1220] overflow-y-auto animate-in fade-in zoom-in-95 duration-100 space-y-3.5"
+              className="bg-white rounded-xl shadow-xl border border-slate-200/90 w-[280px] p-3 z-50 text-[#0b1220] animate-in fade-in zoom-in-95 duration-100 space-y-2.5"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Nagłówek popovera */}
-              <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-[#f1f5f9]">
-                <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-[#0b1220] text-[#4ABBC3]">
-                      POZ. {activeItem.positionIndex}
-                    </span>
-                    <span className="text-[11px] font-mono text-[#64748b]">
-                      {activeItem.widthMm} × {activeItem.heightMm} mm
-                    </span>
-                  </div>
-                  <h4 className="text-xs font-bold text-[#0b1220] truncate">
+              {/* Kompaktowy nagłówek */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#0b1220] text-[#4ABBC3] shrink-0">
+                    Poz. {activeItem.positionIndex}
+                  </span>
+                  <span className="text-xs font-bold text-slate-900 truncate">
                     {activeItem.shortName || activeItem.name}
-                  </h4>
-                  <div className="text-[11px] font-medium text-[#0e7490]">
-                    {placedAboveTarget ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        <ArrowUp size={11} />
-                        <span className="truncate">
-                          Nad: Poz. {placedAboveTarget.positionIndex} (
-                          {placedAboveTarget.shortName || placedAboveTarget.name}
-                          )
-                        </span>
-                      </span>
-                    ) : (effectiveTarget.rowIndex ?? 0) > 0 ? (
-                      <span className="inline-flex items-center gap-1 text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                        <Rows size={11} />
-                        <span>Rząd {(effectiveTarget.rowIndex ?? 0) + 1} (poniżej)</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-                        Poziom posadzki ±0.00
-                      </span>
-                    )}
-                  </div>
+                  </span>
                 </div>
-
                 <button
                   type="button"
                   onClick={() => setActiveDropdown(null)}
-                  className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors cursor-pointer shrink-0"
                   title="Zamknij"
                 >
-                  <X size={15} />
+                  <X size={14} />
                 </button>
               </div>
 
-              {/* Opcja 1: Umieść NAD inną konstrukcją */}
-              {otherItems.length > 0 && (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
-                    <ArrowUp size={12} className="text-emerald-600" />
-                    <span>Umieść NAD inną konstrukcją</span>
-                  </label>
-                  <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-                    {otherItems.map((other) => {
-                      const isCurrentAbove =
-                        effectiveTarget.placedAboveItemId === other._id;
-                      return (
-                        <button
-                          key={`above-${other._id}`}
-                          type="button"
-                          onClick={() =>
-                            handleSetPlacement(activeItem._id, {
-                              placedAboveItemId: other._id,
-                              placedBelowItemId: null,
-                              rowIndex: other.rowIndex ?? 0,
-                            })
-                          }
-                          className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium border flex items-center justify-between transition-colors cursor-pointer ${
-                            isCurrentAbove
-                              ? "bg-emerald-50 border-emerald-300 text-emerald-900 font-bold"
-                              : "bg-slate-50/70 hover:bg-[#f0fdff] border-slate-200 hover:border-[#4ABBC3] text-slate-800"
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <ArrowUp
-                              size={12}
-                              className={
-                                isCurrentAbove
-                                  ? "text-emerald-600"
-                                  : "text-slate-400"
-                              }
-                            />
-                            <span className="truncate">
-                              <strong>Poz. {other.positionIndex}</strong>:{" "}
-                              {other.shortName || other.name}
-                            </span>
-                          </div>
-                          <span className="text-[10px] font-mono text-slate-500 shrink-0 ml-2">
-                            {other.widthMm}×{other.heightMm}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              {/* Status położenia + reset */}
+              <div className="flex items-center justify-between px-2 py-1 rounded bg-slate-50 border border-slate-200/70 text-[11px]">
+                <span className="text-slate-600 font-medium truncate">
+                  {placedAboveTarget
+                    ? `Nad Poz. ${placedAboveTarget.positionIndex}`
+                    : (effectiveTarget.rowIndex ?? 0) > 0
+                    ? `Rząd ${(effectiveTarget.rowIndex ?? 0) + 1}`
+                    : "Poziom posadzki"}
+                </span>
+                {(effectiveTarget.placedAboveItemId || (effectiveTarget.rowIndex ?? 0) > 0) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSetPlacement(activeItem._id, {
+                        placedAboveItemId: null,
+                        placedBelowItemId: null,
+                        rowIndex: 0,
+                      })
+                    }
+                    className="text-[#0e7490] hover:text-[#085a70] font-semibold text-[10px] ml-2 shrink-0 cursor-pointer"
+                  >
+                    Reset (posadzka)
+                  </button>
+                )}
+              </div>
 
-              {/* Opcja 2: Umieść POD inną konstrukcją */}
+              {/* Opcja 1: Umieść nad (zwięzły select) */}
               {otherItems.length > 0 && (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
-                    <ArrowDown size={12} className="text-indigo-600" />
-                    <span>Umieść POD inną konstrukcją</span>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                    <ArrowUp size={11} className="text-emerald-600" />
+                    <span>Umieść nad konstrukcją:</span>
                   </label>
-                  <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                  <select
+                    value={effectiveTarget.placedAboveItemId || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (!val) {
+                        handleSetPlacement(activeItem._id, {
+                          placedAboveItemId: null,
+                          placedBelowItemId: null,
+                          rowIndex: 0,
+                        });
+                      } else {
+                        const other = otherItems.find((it) => it._id === val);
+                        handleSetPlacement(activeItem._id, {
+                          placedAboveItemId: val,
+                          placedBelowItemId: null,
+                          rowIndex: other?.rowIndex ?? 0,
+                        });
+                      }
+                    }}
+                    className="w-full text-xs font-medium bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#4ABBC3] cursor-pointer"
+                  >
+                    <option value="">— Brak (poziom posadzki) —</option>
                     {otherItems.map((other) => (
-                      <button
-                        key={`below-${other._id}`}
-                        type="button"
-                        onClick={() => {
-                          handleSetPlacement(other._id, {
-                            placedAboveItemId: activeItem._id,
-                            placedBelowItemId: null,
-                            rowIndex: activeItem.rowIndex ?? 0,
-                          });
-                        }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-50/70 hover:bg-[#f0fdff] border border-slate-200 hover:border-[#4ABBC3] text-slate-800 flex items-center justify-between transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <ArrowDown size={12} className="text-indigo-500" />
-                          <span className="truncate">
-                            Pod: <strong>Poz. {other.positionIndex}</strong> (
-                            {other.shortName || other.name})
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-mono text-slate-500 shrink-0 ml-2">
-                          {other.widthMm}×{other.heightMm}
-                        </span>
-                      </button>
+                      <option key={other._id} value={other._id}>
+                        Poz. {other.positionIndex}: {other.shortName || other.name} ({other.widthMm}×{other.heightMm})
+                      </option>
                     ))}
-                  </div>
+                  </select>
                 </div>
               )}
 
-              {/* Opcja 3: Rzędy konstrukcji (jedna niżej pod inną) */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
-                  <Rows size={12} className="text-[#0e7490]" />
-                  <span>Rząd na rysunku CAD (jedna pod drugą)</span>
+              {/* Opcja 2: Rząd na rysunku (pille) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  <Rows size={11} className="text-[#0e7490]" />
+                  <span>Rząd (jedna pod drugą):</span>
                 </label>
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="flex items-center gap-1 flex-wrap">
                   {availableRows.map((rIdx) => {
                     const isCurrentRow =
                       !effectiveTarget.placedAboveItemId &&
@@ -1981,15 +2506,13 @@ export function AllConstructionsCadView({
                             rowIndex: rIdx,
                           })
                         }
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border text-center transition-colors cursor-pointer ${
+                        className={`px-2 py-0.5 rounded text-xs font-semibold transition-colors cursor-pointer ${
                           isCurrentRow
-                            ? "bg-[#0b1220] text-white border-[#0b1220] font-bold"
-                            : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                            ? "bg-[#0b1220] text-white"
+                            : "bg-slate-100 hover:bg-slate-200 text-slate-700"
                         }`}
                       >
-                        {rIdx === 0
-                          ? "Rząd 1 (Główny)"
-                          : `Rząd ${rIdx + 1} (Poniżej)`}
+                        Rząd {rIdx + 1}
                       </button>
                     );
                   })}
@@ -2002,45 +2525,253 @@ export function AllConstructionsCadView({
                         rowIndex: maxRowIndex + 1,
                       })
                     }
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#f0fdff] hover:bg-[#e0f2fe] text-[#0e7490] border border-[#a5f3fc] text-center transition-colors cursor-pointer col-span-2 flex items-center justify-center gap-1"
+                    title="Nowy rząd poniżej"
+                    className="px-2 py-0.5 rounded text-xs font-semibold bg-[#f0fdff] hover:bg-[#e0f2fe] text-[#0e7490] border border-[#a5f3fc] transition-colors cursor-pointer flex items-center gap-0.5"
                   >
-                    <Plus size={12} />
-                    <span>Nowy rząd poniżej (Rząd {maxRowIndex + 2})</span>
+                    <Plus size={11} />
+                    <span>Nowy</span>
                   </button>
                 </div>
               </div>
 
-              {/* Opcja 4: Reset do poziomu posadzki */}
-              {(effectiveTarget.placedAboveItemId ||
-                (effectiveTarget.rowIndex ?? 0) > 0) && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleSetPlacement(activeItem._id, {
-                      placedAboveItemId: null,
-                      placedBelowItemId: null,
-                      rowIndex: 0,
-                    })
-                  }
-                  className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <RotateCcw size={12} className="text-slate-500" />
-                  <span>Przywróć na poziom posadzki (obok innych)</span>
-                </button>
-              )}
-
-              {/* Opcja 5: Przejdź do edycji w CAD */}
-              <div className="pt-2 border-t border-[#f1f5f9]">
+              {/* Przycisk przejścia do edycji */}
+              <div className="pt-1.5 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => {
                     setActiveDropdown(null);
                     onSelectPosition(activeItem._id);
                   }}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0b1220] hover:bg-[#1e293b] text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  className="w-full py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Edit3 size={13} className="text-[#4ABBC3]" />
-                  <span>Edytuj tę konstrukcję w CAD</span>
+                  <Edit3 size={12} className="text-[#4ABBC3]" />
+                  <span>Edytuj w CAD</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Pływający edytor wymiaru CAD (Dynamic Input po kliknięciu wymiaru) ── */}
+      {activeDimEdit && (() => {
+        const targetItem = effectiveItems.find(
+          (it) => it._id === activeDimEdit.itemId
+        );
+        if (!targetItem) return null;
+
+        const targetPanes = Math.max(targetItem.panesCount || 3, 1);
+        const targetWidth = Math.max(targetItem.widthMm || 2880, 400);
+        const targetHeight = Math.max(targetItem.heightMm || 2300, 400);
+
+        const popX =
+          typeof window !== "undefined"
+            ? Math.min(window.innerWidth - 290, Math.max(16, activeDimEdit.x - 135))
+            : 200;
+        const popY =
+          typeof window !== "undefined"
+            ? Math.min(window.innerHeight - 230, Math.max(16, activeDimEdit.y + 12))
+            : 200;
+
+        const parsedPreview = Math.round(Number(activeDimEdit.value));
+        const isValidPreview =
+          Number.isFinite(parsedPreview) && parsedPreview > 0;
+        const previewTotalWidth =
+          activeDimEdit.mode === "pane_width" && isValidPreview
+            ? Math.min(12000, Math.max(400, parsedPreview * targetPanes))
+            : activeDimEdit.mode === "width" && isValidPreview
+            ? Math.min(12000, Math.max(400, parsedPreview))
+            : targetWidth;
+
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-[#0b1220]/15 backdrop-blur-[0.5px]"
+            onClick={() => setActiveDimEdit(null)}
+          >
+            <div
+              style={{
+                position: "fixed",
+                left: `${popX}px`,
+                top: `${popY}px`,
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-[270px] bg-white rounded-xl shadow-2xl border-2 border-[#0284c7] p-3 text-[#0b1220] animate-in fade-in zoom-in-95 duration-100 space-y-2.5"
+            >
+              {/* Nagłówek */}
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#0b1220] text-[#4ABBC3] shrink-0">
+                    Poz. {targetItem.positionIndex}
+                  </span>
+                  <span className="text-xs font-bold text-slate-900 truncate">
+                    {activeDimEdit.mode === "width"
+                      ? "Szerokość całkowita (B)"
+                      : activeDimEdit.mode === "height"
+                      ? "Wysokość całkowita (H)"
+                      : `Szerokość kwatery #${(activeDimEdit.paneIndex ?? 0) + 1}`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveDimEdit(null)}
+                  className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors cursor-pointer shrink-0"
+                  title="Zamknij (Esc)"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Pole wprowadzania */}
+              <div>
+                <div className="relative flex items-center">
+                  <input
+                    ref={dimInputRef}
+                    type="number"
+                    min={150}
+                    max={12000}
+                    step={10}
+                    value={activeDimEdit.value}
+                    onChange={(e) =>
+                      setActiveDimEdit((prev) =>
+                        prev ? { ...prev, value: e.target.value } : null
+                      )
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleApplyDimension(activeDimEdit.value);
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        setActiveDimEdit(null);
+                      }
+                    }}
+                    className="w-full px-3 py-2 pr-12 rounded-lg border-2 border-sky-400 bg-sky-50/40 text-base font-mono font-black text-slate-900 focus:outline-none focus:border-[#0284c7] focus:bg-white transition-colors"
+                  />
+                  <span className="absolute right-3 text-xs font-mono font-bold text-slate-400 pointer-events-none">
+                    mm
+                  </span>
+                </div>
+
+                {/* Szybka korekta krokowa */}
+                <div className="flex items-center justify-between gap-1 mt-1.5">
+                  {[-100, -10, 10, 100].map((delta) => (
+                    <button
+                      key={delta}
+                      type="button"
+                      onClick={() => {
+                        const cur =
+                          Number(activeDimEdit.value) ||
+                          (activeDimEdit.mode === "height"
+                            ? targetHeight
+                            : targetWidth);
+                        const nextVal = Math.max(150, cur + delta);
+                        setActiveDimEdit((prev) =>
+                          prev ? { ...prev, value: String(nextVal) } : null
+                        );
+                        dimInputRef.current?.focus();
+                      }}
+                      className="flex-1 py-1 rounded bg-slate-100 hover:bg-slate-200 text-[11px] font-mono font-bold text-slate-700 transition-colors cursor-pointer"
+                    >
+                      {delta > 0 ? `+${delta}` : delta}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Podgląd przeliczenia */}
+              <div className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 flex items-center justify-between font-mono">
+                {activeDimEdit.mode === "pane_width" ? (
+                  <>
+                    <span>Nowa szer. całk. ({targetPanes} tory):</span>
+                    <span className="font-bold text-slate-900">
+                      {previewTotalWidth} mm
+                    </span>
+                  </>
+                ) : activeDimEdit.mode === "width" ? (
+                  <>
+                    <span>Szer. 1 kwatery ({targetPanes}x):</span>
+                    <span className="font-bold text-slate-900">
+                      ~{Math.round(previewTotalWidth / targetPanes)} mm
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>Wysokość światła:</span>
+                    <span className="font-bold text-slate-900">
+                      {Math.max(
+                        200,
+                        (isValidPreview ? parsedPreview : targetHeight) - 100
+                      )}{" "}
+                      mm
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Przełącznik B / H */}
+              <div className="flex items-center gap-1 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveDimEdit((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            mode: "width",
+                            value: String(targetWidth),
+                            paneIndex: undefined,
+                          }
+                        : null
+                    )
+                  }
+                  className={`flex-1 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                    activeDimEdit.mode === "width"
+                      ? "bg-sky-100 text-[#0284c7] border border-sky-300"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Szerokość B ({targetWidth})
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveDimEdit((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            mode: "height",
+                            value: String(targetHeight),
+                            paneIndex: undefined,
+                          }
+                        : null
+                    )
+                  }
+                  className={`flex-1 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                    activeDimEdit.mode === "height"
+                      ? "bg-sky-100 text-[#0284c7] border border-sky-300"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Wysokość H ({targetHeight})
+                </button>
+              </div>
+
+              {/* Przyciski akcji */}
+              <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setActiveDimEdit(null)}
+                  className="flex-1 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Anuluj
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyDimension(activeDimEdit.value)}
+                  className="flex-1 py-1.5 rounded-lg bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-xs"
+                >
+                  <Check size={13} />
+                  <span>Zastosuj</span>
                 </button>
               </div>
             </div>

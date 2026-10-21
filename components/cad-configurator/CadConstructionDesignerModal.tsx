@@ -681,6 +681,11 @@ export function CadConstructionDesignerModal({
                 key={`${widthMm}-${heightMm}-${panesCount}`}
                 item={liveCadItem}
                 initialZoom={1}
+                onChange={(patch) => {
+                  if (patch.widthMm !== undefined) setWidthMm(patch.widthMm);
+                  if (patch.heightMm !== undefined) setHeightMm(patch.heightMm);
+                  if (patch.panesCount !== undefined) setPanesCount(patch.panesCount);
+                }}
               />
             </div>
           </div>
