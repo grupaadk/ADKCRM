@@ -34,7 +34,6 @@ export function AllConstructionsCadView({
   const [zoom, setZoom] = useState(1);
   const [showDimensions, setShowDimensions] = useState(true);
   const [displayMode, setDisplayMode] = useState<"sheet" | "grid">("sheet");
-  const [colsPerRow, setColsPerRow] = useState<number>(0); // 0 = auto / wszystkie w rzędzie (max 3)
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -116,13 +115,8 @@ export function AllConstructionsCadView({
   }
 
   // ── Obliczenia układu dla Wspólnego Arkusza CAD ("sheet") ──
-  const effectiveCols =
-    colsPerRow > 0 ? colsPerRow : items.length <= 3 ? items.length : 2;
-
-  const rows: CadConstructionItem[][] = [];
-  for (let i = 0; i < items.length; i += effectiveCols) {
-    rows.push(items.slice(i, i + effectiveCols));
-  }
+  // Wszystkie konstrukcje zestawione obok siebie w jednej linii na wspólnym poziomie posadzki
+  const rows: CadConstructionItem[][] = [items];
 
   const gapX = 520; // odstęp poziomy między konstrukcjami na arkuszu (w mm skali rysunku)
   const gapY = 580; // odstęp pionowy między rzędami konstrukcji
@@ -216,34 +210,6 @@ export function AllConstructionsCadView({
               <span>Siatka kart</span>
             </button>
           </div>
-
-          {/* Układ kolumn dla wspólnego arkusza */}
-          {displayMode === "sheet" && items.length > 1 && (
-            <div className="hidden md:inline-flex items-center rounded-md bg-white border border-[#d4dae3] px-1.5 py-0.5 text-[11px]">
-              <span className="text-[#7c8597] mr-1.5 font-medium">Układ:</span>
-              {[
-                { label: "W 1 linii", val: items.length },
-                { label: "Po 2", val: 2 },
-                { label: "Po 3", val: 3 },
-              ].map((opt) => {
-                const isSelected = effectiveCols === opt.val;
-                return (
-                  <button
-                    key={opt.label}
-                    type="button"
-                    onClick={() => setColsPerRow(opt.val)}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-colors cursor-pointer ${
-                      isSelected
-                        ? "bg-[#e0f2fe] text-[#0369a1]"
-                        : "text-[#64748b] hover:text-[#0b1220]"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
 
           {/* Toggle Wymiary */}
           <button

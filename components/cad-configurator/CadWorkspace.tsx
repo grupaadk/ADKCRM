@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -23,9 +23,10 @@ import {
 
 interface CadWorkspaceProps {
   offerId: Id<"offers">;
+  onBack?: () => void;
 }
 
-export function CadWorkspace({ offerId }: CadWorkspaceProps) {
+export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
   // Pobieranie oferty i pozycji z backendu
   const offerData = useQuery(api.offers.getOfferWithItems, { offerId });
   const rawTemplates = useQuery(api.constructions.list, { includeInactive: false });
@@ -196,6 +197,20 @@ export function CadWorkspace({ offerId }: CadWorkspaceProps) {
     }
   };
 
+  const router = useRouter();
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else if (opportunity) {
+      router.push(`/admin/szansa/${opportunity._id}`);
+    } else {
+      router.push("/admin/oferta");
+    }
+  };
+
   if (!offerData || !offer) {
     return (
       <div className="h-full flex items-center justify-center bg-[#f6f7f9] text-slate-500">
@@ -212,23 +227,15 @@ export function CadWorkspace({ offerId }: CadWorkspaceProps) {
       {/* ── Top Header bar dopasowany do ADK CRM ── */}
       <header className="h-12 bg-white border-b border-[#e3e7ee] px-4 flex items-center justify-between z-30 shrink-0 shadow-xs">
         <div className="flex items-center gap-2 text-xs">
-          {opportunity ? (
-            <Link
-              href={`/admin/szansa/${opportunity._id}`}
-              className="text-[#4b5563] hover:text-[#0b1220] font-medium flex items-center gap-1 transition-colors"
-            >
-              <ArrowLeft size={13} />
-              <span>Szansa</span>
-            </Link>
-          ) : (
-            <Link
-              href="/admin/oferta"
-              className="text-[#4b5563] hover:text-[#0b1220] font-medium flex items-center gap-1 transition-colors"
-            >
-              <ArrowLeft size={13} />
-              <span>Oferty</span>
-            </Link>
-          )}
+          <button
+            type="button"
+            onClick={handleBack}
+            className="text-[#4b5563] hover:text-[#0b1220] font-medium flex items-center gap-1.5 transition-colors cursor-pointer px-2 py-1 -ml-1 rounded hover:bg-slate-100"
+            title="Wróć do poprzedniej strony / widoku"
+          >
+            <ArrowLeft size={13} />
+            <span>Wróć</span>
+          </button>
 
           <ChevronRight size={13} className="text-slate-300" />
 

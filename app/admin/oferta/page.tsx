@@ -180,10 +180,14 @@ function OfertaPageContent() {
 
   // Synchronizacja offerIdParam z activeOfferId
   useEffect(() => {
-    if (offerIdParam && offerIdParam !== activeOfferId) {
-      setActiveOfferId(offerIdParam as Id<"offers">);
+    if (offerIdParam) {
+      if (offerIdParam !== activeOfferId) {
+        setActiveOfferId(offerIdParam as Id<"offers">);
+      }
+    } else if (!oppIdParam && activeOfferId) {
+      setActiveOfferId(null);
     }
-  }, [offerIdParam, activeOfferId]);
+  }, [offerIdParam, oppIdParam, activeOfferId]);
 
   // Sortowanie
   const handleSort = (field: SortField) => {
@@ -238,7 +242,17 @@ function OfertaPageContent() {
   if (activeOfferId) {
     return (
       <div className="h-[calc(100vh-64px)] -m-6 flex flex-col overflow-hidden">
-        <CadWorkspace offerId={activeOfferId} />
+        <CadWorkspace
+          offerId={activeOfferId}
+          onBack={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              setActiveOfferId(null);
+              router.push("/admin/oferta");
+            }
+          }}
+        />
       </div>
     );
   }
