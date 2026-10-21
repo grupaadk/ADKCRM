@@ -407,6 +407,39 @@ export function AllConstructionsCadView({
                       const originY = floorY - height;
                       cursorX += width + gapX;
 
+                      // Precyzyjne obliczenia geometrii trójkąta (do zabudowy tarasu pod krokwie)
+                      const tBot = 45; // wysokość dolnego PROFIL H
+                      const tKrok = 50; // grubość belki krokwi dachowej
+                      const tLeft = 45; // grubość pionowego słupka przyściennego
+                      const tSub = 30; // grubość listwy montażowej podkrokwiowej
+
+                      const yFloorPos = originY + height;
+                      const yProfTop = yFloorPos - tBot;
+                      const yKrokLeftTop = originY;
+                      const yKrokLeftBot = originY + tKrok;
+                      const yKrokRightBot = yProfTop;
+                      const yKrokRightTop = Math.max(originY + 10, yProfTop - tKrok);
+
+                      const yInnerTop = yKrokLeftBot + tSub;
+                      const yInnerBot = yProfTop;
+                      const xInnerLeft = originX + tLeft;
+                      const xInnerRight = originX + width;
+
+                      const mInner = Math.max(0.001, (yInnerBot - yInnerTop) / Math.max(1, xInnerRight - xInnerLeft));
+                      const krokiewAngleDeg = Math.round(Math.atan2(yKrokRightTop - yKrokLeftTop, width) * (180 / Math.PI) * 10) / 10;
+                      const krokiewLenMm = Math.round(Math.sqrt(width * width + (yKrokRightTop - yKrokLeftTop) * (yKrokRightTop - yKrokLeftTop)));
+
+                      const gMargin = 14; // szczelina montażowa szyby
+                      const xGlassLeft = xInnerLeft + gMargin;
+                      const yGlassBot = yInnerBot - gMargin;
+                      const yGlassTop = yInnerTop + mInner * (xGlassLeft - xInnerLeft) + gMargin;
+                      const xGlassRight = Math.round(
+                        Math.min(
+                          originX + width - 40,
+                          Math.max(xGlassLeft + 50, xInnerLeft + (yGlassBot - gMargin - yInnerTop) / mInner)
+                        )
+                      );
+
                       const paneWidth = Math.round(width / panes);
                       const segments: CadSegment[] =
                         item.segments && item.segments.length === panes
@@ -487,7 +520,12 @@ export function AllConstructionsCadView({
                             <>
                               {/* Cienka czerwona linia obrysu zewnętrznego */}
                               <polygon
-                                points={`${originX - 2},${originY - 2} ${originX + width + 2},${originY + height + 2} ${originX - 2},${originY + height + 2}`}
+                                points={`
+                                  ${originX - 2},${yKrokLeftTop - 2}
+                                  ${originX + width + 2},${yKrokRightTop - 2}
+                                  ${originX + width + 2},${yFloorPos + 2}
+                                  ${originX - 2},${yFloorPos + 2}
+                                `}
                                 fill="none"
                                 stroke="#dc2626"
                                 strokeWidth="2.5"
@@ -496,16 +534,16 @@ export function AllConstructionsCadView({
                               {/* Aluminiowy profil dolny poziomy (PROFIL H) */}
                               <rect
                                 x={originX}
-                                y={originY + height - frameThickness}
+                                y={yProfTop}
                                 width={width}
-                                height={frameThickness}
+                                height={tBot}
                                 fill="#29323d"
                                 stroke="#1e242b"
                                 strokeWidth="2"
                               />
                               <text
                                 x={originX + width / 2}
-                                y={originY + height - 17}
+                                y={yProfTop + tBot / 2 + 7}
                                 fill="#ffffff"
                                 fontSize="24"
                                 fontWeight="900"
@@ -518,9 +556,9 @@ export function AllConstructionsCadView({
                               {/* Lewy pionowy profil przyścienny */}
                               <rect
                                 x={originX}
-                                y={originY}
-                                width={frameThickness}
-                                height={height - frameThickness}
+                                y={yKrokLeftBot}
+                                width={tLeft}
+                                height={yProfTop - yKrokLeftBot}
                                 fill="#29323d"
                                 stroke="#1e242b"
                                 strokeWidth="2"
@@ -529,28 +567,17 @@ export function AllConstructionsCadView({
                               {/* Górna belka skośna (KROKIEW) */}
                               <polygon
                                 points={`
-                                  ${originX},${originY}
-                                  ${originX + width},${originY + height}
-                                  ${originX + width},${originY + height - 40}
-                                  ${originX},${originY - 50}
+                                  ${originX},${yKrokLeftTop}
+                                  ${originX + width},${yKrokRightTop}
+                                  ${originX + width},${yKrokRightBot}
+                                  ${originX},${yKrokLeftBot}
                                 `}
                                 fill="#84cc16"
                                 stroke="#4d7c0f"
                                 strokeWidth="2"
                               />
-                              <polygon
-                                points={`
-                                  ${originX + 15},${originY + 12}
-                                  ${originX + width - 10},${originY + height}
-                                  ${originX + width - 30},${originY + height}
-                                  ${originX + frameThickness},${originY + frameThickness + 10}
-                                `}
-                                fill="#29323d"
-                                stroke="#1e242b"
-                                strokeWidth="1.5"
-                              />
                               <g
-                                transform={`translate(${originX + width * 0.46}, ${originY + height * 0.46 - 22}) rotate(${slopeAngleDeg})`}
+                                transform={`translate(${originX + width * 0.48}, ${(yKrokLeftTop + yKrokRightTop) / 2 + tKrok / 2 + 5}) rotate(${krokiewAngleDeg})`}
                               >
                                 <text
                                   x="0"
@@ -565,12 +592,24 @@ export function AllConstructionsCadView({
                                 </text>
                               </g>
 
+                              {/* Podkrokiew / listwa montażowa ramy */}
+                              <polygon
+                                points={`
+                                  ${originX},${yKrokLeftBot}
+                                  ${originX + width},${yKrokRightBot}
+                                  ${originX + tLeft},${yInnerTop}
+                                `}
+                                fill="#29323d"
+                                stroke="#1e242b"
+                                strokeWidth="1.5"
+                              />
+
                               {/* Wypełnienie szklane trójkąta */}
                               <polygon
                                 points={`
-                                  ${originX + frameThickness + 8},${originY + frameThickness + 30}
-                                  ${originX + width - 45},${originY + height - frameThickness - 8}
-                                  ${originX + frameThickness + 8},${originY + height - frameThickness - 8}
+                                  ${xGlassLeft},${yGlassTop}
+                                  ${xGlassRight},${yGlassBot}
+                                  ${xGlassLeft},${yGlassBot}
                                 `}
                                 fill="#ffffff"
                                 stroke="#38bdf8"
@@ -579,10 +618,10 @@ export function AllConstructionsCadView({
 
                               {/* Odblaski szkła */}
                               <line
-                                x1={originX + frameThickness + 40}
-                                y1={originY + height * 0.65}
-                                x2={originX + width * 0.45}
-                                y2={originY + height * 0.45}
+                                x1={xGlassLeft + 40}
+                                y1={yGlassBot - 30}
+                                x2={xGlassLeft + (xGlassRight - xGlassLeft) * 0.35}
+                                y2={yGlassTop + (yGlassBot - yGlassTop) * 0.35}
                                 stroke="#38bdf8"
                                 strokeWidth="2.5"
                                 strokeOpacity="0.4"
@@ -591,7 +630,7 @@ export function AllConstructionsCadView({
                               {/* Parametry wewnątrz trójkąta */}
                               <text
                                 x={originX + width * 0.35}
-                                y={originY + height * 0.72}
+                                y={yGlassBot - 60}
                                 fill="#0b1220"
                                 fontSize="42"
                                 fontWeight="900"
@@ -601,13 +640,13 @@ export function AllConstructionsCadView({
                               </text>
                               <text
                                 x={originX + width * 0.35}
-                                y={originY + height * 0.72 + 45}
+                                y={yGlassBot - 20}
                                 fill="#0e7490"
                                 fontSize="28"
                                 fontWeight="800"
                                 textAnchor="middle"
                               >
-                                Spadek dachu: {slopeAngleDeg}° · Krokiew: {hypotenuseMm} mm
+                                Spadek dachu: {krokiewAngleDeg}° · Krokiew: {krokiewLenMm} mm
                               </text>
                             </>
                           ) : (
@@ -1015,8 +1054,45 @@ export function AllConstructionsCadView({
                     (item.systemName.toLowerCase().includes("krokiew") ||
                       item.systemName.toLowerCase().includes("profil h"))
                 );
-              const slopeAngleDeg = Math.round(Math.atan2(height, width) * (180 / Math.PI) * 10) / 10;
-              const hypotenuseMm = Math.round(Math.sqrt(width * width + height * height));
+
+              const padLeft = 120;
+              const padRight = 180;
+              const padTop = 200;
+              const padBottom = 60;
+              const vbW = width + padLeft + padRight;
+              const vbH = height + padTop + padBottom;
+
+              const tBot = 45;
+              const tKrok = 50;
+              const tLeft = 45;
+              const tSub = 30;
+
+              const yFloorPosCard = padTop + height;
+              const yProfTopCard = yFloorPosCard - tBot;
+              const yKrokLeftTopCard = padTop;
+              const yKrokLeftBotCard = padTop + tKrok;
+              const yKrokRightBotCard = yProfTopCard;
+              const yKrokRightTopCard = Math.max(padTop + 10, yProfTopCard - tKrok);
+
+              const yInnerTopCard = yKrokLeftBotCard + tSub;
+              const yInnerBotCard = yProfTopCard;
+              const xInnerLeftCard = padLeft + tLeft;
+              const xInnerRightCard = padLeft + width;
+
+              const mInnerCard = Math.max(0.001, (yInnerBotCard - yInnerTopCard) / Math.max(1, xInnerRightCard - xInnerLeftCard));
+              const krokiewAngleDegCard = Math.round(Math.atan2(yKrokRightTopCard - yKrokLeftTopCard, width) * (180 / Math.PI) * 10) / 10;
+              const krokiewLenMmCard = Math.round(Math.sqrt(width * width + (yKrokRightTopCard - yKrokLeftTopCard) * (yKrokRightTopCard - yKrokLeftTopCard)));
+
+              const gMarginCard = 14;
+              const xGlassLeftCard = xInnerLeftCard + gMarginCard;
+              const yGlassBotCard = yInnerBotCard - gMarginCard;
+              const yGlassTopCard = yInnerTopCard + mInnerCard * (xGlassLeftCard - xInnerLeftCard) + gMarginCard;
+              const xGlassRightCard = Math.round(
+                Math.min(
+                  padLeft + width - 40,
+                  Math.max(xGlassLeftCard + 50, xInnerLeftCard + (yGlassBotCard - gMarginCard - yInnerTopCard) / mInnerCard)
+                )
+              );
 
               const segments: CadSegment[] =
                 item.segments && item.segments.length === panes
@@ -1028,13 +1104,6 @@ export function AllConstructionsCadView({
                           : paneWidth,
                       heightMm: height - 103,
                     }));
-
-              const padLeft = 120;
-              const padRight = 180;
-              const padTop = 200;
-              const padBottom = 60;
-              const vbW = width + padLeft + padRight;
-              const vbH = height + padTop + padBottom;
 
               return (
                 <div
@@ -1092,7 +1161,12 @@ export function AllConstructionsCadView({
                         <g>
                           {/* Czerwony obrys */}
                           <polygon
-                            points={`${padLeft - 2},${padTop - 2} ${padLeft + width + 2},${padTop + height + 2} ${padLeft - 2},${padTop + height + 2}`}
+                            points={`
+                              ${padLeft - 2},${yKrokLeftTopCard - 2}
+                              ${padLeft + width + 2},${yKrokRightTopCard - 2}
+                              ${padLeft + width + 2},${yFloorPosCard + 2}
+                              ${padLeft - 2},${yFloorPosCard + 2}
+                            `}
                             fill="none"
                             stroke="#dc2626"
                             strokeWidth="2"
@@ -1100,16 +1174,16 @@ export function AllConstructionsCadView({
                           {/* Dolny profil H */}
                           <rect
                             x={padLeft}
-                            y={padTop + height - frameThickness}
+                            y={yProfTopCard}
                             width={width}
-                            height={frameThickness}
+                            height={tBot}
                             fill="#29323d"
                             stroke="#1e242b"
                             strokeWidth="1.5"
                           />
                           <text
                             x={padLeft + width / 2}
-                            y={padTop + height - 17}
+                            y={yProfTopCard + tBot / 2 + 7}
                             fill="#ffffff"
                             fontSize="22"
                             fontWeight="900"
@@ -1121,9 +1195,9 @@ export function AllConstructionsCadView({
                           {/* Lewy pionowy słupek */}
                           <rect
                             x={padLeft}
-                            y={padTop}
-                            width={frameThickness}
-                            height={height - frameThickness}
+                            y={yKrokLeftBotCard}
+                            width={tLeft}
+                            height={yProfTopCard - yKrokLeftBotCard}
                             fill="#29323d"
                             stroke="#1e242b"
                             strokeWidth="1.5"
@@ -1131,28 +1205,17 @@ export function AllConstructionsCadView({
                           {/* Belka skośna (KROKIEW) */}
                           <polygon
                             points={`
-                              ${padLeft},${padTop}
-                              ${padLeft + width},${padTop + height}
-                              ${padLeft + width},${padTop + height - 40}
-                              ${padLeft},${padTop - 50}
+                              ${padLeft},${yKrokLeftTopCard}
+                              ${padLeft + width},${yKrokRightTopCard}
+                              ${padLeft + width},${yKrokRightBotCard}
+                              ${padLeft},${yKrokLeftBotCard}
                             `}
                             fill="#84cc16"
                             stroke="#4d7c0f"
                             strokeWidth="2"
                           />
-                          <polygon
-                            points={`
-                              ${padLeft + 15},${padTop + 12}
-                              ${padLeft + width - 10},${padTop + height}
-                              ${padLeft + width - 30},${padTop + height}
-                              ${padLeft + frameThickness},${padTop + frameThickness + 10}
-                            `}
-                            fill="#29323d"
-                            stroke="#1e242b"
-                            strokeWidth="1.5"
-                          />
                           <g
-                            transform={`translate(${padLeft + width * 0.46}, ${padTop + height * 0.46 - 22}) rotate(${slopeAngleDeg})`}
+                            transform={`translate(${padLeft + width * 0.48}, ${(yKrokLeftTopCard + yKrokRightTopCard) / 2 + tKrok / 2 + 5}) rotate(${krokiewAngleDegCard})`}
                           >
                             <text
                               x="0"
@@ -1166,29 +1229,40 @@ export function AllConstructionsCadView({
                               KROKIEW
                             </text>
                           </g>
+                          {/* Podkrokiew / listwa montażowa ramy */}
+                          <polygon
+                            points={`
+                              ${padLeft},${yKrokLeftBotCard}
+                              ${padLeft + width},${yKrokRightBotCard}
+                              ${padLeft + tLeft},${yInnerTopCard}
+                            `}
+                            fill="#29323d"
+                            stroke="#1e242b"
+                            strokeWidth="1.5"
+                          />
                           {/* Szkło */}
                           <polygon
                             points={`
-                              ${padLeft + frameThickness + 8},${padTop + frameThickness + 30}
-                              ${padLeft + width - 45},${padTop + height - frameThickness - 8}
-                              ${padLeft + frameThickness + 8},${padTop + height - frameThickness - 8}
+                              ${xGlassLeftCard},${yGlassTopCard}
+                              ${xGlassRightCard},${yGlassBotCard}
+                              ${xGlassLeftCard},${yGlassBotCard}
                             `}
                             fill="#ffffff"
                             stroke="#38bdf8"
                             strokeWidth="2"
                           />
                           <line
-                            x1={padLeft + frameThickness + 40}
-                            y1={padTop + height * 0.65}
-                            x2={padLeft + width * 0.45}
-                            y2={padTop + height * 0.45}
+                            x1={xGlassLeftCard + 40}
+                            y1={yGlassBotCard - 30}
+                            x2={xGlassLeftCard + (xGlassRightCard - xGlassLeftCard) * 0.35}
+                            y2={yGlassTopCard + (yGlassBotCard - yGlassTopCard) * 0.35}
                             stroke="#38bdf8"
                             strokeWidth="2.5"
                             strokeOpacity="0.4"
                           />
                           <text
                             x={padLeft + width * 0.35}
-                            y={padTop + height * 0.72}
+                            y={yGlassBotCard - 60}
                             fill="#0b1220"
                             fontSize="42"
                             fontWeight="900"
@@ -1198,13 +1272,13 @@ export function AllConstructionsCadView({
                           </text>
                           <text
                             x={padLeft + width * 0.35}
-                            y={padTop + height * 0.72 + 45}
+                            y={yGlassBotCard - 20}
                             fill="#0e7490"
                             fontSize="26"
                             fontWeight="800"
                             textAnchor="middle"
                           >
-                            Spadek: {slopeAngleDeg}° · Krokiew: {hypotenuseMm} mm
+                            Spadek: {krokiewAngleDegCard}° · Krokiew: {krokiewLenMmCard} mm
                           </text>
 
                           {showDimensions && (

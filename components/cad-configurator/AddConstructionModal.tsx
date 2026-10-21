@@ -299,7 +299,7 @@ export function AddConstructionModal({
                         <g>
                           {/* Czerwony obrys trójkąta */}
                           <polygon
-                            points="6,10 134,64 6,64"
+                            points="5,9 135,52 135,65 5,65"
                             fill="none"
                             stroke="#dc2626"
                             strokeWidth="1"
@@ -316,9 +316,9 @@ export function AddConstructionModal({
                           />
                           <text
                             x="70"
-                            y="63"
+                            y="62.5"
                             fill="#ffffff"
-                            fontSize="4"
+                            fontSize="3.8"
                             fontWeight="900"
                             textAnchor="middle"
                             letterSpacing="1px"
@@ -328,35 +328,42 @@ export function AddConstructionModal({
                           {/* Lewy pionowy profil */}
                           <rect
                             x="6"
-                            y="12"
+                            y="15"
                             width="6"
-                            height="46"
+                            height="43"
                             fill="#29323d"
                             stroke="#1e242b"
                             strokeWidth="0.5"
                           />
                           {/* Krokiew skośna */}
                           <polygon
-                            points="6,12 134,64 134,58 6,6"
+                            points="6,10 134,53 134,58 6,15"
                             fill="#84cc16"
                             stroke="#4d7c0f"
                             strokeWidth="0.8"
                           />
                           <text
                             x="74"
-                            y="32"
+                            y="33"
                             fill="#0b1220"
                             fontSize="5.5"
                             fontWeight="900"
                             textAnchor="middle"
-                            transform="rotate(22, 74, 32)"
+                            transform="rotate(20, 74, 33)"
                             letterSpacing="0.5px"
                           >
                             KROKIEW
                           </text>
+                          {/* Podkrokiew / listwa montażowa */}
+                          <polygon
+                            points="6,15 134,58 12,18"
+                            fill="#29323d"
+                            stroke="#1e242b"
+                            strokeWidth="0.5"
+                          />
                           {/* Szkło */}
                           <polygon
-                            points="13,18 122,57 13,57"
+                            points="14,21 124,56 14,56"
                             fill="#ffffff"
                             stroke="#38bdf8"
                             strokeWidth="0.8"

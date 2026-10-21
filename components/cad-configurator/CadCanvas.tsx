@@ -80,9 +80,6 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
           item.systemName.toLowerCase().includes("profil h"))
     );
 
-  const slopeAngleDeg = Math.round(Math.atan2(height, width) * (180 / Math.PI) * 10) / 10;
-  const hypotenuseMm = Math.round(Math.sqrt(width * width + height * height));
-
   // Obliczenia wymiarów kwater
   const paneWidth = Math.round(width / panes);
   const segments: CadSegment[] =
@@ -115,6 +112,39 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
 
   // Profil ramy w mm
   const frameThickness = 50;
+
+  // Precyzyjne obliczenia geometrii trójkąta (do zabudowy tarasu pod krokwie)
+  const tBot = 45; // wysokość dolnego PROFIL H
+  const tKrok = 50; // grubość belki krokwi dachowej
+  const tLeft = 45; // grubość pionowego słupka przyściennego
+  const tSub = 30; // grubość listwy montażowej podkrokwiowej
+
+  const yFloor = originY + height;
+  const yProfTop = yFloor - tBot;
+  const yKrokLeftTop = originY;
+  const yKrokLeftBot = originY + tKrok;
+  const yKrokRightBot = yProfTop;
+  const yKrokRightTop = Math.max(originY + 10, yProfTop - tKrok);
+
+  const yInnerTop = yKrokLeftBot + tSub;
+  const yInnerBot = yProfTop;
+  const xInnerLeft = originX + tLeft;
+  const xInnerRight = originX + width;
+
+  const mInner = Math.max(0.001, (yInnerBot - yInnerTop) / Math.max(1, xInnerRight - xInnerLeft));
+  const krokiewAngleDeg = Math.round(Math.atan2(yKrokRightTop - yKrokLeftTop, width) * (180 / Math.PI) * 10) / 10;
+  const krokiewLenMm = Math.round(Math.sqrt(width * width + (yKrokRightTop - yKrokLeftTop) * (yKrokRightTop - yKrokLeftTop)));
+
+  const gMargin = 14; // szczelina montażowa szyby
+  const xGlassLeft = xInnerLeft + gMargin;
+  const yGlassBot = yInnerBot - gMargin;
+  const yGlassTop = yInnerTop + mInner * (xGlassLeft - xInnerLeft) + gMargin;
+  const xGlassRight = Math.round(
+    Math.min(
+      originX + width - 40,
+      Math.max(xGlassLeft + 50, xInnerLeft + (yGlassBot - gMargin - yInnerTop) / mInner)
+    )
+  );
 
   return (
     <div className="relative flex-1 flex flex-col h-full min-w-0 min-h-0 bg-[#f1f5f9] select-none overflow-hidden">
@@ -263,7 +293,12 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
                 <>
                   {/* Cienka czerwona linia obrysu zewnętrznego */}
                   <polygon
-                    points={`${originX - 2},${originY - 2} ${originX + width + 2},${originY + height + 2} ${originX - 2},${originY + height + 2}`}
+                    points={`
+                      ${originX - 2},${yKrokLeftTop - 2}
+                      ${originX + width + 2},${yKrokRightTop - 2}
+                      ${originX + width + 2},${yFloor + 2}
+                      ${originX - 2},${yFloor + 2}
+                    `}
                     fill="none"
                     stroke="#dc2626"
                     strokeWidth="2.5"
@@ -272,16 +307,16 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
                   {/* Aluminiowy profil dolny poziomy (PROFIL H) */}
                   <rect
                     x={originX}
-                    y={originY + height - frameThickness}
+                    y={yProfTop}
                     width={width}
-                    height={frameThickness}
+                    height={tBot}
                     fill="#29323d"
                     stroke="#1e242b"
                     strokeWidth="2"
                   />
                   <text
                     x={originX + width / 2}
-                    y={originY + height - 17}
+                    y={yProfTop + tBot / 2 + 7}
                     fill="#ffffff"
                     fontSize="22"
                     fontWeight="900"
@@ -294,9 +329,9 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
                   {/* Lewy pionowy profil przyścienny */}
                   <rect
                     x={originX}
-                    y={originY}
-                    width={frameThickness}
-                    height={height - frameThickness}
+                    y={yKrokLeftBot}
+                    width={tLeft}
+                    height={yProfTop - yKrokLeftBot}
                     fill="#29323d"
                     stroke="#1e242b"
                     strokeWidth="2"
@@ -305,36 +340,24 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
                   {/* Górna belka skośna (KROKIEW) */}
                   <polygon
                     points={`
-                      ${originX},${originY}
-                      ${originX + width},${originY + height}
-                      ${originX + width},${originY + height - 40}
-                      ${originX},${originY - 50}
+                      ${originX},${yKrokLeftTop}
+                      ${originX + width},${yKrokRightTop}
+                      ${originX + width},${yKrokRightBot}
+                      ${originX},${yKrokLeftBot}
                     `}
                     fill="#84cc16"
                     stroke="#4d7c0f"
                     strokeWidth="2"
                   />
-                  {/* Podkrokiew / listwa montażowa */}
-                  <polygon
-                    points={`
-                      ${originX + 15},${originY + 12}
-                      ${originX + width - 10},${originY + height}
-                      ${originX + width - 30},${originY + height}
-                      ${originX + frameThickness},${originY + frameThickness + 10}
-                    `}
-                    fill="#29323d"
-                    stroke="#1e242b"
-                    strokeWidth="1.5"
-                  />
-                  {/* Etykieta KROKIEW */}
+                  {/* Etykieta KROKIEW wzdłuż belki */}
                   <g
-                    transform={`translate(${originX + width * 0.46}, ${originY + height * 0.46 - 22}) rotate(${slopeAngleDeg})`}
+                    transform={`translate(${originX + width * 0.48}, ${(yKrokLeftTop + yKrokRightTop) / 2 + tKrok / 2 + 5}) rotate(${krokiewAngleDeg})`}
                   >
                     <text
                       x="0"
                       y="0"
                       fill="#0b1220"
-                      fontSize="30"
+                      fontSize="24"
                       fontWeight="900"
                       textAnchor="middle"
                       letterSpacing="4px"
@@ -343,24 +366,36 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
                     </text>
                   </g>
 
-                  {/* Wypełnienie szklane trójkąta */}
+                  {/* Podkrokiew / listwa montażowa ramy */}
                   <polygon
                     points={`
-                      ${originX + frameThickness + 8},${originY + frameThickness + 30}
-                      ${originX + width - 45},${originY + height - frameThickness - 8}
-                      ${originX + frameThickness + 8},${originY + height - frameThickness - 8}
+                      ${originX},${yKrokLeftBot}
+                      ${originX + width},${yKrokRightBot}
+                      ${originX + tLeft},${yInnerTop}
+                    `}
+                    fill="#29323d"
+                    stroke="#1e242b"
+                    strokeWidth="1.5"
+                  />
+
+                  {/* Wypełnienie szklane trójkąta (precyzyjna szyba) */}
+                  <polygon
+                    points={`
+                      ${xGlassLeft},${yGlassTop}
+                      ${xGlassRight},${yGlassBot}
+                      ${xGlassLeft},${yGlassBot}
                     `}
                     fill="#ffffff"
                     stroke="#38bdf8"
                     strokeWidth="2"
                   />
 
-                  {/* Odblaski szkła */}
+                  {/* Odblaski szkła (zawsze wewnątrz kwatery) */}
                   <line
-                    x1={originX + frameThickness + 40}
-                    y1={originY + height * 0.65}
-                    x2={originX + width * 0.45}
-                    y2={originY + height * 0.45}
+                    x1={xGlassLeft + 40}
+                    y1={yGlassBot - 30}
+                    x2={xGlassLeft + (xGlassRight - xGlassLeft) * 0.35}
+                    y2={yGlassTop + (yGlassBot - yGlassTop) * 0.35}
                     stroke="#38bdf8"
                     strokeWidth="2.5"
                     strokeOpacity="0.4"
@@ -369,7 +404,7 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
                   {/* Parametry wewnątrz trójkąta */}
                   <text
                     x={originX + width * 0.35}
-                    y={originY + height * 0.72}
+                    y={yGlassBot - 60}
                     fill="#0b1220"
                     fontSize="42"
                     fontWeight="900"
@@ -379,13 +414,13 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
                   </text>
                   <text
                     x={originX + width * 0.35}
-                    y={originY + height * 0.72 + 45}
+                    y={yGlassBot - 20}
                     fill="#0e7490"
                     fontSize="28"
                     fontWeight="800"
                     textAnchor="middle"
                   >
-                    Spadek dachu: {slopeAngleDeg}° · Krokiew: {hypotenuseMm} mm
+                    Spadek dachu: {krokiewAngleDeg}° · Krokiew: {krokiewLenMm} mm
                   </text>
                 </>
               ) : (
