@@ -18,6 +18,7 @@ export interface ConstructionTemplate {
   defaultSystem?: string;
   defaultColor?: string;
   defaultFillType?: string;
+  defaultPriceNet?: number;
 }
 
 interface BottomTabsBarProps {

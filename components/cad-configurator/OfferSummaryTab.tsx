@@ -554,13 +554,17 @@ export function OfferSummaryTab({
                           {it.name}
                         </button>
                         <div className="text-[11px] text-[#7c8597] mt-0.5 space-x-2">
-                          <span>
-                            System:{" "}
-                            <span className="text-[#1f2937] font-semibold">
-                              {it.systemName || "PROCURAL"}
-                            </span>
-                          </span>
-                          <span>·</span>
+                          {it.systemName ? (
+                            <>
+                              <span>
+                                System:{" "}
+                                <span className="text-[#1f2937] font-semibold">
+                                  {it.systemName}
+                                </span>
+                              </span>
+                              <span>·</span>
+                            </>
+                          ) : null}
                           <span>
                             Kolor:{" "}
                             <span className="text-[#1f2937] font-mono">

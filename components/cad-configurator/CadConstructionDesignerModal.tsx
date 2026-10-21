@@ -10,10 +10,32 @@ import {
   X,
   Sliders,
   Palette,
+  DollarSign,
 } from "lucide-react";
 
 export type CategoryDoc = Doc<"constructionCategories">;
 export type ConstructionDoc = Doc<"constructions">;
+
+export interface GlassSystemPreset {
+  id: string;
+  tracks: number;
+  widthMm: number;
+  heightMm: number;
+  label: string;
+  sublabel: string;
+}
+
+export const GLASS_SYSTEM_PRESETS: GlassSystemPreset[] = [
+  { id: "2t-194", tracks: 2, widthMm: 1940, heightMm: 2300, label: "System 2-torowy", sublabel: "194 cm / wys. 230 cm" },
+  { id: "3t-241", tracks: 3, widthMm: 2410, heightMm: 2300, label: "System 3-torowy", sublabel: "241 cm / wys. 230 cm" },
+  { id: "3t-290", tracks: 3, widthMm: 2900, heightMm: 2300, label: "System 3-torowy", sublabel: "290 cm / wys. 230 cm" },
+  { id: "4t-337", tracks: 4, widthMm: 3370, heightMm: 2300, label: "System 4-torowy", sublabel: "337 cm / wys. 230 cm" },
+  { id: "4t-386", tracks: 4, widthMm: 3860, heightMm: 2300, label: "System 4-torowy", sublabel: "386 cm / wys. 230 cm" },
+  { id: "5t-433", tracks: 5, widthMm: 4330, heightMm: 2300, label: "System 5-torowy", sublabel: "433 cm / wys. 230 cm" },
+  { id: "5t-482", tracks: 5, widthMm: 4820, heightMm: 2300, label: "System 5-torowy", sublabel: "482 cm / wys. 230 cm" },
+  { id: "6t-529", tracks: 6, widthMm: 5290, heightMm: 2300, label: "System 6-torowy", sublabel: "529 cm / wys. 230 cm" },
+  { id: "6t-578", tracks: 6, widthMm: 5780, heightMm: 2300, label: "System 6-torowy", sublabel: "578 cm / wys. 230 cm" },
+];
 
 interface CadConstructionDesignerModalProps {
   isOpen: boolean;
@@ -32,6 +54,7 @@ interface CadConstructionDesignerModalProps {
     defaultPanesCount: number;
     defaultFillType?: string;
     defaultWarning?: string;
+    defaultPriceNet?: number;
   }) => Promise<void>;
   initialData?: ConstructionDoc | null;
   categories: CategoryDoc[] | undefined;
@@ -55,9 +78,10 @@ export function CadConstructionDesignerModal({
   const [widthMm, setWidthMm] = useState(2880);
   const [heightMm, setHeightMm] = useState(2300);
   const [panesCount, setPanesCount] = useState(3);
+  const [priceNet, setPriceNet] = useState<number | "">("");
 
   // Wartości domyślne / zachowywane w tle dla zgodności z modelem danych
-  const [systemName, setSystemName] = useState("PROCURAL");
+  const [systemName, setSystemName] = useState("");
   const [color, setColor] = useState("RAL 7016MAT");
   const [fillType, setFillType] = useState("HART 10");
   const [warning, setWarning] = useState("");
@@ -77,26 +101,35 @@ export function CadConstructionDesignerModal({
       setWidthMm(initialData.defaultWidthMm || 2880);
       setHeightMm(initialData.defaultHeightMm || 2300);
       setPanesCount(initialData.defaultPanesCount || 3);
-      setSystemName(initialData.defaultSystem || "PROCURAL");
+      setPriceNet(initialData.defaultPriceNet !== undefined ? initialData.defaultPriceNet : "");
+      setSystemName(initialData.defaultSystem || "");
       setColor(initialData.defaultColor || "RAL 7016MAT");
       setFillType(initialData.defaultFillType || "HART 10");
       setWarning(initialData.defaultWarning || "");
     } else {
       const defaultCat = categories?.find((c) => c.isActive) || categories?.[0];
+      const isDefaultGlass = (defaultCat?.name || "Systemy szklane").trim().toLowerCase().includes("szklan");
       setName("");
       setCode("");
       setCategoryId(defaultCat?._id || "");
       setCategoryName(defaultCat?.name || "Systemy szklane");
       setDescription("");
-      setWidthMm(2880);
+      setWidthMm(isDefaultGlass ? 2410 : 2000);
       setHeightMm(2300);
-      setPanesCount(3);
-      setSystemName("PROCURAL");
+      setPanesCount(isDefaultGlass ? 3 : 1);
+      setPriceNet("");
+      setSystemName("");
       setColor("RAL 7016MAT");
       setFillType("HART 10");
       setWarning("");
     }
   }, [isOpen, initialData, categories]);
+
+  // Czy wybrana kategoria to "Systemy szklane"
+  const isGlassCategory = useMemo(() => {
+    const raw = (categoryName || categories?.find((c) => c._id === categoryId)?.name || "").trim().toLowerCase();
+    return raw.includes("szklan");
+  }, [categoryName, categoryId, categories]);
 
   // Synchronizacja nazwy kategorii po zmianie wybranego ID
   const handleCategorySelect = (id: string) => {
@@ -104,6 +137,16 @@ export function CadConstructionDesignerModal({
     const cat = categories?.find((c) => c._id === id);
     if (cat) {
       setCategoryName(cat.name);
+      const isGlass = cat.name.trim().toLowerCase().includes("szklan");
+      if (isGlass) {
+        if (panesCount < 2) {
+          setPanesCount(3);
+          setWidthMm(2410);
+          setHeightMm(2300);
+        }
+      } else {
+        setPanesCount(1);
+      }
     }
   };
 
@@ -127,12 +170,14 @@ export function CadConstructionDesignerModal({
       description: description || undefined,
       warning: warning || undefined,
       color: color || "RAL 7016MAT",
-      systemName: systemName || "PROCURAL",
+      systemName: systemName || undefined,
       quantity: 1,
       widthMm: Math.max(400, widthMm),
       heightMm: Math.max(400, heightMm),
       panesCount: panes,
       fillType: fillType || "HART 10",
+      priceNet: typeof priceNet === "number" ? priceNet : (parseFloat(priceNet as string) || 4500),
+      costNet: 2800,
       segments: Array.from({ length: panes }).map((_, i) => ({
         widthMm: i === panes - 1 ? widthMm - singlePaneWidthMm * (panes - 1) : singlePaneWidthMm,
         heightMm: Math.max(200, heightMm - 103),
@@ -156,6 +201,7 @@ export function CadConstructionDesignerModal({
     heightMm,
     panesCount,
     fillType,
+    priceNet,
     singlePaneWidthMm,
   ]);
 
@@ -178,13 +224,19 @@ export function CadConstructionDesignerModal({
         categoryId: categoryId ? (categoryId as Id<"constructionCategories">) : undefined,
         category: categoryName.trim() || undefined,
         description: description.trim(),
-        defaultSystem: systemName.trim() || "PROCURAL",
+        defaultSystem: systemName.trim() || undefined,
         defaultColor: color.trim() || "RAL 7016MAT",
         defaultWidthMm: widthMm,
         defaultHeightMm: heightMm,
         defaultPanesCount: panesCount,
         defaultFillType: fillType.trim() || "HART 10",
         defaultWarning: warning.trim(),
+        defaultPriceNet:
+          typeof priceNet === "number"
+            ? priceNet
+            : priceNet !== ""
+            ? parseFloat(priceNet)
+            : undefined,
       });
       onClose();
     } catch (err) {
@@ -356,9 +408,123 @@ export function CadConstructionDesignerModal({
                     </select>
                   </div>
                 </div>
+
+                {/* Cena netto konstrukcji */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                      <DollarSign size={11} className="text-cyan-600" /> Cena netto konstrukcji
+                    </label>
+                    {priceNet !== "" && (
+                      <span className="font-mono text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                        {Number(priceNet).toLocaleString("pl-PL")} zł netto
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={0}
+                      step={50}
+                      value={priceNet}
+                      onChange={(e) =>
+                        setPriceNet(e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0))
+                      }
+                      placeholder="np. 4500"
+                      className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-18"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-[11px] pointer-events-none">
+                      zł netto
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              {/* Wymiary gabarytowe z interaktywnymi przyciskami */}
+              {/* Ilość torów systemu - widoczne TYLKO gdy kategoria to "Systemy szklane" */}
+              {isGlassCategory && (
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Layers size={13} className="text-cyan-600" /> Ilość torów systemu
+                    </label>
+                    <span className="font-mono text-[11px] font-bold text-cyan-800 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200">
+                      System {panesCount}-torowy ({panesCount} skrzydła)
+                    </span>
+                  </div>
+
+                  <p className="text-[10px] text-slate-500">
+                    Wybierz system — szerokość i wysokość uzupełnią się automatycznie:
+                  </p>
+
+                  {/* Kafelki wyboru wariantów torowych */}
+                  <div className="grid grid-cols-1 gap-1.5 max-h-60 overflow-y-auto pr-0.5">
+                    {GLASS_SYSTEM_PRESETS.map((preset) => {
+                      const isSelected =
+                        panesCount === preset.tracks &&
+                        widthMm === preset.widthMm &&
+                        heightMm === preset.heightMm;
+
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => {
+                            setPanesCount(preset.tracks);
+                            setWidthMm(preset.widthMm);
+                            setHeightMm(preset.heightMm);
+                          }}
+                          className={`w-full text-left p-2.5 rounded-lg border transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                            isSelected
+                              ? "bg-cyan-50/90 border-cyan-500 shadow-xs ring-1 ring-cyan-500/30"
+                              : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span
+                              className={`w-6 h-6 rounded-md flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
+                                isSelected
+                                  ? "bg-cyan-600 text-white"
+                                  : "bg-slate-100 text-slate-700"
+                              }`}
+                            >
+                              {preset.tracks}T
+                            </span>
+                            <div className="min-w-0">
+                              <span
+                                className={`font-bold text-xs block ${
+                                  isSelected ? "text-cyan-950 font-bold" : "text-slate-800"
+                                }`}
+                              >
+                                {preset.label}
+                              </span>
+                              <span className="text-[11px] font-mono text-slate-500">
+                                {preset.sublabel}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 flex items-center gap-1.5">
+                            <span className="font-mono font-semibold text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {preset.widthMm} × {preset.heightMm} mm
+                            </span>
+                            {isSelected && (
+                              <span className="w-2 h-2 rounded-full bg-cyan-600 shrink-0" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Parametry skrzydła wyliczone */}
+                  <div className="bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between font-mono text-[11px] mt-1">
+                    <span className="text-slate-500 font-sans">Szerokość 1 skrzydła:</span>
+                    <span className="font-bold text-slate-900">~{singlePaneWidthMm} mm</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Wymiary gabarytowe */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
@@ -384,24 +550,6 @@ export function CadConstructionDesignerModal({
                     onChange={(e) => setWidthMm(Math.max(400, parseInt(e.target.value) || 400))}
                     className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500"
                   />
-                  {/* Szybkie presety szerokości */}
-                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                    <span className="text-[10px] text-slate-400">Typowe:</span>
-                    {[1800, 2400, 2880, 3600, 4200, 4800].map((w) => (
-                      <button
-                        key={w}
-                        type="button"
-                        onClick={() => setWidthMm(w)}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
-                          widthMm === w
-                            ? "bg-cyan-600 text-white font-bold"
-                            : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
-                        }`}
-                      >
-                        {w}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 {/* Wysokość całkowita */}
@@ -419,63 +567,6 @@ export function CadConstructionDesignerModal({
                     onChange={(e) => setHeightMm(Math.max(400, parseInt(e.target.value) || 400))}
                     className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500"
                   />
-                  {/* Szybkie presety wysokości */}
-                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                    <span className="text-[10px] text-slate-400">Typowe:</span>
-                    {[2000, 2100, 2200, 2300, 2400, 2500].map((h) => (
-                      <button
-                        key={h}
-                        type="button"
-                        onClick={() => setHeightMm(h)}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
-                          heightMm === h
-                            ? "bg-cyan-600 text-white font-bold"
-                            : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
-                        }`}
-                      >
-                        {h}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Podział na kwatery / skrzydła */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <Layers size={13} className="text-cyan-600" /> Liczba skrzydeł / kwater
-                  </label>
-                  <span className="font-mono text-[11px] font-bold text-cyan-800">
-                    {panesCount} {panesCount === 1 ? "skrzydło" : panesCount < 5 ? "skrzydła" : "skrzydeł"}
-                  </span>
-                </div>
-
-                {/* Przyciski liczby skrzydeł (1 - 8) */}
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setPanesCount(p)}
-                      className={`py-2 px-1 rounded-lg text-center transition-all flex flex-col items-center justify-center border ${
-                        panesCount === p
-                          ? "bg-cyan-600 text-white border-cyan-700 font-bold shadow-xs scale-[1.02]"
-                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className="text-sm font-mono leading-none">{p}x</span>
-                      <span className="text-[9px] opacity-80 mt-0.5 leading-none">
-                        {p === 1 ? "skrzydło" : p < 5 ? "skrzydła" : "skrzydeł"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Parametry skrzydła wyliczone */}
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200 flex items-center justify-between font-mono text-[11px]">
-                  <span className="text-slate-500 font-sans">Szerokość skrzydła:</span>
-                  <span className="font-bold text-slate-900">~{singlePaneWidthMm} mm</span>
                 </div>
               </div>
 
@@ -548,8 +639,17 @@ export function CadConstructionDesignerModal({
               <span className="text-slate-500 font-sans">Powierzchnia:</span>
               <span className="font-bold text-slate-800">{areaM2} m²</span>
               <span className="text-slate-300">|</span>
-              <span className="text-slate-500 font-sans">Kwatery:</span>
-              <span className="font-bold text-slate-800">{panesCount}x</span>
+              <span className="text-slate-500 font-sans">Cena:</span>
+              <span className="font-bold text-emerald-700">
+                {priceNet !== "" ? `${Number(priceNet).toLocaleString("pl-PL")} zł` : "—"}
+              </span>
+              {isGlassCategory && (
+                <>
+                  <span className="text-slate-300">|</span>
+                  <span className="text-slate-500 font-sans">Tory:</span>
+                  <span className="font-bold text-slate-800">{panesCount}T</span>
+                </>
+              )}
             </div>
           </div>
 

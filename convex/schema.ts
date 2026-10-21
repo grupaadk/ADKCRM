@@ -1161,6 +1161,7 @@ export default defineSchema({
     defaultPanesCount: v.optional(v.number()),
     defaultFillType: v.optional(v.string()),
     defaultWarning: v.optional(v.string()),
+    defaultPriceNet: v.optional(v.number()),
     isActive: v.boolean(),
     sortOrder: v.number(),
     createdAt: v.number(),

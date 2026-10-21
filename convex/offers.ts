@@ -178,7 +178,7 @@ export const addConstructionPosition = mutation({
     const height = args.heightMm || construction?.defaultHeightMm || 2300;
     const panes = args.panesCount || construction?.defaultPanesCount || 3;
     const paneWidth = Math.round(width / panes);
-    const system = args.systemName || construction?.defaultSystem || "PROCURAL";
+    const system = args.systemName || construction?.defaultSystem || undefined;
     const color = args.color || construction?.defaultColor || "RAL 7016MAT";
     const fill = args.fillType || construction?.defaultFillType || "HART 10";
     const name = args.name || construction?.name || `System całoszklany ${panes}-torowy (B=${width.toLocaleString("pl-PL")}, H=${height.toLocaleString("pl-PL")})`;
@@ -208,13 +208,13 @@ export const addConstructionPosition = mutation({
       warning: undefined,
       color,
       systemName: system,
-      hardware: `${system}-OKUCIA`,
+      hardware: system ? `${system}-OKUCIA` : "STANDARD-OKUCIA",
       quantity: 1,
       widthMm: width,
       heightMm: height,
       panesCount: panes,
       fillType: fill,
-      priceNet: args.priceNet || 4500,
+      priceNet: args.priceNet ?? construction?.defaultPriceNet ?? 4500,
       costNet: args.costNet || 2800,
       segments,
       createdAt: now,

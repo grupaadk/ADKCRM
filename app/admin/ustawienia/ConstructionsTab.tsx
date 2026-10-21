@@ -163,6 +163,7 @@ export function ConstructionsTab() {
     defaultPanesCount: number;
     defaultFillType?: string;
     defaultWarning?: string;
+    defaultPriceNet?: number;
   }) => {
     if (data.id) {
       await updateConstruction({
@@ -179,6 +180,7 @@ export function ConstructionsTab() {
         defaultPanesCount: data.defaultPanesCount,
         defaultFillType: data.defaultFillType,
         defaultWarning: data.defaultWarning ?? "",
+        defaultPriceNet: data.defaultPriceNet,
       });
     } else {
       await createConstruction({
@@ -194,6 +196,7 @@ export function ConstructionsTab() {
         defaultPanesCount: data.defaultPanesCount,
         defaultFillType: data.defaultFillType,
         defaultWarning: data.defaultWarning,
+        defaultPriceNet: data.defaultPriceNet,
       });
     }
   };
@@ -471,7 +474,8 @@ export function ConstructionsTab() {
                       <th className="px-4 py-3 min-w-[280px]">Konstrukcja / Kod</th>
                       <th className="px-3 py-3 w-40">Kategoria</th>
                       <th className="px-3 py-3 w-36">Wymiary (domyślne)</th>
-                      <th className="px-3 py-3 min-w-[190px]">System & Wypełnienie</th>
+                      <th className="px-3 py-3 min-w-[170px]">Szklenie & Kolor</th>
+                      <th className="px-3 py-3 w-32">Cena netto</th>
                       <th className="px-3 py-3 w-28 text-center">Status</th>
                       <th className="px-4 py-3 w-32 text-right">Akcje</th>
                     </tr>
@@ -574,18 +578,27 @@ export function ConstructionsTab() {
                             </div>
                           </td>
 
-                          {/* System & Wypełnienie */}
+                          {/* Szklenie & Kolor */}
                           <td className="px-3 py-3 text-[11px] space-y-0.5">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-slate-400">System:</span>
-                              <span className="font-semibold text-slate-800">{c.defaultSystem || "PROCURAL"}</span>
+                            <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-700">
+                              <span className="text-slate-400 font-sans">Szklenie:</span>
+                              <span className="text-cyan-700 font-semibold">{c.defaultFillType || "—"}</span>
                             </div>
                             <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-600">
-                              <span className="text-slate-400 font-sans">Szklenie:</span>
-                              <span className="text-cyan-700 font-medium">{c.defaultFillType || "HART 10"}</span>
-                              <span className="text-slate-300">•</span>
-                              <span>{c.defaultColor || "RAL 7016MAT"}</span>
+                              <span className="text-slate-400 font-sans">Kolor:</span>
+                              <span>{c.defaultColor || "—"}</span>
                             </div>
+                          </td>
+
+                          {/* Cena netto */}
+                          <td className="px-3 py-3 whitespace-nowrap font-mono text-[11px]">
+                            {c.defaultPriceNet !== undefined && c.defaultPriceNet !== null ? (
+                              <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                {c.defaultPriceNet.toLocaleString("pl-PL")} zł
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic">Brak ceny</span>
+                            )}
                           </td>
 
                           {/* Status */}
@@ -1071,13 +1084,6 @@ export function ConstructionsTab() {
               </div>
               <div className="h-3 w-px bg-slate-200" />
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 text-[11px]">System bazowy:</span>
-                <span className="font-semibold text-slate-800">
-                  {previewConstruction.defaultSystem || "PROCURAL"}
-                </span>
-              </div>
-              <div className="h-3 w-px bg-slate-200" />
-              <div className="flex items-center gap-1.5">
                 <span className="text-slate-400 text-[11px]">Szklenie:</span>
                 <span className="font-mono font-medium text-cyan-700">
                   {previewConstruction.defaultFillType || "HART 10"}
@@ -1088,6 +1094,15 @@ export function ConstructionsTab() {
                 <span className="text-slate-400 text-[11px]">Kolor:</span>
                 <span className="font-mono text-slate-700">
                   {previewConstruction.defaultColor || "RAL 7016MAT"}
+                </span>
+              </div>
+              <div className="h-3 w-px bg-slate-200" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 text-[11px]">Cena netto:</span>
+                <span className="font-mono font-bold text-emerald-700">
+                  {previewConstruction.defaultPriceNet
+                    ? `${previewConstruction.defaultPriceNet.toLocaleString("pl-PL")} zł`
+                    : "—"}
                 </span>
               </div>
             </div>
@@ -1104,7 +1119,7 @@ export function ConstructionsTab() {
                   shortName: previewConstruction.code,
                   description: previewConstruction.description,
                   color: previewConstruction.defaultColor || "RAL 7016MAT",
-                  systemName: previewConstruction.defaultSystem || "PROCURAL",
+                  systemName: previewConstruction.defaultSystem || "",
                   quantity: 1,
                   widthMm: previewConstruction.defaultWidthMm || 2880,
                   heightMm: previewConstruction.defaultHeightMm || 2300,

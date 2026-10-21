@@ -50,6 +50,7 @@ export const create = mutation({
     defaultPanesCount: v.optional(v.number()),
     defaultFillType: v.optional(v.string()),
     defaultWarning: v.optional(v.string()),
+    defaultPriceNet: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.query("constructions").collect();
@@ -68,13 +69,14 @@ export const create = mutation({
       categoryId: args.categoryId,
       category: categoryName,
       description: args.description?.trim() || undefined,
-      defaultSystem: args.defaultSystem?.trim() || "PROCURAL",
+      defaultSystem: args.defaultSystem?.trim() || undefined,
       defaultColor: args.defaultColor?.trim() || "RAL 7016MAT",
       defaultWidthMm: args.defaultWidthMm || 2880,
       defaultHeightMm: args.defaultHeightMm || 2300,
       defaultPanesCount: args.defaultPanesCount || 3,
       defaultFillType: args.defaultFillType?.trim() || "HART 10",
       defaultWarning: args.defaultWarning?.trim() || undefined,
+      defaultPriceNet: args.defaultPriceNet !== undefined ? args.defaultPriceNet : undefined,
       isActive: true,
       sortOrder: nextOrder,
       createdAt: now,
@@ -101,6 +103,7 @@ export const update = mutation({
     defaultPanesCount: v.optional(v.number()),
     defaultFillType: v.optional(v.string()),
     defaultWarning: v.optional(v.string()),
+    defaultPriceNet: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
     sortOrder: v.optional(v.number()),
   },
@@ -129,6 +132,7 @@ export const update = mutation({
     if (fields.defaultPanesCount !== undefined) patch.defaultPanesCount = fields.defaultPanesCount;
     if (fields.defaultFillType !== undefined) patch.defaultFillType = fields.defaultFillType.trim() || undefined;
     if (fields.defaultWarning !== undefined) patch.defaultWarning = fields.defaultWarning.trim() || undefined;
+    if (fields.defaultPriceNet !== undefined) patch.defaultPriceNet = fields.defaultPriceNet;
     if (fields.isActive !== undefined) patch.isActive = fields.isActive;
     if (fields.sortOrder !== undefined) patch.sortOrder = fields.sortOrder;
 
@@ -186,6 +190,7 @@ export const seedDefault = mutation({
         defaultHeightMm: 2300,
         defaultPanesCount: 3,
         defaultFillType: "HART 10",
+        defaultPriceNet: 4500,
         isActive: true,
         sortOrder: 0,
         createdAt: now,
@@ -202,6 +207,7 @@ export const seedDefault = mutation({
         defaultHeightMm: 2300,
         defaultPanesCount: 4,
         defaultFillType: "HART 10",
+        defaultPriceNet: 5800,
         isActive: true,
         sortOrder: 1,
         createdAt: now,
@@ -218,6 +224,7 @@ export const seedDefault = mutation({
         defaultHeightMm: 2100,
         defaultPanesCount: 2,
         defaultFillType: "4/16/4 U=1.1",
+        defaultPriceNet: 3200,
         isActive: true,
         sortOrder: 2,
         createdAt: now,

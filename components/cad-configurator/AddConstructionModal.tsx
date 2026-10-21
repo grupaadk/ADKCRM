@@ -230,17 +230,29 @@ export function AddConstructionModal({
                       <span>
                         Wymiary: <strong className="text-[#0b1220]">{width} × {height} mm</strong> ({panes} kwatery)
                       </span>
-                      <span>
-                        System: <strong className="text-[#0b1220]">{tpl.defaultSystem || "PROCURAL"}</strong>
-                      </span>
-                      <span>
-                        Szkło: <strong className="text-[#0e7490]">{tpl.defaultFillType || "HART 10"}</strong>
-                      </span>
+                      {tpl.defaultFillType && (
+                        <span>
+                          Szkło: <strong className="text-[#0e7490]">{tpl.defaultFillType}</strong>
+                        </span>
+                      )}
+                      {tpl.defaultColor && (
+                        <span>
+                          Kolor: <strong className="text-[#0b1220]">{tpl.defaultColor}</strong>
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   {/* Right: Select Action */}
-                  <div className="shrink-0 flex items-center gap-2">
+                  <div className="shrink-0 flex items-center gap-3">
+                    {tpl.defaultPriceNet !== undefined && tpl.defaultPriceNet !== null ? (
+                      <div className="text-right hidden sm:block">
+                        <span className="block text-[9px] uppercase font-bold text-[#7c8597]">Cena netto</span>
+                        <span className="font-mono font-bold text-xs text-[#0e7490]">
+                          {tpl.defaultPriceNet.toLocaleString("pl-PL")} zł
+                        </span>
+                      </div>
+                    ) : null}
                     <button
                       type="button"
                       className="btn primary flex items-center gap-1 group-hover:bg-[#35a3ab]"
