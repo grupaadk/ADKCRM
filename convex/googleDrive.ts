@@ -2425,6 +2425,338 @@ export const listTemplateFiles = action({
   },
 });
 
+export const OFFER_DOCX_TEMPLATE_ID = "1XJnz47VXgNXFrOagFj7JiFxcmesIFWQAkQXS7ckc-6Y";
+
+async function uploadBufferToDrive(
+  accessToken: string,
+  buffer: ArrayBuffer | Uint8Array,
+  fileName: string,
+  contentType: string,
+  parentId: string,
+): Promise<{ fileId: string; name: string; url: string }> {
+  const metadata = JSON.stringify({ name: fileName, parents: [parentId] });
+  const boundary = `drive_upload_${Date.now()}`;
+  const encoder = new TextEncoder();
+  const preamble = encoder.encode(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`,
+  );
+  const epilogue = encoder.encode(`\r\n--${boundary}--`);
+
+  const u8Buffer = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const body = new Uint8Array(
+    preamble.byteLength + u8Buffer.byteLength + epilogue.byteLength,
+  );
+  body.set(preamble, 0);
+  body.set(u8Buffer, preamble.byteLength);
+  body.set(epilogue, preamble.byteLength + u8Buffer.byteLength);
+
+  const response = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    },
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Google Drive upload failed ${response.status}: ${errorBody}`);
+  }
+
+  const uploadedFile = (await response.json()) as { id?: string; name?: string };
+  if (!uploadedFile.id) {
+    throw new Error("Google Drive upload did not return file id");
+  }
+
+  return {
+    fileId: uploadedFile.id,
+    name: uploadedFile.name ?? fileName,
+    url: `https://drive.google.com/file/d/${uploadedFile.id}/view`,
+  };
+}
+
+export const generateOfferPdf = action({
+  args: {
+    offerId: v.id("offers"),
+    templateFileId: v.optional(v.string()),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ pdfUrl: string; fileId: string; fileName: string; folderUrl: string }> => {
+    const templateId = args.templateFileId ?? OFFER_DOCX_TEMPLATE_ID;
+
+    // 1. Pobierz ofertę i jej pozycje
+    const offerData = await ctx.runQuery(api.offers.getOfferWithItems, {
+      offerId: args.offerId,
+    });
+    if (!offerData || !offerData.offer) {
+      throw new Error("Oferta nie została znaleziona.");
+    }
+    const { offer, items, opportunity, client } = offerData;
+    if (!opportunity) {
+      throw new Error("Szansa sprzedaży powiązana z ofertą nie została znaleziona.");
+    }
+
+    const connection = await getAuthorizedConnection(ctx);
+    const accessToken = connection.accessToken;
+
+    const config = await ctx.runQuery(api.crmConfig.getConfig);
+    const folders = resolveFoldersConfig(config);
+    const offersSentFolderName = folders.opportunity.offersSent || "Oferty - wysłane do Klienta";
+
+    // 2. Znajdź lub utwórz folder "Oferty - wysłane do Klienta" dla szansy sprzedaży
+    let targetFolderId = opportunity.offersSentFolderId;
+
+    if (!targetFolderId) {
+      let oppFolderId = opportunity.opportunityFolderId;
+      if (!oppFolderId) {
+        // Uruchom tworzenie folderów szansy sprzedaży
+        try {
+          await ctx.runAction(api.googleDrive.createSalesOpportunityFolders, {
+            opportunityId: opportunity._id,
+          });
+          const refreshedOpp = await ctx.runQuery(api.salesOpportunities.getSalesOpportunity, {
+            opportunityId: opportunity._id,
+          });
+          targetFolderId = refreshedOpp?.offersSentFolderId;
+          oppFolderId = refreshedOpp?.opportunityFolderId;
+        } catch (folderErr) {
+          console.warn("[generateOfferPdf] createSalesOpportunityFolders failed, will try direct creation:", folderErr);
+        }
+      }
+
+      if (!targetFolderId && oppFolderId) {
+        targetFolderId = await findOrCreateDriveFolder(accessToken, offersSentFolderName, oppFolderId);
+      }
+    }
+
+    // Fallback: jeśli nadal nie ma folderu szansy, użyj folderu klienta lub głównego folderu klientów
+    if (!targetFolderId) {
+      const parentFallback = client?.clientFolderId || CLIENTS_FOLDER_ID;
+      targetFolderId = await findOrCreateDriveFolder(accessToken, offersSentFolderName, parentFallback);
+    }
+
+    // 3. Przygotuj dane do podstawienia
+    const formatPLN = (amount: number): string => {
+      const rounded = Math.round(amount * 100) / 100;
+      const str = rounded.toFixed(2);
+      const dotIdx = str.indexOf(".");
+      const intPart = str.slice(0, dotIdx);
+      const decPart = str.slice(dotIdx + 1);
+      return `${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ")},${decPart} zł`;
+    };
+
+    const clientFirstName = opportunity.firstName || client?.firstName || "";
+    const clientLastName = opportunity.lastName || client?.lastName || "";
+    const clientFullName = [clientFirstName, clientLastName].filter(Boolean).join(" ") || "Klient";
+    const clientPhone = opportunity.phone || client?.phone || "";
+    const clientEmail = opportunity.email || client?.email || "";
+    const clientCity = opportunity.city || client?.city || "";
+    const clientStreet = opportunity.street || client?.street || "";
+    const clientPostalCode = opportunity.postalCode || client?.postalCode || "";
+    const clientAddress = [clientStreet, [clientPostalCode, clientCity].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+
+    const now = new Date();
+    const todayStr = `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}.${now.getFullYear()}`;
+
+    const totalNetStr = formatPLN(offer.totalPriceNet);
+    const totalGrossStr = formatPLN(offer.totalPriceGross);
+    const discountPctStr = `${offer.discountPercent || 0}%`;
+    const netBeforeDiscount = (offer.discountPercent && offer.discountPercent > 0)
+      ? offer.totalPriceNet / (1 - offer.discountPercent / 100)
+      : offer.totalPriceNet;
+    const netBeforeDiscountStr = formatPLN(netBeforeDiscount);
+
+    const lineItemsSummary = items.map((it, idx) => {
+      const dims = (it.width && it.height) ? ` (B=${it.width}, H=${it.height})` : "";
+      const sys = it.system ? `${it.system} - ` : "";
+      return `${idx + 1}. ${sys}${it.title}${dims}\nIlość: ${it.quantity} szt. | Cena netto: ${formatPLN(it.unitPriceNet)} | Wartość netto: ${formatPLN(it.totalNet)}`;
+    }).join("\n\n");
+
+    const safeLastName = clientLastName.replace(/[/\\:*?"<>|]/g, "_") || "Klient";
+    const safeOfferNumber = (offer.offerNumber || "ADK").replace(/[/\\:*?"<>|]/g, "_");
+    const docCopyName = `Oferta_${safeOfferNumber}_${safeLastName}_temp_${Date.now()}`;
+
+    // 4. Skopiuj szablon Google Docs
+    const copyData = await driveApiFetchWithRetry(
+      ctx,
+      `/files/${templateId}/copy?supportsAllDrives=true`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: docCopyName,
+          parents: [targetFolderId],
+        }),
+      },
+    );
+
+    if (!copyData.id) {
+      throw new Error("Kopiowanie szablonu Google Docs nie powiodło się.");
+    }
+    const copyDocId = copyData.id;
+
+    // 5. Podmień placeholdery i dane w dokumencie
+    try {
+      const replacements: Array<{ placeholder: string; value: string }> = [
+        // Standardowe tagi {{...}}
+        { placeholder: "{{imie}}", value: clientFirstName },
+        { placeholder: "{{nazwisko}}", value: clientLastName },
+        { placeholder: "{{klient}}", value: clientFullName },
+        { placeholder: "{{clientName}}", value: clientFullName },
+        { placeholder: "{{telefon}}", value: clientPhone },
+        { placeholder: "{{phone}}", value: clientPhone },
+        { placeholder: "{{email}}", value: clientEmail },
+        { placeholder: "{{miasto}}", value: clientCity },
+        { placeholder: "{{city}}", value: clientCity },
+        { placeholder: "{{ulica}}", value: clientStreet },
+        { placeholder: "{{street}}", value: clientStreet },
+        { placeholder: "{{kod_pocztowy}}", value: clientPostalCode },
+        { placeholder: "{{postalCode}}", value: clientPostalCode },
+        { placeholder: "{{adres}}", value: clientAddress },
+        { placeholder: "{{address}}", value: clientAddress },
+        { placeholder: "{{numer_oferty}}", value: offer.offerNumber || "" },
+        { placeholder: "{{offerNumber}}", value: offer.offerNumber || "" },
+        { placeholder: "{{tytul_oferty}}", value: offer.title || "" },
+        { placeholder: "{{data}}", value: todayStr },
+        { placeholder: "{{today}}", value: todayStr },
+        { placeholder: "{{wartosc_netto}}", value: totalNetStr },
+        { placeholder: "{{totalNet}}", value: totalNetStr },
+        { placeholder: "{{wartosc_brutto}}", value: totalGrossStr },
+        { placeholder: "{{totalGross}}", value: totalGrossStr },
+        { placeholder: "{{wartość zamówienia netto}}", value: totalNetStr },
+        { placeholder: "{{wartość zamówienia brutto}}", value: totalGrossStr },
+        { placeholder: "{{rabat}}", value: discountPctStr },
+        { placeholder: "{{discount}}", value: discountPctStr },
+        { placeholder: "{{uwagi}}", value: offer.notes || "" },
+        { placeholder: "{{notes}}", value: offer.notes || "" },
+        { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
+        { placeholder: "{{pozycje}}", value: lineItemsSummary },
+
+        // Wzorce specyficzne dla szablonu oferta_Zabudowa_tarasu (1XJnz47VXgNXFrOagFj7JiFxcmesIFWQAkQXS7ckc-6Y):
+        {
+          placeholder: "RAZEM =  6 497.69zł netto + 23%VAT =7 992.15 zł brutto",
+          value: `RAZEM =  ${totalNetStr} netto + 23%VAT = ${totalGrossStr} brutto`,
+        },
+        {
+          placeholder: "6 997,11 - 20%RABAT = 5 597,69",
+          value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
+        },
+        {
+          placeholder: "6\u00a0997,11 - 20%RABAT = 5\u00a0597,69",
+          value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
+        },
+        {
+          placeholder: "W przypadku potrzeby uzyskania kontroli dostępu: + 200 zł netto",
+          value: offer.notes ? offer.notes : "",
+        },
+      ];
+
+      // Jeśli mamy pozycje w ofercie, podstaw dane konstrukcji w tabeli wzorcowej
+      if (items.length > 0) {
+        const first = items[0];
+        const firstDesc = `${first.system ? first.system + " - " : ""}${first.title}${(first.width && first.height) ? `\n(B=${first.width}, H=${first.height})` : ""}`;
+        replacements.push(
+          {
+            placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016\x0B(B=1 490, H=2 100)",
+            value: firstDesc,
+          },
+          {
+            placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016\u000b(B=1\u00a0490, H=2\u00a0100)",
+            value: firstDesc,
+          },
+          {
+            placeholder: "6 997,11",
+            value: formatPLN(first.totalNet).replace(" zł", ""),
+          },
+          {
+            placeholder: "6\u00a0997,11",
+            value: formatPLN(first.totalNet).replace(" zł", ""),
+          },
+        );
+      }
+
+      const requests = replacements.map((rep) => ({
+        replaceAllText: {
+          containsText: {
+            text: rep.placeholder,
+            matchCase: false,
+          },
+          replaceText: rep.value,
+        },
+      }));
+
+      await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ requests }),
+      });
+    } catch (mergeErr) {
+      console.warn("[generateOfferPdf] replaceAllText error:", mergeErr);
+    }
+
+    // 6. Eksportuj do PDF
+    const exportUrl = `${DRIVE_API_BASE}/files/${copyDocId}/export?mimeType=application/pdf&supportsAllDrives=true`;
+    const exportRes = await fetch(exportUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!exportRes.ok) {
+      const errText = await exportRes.text();
+      throw new Error(`Eksport oferty do formatu PDF nie powiódł się (${exportRes.status}): ${errText}`);
+    }
+    const pdfBuffer = await exportRes.arrayBuffer();
+
+    // 7. Wgraj plik PDF do folderu "Oferty - wysłane do Klienta"
+    const pdfFileName = `Oferta_${safeOfferNumber}_${safeLastName}.pdf`;
+    const uploadedPdf = await uploadBufferToDrive(
+      accessToken,
+      pdfBuffer,
+      pdfFileName,
+      "application/pdf",
+      targetFolderId,
+    );
+
+    // 8. Usuń tymczasowy dokument Google Docs z Drive
+    try {
+      await fetch(`${DRIVE_API_BASE}/files/${copyDocId}?supportsAllDrives=true`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ trashed: true }),
+      });
+    } catch (trashErr) {
+      console.warn("[generateOfferPdf] cleanup temp doc failed:", trashErr);
+    }
+
+    // 9. Zarejestruj plik PDF w szansie sprzedaży
+    try {
+      await ctx.runMutation(internal.salesOpportunities.addDriveProjectFile, {
+        opportunityId: opportunity._id,
+        name: pdfFileName,
+        url: uploadedPdf.url,
+      });
+    } catch (dbErr) {
+      console.warn("[generateOfferPdf] addDriveProjectFile error:", dbErr);
+    }
+
+    return {
+      pdfUrl: uploadedPdf.url,
+      fileId: uploadedPdf.fileId,
+      fileName: pdfFileName,
+      folderUrl: `https://drive.google.com/drive/folders/${targetFolderId}`,
+    };
+  },
+});
+
 export const detectTemplatePlaceholders = action({
   args: {
     documentFileId: v.string(),

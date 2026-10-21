@@ -2,9 +2,10 @@
 
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import toast from "react-hot-toast";
 import { CadCanvas, CadConstructionItem } from "./CadCanvas";
 import { LeftPropertiesPanel } from "./LeftPropertiesPanel";
 import { VerticalPositionsList } from "./VerticalPositionsList";
@@ -50,6 +51,29 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const generateOfferPdf = useAction(api.googleDrive.generateOfferPdf);
+
+  const handlePrintPdf = async () => {
+    setIsGeneratingPdf(true);
+    const toastId = toast.loading("Generowanie oferty w PDF z szablonu Google Docs i zapis w Google Drive...");
+    try {
+      const result = await generateOfferPdf({ offerId });
+      toast.success(
+        "Oferta PDF została zapisana w folderze 'Oferty - wysłane do Klienta'!",
+        { id: toastId, duration: 6000 }
+      );
+      if (result.pdfUrl) {
+        window.open(result.pdfUrl, "_blank");
+      }
+    } catch (err: unknown) {
+      console.error("[generateOfferPdf] error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Błąd generowania PDF: ${msg}`, { id: toastId, duration: 7000 });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   const items: CadConstructionItem[] = useMemo(
     () => (offerData?.items as unknown as CadConstructionItem[]) || [],
@@ -273,13 +297,20 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
 
           <button
             type="button"
-            onClick={() => window.print()}
-            title="Drukuj ofertę / Pobierz PDF"
-            className="btn icon"
+            disabled={isGeneratingPdf}
+            onClick={handlePrintPdf}
+            title="Drukuj ofertę / Pobierz PDF z Google Drive"
+            className="btn icon disabled:opacity-60 cursor-pointer"
             style={{ padding: "4px 8px", fontSize: 11.5 }}
           >
-            <Printer size={13} />
-            <span className="hidden sm:inline">Drukuj</span>
+            {isGeneratingPdf ? (
+              <Loader2 size={13} className="animate-spin text-[#4ABBC3]" />
+            ) : (
+              <Printer size={13} />
+            )}
+            <span className="hidden sm:inline">
+              {isGeneratingPdf ? "Generowanie..." : "Drukuj / PDF"}
+            </span>
           </button>
         </div>
       </header>

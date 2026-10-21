@@ -2,6 +2,10 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useAction } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import toast from "react-hot-toast";
 import { CadConstructionItem } from "./CadCanvas";
 import {
   FileText,
@@ -11,6 +15,7 @@ import {
   Phone,
   Mail,
   Printer,
+  Loader2,
   ExternalLink,
   Edit,
   Trash2,
@@ -85,6 +90,31 @@ export function OfferSummaryTab({
 }: OfferSummaryTabProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(offer.title);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const generateOfferPdf = useAction(api.googleDrive.generateOfferPdf);
+
+  const handlePrintPdf = async () => {
+    setIsGeneratingPdf(true);
+    const toastId = toast.loading("Generowanie oferty PDF z szablonu Google Docs i zapis w Google Drive...");
+    try {
+      const result = await generateOfferPdf({
+        offerId: offer._id as Id<"offers">,
+      });
+      toast.success(
+        "Oferta PDF została zapisana w folderze 'Oferty - wysłane do Klienta'!",
+        { id: toastId, duration: 6000 }
+      );
+      if (result.pdfUrl) {
+        window.open(result.pdfUrl, "_blank");
+      }
+    } catch (err: unknown) {
+      console.error("[generateOfferPdf] error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Błąd generowania PDF: ${msg}`, { id: toastId, duration: 7000 });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   // Financial calculations
   const rawSumNet = items.reduce(
@@ -289,12 +319,18 @@ export function OfferSummaryTab({
 
             <button
               type="button"
-              onClick={() => window.print()}
-              className="btn bg-white hover:bg-slate-50 text-[#334155] border border-[#cbd5e1]"
+              disabled={isGeneratingPdf}
+              onClick={handlePrintPdf}
+              className="btn bg-white hover:bg-slate-50 text-[#334155] border border-[#cbd5e1] disabled:opacity-60 cursor-pointer"
               style={{ padding: "6px 11px", fontSize: 11.5 }}
+              title="Wygeneruj ofertę w PDF (szablon Google Docs) i zapisz w folderze 'Oferty - wysłane do Klienta'"
             >
-              <Printer size={13} />
-              <span>Drukuj / PDF</span>
+              {isGeneratingPdf ? (
+                <Loader2 size={13} className="animate-spin text-[#4ABBC3]" />
+              ) : (
+                <Printer size={13} />
+              )}
+              <span>{isGeneratingPdf ? "Generowanie..." : "Drukuj / PDF"}</span>
             </button>
 
             {opportunity?._id && (
