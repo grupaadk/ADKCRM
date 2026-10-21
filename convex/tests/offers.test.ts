@@ -280,5 +280,17 @@ describe("CAD Offers and Constructions Module", () => {
     triangleItem = offerData!.items.find((it) => it._id === triangleId);
     expect(triangleItem?.placedAboveItemId).toBeUndefined();
     expect(triangleItem?.rowIndex).toBeUndefined();
+
+    // 7. Reorder positions (zamiana kolejności pozycji)
+    await t.mutation(api.offers.reorderConstructionPositions, {
+      offerId,
+      itemIds: [triangleId, baseDoorId],
+    });
+
+    offerData = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(offerData!.items[0]._id).toBe(triangleId);
+    expect(offerData!.items[0].positionIndex).toBe(1);
+    expect(offerData!.items[1]._id).toBe(baseDoorId);
+    expect(offerData!.items[1].positionIndex).toBe(2);
   });
 });

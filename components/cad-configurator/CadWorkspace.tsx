@@ -36,6 +36,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
   const updateOffer = useMutation(api.offers.updateOffer);
   const addPosition = useMutation(api.offers.addConstructionPosition);
   const updatePosition = useMutation(api.offers.updateConstructionPosition);
+  const reorderPositions = useMutation(api.offers.reorderConstructionPositions);
   const removePosition = useMutation(api.offers.removeConstructionPosition);
   const duplicatePosition = useMutation(api.offers.duplicateConstructionPosition);
   const ensureTriangle = useMutation(api.constructions.ensureTriangleConstruction);
@@ -142,6 +143,17 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
       });
     } catch (err) {
       console.error("Błąd aktualizacji położenia konstrukcji:", err);
+    }
+  };
+
+  const handleReorderPositions = async (orderedItemIds: string[]) => {
+    try {
+      await reorderPositions({
+        offerId,
+        itemIds: orderedItemIds as Id<"offerConstructions">[],
+      });
+    } catch (err) {
+      console.error("Błąd zmiany kolejności pozycji:", err);
     }
   };
 
@@ -359,6 +371,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
             onBackToOffer={() => setActiveTab("offer")}
             onAddNewPosition={() => setIsAddModalOpen(true)}
             onUpdatePlacement={handleUpdatePositionPlacement}
+            onReorderPositions={handleReorderPositions}
             onUpdateDimensions={handleUpdatePositionDimensions}
           />
         ) : effectiveActiveTab === "offer" || !activeItem ? (

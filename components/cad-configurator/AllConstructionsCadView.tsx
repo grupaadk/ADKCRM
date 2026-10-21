@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from "react";
+import toast from "react-hot-toast";
 import { CadConstructionItem, CadSegment } from "./CadCanvas";
 import { OfferData, OpportunityData } from "./OfferSummaryTab";
 import {
@@ -19,6 +20,7 @@ import {
   X,
   Check,
   MoveVertical,
+  Move,
 } from "lucide-react";
 
 interface AllConstructionsCadViewProps {
@@ -36,6 +38,7 @@ interface AllConstructionsCadViewProps {
       rowIndex?: number | null;
     }
   ) => void;
+  onReorderPositions?: (orderedItemIds: string[]) => void;
   onUpdateDimensions?: (
     itemId: string,
     patch: {
@@ -51,6 +54,7 @@ export function AllConstructionsCadView({
   onBackToOffer,
   onAddNewPosition,
   onUpdatePlacement,
+  onReorderPositions,
   onUpdateDimensions,
 }: AllConstructionsCadViewProps) {
   const [zoom, setZoom] = useState(1);
@@ -70,6 +74,49 @@ export function AllConstructionsCadView({
       }
     >
   >({});
+
+  // Lokalne nadpisanie kolejności pozycji dla natychmiastowej responsywności UI
+  const [localItemOrder, setLocalItemOrder] = useState<string[] | null>(null);
+
+  // Stan przeciągania konstrukcji na wspólnym arkuszu CAD (drag & drop)
+  const [dragState, setDragState] = useState<{
+    itemId: string;
+    clientX: number;
+    clientY: number;
+    svgX: number;
+    svgY: number;
+  } | null>(null);
+
+  type DropTarget =
+    | {
+        type: "above";
+        targetItemId: string;
+        targetName: string;
+        targetPosIndex: number;
+        rowIndex: number;
+      }
+    | {
+        type: "slot";
+        rowIndex: number;
+        slotIndex: number;
+        insertDescription: string;
+      }
+    | {
+        type: "new-row";
+        rowIndex: number;
+      };
+
+  const [activeDropTarget, setActiveDropTarget] = useState<DropTarget | null>(null);
+  const activeDropTargetRef = useRef<DropTarget | null>(null);
+
+  const pointerDownRef = useRef<{
+    itemId: string;
+    startX: number;
+    startY: number;
+    isDragging: boolean;
+  } | null>(null);
+
+  const svgRef = useRef<SVGSVGElement | null>(null);
 
   // Lokalne nadpisania wymiarów (0 ms opóźnienia na rysunku CAD)
   const [localDimensions, setLocalDimensions] = useState<
@@ -259,7 +306,7 @@ export function AllConstructionsCadView({
   const gapY = 640; // odstęp pionowy między rzędami konstrukcji
   const sheetPadX = 260;
   const sheetPadTop = 400;
-  const sheetPadBottom = 160;
+  const sheetPadBottom = 320;
 
   interface ColumnStack {
     rootItem: CadConstructionItem;
@@ -276,7 +323,25 @@ export function AllConstructionsCadView({
   }
 
   const effectiveItems: CadConstructionItem[] = useMemo(() => {
-    return items.map((it) => {
+    let baseList = [...items];
+    if (localItemOrder && localItemOrder.length === items.length) {
+      const map = new Map(items.map((it) => [it._id, it]));
+      const reordered: CadConstructionItem[] = [];
+      localItemOrder.forEach((id, idx) => {
+        const found = map.get(id);
+        if (found) {
+          reordered.push({
+            ...found,
+            positionIndex: idx + 1,
+          });
+        }
+      });
+      if (reordered.length === items.length) {
+        baseList = reordered;
+      }
+    }
+
+    return baseList.map((it) => {
       const override = localPlacements[it._id];
       const dimOverride = localDimensions[it._id];
       if (!override && !dimOverride) return it;
@@ -311,7 +376,7 @@ export function AllConstructionsCadView({
             : it.rowIndex ?? 0,
       };
     });
-  }, [items, localPlacements, localDimensions]);
+  }, [items, localItemOrder, localPlacements, localDimensions]);
 
   const openDimEditor = (
     e: React.MouseEvent,
@@ -468,6 +533,446 @@ export function AllConstructionsCadView({
   const sheetHeight = totalRowsHeight + sheetPadTop + sheetPadBottom;
   const frameThickness = 50;
 
+  const getSvgCoordinates = (
+    clientX: number,
+    clientY: number
+  ): { x: number; y: number } | null => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const transformed = pt.matrixTransform(ctm.inverse());
+    return { x: transformed.x, y: transformed.y };
+  };
+
+  // ── Wyznaczenie geometrii elementów i slotów na arkuszu do Drag & Drop ──
+  const sheetGeometry = useMemo(() => {
+    interface ItemBox {
+      itemId: string;
+      item: CadConstructionItem;
+      originX: number;
+      originY: number;
+      width: number;
+      height: number;
+      rowIndex: number;
+      stackIndex: number;
+      isRoot: boolean;
+    }
+
+    interface RowInfo {
+      rowIndex: number;
+      floorY: number;
+      maxStackHeight: number;
+      rowWidth: number;
+      startX: number;
+      slots: {
+        slotIndex: number;
+        centerX: number;
+        label: string;
+      }[];
+    }
+
+    const itemBoxes: ItemBox[] = [];
+    const rowInfos: RowInfo[] = [];
+
+    computedRows.forEach((renderRow, rowIndex) => {
+      const previousRowsHeight = computedRows
+        .slice(0, rowIndex)
+        .reduce((acc, r) => acc + r.maxStackHeight + gapY, 0);
+      const currentRowMaxHeight = renderRow.maxStackHeight;
+      const floorY = sheetPadTop + previousRowsHeight + currentRowMaxHeight;
+      const currentRowWidth = renderRow.rowWidth;
+      const startX = (sheetWidth - currentRowWidth) / 2;
+
+      let stackCursorX = startX;
+      const stackBounds: { left: number; right: number; rootId: string }[] = [];
+
+      renderRow.stacks.forEach((stack, stackIndex) => {
+        const currentStackX = stackCursorX;
+        const stackLeft = currentStackX;
+        const stackRight = currentStackX + stack.stackWidth;
+        stackBounds.push({
+          left: stackLeft,
+          right: stackRight,
+          rootId: stack.rootItem._id,
+        });
+        stackCursorX += stack.stackWidth + gapX;
+
+        let currentBaseY = floorY;
+        stack.stackedItems.forEach((item, itemIdxInStack) => {
+          const width = Math.max(item.widthMm || 2880, 400);
+          const height = Math.max(item.heightMm || 2300, 400);
+          const originX = currentStackX + (stack.stackWidth - width) / 2;
+          const originY = currentBaseY - height;
+          currentBaseY = originY;
+
+          itemBoxes.push({
+            itemId: item._id,
+            item,
+            originX,
+            originY,
+            width,
+            height,
+            rowIndex: renderRow.rowIndex,
+            stackIndex,
+            isRoot: itemIdxInStack === 0,
+          });
+        });
+      });
+
+      // Wyznaczenie slotów wstawienia pomiędzy kolumnami
+      const slots: RowInfo["slots"] = [];
+      if (stackBounds.length === 0) {
+        slots.push({
+          slotIndex: 0,
+          centerX: sheetWidth / 2,
+          label: "Początek rzędu",
+        });
+      } else {
+        // Przed pierwszą kolumną
+        slots.push({
+          slotIndex: 0,
+          centerX: Math.max(160, stackBounds[0].left - gapX / 2),
+          label: "Przesuń na początek",
+        });
+        // Pomiędzy kolumnami
+        for (let i = 0; i < stackBounds.length - 1; i++) {
+          const midX = (stackBounds[i].right + stackBounds[i + 1].left) / 2;
+          slots.push({
+            slotIndex: i + 1,
+            centerX: midX,
+            label: `Między kolumną ${i + 1} a ${i + 2}`,
+          });
+        }
+        // Za ostatnią kolumną
+        const last = stackBounds[stackBounds.length - 1];
+        slots.push({
+          slotIndex: stackBounds.length,
+          centerX: Math.min(sheetWidth - 160, last.right + gapX / 2),
+          label: "Przesuń na koniec",
+        });
+      }
+
+      rowInfos.push({
+        rowIndex: renderRow.rowIndex,
+        floorY,
+        maxStackHeight: currentRowMaxHeight,
+        rowWidth: currentRowWidth,
+        startX,
+        slots,
+      });
+    });
+
+    return { itemBoxes, rowInfos };
+  }, [computedRows, sheetWidth, gapX, gapY, sheetPadTop]);
+
+  const computeAndSetActiveDropTarget = (
+    draggedId: string,
+    svgX: number,
+    svgY: number
+  ) => {
+    const { itemBoxes, rowInfos } = sheetGeometry;
+    const updateActiveTarget = (target: DropTarget | null) => {
+      activeDropTargetRef.current = target;
+      setActiveDropTarget(target);
+    };
+
+    if (rowInfos.length === 0) {
+      updateActiveTarget(null);
+      return;
+    }
+
+    // 1. Zbiór ID, nad którymi NIE można upuścić (żeby uniknąć cykli i upuszczenia nad samym sobą)
+    const invalidAboveIds = new Set<string>([draggedId]);
+    let added = true;
+    while (added) {
+      added = false;
+      effectiveItems.forEach((it) => {
+        if (
+          it.placedAboveItemId &&
+          invalidAboveIds.has(it.placedAboveItemId) &&
+          !invalidAboveIds.has(it._id)
+        ) {
+          invalidAboveIds.add(it._id);
+          added = true;
+        }
+      });
+    }
+
+    // 2. Sprawdź, czy kursor znajduje się nad jakąś konstrukcją (strefa górna 60% wysokości lub lekko ponad nią)
+    const hoveredItemBox = itemBoxes.find((box) => {
+      if (invalidAboveIds.has(box.itemId)) return false;
+      const marginX = 80;
+      const isXInside =
+        svgX >= box.originX - marginX && svgX <= box.originX + box.width + marginX;
+      // Strefa nad konstrukcją (od 260px powyżej dachu do 55% jej wysokości)
+      const isYAbove =
+        svgY >= box.originY - 260 && svgY <= box.originY + box.height * 0.55;
+      return isXInside && isYAbove;
+    });
+
+    if (hoveredItemBox) {
+      updateActiveTarget({
+        type: "above",
+        targetItemId: hoveredItemBox.itemId,
+        targetName: hoveredItemBox.item.shortName || hoveredItemBox.item.name,
+        targetPosIndex: hoveredItemBox.item.positionIndex,
+        rowIndex: hoveredItemBox.rowIndex,
+      });
+      return;
+    }
+
+    // 3. Sprawdź, czy kursor znajduje się poniżej najniższego poziomu posadzki (strefa "Nowy rząd poniżej")
+    const maxFloorY = Math.max(...rowInfos.map((r) => r.floorY));
+    if (svgY > maxFloorY + 90) {
+      const maxRowIndex = Math.max(
+        0,
+        ...effectiveItems.map((it) => it.rowIndex ?? 0)
+      );
+      updateActiveTarget({
+        type: "new-row",
+        rowIndex: maxRowIndex + 1,
+      });
+      return;
+    }
+
+    // 4. W przeciwnym razie znajdź najbliższy rząd posadzki i najbliższy slot wstawienia
+    let closestRow = rowInfos[0];
+    let minRowDist = Math.abs(svgY - closestRow.floorY);
+    for (let i = 1; i < rowInfos.length; i++) {
+      const dist = Math.abs(svgY - rowInfos[i].floorY);
+      if (dist < minRowDist) {
+        minRowDist = dist;
+        closestRow = rowInfos[i];
+      }
+    }
+
+    let closestSlot = closestRow.slots[0];
+    let minSlotDist = Math.abs(svgX - closestSlot.centerX);
+    for (let i = 1; i < closestRow.slots.length; i++) {
+      const dist = Math.abs(svgX - closestRow.slots[i].centerX);
+      if (dist < minSlotDist) {
+        minSlotDist = dist;
+        closestSlot = closestRow.slots[i];
+      }
+    }
+
+    updateActiveTarget({
+      type: "slot",
+      rowIndex: closestRow.rowIndex,
+      slotIndex: closestSlot.slotIndex,
+      insertDescription: closestSlot.label,
+    });
+  };
+
+  const executeDrop = (draggedId: string, target: DropTarget) => {
+    const draggedItem = items.find((it) => it._id === draggedId);
+    if (!draggedItem) return;
+
+    if (target.type === "above") {
+      handleSetPlacement(draggedId, {
+        placedAboveItemId: target.targetItemId,
+        placedBelowItemId: null,
+        rowIndex: target.rowIndex,
+      });
+      toast.success(`Umieszczono nad Poz. ${target.targetPosIndex}`);
+    } else if (target.type === "new-row") {
+      handleSetPlacement(draggedId, {
+        placedAboveItemId: null,
+        placedBelowItemId: null,
+        rowIndex: target.rowIndex,
+      });
+      toast.success(`Przeniesiono do nowego rzędu ${target.rowIndex + 1}`);
+    } else if (target.type === "slot") {
+      // 1. Zdejmij konstrukcję na posadzkę w docelowym rzędzie
+      handleSetPlacement(draggedId, {
+        placedAboveItemId: null,
+        placedBelowItemId: null,
+        rowIndex: target.rowIndex,
+      });
+
+      // 2. Przelicz kolejność pozycji na arkuszu
+      const targetRow = computedRows.find((r) => r.rowIndex === target.rowIndex);
+      const existingRoots = targetRow
+        ? targetRow.stacks
+            .map((st) => st.rootItem._id)
+            .filter((id) => id !== draggedId)
+        : [];
+
+      const clampedSlot = Math.max(
+        0,
+        Math.min(target.slotIndex, existingRoots.length)
+      );
+      existingRoots.splice(clampedSlot, 0, draggedId);
+
+      // Budujemy ostateczną kolejność wszystkich elementów
+      const finalOrderedIds: string[] = [];
+      const processedIds = new Set<string>();
+
+      const allRowIndices = Array.from(
+        new Set([...computedRows.map((r) => r.rowIndex), target.rowIndex])
+      ).sort((a, b) => a - b);
+
+      allRowIndices.forEach((rIdx) => {
+        const rootsForThisRow =
+          rIdx === target.rowIndex
+            ? existingRoots
+            : (computedRows
+                .find((r) => r.rowIndex === rIdx)
+                ?.stacks.map((st) => st.rootItem._id)
+                .filter((id) => id !== draggedId) || []);
+
+        rootsForThisRow.forEach((rootId) => {
+          if (!processedIds.has(rootId)) {
+            finalOrderedIds.push(rootId);
+            processedIds.add(rootId);
+          }
+          const stack = computedRows
+            .flatMap((r) => r.stacks)
+            .find((st) => st.rootItem._id === rootId);
+          if (stack) {
+            stack.stackedItems.forEach((child) => {
+              if (
+                child._id !== rootId &&
+                child._id !== draggedId &&
+                !processedIds.has(child._id)
+              ) {
+                finalOrderedIds.push(child._id);
+                processedIds.add(child._id);
+              }
+            });
+          }
+        });
+      });
+
+      items.forEach((it) => {
+        if (!processedIds.has(it._id)) {
+          finalOrderedIds.push(it._id);
+          processedIds.add(it._id);
+        }
+      });
+
+      setLocalItemOrder(finalOrderedIds);
+      if (onReorderPositions) {
+        onReorderPositions(finalOrderedIds);
+      }
+      toast.success("Zmieniono pozycję konstrukcji na arkuszu");
+    }
+  };
+
+  const handlePointerDownOnItem = (
+    e: React.PointerEvent,
+    item: CadConstructionItem
+  ) => {
+    // Reaguj tylko na lewy przycisk myszy / dotyk (button === 0) i bez klawisza Alt (Alt służy do PANowania)
+    if (e.button !== 0 || e.altKey || e.ctrlKey || e.metaKey) return;
+
+    // Ignoruj, jeśli kliknięto w linie wymiarowe
+    if ((e.target as HTMLElement | SVGElement).closest?.(".cad-dim-interactive")) {
+      return;
+    }
+
+    e.stopPropagation();
+    pointerDownRef.current = {
+      itemId: item._id,
+      startX: e.clientX,
+      startY: e.clientY,
+      isDragging: false,
+    };
+  };
+
+  const computeTargetRef = useRef(computeAndSetActiveDropTarget);
+  const executeDropRef = useRef(executeDrop);
+
+  useEffect(() => {
+    computeTargetRef.current = computeAndSetActiveDropTarget;
+    executeDropRef.current = executeDrop;
+  });
+
+  // Obsługa przeciągania na poziomie całego okna (Window pointer events)
+  useEffect(() => {
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!pointerDownRef.current) return;
+      const pd = pointerDownRef.current;
+
+      if (!pd.isDragging) {
+        const dist = Math.hypot(e.clientX - pd.startX, e.clientY - pd.startY);
+        if (dist > 6) {
+          pd.isDragging = true;
+          const svgCoords = getSvgCoordinates(e.clientX, e.clientY);
+          setDragState({
+            itemId: pd.itemId,
+            clientX: e.clientX,
+            clientY: e.clientY,
+            svgX: svgCoords?.x ?? 0,
+            svgY: svgCoords?.y ?? 0,
+          });
+          setActiveDropdown(null);
+          setActiveDimEdit(null);
+        }
+      } else {
+        const svgCoords = getSvgCoordinates(e.clientX, e.clientY);
+        const svgX = svgCoords?.x ?? 0;
+        const svgY = svgCoords?.y ?? 0;
+        setDragState({
+          itemId: pd.itemId,
+          clientX: e.clientX,
+          clientY: e.clientY,
+          svgX,
+          svgY,
+        });
+        computeTargetRef.current(pd.itemId, svgX, svgY);
+      }
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
+      if (!pointerDownRef.current) return;
+      const pd = pointerDownRef.current;
+      pointerDownRef.current = null;
+
+      if (pd.isDragging) {
+        const target = activeDropTargetRef.current;
+        if (target) {
+          executeDropRef.current(pd.itemId, target);
+        }
+        setDragState(null);
+        setActiveDropTarget(null);
+        activeDropTargetRef.current = null;
+      } else {
+        // Zwykłe kliknięcie – otwórz menu rozwijane
+        setActiveDropdown({
+          itemId: pd.itemId,
+          x: e.clientX,
+          y: e.clientY,
+        });
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && pointerDownRef.current?.isDragging) {
+        pointerDownRef.current = null;
+        setDragState(null);
+        setActiveDropTarget(null);
+        activeDropTargetRef.current = null;
+      }
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   if (items.length === 0) {
     return (
       <div className="flex-1 flex flex-col bg-[#f1f5f9] select-none overflow-hidden">
@@ -598,6 +1103,14 @@ export function AllConstructionsCadView({
               <div className="h-4 w-px bg-[#e3e7ee] mx-0.5" />
 
               <span
+                className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-[#0e7490] bg-[#f0fdff] border border-[#a5f3fc]"
+                title="Przetrzymaj lewym przyciskiem myszy konstrukcję i przeciągnij ją w dowolne miejsce (zmień kolejność, umieść nad inną lub w nowym rzędzie)"
+              >
+                <MoveVertical size={11} />
+                <span>Przeciągnij, aby zmienić pozycję</span>
+              </span>
+
+              <span
                 className="hidden xl:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono text-[#64748b] bg-slate-100 border border-[#e2e8f0]"
                 title="Przytrzymaj klawisz Ctrl i kręć kółkiem myszy, aby przybliżać lub oddalać widok CAD"
               >
@@ -646,7 +1159,11 @@ export function AllConstructionsCadView({
         <div
           ref={viewportRef}
           className={`relative flex-1 min-h-0 min-w-0 overflow-auto p-2 sm:p-4 bg-slate-100/70 ${
-            isPanning ? "cursor-grabbing select-none" : ""
+            dragState
+              ? "cursor-grabbing select-none"
+              : isPanning
+              ? "cursor-grabbing select-none"
+              : ""
           }`}
         >
           <div
@@ -660,6 +1177,7 @@ export function AllConstructionsCadView({
             className="flex items-center justify-center m-auto select-none"
           >
             <svg
+              ref={svgRef}
               viewBox={`0 0 ${sheetWidth} ${sheetHeight}`}
               preserveAspectRatio="xMidYMid meet"
               className="w-full h-full block rounded-lg shadow-sm"
@@ -668,6 +1186,7 @@ export function AllConstructionsCadView({
                 height: "100%",
                 fontFamily:
                   "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                cursor: dragState ? "grabbing" : "default",
               }}
             >
               <defs>
@@ -849,17 +1368,15 @@ export function AllConstructionsCadView({
                             return (
                               <g
                                 key={item._id}
-                                className="cursor-pointer"
+                                className={
+                                  dragState?.itemId === item._id
+                                    ? "cursor-grabbing select-none"
+                                    : "cursor-grab select-none"
+                                }
                                 onMouseEnter={() => setHoveredItemId(item._id)}
                                 onMouseLeave={() => setHoveredItemId(null)}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveDropdown({
-                                    itemId: item._id,
-                                    x: e.clientX,
-                                    y: e.clientY,
-                                  });
-                                }}
+                                onPointerDown={(e) => handlePointerDownOnItem(e, item)}
+                                opacity={dragState?.itemId === item._id ? 0.35 : 1}
                               >
                                 {/* Podświetlenie interaktywne po najechaniu */}
                                 {isHovered && (
@@ -886,10 +1403,23 @@ export function AllConstructionsCadView({
                                       width={Math.max(width, 900)}
                                       height="82"
                                       rx="10"
-                                      fill={isHovered ? "#0e7490" : "#0b1220"}
+                                      fill={
+                                        dragState?.itemId === item._id
+                                          ? "#0e7490"
+                                          : isHovered
+                                          ? "#0e7490"
+                                          : "#0b1220"
+                                      }
                                     />
+                                    {/* Uchwyt do przeciągania (Grip dots) */}
+                                    <g transform="translate(20, 24)">
+                                      <circle cx="0" cy="8" r="4.5" fill="#4ABBC3" />
+                                      <circle cx="0" cy="24" r="4.5" fill="#4ABBC3" />
+                                      <circle cx="12" cy="8" r="4.5" fill="#4ABBC3" />
+                                      <circle cx="12" cy="24" r="4.5" fill="#4ABBC3" />
+                                    </g>
                                     <text
-                                      x="24"
+                                      x="50"
                                       y="54"
                                       fill="#4ABBC3"
                                       fontSize="42"
@@ -898,7 +1428,7 @@ export function AllConstructionsCadView({
                                       [ POZ. {item.positionIndex} ]
                                     </text>
                                     <text
-                                      x="280"
+                                      x="305"
                                       y="54"
                                       fill="#ffffff"
                                       fontSize="38"
@@ -908,7 +1438,7 @@ export function AllConstructionsCadView({
                                     </text>
                                     {isStackedAbove && (
                                       <text
-                                        x="650"
+                                        x="680"
                                         y="54"
                                         fill="#34d399"
                                         fontSize="32"
@@ -939,8 +1469,15 @@ export function AllConstructionsCadView({
                                       fill="#0b1220"
                                       fillOpacity="0.88"
                                     />
+                                    {/* Uchwyt do przeciągania */}
+                                    <g transform="translate(14, 18)">
+                                      <circle cx="0" cy="6" r="3.5" fill="#4ABBC3" />
+                                      <circle cx="0" cy="18" r="3.5" fill="#4ABBC3" />
+                                      <circle cx="9" cy="6" r="3.5" fill="#4ABBC3" />
+                                      <circle cx="9" cy="18" r="3.5" fill="#4ABBC3" />
+                                    </g>
                                     <text
-                                      x="20"
+                                      x="38"
                                       y="42"
                                       fill="#4ABBC3"
                                       fontSize="34"
@@ -949,7 +1486,7 @@ export function AllConstructionsCadView({
                                       [ POZ. {item.positionIndex} ]
                                     </text>
                                     <text
-                                      x="230"
+                                      x="250"
                                       y="42"
                                       fill="#ffffff"
                                       fontSize="30"
@@ -1800,6 +2337,257 @@ export function AllConstructionsCadView({
             </g>
           );
         })}
+
+              {/* ── Wizualizacje slotów upuszczenia (Drag & Drop targets) ── */}
+              {dragState && (() => {
+                const draggedItem = effectiveItems.find(
+                  (it) => it._id === dragState.itemId
+                );
+                if (!draggedItem) return null;
+
+                return (
+                  <g
+                    id="cad-drag-and-drop-targets"
+                    className="pointer-events-none select-none"
+                  >
+                    {/* 1. Sloty pomiędzy kolumnami i na końcach rzędów */}
+                    {sheetGeometry.rowInfos.map((rInfo) => (
+                      <g key={`drop-row-${rInfo.rowIndex}`}>
+                        {rInfo.slots.map((slot) => {
+                          const isTarget =
+                            activeDropTarget?.type === "slot" &&
+                            activeDropTarget.rowIndex === rInfo.rowIndex &&
+                            activeDropTarget.slotIndex === slot.slotIndex;
+
+                          const slotX = slot.centerX;
+                          const topY = rInfo.floorY - rInfo.maxStackHeight - 60;
+                          const barH = rInfo.maxStackHeight + 60;
+
+                          return (
+                            <g key={`slot-${rInfo.rowIndex}-${slot.slotIndex}`}>
+                              {/* Linia slotu */}
+                              <line
+                                x1={slotX}
+                                y1={topY}
+                                x2={slotX}
+                                y2={rInfo.floorY}
+                                stroke={isTarget ? "#4ABBC3" : "#cbd5e1"}
+                                strokeWidth={isTarget ? "6" : "2.5"}
+                                strokeDasharray={isTarget ? "none" : "8 8"}
+                                strokeOpacity={isTarget ? 0.95 : 0.45}
+                              />
+
+                              {/* Aktywne podświetlenie wybranego slotu */}
+                              {isTarget && (
+                                <g>
+                                  {/* Poświata slotu */}
+                                  <rect
+                                    x={slotX - 24}
+                                    y={topY}
+                                    width="48"
+                                    height={barH}
+                                    rx="12"
+                                    fill="#4ABBC3"
+                                    fillOpacity="0.2"
+                                  />
+
+                                  {/* Sylwetka podglądu konstrukcji na posadzce */}
+                                  <rect
+                                    x={slotX - (draggedItem.widthMm || 2880) / 2}
+                                    y={rInfo.floorY - (draggedItem.heightMm || 2300)}
+                                    width={draggedItem.widthMm || 2880}
+                                    height={draggedItem.heightMm || 2300}
+                                    rx="10"
+                                    fill="#0e7490"
+                                    fillOpacity="0.1"
+                                    stroke="#4ABBC3"
+                                    strokeWidth="4"
+                                    strokeDasharray="14 8"
+                                  />
+
+                                  {/* Znacznik UPUŚĆ TUTAJ */}
+                                  <g
+                                    transform={`translate(${slotX}, ${
+                                      rInfo.floorY - barH / 2
+                                    })`}
+                                  >
+                                    <rect
+                                      x="-200"
+                                      y="-40"
+                                      width="400"
+                                      height="80"
+                                      rx="18"
+                                      fill="#0e7490"
+                                      stroke="#4ABBC3"
+                                      strokeWidth="3.5"
+                                    />
+                                    <text
+                                      x="0"
+                                      y="12"
+                                      fill="#ffffff"
+                                      fontSize="30"
+                                      fontWeight="900"
+                                      textAnchor="middle"
+                                      letterSpacing="1px"
+                                    >
+                                      ↓ UPUŚĆ TUTAJ
+                                    </text>
+                                  </g>
+                                </g>
+                              )}
+
+                              {/* Dysk wskaźnika slotu, gdy nie jest najechany */}
+                              {!isTarget && (
+                                <g
+                                  transform={`translate(${slotX}, ${
+                                    rInfo.floorY - barH / 2
+                                  })`}
+                                >
+                                  <circle
+                                    cx="0"
+                                    cy="0"
+                                    r="22"
+                                    fill="#f8fafc"
+                                    stroke="#94a3b8"
+                                    strokeWidth="2.5"
+                                    strokeDasharray="5 5"
+                                  />
+                                  <text
+                                    x="0"
+                                    y="8"
+                                    fill="#64748b"
+                                    fontSize="24"
+                                    fontWeight="900"
+                                    textAnchor="middle"
+                                  >
+                                    +
+                                  </text>
+                                </g>
+                              )}
+                            </g>
+                          );
+                        })}
+                      </g>
+                    ))}
+
+                    {/* 2. Cel: Umieszczenie NAD inną konstrukcją */}
+                    {activeDropTarget?.type === "above" && (() => {
+                      const targetBox = sheetGeometry.itemBoxes.find(
+                        (b) => b.itemId === activeDropTarget.targetItemId
+                      );
+                      if (!targetBox) return null;
+
+                      const w = draggedItem.widthMm || 2880;
+                      const h = draggedItem.heightMm || 2300;
+                      const aboveX = targetBox.originX + (targetBox.width - w) / 2;
+                      const aboveY = targetBox.originY - h;
+
+                      return (
+                        <g>
+                          {/* Podświetlenie docelowej konstrukcji bazowej pod spodem */}
+                          <rect
+                            x={targetBox.originX - 14}
+                            y={targetBox.originY - 14}
+                            width={targetBox.width + 28}
+                            height={targetBox.height + 28}
+                            rx="14"
+                            fill="#0e7490"
+                            fillOpacity="0.08"
+                            stroke="#10b981"
+                            strokeWidth="5"
+                            strokeDasharray="16 10"
+                          />
+
+                          {/* Sylwetka nowej konstrukcji nad nią */}
+                          <rect
+                            x={aboveX}
+                            y={aboveY}
+                            width={w}
+                            height={h}
+                            rx="12"
+                            fill="#10b981"
+                            fillOpacity="0.14"
+                            stroke="#10b981"
+                            strokeWidth="4.5"
+                            strokeDasharray="14 8"
+                          />
+
+                          {/* Etykieta potwierdzenia */}
+                          <g
+                            transform={`translate(${
+                              targetBox.originX + targetBox.width / 2
+                            }, ${aboveY + h / 2})`}
+                          >
+                            <rect
+                              x="-340"
+                              y="-44"
+                              width="680"
+                              height="88"
+                              rx="20"
+                              fill="#065f46"
+                              stroke="#34d399"
+                              strokeWidth="4"
+                            />
+                            <text
+                              x="0"
+                              y="12"
+                              fill="#ffffff"
+                              fontSize="28"
+                              fontWeight="900"
+                              textAnchor="middle"
+                              letterSpacing="1px"
+                            >
+                              ▲ UPUŚĆ: UMIEŚĆ NAD POZ. {activeDropTarget.targetPosIndex}
+                            </text>
+                          </g>
+                        </g>
+                      );
+                    })()}
+
+                    {/* 3. Cel: Nowy rząd poniżej */}
+                    {(() => {
+                      const maxFloorY = Math.max(
+                        ...sheetGeometry.rowInfos.map((r) => r.floorY),
+                        sheetPadTop + 1000
+                      );
+                      const isTarget = activeDropTarget?.type === "new-row";
+                      const newRowY = maxFloorY + 120;
+                      const newRowW = Math.max(sheetWidth - 200, 1600);
+                      const newRowX = (sheetWidth - newRowW) / 2;
+
+                      return (
+                        <g>
+                          <rect
+                            x={newRowX}
+                            y={newRowY}
+                            width={newRowW}
+                            height="160"
+                            rx="20"
+                            fill={isTarget ? "#0e7490" : "#f8fafc"}
+                            fillOpacity={isTarget ? 0.16 : 0.6}
+                            stroke={isTarget ? "#4ABBC3" : "#cbd5e1"}
+                            strokeWidth={isTarget ? "4.5" : "2"}
+                            strokeDasharray={isTarget ? "16 8" : "12 8"}
+                          />
+                          <text
+                            x={sheetWidth / 2}
+                            y={newRowY + 95}
+                            fill={isTarget ? "#0e7490" : "#64748b"}
+                            fontSize="34"
+                            fontWeight="900"
+                            textAnchor="middle"
+                            letterSpacing="2px"
+                          >
+                            {isTarget
+                              ? "+ UPUŚĆ TUTAJ, ABY UTWORZYĆ NOWY RZĄD PONIŻEJ"
+                              : "+ PRZECIĄGNIJ TUTAJ, ABY UTWORZYĆ NOWY RZĄD PONIŻEJ"}
+                          </text>
+                        </g>
+                      );
+                    })()}
+                  </g>
+                );
+              })()}
             </svg>
           </div>
         </div>
@@ -2824,6 +3612,58 @@ export function AllConstructionsCadView({
                   <Check size={13} />
                   <span>Zastosuj</span>
                 </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Pływający podgląd przeciąganej konstrukcji (Drag ghost badge) ── */}
+      {dragState && (() => {
+        const draggedItem = items.find((it) => it._id === dragState.itemId);
+        if (!draggedItem) return null;
+        return (
+          <div
+            style={{
+              position: "fixed",
+              left: `${dragState.clientX + 16}px`,
+              top: `${dragState.clientY + 16}px`,
+              pointerEvents: "none",
+              zIndex: 9999,
+            }}
+            className="bg-[#0b1220]/95 backdrop-blur-md text-white border-2 border-[#4ABBC3] rounded-xl px-3.5 py-2.5 shadow-2xl flex items-center gap-3 text-xs animate-in fade-in zoom-in-95 duration-75 select-none"
+          >
+            <div className="w-7 h-7 rounded-lg bg-[#4ABBC3]/20 flex items-center justify-center text-[#4ABBC3] shrink-0">
+              <Move size={15} />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-2 font-bold">
+                <span className="text-[#4ABBC3] font-mono">
+                  Poz. {draggedItem.positionIndex}
+                </span>
+                <span className="truncate max-w-[180px]">
+                  {draggedItem.shortName || draggedItem.name}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-300 font-mono flex items-center gap-1.5 mt-0.5">
+                <span>
+                  {draggedItem.widthMm} × {draggedItem.heightMm} mm
+                </span>
+                {activeDropTarget?.type === "above" && (
+                  <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40">
+                    ▲ Nad Poz. {activeDropTarget.targetPosIndex}
+                  </span>
+                )}
+                {activeDropTarget?.type === "slot" && (
+                  <span className="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40">
+                    ↓ {activeDropTarget.insertDescription}
+                  </span>
+                )}
+                {activeDropTarget?.type === "new-row" && (
+                  <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40">
+                    + Nowy rząd poniżej
+                  </span>
+                )}
               </div>
             </div>
           </div>

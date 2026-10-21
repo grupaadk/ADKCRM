@@ -234,6 +234,7 @@ export const addConstructionPosition = mutation({
 export const updateConstructionPosition = mutation({
   args: {
     itemId: v.id("offerConstructions"),
+    positionIndex: v.optional(v.number()),
     name: v.optional(v.string()),
     shortName: v.optional(v.string()),
     description: v.optional(v.string()),
@@ -321,6 +322,24 @@ export const removeConstructionPosition = mutation({
     }
 
     await recalculateOffer(ctx, offerId);
+  },
+});
+
+/**
+ * Zmienia kolejność pozycji konstrukcji w ofercie (reorder)
+ */
+export const reorderConstructionPositions = mutation({
+  args: {
+    offerId: v.id("offers"),
+    itemIds: v.array(v.id("offerConstructions")),
+  },
+  handler: async (ctx, args) => {
+    for (let i = 0; i < args.itemIds.length; i++) {
+      await ctx.db.patch(args.itemIds[i], {
+        positionIndex: i + 1,
+        updatedAt: Date.now(),
+      });
+    }
   },
 });
 
