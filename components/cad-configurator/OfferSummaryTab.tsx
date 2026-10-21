@@ -3,8 +3,6 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { CadConstructionItem } from "./CadCanvas";
-
-const PRESET_DISCOUNTS = [0, 3, 5, 7, 10, 15, 20];
 import {
   FileText,
   Percent,
@@ -18,7 +16,13 @@ import {
   Trash2,
   Copy,
   Plus,
+  Layers,
+  Check,
+  X,
+  TrendingUp,
 } from "lucide-react";
+
+const PRESET_DISCOUNTS = [0, 3, 5, 7, 10, 15, 20];
 
 export interface OfferData {
   _id: string;
@@ -81,8 +85,15 @@ export function OfferSummaryTab({
   const [tempTitle, setTempTitle] = useState(offer.title);
 
   // Financial calculations
-  const rawSumNet = items.reduce((acc, it) => acc + (it.priceNet || 0) * (it.quantity || 1), 0);
-  const rawCostNet = items.reduce((acc, it) => acc + (it.costNet || 0) * (it.quantity || 1), 0);
+  const rawSumNet = items.reduce(
+    (acc, it) => acc + (it.priceNet || 0) * (it.quantity || 1),
+    0
+  );
+  const rawCostNet = items.reduce(
+    (acc, it) => acc + (it.costNet || 0) * (it.quantity || 1),
+    0
+  );
+  const totalQuantity = items.reduce((acc, it) => acc + (it.quantity || 1), 0);
 
   const discountPct = offer.discountPercent || 0;
   const [prevDiscountPct, setPrevDiscountPct] = useState(discountPct);
@@ -94,24 +105,17 @@ export function OfferSummaryTab({
   }
 
   const discountedNet = Math.round(rawSumNet * (1 - discountPct / 100));
+  const discountAmount = rawSumNet - discountedNet;
   const vatAmount = Math.round(discountedNet * 0.23);
   const totalGross = discountedNet + vatAmount;
   const profitNet = discountedNet - rawCostNet;
-  const marginPct = discountedNet > 0 ? Math.round((profitNet / discountedNet) * 100) : 0;
+  const marginPct =
+    discountedNet > 0 ? Math.round((profitNet / discountedNet) * 100) : 0;
 
   const clientName =
     [opportunity?.firstName, opportunity?.lastName].filter(Boolean).join(" ") ||
     opportunity?.clientName ||
     "Klient";
-
-  const clientAddress = [
-    opportunity?.street,
-    opportunity?.buildingNumber,
-    opportunity?.postalCode,
-    opportunity?.city,
-  ]
-    .filter(Boolean)
-    .join(", ");
 
   const investAddress = [
     opportunity?.investmentStreet || opportunity?.street,
@@ -122,285 +126,291 @@ export function OfferSummaryTab({
     .filter(Boolean)
     .join(", ");
 
-  const statusColors = {
-    draft: "bg-[#f3f5f8] text-[#4b5563] border-[#d4dae3]",
-    sent: "bg-[#e0f2fe] text-[#0369a1] border-[#bae6fd]",
-    accepted: "bg-[#dcfce7] text-[#15803d] border-[#bbf7d0]",
-    rejected: "bg-[#fee2e2] text-[#b91c1c] border-[#fecaca]",
-  };
-
-  const statusLabels = {
-    draft: "Szkic roboczy",
-    sent: "Wysłana do klienta",
-    accepted: "Zaakceptowana przez klienta",
-    rejected: "Odrzucona",
-  };
-
   return (
-    <div className="flex-1 overflow-y-auto bg-[#f6f7f9] text-[#1f2937] p-6 space-y-6">
-      {/* Top Commercial Header Card */}
-      <div className="panel p-6 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#e3e7ee] pb-5">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-2.5 py-0.5 rounded-md text-xs font-mono font-bold bg-[rgba(74,187,195,0.12)] text-[#0e7490] border border-[rgba(74,187,195,0.3)]">
+    <div className="flex-1 overflow-y-auto bg-[#f4f6f9] text-[#1f2937] p-4 md:p-6 space-y-4">
+      {/* ── 1. ZINTEGROWANY KONTENER NAGŁÓWKOWY + ADNOTACJA KLIENTA + FINANSE ── */}
+      <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs overflow-hidden">
+        {/* Top Row: Offer Identity, Compact Client Annotation & Actions */}
+        <div className="px-5 py-4 border-b border-[#e2e8f0] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            {/* Offer Number + Editable Title */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-[#f0fdff] text-[#0e7490] border border-[#a5f3fc] shrink-0">
                 {offer.offerNumber}
               </span>
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                  statusColors[offer.status]
-                }`}
-              >
-                {statusLabels[offer.status]}
-              </span>
-            </div>
 
-            {editingTitle && !readOnly ? (
-              <div className="flex items-center gap-2 mt-1">
-                <input
-                  type="text"
-                  value={tempTitle}
-                  onChange={(e) => setTempTitle(e.target.value)}
-                  className="bg-white border border-[#4ABBC3] rounded px-3 py-1 text-[#0b1220] font-bold text-lg focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    onUpdateOffer({ title: tempTitle });
-                    setEditingTitle(false);
-                  }}
-                  className="btn primary"
-                  style={{ padding: "4px 10px", fontSize: 12 }}
-                >
-                  Zapisz
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingTitle(false)}
-                  className="btn ghost"
-                  style={{ padding: "4px 8px", fontSize: 12 }}
-                >
-                  Anuluj
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-bold text-[#0b1220] tracking-tight">
-                  {offer.title}
-                </h1>
-                {!readOnly && (
+              {editingTitle && !readOnly ? (
+                <div className="flex items-center gap-1.5 flex-1 max-w-md">
+                  <input
+                    type="text"
+                    autoFocus
+                    value={tempTitle}
+                    onChange={(e) => setTempTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        onUpdateOffer({ title: tempTitle });
+                        setEditingTitle(false);
+                      }
+                      if (e.key === "Escape") {
+                        setEditingTitle(false);
+                      }
+                    }}
+                    className="w-full bg-white border border-[#4ABBC3] rounded-md px-2.5 py-1 text-[#0b1220] font-bold text-sm focus:outline-none focus:ring-2 focus:ring-[#4ABBC3]/20"
+                  />
                   <button
                     type="button"
                     onClick={() => {
-                      setTempTitle(offer.title);
-                      setEditingTitle(true);
+                      onUpdateOffer({ title: tempTitle });
+                      setEditingTitle(false);
                     }}
-                    className="p-1 text-[#7c8597] hover:text-[#4ABBC3] transition-colors"
-                    title="Edytuj tytuł oferty"
+                    className="p-1.5 rounded-md bg-[#0e7490] text-white hover:bg-[#0c637b] transition-colors"
+                    title="Zapisz tytuł"
                   >
-                    <Edit size={14} />
+                    <Check size={13} />
                   </button>
-                )}
-              </div>
-            )}
+                  <button
+                    type="button"
+                    onClick={() => setEditingTitle(false)}
+                    className="p-1.5 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                    title="Anuluj"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <h1 className="text-base md:text-lg font-bold text-[#0b1220] truncate">
+                    {offer.title}
+                  </h1>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTempTitle(offer.title);
+                        setEditingTitle(true);
+                      }}
+                      className="p-1 text-[#94a3b8] hover:text-[#0e7490] rounded hover:bg-slate-100 transition-colors shrink-0"
+                      title="Zmień tytuł oferty"
+                    >
+                      <Edit size={13} />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
 
-            <p className="text-xs text-[#7c8597] mt-1 flex items-center gap-2">
+            {/* Compact Client & Investment Annotation Line */}
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#64748b]">
+              {opportunity && (
+                <>
+                  <span className="inline-flex items-center gap-1 font-semibold text-[#334155]">
+                    <User size={12} className="text-[#4ABBC3] shrink-0" />
+                    <span>{clientName}</span>
+                  </span>
+
+                  {opportunity.phone && (
+                    <>
+                      <span className="text-slate-300">·</span>
+                      <span className="inline-flex items-center gap-1 font-mono">
+                        <Phone size={11} className="text-[#94a3b8] shrink-0" />
+                        <span>{opportunity.phone}</span>
+                      </span>
+                    </>
+                  )}
+
+                  {opportunity.email && (
+                    <>
+                      <span className="text-slate-300">·</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Mail size={11} className="text-[#94a3b8] shrink-0" />
+                        <span>{opportunity.email}</span>
+                      </span>
+                    </>
+                  )}
+
+                  {investAddress && (
+                    <>
+                      <span className="text-slate-300">·</span>
+                      <span className="inline-flex items-center gap-1 text-[#475569]">
+                        <MapPin size={11} className="text-[#4ABBC3] shrink-0" />
+                        <span>{investAddress}</span>
+                      </span>
+                    </>
+                  )}
+                  <span className="text-slate-300">·</span>
+                </>
+              )}
+
               <span>
                 Utworzono:{" "}
-                <span className="text-[#4b5563] font-mono">
+                <strong className="font-mono font-medium text-[#475569]">
                   {new Date(offer.createdAt).toLocaleDateString("pl-PL")}
-                </span>
+                </strong>
               </span>
-              <span>·</span>
+              <span className="text-slate-300">·</span>
               <span>
-                Ostatnia zmiana:{" "}
-                <span className="text-[#4b5563] font-mono">
+                Zmiana:{" "}
+                <strong className="font-mono font-medium text-[#475569]">
                   {new Date(offer.updatedAt).toLocaleTimeString("pl-PL", {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}
-                </span>
+                </strong>
               </span>
-            </p>
+            </div>
           </div>
 
-          {/* Action buttons */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <select
-              disabled={readOnly}
-              value={offer.status}
-              onChange={(e) =>
-                onUpdateOffer({
-                  status: e.target.value as "draft" | "sent" | "accepted" | "rejected",
-                })
-              }
-              className="bg-white border border-[#d4dae3] text-[#1f2937] text-xs rounded-md px-3 py-2 font-medium focus:outline-none focus:border-[#4ABBC3]"
-            >
-              <option value="draft">Szkic roboczy</option>
-              <option value="sent">Wysłana do klienta</option>
-              <option value="accepted">Zaakceptowana</option>
-              <option value="rejected">Odrzucona</option>
-            </select>
-
+          {/* Right side: Quick Actions */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => window.print()}
-              className="btn"
-              style={{ padding: "6px 12px", fontSize: 12 }}
+              className="btn bg-white hover:bg-slate-50 text-[#334155] border border-[#cbd5e1]"
+              style={{ padding: "6px 11px", fontSize: 11.5 }}
             >
-              <Printer size={14} />
+              <Printer size={13} />
               <span>Drukuj / PDF</span>
             </button>
 
             {opportunity?._id && (
               <Link
                 href={`/admin/szansa/${opportunity._id}`}
-                className="btn primary"
-                style={{ padding: "6px 12px", fontSize: 12, textDecoration: "none" }}
+                className="btn bg-[#f0fdff] hover:bg-[#e0f9fe] text-[#0e7490] border border-[#a5f3fc] font-semibold"
+                style={{ padding: "6px 11px", fontSize: 11.5, textDecoration: "none" }}
+                title="Przejdź do widoku szansy sprzedaży"
               >
                 <span>Szansa sprzedaży</span>
-                <ExternalLink size={13} />
+                <ExternalLink size={12} />
               </Link>
             )}
           </div>
         </div>
 
-        {/* Financial KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
-          <div className="bg-[#f8fafc] border border-[#e3e7ee] rounded-lg p-3.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#7c8597] block mb-1">
-              Wartość netto
-            </span>
-            <div className="text-lg md:text-xl font-bold font-mono text-[#0e7490]">
-              {discountedNet.toLocaleString("pl-PL")} zł
-            </div>
-            {discountPct > 0 && (
-              <span className="text-[10px] text-[#d97706] font-mono">
-                Po rabacie -{discountPct}%
-              </span>
-            )}
-          </div>
-
-          <div className="bg-[#f8fafc] border border-[#e3e7ee] rounded-lg p-3.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#7c8597] block mb-1">
-              Wartość brutto (z VAT 23%)
-            </span>
-            <div className="text-lg md:text-xl font-bold font-mono text-[#0b1220]">
-              {totalGross.toLocaleString("pl-PL")} zł
-            </div>
-            <span className="text-[10px] text-[#7c8597] font-mono">
-              VAT: {vatAmount.toLocaleString("pl-PL")} zł
-            </span>
-          </div>
-
-          <div className="bg-[#f8fafc] border border-[#e3e7ee] rounded-lg p-3.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#7c8597] block mb-1">
-              Koszty własne netto
-            </span>
-            <div className="text-lg md:text-xl font-bold font-mono text-[#4b5563]">
-              {rawCostNet.toLocaleString("pl-PL")} zł
-            </div>
-            <span className="text-[10px] text-[#7c8597]">Materiały + produkcja</span>
-          </div>
-
-          <div className="bg-[#f8fafc] border border-[#e3e7ee] rounded-lg p-3.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#7c8597] block mb-1">
-              Szacowany zysk i marża
-            </span>
-            <div
-              className={`text-lg md:text-xl font-bold font-mono ${
-                profitNet >= 0 ? "text-[#16a34a]" : "text-[#dc2626]"
-              }`}
-            >
-              {profitNet.toLocaleString("pl-PL")} zł
-            </div>
-            <span
-              className={`text-[10px] font-mono font-bold ${
-                marginPct >= 20 ? "text-[#16a34a]" : "text-[#d97706]"
-              }`}
-            >
-              Marża handlowa: {marginPct}%
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Client & Opportunity Information */}
-      {opportunity && (
-        <div className="panel p-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#7c8597] block mb-1.5 flex items-center gap-1">
-              <User size={13} className="text-[#4ABBC3]" /> Dane klienta
-            </span>
-            <p className="font-bold text-[#0b1220] text-sm">{clientName}</p>
-            {opportunity.phone && (
-              <p className="text-[#4b5563] flex items-center gap-1.5 mt-1 font-mono">
-                <Phone size={11} className="text-[#7c8597]" /> {opportunity.phone}
-              </p>
-            )}
-            {opportunity.email && (
-              <p className="text-[#4b5563] flex items-center gap-1.5 mt-0.5">
-                <Mail size={11} className="text-[#7c8597]" /> {opportunity.email}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#7c8597] block mb-1.5 flex items-center gap-1">
-              <MapPin size={13} className="text-[#4ABBC3]" /> Adres inwestycji
-            </span>
-            <p className="text-[#1f2937] font-medium">
-              {investAddress || "Nie określono adresu inwestycji"}
-            </p>
-            {clientAddress && clientAddress !== investAddress && (
-              <p className="text-[#7c8597] text-[11px] mt-1">
-                Adres korespondencyjny: {clientAddress}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#7c8597] flex items-center gap-1">
-                <Percent size={13} className="text-[#4ABBC3]" /> Rabat handlowy
-              </span>
-              {discountPct > 0 && (
-                <span className="text-[11px] font-bold text-[#d97706] font-mono">
-                  -{(rawSumNet - discountedNet).toLocaleString("pl-PL")} zł
+        {/* Bottom Row of Top Card: Financial KPIs + Inline Discount Bar */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-[#e2e8f0] bg-[#fafbfd]">
+          {/* KPIs (8 cols on lg) */}
+          <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-[#e2e8f0]">
+            {/* Wartość netto */}
+            <div className="p-3.5 px-4">
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                  Wartość netto
                 </span>
-              )}
+                {discountPct > 0 && (
+                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
+                    -{discountPct}%
+                  </span>
+                )}
+              </div>
+              <div className="text-lg font-extrabold font-mono text-[#0e7490] leading-tight">
+                {discountedNet.toLocaleString("pl-PL")} zł
+              </div>
+              <div className="text-[10px] text-[#94a3b8] font-mono mt-0.5">
+                {discountPct > 0
+                  ? `Przed rabatem: ${rawSumNet.toLocaleString("pl-PL")} zł`
+                  : `Suma ${items.length} poz. (${totalQuantity} szt.)`}
+              </div>
             </div>
 
-            {/* Szybki wybór predefiniowanych rabatów (One-click) */}
-            <div className="flex flex-wrap items-center gap-1 mb-2">
-              {PRESET_DISCOUNTS.map((preset) => {
-                const isActive = discountPct === preset;
-                return (
-                  <button
-                    key={preset}
-                    type="button"
-                    disabled={readOnly}
-                    onClick={() => {
-                      setCustomDiscount(String(preset));
-                      onUpdateOffer({ discountPercent: preset });
-                    }}
-                    className={`px-2 py-0.5 text-xs font-mono font-semibold rounded border transition-all ${
-                      isActive
-                        ? "bg-[#0e7490] text-white border-[#0e7490] shadow-xs"
-                        : "bg-white text-[#4b5563] border-[#d4dae3] hover:border-[#4ABBC3] hover:text-[#0e7490]"
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    title={preset === 0 ? "Brak rabatu (0%)" : `Ustaw rabat ${preset}%`}
-                  >
-                    {preset}%
-                  </button>
-                );
-              })}
+            {/* Wartość brutto */}
+            <div className="p-3.5 px-4">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] block mb-0.5">
+                Wartość brutto (23%)
+              </span>
+              <div className="text-lg font-extrabold font-mono text-[#0b1220] leading-tight">
+                {totalGross.toLocaleString("pl-PL")} zł
+              </div>
+              <div className="text-[10px] text-[#94a3b8] font-mono mt-0.5">
+                VAT 23%: {vatAmount.toLocaleString("pl-PL")} zł
+              </div>
             </div>
 
-            {/* Wpisanie własnego rabatu */}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-[#7c8597] font-medium">Własny:</span>
-              <div className="relative inline-flex items-center">
+            {/* Koszty własne */}
+            <div className="p-3.5 px-4">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] block mb-0.5">
+                Koszty własne netto
+              </span>
+              <div className="text-lg font-bold font-mono text-[#475569] leading-tight">
+                {rawCostNet.toLocaleString("pl-PL")} zł
+              </div>
+              <div className="text-[10px] text-[#94a3b8] mt-0.5">
+                Materiały i produkcja
+              </div>
+            </div>
+
+            {/* Zysk i marża */}
+            <div className="p-3.5 px-4">
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                  Szacowany zysk
+                </span>
+                <span
+                  className={`text-[10px] font-mono font-bold inline-flex items-center gap-0.5 ${
+                    marginPct >= 20 ? "text-emerald-600" : "text-amber-600"
+                  }`}
+                >
+                  <TrendingUp size={10} />
+                  {marginPct}%
+                </span>
+              </div>
+              <div
+                className={`text-lg font-extrabold font-mono leading-tight ${
+                  profitNet >= 0 ? "text-emerald-600" : "text-rose-600"
+                }`}
+              >
+                {profitNet.toLocaleString("pl-PL")} zł
+              </div>
+              <div className="text-[10px] text-[#94a3b8] mt-0.5">
+                Marża handlowa: {marginPct}%
+              </div>
+            </div>
+          </div>
+
+          {/* Rabat handlowy (4 cols on lg) */}
+          <div className="lg:col-span-4 p-3.5 px-4 flex flex-col justify-center bg-white">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] flex items-center gap-1">
+                <Percent size={11} className="text-[#4ABBC3]" />
+                <span>Rabat handlowy</span>
+              </span>
+              <span className="text-[11px] font-mono text-[#64748b]">
+                Upust:{" "}
+                <strong
+                  className={
+                    discountAmount > 0 ? "text-amber-600" : "text-[#0b1220]"
+                  }
+                >
+                  {discountAmount > 0 ? `-${discountAmount.toLocaleString("pl-PL")} zł` : "0 zł"}
+                </strong>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1 flex-wrap">
+                {PRESET_DISCOUNTS.map((preset) => {
+                  const isActive = discountPct === preset;
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      disabled={readOnly}
+                      onClick={() => {
+                        setCustomDiscount(String(preset));
+                        onUpdateOffer({ discountPercent: preset });
+                      }}
+                      className={`px-2 py-0.5 text-[11px] font-mono font-semibold rounded border transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-[#0e7490] text-white border-[#0e7490]"
+                          : "bg-[#f8fafc] text-[#475569] border-[#cbd5e1] hover:border-[#4ABBC3] hover:text-[#0e7490]"
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {preset}%
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="inline-flex items-center gap-1 ml-auto">
                 <input
                   type="number"
                   min={0}
@@ -422,35 +432,38 @@ export function OfferSummaryTab({
                       });
                     }
                   }}
-                  className={`w-20 bg-white border rounded px-2.5 py-1 text-[#0b1220] font-mono font-bold text-xs focus:outline-none transition-colors ${
+                  className={`w-14 bg-white border rounded px-2 py-0.5 text-[#0b1220] font-mono font-bold text-[11px] text-right focus:outline-none transition-colors ${
                     !PRESET_DISCOUNTS.includes(discountPct)
                       ? "border-[#0e7490] ring-1 ring-[#0e7490]/30"
-                      : "border-[#d4dae3] focus:border-[#4ABBC3]"
+                      : "border-[#cbd5e1] focus:border-[#4ABBC3]"
                   }`}
-                  placeholder="0"
+                  placeholder="Inny"
+                  title="Własny procent rabatu"
                 />
-                <span className="text-[#7c8597] font-bold text-xs ml-1">%</span>
+                <span className="text-[11px] font-mono font-bold text-[#64748b]">
+                  %
+                </span>
               </div>
             </div>
-
-            <p className="text-[11px] text-[#7c8597] mt-1.5">
-              Kwota rabatu: <strong className="text-[#0b1220] font-mono">{(rawSumNet - discountedNet).toLocaleString("pl-PL")} zł</strong>
-              {rawSumNet > 0 && discountPct > 0 && (
-                <span className="text-[#7c8597] ml-1">(z {rawSumNet.toLocaleString("pl-PL")} zł netto)</span>
-              )}
-            </p>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Itemized Table of Constructions */}
-      <div className="panel overflow-hidden shadow-xs">
-        <div className="px-5 py-4 border-b border-[#e3e7ee] flex items-center justify-between">
+      {/* ── 2. WYKAZ KONSTRUKCJI W OFERCIE ── */}
+      <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#e2e8f0] flex items-center justify-between bg-[#f8fafc]">
           <div className="flex items-center gap-2">
-            <FileText size={16} className="text-[#4ABBC3]" />
-            <h2 className="font-bold text-sm text-[#0b1220] uppercase tracking-wide">
-              Wykaz konstrukcji w ofercie ({items.length})
-            </h2>
+            <div className="p-1.5 rounded-md bg-[rgba(74,187,195,0.12)] text-[#0e7490] border border-[rgba(74,187,195,0.25)]">
+              <Layers size={15} className="text-[#4ABBC3]" />
+            </div>
+            <div>
+              <h2 className="font-bold text-xs text-[#0b1220] uppercase tracking-wider">
+                Wykaz konstrukcji w ofercie ({items.length})
+              </h2>
+              <p className="text-[11px] text-[#64748b]">
+                Kliknij wybraną pozycję, aby przejść do jej rysunku technicznego w edytorze CAD
+              </p>
+            </div>
           </div>
 
           {!readOnly && (
@@ -458,23 +471,33 @@ export function OfferSummaryTab({
               type="button"
               onClick={onAddNewPosition}
               className="btn primary"
-              style={{ padding: "5px 12px", fontSize: 12 }}
+              style={{ padding: "6px 14px", fontSize: 12 }}
             >
-              <Plus size={13} strokeWidth={2.5} />
+              <Plus size={14} strokeWidth={2.5} />
               <span>Dodaj konstrukcję</span>
             </button>
           )}
         </div>
 
         {items.length === 0 ? (
-          <div className="py-12 text-center text-[#7c8597] text-xs space-y-3">
-            <p>Brak dodanych konstrukcji w ofercie.</p>
+          <div className="py-14 px-4 text-center space-y-3">
+            <div className="w-11 h-11 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+              <FileText size={20} />
+            </div>
+            <div>
+              <p className="font-bold text-xs text-[#0b1220]">
+                Brak dodanych konstrukcji w tej ofercie
+              </p>
+              <p className="text-[11px] text-[#64748b] mt-0.5">
+                Wybierz gotową konstrukcję z bazy (np. system szklany) i dostosuj jej wymiary w CAD.
+              </p>
+            </div>
             {!readOnly && (
               <button
                 type="button"
                 onClick={onAddNewPosition}
                 className="btn primary"
-                style={{ padding: "6px 14px", fontSize: 12 }}
+                style={{ padding: "7px 16px", fontSize: 12 }}
               >
                 <Plus size={14} />
                 <span>Wybierz konstrukcję z bazy</span>
@@ -486,131 +509,174 @@ export function OfferSummaryTab({
             <table className="tbl">
               <thead>
                 <tr>
-                  <th className="py-3 px-4 w-12 text-center">Poz.</th>
-                  <th className="py-3 px-4 w-28 text-center">Podgląd CAD</th>
-                  <th className="py-3 px-4">Nazwa & System</th>
-                  <th className="py-3 px-4 text-center">Wymiary (mm)</th>
-                  <th className="py-3 px-4 text-center">Ilość</th>
-                  <th className="py-3 px-4 text-right">Cena jedn. netto</th>
-                  <th className="py-3 px-4 text-right">Wartość netto</th>
-                  <th className="py-3 px-4 text-center w-32">Akcje</th>
+                  <th className="py-2.5 px-4 w-14 text-center">Poz.</th>
+                  <th className="py-2.5 px-4 w-32 text-center">Rysunek CAD</th>
+                  <th className="py-2.5 px-4">Specyfikacja konstrukcji</th>
+                  <th className="py-2.5 px-4 text-center">Wymiary (W × H)</th>
+                  <th className="py-2.5 px-4 text-center">Ilość</th>
+                  <th className="py-2.5 px-4 text-right">Cena jedn. netto</th>
+                  <th className="py-2.5 px-4 text-right">Wartość netto</th>
+                  <th className="py-2.5 px-4 text-right w-36">Akcje</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((it) => {
                   const unitPrice = it.priceNet || 0;
-                  const totalLinePrice = unitPrice * (it.quantity || 1);
+                  const qty = it.quantity || 1;
+                  const totalLinePrice = unitPrice * qty;
                   const panes = Math.max(1, it.panesCount || 3);
 
                   return (
-                    <tr key={it._id}>
-                      <td className="py-3 px-4 text-center font-mono font-bold text-[#0e7490]">
-                        {it.positionIndex}
+                    <tr
+                      key={it._id}
+                      onClick={() => onOpenPositionInCad(it._id)}
+                      className="cursor-pointer hover:bg-[#f8fafc] transition-colors group"
+                    >
+                      <td className="py-3 px-4 text-center">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 group-hover:bg-[#e0f9fe] font-mono font-bold text-xs text-[#0e7490] transition-colors">
+                          {it.positionIndex}
+                        </span>
                       </td>
 
-                      {/* CAD Miniature */}
+                      {/* Technical CAD Miniature */}
                       <td className="py-3 px-4 text-center">
                         <div
-                          onClick={() => onOpenPositionInCad(it._id)}
-                          className="w-24 h-14 mx-auto bg-[#f8fafc] rounded border border-[#e3e7ee] p-1 cursor-pointer hover:border-[#4ABBC3] transition-colors"
-                          title="Kliknij, aby otworzyć w CAD"
+                          className="w-24 h-14 mx-auto bg-white rounded border border-[#cbd5e1] group-hover:border-[#4ABBC3] flex items-center justify-center p-1 transition-colors shadow-2xs"
+                          title="Otwórz pozycję w edytorze CAD"
                         >
-                          <svg viewBox="0 0 100 60" className="w-full h-full">
+                          <svg
+                            viewBox="0 0 140 70"
+                            className="w-full h-full"
+                            preserveAspectRatio="xMidYMid meet"
+                          >
                             <rect
                               x="2"
                               y="2"
-                              width="96"
+                              width="136"
+                              height="66"
+                              fill="none"
+                              stroke="#dc2626"
+                              strokeWidth="1"
+                            />
+                            <rect
+                              x="3"
+                              y="3"
+                              width="134"
+                              height="64"
+                              fill="#29323d"
+                              stroke="#1e242b"
+                              strokeWidth="1"
+                            />
+                            <rect
+                              x="7"
+                              y="7"
+                              width="126"
                               height="56"
-                              fill="#e2e8f0"
-                              stroke="#64748b"
-                              strokeWidth="1.5"
+                              fill="#ffffff"
                             />
                             {Array.from({ length: panes }).map((_, i) => {
-                              const pw = (96 - 6) / panes;
+                              const pw = 126 / panes;
+                              const px = 7 + i * pw;
                               return (
-                                <rect
-                                  key={i}
-                                  x={5 + i * pw}
-                                  y="5"
-                                  width={pw - 2}
-                                  height="50"
-                                  fill="rgba(74, 187, 195, 0.25)"
-                                  stroke="#0e7490"
-                                  strokeWidth="1"
-                                />
+                                <g key={i}>
+                                  <rect
+                                    x={px + 0.5}
+                                    y="7.5"
+                                    width={pw - 1}
+                                    height="55"
+                                    fill="#ffffff"
+                                    stroke="#e2e8f0"
+                                    strokeWidth="0.5"
+                                  />
+                                  {i > 0 && (
+                                    <line
+                                      x1={px}
+                                      y1="7"
+                                      x2={px}
+                                      y2="63"
+                                      stroke="#dc2626"
+                                      strokeWidth="1"
+                                    />
+                                  )}
+                                </g>
                               );
                             })}
                           </svg>
                         </div>
                       </td>
 
-                      {/* Name, System, Glass */}
+                      {/* Name, Color, Glass */}
                       <td className="py-3 px-4">
-                        <button
-                          type="button"
-                          onClick={() => onOpenPositionInCad(it._id)}
-                          className="font-bold text-[#0b1220] hover:text-[#0e7490] text-left transition-colors text-sm block"
-                        >
+                        <div className="font-bold text-[#0b1220] group-hover:text-[#0e7490] transition-colors text-xs md:text-sm">
                           {it.name}
-                        </button>
-                        <div className="text-[11px] text-[#7c8597] mt-0.5 space-x-2">
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-[#64748b] mt-1">
                           {it.systemName ? (
-                            <>
-                              <span>
-                                System:{" "}
-                                <span className="text-[#1f2937] font-semibold">
-                                  {it.systemName}
-                                </span>
-                              </span>
-                              <span>·</span>
-                            </>
+                            <span>
+                              System:{" "}
+                              <strong className="text-[#1f2937]">
+                                {it.systemName}
+                              </strong>
+                            </span>
                           ) : null}
                           <span>
                             Kolor:{" "}
-                            <span className="text-[#1f2937] font-mono">
+                            <strong className="text-[#334155] font-mono">
                               {it.color || "RAL 7016MAT"}
-                            </span>
+                            </strong>
                           </span>
-                          <span>·</span>
                           <span>
-                            Szkło:{" "}
-                            <span className="text-[#0e7490] font-mono font-medium">
+                            Wypełnienie:{" "}
+                            <strong className="text-[#0e7490] font-mono">
                               {it.fillType || "HART 10"}
-                            </span>
+                            </strong>
                           </span>
                         </div>
                       </td>
 
                       {/* Dimensions */}
-                      <td className="py-3 px-4 text-center font-mono text-[#0b1220]">
-                        {it.widthMm} × {it.heightMm}
-                        <div className="text-[10px] text-[#7c8597]">{panes} skrzydła</div>
+                      <td className="py-3 px-4 text-center">
+                        <div className="font-mono font-bold text-xs text-[#0b1220]">
+                          {it.widthMm} × {it.heightMm} mm
+                        </div>
+                        <div className="text-[10px] text-[#64748b] mt-0.5">
+                          System {panes}-torowy
+                        </div>
                       </td>
 
                       {/* Quantity */}
-                      <td className="py-3 px-4 text-center font-mono font-bold text-[#0b1220]">
-                        {it.quantity} szt.
+                      <td className="py-3 px-4 text-center font-mono font-bold text-xs text-[#0b1220]">
+                        {qty} szt.
                       </td>
 
                       {/* Unit Price */}
-                      <td className="py-3 px-4 text-right font-mono text-[#4b5563]">
+                      <td className="py-3 px-4 text-right font-mono text-xs text-[#475569]">
                         {unitPrice.toLocaleString("pl-PL")} zł
                       </td>
 
                       {/* Total Net */}
-                      <td className="py-3 px-4 text-right font-mono font-bold text-[#0e7490] text-sm">
+                      <td className="py-3 px-4 text-right font-mono font-bold text-xs md:text-sm text-[#0b1220]">
                         {totalLinePrice.toLocaleString("pl-PL")} zł
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
+                      <td
+                        className="py-3 px-4 text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => onOpenPositionInCad(it._id)}
                             title="Otwórz w edytorze CAD"
-                            className="btn icon"
-                            style={{ padding: "3px 8px", fontSize: 11, color: "#0e7490", borderColor: "#4ABBC3" }}
+                            className="btn icon font-semibold"
+                            style={{
+                              padding: "4px 9px",
+                              fontSize: 11,
+                              color: "#0e7490",
+                              borderColor: "#a5f3fc",
+                              background: "#f0fdff",
+                            }}
                           >
                             CAD
                           </button>
@@ -621,7 +687,7 @@ export function OfferSummaryTab({
                                 onClick={() => onDuplicatePosition(it._id)}
                                 title="Duplikuj pozycję"
                                 className="btn icon"
-                                style={{ padding: "3px 6px" }}
+                                style={{ padding: "4px 6px" }}
                               >
                                 <Copy size={13} />
                               </button>
@@ -630,7 +696,11 @@ export function OfferSummaryTab({
                                 onClick={() => onDeletePosition(it._id)}
                                 title="Usuń pozycję"
                                 className="btn icon"
-                                style={{ padding: "3px 6px", color: "#dc2626", borderColor: "#fca5a5" }}
+                                style={{
+                                  padding: "4px 6px",
+                                  color: "#dc2626",
+                                  borderColor: "#fca5a5",
+                                }}
                               >
                                 <Trash2 size={13} />
                               </button>
@@ -642,6 +712,27 @@ export function OfferSummaryTab({
                   );
                 })}
               </tbody>
+
+              {/* Table Summary Footer */}
+              <tfoot>
+                <tr className="bg-[#f8fafc] border-t-2 border-[#e2e8f0] font-mono text-xs">
+                  <td colSpan={4} className="py-3 px-4 text-right font-sans font-bold text-[#475569]">
+                    Razem ({items.length} {items.length === 1 ? "pozycja" : "pozycje"}):
+                  </td>
+                  <td className="py-3 px-4 text-center font-bold text-[#0b1220]">
+                    {totalQuantity} szt.
+                  </td>
+                  <td className="py-3 px-4 text-right text-[#64748b]">
+                    {discountPct > 0 ? `Rabat -${discountPct}%:` : "Suma netto:"}
+                  </td>
+                  <td className="py-3 px-4 text-right font-extrabold text-sm text-[#0e7490]">
+                    {discountedNet.toLocaleString("pl-PL")} zł
+                  </td>
+                  <td className="py-3 px-4 text-right text-[11px] text-[#64748b]">
+                    brutto: {totalGross.toLocaleString("pl-PL")} zł
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}

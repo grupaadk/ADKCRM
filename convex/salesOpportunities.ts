@@ -294,6 +294,11 @@ export const listForPicker = query({
         clientName: `${o.firstName} ${o.lastName}`.trim() || "—",
         customText: o.customText ?? null,
         stage: o.stage ?? "lead",
+        city: o.investmentCity || o.city || null,
+        phone: o.phone ?? null,
+        email: o.email ?? null,
+        services: o.services ?? [],
+        createdAt: o._creationTime,
       }));
   },
 });

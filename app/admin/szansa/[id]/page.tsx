@@ -17,6 +17,7 @@ import {
   MapPin,
   Building2,
   Layers,
+  ArrowRight,
 } from "lucide-react";
 import DriveFolderButton from "@/components/DriveFolderButton";
 import OpportunityAttachmentsSection from "./OpportunityAttachmentsSection";
@@ -129,6 +130,8 @@ export default function OpportunityDetailPage({
   const assignOpportunity = useMutation(api.salesOpportunities.assignOpportunity);
   const assignableUsers = useQuery(api.users.listAllActive) ?? [];
   const servicesList = useQuery(api.services.list, {}) ?? [];
+  const allOffers = useQuery(api.offers.list, {});
+  const linkedOffer = allOffers?.find((o) => o.opportunityId === opportunityId);
 
   // Synchronizacja checkboxa "Taki sam jak klienta" gdy dane opp się załadują
   useEffect(() => {
@@ -568,25 +571,6 @@ export default function OpportunityDetailPage({
               onCreate={handleRetryFolder}
               busy={retrying}
             />
-            <Link
-              href={`/admin/oferta?opportunityId=${opportunityId}`}
-              className="btn"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "5px 12px",
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: "#0369a1",
-                borderColor: "#7dd3fc",
-                background: "#f0f9ff",
-                textDecoration: "none",
-              }}
-              title="Otwórz ofertę i konfigurator CAD"
-            >
-              <Layers size={13} /> Oferta (CAD)
-            </Link>
             <button
               onClick={handleArchive}
               className="btn"
@@ -780,24 +764,50 @@ export default function OpportunityDetailPage({
               </div>
             </div>
             <Link
-              href={`/admin/oferta?opportunityId=${opportunityId}`}
+              href={
+                linkedOffer
+                  ? `/admin/oferta?offerId=${linkedOffer._id}`
+                  : `/admin/oferta?opportunityId=${opportunityId}`
+              }
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
+                gap: 7,
                 fontSize: 12,
-                fontWeight: 600,
-                padding: "4px 12px",
-                borderRadius: 6,
-                background: "#0284c7",
+                fontWeight: 700,
+                padding: "5px 14px",
+                borderRadius: 8,
+                background: linkedOffer
+                  ? "linear-gradient(135deg, #0e7490 0%, #0891b2 100%)"
+                  : "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
                 color: "#ffffff",
+                border: "1px solid rgba(74, 187, 195, 0.4)",
                 textDecoration: "none",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                boxShadow: "0 2px 6px rgba(14, 116, 144, 0.2)",
               }}
-              title="Przejdź do oferty i konfiguratora CAD"
+              title="Otwórz ofertę"
             >
-              <Layers size={13} />
-              Konfigurator CAD / Oferta
+              <Layers size={14} style={{ color: "#4ABBC3" }} />
+              <span>
+                {linkedOffer
+                  ? `Oferta: ${linkedOffer.offerNumber}`
+                  : "Utwórz ofertę"}
+              </span>
+              {linkedOffer && (
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 800,
+                    padding: "1px 6px",
+                    borderRadius: 4,
+                    background: "rgba(255,255,255,0.18)",
+                    color: "#fff",
+                  }}
+                >
+                  {linkedOffer.itemsCount} poz.
+                </span>
+              )}
+              <ArrowRight size={13} style={{ opacity: 0.85 }} />
             </Link>
             {opp.processed ? (
               opp.convertedOrder ? (
@@ -1151,6 +1161,43 @@ export default function OpportunityDetailPage({
                 )}
               </div>
             </div>
+
+            {/* Kompaktowa adnotacja kwoty oferty w Finanse i Rating */}
+            {linkedOffer && (
+              <Link
+                href={`/admin/oferta?offerId=${linkedOffer._id}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  background: "var(--accent-soft)",
+                  border: "1px solid rgba(74, 187, 195, 0.3)",
+                  textDecoration: "none",
+                }}
+                title="Przejdź do oferty"
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                  <Layers size={12} color="var(--accent)" style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)" }}>
+                    Oferta ({linkedOffer.offerNumber}):
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontFamily: "var(--font-mono, monospace)",
+                    fontSize: 11.5,
+                    fontWeight: 800,
+                    color: "#0e7490",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {linkedOffer.totalPriceNet.toLocaleString("pl-PL")} zł netto
+                </span>
+              </Link>
+            )}
           </div>
         </div>
       </div>
