@@ -11,6 +11,7 @@ import { VerticalPositionsList } from "./VerticalPositionsList";
 import { BottomTabsBar, ConstructionTemplate } from "./BottomTabsBar";
 import { OfferSummaryTab, OfferData, OpportunityData } from "./OfferSummaryTab";
 import { AddConstructionModal, SelectedConstructionEntry } from "./AddConstructionModal";
+import { AllConstructionsCadView } from "./AllConstructionsCadView";
 import {
   ArrowLeft,
   Check,
@@ -36,8 +37,8 @@ export function CadWorkspace({ offerId }: CadWorkspaceProps) {
   const removePosition = useMutation(api.offers.removeConstructionPosition);
   const duplicatePosition = useMutation(api.offers.duplicateConstructionPosition);
 
-  // Aktywna zakładka: 'offer' lub ID pozycji
-  const [activeTab, setActiveTab] = useState<"offer" | string>("offer");
+  // Aktywna zakładka: 'offer', 'all-cad' lub ID pozycji
+  const [activeTab, setActiveTab] = useState<"offer" | "all-cad" | string>("offer");
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "idle">("saved");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
@@ -61,7 +62,10 @@ export function CadWorkspace({ offerId }: CadWorkspaceProps) {
   );
 
   const effectiveActiveTab =
-    activeTab !== "offer" && items.length > 0 && !items.some((it) => it._id === activeTab)
+    activeTab !== "offer" &&
+    activeTab !== "all-cad" &&
+    items.length > 0 &&
+    !items.some((it) => it._id === activeTab)
       ? items[0]._id
       : activeTab;
 
@@ -269,13 +273,23 @@ export function CadWorkspace({ offerId }: CadWorkspaceProps) {
 
       {/* ── Main Workspace Body ── */}
       <div className="flex-1 flex overflow-hidden">
-        {effectiveActiveTab === "offer" || !activeItem ? (
+        {effectiveActiveTab === "all-cad" ? (
+          <AllConstructionsCadView
+            offer={offer}
+            items={items}
+            opportunity={opportunity}
+            onSelectPosition={(itemId) => setActiveTab(itemId)}
+            onBackToOffer={() => setActiveTab("offer")}
+            onAddNewPosition={() => setIsAddModalOpen(true)}
+          />
+        ) : effectiveActiveTab === "offer" || !activeItem ? (
           <OfferSummaryTab
             offer={offer}
             items={items}
             opportunity={opportunity}
             onUpdateOffer={handleOfferChange}
             onOpenPositionInCad={(itemId) => setActiveTab(itemId)}
+            onOpenAllInCad={() => setActiveTab("all-cad")}
             onDuplicatePosition={handleDuplicate}
             onDeletePosition={handleDelete}
             onAddNewPosition={() => setIsAddModalOpen(true)}

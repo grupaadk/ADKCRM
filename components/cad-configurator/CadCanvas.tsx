@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { ZoomIn, ZoomOut, Maximize2, Ruler, Layers } from "lucide-react";
 
 export interface CadSegment {
@@ -43,6 +43,27 @@ interface CadCanvasProps {
 export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
   const [zoom, setZoom] = useState(initialZoom);
   const [showDimensions, setShowDimensions] = useState(true);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const step = e.deltaY < 0 ? 0.12 : -0.12;
+        setZoom((prev) =>
+          Math.min(4, Math.max(0.4, Math.round((prev + step) * 100) / 100))
+        );
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
 
   const width = Math.max(item.widthMm || 2880, 400);
   const height = Math.max(item.heightMm || 2300, 400);
@@ -114,12 +135,19 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
 
           <div className="h-4 w-px bg-[#e3e7ee] mx-1" />
 
+          <span
+            className="hidden xl:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono text-[#64748b] bg-slate-100 border border-[#e2e8f0]"
+            title="Przytrzymaj klawisz Ctrl i kręć kółkiem myszy, aby przybliżać lub oddalać widok CAD"
+          >
+            Ctrl + Scroll
+          </span>
+
           <button
             type="button"
             onClick={() =>
               setZoom((z) => Math.max(0.4, Math.round((z - 0.1) * 100) / 100))
             }
-            title="Oddal (Zoom out)"
+            title="Oddal (Zoom out / Ctrl + Scroll w dół)"
             className="p-1.5 rounded bg-white text-[#4b5563] hover:text-[#0b1220] border border-[#d4dae3]"
           >
             <ZoomOut size={13} />
@@ -130,9 +158,9 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
           <button
             type="button"
             onClick={() =>
-              setZoom((z) => Math.min(2.5, Math.round((z + 0.1) * 100) / 100))
+              setZoom((z) => Math.min(4, Math.round((z + 0.1) * 100) / 100))
             }
-            title="Przybliż (Zoom in)"
+            title="Przybliż (Zoom in / Ctrl + Scroll w górę)"
             className="p-1.5 rounded bg-white text-[#4b5563] hover:text-[#0b1220] border border-[#d4dae3]"
           >
             <ZoomIn size={13} />
@@ -148,15 +176,19 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
         </div>
       </div>
 
-      {/* Main CAD Viewport Area - Automatyczne pełne dopasowanie do kontenera */}
-      <div className="relative flex-1 min-h-0 min-w-0 overflow-auto flex items-center justify-center p-2 sm:p-4 bg-slate-100/60">
+      {/* Main CAD Viewport Area - Automatyczne pełne dopasowanie do kontenera + obsługa scrollowania i Ctrl+Scroll */}
+      <div
+        ref={viewportRef}
+        className="relative flex-1 min-h-0 min-w-0 overflow-auto p-2 sm:p-4 bg-slate-100/60"
+      >
         <div
           style={{
-            transform: zoom !== 1 ? `scale(${zoom})` : undefined,
-            transformOrigin: "center center",
-            transition: "transform 0.15s ease-out",
+            width: `${Math.round(zoom * 100)}%`,
+            height: `${Math.round(zoom * 100)}%`,
+            minWidth: `${Math.round(zoom * 100)}%`,
+            minHeight: `${Math.round(zoom * 100)}%`,
           }}
-          className="w-full h-full min-h-0 min-w-0 flex items-center justify-center select-none"
+          className="flex items-center justify-center m-auto select-none"
         >
           <svg
             viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
@@ -165,8 +197,6 @@ export function CadCanvas({ item, initialZoom = 1 }: CadCanvasProps) {
             style={{
               width: "100%",
               height: "100%",
-              maxWidth: "100%",
-              maxHeight: "100%",
               fontFamily:
                 "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
             }}

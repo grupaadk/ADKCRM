@@ -4,6 +4,7 @@ import React from "react";
 import { CadConstructionItem } from "./CadCanvas";
 import {
   FileText,
+  Layers,
   Plus,
 } from "lucide-react";
 
@@ -22,10 +23,10 @@ export interface ConstructionTemplate {
 }
 
 interface BottomTabsBarProps {
-  activeTab: "offer" | string; // 'offer' lub ID pozycji
+  activeTab: "offer" | "all-cad" | string; // 'offer', 'all-cad' lub ID pozycji
   items: CadConstructionItem[];
   templates: ConstructionTemplate[];
-  onSelectTab: (tabId: "offer" | string) => void;
+  onSelectTab: (tabId: "offer" | "all-cad" | string) => void;
   onOpenAddModal: () => void;
   onAddConstruction?: (templateId?: string) => void;
   readOnly?: boolean;
@@ -49,7 +50,7 @@ export function BottomTabsBar({
           <button
             type="button"
             onClick={() => onSelectTab("offer")}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0 ${
+            className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0 cursor-pointer ${
               activeTab === "offer"
                 ? "bg-[#4ABBC3] text-white ring-2 ring-[#4ABBC3]/30"
                 : "bg-[#f3f5f8] text-[#1f2937] hover:bg-[#e8ecf2] border border-[#d4dae3]"
@@ -67,6 +68,23 @@ export function BottomTabsBar({
               {items.length}
             </span>
           </button>
+
+          {/* 2. Zakładka [ WSZYSTKIE CAD ] - widok zbiorczy wszystkich konstrukcji */}
+          {items.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onSelectTab("all-cad")}
+              title="Widok wszystkich konstrukcji w ofercie na wspólnym arkuszu CAD"
+              className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0 cursor-pointer ${
+                activeTab === "all-cad"
+                  ? "bg-[#0b1220] text-white ring-2 ring-[#0b1220]/25"
+                  : "bg-[#f3f5f8] text-[#1f2937] hover:bg-[#e8ecf2] border border-[#d4dae3]"
+              }`}
+            >
+              <Layers size={13} className={activeTab === "all-cad" ? "text-[#4ABBC3]" : "text-[#0e7490]"} />
+              <span>WSZYSTKIE CAD</span>
+            </button>
+          )}
 
           {/* Separator */}
           <div className="h-5 w-px bg-[#e3e7ee] mx-1 shrink-0" />

@@ -64,6 +64,7 @@ interface OfferSummaryTabProps {
   opportunity?: OpportunityData | null;
   onUpdateOffer: (patch: Partial<OfferData>) => void;
   onOpenPositionInCad: (itemId: string) => void;
+  onOpenAllInCad?: () => void;
   onDuplicatePosition: (itemId: string) => void;
   onDeletePosition: (itemId: string) => void;
   onAddNewPosition: () => void;
@@ -76,6 +77,7 @@ export function OfferSummaryTab({
   opportunity,
   onUpdateOffer,
   onOpenPositionInCad,
+  onOpenAllInCad,
   onDuplicatePosition,
   onDeletePosition,
   onAddNewPosition,
@@ -262,6 +264,29 @@ export function OfferSummaryTab({
 
           {/* Right side: Quick Actions */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {onOpenAllInCad && (
+              <button
+                type="button"
+                onClick={onOpenAllInCad}
+                disabled={items.length === 0}
+                className={`btn font-semibold transition-all ${
+                  items.length > 0
+                    ? "bg-[#0b1220] hover:bg-[#1e293b] text-white border border-[#0b1220] shadow-xs cursor-pointer"
+                    : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                }`}
+                style={{ padding: "6px 12px", fontSize: 11.5 }}
+                title="Otwórz widok wszystkich konstrukcji w ofercie na wspólnym arkuszu CAD"
+              >
+                <Layers size={13} className={items.length > 0 ? "text-[#4ABBC3]" : "text-slate-400"} />
+                <span>Widok zbiorczy CAD</span>
+                {items.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-[#4ABBC3]/20 text-[#4ABBC3]">
+                    {items.length}
+                  </span>
+                )}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => window.print()}
