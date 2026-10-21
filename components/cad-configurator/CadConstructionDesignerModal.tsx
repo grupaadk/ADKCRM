@@ -23,18 +23,19 @@ export interface GlassSystemPreset {
   heightMm: number;
   label: string;
   sublabel: string;
+  priceNet: number;
 }
 
 export const GLASS_SYSTEM_PRESETS: GlassSystemPreset[] = [
-  { id: "2t-194", tracks: 2, widthMm: 1940, heightMm: 2300, label: "System 2-torowy", sublabel: "194 cm / wys. 230 cm" },
-  { id: "3t-241", tracks: 3, widthMm: 2410, heightMm: 2300, label: "System 3-torowy", sublabel: "241 cm / wys. 230 cm" },
-  { id: "3t-290", tracks: 3, widthMm: 2900, heightMm: 2300, label: "System 3-torowy", sublabel: "290 cm / wys. 230 cm" },
-  { id: "4t-337", tracks: 4, widthMm: 3370, heightMm: 2300, label: "System 4-torowy", sublabel: "337 cm / wys. 230 cm" },
-  { id: "4t-386", tracks: 4, widthMm: 3860, heightMm: 2300, label: "System 4-torowy", sublabel: "386 cm / wys. 230 cm" },
-  { id: "5t-433", tracks: 5, widthMm: 4330, heightMm: 2300, label: "System 5-torowy", sublabel: "433 cm / wys. 230 cm" },
-  { id: "5t-482", tracks: 5, widthMm: 4820, heightMm: 2300, label: "System 5-torowy", sublabel: "482 cm / wys. 230 cm" },
-  { id: "6t-529", tracks: 6, widthMm: 5290, heightMm: 2300, label: "System 6-torowy", sublabel: "529 cm / wys. 230 cm" },
-  { id: "6t-578", tracks: 6, widthMm: 5780, heightMm: 2300, label: "System 6-torowy", sublabel: "578 cm / wys. 230 cm" },
+  { id: "2t-194", tracks: 2, widthMm: 1940, heightMm: 2300, label: "System 2-torowy", sublabel: "194 cm / wys. 230 cm", priceNet: 1667 },
+  { id: "3t-241", tracks: 3, widthMm: 2410, heightMm: 2300, label: "System 3-torowy", sublabel: "241 cm / wys. 230 cm", priceNet: 2431 },
+  { id: "3t-290", tracks: 3, widthMm: 2900, heightMm: 2300, label: "System 3-torowy", sublabel: "290 cm / wys. 230 cm", priceNet: 2431 },
+  { id: "4t-337", tracks: 4, widthMm: 3370, heightMm: 2300, label: "System 4-torowy", sublabel: "337 cm / wys. 230 cm", priceNet: 3317 },
+  { id: "4t-386", tracks: 4, widthMm: 3860, heightMm: 2300, label: "System 4-torowy", sublabel: "386 cm / wys. 230 cm", priceNet: 3317 },
+  { id: "5t-433", tracks: 5, widthMm: 4330, heightMm: 2300, label: "System 5-torowy", sublabel: "433 cm / wys. 230 cm", priceNet: 4244 },
+  { id: "5t-482", tracks: 5, widthMm: 4820, heightMm: 2300, label: "System 5-torowy", sublabel: "482 cm / wys. 230 cm", priceNet: 4244 },
+  { id: "6t-529", tracks: 6, widthMm: 5290, heightMm: 2300, label: "System 6-torowy", sublabel: "529 cm / wys. 230 cm", priceNet: 5325 },
+  { id: "6t-578", tracks: 6, widthMm: 5780, heightMm: 2300, label: "System 6-torowy", sublabel: "578 cm / wys. 230 cm", priceNet: 5325 },
 ];
 
 interface CadConstructionDesignerModalProps {
@@ -472,6 +473,7 @@ export function CadConstructionDesignerModal({
                             setPanesCount(preset.tracks);
                             setWidthMm(preset.widthMm);
                             setHeightMm(preset.heightMm);
+                            setPriceNet(preset.priceNet);
                           }}
                           className={`w-full text-left p-2.5 rounded-lg border transition-all flex items-center justify-between gap-2 cursor-pointer ${
                             isSelected
@@ -504,6 +506,9 @@ export function CadConstructionDesignerModal({
                           </div>
 
                           <div className="shrink-0 flex items-center gap-1.5">
+                            <span className="font-mono font-semibold text-xs text-slate-800">
+                              {preset.priceNet.toLocaleString("pl-PL")} zł
+                            </span>
                             <span className="font-mono font-semibold text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
                               {preset.widthMm} × {preset.heightMm} mm
                             </span>

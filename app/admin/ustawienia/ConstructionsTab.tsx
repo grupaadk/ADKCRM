@@ -591,13 +591,13 @@ export function ConstructionsTab() {
                           </td>
 
                           {/* Cena netto */}
-                          <td className="px-3 py-3 whitespace-nowrap font-mono text-[11px]">
+                          <td className="px-3 py-3 whitespace-nowrap font-mono text-xs">
                             {c.defaultPriceNet !== undefined && c.defaultPriceNet !== null ? (
-                              <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                              <span className="font-bold text-slate-800">
                                 {c.defaultPriceNet.toLocaleString("pl-PL")} zł
                               </span>
                             ) : (
-                              <span className="text-slate-400 italic">Brak ceny</span>
+                              <span className="text-slate-400 italic font-sans text-[11px]">Brak ceny</span>
                             )}
                           </td>
 
