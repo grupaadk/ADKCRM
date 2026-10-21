@@ -16,6 +16,7 @@ import {
   Send,
   MapPin,
   Building2,
+  Layers,
 } from "lucide-react";
 import DriveFolderButton from "@/components/DriveFolderButton";
 import OpportunityAttachmentsSection from "./OpportunityAttachmentsSection";
@@ -567,6 +568,25 @@ export default function OpportunityDetailPage({
               onCreate={handleRetryFolder}
               busy={retrying}
             />
+            <Link
+              href={`/admin/oferta?opportunityId=${opportunityId}`}
+              className="btn"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "5px 12px",
+                fontSize: 11.5,
+                fontWeight: 600,
+                color: "#0369a1",
+                borderColor: "#7dd3fc",
+                background: "#f0f9ff",
+                textDecoration: "none",
+              }}
+              title="Otwórz ofertę i konfigurator CAD"
+            >
+              <Layers size={13} /> Oferta (CAD)
+            </Link>
             <button
               onClick={handleArchive}
               className="btn"
@@ -759,6 +779,26 @@ export default function OpportunityDetailPage({
                 })}
               </div>
             </div>
+            <Link
+              href={`/admin/oferta?opportunityId=${opportunityId}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                padding: "4px 12px",
+                borderRadius: 6,
+                background: "#0284c7",
+                color: "#ffffff",
+                textDecoration: "none",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+              }}
+              title="Przejdź do oferty i konfiguratora CAD"
+            >
+              <Layers size={13} />
+              Konfigurator CAD / Oferta
+            </Link>
             {opp.processed ? (
               opp.convertedOrder ? (
                 <Link

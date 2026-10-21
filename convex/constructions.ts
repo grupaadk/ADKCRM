@@ -1,0 +1,234 @@
+import { mutation, query } from "./_generated/server";
+import { v } from "convex/values";
+
+/**
+ * Pobiera listę konstrukcji z bazy danych
+ */
+export const list = query({
+  args: {
+    includeInactive: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    let constructions = await ctx.db.query("constructions").collect();
+    if (!args.includeInactive) {
+      constructions = constructions.filter((c) => c.isActive);
+    }
+    return constructions
+      .map((c) => ({ ...c, defaultWarning: undefined }))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+  },
+});
+
+/**
+ * Pobiera pojedynczą konstrukcję po ID
+ */
+export const get = query({
+  args: {
+    id: v.id("constructions"),
+  },
+  handler: async (ctx, args) => {
+    const c = await ctx.db.get(args.id);
+    if (!c) return null;
+    return { ...c, defaultWarning: undefined };
+  },
+});
+
+/**
+ * Tworzy nową konstrukcję w katalogu
+ */
+export const create = mutation({
+  args: {
+    name: v.string(),
+    code: v.string(),
+    categoryId: v.optional(v.id("constructionCategories")),
+    category: v.optional(v.string()),
+    description: v.optional(v.string()),
+    defaultSystem: v.optional(v.string()),
+    defaultColor: v.optional(v.string()),
+    defaultWidthMm: v.optional(v.number()),
+    defaultHeightMm: v.optional(v.number()),
+    defaultPanesCount: v.optional(v.number()),
+    defaultFillType: v.optional(v.string()),
+    defaultWarning: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.query("constructions").collect();
+    const nextOrder = existing.length > 0 ? Math.max(...existing.map((c) => c.sortOrder)) + 1 : 0;
+    const now = Date.now();
+
+    let categoryName = args.category?.trim() || undefined;
+    if (args.categoryId) {
+      const cat = await ctx.db.get(args.categoryId);
+      if (cat) categoryName = cat.name;
+    }
+
+    return await ctx.db.insert("constructions", {
+      name: args.name.trim(),
+      code: args.code.trim().toUpperCase(),
+      categoryId: args.categoryId,
+      category: categoryName,
+      description: args.description?.trim() || undefined,
+      defaultSystem: args.defaultSystem?.trim() || "PROCURAL",
+      defaultColor: args.defaultColor?.trim() || "RAL 7016MAT",
+      defaultWidthMm: args.defaultWidthMm || 2880,
+      defaultHeightMm: args.defaultHeightMm || 2300,
+      defaultPanesCount: args.defaultPanesCount || 3,
+      defaultFillType: args.defaultFillType?.trim() || "HART 10",
+      defaultWarning: args.defaultWarning?.trim() || undefined,
+      isActive: true,
+      sortOrder: nextOrder,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
+ * Aktualizuje konstrukcję w katalogu
+ */
+export const update = mutation({
+  args: {
+    id: v.id("constructions"),
+    name: v.optional(v.string()),
+    code: v.optional(v.string()),
+    categoryId: v.optional(v.id("constructionCategories")),
+    category: v.optional(v.string()),
+    description: v.optional(v.string()),
+    defaultSystem: v.optional(v.string()),
+    defaultColor: v.optional(v.string()),
+    defaultWidthMm: v.optional(v.number()),
+    defaultHeightMm: v.optional(v.number()),
+    defaultPanesCount: v.optional(v.number()),
+    defaultFillType: v.optional(v.string()),
+    defaultWarning: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
+    sortOrder: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...fields } = args;
+    const existing = await ctx.db.get(id);
+    if (!existing) throw new Error("Konstrukcja nie znaleziona");
+
+    const patch: Record<string, unknown> = { updatedAt: Date.now() };
+    if (fields.name !== undefined) patch.name = fields.name.trim();
+    if (fields.code !== undefined) patch.code = fields.code.trim().toUpperCase();
+    if (fields.categoryId !== undefined) {
+      patch.categoryId = fields.categoryId || undefined;
+      if (fields.categoryId) {
+        const cat = await ctx.db.get(fields.categoryId);
+        if (cat) patch.category = cat.name;
+      }
+    } else if (fields.category !== undefined) {
+      patch.category = fields.category.trim() || undefined;
+    }
+    if (fields.description !== undefined) patch.description = fields.description.trim() || undefined;
+    if (fields.defaultSystem !== undefined) patch.defaultSystem = fields.defaultSystem.trim() || undefined;
+    if (fields.defaultColor !== undefined) patch.defaultColor = fields.defaultColor.trim() || undefined;
+    if (fields.defaultWidthMm !== undefined) patch.defaultWidthMm = fields.defaultWidthMm;
+    if (fields.defaultHeightMm !== undefined) patch.defaultHeightMm = fields.defaultHeightMm;
+    if (fields.defaultPanesCount !== undefined) patch.defaultPanesCount = fields.defaultPanesCount;
+    if (fields.defaultFillType !== undefined) patch.defaultFillType = fields.defaultFillType.trim() || undefined;
+    if (fields.defaultWarning !== undefined) patch.defaultWarning = fields.defaultWarning.trim() || undefined;
+    if (fields.isActive !== undefined) patch.isActive = fields.isActive;
+    if (fields.sortOrder !== undefined) patch.sortOrder = fields.sortOrder;
+
+    await ctx.db.patch(id, patch);
+  },
+});
+
+/**
+ * Usuwa konstrukcję z katalogu
+ */
+export const remove = mutation({
+  args: {
+    id: v.id("constructions"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+  },
+});
+
+/**
+ * Zmienia kolejność konstrukcji
+ */
+export const reorder = mutation({
+  args: {
+    id: v.id("constructions"),
+    sortOrder: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      sortOrder: args.sortOrder,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Seeduje przykładowe konstrukcje, jeśli baza jest pusta
+ */
+export const seedDefault = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const count = (await ctx.db.query("constructions").collect()).length;
+    if (count > 0) return { created: 0 };
+
+    const now = Date.now();
+    const defaults = [
+      {
+        name: "System całoszklany 3-torowy",
+        code: "SZKLO-3T",
+        category: "Systemy szklane",
+        description: "System całoszklany przesuwny 3-torowy ze szkłem hartowanym HART 10",
+        defaultSystem: "PROCURAL",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 2880,
+        defaultHeightMm: 2300,
+        defaultPanesCount: 3,
+        defaultFillType: "HART 10",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        name: "System całoszklany 4-torowy",
+        code: "SZKLO-4T",
+        category: "Systemy szklane",
+        description: "System całoszklany przesuwny 4-torowy 4 skrzydła",
+        defaultSystem: "PROCURAL",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 3800,
+        defaultHeightMm: 2300,
+        defaultPanesCount: 4,
+        defaultFillType: "HART 10",
+        isActive: true,
+        sortOrder: 1,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        name: "PE78N - Okna i drzwi",
+        code: "PE78N",
+        category: "Stolarka aluminiowa",
+        description: "Ciepły system profilowy PE78N z przekładką termiczną",
+        defaultSystem: "PONZIO PE78N",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 1800,
+        defaultHeightMm: 2100,
+        defaultPanesCount: 2,
+        defaultFillType: "4/16/4 U=1.1",
+        isActive: true,
+        sortOrder: 2,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+
+    for (const d of defaults) {
+      await ctx.db.insert("constructions", d);
+    }
+
+    return { created: defaults.length };
+  },
+});

@@ -106,6 +106,9 @@ export const exportFullBackup = query({
       "hrLeaves",
       "hrOvertime",
       "hrLeaveAllowances",
+      "constructions",
+      "offers",
+      "offerConstructions",
     ] as const;
 
     const data: Record<string, unknown[]> = {};
@@ -196,6 +199,9 @@ export const restoreFullBackup = mutation({
       "cars",
       "orders",
       "pendingJotformSubmissions",
+      "constructions",
+      "offers",
+      "offerConstructions",
       "clientNotes",
       "clientEvents",
       "orderLineItems",

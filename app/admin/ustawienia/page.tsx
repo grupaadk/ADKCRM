@@ -32,6 +32,7 @@ import { EventTypesTab } from "./EventTypesTab";
 import { InstallationTeamsTab } from "./InstallationTeamsTab";
 import { TaskTemplatesTab } from "./TaskTemplatesTab";
 import { VatRateNamesTab } from "./VatRateNamesTab";
+import { ConstructionsTab } from "./ConstructionsTab";
 
 const IconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   AppWindow,
@@ -58,7 +59,7 @@ function ServiceIcon({ name, className = "h-4 w-4" }: { name?: string; className
   return <IconComponent className={className} />;
 }
 
-type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "nazwy-vat" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe" | "szablony-zadan";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "konstrukcje" | "nazwy-vat" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe" | "szablony-zadan";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -3963,6 +3964,7 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "szablony", label: "Szablony" },
   { key: "crm", label: "CRM" },
   { key: "uslugi", label: "Usługi" },
+  { key: "konstrukcje", label: "Baza konstrukcji CAD" },
   { key: "nazwy-vat", label: "Nazwy pozycji (VAT)" },
   { key: "dostawcy", label: "Dostawcy" },
   { key: "wydatki", label: "Kategorie wydatków" },
@@ -3980,7 +3982,6 @@ export default function UstawieniaPage() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
-      if (tabParam === "uslugi" || tabParam === "konstrukcje") return "uslugi";
       if (tabParam && TABS.some((t) => t.key === tabParam)) return tabParam as Tab;
     }
     return "google-drive";
@@ -3990,9 +3991,7 @@ export default function UstawieniaPage() {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
-      if (tabParam === "uslugi" || tabParam === "konstrukcje") {
-        setActiveTab("uslugi");
-      } else if (tabParam && TABS.some((t) => t.key === tabParam)) {
+      if (tabParam && TABS.some((t) => t.key === tabParam)) {
         setActiveTab(tabParam as Tab);
       }
     };
@@ -4043,6 +4042,7 @@ export default function UstawieniaPage() {
       {activeTab === "szablony" && <SzablonyTab />}
       {activeTab === "crm" && <CrmTab />}
       {activeTab === "uslugi" && <ServicesTab />}
+      {activeTab === "konstrukcje" && <ConstructionsTab />}
       {activeTab === "nazwy-vat" && <VatRateNamesTab />}
       {activeTab === "dostawcy" && <SuppliersTab />}
       {activeTab === "wydatki" && <ExpenseCategoriesTab />}

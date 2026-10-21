@@ -542,6 +542,8 @@ export default defineSchema({
         })
       )
     ),
+    /** @deprecated — legacy dane z usuniętego konfiguratora parametrów */
+    configuredConstructions: v.optional(v.any()),
   })
     .index("by_client", ["clientId"])
     .index("by_submission", ["submissionId"])
@@ -1129,6 +1131,107 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_user_year", ["userId", "year"]),
+
+  // ── Moduł Nowego Konfiguratora CAD i Ofert ──
+  // Kategorie konstrukcji CAD (np. Systemy szklane, Stolarka aluminiowa)
+  constructionCategories: defineTable({
+    name: v.string(),
+    code: v.optional(v.string()),
+    description: v.optional(v.string()),
+    color: v.optional(v.string()),
+    isActive: v.boolean(),
+    sortOrder: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_active", ["isActive"])
+    .index("by_sort_order", ["sortOrder"]),
+
+  // Baza definicji konstrukcji (zarządzana w Ustawieniach)
+  constructions: defineTable({
+    name: v.string(),
+    code: v.string(),
+    categoryId: v.optional(v.id("constructionCategories")),
+    category: v.optional(v.string()),
+    description: v.optional(v.string()),
+    defaultSystem: v.optional(v.string()),
+    defaultColor: v.optional(v.string()),
+    defaultWidthMm: v.optional(v.number()),
+    defaultHeightMm: v.optional(v.number()),
+    defaultPanesCount: v.optional(v.number()),
+    defaultFillType: v.optional(v.string()),
+    defaultWarning: v.optional(v.string()),
+    isActive: v.boolean(),
+    sortOrder: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_active", ["isActive"])
+    .index("by_sort_order", ["sortOrder"])
+    .index("by_category", ["categoryId"]),
+
+  // Oferty przypisane do szans sprzedaży
+  offers: defineTable({
+    opportunityId: v.id("pendingJotformSubmissions"),
+    offerNumber: v.string(),
+    title: v.string(),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("sent"),
+      v.literal("accepted"),
+      v.literal("rejected")
+    ),
+    totalPriceNet: v.number(),
+    totalPriceGross: v.number(),
+    totalCostNet: v.number(),
+    discountPercent: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    terms: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_opportunity", ["opportunityId"])
+    .index("by_status", ["status"]),
+
+  // Pozycje / konstrukcje w ramach oferty (reprezentowane jako zakładki CAD)
+  offerConstructions: defineTable({
+    offerId: v.id("offers"),
+    positionIndex: v.number(), // 1, 2, 3...
+    constructionId: v.optional(v.id("constructions")),
+    name: v.string(),
+    shortName: v.optional(v.string()),
+    description: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    warning: v.optional(v.string()),
+    color: v.optional(v.string()),
+    systemName: v.optional(v.string()),
+    hardware: v.optional(v.string()),
+    quantity: v.number(),
+    widthMm: v.number(),
+    heightMm: v.number(),
+    panesCount: v.number(),
+    fillType: v.optional(v.string()),
+    priceNet: v.number(),
+    costNet: v.number(),
+    segments: v.optional(
+      v.array(
+        v.object({
+          widthMm: v.number(),
+          heightMm: v.number(),
+          fill: v.optional(v.string()),
+          weightKg: v.optional(v.number()),
+          profileTop: v.optional(v.string()),
+          profileBottom: v.optional(v.string()),
+          profileLeft: v.optional(v.string()),
+          profileRight: v.optional(v.string()),
+        })
+      )
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_offer", ["offerId"])
+    .index("by_offer_pos", ["offerId", "positionIndex"]),
 });
 
 
