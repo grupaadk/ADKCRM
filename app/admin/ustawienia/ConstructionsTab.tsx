@@ -492,6 +492,17 @@ export function ConstructionsTab() {
                       const linkedCat = c.categoryId ? categoryMap.get(c.categoryId) : undefined;
                       const catStyle = getCategoryStyle(linkedCat?.color);
 
+                      const isTriangle =
+                        c.code === "TROJKAT-TARAS" ||
+                        c.name.toLowerCase().includes("trójką") ||
+                        Boolean(c.category && c.category.toLowerCase().includes("trójką")) ||
+                        Boolean(c.code && c.code.toLowerCase().includes("trojkat")) ||
+                        Boolean(
+                          c.defaultSystem &&
+                            (c.defaultSystem.toLowerCase().includes("krokiew") ||
+                              c.defaultSystem.toLowerCase().includes("profil h"))
+                        );
+
                       return (
                         <tr
                           key={c._id}
@@ -513,27 +524,119 @@ export function ConstructionsTab() {
                                   className="w-full h-full pointer-events-none"
                                   preserveAspectRatio="xMidYMid meet"
                                 >
-                                  <rect x="2" y="2" width="156" height="86" fill="none" stroke="#dc2626" strokeWidth="1.5" />
-                                  <rect x="3" y="3" width="154" height="84" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
-                                  <rect x="8" y="8" width="144" height="74" fill="#ffffff" />
-                                  {Array.from({ length: panes }).map((_, i) => {
-                                    const pw = 144 / panes;
-                                    const px = 8 + i * pw;
-                                    return (
-                                      <g key={i}>
-                                        <rect
-                                          x={px + 0.5}
-                                          y="8.5"
-                                          width={pw - 1}
-                                          height="73"
-                                          fill="#ffffff"
-                                          stroke="#e2e8f0"
-                                          strokeWidth="0.5"
-                                        />
-                                        {i > 0 && <line x1={px} y1="8" x2={px} y2="82" stroke="#dc2626" strokeWidth="1.5" />}
-                                      </g>
-                                    );
-                                  })}
+                                  {isTriangle ? (
+                                    <g>
+                                      {/* Czerwony obrys trójkąta */}
+                                      <polygon
+                                        points="6,10 154,58 154,82 6,82"
+                                        fill="none"
+                                        stroke="#dc2626"
+                                        strokeWidth="1.5"
+                                      />
+                                      {/* Dolny profil H */}
+                                      <rect
+                                        x="7"
+                                        y="74"
+                                        width="146"
+                                        height="8"
+                                        fill="#29323d"
+                                        stroke="#1e242b"
+                                        strokeWidth="0.8"
+                                      />
+                                      <text
+                                        x="80"
+                                        y="79.5"
+                                        fill="#ffffff"
+                                        fontSize="5"
+                                        fontWeight="900"
+                                        textAnchor="middle"
+                                        letterSpacing="1px"
+                                      >
+                                        PROFIL H
+                                      </text>
+
+                                      {/* Słup przyścienny (wysoki lewy bok) */}
+                                      <rect
+                                        x="7"
+                                        y="17"
+                                        width="7"
+                                        height="58"
+                                        fill="#29323d"
+                                        stroke="#1e242b"
+                                        strokeWidth="0.8"
+                                      />
+
+                                      {/* Krokiew spadowa (zielona) */}
+                                      <polygon
+                                        points="7,11 153,59 153,65 7,17"
+                                        fill="#84cc16"
+                                        stroke="#4d7c0f"
+                                        strokeWidth="0.8"
+                                      />
+                                      <text
+                                        x="82"
+                                        y="37"
+                                        fill="#0b1220"
+                                        fontSize="6.5"
+                                        fontWeight="900"
+                                        textAnchor="middle"
+                                        transform="rotate(18, 82, 37)"
+                                        letterSpacing="0.6px"
+                                      >
+                                        KROKIEW
+                                      </text>
+
+                                      {/* Profil dociskowy */}
+                                      <polygon
+                                        points="7,17 153,65 14,21"
+                                        fill="#29323d"
+                                        stroke="#1e242b"
+                                        strokeWidth="0.5"
+                                      />
+
+                                      {/* Wypełnienie szkło */}
+                                      <polygon
+                                        points="16,24 142,72 16,72"
+                                        fill="#ffffff"
+                                        stroke="#38bdf8"
+                                        strokeWidth="0.8"
+                                      />
+                                      <text
+                                        x="48"
+                                        y="60"
+                                        fill="#0b1220"
+                                        fontSize="7.5"
+                                        fontWeight="800"
+                                        textAnchor="middle"
+                                      >
+                                        {c.defaultFillType || "HART 10"}
+                                      </text>
+                                    </g>
+                                  ) : (
+                                    <>
+                                      <rect x="2" y="2" width="156" height="86" fill="none" stroke="#dc2626" strokeWidth="1.5" />
+                                      <rect x="3" y="3" width="154" height="84" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
+                                      <rect x="8" y="8" width="144" height="74" fill="#ffffff" />
+                                      {Array.from({ length: panes }).map((_, i) => {
+                                        const pw = 144 / panes;
+                                        const px = 8 + i * pw;
+                                        return (
+                                          <g key={i}>
+                                            <rect
+                                              x={px + 0.5}
+                                              y="8.5"
+                                              width={pw - 1}
+                                              height="73"
+                                              fill="#ffffff"
+                                              stroke="#e2e8f0"
+                                              strokeWidth="0.5"
+                                            />
+                                            {i > 0 && <line x1={px} y1="8" x2={px} y2="82" stroke="#dc2626" strokeWidth="1.5" />}
+                                          </g>
+                                        );
+                                      })}
+                                    </>
+                                  )}
                                 </svg>
                                 <div className="absolute inset-0 bg-slate-900/15 opacity-0 group-hover:opacity-100 rounded transition-opacity flex items-center justify-center pointer-events-none">
                                   <Maximize2 size={12} className="text-white drop-shadow-md" />

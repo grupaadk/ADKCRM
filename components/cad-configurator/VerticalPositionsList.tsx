@@ -59,6 +59,14 @@ export function VerticalPositionsList({
             const isActive = it._id === activeItemId;
             const panes = Math.max(1, it.panesCount || 3);
             const price = it.priceNet || 0;
+            const isTriangle =
+              it.name.toLowerCase().includes("trójką") ||
+              Boolean(it.shortName && it.shortName.toLowerCase().includes("trójką")) ||
+              Boolean(
+                it.systemName &&
+                  (it.systemName.toLowerCase().includes("krokiew") ||
+                    it.systemName.toLowerCase().includes("profil h"))
+              );
 
             return (
               <div
@@ -104,40 +112,119 @@ export function VerticalPositionsList({
                     className="w-full h-full"
                     preserveAspectRatio="xMidYMid meet"
                   >
-                    {/* Thin red perimeter */}
-                    <rect
-                      x="2"
-                      y="2"
-                      width="116"
-                      height="58"
-                      fill="none"
-                      stroke="#dc2626"
-                      strokeWidth="0.8"
-                    />
-                    {/* Dark frame */}
-                    <rect
-                      x="3"
-                      y="3"
-                      width="114"
-                      height="56"
-                      fill="#29323d"
-                      stroke="#1e242b"
-                      strokeWidth="0.8"
-                    />
-                    {/* Opening */}
-                    <rect
-                      x="6"
-                      y="6"
-                      width="108"
-                      height="50"
-                      fill="#ffffff"
-                    />
-                    {/* Glass Panes */}
-                    {Array.from({ length: panes }).map((_, i) => {
-                      const pw = 108 / panes;
-                      const px = 6 + i * pw;
-                      const cx = px + pw / 2;
-                      return (
+                    {isTriangle ? (
+                      <g>
+                        {/* Czerwony obrys trójkąta */}
+                        <polygon
+                          points="4,8 116,46 116,58 4,58"
+                          fill="none"
+                          stroke="#dc2626"
+                          strokeWidth="0.8"
+                        />
+                        {/* Dolny profil H */}
+                        <rect
+                          x="5"
+                          y="52"
+                          width="110"
+                          height="5.5"
+                          fill="#29323d"
+                          stroke="#1e242b"
+                          strokeWidth="0.5"
+                        />
+                        <text
+                          x="60"
+                          y="56"
+                          fill="#ffffff"
+                          fontSize="3.4"
+                          fontWeight="900"
+                          textAnchor="middle"
+                          letterSpacing="0.8px"
+                        >
+                          PROFIL H
+                        </text>
+                        {/* Lewy pionowy profil */}
+                        <rect
+                          x="5"
+                          y="13"
+                          width="5"
+                          height="39"
+                          fill="#29323d"
+                          stroke="#1e242b"
+                          strokeWidth="0.5"
+                        />
+                        {/* Krokiew skośna */}
+                        <polygon
+                          points="5,9 115,47 115,52 5,14"
+                          fill="#84cc16"
+                          stroke="#4d7c0f"
+                          strokeWidth="0.8"
+                        />
+                        <text
+                          x="65"
+                          y="29"
+                          fill="#0b1220"
+                          fontSize="5"
+                          fontWeight="900"
+                          textAnchor="middle"
+                          transform="rotate(20, 65, 29)"
+                          letterSpacing="0.5px"
+                        >
+                          KROKIEW
+                        </text>
+                        {/* Szkło */}
+                        <polygon
+                          points="12,19 106,50 12,50"
+                          fill="#ffffff"
+                          stroke="#38bdf8"
+                          strokeWidth="0.8"
+                        />
+                        <text
+                          x="40"
+                          y="43"
+                          fill="#0b1220"
+                          fontSize="6"
+                          fontWeight="800"
+                          textAnchor="middle"
+                        >
+                          {it.fillType || "HART 10"}
+                        </text>
+                      </g>
+                    ) : (
+                      <>
+                        {/* Thin red perimeter */}
+                        <rect
+                          x="2"
+                          y="2"
+                          width="116"
+                          height="58"
+                          fill="none"
+                          stroke="#dc2626"
+                          strokeWidth="0.8"
+                        />
+                        {/* Dark frame */}
+                        <rect
+                          x="3"
+                          y="3"
+                          width="114"
+                          height="56"
+                          fill="#29323d"
+                          stroke="#1e242b"
+                          strokeWidth="0.8"
+                        />
+                        {/* Opening */}
+                        <rect
+                          x="6"
+                          y="6"
+                          width="108"
+                          height="50"
+                          fill="#ffffff"
+                        />
+                        {/* Glass Panes */}
+                        {Array.from({ length: panes }).map((_, i) => {
+                          const pw = 108 / panes;
+                          const px = 6 + i * pw;
+                          const cx = px + pw / 2;
+                          return (
                         <g key={i}>
                           <rect
                             x={px + 0.5}
@@ -174,8 +261,10 @@ export function VerticalPositionsList({
                         </g>
                       );
                     })}
-                  </svg>
-                </div>
+                  </>
+                )}
+              </svg>
+            </div>
 
                 {/* Dimension & System info */}
                 <div className="flex items-center justify-between text-[11px] font-mono text-[#7c8597] mb-1">

@@ -599,72 +599,176 @@ export function OfferSummaryTab({
                         </span>
                       </td>
 
-                      {/* Technical CAD Miniature */}
-                      <td className="py-3 px-4 text-center">
-                        <div
-                          className="w-24 h-14 mx-auto bg-white rounded border border-[#cbd5e1] group-hover:border-[#4ABBC3] flex items-center justify-center p-1 transition-colors shadow-2xs"
-                          title="Otwórz pozycję w edytorze CAD"
-                        >
-                          <svg
-                            viewBox="0 0 140 70"
-                            className="w-full h-full"
-                            preserveAspectRatio="xMidYMid meet"
+                        {/* Technical CAD Miniature */}
+                        <td className="py-3 px-4 text-center">
+                          <div
+                            className="w-24 h-14 mx-auto bg-white rounded border border-[#cbd5e1] group-hover:border-[#4ABBC3] flex items-center justify-center p-1 transition-colors shadow-2xs"
+                            title="Otwórz pozycję w edytorze CAD"
                           >
-                            <rect
-                              x="2"
-                              y="2"
-                              width="136"
-                              height="66"
-                              fill="none"
-                              stroke="#dc2626"
-                              strokeWidth="1"
-                            />
-                            <rect
-                              x="3"
-                              y="3"
-                              width="134"
-                              height="64"
-                              fill="#29323d"
-                              stroke="#1e242b"
-                              strokeWidth="1"
-                            />
-                            <rect
-                              x="7"
-                              y="7"
-                              width="126"
-                              height="56"
-                              fill="#ffffff"
-                            />
-                            {Array.from({ length: panes }).map((_, i) => {
-                              const pw = 126 / panes;
-                              const px = 7 + i * pw;
+                            {(() => {
+                              const isTriangle =
+                                it.name.toLowerCase().includes("trójką") ||
+                                Boolean(
+                                  it.shortName &&
+                                    it.shortName.toLowerCase().includes("trójką")
+                                ) ||
+                                Boolean(
+                                  it.systemName &&
+                                    (it.systemName.toLowerCase().includes("krokiew") ||
+                                      it.systemName.toLowerCase().includes("profil h"))
+                                );
+
                               return (
-                                <g key={i}>
-                                  <rect
-                                    x={px + 0.5}
-                                    y="7.5"
-                                    width={pw - 1}
-                                    height="55"
-                                    fill="#ffffff"
-                                    stroke="#e2e8f0"
-                                    strokeWidth="0.5"
-                                  />
-                                  {i > 0 && (
-                                    <line
-                                      x1={px}
-                                      y1="7"
-                                      x2={px}
-                                      y2="63"
-                                      stroke="#dc2626"
-                                      strokeWidth="1"
-                                    />
+                                <svg
+                                  viewBox="0 0 140 70"
+                                  className="w-full h-full"
+                                  preserveAspectRatio="xMidYMid meet"
+                                >
+                                  {isTriangle ? (
+                                    <g>
+                                      {/* Czerwony obrys trójkąta */}
+                                      <polygon
+                                        points="5,9 135,52 135,65 5,65"
+                                        fill="none"
+                                        stroke="#dc2626"
+                                        strokeWidth="1"
+                                      />
+                                      {/* Dolny profil H */}
+                                      <rect
+                                        x="6"
+                                        y="58"
+                                        width="128"
+                                        height="6"
+                                        fill="#29323d"
+                                        stroke="#1e242b"
+                                        strokeWidth="0.5"
+                                      />
+                                      <text
+                                        x="70"
+                                        y="62.5"
+                                        fill="#ffffff"
+                                        fontSize="3.8"
+                                        fontWeight="900"
+                                        textAnchor="middle"
+                                        letterSpacing="1px"
+                                      >
+                                        PROFIL H
+                                      </text>
+                                      {/* Lewy pionowy profil */}
+                                      <rect
+                                        x="6"
+                                        y="15"
+                                        width="6"
+                                        height="43"
+                                        fill="#29323d"
+                                        stroke="#1e242b"
+                                        strokeWidth="0.5"
+                                      />
+                                      {/* Krokiew skośna */}
+                                      <polygon
+                                        points="6,10 134,53 134,58 6,15"
+                                        fill="#84cc16"
+                                        stroke="#4d7c0f"
+                                        strokeWidth="0.8"
+                                      />
+                                      <text
+                                        x="74"
+                                        y="33"
+                                        fill="#0b1220"
+                                        fontSize="5.5"
+                                        fontWeight="900"
+                                        textAnchor="middle"
+                                        transform="rotate(20, 74, 33)"
+                                        letterSpacing="0.5px"
+                                      >
+                                        KROKIEW
+                                      </text>
+                                      {/* Podkrokiew / listwa montażowa */}
+                                      <polygon
+                                        points="6,15 134,58 12,18"
+                                        fill="#29323d"
+                                        stroke="#1e242b"
+                                        strokeWidth="0.5"
+                                      />
+                                      {/* Szkło */}
+                                      <polygon
+                                        points="14,21 124,56 14,56"
+                                        fill="#ffffff"
+                                        stroke="#38bdf8"
+                                        strokeWidth="0.8"
+                                      />
+                                      <text
+                                        x="45"
+                                        y="48"
+                                        fill="#0b1220"
+                                        fontSize="6.5"
+                                        fontWeight="800"
+                                        textAnchor="middle"
+                                      >
+                                        {it.fillType || "HART 10"}
+                                      </text>
+                                    </g>
+                                  ) : (
+                                    <>
+                                      <rect
+                                        x="2"
+                                        y="2"
+                                        width="136"
+                                        height="66"
+                                        fill="none"
+                                        stroke="#dc2626"
+                                        strokeWidth="1"
+                                      />
+                                      <rect
+                                        x="3"
+                                        y="3"
+                                        width="134"
+                                        height="64"
+                                        fill="#29323d"
+                                        stroke="#1e242b"
+                                        strokeWidth="1"
+                                      />
+                                      <rect
+                                        x="7"
+                                        y="7"
+                                        width="126"
+                                        height="56"
+                                        fill="#ffffff"
+                                      />
+                                      {Array.from({ length: panes }).map((_, i) => {
+                                        const pw = 126 / panes;
+                                        const px = 7 + i * pw;
+                                        return (
+                                          <g key={i}>
+                                            <rect
+                                              x={px + 0.5}
+                                              y="7.5"
+                                              width={pw - 1}
+                                              height="55"
+                                              fill="#ffffff"
+                                              stroke="#e2e8f0"
+                                              strokeWidth="0.5"
+                                            />
+                                            {i > 0 && (
+                                              <line
+                                                x1={px}
+                                                y1="7"
+                                                x2={px}
+                                                y2="63"
+                                                stroke="#dc2626"
+                                                strokeWidth="1"
+                                              />
+                                            )}
+                                          </g>
+                                        );
+                                      })}
+                                    </>
                                   )}
-                                </g>
+                                </svg>
                               );
-                            })}
-                          </svg>
-                        </div>
-                      </td>
+                            })()}
+                          </div>
+                        </td>
 
                       {/* Name, Color, Glass */}
                       <td className="py-3 px-4">
