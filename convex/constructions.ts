@@ -231,10 +231,10 @@ export const seedDefault = mutation({
         updatedAt: now,
       },
       {
-        name: "Trójkąt do zabudowy tarasu",
-        code: "TROJKAT-TARAS",
+        name: "Trójkąt do zabudowy tarasu LEWY",
+        code: "TROJKAT-TARAS-L",
         category: "Trójkąt",
-        description: "Konstrukcja trójkąta bocznego pod krokwie tarasu (Profil H dolny + Krokiew skośna, wypełnienie szklane)",
+        description: "Konstrukcja trójkąta bocznego pod krokwie tarasu LEWY (Profil H dolny + Krokiew skośna, wypełnienie szklane)",
         defaultSystem: "Profil H + Krokiew",
         defaultColor: "RAL 7016MAT",
         defaultWidthMm: 3000,
@@ -244,6 +244,23 @@ export const seedDefault = mutation({
         defaultPriceNet: 2400,
         isActive: true,
         sortOrder: 3,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        name: "Trójkąt do zabudowy tarasu PRAWY",
+        code: "TROJKAT-TARAS-P",
+        category: "Trójkąt",
+        description: "Konstrukcja trójkąta bocznego pod krokwie tarasu PRAWY (odbicie lustrzane: Profil H dolny + Krokiew skośna, wypełnienie szklane)",
+        defaultSystem: "Profil H + Krokiew",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 3000,
+        defaultHeightMm: 600,
+        defaultPanesCount: 1,
+        defaultFillType: "HART 10",
+        defaultPriceNet: 2400,
+        isActive: true,
+        sortOrder: 4,
         createdAt: now,
         updatedAt: now,
       },
@@ -258,7 +275,7 @@ export const seedDefault = mutation({
 });
 
 /**
- * Zapewnia istnienie kategorii "Trójkąt" oraz szablonu konstrukcji trójkąta do zabudowy tarasu
+ * Zapewnia istnienie kategorii "Trójkąt" oraz szablonów konstrukcji trójkąta (LEWY i PRAWY)
  */
 export const ensureTriangleConstruction = mutation({
   args: {},
@@ -291,23 +308,43 @@ export const ensureTriangleConstruction = mutation({
       triangleCategory = (await ctx.db.get(catId))!;
     }
 
-    // 2. Sprawdź lub utwórz konstrukcję trójkąta
+    // 2. Sprawdź lub utwórz konstrukcje trójkątów: LEWY oraz PRAWY
     const existingConstructions = await ctx.db.query("constructions").collect();
-    const triangleConstruction = existingConstructions.find(
-      (c) =>
-        c.code === "TROJKAT-TARAS" ||
-        c.name.toLowerCase().includes("trójkąt") ||
-        (c.defaultSystem && c.defaultSystem.toLowerCase().includes("profil h"))
-    );
 
-    if (!triangleConstruction) {
+    // LEWY
+    let leftConstruction = existingConstructions.find(
+      (c) =>
+        c.name.toLowerCase().includes("lewy") &&
+        (c.name.toLowerCase().includes("trójką") || c.code.includes("TROJKAT"))
+    );
+    if (!leftConstruction) {
+      leftConstruction = existingConstructions.find(
+        (c) =>
+          !c.name.toLowerCase().includes("prawy") &&
+          (c.code === "TROJKAT-TARAS" ||
+            c.code === "TROJKAT-TARAS-L" ||
+            c.name.toLowerCase().includes("trójkąt"))
+      );
+      if (leftConstruction) {
+        // Jeśli nazywał się po prostu "Trójkąt do zabudowy tarasu", zaktualizuj nazwę na LEWY
+        if (!leftConstruction.name.toLowerCase().includes("lewy")) {
+          await ctx.db.patch(leftConstruction._id, {
+            name: "Trójkąt do zabudowy tarasu LEWY",
+            updatedAt: now,
+          });
+        }
+      }
+    }
+
+    let createdLeft = false;
+    if (!leftConstruction) {
       const nextConstrOrder =
         existingConstructions.length > 0
           ? Math.max(...existingConstructions.map((c) => c.sortOrder)) + 1
           : 0;
       const constrId = await ctx.db.insert("constructions", {
-        name: "Trójkąt do zabudowy tarasu",
-        code: "TROJKAT-TARAS",
+        name: "Trójkąt do zabudowy tarasu LEWY",
+        code: "TROJKAT-TARAS-L",
         categoryId: triangleCategory._id,
         category: triangleCategory.name,
         description:
@@ -324,26 +361,65 @@ export const ensureTriangleConstruction = mutation({
         createdAt: now,
         updatedAt: now,
       });
-
-      return {
-        created: true,
+      leftConstruction = (await ctx.db.get(constrId))!;
+      createdLeft = true;
+    } else if (!leftConstruction.categoryId || leftConstruction.category !== triangleCategory.name) {
+      await ctx.db.patch(leftConstruction._id, {
         categoryId: triangleCategory._id,
-        constructionId: constrId,
-      };
-    } else {
-      // Upewnij się, że ma przypisaną kategorię
-      if (!triangleConstruction.categoryId || triangleConstruction.category !== triangleCategory.name) {
-        await ctx.db.patch(triangleConstruction._id, {
-          categoryId: triangleCategory._id,
-          category: triangleCategory.name,
-          updatedAt: now,
-        });
-      }
-      return {
-        created: false,
-        categoryId: triangleCategory._id,
-        constructionId: triangleConstruction._id,
-      };
+        category: triangleCategory.name,
+        updatedAt: now,
+      });
     }
+
+    // PRAWY
+    let rightConstruction = existingConstructions.find(
+      (c) =>
+        c.name.toLowerCase().includes("prawy") &&
+        (c.name.toLowerCase().includes("trójką") || c.code.includes("TROJKAT"))
+    );
+
+    let createdRight = false;
+    if (!rightConstruction) {
+      const allNow = await ctx.db.query("constructions").collect();
+      const nextConstrOrder =
+        allNow.length > 0
+          ? Math.max(...allNow.map((c) => c.sortOrder)) + 1
+          : 0;
+      const constrId = await ctx.db.insert("constructions", {
+        name: "Trójkąt do zabudowy tarasu PRAWY",
+        code: "TROJKAT-TARAS-P",
+        categoryId: triangleCategory._id,
+        category: triangleCategory.name,
+        description:
+          "Konstrukcja trójkąta bocznego pod krokwie tarasu PRAWY (odbicie lustrzane: Profil H dolny + Krokiew skośna, wypełnienie szklane)",
+        defaultSystem: "Profil H + Krokiew",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 3000,
+        defaultHeightMm: 600,
+        defaultPanesCount: 1,
+        defaultFillType: "HART 10",
+        defaultPriceNet: 2400,
+        isActive: true,
+        sortOrder: nextConstrOrder,
+        createdAt: now,
+        updatedAt: now,
+      });
+      rightConstruction = (await ctx.db.get(constrId))!;
+      createdRight = true;
+    } else if (!rightConstruction.categoryId || rightConstruction.category !== triangleCategory.name) {
+      await ctx.db.patch(rightConstruction._id, {
+        categoryId: triangleCategory._id,
+        category: triangleCategory.name,
+        updatedAt: now,
+      });
+    }
+
+    return {
+      categoryId: triangleCategory._id,
+      createdLeft,
+      leftId: leftConstruction._id,
+      createdRight,
+      rightId: rightConstruction._id,
+    };
   },
 });

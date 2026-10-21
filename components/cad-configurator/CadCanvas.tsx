@@ -217,6 +217,11 @@ export function CadCanvas({
           item.systemName.toLowerCase().includes("profil h"))
     );
 
+  const isTriangleRight =
+    isTriangle &&
+    (item.name.toLowerCase().includes("praw") ||
+      Boolean(item.shortName && item.shortName.toLowerCase().includes("praw")));
+
   // Obliczenia wymiarów kwater
   const paneWidth = Math.round(width / panes);
   const segments: CadSegment[] =
@@ -323,30 +328,37 @@ export function CadCanvas({
 
   const yFloor = originY + height;
   const yProfTop = yFloor - tBot;
-  const yKrokLeftTop = originY;
-  const yKrokLeftBot = originY + tKrok;
-  const yKrokRightBot = yProfTop;
-  const yKrokRightTop = Math.max(originY + 10, yProfTop - tKrok);
 
-  const yInnerTop = yKrokLeftBot + tSub;
+  const yKrokLeftTop = isTriangleRight ? Math.max(originY + 10, yProfTop - tKrok) : originY;
+  const yKrokLeftBot = isTriangleRight ? yProfTop : originY + tKrok;
+  const yKrokRightBot = isTriangleRight ? originY + tKrok : yProfTop;
+  const yKrokRightTop = isTriangleRight ? originY : Math.max(originY + 10, yProfTop - tKrok);
+
+  const yInnerTop = (isTriangleRight ? yKrokRightBot : yKrokLeftBot) + tSub;
   const yInnerBot = yProfTop;
-  const xInnerLeft = originX + tLeft;
-  const xInnerRight = originX + width;
+  const xInnerLeft = originX + (isTriangleRight ? 0 : tLeft);
+  const xInnerRight = originX + width - (isTriangleRight ? tLeft : 0);
 
   const mInner = Math.max(0.001, (yInnerBot - yInnerTop) / Math.max(1, xInnerRight - xInnerLeft));
-  const krokiewAngleDeg = Math.round(Math.atan2(yKrokRightTop - yKrokLeftTop, width) * (180 / Math.PI) * 10) / 10;
+  const krokiewAngleDeg = Math.round(Math.atan2(Math.abs(yKrokRightTop - yKrokLeftTop), width) * (180 / Math.PI) * 10) / 10;
   const krokiewLenMm = Math.round(Math.sqrt(width * width + (yKrokRightTop - yKrokLeftTop) * (yKrokRightTop - yKrokLeftTop)));
 
   const gMargin = 14; // szczelina montażowa szyby
-  const xGlassLeft = xInnerLeft + gMargin;
   const yGlassBot = yInnerBot - gMargin;
-  const yGlassTop = yInnerTop + mInner * (xGlassLeft - xInnerLeft) + gMargin;
-  const xGlassRight = Math.round(
-    Math.min(
-      originX + width - 40,
-      Math.max(xGlassLeft + 50, xInnerLeft + (yGlassBot - gMargin - yInnerTop) / mInner)
-    )
-  );
+  const yGlassTop = yInnerTop + gMargin;
+
+  // Szyba dla trójkąta lewego lub prawego (odbicie lustrzane)
+  const xGlassLeft = isTriangleRight
+    ? Math.round(Math.max(originX + 40, (originX + width - tLeft - gMargin) - (yGlassBot - yGlassTop) / mInner))
+    : xInnerLeft + gMargin;
+  const xGlassRight = isTriangleRight
+    ? originX + width - tLeft - gMargin
+    : Math.round(
+        Math.min(
+          originX + width - 40,
+          Math.max(xInnerLeft + gMargin + 50, xInnerLeft + (yGlassBot - gMargin - yInnerTop) / mInner)
+        )
+      );
 
   return (
     <div className="relative flex-1 flex flex-col h-full min-w-0 min-h-0 bg-[#f1f5f9] select-none overflow-hidden">
@@ -531,12 +543,12 @@ export function CadCanvas({
                     PROFIL H
                   </text>
 
-                  {/* Lewy pionowy profil przyścienny */}
+                  {/* Pionowy profil przyścienny (wysoki bok: po lewej dla LEWEGO, po prawej dla PRAWEGO) */}
                   <rect
-                    x={originX}
-                    y={yKrokLeftBot}
+                    x={isTriangleRight ? originX + width - tLeft : originX}
+                    y={isTriangleRight ? yKrokRightBot : yKrokLeftBot}
                     width={tLeft}
-                    height={yProfTop - yKrokLeftBot}
+                    height={yProfTop - (isTriangleRight ? yKrokRightBot : yKrokLeftBot)}
                     fill="#29323d"
                     stroke="#1e242b"
                     strokeWidth="2"
@@ -556,7 +568,7 @@ export function CadCanvas({
                   />
                   {/* Etykieta KROKIEW wzdłuż belki */}
                   <g
-                    transform={`translate(${originX + width * 0.48}, ${(yKrokLeftTop + yKrokRightTop) / 2 + tKrok / 2 + 5}) rotate(${krokiewAngleDeg})`}
+                    transform={`translate(${originX + width * 0.48}, ${(yKrokLeftTop + yKrokRightTop) / 2 + tKrok / 2 + 5}) rotate(${isTriangleRight ? -krokiewAngleDeg : krokiewAngleDeg})`}
                   >
                     <text
                       x="0"
@@ -573,23 +585,31 @@ export function CadCanvas({
 
                   {/* Podkrokiew / listwa montażowa ramy */}
                   <polygon
-                    points={`
-                      ${originX},${yKrokLeftBot}
-                      ${originX + width},${yKrokRightBot}
-                      ${originX + tLeft},${yInnerTop}
-                    `}
+                    points={
+                      isTriangleRight
+                        ? `${originX},${yKrokLeftBot} ${originX + width},${yKrokRightBot} ${originX + width - tLeft},${yInnerTop}`
+                        : `${originX},${yKrokLeftBot} ${originX + width},${yKrokRightBot} ${originX + tLeft},${yInnerTop}`
+                    }
                     fill="#29323d"
                     stroke="#1e242b"
                     strokeWidth="1.5"
                   />
 
-                  {/* Wypełnienie szklane trójkąta (precyzyjna szyba) */}
+                  {/* Wypełnienie szklane trójkąta (precyzyjna szyba: odbicie lustrzane) */}
                   <polygon
-                    points={`
-                      ${xGlassLeft},${yGlassTop}
-                      ${xGlassRight},${yGlassBot}
-                      ${xGlassLeft},${yGlassBot}
-                    `}
+                    points={
+                      isTriangleRight
+                        ? `
+                          ${xGlassRight},${yGlassTop}
+                          ${xGlassRight},${yGlassBot}
+                          ${xGlassLeft},${yGlassBot}
+                        `
+                        : `
+                          ${xGlassLeft},${yGlassTop}
+                          ${xGlassRight},${yGlassBot}
+                          ${xGlassLeft},${yGlassBot}
+                        `
+                    }
                     fill="#ffffff"
                     stroke="#38bdf8"
                     strokeWidth="2"
@@ -597,9 +617,13 @@ export function CadCanvas({
 
                   {/* Odblaski szkła (zawsze wewnątrz kwatery) */}
                   <line
-                    x1={xGlassLeft + 40}
+                    x1={isTriangleRight ? xGlassRight - 40 : xGlassLeft + 40}
                     y1={yGlassBot - 30}
-                    x2={xGlassLeft + (xGlassRight - xGlassLeft) * 0.35}
+                    x2={
+                      isTriangleRight
+                        ? xGlassRight - (xGlassRight - xGlassLeft) * 0.35
+                        : xGlassLeft + (xGlassRight - xGlassLeft) * 0.35
+                    }
                     y2={yGlassTop + (yGlassBot - yGlassTop) * 0.35}
                     stroke="#38bdf8"
                     strokeWidth="2.5"
@@ -608,7 +632,7 @@ export function CadCanvas({
 
                   {/* Parametry wewnątrz trójkąta */}
                   <text
-                    x={originX + width * 0.35}
+                    x={originX + width * (isTriangleRight ? 0.65 : 0.35)}
                     y={yGlassBot - 60}
                     fill="#0b1220"
                     fontSize="42"
@@ -618,7 +642,7 @@ export function CadCanvas({
                     {fill}
                   </text>
                   <text
-                    x={originX + width * 0.35}
+                    x={originX + width * (isTriangleRight ? 0.65 : 0.35)}
                     y={yGlassBot - 20}
                     fill="#0e7490"
                     fontSize="28"
@@ -846,7 +870,7 @@ export function CadCanvas({
                         </text>
                       </g>
 
-                      {/* LEWO: Całkowity wymiar wysokości H */}
+                      {/* Całkowity wymiar wysokości H (przy słupku przyściennym) */}
                       <g
                         className={canEditDimensions ? "cursor-pointer" : ""}
                         onMouseEnter={() => setHoveredDim("height")}
@@ -859,27 +883,27 @@ export function CadCanvas({
                             : undefined}
                         </title>
                         <line
-                          x1={originX - 5}
+                          x1={isTriangleRight ? originX + width + 5 : originX - 5}
                           y1={originY}
-                          x2={originX - 75}
+                          x2={isTriangleRight ? originX + width + 75 : originX - 75}
                           y2={originY}
                           stroke="#64748b"
                           strokeWidth="2"
                           strokeDasharray="6 6"
                         />
                         <line
-                          x1={originX - 5}
+                          x1={isTriangleRight ? originX + width + 5 : originX - 5}
                           y1={originY + height}
-                          x2={originX - 75}
+                          x2={isTriangleRight ? originX + width + 75 : originX - 75}
                           y2={originY + height}
                           stroke="#64748b"
                           strokeWidth="2"
                           strokeDasharray="6 6"
                         />
                         <line
-                          x1={originX - 60}
+                          x1={isTriangleRight ? originX + width + 60 : originX - 60}
                           y1={originY}
-                          x2={originX - 60}
+                          x2={isTriangleRight ? originX + width + 60 : originX - 60}
                           y2={originY + height}
                           stroke={hoveredDim === "height" ? "#0891b2" : "#0b1220"}
                           strokeWidth="3.5"
@@ -887,7 +911,11 @@ export function CadCanvas({
                           markerEnd="url(#cadArrowEnd)"
                         />
                         <g
-                          transform={`translate(${originX - 96}, ${originY + height / 2}) rotate(-90)`}
+                          transform={
+                            isTriangleRight
+                              ? `translate(${originX + width + 96}, ${originY + height / 2}) rotate(90)`
+                              : `translate(${originX - 96}, ${originY + height / 2}) rotate(-90)`
+                          }
                         >
                           {canEditDimensions && (
                             <rect

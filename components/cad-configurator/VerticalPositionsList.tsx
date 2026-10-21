@@ -68,6 +68,11 @@ export function VerticalPositionsList({
                     it.systemName.toLowerCase().includes("profil h"))
               );
 
+            const isTriangleRight =
+              isTriangle &&
+              ((it.name || "").toLowerCase().includes("praw") ||
+                Boolean(it.shortName && it.shortName.toLowerCase().includes("praw")));
+
             return (
               <div
                 key={it._id}
@@ -116,7 +121,7 @@ export function VerticalPositionsList({
                       <g>
                         {/* Czerwony obrys trójkąta */}
                         <polygon
-                          points="4,8 116,46 116,58 4,58"
+                          points={isTriangleRight ? "4,46 116,8 116,58 4,58" : "4,8 116,46 116,58 4,58"}
                           fill="none"
                           stroke="#dc2626"
                           strokeWidth="0.8"
@@ -142,9 +147,9 @@ export function VerticalPositionsList({
                         >
                           PROFIL H
                         </text>
-                        {/* Lewy pionowy profil */}
+                        {/* Słup przyścienny (wysoki bok) */}
                         <rect
-                          x="5"
+                          x={isTriangleRight ? "110" : "5"}
                           y="13"
                           width="5"
                           height="39"
@@ -154,32 +159,32 @@ export function VerticalPositionsList({
                         />
                         {/* Krokiew skośna */}
                         <polygon
-                          points="5,9 115,47 115,52 5,14"
+                          points={isTriangleRight ? "115,9 5,47 5,52 115,14" : "5,9 115,47 115,52 5,14"}
                           fill="#84cc16"
                           stroke="#4d7c0f"
                           strokeWidth="0.8"
                         />
                         <text
-                          x="65"
+                          x={isTriangleRight ? "55" : "65"}
                           y="29"
                           fill="#0b1220"
                           fontSize="5"
                           fontWeight="900"
                           textAnchor="middle"
-                          transform="rotate(20, 65, 29)"
+                          transform={isTriangleRight ? "rotate(-20, 55, 29)" : "rotate(20, 65, 29)"}
                           letterSpacing="0.5px"
                         >
                           KROKIEW
                         </text>
                         {/* Szkło */}
                         <polygon
-                          points="12,19 106,50 12,50"
+                          points={isTriangleRight ? "108,19 14,50 108,50" : "12,19 106,50 12,50"}
                           fill="#ffffff"
                           stroke="#38bdf8"
                           strokeWidth="0.8"
                         />
                         <text
-                          x="40"
+                          x={isTriangleRight ? "80" : "40"}
                           y="43"
                           fill="#0b1220"
                           fontSize="6"

@@ -261,6 +261,12 @@ export function AddConstructionModal({
                       tpl.defaultSystem.toLowerCase().includes("profil h"))
                 );
 
+              const isTriangleRight =
+                isTriangle &&
+                ((tpl.name || "").toLowerCase().includes("praw") ||
+                  Boolean(tpl.category && tpl.category.toLowerCase().includes("praw")) ||
+                  Boolean(tpl.code && tpl.code.toLowerCase().includes("praw")));
+
               return (
                 <div
                   key={tpl._id}
@@ -299,7 +305,7 @@ export function AddConstructionModal({
                         <g>
                           {/* Czerwony obrys trójkąta */}
                           <polygon
-                            points="5,9 135,52 135,65 5,65"
+                            points={isTriangleRight ? "5,52 135,9 135,65 5,65" : "5,9 135,52 135,65 5,65"}
                             fill="none"
                             stroke="#dc2626"
                             strokeWidth="1"
@@ -325,9 +331,9 @@ export function AddConstructionModal({
                           >
                             PROFIL H
                           </text>
-                          {/* Lewy pionowy profil */}
+                          {/* Słup przyścienny (wysoki bok) */}
                           <rect
-                            x="6"
+                            x={isTriangleRight ? "128" : "6"}
                             y="15"
                             width="6"
                             height="43"
@@ -337,39 +343,39 @@ export function AddConstructionModal({
                           />
                           {/* Krokiew skośna */}
                           <polygon
-                            points="6,10 134,53 134,58 6,15"
+                            points={isTriangleRight ? "134,10 6,53 6,58 134,15" : "6,10 134,53 134,58 6,15"}
                             fill="#84cc16"
                             stroke="#4d7c0f"
                             strokeWidth="0.8"
                           />
                           <text
-                            x="74"
+                            x={isTriangleRight ? "66" : "74"}
                             y="33"
                             fill="#0b1220"
                             fontSize="5.5"
                             fontWeight="900"
                             textAnchor="middle"
-                            transform="rotate(20, 74, 33)"
+                            transform={isTriangleRight ? "rotate(-20, 66, 33)" : "rotate(20, 74, 33)"}
                             letterSpacing="0.5px"
                           >
                             KROKIEW
                           </text>
                           {/* Podkrokiew / listwa montażowa */}
                           <polygon
-                            points="6,15 134,58 12,18"
+                            points={isTriangleRight ? "134,15 6,58 128,18" : "6,15 134,58 12,18"}
                             fill="#29323d"
                             stroke="#1e242b"
                             strokeWidth="0.5"
                           />
                           {/* Szkło */}
                           <polygon
-                            points="14,21 124,56 14,56"
+                            points={isTriangleRight ? "126,21 16,56 126,56" : "14,21 124,56 14,56"}
                             fill="#ffffff"
                             stroke="#38bdf8"
                             strokeWidth="0.8"
                           />
                           <text
-                            x="45"
+                            x={isTriangleRight ? "95" : "45"}
                             y="48"
                             fill="#0b1220"
                             fontSize="6.5"

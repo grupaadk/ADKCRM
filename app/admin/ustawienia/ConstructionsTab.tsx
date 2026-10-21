@@ -494,6 +494,8 @@ export function ConstructionsTab() {
 
                       const isTriangle =
                         c.code === "TROJKAT-TARAS" ||
+                        c.code === "TROJKAT-TARAS-L" ||
+                        c.code === "TROJKAT-TARAS-P" ||
                         c.name.toLowerCase().includes("trójką") ||
                         Boolean(c.category && c.category.toLowerCase().includes("trójką")) ||
                         Boolean(c.code && c.code.toLowerCase().includes("trojkat")) ||
@@ -502,6 +504,11 @@ export function ConstructionsTab() {
                             (c.defaultSystem.toLowerCase().includes("krokiew") ||
                               c.defaultSystem.toLowerCase().includes("profil h"))
                         );
+
+                      const isTriangleRight =
+                        isTriangle &&
+                        (c.name.toLowerCase().includes("praw") ||
+                          Boolean(c.code && c.code.toLowerCase().includes("praw")));
 
                       return (
                         <tr
@@ -528,7 +535,7 @@ export function ConstructionsTab() {
                                     <g>
                                       {/* Czerwony obrys trójkąta */}
                                       <polygon
-                                        points="6,10 154,58 154,82 6,82"
+                                        points={isTriangleRight ? "154,10 6,58 6,82 154,82" : "6,10 154,58 154,82 6,82"}
                                         fill="none"
                                         stroke="#dc2626"
                                         strokeWidth="1.5"
@@ -555,9 +562,9 @@ export function ConstructionsTab() {
                                         PROFIL H
                                       </text>
 
-                                      {/* Słup przyścienny (wysoki lewy bok) */}
+                                      {/* Słup przyścienny (wysoki bok: lewy dla LEWEGO, prawy dla PRAWEGO) */}
                                       <rect
-                                        x="7"
+                                        x={isTriangleRight ? "146" : "7"}
                                         y="17"
                                         width="7"
                                         height="58"
@@ -568,19 +575,19 @@ export function ConstructionsTab() {
 
                                       {/* Krokiew spadowa (zielona) */}
                                       <polygon
-                                        points="7,11 153,59 153,65 7,17"
+                                        points={isTriangleRight ? "153,11 7,59 7,65 153,17" : "7,11 153,59 153,65 7,17"}
                                         fill="#84cc16"
                                         stroke="#4d7c0f"
                                         strokeWidth="0.8"
                                       />
                                       <text
-                                        x="82"
+                                        x={isTriangleRight ? "78" : "82"}
                                         y="37"
                                         fill="#0b1220"
                                         fontSize="6.5"
                                         fontWeight="900"
                                         textAnchor="middle"
-                                        transform="rotate(18, 82, 37)"
+                                        transform={isTriangleRight ? "rotate(-18, 78, 37)" : "rotate(18, 82, 37)"}
                                         letterSpacing="0.6px"
                                       >
                                         KROKIEW
@@ -588,7 +595,7 @@ export function ConstructionsTab() {
 
                                       {/* Profil dociskowy */}
                                       <polygon
-                                        points="7,17 153,65 14,21"
+                                        points={isTriangleRight ? "153,17 7,65 146,21" : "7,17 153,65 14,21"}
                                         fill="#29323d"
                                         stroke="#1e242b"
                                         strokeWidth="0.5"
@@ -596,13 +603,13 @@ export function ConstructionsTab() {
 
                                       {/* Wypełnienie szkło */}
                                       <polygon
-                                        points="16,24 142,72 16,72"
+                                        points={isTriangleRight ? "144,24 18,72 144,72" : "16,24 142,72 16,72"}
                                         fill="#ffffff"
                                         stroke="#38bdf8"
                                         strokeWidth="0.8"
                                       />
                                       <text
-                                        x="48"
+                                        x={isTriangleRight ? "112" : "48"}
                                         y="60"
                                         fill="#0b1220"
                                         fontSize="7.5"

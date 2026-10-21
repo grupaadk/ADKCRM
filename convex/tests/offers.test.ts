@@ -98,16 +98,21 @@ describe("CAD Offers and Constructions Module", () => {
 
     // Seed defaults
     const seedResult = await t.mutation(api.constructions.seedDefault, {});
-    expect(seedResult.created).toBe(4);
+    expect(seedResult.created).toBe(5);
 
     // List templates
     const list = await t.query(api.constructions.list, {});
-    expect(list.length).toBe(4);
+    expect(list.length).toBe(5);
     expect(list[0].code).toBe("SZKLO-3T");
-    const triangleTemplate = list.find((c) => c.code === "TROJKAT-TARAS");
-    expect(triangleTemplate).toBeDefined();
-    expect(triangleTemplate?.name).toBe("Trójkąt do zabudowy tarasu");
-    expect(triangleTemplate?.defaultSystem).toBe("Profil H + Krokiew");
+    const triangleLeft = list.find((c) => c.code === "TROJKAT-TARAS-L");
+    expect(triangleLeft).toBeDefined();
+    expect(triangleLeft?.name).toBe("Trójkąt do zabudowy tarasu LEWY");
+    expect(triangleLeft?.defaultSystem).toBe("Profil H + Krokiew");
+
+    const triangleRight = list.find((c) => c.code === "TROJKAT-TARAS-P");
+    expect(triangleRight).toBeDefined();
+    expect(triangleRight?.name).toBe("Trójkąt do zabudowy tarasu PRAWY");
+    expect(triangleRight?.defaultSystem).toBe("Profil H + Krokiew");
 
     // Create custom construction template
     const newId = await t.mutation(api.constructions.create, {
@@ -122,7 +127,7 @@ describe("CAD Offers and Constructions Module", () => {
     expect(newId).toBeDefined();
 
     const updatedList = await t.query(api.constructions.list, {});
-    expect(updatedList.length).toBe(5);
+    expect(updatedList.length).toBe(6);
 
     // Update description then clear it
     await t.mutation(api.constructions.update, {

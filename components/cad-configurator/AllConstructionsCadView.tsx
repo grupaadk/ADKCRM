@@ -787,6 +787,11 @@ export function AllConstructionsCadView({
                                     item.systemName.toLowerCase().includes("profil h"))
                               );
 
+                            const isTriangleRight =
+                              isTriangle &&
+                              (item.name.toLowerCase().includes("praw") ||
+                                Boolean(item.shortName && item.shortName.toLowerCase().includes("praw")));
+
                             const slopeAngleDeg = Math.round(Math.atan2(height, width) * (180 / Math.PI) * 10) / 10;
                             const hypotenuseMm = Math.round(Math.sqrt(width * width + height * height));
 
@@ -798,30 +803,36 @@ export function AllConstructionsCadView({
 
                             const yFloorPos = originY + height;
                             const yProfTop = yFloorPos - tBot;
-                            const yKrokLeftTop = originY;
-                            const yKrokLeftBot = originY + tKrok;
-                            const yKrokRightBot = yProfTop;
-                            const yKrokRightTop = Math.max(originY + 10, yProfTop - tKrok);
 
-                            const yInnerTop = yKrokLeftBot + tSub;
+                            const yKrokLeftTop = isTriangleRight ? Math.max(originY + 10, yProfTop - tKrok) : originY;
+                            const yKrokLeftBot = isTriangleRight ? yProfTop : originY + tKrok;
+                            const yKrokRightBot = isTriangleRight ? originY + tKrok : yProfTop;
+                            const yKrokRightTop = isTriangleRight ? originY : Math.max(originY + 10, yProfTop - tKrok);
+
+                            const yInnerTop = (isTriangleRight ? yKrokRightBot : yKrokLeftBot) + tSub;
                             const yInnerBot = yProfTop;
-                            const xInnerLeft = originX + tLeft;
-                            const xInnerRight = originX + width;
+                            const xInnerLeft = originX + (isTriangleRight ? 0 : tLeft);
+                            const xInnerRight = originX + width - (isTriangleRight ? tLeft : 0);
 
                             const mInner = Math.max(0.001, (yInnerBot - yInnerTop) / Math.max(1, xInnerRight - xInnerLeft));
-                            const krokiewAngleDeg = Math.round(Math.atan2(yKrokRightTop - yKrokLeftTop, width) * (180 / Math.PI) * 10) / 10;
+                            const krokiewAngleDeg = Math.round(Math.atan2(Math.abs(yKrokRightTop - yKrokLeftTop), width) * (180 / Math.PI) * 10) / 10;
                             const krokiewLenMm = Math.round(Math.sqrt(width * width + (yKrokRightTop - yKrokLeftTop) * (yKrokRightTop - yKrokLeftTop)));
 
                             const gMargin = 14; // szczelina montażowa szyby
-                            const xGlassLeft = xInnerLeft + gMargin;
                             const yGlassBot = yInnerBot - gMargin;
-                            const yGlassTop = yInnerTop + mInner * (xGlassLeft - xInnerLeft) + gMargin;
-                            const xGlassRight = Math.round(
-                              Math.min(
-                                originX + width - 40,
-                                Math.max(xGlassLeft + 50, xInnerLeft + (yGlassBot - gMargin - yInnerTop) / mInner)
-                              )
-                            );
+                            const yGlassTop = yInnerTop + gMargin;
+
+                            const xGlassLeft = isTriangleRight
+                              ? Math.round(Math.max(originX + 40, (originX + width - tLeft - gMargin) - (yGlassBot - yGlassTop) / mInner))
+                              : xInnerLeft + gMargin;
+                            const xGlassRight = isTriangleRight
+                              ? originX + width - tLeft - gMargin
+                              : Math.round(
+                                  Math.min(
+                                    originX + width - 40,
+                                    Math.max(xInnerLeft + gMargin + 50, xInnerLeft + (yGlassBot - gMargin - yInnerTop) / mInner)
+                                  )
+                                );
 
                             const paneWidth = Math.round(width / panes);
                             const segments: CadSegment[] =
@@ -986,12 +997,12 @@ export function AllConstructionsCadView({
                                 PROFIL H
                               </text>
 
-                              {/* Lewy pionowy profil przyścienny */}
+                              {/* Pionowy profil przyścienny (wysoki bok: po lewej dla LEWEGO, po prawej dla PRAWEGO) */}
                               <rect
-                                x={originX}
-                                y={yKrokLeftBot}
+                                x={isTriangleRight ? originX + width - tLeft : originX}
+                                y={isTriangleRight ? yKrokRightBot : yKrokLeftBot}
                                 width={tLeft}
-                                height={yProfTop - yKrokLeftBot}
+                                height={yProfTop - (isTriangleRight ? yKrokRightBot : yKrokLeftBot)}
                                 fill="#29323d"
                                 stroke="#1e242b"
                                 strokeWidth="2"
@@ -1010,7 +1021,7 @@ export function AllConstructionsCadView({
                                 strokeWidth="2"
                               />
                               <g
-                                transform={`translate(${originX + width * 0.48}, ${(yKrokLeftTop + yKrokRightTop) / 2 + tKrok / 2 + 5}) rotate(${krokiewAngleDeg})`}
+                                transform={`translate(${originX + width * 0.48}, ${(yKrokLeftTop + yKrokRightTop) / 2 + tKrok / 2 + 5}) rotate(${isTriangleRight ? -krokiewAngleDeg : krokiewAngleDeg})`}
                               >
                                 <text
                                   x="0"
@@ -1027,23 +1038,31 @@ export function AllConstructionsCadView({
 
                               {/* Podkrokiew / listwa montażowa ramy */}
                               <polygon
-                                points={`
-                                  ${originX},${yKrokLeftBot}
-                                  ${originX + width},${yKrokRightBot}
-                                  ${originX + tLeft},${yInnerTop}
-                                `}
+                                points={
+                                  isTriangleRight
+                                    ? `${originX},${yKrokLeftBot} ${originX + width},${yKrokRightBot} ${originX + width - tLeft},${yInnerTop}`
+                                    : `${originX},${yKrokLeftBot} ${originX + width},${yKrokRightBot} ${originX + tLeft},${yInnerTop}`
+                                }
                                 fill="#29323d"
                                 stroke="#1e242b"
                                 strokeWidth="1.5"
                               />
 
-                              {/* Wypełnienie szklane trójkąta */}
+                              {/* Wypełnienie szklane trójkąta (odbicie lustrzane) */}
                               <polygon
-                                points={`
-                                  ${xGlassLeft},${yGlassTop}
-                                  ${xGlassRight},${yGlassBot}
-                                  ${xGlassLeft},${yGlassBot}
-                                `}
+                                points={
+                                  isTriangleRight
+                                    ? `
+                                      ${xGlassRight},${yGlassTop}
+                                      ${xGlassRight},${yGlassBot}
+                                      ${xGlassLeft},${yGlassBot}
+                                    `
+                                    : `
+                                      ${xGlassLeft},${yGlassTop}
+                                      ${xGlassRight},${yGlassBot}
+                                      ${xGlassLeft},${yGlassBot}
+                                    `
+                                }
                                 fill="#ffffff"
                                 stroke="#38bdf8"
                                 strokeWidth="2"
@@ -1051,9 +1070,13 @@ export function AllConstructionsCadView({
 
                               {/* Odblaski szkła */}
                               <line
-                                x1={xGlassLeft + 40}
+                                x1={isTriangleRight ? xGlassRight - 40 : xGlassLeft + 40}
                                 y1={yGlassBot - 30}
-                                x2={xGlassLeft + (xGlassRight - xGlassLeft) * 0.35}
+                                x2={
+                                  isTriangleRight
+                                    ? xGlassRight - (xGlassRight - xGlassLeft) * 0.35
+                                    : xGlassLeft + (xGlassRight - xGlassLeft) * 0.35
+                                }
                                 y2={yGlassTop + (yGlassBot - yGlassTop) * 0.35}
                                 stroke="#38bdf8"
                                 strokeWidth="2.5"
@@ -1062,7 +1085,7 @@ export function AllConstructionsCadView({
 
                               {/* Parametry wewnątrz trójkąta */}
                               <text
-                                x={originX + width * 0.35}
+                                x={originX + width * (isTriangleRight ? 0.65 : 0.35)}
                                 y={yGlassBot - 60}
                                 fill="#0b1220"
                                 fontSize="42"
@@ -1072,7 +1095,7 @@ export function AllConstructionsCadView({
                                 {fill}
                               </text>
                               <text
-                                x={originX + width * 0.35}
+                                x={originX + width * (isTriangleRight ? 0.65 : 0.35)}
                                 y={yGlassBot - 20}
                                 fill="#0e7490"
                                 fontSize="28"
@@ -1318,7 +1341,7 @@ export function AllConstructionsCadView({
                                     </text>
                                   </g>
 
-                                  {/* LEWO: Całkowity wymiar wysokości H */}
+                                  {/* Całkowity wymiar wysokości H (przy słupku przyściennym) */}
                                   <g
                                     className="cursor-pointer"
                                     onMouseEnter={() =>
@@ -1330,27 +1353,27 @@ export function AllConstructionsCadView({
                                     }
                                   >
                                     <line
-                                      x1={originX - 5}
+                                      x1={isTriangleRight ? originX + width + 5 : originX - 5}
                                       y1={originY}
-                                      x2={originX - 75}
+                                      x2={isTriangleRight ? originX + width + 75 : originX - 75}
                                       y2={originY}
                                       stroke="#64748b"
                                       strokeWidth="2"
                                       strokeDasharray="6 6"
                                     />
                                     <line
-                                      x1={originX - 5}
+                                      x1={isTriangleRight ? originX + width + 5 : originX - 5}
                                       y1={originY + height}
-                                      x2={originX - 75}
+                                      x2={isTriangleRight ? originX + width + 75 : originX - 75}
                                       y2={originY + height}
                                       stroke="#64748b"
                                       strokeWidth="2"
                                       strokeDasharray="6 6"
                                     />
                                     <line
-                                      x1={originX - 60}
+                                      x1={isTriangleRight ? originX + width + 60 : originX - 60}
                                       y1={originY}
-                                      x2={originX - 60}
+                                      x2={isTriangleRight ? originX + width + 60 : originX - 60}
                                       y2={originY + height}
                                       stroke={
                                         hoveredDimKey === `${item._id}-height` ||
@@ -1370,7 +1393,11 @@ export function AllConstructionsCadView({
                                       markerEnd="url(#multiCadArrowEnd)"
                                     />
                                     <g
-                                      transform={`translate(${originX - 96}, ${originY + height / 2}) rotate(-90)`}
+                                      transform={
+                                        isTriangleRight
+                                          ? `translate(${originX + width + 96}, ${originY + height / 2}) rotate(90)`
+                                          : `translate(${originX - 96}, ${originY + height / 2}) rotate(-90)`
+                                      }
                                     >
                                       <rect
                                         x={-150}
@@ -1797,6 +1824,11 @@ export function AllConstructionsCadView({
                       item.systemName.toLowerCase().includes("profil h"))
                 );
 
+              const isTriangleRightCard =
+                isTriangle &&
+                (item.name.toLowerCase().includes("praw") ||
+                  Boolean(item.shortName && item.shortName.toLowerCase().includes("praw")));
+
               const padLeft = 120;
               const padRight = 180;
               const padTop = 200;
@@ -1811,30 +1843,36 @@ export function AllConstructionsCadView({
 
               const yFloorPosCard = padTop + height;
               const yProfTopCard = yFloorPosCard - tBot;
-              const yKrokLeftTopCard = padTop;
-              const yKrokLeftBotCard = padTop + tKrok;
-              const yKrokRightBotCard = yProfTopCard;
-              const yKrokRightTopCard = Math.max(padTop + 10, yProfTopCard - tKrok);
 
-              const yInnerTopCard = yKrokLeftBotCard + tSub;
+              const yKrokLeftTopCard = isTriangleRightCard ? Math.max(padTop + 10, yProfTopCard - tKrok) : padTop;
+              const yKrokLeftBotCard = isTriangleRightCard ? yProfTopCard : padTop + tKrok;
+              const yKrokRightBotCard = isTriangleRightCard ? padTop + tKrok : yProfTopCard;
+              const yKrokRightTopCard = isTriangleRightCard ? padTop : Math.max(padTop + 10, yProfTopCard - tKrok);
+
+              const yInnerTopCard = (isTriangleRightCard ? yKrokRightBotCard : yKrokLeftBotCard) + tSub;
               const yInnerBotCard = yProfTopCard;
-              const xInnerLeftCard = padLeft + tLeft;
-              const xInnerRightCard = padLeft + width;
+              const xInnerLeftCard = padLeft + (isTriangleRightCard ? 0 : tLeft);
+              const xInnerRightCard = padLeft + width - (isTriangleRightCard ? tLeft : 0);
 
               const mInnerCard = Math.max(0.001, (yInnerBotCard - yInnerTopCard) / Math.max(1, xInnerRightCard - xInnerLeftCard));
-              const krokiewAngleDegCard = Math.round(Math.atan2(yKrokRightTopCard - yKrokLeftTopCard, width) * (180 / Math.PI) * 10) / 10;
+              const krokiewAngleDegCard = Math.round(Math.atan2(Math.abs(yKrokRightTopCard - yKrokLeftTopCard), width) * (180 / Math.PI) * 10) / 10;
               const krokiewLenMmCard = Math.round(Math.sqrt(width * width + (yKrokRightTopCard - yKrokLeftTopCard) * (yKrokRightTopCard - yKrokLeftTopCard)));
 
               const gMarginCard = 14;
-              const xGlassLeftCard = xInnerLeftCard + gMarginCard;
               const yGlassBotCard = yInnerBotCard - gMarginCard;
-              const yGlassTopCard = yInnerTopCard + mInnerCard * (xGlassLeftCard - xInnerLeftCard) + gMarginCard;
-              const xGlassRightCard = Math.round(
-                Math.min(
-                  padLeft + width - 40,
-                  Math.max(xGlassLeftCard + 50, xInnerLeftCard + (yGlassBotCard - gMarginCard - yInnerTopCard) / mInnerCard)
-                )
-              );
+              const yGlassTopCard = yInnerTopCard + gMarginCard;
+
+              const xGlassLeftCard = isTriangleRightCard
+                ? Math.round(Math.max(padLeft + 40, (padLeft + width - tLeft - gMarginCard) - (yGlassBotCard - yGlassTopCard) / mInnerCard))
+                : xInnerLeftCard + gMarginCard;
+              const xGlassRightCard = isTriangleRightCard
+                ? padLeft + width - tLeft - gMarginCard
+                : Math.round(
+                    Math.min(
+                      padLeft + width - 40,
+                      Math.max(xInnerLeftCard + gMarginCard + 50, xInnerLeftCard + (yGlassBotCard - gMarginCard - yInnerTopCard) / mInnerCard)
+                    )
+                  );
 
               const segments: CadSegment[] =
                 item.segments && item.segments.length === panes
@@ -1964,11 +2002,12 @@ export function AllConstructionsCadView({
                             PROFIL H
                           </text>
                           {/* Lewy pionowy słupek */}
+                          {/* Pionowy słupek przyścienny */}
                           <rect
-                            x={padLeft}
-                            y={yKrokLeftBotCard}
+                            x={isTriangleRightCard ? padLeft + width - tLeft : padLeft}
+                            y={isTriangleRightCard ? yKrokRightBotCard : yKrokLeftBotCard}
                             width={tLeft}
-                            height={yProfTopCard - yKrokLeftBotCard}
+                            height={yProfTopCard - (isTriangleRightCard ? yKrokRightBotCard : yKrokLeftBotCard)}
                             fill="#29323d"
                             stroke="#1e242b"
                             strokeWidth="1.5"
@@ -1986,7 +2025,7 @@ export function AllConstructionsCadView({
                             strokeWidth="2"
                           />
                           <g
-                            transform={`translate(${padLeft + width * 0.48}, ${(yKrokLeftTopCard + yKrokRightTopCard) / 2 + tKrok / 2 + 5}) rotate(${krokiewAngleDegCard})`}
+                            transform={`translate(${padLeft + width * 0.48}, ${(yKrokLeftTopCard + yKrokRightTopCard) / 2 + tKrok / 2 + 5}) rotate(${isTriangleRightCard ? -krokiewAngleDegCard : krokiewAngleDegCard})`}
                           >
                             <text
                               x="0"
@@ -2002,37 +2041,49 @@ export function AllConstructionsCadView({
                           </g>
                           {/* Podkrokiew / listwa montażowa ramy */}
                           <polygon
-                            points={`
-                              ${padLeft},${yKrokLeftBotCard}
-                              ${padLeft + width},${yKrokRightBotCard}
-                              ${padLeft + tLeft},${yInnerTopCard}
-                            `}
+                            points={
+                              isTriangleRightCard
+                                ? `${padLeft},${yKrokLeftBotCard} ${padLeft + width},${yKrokRightBotCard} ${padLeft + width - tLeft},${yInnerTopCard}`
+                                : `${padLeft},${yKrokLeftBotCard} ${padLeft + width},${yKrokRightBotCard} ${padLeft + tLeft},${yInnerTopCard}`
+                            }
                             fill="#29323d"
                             stroke="#1e242b"
                             strokeWidth="1.5"
                           />
                           {/* Szkło */}
                           <polygon
-                            points={`
-                              ${xGlassLeftCard},${yGlassTopCard}
-                              ${xGlassRightCard},${yGlassBotCard}
-                              ${xGlassLeftCard},${yGlassBotCard}
-                            `}
+                            points={
+                              isTriangleRightCard
+                                ? `
+                                  ${xGlassRightCard},${yGlassTopCard}
+                                  ${xGlassRightCard},${yGlassBotCard}
+                                  ${xGlassLeftCard},${yGlassBotCard}
+                                `
+                                : `
+                                  ${xGlassLeftCard},${yGlassTopCard}
+                                  ${xGlassRightCard},${yGlassBotCard}
+                                  ${xGlassLeftCard},${yGlassBotCard}
+                                `
+                            }
                             fill="#ffffff"
                             stroke="#38bdf8"
                             strokeWidth="2"
                           />
                           <line
-                            x1={xGlassLeftCard + 40}
+                            x1={isTriangleRightCard ? xGlassRightCard - 40 : xGlassLeftCard + 40}
                             y1={yGlassBotCard - 30}
-                            x2={xGlassLeftCard + (xGlassRightCard - xGlassLeftCard) * 0.35}
+                            x2={
+                              isTriangleRightCard
+                                ? xGlassRightCard - (xGlassRightCard - xGlassLeftCard) * 0.35
+                                : xGlassLeftCard + (xGlassRightCard - xGlassLeftCard) * 0.35
+                            }
                             y2={yGlassTopCard + (yGlassBotCard - yGlassTopCard) * 0.35}
                             stroke="#38bdf8"
                             strokeWidth="2.5"
                             strokeOpacity="0.4"
                           />
                           <text
-                            x={padLeft + width * 0.35}
+                            x={padLeft + width * (isTriangleRightCard ? 0.65 : 0.35)}
                             y={yGlassBotCard - 60}
                             fill="#0b1220"
                             fontSize="42"
@@ -2042,7 +2093,7 @@ export function AllConstructionsCadView({
                             {fill}
                           </text>
                           <text
-                            x={padLeft + width * 0.35}
+                            x={padLeft + width * (isTriangleRightCard ? 0.65 : 0.35)}
                             y={yGlassBotCard - 20}
                             fill="#0e7490"
                             fontSize="26"
