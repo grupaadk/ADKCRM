@@ -448,7 +448,7 @@ export function CadConstructionDesignerModal({
                       <Layers size={13} className="text-cyan-600" /> Ilość torów systemu
                     </label>
                     <span className="font-mono text-[11px] font-bold text-cyan-800 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200">
-                      System {panesCount}-torowy ({panesCount} skrzydła)
+                      System {panesCount}-torowy
                     </span>
                   </div>
 
