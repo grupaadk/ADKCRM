@@ -2517,7 +2517,7 @@ export const generateOfferPdf = action({
       if (!oppFolderId) {
         // Uruchom tworzenie folderów szansy sprzedaży
         try {
-          await ctx.runAction(api.googleDrive.createSalesOpportunityFolders, {
+          await ctx.runAction(api.googleDrive.createClientFolderForOpportunity, {
             opportunityId: opportunity._id,
           });
           const refreshedOpp = await ctx.runQuery(api.salesOpportunities.getSalesOpportunity, {
@@ -2526,7 +2526,7 @@ export const generateOfferPdf = action({
           targetFolderId = refreshedOpp?.offersSentFolderId;
           oppFolderId = refreshedOpp?.opportunityFolderId;
         } catch (folderErr) {
-          console.warn("[generateOfferPdf] createSalesOpportunityFolders failed, will try direct creation:", folderErr);
+          console.warn("[generateOfferPdf] createClientFolderForOpportunity failed, will try direct creation:", folderErr);
         }
       }
 
@@ -2573,9 +2573,10 @@ export const generateOfferPdf = action({
     const netBeforeDiscountStr = formatPLN(netBeforeDiscount);
 
     const lineItemsSummary = items.map((it, idx) => {
-      const dims = (it.width && it.height) ? ` (B=${it.width}, H=${it.height})` : "";
-      const sys = it.system ? `${it.system} - ` : "";
-      return `${idx + 1}. ${sys}${it.title}${dims}\nIlość: ${it.quantity} szt. | Cena netto: ${formatPLN(it.unitPriceNet)} | Wartość netto: ${formatPLN(it.totalNet)}`;
+      const dims = (it.widthMm && it.heightMm) ? ` (B=${it.widthMm}, H=${it.heightMm})` : "";
+      const sys = it.systemName ? `${it.systemName} - ` : "";
+      const itemTotalNet = (it.priceNet || 0) * (it.quantity || 1);
+      return `${idx + 1}. ${sys}${it.name}${dims}\nIlość: ${it.quantity} szt. | Cena netto: ${formatPLN(it.priceNet)} | Wartość netto: ${formatPLN(itemTotalNet)}`;
     }).join("\n\n");
 
     const safeLastName = clientLastName.replace(/[/\\:*?"<>|]/g, "_") || "Klient";
@@ -2659,7 +2660,10 @@ export const generateOfferPdf = action({
       // Jeśli mamy pozycje w ofercie, podstaw dane konstrukcji w tabeli wzorcowej
       if (items.length > 0) {
         const first = items[0];
-        const firstDesc = `${first.system ? first.system + " - " : ""}${first.title}${(first.width && first.height) ? `\n(B=${first.width}, H=${first.height})` : ""}`;
+        const firstDims = (first.widthMm && first.heightMm) ? `\n(B=${first.widthMm}, H=${first.heightMm})` : "";
+        const firstSys = first.systemName ? `${first.systemName} - ` : "";
+        const firstDesc = `${firstSys}${first.name}${firstDims}`;
+        const firstTotalNet = (first.priceNet || 0) * (first.quantity || 1);
         replacements.push(
           {
             placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016\x0B(B=1 490, H=2 100)",
@@ -2671,11 +2675,11 @@ export const generateOfferPdf = action({
           },
           {
             placeholder: "6 997,11",
-            value: formatPLN(first.totalNet).replace(" zł", ""),
+            value: formatPLN(firstTotalNet).replace(" zł", ""),
           },
           {
             placeholder: "6\u00a0997,11",
-            value: formatPLN(first.totalNet).replace(" zł", ""),
+            value: formatPLN(firstTotalNet).replace(" zł", ""),
           },
         );
       }
