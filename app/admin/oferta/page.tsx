@@ -345,7 +345,7 @@ function OfertaPageContent() {
     try {
       const firstName =
         clientType === "business"
-          ? newOppFirstName.trim() || "Przedstawiciel"
+          ? newOppFirstName.trim() || ""
           : newOppFirstName.trim() || "Klient";
 
       const lastName =
