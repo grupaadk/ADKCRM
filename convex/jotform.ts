@@ -115,33 +115,49 @@ export function mapJotformPayload(rawData: JotformPayload) {
   const getName = (data: JotformPayload) => {
     const fullName = data.q8_imieI;
 
+    let first = "";
+    let last = "";
+
     // Format: { first: "Jan", last: "Kowalski" } lub flat
-    if (typeof fullName === "string" || isStringRecord(fullName)) {
-      return {
-        firstName: isStringRecord(fullName)
-          ? (fullName.first ?? "")
-          : (fullName ?? ""),
-        lastName: isStringRecord(fullName) ? (fullName.last ?? "") : "",
-      };
-    }
-    // Fallback — szukaj w rawAnswers
-    return {
-      firstName:
+    if (isStringRecord(fullName)) {
+      first = fullName.first ?? "";
+      last = fullName.last ?? "";
+    } else if (typeof fullName === "string" && fullName.trim()) {
+      const parts = fullName.trim().split(/\s+/);
+      if (parts.length > 1) {
+        first = parts[0];
+        last = parts.slice(1).join(" ");
+      } else {
+        first = parts[0];
+        last = "";
+      }
+    } else {
+      // Fallback — szukaj w rawAnswers
+      first =
         typeof data.firstName === "string"
           ? data.firstName
           : typeof data["q8_imieI[first]"] === "string"
             ? data["q8_imieI[first]"]
             : typeof data.q2_q2_textbox0 === "string"
               ? data.q2_q2_textbox0
-              : "",
-      lastName:
+              : "";
+      last =
         typeof data.lastName === "string"
           ? data.lastName
           : typeof data["q8_imieI[last]"] === "string"
             ? data["q8_imieI[last]"]
             : typeof data.q3_q3_textbox1 === "string"
               ? data.q3_q3_textbox1
-              : "",
+              : "";
+    }
+
+    // Oczyszczenie ze słowa "Przedstawiciel" jeśli zostało wpisane lub przekazane jako imię
+    const cleanFirst = first.replace(/\bPrzedstawiciel\b/gi, "").replace(/\s{2,}/g, " ").trim();
+    const cleanLast = last.replace(/\bPrzedstawiciel\b/gi, "").replace(/\s{2,}/g, " ").trim();
+
+    return {
+      firstName: cleanFirst,
+      lastName: cleanLast,
     };
   };
 

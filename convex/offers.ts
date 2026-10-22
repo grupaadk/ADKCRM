@@ -692,16 +692,35 @@ export const cleanupPrzedstawicielData = mutation({
       }
     }
 
-    // 2. Oczyść szanse sprzedaży gdzie firstName to "Przedstawiciel"
+    // 2. Oczyść szanse sprzedaży gdzie firstName to "Przedstawiciel" lub zawiera "Przedstawiciel"
     const allOpps = await ctx.db.query("pendingJotformSubmissions").collect();
     let updatedOppsCount = 0;
     for (const opp of allOpps) {
-      const isPrzedstawicielFirst = opp.firstName && /^przedstawiciel$/i.test(opp.firstName.trim());
-      if (isPrzedstawicielFirst) {
-        // Jeśli ma firmę w customText lub lastName, usuń "Przedstawiciel" z firstName
-        const replacementFirst = opp.customText?.trim() || "";
+      const first = (opp.firstName ?? "").trim();
+      const last = (opp.lastName ?? "").trim();
+      const hasPrzedstawicielInFirst = /przedstawiciel/i.test(first);
+      const hasPrzedstawicielInLast = /przedstawiciel/i.test(last);
+
+      if (hasPrzedstawicielInFirst || hasPrzedstawicielInLast) {
+        let newFirst = first.replace(/\bPrzedstawiciel\b/gi, "").replace(/\s{2,}/g, " ").trim();
+        let newLast = last.replace(/\bPrzedstawiciel\b/gi, "").replace(/\s{2,}/g, " ").trim();
+
+        // Jeśli firstName było "Przedstawiciel", a lastName zawierało pełne imię i nazwisko (np. "Jan Kowalski")
+        if (!newFirst && newLast) {
+          const parts = newLast.split(/\s+/);
+          // Jeśli to nie spółka/firma z wieloma członami, podziel na imię i nazwisko
+          const isCompany = /sp\.?\s*z\s*o\.?o\.?|s\.?a\.?|spółka|spolka/i.test(newLast);
+          if (!isCompany && parts.length === 2) {
+            newFirst = parts[0];
+            newLast = parts[1];
+          } else if (isCompany) {
+            newFirst = opp.customText?.trim() || "";
+          }
+        }
+
         await ctx.db.patch(opp._id, {
-          firstName: replacementFirst,
+          firstName: newFirst,
+          lastName: newLast,
         });
         updatedOppsCount++;
       }

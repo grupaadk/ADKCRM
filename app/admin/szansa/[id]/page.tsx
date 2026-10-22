@@ -1160,7 +1160,7 @@ export default function OpportunityDetailPage({
               <InlineEdit
                 label="Źródło leada (Od kogo)"
                 value={opp.leadSource ?? ""}
-                placeholder="np. Polecenie, FB, Przedstawiciel..."
+                placeholder="np. Polecenie, FB, Strona www..."
                 onSave={(v) => save("leadSource", v || null)}
               />
               <InlineEdit
