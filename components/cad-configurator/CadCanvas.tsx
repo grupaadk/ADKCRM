@@ -340,8 +340,6 @@ export function CadCanvas({
   const xInnerRight = originX + width - (isTriangleRight ? tLeft : 0);
 
   const mInner = Math.max(0.001, (yInnerBot - yInnerTop) / Math.max(1, xInnerRight - xInnerLeft));
-  const krokiewAngleDeg = Math.round(Math.atan2(Math.abs(yKrokRightTop - yKrokLeftTop), width) * (180 / Math.PI) * 10) / 10;
-  const krokiewLenMm = Math.round(Math.sqrt(width * width + (yKrokRightTop - yKrokLeftTop) * (yKrokRightTop - yKrokLeftTop)));
 
   const gMargin = 14; // szczelina montażowa szyby
   const yGlassBot = yInnerBot - gMargin;
@@ -617,23 +615,13 @@ export function CadCanvas({
                   {/* Parametry wewnątrz trójkąta */}
                   <text
                     x={originX + width * (isTriangleRight ? 0.65 : 0.35)}
-                    y={yGlassBot - 60}
+                    y={yGlassBot - 35}
                     fill="#0b1220"
                     fontSize="42"
                     fontWeight="900"
                     textAnchor="middle"
                   >
                     {fill}
-                  </text>
-                  <text
-                    x={originX + width * (isTriangleRight ? 0.65 : 0.35)}
-                    y={yGlassBot - 20}
-                    fill="#0e7490"
-                    fontSize="28"
-                    fontWeight="800"
-                    textAnchor="middle"
-                  >
-                    Spadek dachu: {krokiewAngleDeg}° · L = {krokiewLenMm} mm
                   </text>
                 </>
               ) : (

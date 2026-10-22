@@ -1582,8 +1582,6 @@ export function AllConstructionsCadView({
                             const xInnerRight = originX + width - (isTriangleRight ? tLeft : 0);
 
                             const mInner = Math.max(0.001, (yInnerBot - yInnerTop) / Math.max(1, xInnerRight - xInnerLeft));
-                            const krokiewAngleDeg = Math.round(Math.atan2(Math.abs(yKrokRightTop - yKrokLeftTop), width) * (180 / Math.PI) * 10) / 10;
-                            const krokiewLenMm = Math.round(Math.sqrt(width * width + (yKrokRightTop - yKrokLeftTop) * (yKrokRightTop - yKrokLeftTop)));
 
                             const gMargin = 14; // szczelina montażowa szyby
                             const yGlassBot = yInnerBot - gMargin;
@@ -1753,23 +1751,13 @@ export function AllConstructionsCadView({
                               {/* Parametry wewnątrz trójkąta */}
                               <text
                                 x={originX + width * (isTriangleRight ? 0.65 : 0.35)}
-                                y={yGlassBot - 60}
+                                y={yGlassBot - 35}
                                 fill="#0b1220"
                                 fontSize="42"
                                 fontWeight="900"
                                 textAnchor="middle"
                               >
                                 {fill}
-                              </text>
-                              <text
-                                x={originX + width * (isTriangleRight ? 0.65 : 0.35)}
-                                y={yGlassBot - 20}
-                                fill="#0e7490"
-                                fontSize="28"
-                                fontWeight="800"
-                                textAnchor="middle"
-                              >
-                                Spadek dachu: {krokiewAngleDeg}° · L = {krokiewLenMm} mm
                               </text>
                             </>
                           ) : (
@@ -3036,8 +3024,6 @@ export function AllConstructionsCadView({
               const xInnerRightCard = padLeft + width - (isTriangleRightCard ? tLeft : 0);
 
               const mInnerCard = Math.max(0.001, (yInnerBotCard - yInnerTopCard) / Math.max(1, xInnerRightCard - xInnerLeftCard));
-              const krokiewAngleDegCard = Math.round(Math.atan2(Math.abs(yKrokRightTopCard - yKrokLeftTopCard), width) * (180 / Math.PI) * 10) / 10;
-              const krokiewLenMmCard = Math.round(Math.sqrt(width * width + (yKrokRightTopCard - yKrokLeftTopCard) * (yKrokRightTopCard - yKrokLeftTopCard)));
 
               const gMarginCard = 14;
               const yGlassBotCard = yInnerBotCard - gMarginCard;
@@ -3234,23 +3220,13 @@ export function AllConstructionsCadView({
                           />
                           <text
                             x={padLeft + width * (isTriangleRightCard ? 0.65 : 0.35)}
-                            y={yGlassBotCard - 60}
+                            y={yGlassBotCard - 35}
                             fill="#0b1220"
                             fontSize="42"
                             fontWeight="900"
                             textAnchor="middle"
                           >
                             {fill}
-                          </text>
-                          <text
-                            x={padLeft + width * (isTriangleRightCard ? 0.65 : 0.35)}
-                            y={yGlassBotCard - 20}
-                            fill="#0e7490"
-                            fontSize="26"
-                            fontWeight="800"
-                            textAnchor="middle"
-                          >
-                            Spadek: {krokiewAngleDegCard}° · L = {krokiewLenMmCard} mm
                           </text>
 
                           {showDimensions && (
