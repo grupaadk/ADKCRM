@@ -15,11 +15,8 @@ import {
   FileSpreadsheet,
   Plus,
   Edit3,
-  ArrowUp,
-  Rows,
   X,
   Check,
-  MoveVertical,
   Move,
   Grid,
   Focus,
@@ -139,13 +136,6 @@ export function AllConstructionsCadView({
   } | null>(null);
   const [draftDimValue, setDraftDimValue] = useState<string>("");
   const dimInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Stan otwartego menu rozwijanego po kliknięciu LPM na konstrukcję
-  const [activeDropdown, setActiveDropdown] = useState<{
-    itemId: string;
-    x: number;
-    y: number;
-  } | null>(null);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -320,7 +310,6 @@ export function AllConstructionsCadView({
     if (onUpdatePlacement) {
       onUpdatePlacement(targetItemId, placement);
     }
-    setActiveDropdown(null);
   };
 
   // ── Obliczenia układu dla Wspólnego Arkusza CAD ("sheet") ──
@@ -439,7 +428,6 @@ export function AllConstructionsCadView({
     segmentIndex?: number
   ) => {
     e.stopPropagation();
-    setActiveDropdown(null);
     const w = Math.max(item.widthMm || 2880, 300);
     const h = Math.max(item.heightMm || 2300, 200);
     const panes = Math.max(item.panesCount || 3, 1);
@@ -993,7 +981,6 @@ export function AllConstructionsCadView({
             svgX: svgCoords?.x ?? 0,
             svgY: svgCoords?.y ?? 0,
           });
-          setActiveDropdown(null);
           setActiveDimEdit(null);
         }
       } else {
@@ -1011,7 +998,7 @@ export function AllConstructionsCadView({
       }
     };
 
-    const handlePointerUp = (e: PointerEvent) => {
+    const handlePointerUp = () => {
       if (!pointerDownRef.current) return;
       const pd = pointerDownRef.current;
       pointerDownRef.current = null;
@@ -1025,12 +1012,8 @@ export function AllConstructionsCadView({
         setActiveDropTarget(null);
         activeDropTargetRef.current = null;
       } else {
-        // Zwykłe kliknięcie – otwórz menu rozwijane
-        setActiveDropdown({
-          itemId: pd.itemId,
-          x: e.clientX,
-          y: e.clientY,
-        });
+        // Zwykłe kliknięcie – bezpośrednio przejdź do edycji tej pozycji w CAD
+        onSelectPosition(pd.itemId);
       }
     };
 
@@ -1707,7 +1690,7 @@ export function AllConstructionsCadView({
                                 strokeWidth="2"
                               />
 
-                              {/* Górna belka skośna (KROKIEW) */}
+                              {/* Górna belka skośna ramy */}
                               <polygon
                                 points={`
                                   ${originX},${yKrokLeftTop}
@@ -1715,25 +1698,10 @@ export function AllConstructionsCadView({
                                   ${originX + width},${yKrokRightBot}
                                   ${originX},${yKrokLeftBot}
                                 `}
-                                fill="#84cc16"
-                                stroke="#4d7c0f"
+                                fill="#29323d"
+                                stroke="#1e242b"
                                 strokeWidth="2"
                               />
-                              <g
-                                transform={`translate(${originX + width * 0.48}, ${(yKrokLeftTop + yKrokRightTop) / 2 + tKrok / 2 + 5}) rotate(${isTriangleRight ? -krokiewAngleDeg : krokiewAngleDeg})`}
-                              >
-                                <text
-                                  x="0"
-                                  y="0"
-                                  fill="#0b1220"
-                                  fontSize="30"
-                                  fontWeight="900"
-                                  textAnchor="middle"
-                                  letterSpacing="4px"
-                                >
-                                  KROKIEW
-                                </text>
-                              </g>
 
                               {/* Podkrokiew / listwa montażowa ramy */}
                               <polygon
@@ -1801,7 +1769,7 @@ export function AllConstructionsCadView({
                                 fontWeight="800"
                                 textAnchor="middle"
                               >
-                                Spadek dachu: {krokiewAngleDeg}° · Krokiew: {krokiewLenMm} mm
+                                Spadek dachu: {krokiewAngleDeg}° · L = {krokiewLenMm} mm
                               </text>
                             </>
                           ) : (
@@ -2247,7 +2215,7 @@ export function AllConstructionsCadView({
                                     <text
                                       x="0"
                                       y="0"
-                                      fill="#15803d"
+                                      fill="#0e7490"
                                       fontSize="38"
                                       fontWeight="900"
                                       textAnchor="middle"
@@ -2755,32 +2723,7 @@ export function AllConstructionsCadView({
                       );
                     })}
 
-                    {/* Całkowita wysokość stosu (jeśli nałożono konstrukcje na siebie) */}
-                    {showDimensions && stack.stackedItems.length > 1 && (
-                      <g>
-                        <line
-                          x1={currentStackX - 120}
-                          y1={floorY}
-                          x2={currentStackX - 120}
-                          y2={floorY - stack.stackHeight}
-                          stroke="#0e7490"
-                          strokeWidth="3.5"
-                          markerStart="url(#multiCadArrowStart)"
-                          markerEnd="url(#multiCadArrowEnd)"
-                        />
-                        <text
-                          x={currentStackX - 155}
-                          y={floorY - stack.stackHeight / 2}
-                          fill="#0e7490"
-                          fontSize="46"
-                          fontWeight="900"
-                          textAnchor="middle"
-                          transform={`rotate(-90, ${currentStackX - 155}, ${floorY - stack.stackHeight / 2})`}
-                        >
-                          H_CAŁK = {stack.stackHeight}
-                        </text>
-                      </g>
-                    )}
+
                   </g>
                 );
               })}
@@ -3166,22 +3109,6 @@ export function AllConstructionsCadView({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setActiveDropdown({
-                            itemId: item._id,
-                            x: e.clientX,
-                            y: e.clientY,
-                          });
-                        }}
-                        className="px-2.5 py-1 rounded-md bg-white hover:bg-[#e0f2fe] text-[#0e7490] border border-[#cbd5e1] hover:border-[#38bdf8] text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                        title="Zmień położenie tej konstrukcji (umieść nad, pod lub w rzędzie poniżej)"
-                      >
-                        <MoveVertical size={12} />
-                        <span>Położenie</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
                           onSelectPosition(item._id);
                         }}
                         className="px-2.5 py-1 rounded-md bg-[#f0fdff] hover:bg-[#4ABBC3] text-[#0e7490] hover:text-white border border-[#a5f3fc] text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
@@ -3250,7 +3177,7 @@ export function AllConstructionsCadView({
                             stroke="#1e242b"
                             strokeWidth="1.5"
                           />
-                          {/* Belka skośna (KROKIEW) */}
+                          {/* Belka skośna ramy */}
                           <polygon
                             points={`
                               ${padLeft},${yKrokLeftTopCard}
@@ -3258,25 +3185,10 @@ export function AllConstructionsCadView({
                               ${padLeft + width},${yKrokRightBotCard}
                               ${padLeft},${yKrokLeftBotCard}
                             `}
-                            fill="#84cc16"
-                            stroke="#4d7c0f"
+                            fill="#29323d"
+                            stroke="#1e242b"
                             strokeWidth="2"
                           />
-                          <g
-                            transform={`translate(${padLeft + width * 0.48}, ${(yKrokLeftTopCard + yKrokRightTopCard) / 2 + tKrok / 2 + 5}) rotate(${isTriangleRightCard ? -krokiewAngleDegCard : krokiewAngleDegCard})`}
-                          >
-                            <text
-                              x="0"
-                              y="0"
-                              fill="#0b1220"
-                              fontSize="30"
-                              fontWeight="900"
-                              textAnchor="middle"
-                              letterSpacing="4px"
-                            >
-                              KROKIEW
-                            </text>
-                          </g>
                           {/* Podkrokiew / listwa montażowa ramy */}
                           <polygon
                             points={
@@ -3338,7 +3250,7 @@ export function AllConstructionsCadView({
                             fontWeight="800"
                             textAnchor="middle"
                           >
-                            Spadek: {krokiewAngleDegCard}° · Krokiew: {krokiewLenMmCard} mm
+                            Spadek: {krokiewAngleDegCard}° · L = {krokiewLenMmCard} mm
                           </text>
 
                           {showDimensions && (
@@ -3636,211 +3548,7 @@ export function AllConstructionsCadView({
         </div>
       )}
 
-      {/* ── Menu rozwijane położenia konstrukcji (LPM na konstrukcję) ── */}
-      {activeDropdown && (() => {
-        const activeItem = items.find((it) => it._id === activeDropdown.itemId);
-        if (!activeItem) return null;
 
-        const effectiveTarget = {
-          ...activeItem,
-          ...(localPlacements[activeItem._id] || {}),
-        };
-
-        const popoverX =
-          typeof window !== "undefined"
-            ? Math.min(window.innerWidth - 300, Math.max(16, activeDropdown.x - 20))
-            : 200;
-        const popoverY =
-          typeof window !== "undefined"
-            ? Math.min(window.innerHeight - 260, Math.max(16, activeDropdown.y - 20))
-            : 200;
-
-        // Inne pozycje w ofercie
-        const otherItems = items.filter((it) => it._id !== activeItem._id);
-
-        // Wyznaczenie dostępnych rzędów
-        const maxRowIndex = Math.max(
-          0,
-          ...items.map(
-            (it) => localPlacements[it._id]?.rowIndex ?? it.rowIndex ?? 0
-          )
-        );
-        const availableRows = Array.from(
-          { length: maxRowIndex + 1 },
-          (_, i) => i
-        );
-
-        // Element bazowy pod tą konstrukcją
-        const placedAboveTarget = otherItems.find(
-          (it) => it._id === effectiveTarget.placedAboveItemId
-        );
-
-        return (
-          <div
-            className="fixed inset-0 z-50 bg-[#0b1220]/25 backdrop-blur-[1px] flex"
-            onClick={() => setActiveDropdown(null)}
-          >
-            <div
-              style={{
-                position: "fixed",
-                left: `${popoverX}px`,
-                top: `${popoverY}px`,
-              }}
-              className="bg-white rounded-xl shadow-xl border border-slate-200/90 w-[280px] p-3 z-50 text-[#0b1220] animate-in fade-in zoom-in-95 duration-100 space-y-2.5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Kompaktowy nagłówek */}
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#0b1220] text-[#4ABBC3] shrink-0">
-                    Poz. {activeItem.positionIndex}
-                  </span>
-                  <span className="text-xs font-bold text-slate-900 truncate">
-                    {activeItem.shortName || activeItem.name}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveDropdown(null)}
-                  className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors cursor-pointer shrink-0"
-                  title="Zamknij"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-
-              {/* Status położenia + reset */}
-              <div className="flex items-center justify-between px-2 py-1 rounded bg-slate-50 border border-slate-200/70 text-[11px]">
-                <span className="text-slate-600 font-medium truncate">
-                  {placedAboveTarget
-                    ? `Nad Poz. ${placedAboveTarget.positionIndex}`
-                    : (effectiveTarget.rowIndex ?? 0) > 0
-                    ? `Rząd ${(effectiveTarget.rowIndex ?? 0) + 1}`
-                    : "Poziom posadzki"}
-                </span>
-                {(effectiveTarget.placedAboveItemId || (effectiveTarget.rowIndex ?? 0) > 0) && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleSetPlacement(activeItem._id, {
-                        placedAboveItemId: null,
-                        placedBelowItemId: null,
-                        rowIndex: 0,
-                      })
-                    }
-                    className="text-[#0e7490] hover:text-[#085a70] font-semibold text-[10px] ml-2 shrink-0 cursor-pointer"
-                  >
-                    Reset (posadzka)
-                  </button>
-                )}
-              </div>
-
-              {/* Opcja 1: Umieść nad (zwięzły select) */}
-              {otherItems.length > 0 && (
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    <ArrowUp size={11} className="text-emerald-600" />
-                    <span>Umieść nad konstrukcją:</span>
-                  </label>
-                  <select
-                    value={effectiveTarget.placedAboveItemId || ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (!val) {
-                        handleSetPlacement(activeItem._id, {
-                          placedAboveItemId: null,
-                          placedBelowItemId: null,
-                          rowIndex: 0,
-                        });
-                      } else {
-                        const other = otherItems.find((it) => it._id === val);
-                        handleSetPlacement(activeItem._id, {
-                          placedAboveItemId: val,
-                          placedBelowItemId: null,
-                          rowIndex: other?.rowIndex ?? 0,
-                        });
-                      }
-                    }}
-                    className="w-full text-xs font-medium bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#4ABBC3] cursor-pointer"
-                  >
-                    <option value="">— Brak (poziom posadzki) —</option>
-                    {otherItems.map((other) => (
-                      <option key={other._id} value={other._id}>
-                        Poz. {other.positionIndex}: {other.shortName || other.name} ({other.widthMm}×{other.heightMm})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Opcja 2: Rząd na rysunku (pille) */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                  <Rows size={11} className="text-[#0e7490]" />
-                  <span>Rząd (jedna pod drugą):</span>
-                </label>
-                <div className="flex items-center gap-1 flex-wrap">
-                  {availableRows.map((rIdx) => {
-                    const isCurrentRow =
-                      !effectiveTarget.placedAboveItemId &&
-                      (effectiveTarget.rowIndex ?? 0) === rIdx;
-                    return (
-                      <button
-                        key={`row-${rIdx}`}
-                        type="button"
-                        onClick={() =>
-                          handleSetPlacement(activeItem._id, {
-                            placedAboveItemId: null,
-                            placedBelowItemId: null,
-                            rowIndex: rIdx,
-                          })
-                        }
-                        className={`px-2 py-0.5 rounded text-xs font-semibold transition-colors cursor-pointer ${
-                          isCurrentRow
-                            ? "bg-[#0b1220] text-white"
-                            : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-                        }`}
-                      >
-                        Rząd {rIdx + 1}
-                      </button>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleSetPlacement(activeItem._id, {
-                        placedAboveItemId: null,
-                        placedBelowItemId: null,
-                        rowIndex: maxRowIndex + 1,
-                      })
-                    }
-                    title="Nowy rząd poniżej"
-                    className="px-2 py-0.5 rounded text-xs font-semibold bg-[#f0fdff] hover:bg-[#e0f2fe] text-[#0e7490] border border-[#a5f3fc] transition-colors cursor-pointer flex items-center gap-0.5"
-                  >
-                    <Plus size={11} />
-                    <span>Nowy</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Przycisk przejścia do edycji */}
-              <div className="pt-1.5 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveDropdown(null);
-                    onSelectPosition(activeItem._id);
-                  }}
-                  className="w-full py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Edit3 size={12} className="text-[#4ABBC3]" />
-                  <span>Edytuj w CAD</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* ── Pływający edytor wymiaru CAD (Dynamic Input po kliknięciu wymiaru) ── */}
       {activeDimEdit && (() => {
