@@ -3,6 +3,51 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 
 /**
+ * Usuwa słowo "Przedstawiciel" z tytułów ofert i nazw klientów w całym systemie
+ */
+export function cleanOfferTitle(title?: string | null): string | undefined {
+  if (!title) return undefined;
+  const cleaned = title
+    .replace(/Oferta dla:\s*Przedstawiciel(?:\s+|$)/gi, "Oferta dla: ")
+    .replace(/\bPrzedstawiciel\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return cleaned || undefined;
+}
+
+export function resolveCleanClientName(opp?: {
+  customText?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+} | null, client?: {
+  companyName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+} | null): string {
+  if (client?.companyName?.trim()) return client.companyName.trim();
+  if (client) {
+    const rawClient = [client.firstName, client.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\bPrzedstawiciel\b/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    if (rawClient) return rawClient;
+  }
+
+  if (opp?.customText?.trim()) return opp.customText.trim();
+
+  const parts = [opp?.firstName, opp?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\bPrzedstawiciel\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return parts || "Klient";
+}
+
+/**
  * Pobiera ofertę po jej ID wraz z pełną listą pozycji konstrukcji
  */
 export const getOfferWithItems = query({
@@ -26,8 +71,13 @@ export const getOfferWithItems = query({
       client = await ctx.db.get(opportunity.clientId);
     }
 
+    const cleanTitle = cleanOfferTitle(offer.title) ?? offer.title;
+
     return {
-      offer,
+      offer: {
+        ...offer,
+        title: cleanTitle,
+      },
       items,
       opportunity,
       client,
@@ -63,9 +113,9 @@ export const getOrCreateForOpportunity = mutation({
     const offerNumber = `OF-${year}/${String(count).padStart(3, "0")}`;
     const now = Date.now();
 
-    const clientName = opp.customText?.trim() || [opp.firstName, opp.lastName].filter(Boolean).join(" ") || "Klient";
+    const clientName = resolveCleanClientName(opp);
     const variantSuffix = existingOffers.length > 0 ? ` (Wariant ${existingOffers.length + 1})` : "";
-    const title = args.title || `Oferta dla: ${clientName}${variantSuffix}`;
+    const title = cleanOfferTitle(args.title) || (clientName ? `Oferta dla: ${clientName}${variantSuffix}` : `Oferta${variantSuffix}`);
 
     const offerId = await ctx.db.insert("offers", {
       opportunityId: args.opportunityId,
@@ -108,9 +158,9 @@ export const createOfferForOpportunity = mutation({
     const offerNumber = `OF-${year}/${String(count).padStart(3, "0")}`;
     const now = Date.now();
 
-    const clientName = opp.customText?.trim() || [opp.firstName, opp.lastName].filter(Boolean).join(" ") || "Klient";
+    const clientName = resolveCleanClientName(opp);
     const variantSuffix = existingOffers.length > 0 ? ` (Wariant ${existingOffers.length + 1})` : "";
-    const title = args.title || `Oferta dla: ${clientName}${variantSuffix}`;
+    const title = cleanOfferTitle(args.title) || (clientName ? `Oferta dla: ${clientName}${variantSuffix}` : `Oferta${variantSuffix}`);
 
     const offerId = await ctx.db.insert("offers", {
       opportunityId: args.opportunityId,
@@ -217,6 +267,7 @@ export const listByOpportunity = query({
 
       results.push({
         ...offer,
+        title: cleanOfferTitle(offer.title) ?? offer.title,
         itemsCount: items.length,
       });
     }
@@ -255,23 +306,21 @@ export const list = query({
         .withIndex("by_offer", (q) => q.eq("offerId", offer._id))
         .collect();
 
-      const clientName =
-        (client ? [client.firstName, client.lastName].filter(Boolean).join(" ") || client.companyName : null) ||
-        opp?.customText?.trim() ||
-        [opp?.firstName, opp?.lastName].filter(Boolean).join(" ") ||
-        "—";
+      const clientName = resolveCleanClientName(opp, client) || "—";
+      const cleanTitle = cleanOfferTitle(offer.title) ?? offer.title;
 
       if (args.search) {
         const queryStr = args.search.toLowerCase();
         const matches =
           offer.offerNumber.toLowerCase().includes(queryStr) ||
-          offer.title.toLowerCase().includes(queryStr) ||
+          cleanTitle.toLowerCase().includes(queryStr) ||
           clientName.toLowerCase().includes(queryStr);
         if (!matches) continue;
       }
 
       results.push({
         ...offer,
+        title: cleanTitle,
         clientName,
         itemsCount: items.length,
         city: opp?.city || client?.city || "—",
@@ -622,3 +671,43 @@ export const setOfferLastPdfUrl = internalMutation({
     await ctx.db.patch(args.offerId, { lastPdfUrl: args.pdfUrl });
   },
 });
+
+/**
+ * Jednorazowe / porządkujące czyszczenie bazy ze słowa "Przedstawiciel"
+ * zarówno w istniejących ofertach jak i szansach sprzedaży.
+ */
+export const cleanupPrzedstawicielData = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // 1. Oczyść istniejące oferty
+    const allOffers = await ctx.db.query("offers").collect();
+    let updatedOffersCount = 0;
+    for (const offer of allOffers) {
+      if (offer.title && /przedstawiciel/i.test(offer.title)) {
+        const newTitle = cleanOfferTitle(offer.title) || "Oferta";
+        if (newTitle !== offer.title) {
+          await ctx.db.patch(offer._id, { title: newTitle });
+          updatedOffersCount++;
+        }
+      }
+    }
+
+    // 2. Oczyść szanse sprzedaży gdzie firstName to "Przedstawiciel"
+    const allOpps = await ctx.db.query("pendingJotformSubmissions").collect();
+    let updatedOppsCount = 0;
+    for (const opp of allOpps) {
+      const isPrzedstawicielFirst = opp.firstName && /^przedstawiciel$/i.test(opp.firstName.trim());
+      if (isPrzedstawicielFirst) {
+        // Jeśli ma firmę w customText lub lastName, usuń "Przedstawiciel" z firstName
+        const replacementFirst = opp.customText?.trim() || "";
+        await ctx.db.patch(opp._id, {
+          firstName: replacementFirst,
+        });
+        updatedOppsCount++;
+      }
+    }
+
+    return { updatedOffersCount, updatedOppsCount };
+  },
+});
+

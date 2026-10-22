@@ -289,17 +289,21 @@ export const listForPicker = query({
       .take(500);
     return all
       .filter((o) => !o.processed && o.archived !== true)
-      .map((o) => ({
-        _id: o._id,
-        clientName: `${o.firstName} ${o.lastName}`.trim() || "—",
-        customText: o.customText ?? null,
-        stage: o.stage ?? "lead",
-        city: o.investmentCity || o.city || null,
-        phone: o.phone ?? null,
-        email: o.email ?? null,
-        services: o.services ?? [],
-        createdAt: o._creationTime,
-      }));
+      .map((o) => {
+        const rawName = o.customText?.trim() || `${o.firstName} ${o.lastName}`.trim();
+        const clientName = rawName.replace(/\bPrzedstawiciel\b/gi, "").replace(/\s{2,}/g, " ").trim() || "—";
+        return {
+          _id: o._id,
+          clientName,
+          customText: o.customText ?? null,
+          stage: o.stage ?? "lead",
+          city: o.investmentCity || o.city || null,
+          phone: o.phone ?? null,
+          email: o.email ?? null,
+          services: o.services ?? [],
+          createdAt: o._creationTime,
+        };
+      });
   },
 });
 

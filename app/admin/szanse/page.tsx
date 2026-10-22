@@ -90,9 +90,10 @@ function KanbanCard({
   onToggleExpand: () => void
   onArchive?: (item: KanbanPendingItem) => void
 }) {
-  const fullName = item.clientType === "business" && item.companyName
+  const rawName = item.clientType === "business" && item.companyName
     ? item.companyName
-    : `${item.clientFirstName} ${item.clientLastName}`.trim()
+    : item.companyName || `${item.clientFirstName} ${item.clientLastName}`.trim();
+  const fullName = rawName.replace(/\bPrzedstawiciel\b/gi, "").replace(/\s{2,}/g, " ").trim() || rawName;
   const didDragRef = useRef(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [daysInStatusLabel, setDaysInStatusLabel] = useState<string | null>(null)

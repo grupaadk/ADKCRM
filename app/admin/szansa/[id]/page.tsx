@@ -637,7 +637,12 @@ export default function OpportunityDetailPage({
         <div style={{ padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderBottom: "1px solid var(--line)" }}>
           <div>
             <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-strong)", margin: 0, lineHeight: 1.2 }}>
-              {opp.firstName} {opp.lastName}
+              {opp.customText?.trim() ||
+                `${opp.firstName} ${opp.lastName}`
+                  .replace(/\bPrzedstawiciel\b/gi, "")
+                  .replace(/\s{2,}/g, " ")
+                  .trim() ||
+                `${opp.firstName} ${opp.lastName}`}
             </h1>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
               <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
