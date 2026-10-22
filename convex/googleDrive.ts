@@ -2752,6 +2752,16 @@ export const generateOfferPdf = action({
       console.warn("[generateOfferPdf] addDriveProjectFile error:", dbErr);
     }
 
+    // 10. Zapisz URL PDF na dokumencie oferty (trwały link do CTA)
+    try {
+      await ctx.runMutation(internal.offers.setOfferLastPdfUrl, {
+        offerId: args.offerId,
+        pdfUrl: uploadedPdf.url,
+      });
+    } catch (pdfUrlErr) {
+      console.warn("[generateOfferPdf] setOfferLastPdfUrl error:", pdfUrlErr);
+    }
+
     return {
       pdfUrl: uploadedPdf.url,
       fileId: uploadedPdf.fileId,

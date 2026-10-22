@@ -41,6 +41,8 @@ export interface OfferData {
   discountPercent?: number;
   notes?: string;
   terms?: string;
+  /** URL ostatnio wygenerowanego PDF-u (Google Drive) */
+  lastPdfUrl?: string;
   createdAt: number;
   updatedAt: number;
 }

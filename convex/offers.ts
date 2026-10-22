@@ -1,4 +1,4 @@
-import { mutation, query, MutationCtx } from "./_generated/server";
+import { mutation, internalMutation, query, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 
@@ -452,3 +452,17 @@ async function recalculateOffer(ctx: MutationCtx, offerId: Id<"offers">) {
     });
   }
 }
+
+/**
+ * Zapisuje URL ostatnio wygenerowanego PDF-u bezpośrednio na dokumencie oferty.
+ * Wywoływana wewnętrznie przez akcję generateOfferPdf.
+ */
+export const setOfferLastPdfUrl = internalMutation({
+  args: {
+    offerId: v.id("offers"),
+    pdfUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.offerId, { lastPdfUrl: args.pdfUrl });
+  },
+});

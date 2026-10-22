@@ -361,9 +361,9 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
             </span>
           </button>
 
-          {lastPdfUrl && (
+          {(lastPdfUrl || offer?.lastPdfUrl) && (
             <a
-              href={lastPdfUrl}
+              href={(lastPdfUrl || offer?.lastPdfUrl)!}
               target="_blank"
               rel="noopener noreferrer"
               title="Otwórz wygenerowaną ofertę PDF w Google Drive"

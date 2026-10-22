@@ -1188,6 +1188,8 @@ export default defineSchema({
     discountPercent: v.optional(v.number()),
     notes: v.optional(v.string()),
     terms: v.optional(v.string()),
+    /** URL ostatnio wygenerowanego PDF-u oferty (Google Drive) */
+    lastPdfUrl: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
