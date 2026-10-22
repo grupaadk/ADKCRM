@@ -346,4 +346,32 @@ describe("CAD Offers and Constructions Module", () => {
     const allOppOffers = await t.query(api.offers.listByOpportunity, { opportunityId: oppId });
     expect(allOppOffers.length).toBe(3);
   });
+
+  test("verifies OFFER_SLIDES_TEMPLATE_ID and CAD SVG renderer", async () => {
+    const { OFFER_SLIDES_TEMPLATE_ID } = await import("../googleDrive");
+    expect(OFFER_SLIDES_TEMPLATE_ID).toBe("1-gl0q_8B9k6eM0mWwh30tAbx9LN8sfhmwrHMRI-ppUg");
+
+    const { renderCadConstructionSvg } = await import(
+      "../../components/cad-configurator/cadSvgRenderer"
+    );
+
+    const sampleItem = {
+      _id: "test_1",
+      positionIndex: 1,
+      name: "Ściana przesuwna szklana",
+      widthMm: 3200,
+      heightMm: 2400,
+      panesCount: 4,
+      fillType: "HART 10",
+      color: "RAL 7016MAT",
+      quantity: 1,
+    };
+
+    const svg = renderCadConstructionSvg(sampleItem);
+    expect(svg).toContain("<svg");
+    expect(svg).toContain("B = 3200");
+    expect(svg).toContain("H = 2400");
+    expect(svg).toContain("HART 10");
+    expect(svg).toContain("POZ. #1: ŚCIANA PRZESUWNA SZKLANA");
+  });
 });

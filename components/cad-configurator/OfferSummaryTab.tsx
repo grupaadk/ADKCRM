@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import toast from "react-hot-toast";
 import { CadConstructionItem } from "./CadCanvas";
+import { uploadCadSnapshotsForOffer } from "./cadSvgRenderer";
 import {
   FileText,
   Percent,
@@ -98,6 +99,7 @@ export function OfferSummaryTab({
   const [isDuplicating, setIsDuplicating] = useState(false);
   const generateOfferPdf = useAction(api.googleDrive.generateOfferPdf);
   const duplicateOffer = useMutation(api.offers.duplicateOffer);
+  const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
 
   const handleDuplicateOffer = async () => {
     if (isDuplicating) return;
@@ -120,13 +122,25 @@ export function OfferSummaryTab({
 
   const handlePrintPdf = async () => {
     setIsGeneratingPdf(true);
-    const toastId = toast.loading("Generowanie oferty PDF z szablonu Google Docs i zapis w Google Drive...");
+    const toastId = toast.loading("Przygotowywanie szkiców CAD i generowanie oferty PDF...");
     try {
+      // 1. Wygeneruj zrzuty PNG ze szkiców CAD konstrukcji (jeśli są)
+      let itemsCadImages: Array<{ positionIndex: number; imageUrl: string }> | undefined;
+      try {
+        if (items.length > 0) {
+          itemsCadImages = await uploadCadSnapshotsForOffer(items, generateUploadUrl);
+        }
+      } catch (cadErr) {
+        console.warn("[handlePrintPdf] Ostrzeżenie przy generowaniu zrzutów CAD:", cadErr);
+      }
+
+      // 2. Wywołaj akcję generowania oferty PDF z szablonu Prezentacji Google
       const result = await generateOfferPdf({
         offerId: offer._id as Id<"offers">,
+        itemsCadImages,
       });
       toast.success(
-        "Oferta PDF została zapisana w folderze 'Oferty - wysłane do Klienta'!",
+        "Oferta PDF została wygenerowana i zapisana w folderze 'Oferty - wysłane do Klienta'!",
         { id: toastId, duration: 6000 }
       );
       if (result.pdfUrl) {
