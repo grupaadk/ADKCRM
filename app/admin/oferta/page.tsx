@@ -126,6 +126,7 @@ function OfertaPageContent() {
   const getOrCreateForOpportunity = useMutation(api.offers.getOrCreateForOpportunity);
   const createOfferForOpportunity = useMutation(api.offers.createOfferForOpportunity);
   const createManualOpportunity = useMutation(api.salesOpportunities.createManualOpportunity);
+  const createClient = useMutation(api.clients.create);
   const lookupNip = useAction(api.whitelist.lookupNip);
 
   const handleNipLookup = async () => {
@@ -396,7 +397,39 @@ function OfertaPageContent() {
         ? newOppInvestmentCity.trim()
         : newOppCity.trim() || undefined;
 
+      // 1. Najpierw utwórz klienta w tabeli `clients`
+      const clientFirstName =
+        clientType === "business"
+          ? newOppFirstName.trim() || newOppCompanyName.trim()
+          : newOppFirstName.trim() || "Klient";
+
+      const clientLastName =
+        clientType === "business"
+          ? newOppLastName.trim() || "Firma"
+          : newOppLastName.trim() || "-";
+
+      const cleanNip = clientType === "business" && newOppNip.trim()
+        ? newOppNip.trim().replace(/[\s-]/g, "")
+        : undefined;
+
+      const createdClientId = await createClient({
+        clientType,
+        firstName: clientFirstName,
+        lastName: clientLastName,
+        companyName: clientType === "business" ? newOppCompanyName.trim() : undefined,
+        phone: newOppPhone.trim() || undefined,
+        email: newOppEmail.trim() || undefined,
+        street: newOppStreet.trim() || undefined,
+        buildingNumber: newOppBuildingNumber.trim() || undefined,
+        apartmentNumber: newOppApartmentNumber.trim() || undefined,
+        postalCode: newOppPostalCode.trim() || undefined,
+        city: newOppCity.trim() || undefined,
+        nip: cleanNip,
+      });
+
+      // 2. Następnie utwórz powiązaną szansę sprzedaży
       const oppId = await createManualOpportunity({
+        clientId: createdClientId,
         firstName,
         lastName,
         customText,
