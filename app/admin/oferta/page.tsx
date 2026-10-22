@@ -353,8 +353,7 @@ function OfertaPageContent() {
           ? newOppLastName.trim() || newOppCompanyName.trim()
           : newOppLastName.trim() || "-";
 
-      const customText =
-        clientType === "business" ? newOppCompanyName.trim() : undefined;
+      const customText = undefined;
 
       const fullComment = [
         clientType === "business" && newOppNip.trim() ? `NIP: ${newOppNip.trim()}` : "",
