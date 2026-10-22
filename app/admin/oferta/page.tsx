@@ -443,7 +443,7 @@ function OfertaPageContent() {
                       sortDir={sortDir}
                     />
                   </th>
-                  <th style={{ width: 130, textAlign: "right" }}>Akcja</th>
+                  <th style={{ width: 150, textAlign: "right" }}>Akcja</th>
                 </tr>
               </thead>
               <tbody>
@@ -513,6 +513,20 @@ function OfertaPageContent() {
                         >
                           <ExternalLink size={13} className="text-[#7c8597]" />
                         </Link>
+                        {o.lastPdfUrl && (
+                          <a
+                            href={o.lastPdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Otwórz wygenerowaną ofertę PDF w Google Drive"
+                            className="btn icon border border-[#4ABBC3]/40 bg-[#4ABBC3]/10 text-[#0e7490] hover:bg-[#4ABBC3]/20 transition-colors"
+                            style={{ padding: "4px 7px", fontSize: 11 }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FileText size={12} className="text-[#0e7490]" />
+                            <span className="font-semibold text-[11px]">PDF</span>
+                          </a>
+                        )}
                         <button
                           type="button"
                           onClick={() => {
@@ -585,9 +599,23 @@ function OfertaPageContent() {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1 text-[#0e7490] font-bold text-xs group-hover:translate-x-0.5 transition-transform">
-                  <span>Otwórz CAD</span>
-                  <ArrowRight size={14} className="text-[#4ABBC3]" />
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  {o.lastPdfUrl && (
+                    <a
+                      href={o.lastPdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Otwórz wygenerowaną ofertę PDF w Google Drive"
+                      className="flex items-center gap-1 px-2 py-1 rounded bg-[#4ABBC3]/10 border border-[#4ABBC3]/30 text-[#0e7490] font-bold text-xs hover:bg-[#4ABBC3]/20 transition-colors"
+                    >
+                      <FileText size={13} className="text-[#0e7490]" />
+                      <span>PDF</span>
+                    </a>
+                  )}
+                  <div className="flex items-center gap-1 text-[#0e7490] font-bold text-xs group-hover:translate-x-0.5 transition-transform">
+                    <span>Otwórz CAD</span>
+                    <ArrowRight size={14} className="text-[#4ABBC3]" />
+                  </div>
                 </div>
               </div>
             </div>
