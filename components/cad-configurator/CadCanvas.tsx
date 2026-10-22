@@ -450,10 +450,13 @@ export function CadCanvas({
           <svg
             viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
             preserveAspectRatio="xMidYMid meet"
-            className="w-full h-full block rounded-lg shadow-sm"
+            className="block"
             style={{
               width: "100%",
               height: "100%",
+              maxWidth: "100%",
+              maxHeight: "100%",
+              aspectRatio: `${viewBoxWidth} / ${viewBoxHeight}`,
               fontFamily:
                 "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
             }}

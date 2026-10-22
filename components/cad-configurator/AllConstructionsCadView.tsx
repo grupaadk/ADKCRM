@@ -1296,10 +1296,13 @@ export function AllConstructionsCadView({
               ref={svgRef}
               viewBox={`0 0 ${sheetWidth} ${sheetHeight}`}
               preserveAspectRatio="xMidYMid meet"
-              className="w-full h-full block rounded-md shadow-lg"
+              className="block"
               style={{
                 width: "100%",
                 height: "100%",
+                maxWidth: "100%",
+                maxHeight: "100%",
+                aspectRatio: `${sheetWidth} / ${sheetHeight}`,
                 fontFamily:
                   "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
                 cursor: dragState || isPanning ? "grabbing" : "grab",
