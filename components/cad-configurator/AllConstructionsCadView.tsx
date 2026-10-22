@@ -2183,21 +2183,40 @@ export function AllConstructionsCadView({
                                     </g>
                                   </g>
 
-                                  {/* UKOŚNY WYMIAR KROKWI */}
-                                  <g
-                                    transform={`translate(${originX + width * 0.52}, ${originY + height * 0.52 - 60}) rotate(${slopeAngleDeg})`}
-                                  >
-                                    <text
-                                      x="0"
-                                      y="0"
-                                      fill="#0e7490"
-                                      fontSize="38"
-                                      fontWeight="900"
-                                      textAnchor="middle"
-                                    >
-                                      L = {hypotenuseMm} mm (∠ {slopeAngleDeg}°)
-                                    </text>
-                                  </g>
+                                  {/* UKOŚNY WYMIAR BELKI SKOŚNEJ */}
+                                  {(() => {
+                                    const midBeamX = originX + width / 2;
+                                    const midBeamY = (yKrokLeftTop + yKrokRightTop) / 2;
+                                    const hypotenuseAngleDeg = isTriangleRight ? -slopeAngleDeg : slopeAngleDeg;
+                                    return (
+                                      <g
+                                        transform={`translate(${midBeamX}, ${midBeamY}) rotate(${hypotenuseAngleDeg})`}
+                                      >
+                                        <rect
+                                          x={-190}
+                                          y={-62}
+                                          width={380}
+                                          height={46}
+                                          rx="8"
+                                          fill="#ffffff"
+                                          fillOpacity="0.95"
+                                          stroke="#cbd5e1"
+                                          strokeWidth="1.5"
+                                        />
+                                        <text
+                                          x={0}
+                                          y={-39}
+                                          fill="#0e7490"
+                                          fontSize="32"
+                                          fontWeight="900"
+                                          textAnchor="middle"
+                                          dominantBaseline="central"
+                                        >
+                                          L = {hypotenuseMm} mm (∠ {slopeAngleDeg}°)
+                                        </text>
+                                      </g>
+                                    );
+                                  })()}
                                 </>
                               ) : (
                                 <>
