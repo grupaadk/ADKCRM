@@ -893,195 +893,71 @@ export default function OpportunityDetailPage({
         </div>
       )}
 
-      {/* ── Sekcja Ofert ── */}
-      <div
-        style={{
-          background: "var(--accent-soft)",
-          borderRadius: 12,
-          padding: "16px 20px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-        }}
-      >
-        {/* Nagłówek sekcji */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ width: 4, height: 20, borderRadius: 3, background: "var(--accent)", flexShrink: 0 }} />
-            <Layers size={16} color="var(--accent)" />
-            <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
-              Oferty
-            </span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-mute)" }}>
-              ({linkedOffers.length})
-            </span>
+      {/* ── Sekcja Ofert (minimalistyczna) ── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 0, borderRadius: 10, border: "1px solid var(--line)", overflow: "hidden", background: "var(--panel)" }}>
+        {/* Nagłówek */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", borderBottom: linkedOffers.length > 0 ? "1px solid var(--line)" : undefined, background: "var(--panel-2)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Layers size={13} color="var(--accent)" />
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-strong)" }}>Oferty</span>
+            {linkedOffers.length > 0 && (
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)", background: "var(--panel-3)", borderRadius: 4, padding: "0 5px" }}>{linkedOffers.length}</span>
+            )}
           </div>
           <button
             type="button"
             onClick={handleCreateNewOffer}
             disabled={creatingOffer}
-            className="btn"
-            style={{
-              fontSize: 11.5,
-              padding: "5px 12px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontWeight: 600,
-              background: "var(--panel)",
-              color: "var(--accent)",
-              borderColor: "var(--accent)",
-              cursor: creatingOffer ? "not-allowed" : "pointer",
-              opacity: creatingOffer ? 0.6 : 1,
-            }}
+            style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 11.5, fontWeight: 700, cursor: creatingOffer ? "not-allowed" : "pointer", opacity: creatingOffer ? 0.5 : 1, display: "flex", alignItems: "center", gap: 4, padding: "2px 0" }}
           >
-            <Plus size={13} />
-            <span>{creatingOffer ? "Tworzenie..." : "+ Nowa oferta"}</span>
+            <Plus size={12} />
+            {creatingOffer ? "Tworzenie…" : "Nowa oferta"}
           </button>
         </div>
 
-        {/* Zawartość sekcji: brak ofert (CTA) lub grid kart */}
+        {/* Wiersze ofert */}
         {linkedOffers.length === 0 ? (
-          <div
-            onClick={creatingOffer ? undefined : handleCreateNewOffer}
-            style={{
-              padding: "24px 20px",
-              borderRadius: 10,
-              background: "var(--card)",
-              border: "1px dashed var(--line)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              cursor: creatingOffer ? "not-allowed" : "pointer",
-              textAlign: "center",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: "50%",
-                background: "var(--accent-soft)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--accent)",
-              }}
-            >
-              <Layers size={18} />
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-strong)" }}>
-              Brak ofert — utwórz pierwszą
-            </span>
+          <div style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-mute)" }}>
+            Brak ofert
           </div>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: linkedOffers.length >= 2 ? "repeat(2, minmax(0, 1fr))" : "1fr",
-              gap: 10,
-            }}
-          >
-            {linkedOffers.map((offer) => {
-              const statusCfg = OFFER_STATUS_CONFIG[offer.status] ?? OFFER_STATUS_CONFIG.draft;
-              return (
-                <Link
-                  key={offer._id}
-                  href={`/admin/oferta?offerId=${offer._id}`}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                    padding: "12px 14px",
-                    background: "var(--card)",
-                    borderRadius: 10,
-                    border: "1px solid var(--line)",
-                    borderLeft: `3px solid ${statusCfg.border}`,
-                    textDecoration: "none",
-                    color: "inherit",
-                    transition: "box-shadow 0.15s, border-color 0.15s",
-                  }}
-                  className="hover:shadow-sm"
-                >
-                  {/* Górny wiersz: Numer oferty (monospace) + Badge statusu */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                    <span
-                      style={{
-                        fontFamily: "var(--font-mono, monospace)",
-                        fontSize: 13,
-                        fontWeight: 800,
-                        color: "var(--text-strong)",
-                        letterSpacing: -0.2,
-                      }}
-                    >
-                      {offer.offerNumber}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: 4,
-                        background: statusCfg.bg,
-                        color: statusCfg.text,
-                        letterSpacing: 0.3,
-                        textTransform: "uppercase",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {statusCfg.label}
-                    </span>
-                  </div>
-
-                  {/* Środkowy wiersz: Tytuł oferty (truncated) */}
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "var(--text-mute)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                    title={offer.title}
-                  >
-                    {offer.title || "—"}
-                  </div>
-
-                  {/* Dolny wiersz: Liczba pozycji + Cena netto pogrubiona */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                      marginTop: 2,
-                      paddingTop: 6,
-                      borderTop: "1px solid var(--line)",
-                    }}
-                  >
-                    <span style={{ fontSize: 11, color: "var(--text-mute)" }}>
-                      {offer.itemsCount} poz.
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 12.5,
-                        fontWeight: 800,
-                        color: "var(--text-strong)",
-                        fontFamily: "var(--font-mono, monospace)",
-                      }}
-                    >
-                      {offer.totalPriceNet.toLocaleString("pl-PL")} zł netto
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+          linkedOffers.map((offer, idx) => {
+            const statusCfg = OFFER_STATUS_CONFIG[offer.status] ?? OFFER_STATUS_CONFIG.draft;
+            return (
+              <Link
+                key={offer._id}
+                href={`/admin/oferta?offerId=${offer._id}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  padding: "8px 14px",
+                  textDecoration: "none",
+                  color: "inherit",
+                  borderBottom: idx < linkedOffers.length - 1 ? "1px solid var(--line)" : undefined,
+                  borderLeft: `3px solid ${statusCfg.border}`,
+                  transition: "background 0.1s",
+                }}
+                className="hover:bg-[var(--panel-2)]"
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <span style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 11.5, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap" }}>{offer.offerNumber}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: statusCfg.bg, color: statusCfg.text, whiteSpace: "nowrap" }}>{statusCfg.label}</span>
+                  {offer.title && (
+                    <span style={{ fontSize: 11.5, color: "var(--text-mute)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{offer.title}</span>
+                  )}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, color: "var(--text-mute)" }}>{offer.itemsCount} poz.</span>
+                  <span style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 12, fontWeight: 700, color: "var(--text-strong)", whiteSpace: "nowrap" }}>{offer.totalPriceNet.toLocaleString("pl-PL")} zł</span>
+                </div>
+              </Link>
+            );
+          })
         )}
       </div>
+
 
       {/* ── Główny horyzontalny box: Dane klienta + Adresy + Finanse i Rating — 4 kolumny ── */}
       <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden" }}>
