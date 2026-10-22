@@ -21,8 +21,6 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
-  List,
-  LayoutGrid,
   X,
   Phone,
   Calendar,
@@ -81,7 +79,6 @@ function OfertaPageContent() {
   const [oppFilter, setOppFilter] = useState<"all" | "no_offer" | "lead" | "inquiry">("all");
   const [creating, setCreating] = useState(false);
 
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
 
@@ -313,35 +310,6 @@ function OfertaPageContent() {
               Łącznie: <strong className="text-[#0b1220]">{sortedOffers.length}</strong>
             </span>
           )}
-
-          <div className="flex items-center rounded-md border border-[#d4dae3] p-0.5 bg-[#f8fafc]">
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              className={`p-1.5 rounded transition-all flex items-center gap-1 text-xs ${
-                viewMode === "list"
-                  ? "bg-white text-[#0e7490] font-semibold shadow-2xs"
-                  : "text-[#7c8597] hover:text-[#0b1220]"
-              }`}
-              title="Widok listy"
-            >
-              <List size={14} />
-              <span className="hidden md:inline">Lista</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("grid")}
-              className={`p-1.5 rounded transition-all flex items-center gap-1 text-xs ${
-                viewMode === "grid"
-                  ? "bg-white text-[#0e7490] font-semibold shadow-2xs"
-                  : "text-[#7c8597] hover:text-[#0b1220]"
-              }`}
-              title="Widok kafelków"
-            >
-              <LayoutGrid size={14} />
-              <span className="hidden md:inline">Kafelki</span>
-            </button>
-          </div>
         </div>
       </div>
 
@@ -370,7 +338,7 @@ function OfertaPageContent() {
             <span>Utwórz ofertę</span>
           </button>
         </div>
-      ) : viewMode === "list" ? (
+      ) : (
         /* WIDOK LISTY (TABELA) */
         <div className="panel overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
@@ -546,80 +514,6 @@ function OfertaPageContent() {
               </tbody>
             </table>
           </div>
-        </div>
-      ) : (
-        /* WIDOK KAFELKÓW (GRID) */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sortedOffers.map((o) => (
-            <div
-              key={o._id}
-              onClick={() => {
-                setActiveOfferId(o._id);
-                router.push(`/admin/oferta?offerId=${o._id}`);
-              }}
-              className="panel p-5 flex flex-col justify-between cursor-pointer hover:border-[#4ABBC3] hover:shadow-sm transition-all group"
-            >
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="font-mono font-bold text-xs text-[#0e7490] bg-[rgba(74,187,195,0.12)] border border-[rgba(74,187,195,0.3)] px-2 py-0.5 rounded">
-                    {o.offerNumber}
-                  </span>
-                  <span className="text-[11px] text-[#7c8597]">
-                    {fmtDate(o.createdAt)}
-                  </span>
-                </div>
-
-                <h3 className="font-bold text-[#0b1220] group-hover:text-[#0e7490] transition-colors text-sm line-clamp-1">
-                  {o.title}
-                </h3>
-
-                <div className="mt-3 space-y-1.5 text-xs text-[#4b5563]">
-                  <div className="flex items-center gap-1.5">
-                    <User size={13} className="text-[#7c8597] shrink-0" />
-                    <span className="font-medium text-[#1f2937] truncate">
-                      {o.clientName}
-                    </span>
-                  </div>
-                  {o.city && o.city !== "—" && (
-                    <div className="flex items-center gap-1.5">
-                      <MapPin size={13} className="text-[#7c8597] shrink-0" />
-                      <span className="truncate">{o.city}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-5 pt-4 border-t border-[#e3e7ee] flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] text-[#7c8597] block uppercase font-bold">
-                    Wartość netto ({o.itemsCount} poz.)
-                  </span>
-                  <span className="font-mono font-bold text-sm text-[#0b1220]">
-                    {fmtPLN(o.totalPriceNet)} zł
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  {o.lastPdfUrl && (
-                    <a
-                      href={o.lastPdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Otwórz wygenerowaną ofertę PDF w Google Drive"
-                      className="flex items-center gap-1 px-2 py-1 rounded bg-[#4ABBC3]/10 border border-[#4ABBC3]/30 text-[#0e7490] font-bold text-xs hover:bg-[#4ABBC3]/20 transition-colors"
-                    >
-                      <FileText size={13} className="text-[#0e7490]" />
-                      <span>PDF</span>
-                    </a>
-                  )}
-                  <div className="flex items-center gap-1 text-[#0e7490] font-bold text-xs group-hover:translate-x-0.5 transition-transform">
-                    <span>Otwórz CAD</span>
-                    <ArrowRight size={14} className="text-[#4ABBC3]" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
         </div>
       )}
 
