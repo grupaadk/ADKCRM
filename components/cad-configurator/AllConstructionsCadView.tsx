@@ -151,12 +151,47 @@ export function AllConstructionsCadView({
   } | null>(null);
 
   const [isPanning, setIsPanning] = useState(false);
+  const [isCtrlOrMetaPressed, setIsCtrlOrMetaPressed] = useState(false);
   const panStartRef = useRef<{
     x: number;
     y: number;
     scrollLeft: number;
     scrollTop: number;
   } | null>(null);
+
+  // Śledzenie wciśnięcia klawisza Ctrl / Meta / Alt dla kursora "łapka" (Pan)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === "Control" ||
+        e.key === "Meta" ||
+        e.key === "Alt" ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey
+      ) {
+        setIsCtrlOrMetaPressed(true);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        setIsCtrlOrMetaPressed(false);
+      }
+    };
+    const handleBlur = () => {
+      setIsCtrlOrMetaPressed(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, []);
 
   // Obsługa przybliżania i oddalania (Ctrl/Cmd + Scroll) wycentrowana na pozycji kursora myszy (jak w AutoCAD)
   useEffect(() => {
@@ -220,13 +255,26 @@ export function AllConstructionsCadView({
     viewport.scrollTop += deltaY;
   }, [zoom]);
 
-  // Przesuwanie widoku (PAN) środkowym przyciskiem myszy (scroll click) lub Alt+LPM jak w AutoCAD
+  // Przesuwanie widoku (PAN) środkowym przyciskiem myszy (scroll click), Alt+LPM lub Ctrl+LPM (jak w AutoCAD)
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
 
     const onMouseDown = (e: MouseEvent) => {
-      if (e.button === 1 || (e.button === 0 && e.altKey)) {
+      // Ignoruj interaktywne elementy (np. edycja wymiarów, przyciski akcji)
+      if (
+        (e.target as HTMLElement)?.closest?.(
+          "input, button, select, textarea, .cad-dim-interactive"
+        )
+      ) {
+        return;
+      }
+
+      const isPanTrigger =
+        e.button === 1 ||
+        (e.button === 0 && (e.ctrlKey || e.metaKey || e.altKey));
+
+      if (isPanTrigger) {
         e.preventDefault();
         setIsPanning(true);
         panStartRef.current = {
@@ -246,8 +294,8 @@ export function AllConstructionsCadView({
       viewportRef.current.scrollTop = panStartRef.current.scrollTop - dy;
     };
 
-    const onMouseUp = (e: MouseEvent) => {
-      if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    const onMouseUp = () => {
+      if (panStartRef.current) {
         setIsPanning(false);
         panStartRef.current = null;
       }
@@ -1112,9 +1160,9 @@ export function AllConstructionsCadView({
 
               <span
                 className="hidden xl:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono text-[#64748b] bg-slate-100 border border-[#e2e8f0]"
-                title="Przytrzymaj klawisz Ctrl i kręć kółkiem myszy, aby przybliżać lub oddalać widok CAD"
+                title="Ctrl + Scroll = Zoom, Ctrl + LPM w wolnym polu = przesuwanie widoku (łapka)"
               >
-                Ctrl + Scroll
+                Ctrl + Scroll / LPM: łapka
               </span>
 
               <button
@@ -1163,6 +1211,8 @@ export function AllConstructionsCadView({
               ? "cursor-grabbing select-none"
               : isPanning
               ? "cursor-grabbing select-none"
+              : isCtrlOrMetaPressed
+              ? "cursor-grab"
               : ""
           }`}
         >
@@ -1186,7 +1236,13 @@ export function AllConstructionsCadView({
                 height: "100%",
                 fontFamily:
                   "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                cursor: dragState ? "grabbing" : "default",
+                cursor: dragState
+                  ? "grabbing"
+                  : isPanning
+                  ? "grabbing"
+                  : isCtrlOrMetaPressed
+                  ? "grab"
+                  : "default",
               }}
             >
               <defs>
@@ -1221,6 +1277,15 @@ export function AllConstructionsCadView({
                 width={sheetWidth}
                 height={sheetHeight}
                 fill="#ffffff"
+                style={{
+                  cursor: dragState
+                    ? "grabbing"
+                    : isPanning
+                    ? "grabbing"
+                    : isCtrlOrMetaPressed
+                    ? "grab"
+                    : "default",
+                }}
               />
               <rect
                 x="0"
@@ -1369,7 +1434,7 @@ export function AllConstructionsCadView({
                               <g
                                 key={item._id}
                                 className={
-                                  dragState?.itemId === item._id
+                                  dragState?.itemId === item._id || isPanning
                                     ? "cursor-grabbing select-none"
                                     : "cursor-grab select-none"
                                 }
