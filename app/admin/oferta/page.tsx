@@ -89,13 +89,16 @@ function OfertaPageContent() {
 
   const opportunities = useQuery(api.salesOpportunities.listForPicker, {});
   const getOrCreateForOpportunity = useMutation(api.offers.getOrCreateForOpportunity);
+  const createOfferForOpportunity = useMutation(api.offers.createOfferForOpportunity);
 
-  // Mapa istniejących ofert po opportunityId
-  const offerByOppId = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof offers>[number]>();
+  // Mapa istniejących ofert po opportunityId (tablica ofert dla każdej szansy)
+  const offersByOppId = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof offers>>();
     if (!offers) return map;
     for (const o of offers) {
-      map.set(o.opportunityId, o);
+      const list = map.get(o.opportunityId) || [];
+      list.push(o);
+      map.set(o.opportunityId, list);
     }
     return map;
   }, [offers]);
@@ -105,8 +108,8 @@ function OfertaPageContent() {
     if (!opportunities) return [];
     const q = oppSearch.trim().toLowerCase();
     return opportunities.filter((opp) => {
-      const existingOffer = offerByOppId.get(opp._id);
-      if (oppFilter === "no_offer" && existingOffer) return false;
+      const existingOffers = offersByOppId.get(opp._id) || [];
+      if (oppFilter === "no_offer" && existingOffers.length > 0) return false;
       if (oppFilter === "lead" && opp.stage !== "lead") return false;
       if (oppFilter === "inquiry" && opp.stage !== "inquiry") return false;
 
@@ -126,8 +129,9 @@ function OfertaPageContent() {
       const matchEmail = extOpp.email?.toLowerCase().includes(q) ?? false;
       const matchServices =
         extOpp.services?.some((s) => s.toLowerCase().includes(q)) ?? false;
-      const matchOfferNum =
-        existingOffer?.offerNumber.toLowerCase().includes(q) ?? false;
+      const matchOfferNum = existingOffers.some((o) =>
+        o.offerNumber.toLowerCase().includes(q)
+      );
 
       return (
         matchName ||
@@ -139,7 +143,7 @@ function OfertaPageContent() {
         matchOfferNum
       );
     });
-  }, [opportunities, oppSearch, oppFilter, offerByOppId]);
+  }, [opportunities, oppSearch, oppFilter, offersByOppId]);
 
   const oppCounts = useMemo(() => {
     if (!opportunities) return { all: 0, no_offer: 0, lead: 0, inquiry: 0 };
@@ -147,7 +151,8 @@ function OfertaPageContent() {
     let lead = 0;
     let inquiry = 0;
     for (const opp of opportunities) {
-      if (!offerByOppId.get(opp._id)) noOffer++;
+      const oppOffers = offersByOppId.get(opp._id);
+      if (!oppOffers || oppOffers.length === 0) noOffer++;
       if (opp.stage === "inquiry") inquiry++;
       else lead++;
     }
@@ -157,7 +162,7 @@ function OfertaPageContent() {
       lead,
       inquiry,
     };
-  }, [opportunities, offerByOppId]);
+  }, [opportunities, offersByOppId]);
 
   // Auto-otwórz lub utwórz ofertę, jeśli podano opportunityId w URL
   useEffect(() => {
@@ -216,14 +221,18 @@ function OfertaPageContent() {
   }, [offers, sortField, sortDir]);
 
   // Tworzenie nowej oferty z modalnego wyboru szansy
-  const handleCreateOfferForOpp = async (overrideOppId?: string) => {
+  const handleCreateOfferForOpp = async (overrideOppId?: string, forceNew = false) => {
     const targetOppId = overrideOppId || selectedOppId;
     if (!targetOppId) return;
     setCreating(true);
     try {
-      const id = await getOrCreateForOpportunity({
-        opportunityId: targetOppId as Id<"pendingJotformSubmissions">,
-      });
+      const id = forceNew
+        ? await createOfferForOpportunity({
+            opportunityId: targetOppId as Id<"pendingJotformSubmissions">,
+          })
+        : await getOrCreateForOpportunity({
+            opportunityId: targetOppId as Id<"pendingJotformSubmissions">,
+          });
       setShowNewOfferModal(false);
       setOppSearch("");
       setActiveOfferId(id);
@@ -662,7 +671,8 @@ function OfertaPageContent() {
               ) : (
                 filteredOpportunities.map((opp) => {
                   const isSelected = selectedOppId === opp._id;
-                  const existingOffer = offerByOppId.get(opp._id);
+                  const existingOffers = offersByOppId.get(opp._id) || [];
+                  const latestOffer = existingOffers[0] || null;
                   const extOpp = opp as typeof opp & {
                     city?: string | null;
                     phone?: string | null;
@@ -677,7 +687,7 @@ function OfertaPageContent() {
                       onClick={() => setSelectedOppId(opp._id)}
                       onDoubleClick={() => {
                         setSelectedOppId(opp._id);
-                        void handleCreateOfferForOpp(opp._id);
+                        void handleCreateOfferForOpp(opp._id, false);
                       }}
                       className={`group rounded-lg p-3 transition-all cursor-pointer flex items-center justify-between gap-3 border ${
                         isSelected
@@ -719,11 +729,15 @@ function OfertaPageContent() {
                               {opp.stage === "inquiry" ? "Oferta wysłana" : "Oferty / Lead"}
                             </span>
 
-                            {existingOffer && (
-                              <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded bg-[#f1f5f9] text-[#334155] border border-[#cbd5e1]">
-                                {existingOffer.offerNumber} ({existingOffer.itemsCount} poz.)
+                            {existingOffers.map((ex) => (
+                              <span
+                                key={ex._id}
+                                className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded bg-[#f1f5f9] text-[#334155] border border-[#cbd5e1]"
+                                title={ex.title}
+                              >
+                                {ex.offerNumber} ({ex.itemsCount} poz.)
                               </span>
-                            )}
+                            ))}
                           </div>
 
                           {/* Second row: City, Phone, Services, Date */}
@@ -756,23 +770,40 @@ function OfertaPageContent() {
                         </div>
                       </div>
 
-                      {/* Right: Direct Open Action */}
-                      <div className="shrink-0 flex items-center gap-2">
+                      {/* Right: Direct Actions */}
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        {latestOffer && (
+                          <button
+                            type="button"
+                            disabled={creating}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowNewOfferModal(false);
+                              setActiveOfferId(latestOffer._id);
+                              router.push(`/admin/oferta?offerId=${latestOffer._id}`);
+                            }}
+                            className="btn ghost border border-[#d4dae3] hover:border-[#4ABBC3]"
+                            style={{ padding: "5px 9px", fontSize: 11 }}
+                            title="Otwórz ostatnią ofertę"
+                          >
+                            <span>Otwórz ({latestOffer.offerNumber})</span>
+                            <ArrowRight size={12} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           disabled={creating}
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedOppId(opp._id);
-                            void handleCreateOfferForOpp(opp._id);
+                            void handleCreateOfferForOpp(opp._id, existingOffers.length > 0);
                           }}
-                          className={`btn flex items-center gap-1 transition-all ${
-                            isSelected ? "primary" : "ghost border border-[#d4dae3] hover:border-[#4ABBC3]"
-                          }`}
+                          className="btn primary flex items-center gap-1"
                           style={{ padding: "5px 10px", fontSize: 11 }}
+                          title={existingOffers.length > 0 ? "Utwórz kolejny wariant oferty dla tej szansy" : "Utwórz pierwszą ofertę"}
                         >
-                          <span>{existingOffer ? "Otwórz CAD" : "Utwórz ofertę"}</span>
-                          <ArrowRight size={12} />
+                          <Plus size={12} />
+                          <span>{existingOffers.length > 0 ? "Nowy wariant" : "Utwórz ofertę"}</span>
                         </button>
                       </div>
                     </div>
@@ -787,17 +818,19 @@ function OfertaPageContent() {
                 {selectedOppId ? (
                   (() => {
                     const sel = opportunities?.find((o) => o._id === selectedOppId);
-                    const ex = offerByOppId.get(selectedOppId);
+                    const existingList = offersByOppId.get(selectedOppId) || [];
                     if (!sel) return null;
                     return (
                       <span>
                         Wybrano: <strong className="text-[#0b1220]">{sel.clientName}</strong>
-                        {ex ? ` (${ex.offerNumber})` : " — zostanie utworzona nowa oferta"}
+                        {existingList.length > 0
+                          ? ` (istnieje ${existingList.length} ${existingList.length === 1 ? "oferta" : "ofert"})`
+                          : " — zostanie utworzona pierwsza oferta"}
                       </span>
                     );
                   })()
                 ) : (
-                  <span>Kliknij szansę na liście (lub kliknij dwukrotnie, aby od razu otworzyć)</span>
+                  <span>Wybierz szansę z listy powyżej</span>
                 )}
               </div>
 
@@ -810,15 +843,30 @@ function OfertaPageContent() {
                 >
                   Anuluj
                 </button>
+                {selectedOppId && (offersByOppId.get(selectedOppId) || []).length > 0 && (
+                  <button
+                    type="button"
+                    disabled={creating}
+                    onClick={() => void handleCreateOfferForOpp(selectedOppId, false)}
+                    className="btn ghost border border-[#d4dae3]"
+                    style={{ padding: "6px 12px", fontSize: 12 }}
+                  >
+                    <span>Otwórz ostatnią ofertę</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={!selectedOppId || creating}
-                  onClick={() => void handleCreateOfferForOpp()}
-                  className="btn primary"
+                  onClick={() => void handleCreateOfferForOpp(selectedOppId, (offersByOppId.get(selectedOppId || "") || []).length > 0)}
+                  className="btn primary flex items-center gap-1.5"
                   style={{ padding: "6px 14px", fontSize: 12 }}
                 >
-                  {creating && <Loader2 size={13} className="animate-spin" />}
-                  <span>Przejdź do konfiguratora</span>
+                  {creating ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                  <span>
+                    {(offersByOppId.get(selectedOppId || "") || []).length > 0
+                      ? "Utwórz kolejny wariant"
+                      : "Utwórz ofertę"}
+                  </span>
                 </button>
               </div>
             </div>

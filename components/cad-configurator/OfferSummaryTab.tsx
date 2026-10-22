@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useAction } from "convex/react";
+import { useRouter } from "next/navigation";
+import { useAction, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import toast from "react-hot-toast";
@@ -90,10 +91,32 @@ export function OfferSummaryTab({
   onAddNewPosition,
   readOnly = false,
 }: OfferSummaryTabProps) {
+  const router = useRouter();
   const [editingTitle, setEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(offer.title);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
   const generateOfferPdf = useAction(api.googleDrive.generateOfferPdf);
+  const duplicateOffer = useMutation(api.offers.duplicateOffer);
+
+  const handleDuplicateOffer = async () => {
+    if (isDuplicating) return;
+    setIsDuplicating(true);
+    const toastId = toast.loading("Tworzenie nowego wariantu oferty...");
+    try {
+      const newOfferId = await duplicateOffer({
+        offerId: offer._id as Id<"offers">,
+      });
+      toast.success("Utworzono nowy wariant oferty!", { id: toastId });
+      router.push(`/admin/oferta?offerId=${newOfferId}`);
+    } catch (err: unknown) {
+      console.error("[duplicateOffer] error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Błąd tworzenia wariantu: ${msg}`, { id: toastId });
+    } finally {
+      setIsDuplicating(false);
+    }
+  };
 
   const handlePrintPdf = async () => {
     setIsGeneratingPdf(true);
@@ -333,6 +356,22 @@ export function OfferSummaryTab({
                 <Printer size={13} />
               )}
               <span>{isGeneratingPdf ? "Generowanie..." : "Drukuj / PDF"}</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isDuplicating}
+              onClick={handleDuplicateOffer}
+              className="btn bg-white hover:bg-slate-50 text-[#334155] border border-[#cbd5e1] disabled:opacity-60 cursor-pointer"
+              style={{ padding: "6px 11px", fontSize: 11.5 }}
+              title="Sklonuj całą tę ofertę ze wszystkimi pozycjami jako kolejny wariant dla tej samej szansy"
+            >
+              {isDuplicating ? (
+                <Loader2 size={13} className="animate-spin text-[#4ABBC3]" />
+              ) : (
+                <Copy size={13} className="text-[#0e7490]" />
+              )}
+              <span>{isDuplicating ? "Duplikowanie..." : "Duplikuj jako wariant"}</span>
             </button>
 
             {opportunity?._id && (

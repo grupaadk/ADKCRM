@@ -19,6 +19,9 @@ import {
   ExternalLink,
   Loader2,
   ChevronRight,
+  ChevronDown,
+  Copy,
+  Plus,
   Trash2,
 } from "lucide-react";
 
@@ -69,6 +72,28 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
     () => (rawTemplates as unknown as ConstructionTemplate[]) || [],
     [rawTemplates]
   );
+
+  const createOfferForOpportunity = useMutation(api.offers.createOfferForOpportunity);
+  const duplicateOffer = useMutation(api.offers.duplicateOffer);
+  const router = useRouter();
+
+  const oppOffers = useQuery(
+    api.offers.listByOpportunity,
+    offer?.opportunityId ? { opportunityId: offer.opportunityId as Id<"pendingJotformSubmissions"> } : "skip"
+  ) ?? [];
+
+  const [showVariantsDropdown, setShowVariantsDropdown] = useState(false);
+  const variantsDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (variantsDropdownRef.current && !variantsDropdownRef.current.contains(e.target as Node)) {
+        setShowVariantsDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const effectiveActiveTab =
     activeTab !== "offer" &&
@@ -291,10 +316,94 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
 
           <ChevronRight size={13} className="text-slate-300" />
 
-          {/* Numer oferty z kolorem brandowym ADK */}
-          <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-[rgba(74,187,195,0.12)] text-[#0e7490] border border-[rgba(74,187,195,0.3)]">
-            {offer.offerNumber}
-          </span>
+          {/* Numer oferty i przełącznik wariantów */}
+          <div ref={variantsDropdownRef} className="relative inline-flex items-center">
+            <button
+              type="button"
+              onClick={() => setShowVariantsDropdown((prev) => !prev)}
+              className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-[rgba(74,187,195,0.12)] text-[#0e7490] border border-[rgba(74,187,195,0.3)] flex items-center gap-1 cursor-pointer hover:bg-[rgba(74,187,195,0.22)] transition-colors"
+              title="Warianty oferty dla tej szansy"
+            >
+              <span>{offer.offerNumber}</span>
+              {oppOffers.length > 1 && (
+                <span className="text-[10px] font-sans font-semibold opacity-80">
+                  (wariant {oppOffers.findIndex((o) => o._id === offer._id) + 1}/{oppOffers.length})
+                </span>
+              )}
+              <ChevronDown size={11} className="text-[#0e7490]" />
+            </button>
+
+            {showVariantsDropdown && (
+              <div className="absolute top-full left-0 mt-1 bg-white rounded-lg border border-[#e2e8f0] shadow-xl z-50 min-w-[270px] overflow-hidden text-xs">
+                <div className="px-3 py-1.5 bg-[#f8fafc] border-b border-[#e2e8f0] font-bold text-[#64748b] text-[10.5px]">
+                  Oferty dla tej szansy ({oppOffers.length})
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {oppOffers.map((o) => (
+                    <button
+                      key={o._id}
+                      type="button"
+                      onClick={() => {
+                        setShowVariantsDropdown(false);
+                        if (o._id !== offer._id) {
+                          router.push(`/admin/oferta?offerId=${o._id}`);
+                        }
+                      }}
+                      className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 transition-colors border-b border-[#f1f5f9] last:border-b-0 cursor-pointer ${
+                        o._id === offer._id
+                          ? "bg-[#f0fdff] text-[#0e7490] font-semibold"
+                          : "hover:bg-[#f8fafc] text-[#1e293b]"
+                      }`}
+                    >
+                      <div className="truncate">
+                        <div className="font-mono font-bold flex items-center gap-1">
+                          <span>{o.offerNumber}</span>
+                          {o._id === offer._id && (
+                            <span className="text-[9px] px-1 rounded bg-[#0e7490] text-white">bieżąca</span>
+                          )}
+                        </div>
+                        <div className="text-[10.5px] text-[#64748b] truncate">{o.title}</div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-mono font-bold">{o.totalPriceNet.toLocaleString("pl-PL")} zł</div>
+                        <div className="text-[10px] text-[#94a3b8]">{o.itemsCount} poz.</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <div className="p-1.5 bg-[#f8fafc] border-t border-[#e2e8f0] flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setShowVariantsDropdown(false);
+                      if (!offer.opportunityId) return;
+                      const newId = await duplicateOffer({ offerId: offer._id as Id<"offers"> });
+                      router.push(`/admin/oferta?offerId=${newId}`);
+                    }}
+                    className="w-full text-left px-2 py-1.5 rounded hover:bg-[#e0f2fe] text-[#0e7490] font-semibold flex items-center gap-1.5 cursor-pointer text-[11px]"
+                  >
+                    <Copy size={12} />
+                    <span>Duplikuj tę ofertę jako nowy wariant</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setShowVariantsDropdown(false);
+                      if (!offer.opportunityId) return;
+                      const newId = await createOfferForOpportunity({
+                        opportunityId: offer.opportunityId as Id<"pendingJotformSubmissions">,
+                      });
+                      router.push(`/admin/oferta?offerId=${newId}`);
+                    }}
+                    className="w-full text-left px-2 py-1.5 rounded hover:bg-[#e0f2fe] text-[#0e7490] font-semibold flex items-center gap-1.5 cursor-pointer text-[11px]"
+                  >
+                    <Plus size={12} />
+                    <span>Nowa czysta oferta (wariant)</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <span className="font-semibold text-xs text-[#0b1220] truncate max-w-[200px] md:max-w-md">
             {offer.title}

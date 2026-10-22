@@ -41,19 +41,21 @@ export const getOfferWithItems = query({
 export const getOrCreateForOpportunity = mutation({
   args: {
     opportunityId: v.id("pendingJotformSubmissions"),
+    forceNew: v.optional(v.boolean()),
+    title: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("offers")
-      .withIndex("by_opportunity", (q) => q.eq("opportunityId", args.opportunityId))
-      .first();
-
-    if (existing) {
-      return existing._id;
-    }
-
     const opp = await ctx.db.get(args.opportunityId);
     if (!opp) throw new Error("Szansa sprzedaży nie znaleziona");
+
+    const existingOffers = await ctx.db
+      .query("offers")
+      .withIndex("by_opportunity", (q) => q.eq("opportunityId", args.opportunityId))
+      .collect();
+
+    if (!args.forceNew && existingOffers.length > 0) {
+      return existingOffers[0]._id;
+    }
 
     const allOffers = await ctx.db.query("offers").collect();
     const count = allOffers.length + 1;
@@ -62,7 +64,8 @@ export const getOrCreateForOpportunity = mutation({
     const now = Date.now();
 
     const clientName = [opp.firstName, opp.lastName].filter(Boolean).join(" ") || "Klient";
-    const title = `Oferta dla: ${clientName}`;
+    const variantSuffix = existingOffers.length > 0 ? ` (Wariant ${existingOffers.length + 1})` : "";
+    const title = args.title || `Oferta dla: ${clientName}${variantSuffix}`;
 
     const offerId = await ctx.db.insert("offers", {
       opportunityId: args.opportunityId,
@@ -79,6 +82,146 @@ export const getOrCreateForOpportunity = mutation({
     });
 
     return offerId;
+  },
+});
+
+/**
+ * Tworzy nową (kolejną) ofertę przypisaną do szansy sprzedaży
+ */
+export const createOfferForOpportunity = mutation({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+    title: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const opp = await ctx.db.get(args.opportunityId);
+    if (!opp) throw new Error("Szansa sprzedaży nie znaleziona");
+
+    const existingOffers = await ctx.db
+      .query("offers")
+      .withIndex("by_opportunity", (q) => q.eq("opportunityId", args.opportunityId))
+      .collect();
+
+    const allOffers = await ctx.db.query("offers").collect();
+    const count = allOffers.length + 1;
+    const year = new Date().getFullYear();
+    const offerNumber = `OF-${year}/${String(count).padStart(3, "0")}`;
+    const now = Date.now();
+
+    const clientName = [opp.firstName, opp.lastName].filter(Boolean).join(" ") || "Klient";
+    const variantSuffix = existingOffers.length > 0 ? ` (Wariant ${existingOffers.length + 1})` : "";
+    const title = args.title || `Oferta dla: ${clientName}${variantSuffix}`;
+
+    const offerId = await ctx.db.insert("offers", {
+      opportunityId: args.opportunityId,
+      offerNumber,
+      title,
+      status: "draft",
+      totalPriceNet: 0,
+      totalPriceGross: 0,
+      totalCostNet: 0,
+      discountPercent: 0,
+      notes: opp.comment || undefined,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return offerId;
+  },
+});
+
+/**
+ * Duplikuje całą ofertę wraz z jej pozycjami jako nowy wariant dla tej samej szansy
+ */
+export const duplicateOffer = mutation({
+  args: {
+    offerId: v.id("offers"),
+    title: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const sourceOffer = await ctx.db.get(args.offerId);
+    if (!sourceOffer) throw new Error("Oferta źródłowa nie znaleziona");
+
+    const allOffers = await ctx.db.query("offers").collect();
+    const count = allOffers.length + 1;
+    const year = new Date().getFullYear();
+    const offerNumber = `OF-${year}/${String(count).padStart(3, "0")}`;
+    const now = Date.now();
+
+    const existingInOpp = sourceOffer.opportunityId
+      ? await ctx.db
+          .query("offers")
+          .withIndex("by_opportunity", (q) => q.eq("opportunityId", sourceOffer.opportunityId!))
+          .collect()
+      : [];
+
+    const defaultTitle = `${sourceOffer.title} (Wariant ${existingInOpp.length + 1})`;
+    const title = args.title || defaultTitle;
+
+    const newOfferId = await ctx.db.insert("offers", {
+      opportunityId: sourceOffer.opportunityId,
+      offerNumber,
+      title,
+      status: "draft",
+      totalPriceNet: sourceOffer.totalPriceNet,
+      totalPriceGross: sourceOffer.totalPriceGross,
+      totalCostNet: sourceOffer.totalCostNet,
+      discountPercent: sourceOffer.discountPercent,
+      notes: sourceOffer.notes,
+      terms: sourceOffer.terms,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Skopiuj wszystkie konstrukcje
+    const items = await ctx.db
+      .query("offerConstructions")
+      .withIndex("by_offer", (q) => q.eq("offerId", args.offerId))
+      .collect();
+
+    for (const item of items) {
+      const { _id, _creationTime, offerId, ...itemData } = item;
+      await ctx.db.insert("offerConstructions", {
+        ...itemData,
+        offerId: newOfferId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    return newOfferId;
+  },
+});
+
+/**
+ * Pobiera wszystkie oferty powiązane z daną szansą sprzedaży
+ */
+export const listByOpportunity = query({
+  args: {
+    opportunityId: v.id("pendingJotformSubmissions"),
+  },
+  handler: async (ctx, args) => {
+    const offers = await ctx.db
+      .query("offers")
+      .withIndex("by_opportunity", (q) => q.eq("opportunityId", args.opportunityId))
+      .collect();
+
+    offers.sort((a, b) => b.createdAt - a.createdAt);
+
+    const results = [];
+    for (const offer of offers) {
+      const items = await ctx.db
+        .query("offerConstructions")
+        .withIndex("by_offer", (q) => q.eq("offerId", offer._id))
+        .collect();
+
+      results.push({
+        ...offer,
+        itemsCount: items.length,
+      });
+    }
+
+    return results;
   },
 });
 
@@ -444,12 +587,24 @@ async function recalculateOffer(ctx: MutationCtx, offerId: Id<"offers">) {
 
   // Synchronizuj wyliczoną kwotę z szansą sprzedaży
   if (offer.opportunityId) {
-    const profit = finalNet - totalCost;
-    await ctx.db.patch(offer.opportunityId, {
-      price: finalNet,
-      cost: totalCost,
-      profit,
-    });
+    const oppOffers = await ctx.db
+      .query("offers")
+      .withIndex("by_opportunity", (q) => q.eq("opportunityId", offer.opportunityId!))
+      .collect();
+
+    // Jeśli inna oferta jest oznaczona jako "accepted", nie nadpisuj kwoty szansy inną ofertą
+    const hasOtherAccepted = oppOffers.some(
+      (o) => o._id !== offerId && o.status === "accepted"
+    );
+
+    if (!hasOtherAccepted || offer.status === "accepted") {
+      const profit = finalNet - totalCost;
+      await ctx.db.patch(offer.opportunityId, {
+        price: finalNet,
+        cost: totalCost,
+        profit,
+      });
+    }
   }
 }
 

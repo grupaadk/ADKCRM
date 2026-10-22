@@ -18,6 +18,8 @@ import {
   Building2,
   Layers,
   ArrowRight,
+  Plus,
+  ChevronDown,
 } from "lucide-react";
 import DriveFolderButton from "@/components/DriveFolderButton";
 import OpportunityAttachmentsSection from "./OpportunityAttachmentsSection";
@@ -128,10 +130,32 @@ export default function OpportunityDetailPage({
   const me = useQuery(api.users.me);
   const isAdmin = me?.role === "admin";
   const assignOpportunity = useMutation(api.salesOpportunities.assignOpportunity);
+  const createOfferForOpportunity = useMutation(api.offers.createOfferForOpportunity);
+  const [creatingOffer, setCreatingOffer] = useState(false);
+  const [showOffersDropdown, setShowOffersDropdown] = useState(false);
+  const offersDropdownRef = useRef<HTMLDivElement>(null);
+
   const assignableUsers = useQuery(api.users.listAllActive) ?? [];
   const servicesList = useQuery(api.services.list, {}) ?? [];
-  const allOffers = useQuery(api.offers.list, {});
-  const linkedOffer = allOffers?.find((o) => o.opportunityId === opportunityId);
+  const linkedOffers = useQuery(api.offers.listByOpportunity, {
+    opportunityId: opportunityId as Id<"pendingJotformSubmissions">,
+  }) ?? [];
+  const linkedOffer = linkedOffers[0] || null;
+
+  const handleCreateNewOffer = async () => {
+    if (creatingOffer) return;
+    setCreatingOffer(true);
+    try {
+      const newId = await createOfferForOpportunity({
+        opportunityId: opportunityId as Id<"pendingJotformSubmissions">,
+      });
+      router.push(`/admin/oferta?offerId=${newId}`);
+    } catch (err) {
+      console.error("Błąd tworzenia oferty:", err);
+    } finally {
+      setCreatingOffer(false);
+    }
+  };
 
   // Synchronizacja checkboxa "Taki sam jak klienta" gdy dane opp się załadują
   useEffect(() => {
@@ -158,6 +182,9 @@ export default function OpportunityDetailPage({
     function handleClickOutside(e: MouseEvent) {
       if (assignDropdownRef.current && !assignDropdownRef.current.contains(e.target as Node)) {
         setShowAssignDropdown(false);
+      }
+      if (offersDropdownRef.current && !offersDropdownRef.current.contains(e.target as Node)) {
+        setShowOffersDropdown(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -763,52 +790,208 @@ export default function OpportunityDetailPage({
                 })}
               </div>
             </div>
-            <Link
-              href={
-                linkedOffer
-                  ? `/admin/oferta?offerId=${linkedOffer._id}`
-                  : `/admin/oferta?opportunityId=${opportunityId}`
-              }
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 7,
-                fontSize: 12,
-                fontWeight: 700,
-                padding: "5px 14px",
-                borderRadius: 8,
-                background: linkedOffer
-                  ? "linear-gradient(135deg, #0e7490 0%, #0891b2 100%)"
-                  : "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
-                color: "#ffffff",
-                border: "1px solid rgba(74, 187, 195, 0.4)",
-                textDecoration: "none",
-                boxShadow: "0 2px 6px rgba(14, 116, 144, 0.2)",
-              }}
-              title="Otwórz ofertę"
-            >
-              <Layers size={14} style={{ color: "#4ABBC3" }} />
-              <span>
-                {linkedOffer
-                  ? `Oferta: ${linkedOffer.offerNumber}`
-                  : "Utwórz ofertę"}
-              </span>
-              {linkedOffer && (
-                <span
+            {linkedOffers.length === 0 ? (
+              <button
+                type="button"
+                onClick={handleCreateNewOffer}
+                disabled={creatingOffer}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 7,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "5px 14px",
+                  borderRadius: 8,
+                  background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+                  color: "#ffffff",
+                  border: "1px solid rgba(74, 187, 195, 0.4)",
+                  cursor: "pointer",
+                  boxShadow: "0 2px 6px rgba(14, 116, 144, 0.2)",
+                }}
+                title="Utwórz pierwszą ofertę CAD dla tej szansy"
+              >
+                <Layers size={14} style={{ color: "#4ABBC3" }} />
+                <span>{creatingOffer ? "Tworzenie..." : "Utwórz ofertę"}</span>
+                <ArrowRight size={13} style={{ opacity: 0.85 }} />
+              </button>
+            ) : (
+              <div ref={offersDropdownRef} style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+                <div
                   style={{
-                    fontSize: 10.5,
-                    fontWeight: 800,
-                    padding: "1px 6px",
-                    borderRadius: 4,
-                    background: "rgba(255,255,255,0.18)",
-                    color: "#fff",
+                    display: "inline-flex",
+                    borderRadius: 8,
+                    overflow: "hidden",
+                    border: "1px solid rgba(74, 187, 195, 0.4)",
+                    boxShadow: "0 2px 6px rgba(14, 116, 144, 0.2)",
                   }}
                 >
-                  {linkedOffer.itemsCount} poz.
-                </span>
-              )}
-              <ArrowRight size={13} style={{ opacity: 0.85 }} />
-            </Link>
+                  <Link
+                    href={`/admin/oferta?offerId=${linkedOffer._id}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 7,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "5px 12px",
+                      background: "linear-gradient(135deg, #0e7490 0%, #0891b2 100%)",
+                      color: "#ffffff",
+                      textDecoration: "none",
+                    }}
+                    title={linkedOffer.title}
+                  >
+                    <Layers size={14} style={{ color: "#4ABBC3" }} />
+                    <span>
+                      {linkedOffers.length > 1
+                        ? `Oferty (${linkedOffers.length}) · ${linkedOffer.offerNumber}`
+                        : `Oferta: ${linkedOffer.offerNumber}`}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 800,
+                        padding: "1px 6px",
+                        borderRadius: 4,
+                        background: "rgba(255,255,255,0.18)",
+                        color: "#fff",
+                      }}
+                    >
+                      {linkedOffer.itemsCount} poz.
+                    </span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setShowOffersDropdown((prev) => !prev)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "0 9px",
+                      background: "#0891b2",
+                      border: "none",
+                      borderLeft: "1px solid rgba(255,255,255,0.25)",
+                      color: "#ffffff",
+                      cursor: "pointer",
+                    }}
+                    title="Rozwiń listę ofert i wariantów"
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                </div>
+
+                {showOffersDropdown && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 6px)",
+                      right: 0,
+                      background: "#ffffff",
+                      borderRadius: 10,
+                      border: "1px solid #e2e8f0",
+                      boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15)",
+                      zIndex: 60,
+                      minWidth: 290,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "8px 12px",
+                        borderBottom: "1px solid #f1f5f9",
+                        background: "#f8fafc",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "#64748b",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span>Oferty powiązane ({linkedOffers.length})</span>
+                    </div>
+                    <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                      {linkedOffers.map((o, idx) => (
+                        <Link
+                          key={o._id}
+                          href={`/admin/oferta?offerId=${o._id}`}
+                          onClick={() => setShowOffersDropdown(false)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 8,
+                            padding: "8px 12px",
+                            borderBottom: "1px solid #f8fafc",
+                            textDecoration: "none",
+                            color: "#0f172a",
+                            fontSize: 11.5,
+                          }}
+                          className="hover:bg-[#f0fdff] transition-colors"
+                        >
+                          <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontWeight: 800, color: "#0e7490", fontFamily: "var(--font-mono, monospace)" }}>
+                                {o.offerNumber}
+                              </span>
+                              {idx === 0 && (
+                                <span style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 4, background: "#e0f2fe", color: "#0369a1", fontWeight: 700 }}>
+                                  Ostatnia
+                                </span>
+                              )}
+                              {o.status === "accepted" && (
+                                <span style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 4, background: "#dcfce7", color: "#15803d", fontWeight: 700 }}>
+                                  Zaakceptowana
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: 10.5, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {o.title}
+                            </span>
+                          </div>
+                          <div style={{ textAlign: "right", flexShrink: 0 }}>
+                            <span style={{ fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color: "#0f172a" }}>
+                              {o.totalPriceNet.toLocaleString("pl-PL")} zł
+                            </span>
+                            <span style={{ display: "block", fontSize: 10, color: "#94a3b8" }}>
+                              {o.itemsCount} poz.
+                            </span>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                    <div style={{ padding: "6px 8px", borderTop: "1px solid #f1f5f9", background: "#f8fafc" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowOffersDropdown(false);
+                          void handleCreateNewOffer();
+                        }}
+                        disabled={creatingOffer}
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          padding: "6px 10px",
+                          borderRadius: 6,
+                          background: "#0e7490",
+                          color: "#ffffff",
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          border: "none",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Plus size={13} />
+                        <span>+ Nowa oferta (kolejny wariant)</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {opp.processed ? (
               opp.convertedOrder ? (
                 <Link
@@ -1162,41 +1345,70 @@ export default function OpportunityDetailPage({
               </div>
             </div>
 
-            {/* Kompaktowa adnotacja kwoty oferty w Finanse i Rating */}
-            {linkedOffer && (
-              <Link
-                href={`/admin/oferta?offerId=${linkedOffer._id}`}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                  padding: "6px 10px",
-                  borderRadius: 8,
-                  background: "var(--accent-soft)",
-                  border: "1px solid rgba(74, 187, 195, 0.3)",
-                  textDecoration: "none",
-                }}
-                title="Przejdź do oferty"
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                  <Layers size={12} color="var(--accent)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)" }}>
-                    Oferta ({linkedOffer.offerNumber}):
-                  </span>
+            {/* Kompaktowa lista ofert w Finanse i Rating */}
+            {linkedOffers.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)" }}>
+                  <span>Oferty ({linkedOffers.length}):</span>
+                  <button
+                    type="button"
+                    onClick={handleCreateNewOffer}
+                    disabled={creatingOffer}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#0e7490",
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
+                  >
+                    + Nowa oferta
+                  </button>
                 </div>
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono, monospace)",
-                    fontSize: 11.5,
-                    fontWeight: 800,
-                    color: "#0e7490",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {linkedOffer.totalPriceNet.toLocaleString("pl-PL")} zł netto
-                </span>
-              </Link>
+                {linkedOffers.map((o) => (
+                  <Link
+                    key={o._id}
+                    href={`/admin/oferta?offerId=${o._id}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      background: "var(--accent-soft)",
+                      border: "1px solid rgba(74, 187, 195, 0.3)",
+                      textDecoration: "none",
+                    }}
+                    title={`Przejdź do oferty ${o.offerNumber}`}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      <Layers size={12} color="var(--accent)" style={{ flexShrink: 0 }} />
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {o.offerNumber} {o.title ? `· ${o.title}` : ""}:
+                      </span>
+                      {o.status === "accepted" && (
+                        <span style={{ fontSize: 9.5, padding: "0.5px 4px", borderRadius: 3, background: "#dcfce7", color: "#15803d", fontWeight: 700 }}>
+                          akcept
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono, monospace)",
+                        fontSize: 11.5,
+                        fontWeight: 800,
+                        color: "#0e7490",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {o.totalPriceNet.toLocaleString("pl-PL")} zł netto
+                    </span>
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
         </div>

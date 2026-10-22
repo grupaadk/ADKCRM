@@ -293,4 +293,57 @@ describe("CAD Offers and Constructions Module", () => {
     expect(offerData!.items[1]._id).toBe(baseDoorId);
     expect(offerData!.items[1].positionIndex).toBe(2);
   });
+
+  test("manages multiple offers and variants for a single sales opportunity", async () => {
+    const t = convexTest(schema);
+
+    // 1. Utwórz szansę sprzedaży
+    const oppId = await t.run(async (ctx) => {
+      return await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-MULTI",
+        firstName: "Anna",
+        lastName: "Nowak",
+        processed: false,
+        stage: "lead",
+      });
+    });
+
+    // 2. Utwórz pierwszą ofertę (Wariant 1)
+    const offer1Id = await t.mutation(api.offers.getOrCreateForOpportunity, {
+      opportunityId: oppId,
+    });
+    expect(offer1Id).toBeDefined();
+
+    await t.mutation(api.offers.addConstructionPosition, {
+      offerId: offer1Id,
+      name: "Pergola 4x3",
+      widthMm: 4000,
+      heightMm: 2500,
+      priceNet: 20000,
+      costNet: 14000,
+    });
+
+    // 3. Utwórz drugą ofertę (Wariant 2) dla tej samej szansy przez createOfferForOpportunity
+    const offer2Id = await t.mutation(api.offers.createOfferForOpportunity, {
+      opportunityId: oppId,
+    });
+    expect(offer2Id).toBeDefined();
+    expect(offer2Id).not.toBe(offer1Id);
+
+    const offer2Data = await t.query(api.offers.getOfferWithItems, { offerId: offer2Id });
+    expect(offer2Data?.offer.title).toContain("Wariant 2");
+
+    // 4. Skopiuj pierwszą ofertę jako Wariant 3 przez duplicateOffer
+    const offer3Id = await t.mutation(api.offers.duplicateOffer, {
+      offerId: offer1Id,
+    });
+    expect(offer3Id).toBeDefined();
+    const offer3Data = await t.query(api.offers.getOfferWithItems, { offerId: offer3Id });
+    expect(offer3Data?.items.length).toBe(1);
+    expect(offer3Data?.items[0].name).toBe("Pergola 4x3");
+
+    // 5. Pobierz listę wszystkich ofert dla tej szansy
+    const allOppOffers = await t.query(api.offers.listByOpportunity, { opportunityId: oppId });
+    expect(allOppOffers.length).toBe(3);
+  });
 });
