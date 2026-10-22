@@ -686,7 +686,7 @@ export function ConstructionsTab() {
                           <td className="px-3 py-3 text-slate-700 whitespace-nowrap font-mono text-[11px]">
                             <div>{width} × {height} mm</div>
                             <div className="text-[10px] text-slate-400 font-sans font-normal">
-                              {panes} {panes === 1 ? "skrzydło" : panes < 5 ? "skrzydła" : "skrzydeł"}
+                              {panes} {panes === 1 ? "tor" : panes < 5 ? "tory" : "torów"}
                             </div>
                           </td>
 
@@ -1180,10 +1180,10 @@ export function ConstructionsTab() {
                 <span className="text-slate-500 font-sans">
                   ({previewConstruction.defaultPanesCount || 3}{" "}
                   {previewConstruction.defaultPanesCount === 1
-                    ? "skrzydło"
+                    ? "tor"
                     : (previewConstruction.defaultPanesCount || 3) < 5
-                    ? "skrzydła"
-                    : "skrzydeł"}
+                    ? "tory"
+                    : "torów"}
                   )
                 </span>
               </div>

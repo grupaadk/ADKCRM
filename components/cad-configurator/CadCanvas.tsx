@@ -368,7 +368,7 @@ export function CadCanvas({
           <Layers size={15} className="text-[#4ABBC3]" />
           <span>Rysunek CAD</span>
           <span className="text-[#7c8597] font-normal hidden sm:inline">
-            · {width} × {height} mm ({panes} {panes === 1 ? "kwatera" : panes < 5 ? "kwatery" : "kwater"})
+            · {width} × {height} mm ({panes} {panes === 1 ? "tor" : panes < 5 ? "tory" : "torów"})
           </span>
         </div>
 
@@ -777,7 +777,7 @@ export function CadCanvas({
                         >
                           <title>
                             {canEditDimensions
-                              ? "Kliknij, aby zmienić szerokość kwatery"
+                              ? "Kliknij, aby zmienić szerokość skrzydła na torze"
                               : undefined}
                           </title>
                           <text
@@ -963,7 +963,7 @@ export function CadCanvas({
                           >
                             <title>
                               {canEditDimensions
-                                ? `Kliknij, aby zmienić szerokość kwatery #${idx + 1} (mm)`
+                                ? `Kliknij, aby zmienić szerokość skrzydła na torze #${idx + 1} (mm)`
                                 : undefined}
                             </title>
                             {/* Linie pomocnicze (świadkowe przerywane) */}
@@ -1242,7 +1242,7 @@ export function CadCanvas({
                   </button>
                   {activeDimEdit.target === "segment" && (
                     <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#0b1220] text-[#4ABBC3]">
-                      Kwatera #{(activeDimEdit.segmentIndex ?? 0) + 1}
+                      Tor #{(activeDimEdit.segmentIndex ?? 0) + 1}
                     </span>
                   )}
                 </div>
@@ -1336,7 +1336,7 @@ export function CadCanvas({
                   </span>
                 ) : (
                   <span>
-                    1 kwatera:{" "}
+                    1 tor:{" "}
                     <strong className="text-slate-800">
                       ~{Math.round(previewTotalW / panes)} mm
                     </strong>

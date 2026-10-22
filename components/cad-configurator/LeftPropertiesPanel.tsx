@@ -137,24 +137,21 @@ export function LeftPropertiesPanel({
 
           <div>
             <label className="block text-[10px] font-medium text-[#7c8597] mb-1">
-              Liczba kwater / torów
+              Liczba torów
             </label>
-            <div className="flex items-center gap-1">
-              {[1, 2, 3, 4, 5, 6].map((cnt) => (
-                <button
-                  key={cnt}
-                  type="button"
-                  disabled={readOnly}
-                  onClick={() => onChange({ panesCount: cnt })}
-                  className={`flex-1 py-1 rounded text-[11px] font-mono font-bold transition-colors cursor-pointer ${
-                    (item.panesCount || 3) === cnt
-                      ? "bg-[#0b1220] text-[#4ABBC3]"
-                      : "bg-white hover:bg-slate-100 text-slate-700 border border-[#d4dae3]"
-                  }`}
-                >
-                  {cnt}
-                </button>
-              ))}
+            <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#f1f5f9] border border-[#d4dae3] rounded-md text-xs font-mono">
+              <span className="font-bold text-[#0b1220]">
+                {item.panesCount || 3}T (
+                {(item.panesCount || 3) === 1
+                  ? "1 tor"
+                  : (item.panesCount || 3) < 5
+                  ? `${item.panesCount || 3} tory`
+                  : `${item.panesCount || 3} torów`}
+                )
+              </span>
+              <span className="text-[10px] font-sans text-[#64748b] bg-white px-1.5 py-0.5 rounded border border-[#e2e8f0]">
+                Wg szablonu CAD
+              </span>
             </div>
           </div>
         </div>

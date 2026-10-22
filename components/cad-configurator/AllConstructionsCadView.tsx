@@ -3512,7 +3512,7 @@ export function AllConstructionsCadView({
                       ? "Szerokość całkowita (B)"
                       : activeDimEdit.mode === "height"
                       ? "Wysokość całkowita (H)"
-                      : `Szerokość kwatery #${(activeDimEdit.paneIndex ?? 0) + 1}`}
+                      : `Szerokość skrzydła na torze #${(activeDimEdit.paneIndex ?? 0) + 1}`}
                   </span>
                 </div>
                 <button
@@ -3593,7 +3593,7 @@ export function AllConstructionsCadView({
                   </>
                 ) : activeDimEdit.mode === "width" ? (
                   <>
-                    <span>Szer. 1 kwatery ({targetPanes}x):</span>
+                    <span>Szer. 1 toru ({targetPanes}x):</span>
                     <span className="font-bold text-slate-900">
                       ~{Math.round(previewTotalWidth / targetPanes)} mm
                     </span>
