@@ -23,8 +23,10 @@ import {
   ChevronsUpDown,
   X,
   Phone,
+  Mail,
   Calendar,
   Check,
+  UserPlus,
 } from "lucide-react";
 
 type SortField =
@@ -79,6 +81,17 @@ function OfertaPageContent() {
   const [oppFilter, setOppFilter] = useState<"all" | "no_offer" | "lead" | "inquiry">("all");
   const [creating, setCreating] = useState(false);
 
+  // Tryb modalu: 'select' (istniejąca szansa) | 'create' (nowa szansa)
+  const [modalMode, setModalMode] = useState<"select" | "create">("select");
+  const [newOppName, setNewOppName] = useState("");
+  const [newOppPhone, setNewOppPhone] = useState("");
+  const [newOppEmail, setNewOppEmail] = useState("");
+  const [newOppCity, setNewOppCity] = useState("");
+  const [newOppStreet, setNewOppStreet] = useState("");
+  const [newOppService, setNewOppService] = useState("");
+  const [newOppComment, setNewOppComment] = useState("");
+  const [newOppError, setNewOppError] = useState("");
+
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
 
@@ -88,8 +101,10 @@ function OfertaPageContent() {
   });
 
   const opportunities = useQuery(api.salesOpportunities.listForPicker, {});
+  const servicesList = useQuery(api.services.list, {}) ?? [];
   const getOrCreateForOpportunity = useMutation(api.offers.getOrCreateForOpportunity);
   const createOfferForOpportunity = useMutation(api.offers.createOfferForOpportunity);
+  const createManualOpportunity = useMutation(api.salesOpportunities.createManualOpportunity);
 
   // Mapa istniejących ofert po opportunityId (tablica ofert dla każdej szansy)
   const offersByOppId = useMemo(() => {
@@ -239,6 +254,57 @@ function OfertaPageContent() {
       router.push(`/admin/oferta?offerId=${id}`);
     } catch (err) {
       console.error("Błąd tworzenia oferty:", err);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  // Utworzenie nowej szansy sprzedaży i natychmiastowe utworzenie dla niej oferty CAD
+  const handleCreateNewOpportunityAndOffer = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newOppName.trim()) {
+      setNewOppError("Wpisz imię i nazwisko lub nazwę klienta");
+      return;
+    }
+    setNewOppError("");
+    setCreating(true);
+    try {
+      const nameParts = newOppName.trim().split(/\s+/);
+      const firstName = nameParts[0] || "Klient";
+      const lastName = nameParts.slice(1).join(" ") || "-";
+
+      const oppId = await createManualOpportunity({
+        firstName,
+        lastName,
+        phone: newOppPhone.trim() || undefined,
+        email: newOppEmail.trim() || undefined,
+        city: newOppCity.trim() || undefined,
+        street: newOppStreet.trim() || undefined,
+        services: newOppService ? [newOppService] : undefined,
+        comment: newOppComment.trim() || undefined,
+      });
+
+      const offerId = await createOfferForOpportunity({
+        opportunityId: oppId,
+      });
+
+      setShowNewOfferModal(false);
+      setModalMode("select");
+      setNewOppName("");
+      setNewOppPhone("");
+      setNewOppEmail("");
+      setNewOppCity("");
+      setNewOppStreet("");
+      setNewOppService("");
+      setNewOppComment("");
+      setOppSearch("");
+
+      setActiveOfferId(offerId);
+      router.push(`/admin/oferta?offerId=${offerId}`);
+    } catch (err: unknown) {
+      console.error("Błąd tworzenia szansy i oferty:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setNewOppError(msg);
     } finally {
       setCreating(false);
     }
@@ -541,32 +607,250 @@ function OfertaPageContent() {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="px-6 py-4 border-b border-[#e3e7ee] flex items-center justify-between bg-[#f8fafc] shrink-0">
+            <div className="px-6 py-3.5 border-b border-[#e3e7ee] flex items-center justify-between bg-[#f8fafc] shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="p-1.5 bg-[rgba(74,187,195,0.12)] text-[#0e7490] rounded-md border border-[rgba(74,187,195,0.3)]">
-                  <Layers size={18} className="text-[#4ABBC3]" />
+                <div className="w-8 h-8 rounded-lg bg-[rgba(74,187,195,0.12)] text-[#0e7490] flex items-center justify-center border border-[rgba(74,187,195,0.3)]">
+                  <Layers size={17} className="text-[#4ABBC3]" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-[#0b1220]">
+                  <h3 className="text-sm font-bold text-[#0b1220] leading-none">
                     Nowa oferta dla szansy sprzedaży
                   </h3>
-                  <p className="text-[11px] text-[#7c8597]">
-                    Wyszukaj i wybierz szansę sprzedaży, aby otworzyć lub utworzyć dla niej ofertę CAD
-                  </p>
+                  <span className="text-[11px] text-[#64748b] mt-0.5 block">
+                    Konfigurator CAD ADK CRM
+                  </span>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => setShowNewOfferModal(false)}
-                className="p-1.5 text-[#7c8597] hover:text-[#0b1220] rounded-md hover:bg-[#e8ecf2] transition-colors"
+                className="p-1.5 text-[#7c8597] hover:text-[#0b1220] rounded-md hover:bg-[#e8ecf2] transition-colors cursor-pointer"
+                title="Zamknij"
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* Wyszukiwarka + Szybkie filtry */}
-            <div className="px-6 py-3.5 border-b border-[#e3e7ee] bg-white shrink-0 space-y-2.5">
+            {/* Segmented Switcher & Hint Bar */}
+            <div className="px-6 pt-3 pb-2.5 bg-white border-b border-[#e3e7ee] shrink-0">
+              <div className="flex items-center gap-1 bg-[#f1f5f9] p-1 rounded-xl border border-[#e2e8f0]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalMode("select");
+                    setNewOppError("");
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    modalMode === "select"
+                      ? "bg-white text-[#0e7490] shadow-2xs border border-[#cbd5e1]/40"
+                      : "text-[#64748b] hover:text-[#0b1220] hover:bg-white/60"
+                  }`}
+                >
+                  <Search size={14} className={modalMode === "select" ? "text-[#0e7490]" : "text-[#94a3b8]"} />
+                  <span>Wybierz z bazy</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalMode("create");
+                    if (oppSearch && !newOppName) {
+                      setNewOppName(oppSearch);
+                    }
+                    setNewOppError("");
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    modalMode === "create"
+                      ? "bg-[#0e7490] text-white shadow-2xs"
+                      : "text-[#64748b] hover:text-[#0b1220] hover:bg-white/60"
+                  }`}
+                >
+                  <UserPlus size={14} />
+                  <span>Nowa szansa</span>
+                </button>
+              </div>
+
+              <p className="mt-2 text-[11px] text-[#64748b] leading-relaxed">
+                {modalMode === "select"
+                  ? "Wyszukaj i wybierz istniejącą szansę sprzedaży lub klienta w CRM, aby otworzyć lub utworzyć ofertę CAD."
+                  : "Wypełnij dane klienta, aby utworzyć nową szansę sprzedaży w CRM i przejść od razu do konfiguratora oferty CAD."}
+              </p>
+            </div>
+
+            {modalMode === "create" ? (
+              <form
+                onSubmit={handleCreateNewOpportunityAndOffer}
+                className="flex-1 flex flex-col min-h-0"
+              >
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  {newOppError && (
+                    <div className="p-3 text-xs bg-red-50 border border-red-200 text-red-700 rounded-lg">
+                      {newOppError}
+                    </div>
+                  )}
+
+                  {/* Klient / Firma */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#0b1220] mb-1">
+                      Klient / Imię i nazwisko / Firma <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <User size={14} className="absolute left-3 top-2.5 text-[#7c8597]" />
+                      <input
+                        type="text"
+                        autoFocus
+                        required
+                        value={newOppName}
+                        onChange={(e) => setNewOppName(e.target.value)}
+                        placeholder="np. Jan Kowalski lub Firma ABC"
+                        className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg pl-9 pr-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Telefon i Email */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-[#0b1220] mb-1">
+                        Telefon
+                      </label>
+                      <div className="relative">
+                        <Phone size={14} className="absolute left-3 top-2.5 text-[#7c8597]" />
+                        <input
+                          type="text"
+                          value={newOppPhone}
+                          onChange={(e) => setNewOppPhone(e.target.value)}
+                          placeholder="np. +48 500 600 700"
+                          className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg pl-9 pr-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[#0b1220] mb-1">
+                        E-mail
+                      </label>
+                      <div className="relative">
+                        <Mail size={14} className="absolute left-3 top-2.5 text-[#7c8597]" />
+                        <input
+                          type="email"
+                          value={newOppEmail}
+                          onChange={(e) => setNewOppEmail(e.target.value)}
+                          placeholder="np. klient@domena.pl"
+                          className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg pl-9 pr-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Miejscowość i Adres */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-[#0b1220] mb-1">
+                        Miejscowość
+                      </label>
+                      <div className="relative">
+                        <MapPin size={14} className="absolute left-3 top-2.5 text-[#7c8597]" />
+                        <input
+                          type="text"
+                          value={newOppCity}
+                          onChange={(e) => setNewOppCity(e.target.value)}
+                          placeholder="np. Warszawa"
+                          className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg pl-9 pr-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[#0b1220] mb-1">
+                        Ulica / Adres inwestycji
+                      </label>
+                      <input
+                        type="text"
+                        value={newOppStreet}
+                        onChange={(e) => setNewOppStreet(e.target.value)}
+                        placeholder="np. ul. Polna 12"
+                        className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Usługa */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#0b1220] mb-1">
+                      Wybierz usługę / produkt
+                    </label>
+                    <select
+                      value={newOppService}
+                      onChange={(e) => setNewOppService(e.target.value)}
+                      className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all cursor-pointer"
+                    >
+                      <option value="">-- Wybierz usługę (opcjonalnie) --</option>
+                      {servicesList.map((svc) => (
+                        <option key={svc._id} value={svc.name}>
+                          {svc.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Uwagi / Opis zapytania */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#0b1220] mb-1">
+                      Uwagi / Opis zapytania
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={newOppComment}
+                      onChange={(e) => setNewOppComment(e.target.value)}
+                      placeholder="Dodatkowe informacje o kliencie lub parametrach zapytania..."
+                      className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg p-2.5 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8] resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Footer formularza tworzenia */}
+                <div className="px-6 py-3.5 border-t border-[#e3e7ee] bg-[#f8fafc] flex items-center justify-between gap-3 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalMode("select");
+                      setNewOppError("");
+                    }}
+                    className="btn ghost cursor-pointer"
+                    style={{ padding: "6px 12px", fontSize: 12 }}
+                  >
+                    Wróć do listy szans
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowNewOfferModal(false)}
+                      className="btn ghost cursor-pointer"
+                      style={{ padding: "6px 12px", fontSize: 12 }}
+                    >
+                      Anuluj
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={creating || !newOppName.trim()}
+                      className="btn primary flex items-center gap-1.5 cursor-pointer"
+                      style={{ padding: "6px 14px", fontSize: 12 }}
+                    >
+                      {creating ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Plus size={13} />
+                      )}
+                      <span>Utwórz szansę i przejdź do oferty</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <>
+                {/* Wyszukiwarka + Szybkie filtry */}
+                <div className="px-6 py-3.5 border-b border-[#e3e7ee] bg-white shrink-0 space-y-2.5">
               <div className="relative flex items-center">
                 <Search
                   size={15}
@@ -643,30 +927,57 @@ function OfertaPageContent() {
                   <span className="text-xs">Ładowanie szans sprzedaży...</span>
                 </div>
               ) : opportunities.length === 0 ? (
-                <div className="panel p-8 text-center text-xs text-[#7c8597]">
-                  Brak otwartych szans sprzedaży.
+                <div className="panel p-8 text-center text-xs text-[#7c8597] space-y-3 bg-white">
+                  <p className="font-semibold text-[#0b1220]">Brak otwartych szans sprzedaży w systemie</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalMode("create");
+                    }}
+                    className="btn primary flex items-center gap-1.5 mx-auto cursor-pointer"
+                    style={{ padding: "6px 14px", fontSize: 12 }}
+                  >
+                    <Plus size={13} />
+                    <span>Utwórz nową szansę sprzedaży</span>
+                  </button>
                 </div>
               ) : filteredOpportunities.length === 0 ? (
-                <div className="panel p-8 text-center text-xs text-[#7c8597] space-y-2 bg-white">
+                <div className="panel p-8 text-center text-xs text-[#7c8597] space-y-3 bg-white">
                   <p className="font-semibold text-[#0b1220]">
-                    Brak szans spełniających kryteria wyszukiwania
+                    Brak szans spełniających kryteria {oppSearch ? `dla „${oppSearch}”` : ""}
                   </p>
-                  <p className="text-[11px]">
-                    Spróbuj zmienić frazę wyszukiwania lub przełącz filtr kategorii powyżej.
+                  <p className="text-[11px] max-w-md mx-auto">
+                    Nie znaleziono pasującej szansy w bazie. Możesz od razu założyć nową szansę sprzedaży dla tego klienta i przejść do oferty CAD.
                   </p>
-                  {(oppSearch || oppFilter !== "all") && (
+                  <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
                     <button
                       type="button"
                       onClick={() => {
-                        setOppSearch("");
-                        setOppFilter("all");
+                        setModalMode("create");
+                        if (oppSearch) setNewOppName(oppSearch);
                       }}
-                      className="btn ghost text-xs mt-1"
-                      style={{ padding: "4px 10px", fontSize: 11 }}
+                      className="btn primary flex items-center gap-1.5 cursor-pointer"
+                      style={{ padding: "6px 14px", fontSize: 12 }}
                     >
-                      Wyczyść filtry
+                      <Plus size={13} />
+                      <span>
+                        Utwórz nową szansę {oppSearch ? `dla „${oppSearch}”` : ""}
+                      </span>
                     </button>
-                  )}
+                    {(oppSearch || oppFilter !== "all") && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOppSearch("");
+                          setOppFilter("all");
+                        }}
+                        className="btn ghost text-xs cursor-pointer"
+                        style={{ padding: "6px 10px", fontSize: 11 }}
+                      >
+                        Wyczyść filtry
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 filteredOpportunities.map((opp) => {
@@ -868,10 +1179,12 @@ function OfertaPageContent() {
                       : "Utwórz ofertę"}
                   </span>
                 </button>
+                </div>
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
+      </div>
       )}
     </div>
   );

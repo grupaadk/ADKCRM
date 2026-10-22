@@ -274,8 +274,6 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
     }
   };
 
-  const router = useRouter();
-
   const handleBack = () => {
     if (onBack) {
       onBack();
