@@ -83,6 +83,7 @@ export default function NewOpportunityForm({
   const [nipLoading, setNipLoading] = useState(false);
   const [nipFetched, setNipFetched] = useState(false);
   const [nipError, setNipError] = useState<string | null>(null);
+  const [nipNotice, setNipNotice] = useState<string | null>(null);
 
   // Pobieranie danych z GUS / Biała Lista MF
   const handleNipLookup = async (nipToLookup?: string) => {
@@ -98,6 +99,7 @@ export default function NewOpportunityForm({
     }
     setNipLoading(true);
     setNipError(null);
+    setNipNotice(null);
     try {
       const data = await lookupNip({ nip: cleanNip });
       if (data) {
@@ -108,6 +110,11 @@ export default function NewOpportunityForm({
         if (data.postalCode) setNewPostalCode(data.postalCode);
         if (data.city) setNewCity(data.city);
         setNipFetched(true);
+        if (!data.street && !data.city) {
+          setNipNotice(
+            "Pobrano nazwę firmy. Biała Lista MF nie udostępnia adresu dla tego NIP-u (częste dla jednoosobowych działalności JDG) — uzupełnij go ręcznie."
+          );
+        }
       }
     } catch (err: unknown) {
       setNipError(err instanceof Error ? err.message : "Błąd pobierania danych z GUS");
@@ -667,6 +674,11 @@ export default function NewOpportunityForm({
                       </div>
                       {nipError && (
                         <p className="mt-1 text-[10.5px] text-red-600 leading-tight">{nipError}</p>
+                      )}
+                      {nipNotice && (
+                        <p className="mt-1 text-[10.5px] text-amber-700 bg-amber-50 border border-amber-200/80 rounded-md px-2 py-1 leading-snug">
+                          {nipNotice}
+                        </p>
                       )}
                     </div>
 

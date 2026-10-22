@@ -1,40 +1,86 @@
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 
-function parsePolishAddress(raw: string): {
+export function parsePolishAddress(raw: string): {
   street: string;
   buildingNumber: string;
   apartmentNumber?: string;
   postalCode: string;
   city: string;
-} | null {
-  const trimmed = raw.trim();
-  // Match: [optional prefix] street name, building[/apartment], postal code, city
-  const match = trimmed.match(
-    /^(.+?)\s+(\d+[a-zA-Z]?(?:[/\-]\d+[a-zA-Z]?)?)[,\s]+(\d{2}-\d{3})\s+(.+)$/,
-  );
-  if (!match) return null;
+} {
+  if (!raw || typeof raw !== "string") {
+    return { street: "", buildingNumber: "", postalCode: "", city: "" };
+  }
+  let text = raw.trim();
 
-  let street = match[1].trim();
-  // Strip common Polish street prefixes: ul., al., os., pl., gen., ks., dr., etc.
-  street = street.replace(/^(?:ul\.|al\.|os\.|pl\.|gen\.|ks\.|dr\.|prof\.|mgr\.)\s+/i, "");
+  // Strip trailing country e.g. ", Polska", ", POLAND"
+  text = text.replace(/[,\s]+(?:POLSKA|POLAND)$/i, "").trim();
 
-  const fullNumber = match[2].trim();
-  const postalCode = match[3].trim();
-  const city = match[4].trim();
-
-  // Split "12/3" into buildingNumber "12" and apartmentNumber "3"
-  const slashIdx = fullNumber.indexOf("/");
-  let buildingNumber: string;
-  let apartmentNumber: string | undefined;
-  if (slashIdx !== -1) {
-    buildingNumber = fullNumber.slice(0, slashIdx);
-    apartmentNumber = fullNumber.slice(slashIdx + 1);
-  } else {
-    buildingNumber = fullNumber;
+  // Find postal code: XX-XXX
+  const postalMatch = text.match(/\b(\d{2}-\d{3})\b/);
+  if (!postalMatch || postalMatch.index === undefined) {
+    return {
+      street: text,
+      buildingNumber: "",
+      apartmentNumber: undefined,
+      postalCode: "",
+      city: "",
+    };
   }
 
-  return { street, buildingNumber, apartmentNumber, postalCode, city };
+  const postalCode = postalMatch[1];
+  const postalIndex = postalMatch.index;
+
+  const beforePostal = text.slice(0, postalIndex).trim().replace(/,+$/, "").trim();
+  const cityPart = text.slice(postalIndex + postalCode.length).trim().replace(/^[,\s]+|[,\s]+$/g, "").trim();
+  const city = cityPart;
+
+  // Strip common street prefixes
+  let streetPart = beforePostal.replace(/^(?:ul\.|ulica|al\.|aleja|aleje|pl\.|plac|os\.|osiedle|skwer|bulwar)\s+/i, "").trim();
+
+  let buildingNumber = "";
+  let apartmentNumber: string | undefined = undefined;
+
+  // 1. Check for explicit apartment with "lok." / "m." / "lokal" / "nr"
+  const aptMatch = streetPart.match(/[,/\s]+(?:lok\.|lokal|m\.|mieszkania|mieszkanie|nr\s*lokalu|nr\s*lok\.|nr)\s*([0-9a-zA-Z\-]+)\s*$/i);
+  if (aptMatch && aptMatch.index !== undefined) {
+    apartmentNumber = aptMatch[1].trim();
+    streetPart = streetPart.slice(0, aptMatch.index).trim().replace(/,+$/, "").trim();
+  }
+
+  // 2. If apartment not found yet, check for slash format e.g. "44 / 33" or "44/33" or "10/2A"
+  if (!apartmentNumber) {
+    const slashMatch = streetPart.match(/(\d+[a-zA-Z]?)\s*\/\s*([0-9a-zA-Z\-]+)\s*$/);
+    if (slashMatch && slashMatch.index !== undefined) {
+      buildingNumber = slashMatch[1].trim();
+      apartmentNumber = slashMatch[2].trim();
+      streetPart = streetPart.slice(0, slashMatch.index).trim().replace(/,+$/, "").trim();
+    }
+  }
+
+  // 3. If buildingNumber not found yet, match building number (handles "12/14", "12-14", "142B", "10")
+  if (!buildingNumber) {
+    const bldgMatch = streetPart.match(/(\d+[a-zA-Z]?(?:[\/\-]\d+[a-zA-Z]?)?)\s*$/);
+    if (bldgMatch && bldgMatch.index !== undefined) {
+      buildingNumber = bldgMatch[1].trim();
+      streetPart = streetPart.slice(0, bldgMatch.index).trim().replace(/,+$/, "").trim();
+    }
+  }
+
+  let street = streetPart;
+
+  // If street equals city (small village with house numbers only), clear street so it is not duplicated
+  if (street.toUpperCase() === city.toUpperCase()) {
+    street = "";
+  }
+
+  return {
+    street,
+    buildingNumber,
+    apartmentNumber: apartmentNumber || undefined,
+    postalCode,
+    city,
+  };
 }
 
 export const lookupNip = action({
@@ -99,12 +145,14 @@ export const lookupNip = action({
     const statusVat = typeof subject.statusVat === "string" ? subject.statusVat : "";
     const isActive = statusVat === "Czynny";
 
-    const rawAddress =
-      typeof subject.workingAddress === "string" && subject.workingAddress.trim()
-        ? subject.workingAddress.trim()
-        : typeof subject.residenceAddress === "string" && subject.residenceAddress.trim()
-          ? subject.residenceAddress.trim()
-          : "";
+    const residenceAddr =
+      typeof subject.residenceAddress === "string" ? subject.residenceAddress.trim() : "";
+    const workingAddr =
+      typeof subject.workingAddress === "string" ? subject.workingAddress.trim() : "";
+
+    // Prefer residenceAddress as it represents the registered seat ("Adres siedziby podmiotu"),
+    // but fall back to workingAddress if residenceAddress is empty.
+    const rawAddress = residenceAddr || workingAddr;
 
     const parsed = rawAddress ? parsePolishAddress(rawAddress) : null;
 
