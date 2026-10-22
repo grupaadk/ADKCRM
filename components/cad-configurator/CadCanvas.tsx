@@ -597,20 +597,7 @@ export function CadCanvas({
                     strokeWidth="2"
                   />
 
-                  {/* Odblaski szkła (zawsze wewnątrz kwatery) */}
-                  <line
-                    x1={isTriangleRight ? xGlassRight - 40 : xGlassLeft + 40}
-                    y1={yGlassBot - 30}
-                    x2={
-                      isTriangleRight
-                        ? xGlassRight - (xGlassRight - xGlassLeft) * 0.35
-                        : xGlassLeft + (xGlassRight - xGlassLeft) * 0.35
-                    }
-                    y2={yGlassTop + (yGlassBot - yGlassTop) * 0.35}
-                    stroke="#38bdf8"
-                    strokeWidth="2.5"
-                    strokeOpacity="0.4"
-                  />
+
 
                   {/* Parametry wewnątrz trójkąta */}
                   <text

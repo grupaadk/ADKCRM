@@ -1733,20 +1733,7 @@ export function AllConstructionsCadView({
                                 strokeWidth="2"
                               />
 
-                              {/* Odblaski szkła */}
-                              <line
-                                x1={isTriangleRight ? xGlassRight - 40 : xGlassLeft + 40}
-                                y1={yGlassBot - 30}
-                                x2={
-                                  isTriangleRight
-                                    ? xGlassRight - (xGlassRight - xGlassLeft) * 0.35
-                                    : xGlassLeft + (xGlassRight - xGlassLeft) * 0.35
-                                }
-                                y2={yGlassTop + (yGlassBot - yGlassTop) * 0.35}
-                                stroke="#38bdf8"
-                                strokeWidth="2.5"
-                                strokeOpacity="0.4"
-                              />
+
 
                               {/* Parametry wewnątrz trójkąta */}
                               <text
@@ -3205,19 +3192,7 @@ export function AllConstructionsCadView({
                             stroke="#38bdf8"
                             strokeWidth="2"
                           />
-                          <line
-                            x1={isTriangleRightCard ? xGlassRightCard - 40 : xGlassLeftCard + 40}
-                            y1={yGlassBotCard - 30}
-                            x2={
-                              isTriangleRightCard
-                                ? xGlassRightCard - (xGlassRightCard - xGlassLeftCard) * 0.35
-                                : xGlassLeftCard + (xGlassRightCard - xGlassLeftCard) * 0.35
-                            }
-                            y2={yGlassTopCard + (yGlassBotCard - yGlassTopCard) * 0.35}
-                            stroke="#38bdf8"
-                            strokeWidth="2.5"
-                            strokeOpacity="0.4"
-                          />
+
                           <text
                             x={padLeft + width * (isTriangleRightCard ? 0.65 : 0.35)}
                             y={yGlassBotCard - 35}
