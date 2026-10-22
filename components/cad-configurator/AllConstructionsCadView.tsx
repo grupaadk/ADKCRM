@@ -126,8 +126,11 @@ export function AllConstructionsCadView({
   // Stan otwartego edytora wymiaru bezpośrednio na rzucie CAD
   const [activeDimEdit, setActiveDimEdit] = useState<{
     itemId: string;
-    target: "width" | "height" | "segment";
+    target?: "width" | "height" | "segment" | "pane_width";
+    mode?: "width" | "height" | "pane_width";
     segmentIndex?: number;
+    paneIndex?: number;
+    value?: string;
     x: number;
     y: number;
   } | null>(null);
@@ -429,7 +432,7 @@ export function AllConstructionsCadView({
   const openDimEditor = (
     e: React.MouseEvent,
     item: CadConstructionItem,
-    target: "width" | "height" | "segment",
+    target: "width" | "height" | "segment" | "pane_width",
     segmentIndex?: number
   ) => {
     e.stopPropagation();
@@ -444,11 +447,17 @@ export function AllConstructionsCadView({
         : target === "height"
         ? h
         : item.segments?.[segmentIndex ?? 0]?.widthMm || paneW;
-    setDraftDimValue(String(initialVal));
+    const mode =
+      target === "segment" || target === "pane_width" ? "pane_width" : target;
+    const valStr = String(initialVal);
+    setDraftDimValue(valStr);
     setActiveDimEdit({
       itemId: item._id,
       target,
+      mode,
       segmentIndex,
+      paneIndex: segmentIndex,
+      value: valStr,
       x: e.clientX,
       y: e.clientY,
     });
@@ -458,22 +467,24 @@ export function AllConstructionsCadView({
     }, 10);
   };
 
-  const handleApplyDimension = () => {
+  const handleApplyDimension = (customVal?: string) => {
     if (!activeDimEdit) return;
     const item = effectiveItems.find((it) => it._id === activeDimEdit.itemId);
     if (!item) return;
 
-    const parsed = parseInt(draftDimValue, 10);
+    const valToUse = customVal ?? activeDimEdit.value ?? draftDimValue;
+    const parsed = parseInt(valToUse, 10);
     if (isNaN(parsed) || parsed < 200) return;
 
     const panes = Math.max(item.panesCount || 3, 1);
     let patch: { widthMm?: number; heightMm?: number } = {};
 
-    if (activeDimEdit.target === "width") {
+    const mode = activeDimEdit.mode || activeDimEdit.target;
+    if (mode === "width") {
       patch = { widthMm: Math.min(15000, Math.max(300, parsed)) };
-    } else if (activeDimEdit.target === "height") {
+    } else if (mode === "height") {
       patch = { heightMm: Math.min(10000, Math.max(200, parsed)) };
-    } else if (activeDimEdit.target === "segment") {
+    } else if (mode === "segment" || mode === "pane_width") {
       const nextSegW = Math.min(5000, Math.max(200, parsed));
       patch = { widthMm: Math.min(15000, Math.max(300, nextSegW * panes)) };
     }
@@ -3534,12 +3545,14 @@ export function AllConstructionsCadView({
                     min={150}
                     max={12000}
                     step={10}
-                    value={activeDimEdit.value}
-                    onChange={(e) =>
+                    value={activeDimEdit.value ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDraftDimValue(val);
                       setActiveDimEdit((prev) =>
-                        prev ? { ...prev, value: e.target.value } : null
-                      )
-                    }
+                        prev ? { ...prev, value: val } : null
+                      );
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
