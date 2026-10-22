@@ -554,7 +554,7 @@ export function CadCanvas({
                     strokeWidth="2"
                   />
 
-                  {/* Górna belka skośna (KROKIEW) */}
+                  {/* Górna belka skośna ramy */}
                   <polygon
                     points={`
                       ${originX},${yKrokLeftTop}
@@ -562,26 +562,10 @@ export function CadCanvas({
                       ${originX + width},${yKrokRightBot}
                       ${originX},${yKrokLeftBot}
                     `}
-                    fill="#84cc16"
-                    stroke="#4d7c0f"
+                    fill="#29323d"
+                    stroke="#1e242b"
                     strokeWidth="2"
                   />
-                  {/* Etykieta KROKIEW wzdłuż belki */}
-                  <g
-                    transform={`translate(${originX + width * 0.48}, ${(yKrokLeftTop + yKrokRightTop) / 2 + tKrok / 2 + 5}) rotate(${isTriangleRight ? -krokiewAngleDeg : krokiewAngleDeg})`}
-                  >
-                    <text
-                      x="0"
-                      y="0"
-                      fill="#0b1220"
-                      fontSize="24"
-                      fontWeight="900"
-                      textAnchor="middle"
-                      letterSpacing="4px"
-                    >
-                      KROKIEW
-                    </text>
-                  </g>
 
                   {/* Podkrokiew / listwa montażowa ramy */}
                   <polygon
@@ -649,7 +633,7 @@ export function CadCanvas({
                     fontWeight="800"
                     textAnchor="middle"
                   >
-                    Spadek dachu: {krokiewAngleDeg}° · Krokiew: {krokiewLenMm} mm
+                    Spadek dachu: {krokiewAngleDeg}° · L = {krokiewLenMm} mm
                   </text>
                 </>
               ) : (

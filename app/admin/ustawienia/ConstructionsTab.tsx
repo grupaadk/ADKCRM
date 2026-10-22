@@ -573,25 +573,13 @@ export function ConstructionsTab() {
                                         strokeWidth="0.8"
                                       />
 
-                                      {/* Krokiew spadowa (zielona) */}
+                                      {/* Belka skośna */}
                                       <polygon
                                         points={isTriangleRight ? "153,11 7,59 7,65 153,17" : "7,11 153,59 153,65 7,17"}
-                                        fill="#84cc16"
-                                        stroke="#4d7c0f"
+                                        fill="#29323d"
+                                        stroke="#1e242b"
                                         strokeWidth="0.8"
                                       />
-                                      <text
-                                        x={isTriangleRight ? "78" : "82"}
-                                        y="37"
-                                        fill="#0b1220"
-                                        fontSize="6.5"
-                                        fontWeight="900"
-                                        textAnchor="middle"
-                                        transform={isTriangleRight ? "rotate(-18, 78, 37)" : "rotate(18, 82, 37)"}
-                                        letterSpacing="0.6px"
-                                      >
-                                        KROKIEW
-                                      </text>
 
                                       {/* Profil dociskowy */}
                                       <polygon

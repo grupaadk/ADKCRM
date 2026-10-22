@@ -157,25 +157,13 @@ export function VerticalPositionsList({
                           stroke="#1e242b"
                           strokeWidth="0.5"
                         />
-                        {/* Krokiew skośna */}
+                        {/* Belka skośna */}
                         <polygon
                           points={isTriangleRight ? "115,9 5,47 5,52 115,14" : "5,9 115,47 115,52 5,14"}
-                          fill="#84cc16"
-                          stroke="#4d7c0f"
+                          fill="#29323d"
+                          stroke="#1e242b"
                           strokeWidth="0.8"
                         />
-                        <text
-                          x={isTriangleRight ? "55" : "65"}
-                          y="29"
-                          fill="#0b1220"
-                          fontSize="5"
-                          fontWeight="900"
-                          textAnchor="middle"
-                          transform={isTriangleRight ? "rotate(-20, 55, 29)" : "rotate(20, 65, 29)"}
-                          letterSpacing="0.5px"
-                        >
-                          KROKIEW
-                        </text>
                         {/* Szkło */}
                         <polygon
                           points={isTriangleRight ? "108,19 14,50 108,50" : "12,19 106,50 12,50"}

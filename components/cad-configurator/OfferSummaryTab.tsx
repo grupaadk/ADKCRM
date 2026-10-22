@@ -713,25 +713,13 @@ export function OfferSummaryTab({
                                         stroke="#1e242b"
                                         strokeWidth="0.5"
                                       />
-                                      {/* Krokiew skośna */}
+                                      {/* Belka skośna */}
                                       <polygon
                                         points={isTriangleRight ? "134,10 6,53 6,58 134,15" : "6,10 134,53 134,58 6,15"}
-                                        fill="#84cc16"
-                                        stroke="#4d7c0f"
+                                        fill="#29323d"
+                                        stroke="#1e242b"
                                         strokeWidth="0.8"
                                       />
-                                      <text
-                                        x={isTriangleRight ? "66" : "74"}
-                                        y="33"
-                                        fill="#0b1220"
-                                        fontSize="5.5"
-                                        fontWeight="900"
-                                        textAnchor="middle"
-                                        transform={isTriangleRight ? "rotate(-20, 66, 33)" : "rotate(20, 74, 33)"}
-                                        letterSpacing="0.5px"
-                                      >
-                                        KROKIEW
-                                      </text>
                                       {/* Podkrokiew / listwa montażowa */}
                                       <polygon
                                         points={isTriangleRight ? "134,15 6,58 128,18" : "6,15 134,58 12,18"}
