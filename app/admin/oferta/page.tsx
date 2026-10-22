@@ -98,6 +98,9 @@ function OfertaPageContent() {
   const [newOppEmail, setNewOppEmail] = useState("");
   const [newOppCity, setNewOppCity] = useState("");
   const [newOppStreet, setNewOppStreet] = useState("");
+  const [sameAddress, setSameAddress] = useState(true);
+  const [newOppInvestmentCity, setNewOppInvestmentCity] = useState("");
+  const [newOppInvestmentStreet, setNewOppInvestmentStreet] = useState("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [newOppComment, setNewOppComment] = useState("");
   const [newOppError, setNewOppError] = useState("");
@@ -362,6 +365,14 @@ function OfertaPageContent() {
         .filter(Boolean)
         .join("\n");
 
+      const investmentCity = sameAddress
+        ? newOppCity.trim() || undefined
+        : newOppInvestmentCity.trim() || newOppCity.trim() || undefined;
+
+      const investmentStreet = sameAddress
+        ? newOppStreet.trim() || undefined
+        : newOppInvestmentStreet.trim() || newOppStreet.trim() || undefined;
+
       const oppId = await createManualOpportunity({
         firstName,
         lastName,
@@ -370,6 +381,8 @@ function OfertaPageContent() {
         email: newOppEmail.trim() || undefined,
         city: newOppCity.trim() || undefined,
         street: newOppStreet.trim() || undefined,
+        investmentCity,
+        investmentStreet,
         services: selectedServices.length > 0 ? selectedServices : undefined,
         comment: fullComment || undefined,
       });
@@ -391,6 +404,9 @@ function OfertaPageContent() {
       setNewOppEmail("");
       setNewOppCity("");
       setNewOppStreet("");
+      setSameAddress(true);
+      setNewOppInvestmentCity("");
+      setNewOppInvestmentStreet("");
       setSelectedServices([]);
       setNewOppComment("");
       setOppSearch("");
@@ -970,35 +986,84 @@ function OfertaPageContent() {
                     </div>
                   </div>
 
-                  {/* Miejscowość i Adres */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-[#0b1220] mb-1">
-                        Miejscowość
-                      </label>
-                      <div className="relative">
-                        <MapPin size={14} className="absolute left-3 top-2.5 text-[#7c8597]" />
+                  {/* Adres klienta / siedziby */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#0b1220] mb-1">
+                      Adres klienta {clientType === "business" ? "(siedziba)" : ""}
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <div className="relative">
+                          <MapPin size={14} className="absolute left-3 top-2.5 text-[#7c8597]" />
+                          <input
+                            type="text"
+                            value={newOppCity}
+                            onChange={(e) => setNewOppCity(e.target.value)}
+                            placeholder="Miejscowość (np. Warszawa)"
+                            className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg pl-9 pr-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                          />
+                        </div>
+                      </div>
+                      <div>
                         <input
                           type="text"
-                          value={newOppCity}
-                          onChange={(e) => setNewOppCity(e.target.value)}
-                          placeholder="np. Warszawa"
-                          className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg pl-9 pr-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                          value={newOppStreet}
+                          onChange={(e) => setNewOppStreet(e.target.value)}
+                          placeholder="Ulica i nr budynku (np. ul. Polna 12)"
+                          className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
                         />
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-[#0b1220] mb-1">
-                        Ulica / Adres inwestycji
+                  </div>
+
+                  {/* Adres inwestycji (montażu) & przełącznik "Taki sam jak klienta" */}
+                  <div className="p-3 rounded-xl bg-[#f8fafc] border border-[#e2e8f0] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin size={13} className="text-[#0e7490]" />
+                        <span className="text-xs font-semibold text-[#0b1220]">
+                          Adres inwestycji (montaż)
+                        </span>
+                      </div>
+                      <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={sameAddress}
+                          onChange={(e) => setSameAddress(e.target.checked)}
+                          className="w-3.5 h-3.5 rounded text-[#0e7490] focus:ring-[#0e7490] accent-[#0e7490]"
+                        />
+                        <span className="text-xs font-medium text-[#475569]">
+                          Taki sam jak adres klienta
+                        </span>
                       </label>
-                      <input
-                        type="text"
-                        value={newOppStreet}
-                        onChange={(e) => setNewOppStreet(e.target.value)}
-                        placeholder="np. ul. Polna 12"
-                        className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
-                      />
                     </div>
+
+                    {!sameAddress ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <input
+                            type="text"
+                            value={newOppInvestmentCity}
+                            onChange={(e) => setNewOppInvestmentCity(e.target.value)}
+                            placeholder="Miejscowość inwestycji"
+                            className="w-full bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                          />
+                        </div>
+                        <div>
+                          <input
+                            type="text"
+                            value={newOppInvestmentStreet}
+                            onChange={(e) => setNewOppInvestmentStreet(e.target.value)}
+                            placeholder="Ulica i nr inwestycji"
+                            className="w-full bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-[#7c8597] italic">
+                        Montaż odbędzie się pod adresem klienta: {[newOppStreet, newOppCity].filter(Boolean).join(", ") || "(uzupełnij adres klienta powyżej)"}
+                      </p>
+                    )}
                   </div>
 
                   {/* Sekcja: Wybór usług z kafelkami i ikonami (jak w /admin/szansa/nowa) */}
