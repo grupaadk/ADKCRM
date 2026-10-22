@@ -21,6 +21,9 @@ import {
   Check,
   MoveVertical,
   Move,
+  Grid,
+  Focus,
+  Grid3X3,
 } from "lucide-react";
 
 interface AllConstructionsCadViewProps {
@@ -154,7 +157,6 @@ export function AllConstructionsCadView({
   } | null>(null);
 
   const [isPanning, setIsPanning] = useState(false);
-  const [isCtrlOrMetaPressed, setIsCtrlOrMetaPressed] = useState(false);
   const panStartRef = useRef<{
     x: number;
     y: number;
@@ -162,71 +164,41 @@ export function AllConstructionsCadView({
     scrollTop: number;
   } | null>(null);
 
-  // Śledzenie wciśnięcia klawisza Ctrl / Meta / Alt dla kursora "łapka" (Pan)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === "Control" ||
-        e.key === "Meta" ||
-        e.key === "Alt" ||
-        e.ctrlKey ||
-        e.metaKey ||
-        e.altKey
-      ) {
-        setIsCtrlOrMetaPressed(true);
-      }
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        setIsCtrlOrMetaPressed(false);
-      }
-    };
-    const handleBlur = () => {
-      setIsCtrlOrMetaPressed(false);
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-    window.addEventListener("blur", handleBlur);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-      window.removeEventListener("blur", handleBlur);
-    };
-  }, []);
-
-  // Obsługa przybliżania i oddalania (Ctrl/Cmd + Scroll) wycentrowana na pozycji kursora myszy (jak w AutoCAD)
+  // Obsługa przybliżania i oddalania (Scroll) wycentrowana na pozycji kursora myszy (jak w AutoCAD / Revit / Figma)
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
 
     const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const viewport = viewportRef.current;
-        const content = contentRef.current;
-        if (!viewport || !content) return;
-
-        const contentRect = content.getBoundingClientRect();
-        if (contentRect.width > 0 && contentRect.height > 0) {
-          // Precyzyjna pozycja kursora wewnątrz rysunku CAD (0.0 do 1.0)
-          const ratioX = (e.clientX - contentRect.left) / contentRect.width;
-          const ratioY = (e.clientY - contentRect.top) / contentRect.height;
-          zoomOriginRef.current = {
-            cursorClientX: e.clientX,
-            cursorClientY: e.clientY,
-            ratioX,
-            ratioY,
-          };
-        }
-
-        // Płynne, proporcjonalne skalowanie geometryczne (jak w AutoCAD / Figma)
-        const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-        setZoom((prev) =>
-          Math.min(5, Math.max(0.3, Math.round(prev * factor * 100) / 100))
-        );
+      // Jeśli użytkownik wykonuje poziome przewijanie touchpadem bez klawisza modyfikującego,
+      // pozwól na naturalny scroll
+      if (!e.ctrlKey && !e.metaKey && Math.abs(e.deltaX) > 0 && Math.abs(e.deltaX) >= Math.abs(e.deltaY)) {
+        return;
       }
+
+      e.preventDefault();
+      const viewport = viewportRef.current;
+      const content = contentRef.current;
+      if (!viewport || !content) return;
+
+      const contentRect = content.getBoundingClientRect();
+      if (contentRect.width > 0 && contentRect.height > 0) {
+        // Precyzyjna pozycja kursora wewnątrz rysunku CAD (0.0 do 1.0)
+        const ratioX = (e.clientX - contentRect.left) / contentRect.width;
+        const ratioY = (e.clientY - contentRect.top) / contentRect.height;
+        zoomOriginRef.current = {
+          cursorClientX: e.clientX,
+          cursorClientY: e.clientY,
+          ratioX,
+          ratioY,
+        };
+      }
+
+      // Płynne, proporcjonalne skalowanie geometryczne (jak w AutoCAD / Figma)
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      setZoom((prev) =>
+        Math.min(5, Math.max(0.15, Math.round(prev * factor * 100) / 100))
+      );
     };
 
     el.addEventListener("wheel", handleWheel, { passive: false });
@@ -258,7 +230,7 @@ export function AllConstructionsCadView({
     viewport.scrollTop += deltaY;
   }, [zoom]);
 
-  // Przesuwanie widoku (PAN) środkowym przyciskiem myszy (scroll click), Alt+LPM lub Ctrl+LPM (jak w AutoCAD)
+  // Przesuwanie widoku (PAN) środkowym przyciskiem myszy (scroll click), Alt+LPM, Ctrl+LPM lub przeciągnięciem wolnego pola roboczego (jak w AutoCAD)
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -275,10 +247,10 @@ export function AllConstructionsCadView({
 
       const isPanTrigger =
         e.button === 1 ||
-        (e.button === 0 && (e.ctrlKey || e.metaKey || e.altKey));
+        (e.button === 0 && (e.ctrlKey || e.metaKey || e.altKey)) ||
+        (e.button === 0 && !pointerDownRef.current);
 
       if (isPanTrigger) {
-        e.preventDefault();
         setIsPanning(true);
         panStartRef.current = {
           x: e.clientX,
@@ -353,11 +325,42 @@ export function AllConstructionsCadView({
 
   // ── Obliczenia układu dla Wspólnego Arkusza CAD ("sheet") ──
   // Obsługa układania konstrukcji pionowo (jedna nad drugą np. trójkąt nad drzwiami) oraz w rzędach (jedna pod drugą)
+  // Duży, swobodny obszar roboczy CAD (Model Space) z wielometrowymi marginesami i siatką techniczną
+  const [workspacePreset, setWorkspacePreset] = useState<"standard" | "large" | "extra">("large");
+  const [showCadGrid, setShowCadGrid] = useState<boolean>(true);
+
+  const { minWorkspaceW, minWorkspaceH, sheetPadX, sheetPadTop, sheetPadBottom } = useMemo(() => {
+    switch (workspacePreset) {
+      case "standard":
+        return {
+          minWorkspaceW: 10000,
+          minWorkspaceH: 6000,
+          sheetPadX: 2000,
+          sheetPadTop: 1400,
+          sheetPadBottom: 1400,
+        };
+      case "extra":
+        return {
+          minWorkspaceW: 22000,
+          minWorkspaceH: 12000,
+          sheetPadX: 4000,
+          sheetPadTop: 2400,
+          sheetPadBottom: 2400,
+        };
+      case "large":
+      default:
+        return {
+          minWorkspaceW: 14000,
+          minWorkspaceH: 8500,
+          sheetPadX: 2800,
+          sheetPadTop: 1800,
+          sheetPadBottom: 1800,
+        };
+    }
+  }, [workspacePreset]);
+
   const gapX = 520; // odstęp poziomy między konstrukcjami/stosami na arkuszu
   const gapY = 640; // odstęp pionowy między rzędami konstrukcji
-  const sheetPadX = 260;
-  const sheetPadTop = 400;
-  const sheetPadBottom = 360;
 
   interface ColumnStack {
     rootItem: CadConstructionItem;
@@ -588,9 +591,30 @@ export function AllConstructionsCadView({
     computedRows.reduce((acc, r) => acc + r.maxStackHeight, 0) +
     Math.max(0, computedRows.length - 1) * gapY;
 
-  const sheetWidth = maxRowWidth + sheetPadX * 2;
-  const sheetHeight = totalRowsHeight + sheetPadTop + sheetPadBottom;
+  const sheetWidth = Math.max(minWorkspaceW, maxRowWidth + sheetPadX * 2);
+  const sheetHeight = Math.max(minWorkspaceH, totalRowsHeight + sheetPadTop + sheetPadBottom);
   const frameThickness = 50;
+
+  const handleFitToConstructions = () => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const targetZoom = Math.min(
+      3,
+      Math.max(
+        0.5,
+        Math.round((sheetWidth / Math.max(maxRowWidth + 2400, 3200)) * 100) / 100
+      )
+    );
+    setZoom(targetZoom);
+    setTimeout(() => {
+      if (viewportRef.current) {
+        viewportRef.current.scrollLeft =
+          (viewportRef.current.scrollWidth - viewportRef.current.clientWidth) / 2;
+        viewportRef.current.scrollTop =
+          (viewportRef.current.scrollHeight - viewportRef.current.clientHeight) / 2;
+      }
+    }, 20);
+  };
 
   const getSvgCoordinates = (
     clientX: number,
@@ -1159,29 +1183,81 @@ export function AllConstructionsCadView({
 
           {displayMode === "sheet" && (
             <>
+              {/* Toggle Siatka CAD */}
+              <button
+                type="button"
+                onClick={() => setShowCadGrid((v) => !v)}
+                title="Włącz / Wyłącz siatkę techniczną CAD (100mm / 500mm / 1000mm)"
+                className={`p-1.5 rounded text-xs flex items-center gap-1 border transition-colors cursor-pointer ${
+                  showCadGrid
+                    ? "bg-[#e0f2fe] text-[#0369a1] border-[#bae6fd]"
+                    : "bg-white text-[#7c8597] border-[#d4dae3]"
+                }`}
+              >
+                <Grid size={13} />
+                <span className="hidden sm:inline">Siatka CAD</span>
+              </button>
+
               <div className="h-4 w-px bg-[#e3e7ee] mx-0.5" />
 
-              <span
-                className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-[#0e7490] bg-[#f0fdff] border border-[#a5f3fc]"
-                title="Przetrzymaj lewym przyciskiem myszy konstrukcję i przeciągnij ją w dowolne miejsce (zmień kolejność, umieść nad inną lub w nowym rzędzie)"
+              {/* Wybór wielkości obszaru roboczego CAD (Model Space) */}
+              <div className="flex items-center gap-1 bg-slate-100 rounded p-0.5 border border-[#cbd5e1]">
+                <span
+                  className="text-[10px] text-[#475569] font-medium px-1 flex items-center gap-1"
+                  title="Rozmiar wirtualnej przestrzeni roboczej CAD"
+                >
+                  <Grid3X3 size={11} className="text-[#0e7490]" />
+                  <span className="hidden md:inline">Obszar:</span>
+                </span>
+                {(
+                  [
+                    { key: "standard", label: "10m", title: "Standardowy obszar roboczy (10 × 6 m)" },
+                    { key: "large", label: "14m", title: "Duży obszar roboczy CAD (14 × 8.5 m)" },
+                    { key: "extra", label: "22m", title: "Bardzo duży obszar CAD (22 × 12 m)" },
+                  ] as const
+                ).map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => setWorkspacePreset(p.key)}
+                    title={p.title}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                      workspacePreset === p.key
+                        ? "bg-white text-[#0e7490] shadow-2xs"
+                        : "text-[#64748b] hover:text-[#0b1220]"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="h-4 w-px bg-[#e3e7ee] mx-0.5" />
+
+              {/* Przycisk Dopasuj do konstrukcji */}
+              <button
+                type="button"
+                onClick={handleFitToConstructions}
+                title="Dopasuj widok i wyśrodkuj konstrukcje w oknie"
+                className="px-2 py-1 rounded bg-white text-[#0e7490] hover:bg-[#f0fdff] border border-[#a5f3fc] text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
               >
-                <MoveVertical size={11} />
-                <span>Przeciągnij, aby zmienić pozycję</span>
-              </span>
+                <Focus size={12} />
+                <span className="hidden md:inline">Dopasuj</span>
+              </button>
 
               <span
                 className="hidden xl:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono text-[#64748b] bg-slate-100 border border-[#e2e8f0]"
-                title="Ctrl + Scroll = Zoom, Ctrl + LPM w wolnym polu = przesuwanie widoku (łapka)"
+                title="Scroll = Płynny Zoom, LPM na wolnym polu lub Scroll-click = Przesuwanie (Łapka)"
               >
-                Ctrl + Scroll / LPM: łapka
+                Scroll: Zoom · Przeciągnij tło: Łapka
               </span>
 
               <button
                 type="button"
                 onClick={() =>
-                  setZoom((z) => Math.max(0.4, Math.round((z - 0.15) * 100) / 100))
+                  setZoom((z) => Math.max(0.15, Math.round((z - 0.15) * 100) / 100))
                 }
-                title="Oddal (Zoom out / Ctrl + Scroll w dół)"
+                title="Oddal (Zoom out)"
                 className="p-1.5 rounded bg-white text-[#4b5563] hover:text-[#0b1220] border border-[#d4dae3] cursor-pointer"
               >
                 <ZoomOut size={13} />
@@ -1192,9 +1268,9 @@ export function AllConstructionsCadView({
               <button
                 type="button"
                 onClick={() =>
-                  setZoom((z) => Math.min(4, Math.round((z + 0.15) * 100) / 100))
+                  setZoom((z) => Math.min(5, Math.round((z + 0.15) * 100) / 100))
                 }
-                title="Przybliż (Zoom in / Ctrl + Scroll w górę)"
+                title="Przybliż (Zoom in)"
                 className="p-1.5 rounded bg-white text-[#4b5563] hover:text-[#0b1220] border border-[#d4dae3] cursor-pointer"
               >
                 <ZoomIn size={13} />
@@ -1202,7 +1278,7 @@ export function AllConstructionsCadView({
               <button
                 type="button"
                 onClick={() => setZoom(1)}
-                title="Dopasuj do ekranu (100%)"
+                title="Widok 100% całego obszaru roboczego CAD"
                 className="p-1.5 rounded bg-white text-[#4b5563] hover:text-[#0b1220] border border-[#d4dae3] cursor-pointer"
               >
                 <Maximize2 size={13} />
@@ -1217,14 +1293,10 @@ export function AllConstructionsCadView({
         /* ── TRYB 1: WSPÓLNY ARKUSZ RYSUNKOWY CAD (Wszystkie konstrukcje na jednym rysunku SVG) ── */
         <div
           ref={viewportRef}
-          className={`relative flex-1 min-h-0 min-w-0 overflow-auto p-2 sm:p-4 bg-slate-100/70 ${
-            dragState
+          className={`relative flex-1 min-h-0 min-w-0 overflow-auto p-4 sm:p-8 bg-slate-200/80 ${
+            dragState || isPanning
               ? "cursor-grabbing select-none"
-              : isPanning
-              ? "cursor-grabbing select-none"
-              : isCtrlOrMetaPressed
-              ? "cursor-grab"
-              : ""
+              : "cursor-grab select-none"
           }`}
         >
           <div
@@ -1241,19 +1313,13 @@ export function AllConstructionsCadView({
               ref={svgRef}
               viewBox={`0 0 ${sheetWidth} ${sheetHeight}`}
               preserveAspectRatio="xMidYMid meet"
-              className="w-full h-full block rounded-lg shadow-sm"
+              className="w-full h-full block rounded-md shadow-lg"
               style={{
                 width: "100%",
                 height: "100%",
                 fontFamily:
                   "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                cursor: dragState
-                  ? "grabbing"
-                  : isPanning
-                  ? "grabbing"
-                  : isCtrlOrMetaPressed
-                  ? "grab"
-                  : "default",
+                cursor: dragState || isPanning ? "grabbing" : "grab",
               }}
             >
               <defs>
@@ -1279,9 +1345,54 @@ export function AllConstructionsCadView({
                 >
                   <path d="M 0 2 L 14 8 L 0 14 z" fill="#0b1220" />
                 </marker>
+
+                {/* Precyzyjna siatka inżynierska CAD (100mm, 500mm, 1000mm) */}
+                <pattern
+                  id="cadGrid100"
+                  width="100"
+                  height="100"
+                  patternUnits="userSpaceOnUse"
+                >
+                  <path
+                    d="M 100 0 L 0 0 0 100"
+                    fill="none"
+                    stroke="#f1f5f9"
+                    strokeWidth="1"
+                  />
+                </pattern>
+                <pattern
+                  id="cadGrid500"
+                  width="500"
+                  height="500"
+                  patternUnits="userSpaceOnUse"
+                >
+                  <rect width="500" height="500" fill="url(#cadGrid100)" />
+                  <path
+                    d="M 500 0 L 0 0 0 500"
+                    fill="none"
+                    stroke="#e2e8f0"
+                    strokeWidth="1.5"
+                    strokeOpacity="0.85"
+                  />
+                </pattern>
+                <pattern
+                  id="cadGrid1000"
+                  width="1000"
+                  height="1000"
+                  patternUnits="userSpaceOnUse"
+                >
+                  <rect width="1000" height="1000" fill="url(#cadGrid500)" />
+                  <path
+                    d="M 1000 0 L 0 0 0 1000"
+                    fill="none"
+                    stroke="#cbd5e1"
+                    strokeWidth="2.5"
+                    strokeOpacity="0.75"
+                  />
+                </pattern>
               </defs>
 
-              {/* Czyste białe tło arkusza CAD */}
+              {/* Czyste białe tło wielkiego arkusza / przestrzeni roboczej CAD */}
               <rect
                 x="0"
                 y="0"
@@ -1293,20 +1404,89 @@ export function AllConstructionsCadView({
                     ? "grabbing"
                     : isPanning
                     ? "grabbing"
-                    : isCtrlOrMetaPressed
-                    ? "grab"
-                    : "default",
+                    : "grab",
                 }}
               />
+
+              {/* Siatka techniczna CAD */}
+              {showCadGrid && (
+                <rect
+                  x="0"
+                  y="0"
+                  width={sheetWidth}
+                  height={sheetHeight}
+                  fill="url(#cadGrid1000)"
+                  pointerEvents="none"
+                />
+              )}
+
+              {/* Ramka zewnętrzna przestrzeni roboczej CAD */}
               <rect
                 x="0"
                 y="0"
                 width={sheetWidth}
                 height={sheetHeight}
                 fill="none"
-                stroke="#cbd5e1"
-                strokeWidth="2"
+                stroke="#94a3b8"
+                strokeWidth="3"
+                strokeDasharray="24 16"
               />
+
+              {/* Wskaźnik układu współrzędnych CAD (WCS / UCS) w lewym dolnym rogu */}
+              <g
+                transform={`translate(180, ${sheetHeight - 180})`}
+                pointerEvents="none"
+                opacity={0.7}
+              >
+                <line
+                  x1="0"
+                  y1="0"
+                  x2="150"
+                  y2="0"
+                  stroke="#ef4444"
+                  strokeWidth="5"
+                  markerEnd="url(#multiCadArrowEnd)"
+                />
+                <text
+                  x="175"
+                  y="12"
+                  fill="#ef4444"
+                  fontSize="36"
+                  fontWeight="900"
+                >
+                  X
+                </text>
+                <line
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="-150"
+                  stroke="#10b981"
+                  strokeWidth="5"
+                  markerEnd="url(#multiCadArrowEnd)"
+                />
+                <text
+                  x="-6"
+                  y="-175"
+                  fill="#10b981"
+                  fontSize="36"
+                  fontWeight="900"
+                  textAnchor="middle"
+                >
+                  Y
+                </text>
+                <circle cx="0" cy="0" r="8" fill="#0b1220" />
+                <text
+                  x="0"
+                  y="55"
+                  fill="#64748b"
+                  fontSize="26"
+                  fontWeight="800"
+                  letterSpacing="2px"
+                >
+                  CAD MODEL SPACE [mm] · {workspacePreset.toUpperCase()}
+                </text>
+              </g>
 
               {/* Renderowanie rzędów i konstrukcji */}
               {computedRows.map((renderRow, rowIndex) => {
@@ -1321,28 +1501,37 @@ export function AllConstructionsCadView({
                 const currentRowWidth = renderRow.rowWidth;
                 let stackCursorX = (sheetWidth - currentRowWidth) / 2;
 
+                const floorStartX = Math.max(120, stackCursorX - 1800);
+                const floorEndX = Math.min(
+                  sheetWidth - 120,
+                  stackCursorX + currentRowWidth + 1800
+                );
+
                 return (
                   <g key={`row-${renderRow.rowIndex}`}>
-                    {/* Ciągła linia poziomu posadzki ±0.00 dla rzędu */}
+                    {/* Ciągła linia poziomu posadzki ±0.00 dla rzędu rozciągnięta w przestrzeni CAD */}
                     <line
-                      x1={Math.max(80, stackCursorX - 160)}
+                      x1={floorStartX}
                       y1={floorY + 4}
-                      x2={Math.min(
-                        sheetWidth - 80,
-                        stackCursorX + currentRowWidth + 160
-                      )}
+                      x2={floorEndX}
                       y2={floorY + 4}
                       stroke="#0e7490"
-                      strokeWidth="3"
-                      strokeDasharray="18 10"
-                      strokeOpacity="0.55"
+                      strokeWidth="3.5"
+                      strokeDasharray="24 12"
+                      strokeOpacity="0.75"
+                    />
+                    {/* Geodezyjny / architektoniczny znak rzędnej poziomu posadzki */}
+                    <path
+                      d={`M ${floorStartX} ${floorY + 4} l 28 -28 l -56 0 z`}
+                      fill="#0e7490"
+                      opacity="0.85"
                     />
                     <text
-                      x={Math.max(90, stackCursorX - 150)}
-                      y={floorY + 48}
+                      x={floorStartX + 40}
+                      y={floorY - 6}
                       fill="#0e7490"
-                      fontSize="36"
-                      fontWeight="700"
+                      fontSize="34"
+                      fontWeight="800"
                     >
                       {computedRows.length > 1
                         ? `RZĄD ${renderRow.rowIndex + 1} — ±0.00 POZIOM POSADZKI`
