@@ -63,7 +63,7 @@ export const getOrCreateForOpportunity = mutation({
     const offerNumber = `OF-${year}/${String(count).padStart(3, "0")}`;
     const now = Date.now();
 
-    const clientName = [opp.firstName, opp.lastName].filter(Boolean).join(" ") || "Klient";
+    const clientName = opp.customText?.trim() || [opp.firstName, opp.lastName].filter(Boolean).join(" ") || "Klient";
     const variantSuffix = existingOffers.length > 0 ? ` (Wariant ${existingOffers.length + 1})` : "";
     const title = args.title || `Oferta dla: ${clientName}${variantSuffix}`;
 
@@ -108,7 +108,7 @@ export const createOfferForOpportunity = mutation({
     const offerNumber = `OF-${year}/${String(count).padStart(3, "0")}`;
     const now = Date.now();
 
-    const clientName = [opp.firstName, opp.lastName].filter(Boolean).join(" ") || "Klient";
+    const clientName = opp.customText?.trim() || [opp.firstName, opp.lastName].filter(Boolean).join(" ") || "Klient";
     const variantSuffix = existingOffers.length > 0 ? ` (Wariant ${existingOffers.length + 1})` : "";
     const title = args.title || `Oferta dla: ${clientName}${variantSuffix}`;
 
@@ -257,6 +257,7 @@ export const list = query({
 
       const clientName =
         (client ? [client.firstName, client.lastName].filter(Boolean).join(" ") || client.companyName : null) ||
+        opp?.customText?.trim() ||
         [opp?.firstName, opp?.lastName].filter(Boolean).join(" ") ||
         "—";
 
