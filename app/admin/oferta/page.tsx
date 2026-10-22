@@ -96,11 +96,19 @@ function OfertaPageContent() {
   const [nipError, setNipError] = useState<string | null>(null);
   const [newOppPhone, setNewOppPhone] = useState("");
   const [newOppEmail, setNewOppEmail] = useState("");
-  const [newOppCity, setNewOppCity] = useState("");
   const [newOppStreet, setNewOppStreet] = useState("");
-  const [sameAddress, setSameAddress] = useState(true);
-  const [newOppInvestmentCity, setNewOppInvestmentCity] = useState("");
+  const [newOppBuildingNumber, setNewOppBuildingNumber] = useState("");
+  const [newOppApartmentNumber, setNewOppApartmentNumber] = useState("");
+  const [newOppPostalCode, setNewOppPostalCode] = useState("");
+  const [newOppCity, setNewOppCity] = useState("");
+
+  const [hasSeparateAddress, setHasSeparateAddress] = useState(false);
   const [newOppInvestmentStreet, setNewOppInvestmentStreet] = useState("");
+  const [newOppInvestmentBuildingNumber, setNewOppInvestmentBuildingNumber] = useState("");
+  const [newOppInvestmentApartmentNumber, setNewOppInvestmentApartmentNumber] = useState("");
+  const [newOppInvestmentPostalCode, setNewOppInvestmentPostalCode] = useState("");
+  const [newOppInvestmentCity, setNewOppInvestmentCity] = useState("");
+
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [newOppComment, setNewOppComment] = useState("");
   const [newOppError, setNewOppError] = useState("");
@@ -137,6 +145,9 @@ function OfertaPageContent() {
       if (data) {
         if (data.companyName) setNewOppCompanyName(data.companyName);
         if (data.street) setNewOppStreet(data.street);
+        if (data.buildingNumber) setNewOppBuildingNumber(data.buildingNumber);
+        if (data.apartmentNumber) setNewOppApartmentNumber(data.apartmentNumber);
+        if (data.postalCode) setNewOppPostalCode(data.postalCode);
         if (data.city) setNewOppCity(data.city);
         setNipFetched(true);
       }
@@ -365,13 +376,25 @@ function OfertaPageContent() {
         .filter(Boolean)
         .join("\n");
 
-      const investmentCity = sameAddress
-        ? newOppCity.trim() || undefined
-        : newOppInvestmentCity.trim() || newOppCity.trim() || undefined;
+      const investmentStreet = hasSeparateAddress && newOppInvestmentStreet.trim()
+        ? newOppInvestmentStreet.trim()
+        : newOppStreet.trim() || undefined;
 
-      const investmentStreet = sameAddress
-        ? newOppStreet.trim() || undefined
-        : newOppInvestmentStreet.trim() || newOppStreet.trim() || undefined;
+      const investmentBuildingNumber = hasSeparateAddress && newOppInvestmentBuildingNumber.trim()
+        ? newOppInvestmentBuildingNumber.trim()
+        : newOppBuildingNumber.trim() || undefined;
+
+      const investmentApartmentNumber = hasSeparateAddress && newOppInvestmentApartmentNumber.trim()
+        ? newOppInvestmentApartmentNumber.trim()
+        : newOppApartmentNumber.trim() || undefined;
+
+      const investmentPostalCode = hasSeparateAddress && newOppInvestmentPostalCode.trim()
+        ? newOppInvestmentPostalCode.trim()
+        : newOppPostalCode.trim() || undefined;
+
+      const investmentCity = hasSeparateAddress && newOppInvestmentCity.trim()
+        ? newOppInvestmentCity.trim()
+        : newOppCity.trim() || undefined;
 
       const oppId = await createManualOpportunity({
         firstName,
@@ -379,10 +402,16 @@ function OfertaPageContent() {
         customText,
         phone: newOppPhone.trim() || undefined,
         email: newOppEmail.trim() || undefined,
-        city: newOppCity.trim() || undefined,
         street: newOppStreet.trim() || undefined,
-        investmentCity,
+        buildingNumber: newOppBuildingNumber.trim() || undefined,
+        apartmentNumber: newOppApartmentNumber.trim() || undefined,
+        postalCode: newOppPostalCode.trim() || undefined,
+        city: newOppCity.trim() || undefined,
         investmentStreet,
+        investmentBuildingNumber,
+        investmentApartmentNumber,
+        investmentPostalCode,
+        investmentCity,
         services: selectedServices.length > 0 ? selectedServices : undefined,
         comment: fullComment || undefined,
       });
@@ -402,11 +431,17 @@ function OfertaPageContent() {
       setNipError(null);
       setNewOppPhone("");
       setNewOppEmail("");
-      setNewOppCity("");
       setNewOppStreet("");
-      setSameAddress(true);
-      setNewOppInvestmentCity("");
+      setNewOppBuildingNumber("");
+      setNewOppApartmentNumber("");
+      setNewOppPostalCode("");
+      setNewOppCity("");
+      setHasSeparateAddress(false);
       setNewOppInvestmentStreet("");
+      setNewOppInvestmentBuildingNumber("");
+      setNewOppInvestmentApartmentNumber("");
+      setNewOppInvestmentPostalCode("");
+      setNewOppInvestmentCity("");
       setSelectedServices([]);
       setNewOppComment("");
       setOppSearch("");
@@ -986,82 +1021,148 @@ function OfertaPageContent() {
                     </div>
                   </div>
 
-                  {/* Adres klienta / siedziby */}
-                  <div>
-                    <label className="block text-xs font-semibold text-[#0b1220] mb-1">
-                      Adres klienta {clientType === "business" ? "(siedziba)" : ""}
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <div className="relative">
-                          <MapPin size={14} className="absolute left-3 top-2.5 text-[#7c8597]" />
-                          <input
-                            type="text"
-                            value={newOppCity}
-                            onChange={(e) => setNewOppCity(e.target.value)}
-                            placeholder="Miejscowość (np. Warszawa)"
-                            className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg pl-9 pr-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
-                          />
-                        </div>
-                      </div>
-                      <div>
+                  {/* Adres klienta / siedziby (identyczny jak w NewOpportunityForm) */}
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                    <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-[#0e7490]" />
+                      {clientType === "business" ? "Adres siedziby firmy" : "Adres zamieszkania klienta"}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-2">
+                        <label className="block text-[10.5px] text-slate-600 mb-0.5">Ulica</label>
                         <input
                           type="text"
                           value={newOppStreet}
                           onChange={(e) => setNewOppStreet(e.target.value)}
-                          placeholder="Ulica i nr budynku (np. ul. Polna 12)"
-                          className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                          placeholder="np. Główna"
+                          className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:outline-hidden focus:border-[#0e7490]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10.5px] text-slate-600 mb-0.5">Nr bud./lok.</label>
+                        <input
+                          type="text"
+                          value={
+                            newOppApartmentNumber
+                              ? `${newOppBuildingNumber}/${newOppApartmentNumber}`
+                              : newOppBuildingNumber
+                          }
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val.includes("/")) {
+                              const [b, a] = val.split("/");
+                              setNewOppBuildingNumber(b);
+                              setNewOppApartmentNumber(a ?? "");
+                            } else {
+                              setNewOppBuildingNumber(val);
+                              setNewOppApartmentNumber("");
+                            }
+                          }}
+                          placeholder="np. 10/2"
+                          className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:outline-hidden focus:border-[#0e7490]"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10.5px] text-slate-600 mb-0.5">Kod pocztowy</label>
+                        <input
+                          type="text"
+                          value={newOppPostalCode}
+                          onChange={(e) => setNewOppPostalCode(e.target.value)}
+                          placeholder="np. 00-001"
+                          className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:outline-hidden focus:border-[#0e7490]"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-[10.5px] text-slate-600 mb-0.5">Miejscowość</label>
+                        <input
+                          type="text"
+                          value={newOppCity}
+                          onChange={(e) => setNewOppCity(e.target.value)}
+                          placeholder="np. Warszawa"
+                          className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:outline-hidden focus:border-[#0e7490]"
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Adres inwestycji (montażu) & przełącznik "Taki sam jak klienta" */}
-                  <div className="p-3 rounded-xl bg-[#f8fafc] border border-[#e2e8f0] space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin size={13} className="text-[#0e7490]" />
-                        <span className="text-xs font-semibold text-[#0b1220]">
-                          Adres inwestycji (montaż)
-                        </span>
-                      </div>
-                      <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={sameAddress}
-                          onChange={(e) => setSameAddress(e.target.checked)}
-                          className="w-3.5 h-3.5 rounded text-[#0e7490] focus:ring-[#0e7490] accent-[#0e7490]"
-                        />
-                        <span className="text-xs font-medium text-[#475569]">
-                          Taki sam jak adres klienta
-                        </span>
-                      </label>
-                    </div>
+                  {/* Adres inwestycji (montażu) - identyczny jak w NewOpportunityForm */}
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hasSeparateAddress}
+                        onChange={(e) => setHasSeparateAddress(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded text-[#0e7490] focus:ring-[#0e7490] accent-[#0e7490]"
+                      />
+                      <span>Inny adres inwestycji (montażu)</span>
+                    </label>
 
-                    {!sameAddress ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                        <div>
-                          <input
-                            type="text"
-                            value={newOppInvestmentCity}
-                            onChange={(e) => setNewOppInvestmentCity(e.target.value)}
-                            placeholder="Miejscowość inwestycji"
-                            className="w-full bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
-                          />
+                    {hasSeparateAddress ? (
+                      <div className="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                        <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-[#0e7490]" />
+                          Lokalizacja montażu
                         </div>
-                        <div>
-                          <input
-                            type="text"
-                            value={newOppInvestmentStreet}
-                            onChange={(e) => setNewOppInvestmentStreet(e.target.value)}
-                            placeholder="Ulica i nr inwestycji"
-                            className="w-full bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
-                          />
+                        <div className="grid grid-cols-4 gap-2">
+                          <div className="col-span-2">
+                            <label className="block text-[10.5px] text-slate-600 mb-0.5">Ulica</label>
+                            <input
+                              type="text"
+                              value={newOppInvestmentStreet}
+                              onChange={(e) => setNewOppInvestmentStreet(e.target.value)}
+                              placeholder="Ulica"
+                              className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-hidden focus:border-[#0e7490]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10.5px] text-slate-600 mb-0.5">Nr bud.</label>
+                            <input
+                              type="text"
+                              value={newOppInvestmentBuildingNumber}
+                              onChange={(e) => setNewOppInvestmentBuildingNumber(e.target.value)}
+                              placeholder="Nr bud."
+                              className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-hidden focus:border-[#0e7490]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10.5px] text-slate-600 mb-0.5">Nr lok.</label>
+                            <input
+                              type="text"
+                              value={newOppInvestmentApartmentNumber}
+                              onChange={(e) => setNewOppInvestmentApartmentNumber(e.target.value)}
+                              placeholder="Nr lok."
+                              className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-hidden focus:border-[#0e7490]"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="block text-[10.5px] text-slate-600 mb-0.5">Kod pocztowy</label>
+                            <input
+                              type="text"
+                              value={newOppInvestmentPostalCode}
+                              onChange={(e) => setNewOppInvestmentPostalCode(e.target.value)}
+                              placeholder="np. 60-001"
+                              className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-hidden focus:border-[#0e7490]"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-[10.5px] text-slate-600 mb-0.5">Miejscowość</label>
+                            <input
+                              type="text"
+                              value={newOppInvestmentCity}
+                              onChange={(e) => setNewOppInvestmentCity(e.target.value)}
+                              placeholder="Miejscowość"
+                              className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-hidden focus:border-[#0e7490]"
+                            />
+                          </div>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-[11px] text-[#7c8597] italic">
-                        Montaż odbędzie się pod adresem klienta: {[newOppStreet, newOppCity].filter(Boolean).join(", ") || "(uzupełnij adres klienta powyżej)"}
+                      <p className="mt-1 text-[11px] text-[#7c8597] italic pl-5.5">
+                        Domyślnie adres montażu jest taki sam jak adres klienta ({[newOppStreet, [newOppBuildingNumber, newOppApartmentNumber].filter(Boolean).join("/"), newOppCity].filter(Boolean).join(" ") || "uzupełnij powyżej"}).
                       </p>
                     )}
                   </div>
