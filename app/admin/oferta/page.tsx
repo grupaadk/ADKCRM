@@ -3,11 +3,12 @@
 import React, { Suspense, useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { CadWorkspace } from "@/components/cad-configurator/CadWorkspace";
 import { fmtDate, fmtPLN } from "@/components/crm-ui";
+import ServiceIcon from "@/components/ServiceIcon";
 import {
   Layers,
   Plus,
@@ -27,6 +28,8 @@ import {
   Calendar,
   Check,
   UserPlus,
+  Building2,
+  Briefcase,
 } from "lucide-react";
 
 type SortField =
@@ -83,19 +86,26 @@ function OfertaPageContent() {
 
   // Tryb modalu: 'select' (istniejąca szansa) | 'create' (nowa szansa)
   const [modalMode, setModalMode] = useState<"select" | "create">("select");
-  const [newOppName, setNewOppName] = useState("");
+  const [clientType, setClientType] = useState<"individual" | "business">("individual");
+  const [newOppFirstName, setNewOppFirstName] = useState("");
+  const [newOppLastName, setNewOppLastName] = useState("");
+  const [newOppCompanyName, setNewOppCompanyName] = useState("");
+  const [newOppNip, setNewOppNip] = useState("");
+  const [nipLoading, setNipLoading] = useState(false);
+  const [nipFetched, setNipFetched] = useState(false);
+  const [nipError, setNipError] = useState<string | null>(null);
   const [newOppPhone, setNewOppPhone] = useState("");
   const [newOppEmail, setNewOppEmail] = useState("");
   const [newOppCity, setNewOppCity] = useState("");
   const [newOppStreet, setNewOppStreet] = useState("");
-  const [newOppService, setNewOppService] = useState("");
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [newOppComment, setNewOppComment] = useState("");
   const [newOppError, setNewOppError] = useState("");
 
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
 
-  // Queries
+  // Queries & Actions
   const offers = useQuery(api.offers.list, {
     search: search.trim() || undefined,
   });
@@ -105,6 +115,56 @@ function OfertaPageContent() {
   const getOrCreateForOpportunity = useMutation(api.offers.getOrCreateForOpportunity);
   const createOfferForOpportunity = useMutation(api.offers.createOfferForOpportunity);
   const createManualOpportunity = useMutation(api.salesOpportunities.createManualOpportunity);
+  const lookupNip = useAction(api.whitelist.lookupNip);
+
+  const handleNipLookup = async () => {
+    const cleanNip = newOppNip.trim().replace(/[\s-]/g, "");
+    if (!cleanNip) {
+      setNipError("Podaj numer NIP");
+      return;
+    }
+    if (!/^\d{10}$/.test(cleanNip)) {
+      setNipError("NIP musi składać się z 10 cyfr");
+      return;
+    }
+    setNipLoading(true);
+    setNipError(null);
+    try {
+      const data = await lookupNip({ nip: cleanNip });
+      if (data) {
+        if (data.companyName) setNewOppCompanyName(data.companyName);
+        if (data.street) setNewOppStreet(data.street);
+        if (data.city) setNewOppCity(data.city);
+        setNipFetched(true);
+      }
+    } catch (err: unknown) {
+      setNipError(err instanceof Error ? err.message : "Błąd pobierania danych z GUS");
+    } finally {
+      setNipLoading(false);
+    }
+  };
+
+  const toggleService = (serviceName: string) => {
+    setSelectedServices((prev) =>
+      prev.includes(serviceName) ? prev.filter((s) => s !== serviceName) : [...prev, serviceName]
+    );
+  };
+
+  const handleSwitchToCreate = (prefill?: string) => {
+    setModalMode("create");
+    setNewOppError("");
+    const searchVal = (prefill !== undefined ? prefill : oppSearch).trim();
+    if (searchVal) {
+      const parts = searchVal.split(/\s+/);
+      if (parts.length === 1) {
+        setNewOppFirstName(parts[0]);
+      } else {
+        setNewOppFirstName(parts[0]);
+        setNewOppLastName(parts.slice(1).join(" "));
+      }
+      setNewOppCompanyName(searchVal);
+    }
+  };
 
   // Mapa istniejących ofert po opportunityId (tablica ofert dla każdej szansy)
   const offersByOppId = useMemo(() => {
@@ -262,26 +322,57 @@ function OfertaPageContent() {
   // Utworzenie nowej szansy sprzedaży i natychmiastowe utworzenie dla niej oferty CAD
   const handleCreateNewOpportunityAndOffer = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!newOppName.trim()) {
-      setNewOppError("Wpisz imię i nazwisko lub nazwę klienta");
+
+    if (clientType === "business") {
+      if (!newOppCompanyName.trim()) {
+        setNewOppError("Podaj pełną nazwę firmy");
+        return;
+      }
+    } else {
+      if (!newOppFirstName.trim() && !newOppLastName.trim()) {
+        setNewOppError("Podaj imię lub nazwisko klienta");
+        return;
+      }
+    }
+
+    if (selectedServices.length === 0) {
+      setNewOppError("Wybierz przynajmniej jedną usługę dla nowej szansy sprzedaży");
       return;
     }
+
     setNewOppError("");
     setCreating(true);
     try {
-      const nameParts = newOppName.trim().split(/\s+/);
-      const firstName = nameParts[0] || "Klient";
-      const lastName = nameParts.slice(1).join(" ") || "-";
+      const firstName =
+        clientType === "business"
+          ? newOppFirstName.trim() || "Przedstawiciel"
+          : newOppFirstName.trim() || "Klient";
+
+      const lastName =
+        clientType === "business"
+          ? newOppLastName.trim() || newOppCompanyName.trim()
+          : newOppLastName.trim() || "-";
+
+      const customText =
+        clientType === "business" ? newOppCompanyName.trim() : undefined;
+
+      const fullComment = [
+        clientType === "business" && newOppNip.trim() ? `NIP: ${newOppNip.trim()}` : "",
+        newOppComment.trim(),
+      ]
+        .filter(Boolean)
+        .join("\n");
 
       const oppId = await createManualOpportunity({
         firstName,
         lastName,
+        customText,
         phone: newOppPhone.trim() || undefined,
         email: newOppEmail.trim() || undefined,
         city: newOppCity.trim() || undefined,
         street: newOppStreet.trim() || undefined,
-        services: newOppService ? [newOppService] : undefined,
-        comment: newOppComment.trim() || undefined,
+        services: selectedServices.length > 0 ? selectedServices : undefined,
+        comment: fullComment || undefined,
       });
 
       const offerId = await createOfferForOpportunity({
@@ -290,12 +381,18 @@ function OfertaPageContent() {
 
       setShowNewOfferModal(false);
       setModalMode("select");
-      setNewOppName("");
+      setClientType("individual");
+      setNewOppFirstName("");
+      setNewOppLastName("");
+      setNewOppCompanyName("");
+      setNewOppNip("");
+      setNipFetched(false);
+      setNipError(null);
       setNewOppPhone("");
       setNewOppEmail("");
       setNewOppCity("");
       setNewOppStreet("");
-      setNewOppService("");
+      setSelectedServices([]);
       setNewOppComment("");
       setOppSearch("");
 
@@ -603,7 +700,7 @@ function OfertaPageContent() {
           }}
         >
           <div
-            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-[#e3e7ee] overflow-hidden flex flex-col max-h-[85vh]"
+            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-[#e3e7ee] overflow-hidden flex flex-col max-h-[92vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -654,11 +751,7 @@ function OfertaPageContent() {
                 <button
                   type="button"
                   onClick={() => {
-                    setModalMode("create");
-                    if (oppSearch && !newOppName) {
-                      setNewOppName(oppSearch);
-                    }
-                    setNewOppError("");
+                    handleSwitchToCreate();
                   }}
                   className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                     modalMode === "create"
@@ -690,35 +783,170 @@ function OfertaPageContent() {
                     </div>
                   )}
 
-                  {/* Klient / Firma */}
-                  <div>
-                    <label className="block text-xs font-semibold text-[#0b1220] mb-1">
-                      Klient / Imię i nazwisko / Firma <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <User size={14} className="absolute left-3 top-2.5 text-[#7c8597]" />
+                  {/* Wybór typu klienta: Osoba prywatna / Firma (B2B) */}
+                  <div className="flex items-center gap-6 pb-2 border-b border-[#e2e8f0]">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#0b1220]">
                       <input
-                        type="text"
-                        autoFocus
-                        required
-                        value={newOppName}
-                        onChange={(e) => setNewOppName(e.target.value)}
-                        placeholder="np. Jan Kowalski lub Firma ABC"
-                        className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg pl-9 pr-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                        type="radio"
+                        name="clientType"
+                        checked={clientType === "individual"}
+                        onChange={() => setClientType("individual")}
+                        className="text-[#0e7490] focus:ring-[#0e7490] cursor-pointer"
                       />
-                    </div>
+                      <User size={14} className={clientType === "individual" ? "text-[#0e7490]" : "text-[#7c8597]"} />
+                      <span>Osoba prywatna</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#0b1220]">
+                      <input
+                        type="radio"
+                        name="clientType"
+                        checked={clientType === "business"}
+                        onChange={() => setClientType("business")}
+                        className="text-[#0e7490] focus:ring-[#0e7490] cursor-pointer"
+                      />
+                      <Building2 size={14} className={clientType === "business" ? "text-[#0e7490]" : "text-[#7c8597]"} />
+                      <span>Firma (B2B)</span>
+                    </label>
                   </div>
+
+                  {/* Pola dla Firmy (B2B) */}
+                  {clientType === "business" && (
+                    <div className="space-y-3 p-3 bg-[#f8fafc] rounded-xl border border-[#e2e8f0]">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-semibold text-[#0b1220]">
+                            NIP firmy
+                          </label>
+                          {nipFetched && (
+                            <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                              ✓ Pobrano z GUS (Biała Lista)
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newOppNip}
+                            onChange={(e) => {
+                              setNewOppNip(e.target.value);
+                              setNipFetched(false);
+                              setNipError(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                void handleNipLookup();
+                              }
+                            }}
+                            placeholder="np. 1234567890"
+                            className="flex-1 bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-1.5 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none placeholder:text-[#94a3b8]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleNipLookup()}
+                            disabled={nipLoading}
+                            className="btn ghost border border-[#d4dae3] hover:border-[#4ABBC3] bg-white flex items-center gap-1.5 shrink-0 cursor-pointer"
+                            style={{ padding: "6px 12px", fontSize: 11 }}
+                          >
+                            {nipLoading ? <Loader2 size={12} className="animate-spin text-[#0e7490]" /> : <Search size={12} />}
+                            <span>Pobierz z GUS</span>
+                          </button>
+                        </div>
+                        {nipError && (
+                          <p className="text-[11px] text-red-600 mt-1">{nipError}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-[#0b1220] mb-1">
+                          Pełna nazwa firmy <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={newOppCompanyName}
+                          onChange={(e) => setNewOppCompanyName(e.target.value)}
+                          placeholder="np. ABC Sp. z o.o."
+                          className="w-full bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-1.5 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none placeholder:text-[#94a3b8]"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-medium text-[#475569] mb-1">
+                            Imię osoby kontaktowej
+                          </label>
+                          <input
+                            type="text"
+                            value={newOppFirstName}
+                            onChange={(e) => setNewOppFirstName(e.target.value)}
+                            placeholder="np. Jan"
+                            className="w-full bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-1.5 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none placeholder:text-[#94a3b8]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-[#475569] mb-1">
+                            Nazwisko osoby kontaktowej
+                          </label>
+                          <input
+                            type="text"
+                            value={newOppLastName}
+                            onChange={(e) => setNewOppLastName(e.target.value)}
+                            placeholder="np. Kowalski"
+                            className="w-full bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-1.5 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none placeholder:text-[#94a3b8]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pola dla Osoby prywatnej */}
+                  {clientType === "individual" && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-[#0b1220] mb-1">
+                          Imię klienta <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <User size={14} className="absolute left-3 top-2.5 text-[#7c8597]" />
+                          <input
+                            type="text"
+                            autoFocus
+                            required
+                            value={newOppFirstName}
+                            onChange={(e) => setNewOppFirstName(e.target.value)}
+                            placeholder="np. Jan"
+                            className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg pl-9 pr-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#0b1220] mb-1">
+                          Nazwisko klienta <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={newOppLastName}
+                          onChange={(e) => setNewOppLastName(e.target.value)}
+                          placeholder="np. Kowalski"
+                          className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Telefon i Email */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-[#0b1220] mb-1">
-                        Telefon
+                        Telefon {clientType === "business" ? "kontaktowy" : ""}
                       </label>
                       <div className="relative">
                         <Phone size={14} className="absolute left-3 top-2.5 text-[#7c8597]" />
                         <input
-                          type="text"
+                          type="tel"
                           value={newOppPhone}
                           onChange={(e) => setNewOppPhone(e.target.value)}
                           placeholder="np. +48 500 600 700"
@@ -728,7 +956,7 @@ function OfertaPageContent() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#0b1220] mb-1">
-                        E-mail
+                        Adres e-mail
                       </label>
                       <div className="relative">
                         <Mail size={14} className="absolute left-3 top-2.5 text-[#7c8597]" />
@@ -736,7 +964,7 @@ function OfertaPageContent() {
                           type="email"
                           value={newOppEmail}
                           onChange={(e) => setNewOppEmail(e.target.value)}
-                          placeholder="np. klient@domena.pl"
+                          placeholder={clientType === "business" ? "biuro@firma.pl" : "klient@domena.pl"}
                           className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg pl-9 pr-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8]"
                         />
                       </div>
@@ -774,23 +1002,88 @@ function OfertaPageContent() {
                     </div>
                   </div>
 
-                  {/* Usługa */}
-                  <div>
-                    <label className="block text-xs font-semibold text-[#0b1220] mb-1">
-                      Wybierz usługę / produkt
-                    </label>
-                    <select
-                      value={newOppService}
-                      onChange={(e) => setNewOppService(e.target.value)}
-                      className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg px-3 py-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all cursor-pointer"
-                    >
-                      <option value="">-- Wybierz usługę (opcjonalnie) --</option>
-                      {servicesList.map((svc) => (
-                        <option key={svc._id} value={svc.name}>
-                          {svc.name}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Sekcja: Wybór usług z kafelkami i ikonami (jak w /admin/szansa/nowa) */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="block text-xs font-semibold text-[#0b1220] flex items-center gap-1.5">
+                          <Briefcase size={13} className="text-[#0e7490]" />
+                          <span>Wybór usług *</span>
+                        </label>
+                        <span className="text-[10.5px] text-[#7c8597]">Możesz wybrać jedną lub kilka usług</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {selectedServices.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedServices([])}
+                            className="text-[10px] text-[#7c8597] hover:text-[#0b1220] font-medium transition cursor-pointer"
+                          >
+                            Wyczyść
+                          </button>
+                        )}
+                        {selectedServices.length > 0 ? (
+                          <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-[#ecfeff] text-[#0e7490] border border-[#a5f3fc]">
+                            Wybrano: {selectedServices.length}
+                          </span>
+                        ) : (
+                          <span className="text-[10.5px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                            Wybierz usługi
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-1 bg-[#f8fafc] rounded-xl border border-[#e2e8f0]">
+                      {servicesList.length === 0 ? (
+                        <div className="col-span-2 py-6 text-center text-xs text-[#7c8597]">
+                          Wczytywanie listy usług...
+                        </div>
+                      ) : (
+                        servicesList.map((svc) => {
+                          const isSelected = selectedServices.includes(svc.name);
+
+                          return (
+                            <button
+                              key={svc._id}
+                              type="button"
+                              onClick={() => toggleService(svc.name)}
+                              className={`group px-2.5 py-2 rounded-lg border text-left flex items-center justify-between gap-2 transition cursor-pointer ${
+                                isSelected
+                                  ? "border-[#0e7490] bg-[#ecfeff] text-[#0e7490] shadow-2xs font-semibold ring-1 ring-[#0e7490]/30"
+                                  : "border-[#e2e8f0] bg-white hover:border-[#cbd5e1] hover:bg-slate-50 text-[#334155]"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <div
+                                  className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition ${
+                                    isSelected
+                                      ? "bg-[#0e7490] text-white"
+                                      : "bg-[#f1f5f9] text-[#64748b] group-hover:bg-[#e2e8f0]"
+                                  }`}
+                                >
+                                  <ServiceIcon name={svc.name} className="w-3.5 h-3.5" />
+                                </div>
+                                <span className="text-xs truncate font-medium">
+                                  {svc.name}
+                                </span>
+                              </div>
+
+                              <div
+                                className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition ${
+                                  isSelected
+                                    ? "bg-[#0e7490] text-white shadow-2xs"
+                                    : "border border-[#cbd5e1] bg-white group-hover:border-[#94a3b8]"
+                                }`}
+                              >
+                                {isSelected && <Check size={10} strokeWidth={3} />}
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
 
                   {/* Uwagi / Opis zapytania */}
@@ -799,11 +1092,11 @@ function OfertaPageContent() {
                       Uwagi / Opis zapytania
                     </label>
                     <textarea
-                      rows={3}
+                      rows={2}
                       value={newOppComment}
                       onChange={(e) => setNewOppComment(e.target.value)}
-                      placeholder="Dodatkowe informacje o kliencie lub parametrach zapytania..."
-                      className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg p-2.5 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8] resize-none"
+                      placeholder="Dodatkowe informacje o kliencie lub zapytaniu..."
+                      className="w-full bg-[#f8fafc] hover:bg-white focus:bg-white border border-[#d4dae3] focus:border-[#4ABBC3] rounded-lg p-2 text-xs text-[#0b1220] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none transition-all placeholder:text-[#94a3b8] resize-none"
                     />
                   </div>
                 </div>
@@ -833,7 +1126,13 @@ function OfertaPageContent() {
                     </button>
                     <button
                       type="submit"
-                      disabled={creating || !newOppName.trim()}
+                      disabled={
+                        creating ||
+                        (clientType === "business"
+                          ? !newOppCompanyName.trim()
+                          : !newOppFirstName.trim() && !newOppLastName.trim()) ||
+                        selectedServices.length === 0
+                      }
                       className="btn primary flex items-center gap-1.5 cursor-pointer"
                       style={{ padding: "6px 14px", fontSize: 12 }}
                     >
@@ -932,7 +1231,7 @@ function OfertaPageContent() {
                   <button
                     type="button"
                     onClick={() => {
-                      setModalMode("create");
+                      handleSwitchToCreate();
                     }}
                     className="btn primary flex items-center gap-1.5 mx-auto cursor-pointer"
                     style={{ padding: "6px 14px", fontSize: 12 }}
@@ -953,8 +1252,7 @@ function OfertaPageContent() {
                     <button
                       type="button"
                       onClick={() => {
-                        setModalMode("create");
-                        if (oppSearch) setNewOppName(oppSearch);
+                        handleSwitchToCreate(oppSearch);
                       }}
                       className="btn primary flex items-center gap-1.5 cursor-pointer"
                       style={{ padding: "6px 14px", fontSize: 12 }}
