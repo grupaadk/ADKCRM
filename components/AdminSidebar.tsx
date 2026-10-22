@@ -54,10 +54,10 @@ type NavItem = {
 }
 
 const mainItems: NavItem[] = [
-  { href: "/admin/szanse", label: "Szansa sprzedaży", icon: TrendingUp, alsoActiveFor: ["/admin/szanse", "/admin/szansa"] },
   { href: "/admin/oferta", label: "Oferta", icon: Layers, alsoActiveFor: ["/admin/oferta"] },
-  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, exactMatch: true },
+  { href: "/admin/szanse", label: "Szansa sprzedaży", icon: TrendingUp, alsoActiveFor: ["/admin/szanse", "/admin/szansa"] },
   { href: "/admin/panel", label: "Zlecenia", icon: LayoutGrid },
+  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, exactMatch: true },
   { href: "/admin/kalendarz", label: "Kalendarz", icon: Calendar },
   { href: "/admin/reklamacje", label: "Reklamacje", icon: AlertCircle },
   { href: "/admin/zamowienia-dostawcy", label: "Dostawcy", icon: Truck },
