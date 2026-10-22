@@ -1,344 +1,1154 @@
-"use client";
+"use client"
 
-import { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { api } from "@/convex/_generated/api";
-import { CrmPageHeader, CrmEmptyState, fmtDate, fmtPLN } from "@/components/crm-ui";
-import { Plus, Search, X, Archive, ArchiveRestore } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react"
+import { useQuery, useMutation } from "convex/react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { api } from "@/convex/_generated/api"
+import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
+import { deriveStatusStyle } from "@/lib/statuses"
+import type { KanbanPendingItem } from "@/convex/kanban"
+import type { Id } from "@/convex/_generated/dataModel"
+import { Plus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Archive, Search, X } from "lucide-react"
+import ModalPortal from "@/components/ModalPortal"
+import NewOpportunityForm from "@/components/NewOpportunityForm"
 
-type Stage = "lead" | "inquiry";
+const sortItemsByDuration = (a: KanbanPendingItem, b: KanbanPendingItem) => {
+  const now = Date.now()
+  const aOlder = a.statusChangedAt ? (now - a.statusChangedAt > 1000 * 60 * 60 * 24) : false
+  const bOlder = b.statusChangedAt ? (now - b.statusChangedAt > 1000 * 60 * 60 * 24) : false
+  if (aOlder && !bOlder) return -1
+  if (!aOlder && bOlder) return 1
+  return (a.statusChangedAt ?? 0) - (b.statusChangedAt ?? 0)
+}
 
-const STAGE_LABELS: Record<Stage, string> = {
-  lead: "Oferty",
-  inquiry: "Oferta wysłana",
-};
+const SERVICE_COLORS = [
+  { bg: "#ede9fe", text: "#6d28d9" },
+  { bg: "#dbeafe", text: "#1d4ed8" },
+  { bg: "#dcfce7", text: "#15803d" },
+  { bg: "#fef3c7", text: "#b45309" },
+  { bg: "#fce7f3", text: "#be185d" },
+  { bg: "#e0f2fe", text: "#0369a1" },
+  { bg: "#ffedd5", text: "#c2410c" },
+  { bg: "#f0fdf4", text: "#166534" },
+]
 
-const STAGE_COLORS: Record<Stage, { bg: string; text: string }> = {
-  lead: { bg: "#fef3c7", text: "#b45309" },
-  inquiry: { bg: "#dbeafe", text: "#1d4ed8" },
-};
-
-export default function SzansePage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const fromTab = searchParams.get("fromTab");
-  const backHref = fromTab ? `/admin/panel?tab=${fromTab}` : "/admin/panel";
-
-  const [searchTerm, setSearchTerm] = useState("");
-  const [stageFilter, setStageFilter] = useState<"all" | Stage>("all");
-  const [showArchived, setShowArchived] = useState(false);
-
-  const opportunities = useQuery(api.salesOpportunities.listOpportunities, {
-    includeArchived: showArchived,
-  });
-
-  const filtered = useMemo(() => {
-    if (!opportunities) return [];
-    let list = opportunities;
-
-    // Stage filter
-    if (stageFilter !== "all") {
-      list = list.filter((o) => (o.stage ?? "lead") === stageFilter);
-    }
-
-    // Text search
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      list = list.filter((o) => {
-        const name = `${o.firstName} ${o.lastName}`.toLowerCase();
-        const city = (o.investmentCity || o.city || "").toLowerCase();
-        const email = (o.email || "").toLowerCase();
-        const phone = (o.phone || "").toLowerCase();
-        const services = (o.services || []).join(" ").toLowerCase();
+function ServiceBadges({ services }: { services: string[] }) {
+  const MAX = 2
+  const shown = services.slice(0, MAX)
+  const rest = services.length - MAX
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 7, minWidth: 0, maxWidth: "100%" }}>
+      {shown.map((s, i) => {
+        const color = SERVICE_COLORS[i % SERVICE_COLORS.length]
         return (
-          name.includes(q) ||
-          city.includes(q) ||
-          email.includes(q) ||
-          phone.includes(q) ||
-          services.includes(q)
-        );
-      });
-    }
+          <span key={s} style={{
+            fontSize: 10, fontWeight: 600,
+            background: color.bg, color: color.text,
+            borderRadius: 4, padding: "2px 7px", lineHeight: 1.5,
+            whiteSpace: "nowrap",
+            maxWidth: "100%",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            display: "inline-block",
+          }}>
+            {s}
+          </span>
+        )
+      })}
+      {rest > 0 && (
+        <span style={{
+          fontSize: 10, fontWeight: 600,
+          background: "#f1f5f9", color: "#64748b",
+          borderRadius: 4, padding: "2px 7px", lineHeight: 1.5,
+        }}>
+          +{rest}
+        </span>
+      )}
+    </div>
+  )
+}
 
-    return list;
-  }, [opportunities, stageFilter, searchTerm]);
+function KanbanCard({
+  item,
+  isDragging,
+  expanded,
+  onDragStart,
+  onDragEnd,
+  onClick,
+  onDelete,
+  onToggleExpand,
+  onArchive,
+}: {
+  item: KanbanPendingItem
+  isDragging: boolean
+  expanded: boolean
+  onDragStart: (e: React.DragEvent, item: KanbanPendingItem) => void
+  onDragEnd: () => void
+  onClick: () => void
+  onDelete: (item: KanbanPendingItem) => void
+  onToggleExpand: () => void
+  onArchive?: (item: KanbanPendingItem) => void
+}) {
+  const fullName = item.clientType === "business" && item.companyName
+    ? item.companyName
+    : `${item.clientFirstName} ${item.clientLastName}`.trim()
+  const didDragRef = useRef(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [daysInStatusLabel, setDaysInStatusLabel] = useState<string | null>(null)
+  const [daysInStatusColor, setDaysInStatusColor] = useState<string>("slate")
 
-  const counts = useMemo(() => {
-    if (!opportunities) return { all: 0, lead: 0, inquiry: 0 };
-    return {
-      all: opportunities.length,
-      lead: opportunities.filter((o) => (o.stage ?? "lead") === "lead").length,
-      inquiry: opportunities.filter((o) => o.stage === "inquiry").length,
-    };
-  }, [opportunities]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!item.statusChangedAt) {
+        setDaysInStatusLabel(null)
+        return
+      }
+      const diffMs = Date.now() - item.statusChangedAt
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+      if (diffDays <= 0) {
+        setDaysInStatusLabel("na liście: dzisiaj")
+        setDaysInStatusColor("slate")
+      } else if (diffDays === 1) {
+        setDaysInStatusLabel("na liście: 1 dzień")
+        setDaysInStatusColor("slate")
+      } else {
+        setDaysInStatusLabel(`na liście: ${diffDays} dni`)
+        if (diffDays >= 7) {
+          setDaysInStatusColor("red")
+        } else if (diffDays >= 3) {
+          setDaysInStatusColor("amber")
+        } else {
+          setDaysInStatusColor("slate")
+        }
+      }
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [item.statusChangedAt])
 
-  const loading = opportunities === undefined;
+  const titleText = "Nowe zgłoszenie"
+  const titleStyle: React.CSSProperties = { fontSize: 11.5, fontWeight: 700, color: "#b45309" }
+
+  const assignees = item.assignees && item.assignees.length > 0
+    ? item.assignees
+    : item.assignedUserColor
+      ? [{ color: item.assignedUserColor }]
+      : []
+
+  const colors = assignees.map(a => a.color).filter(Boolean) as string[]
+  const hasMultipleColors = colors.length > 1
+  const singleColor = colors.length === 1 ? colors[0] : undefined
+
+  let gradientStr = ""
+  if (hasMultipleColors) {
+    const step = 100 / colors.length
+    const stops = colors.map((c, i) => `${c} ${i * step}%, ${c} ${(i + 1) * step}%`)
+    gradientStr = `linear-gradient(to bottom, ${stops.join(", ")})`
+  }
 
   return (
-    <div>
-      <CrmPageHeader
-        title="Szanse sprzedaży"
-        sub="Przegląd wszystkich szans sprzedaży (leadów i ofert)."
-        backHref={backHref}
-        backLabel="Powrót do Panelu"
-        center={
-          <div style={{ position: "relative", width: "100%", maxWidth: 420 }}>
-            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-mute)" }} />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Wyszukaj szansę..."
-              style={{
-                width: "100%",
-                padding: "8px 30px 8px 34px",
-                borderRadius: 999,
-                border: "1px solid var(--line)",
-                background: "#fff",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                fontSize: 13,
-                fontWeight: 500,
-                fontFamily: "inherit",
-                color: "var(--text-strong)",
-                outline: "none",
-                transition: "border-color 0.15s, box-shadow 0.15s",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent)";
-                e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent-line)";
-                e.currentTarget.style.boxShadow = "none";
-              }}
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm("")}
-                style={{
-                  position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-                  background: "var(--panel-3)", border: "none", borderRadius: "50%",
-                  cursor: "pointer", color: "var(--text-mute)", width: 20, height: 20,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}
-              >
-                <X style={{ width: 12, height: 12 }} />
-              </button>
-            )}
+    <div
+      draggable
+      onClick={() => { if (!didDragRef.current) onClick() }}
+      onDragStart={(e) => { didDragRef.current = false; onDragStart(e, item) }}
+      onDragEnd={() => { didDragRef.current = true; setTimeout(() => { didDragRef.current = false }, 300); onDragEnd() }}
+      style={{
+        background: "var(--panel)",
+        border: `1px solid ${isDragging ? "var(--accent)" : "#f59e0b55"}`,
+        borderRadius: 7,
+        padding: expanded 
+          ? `7px 8px 9px ${(singleColor || hasMultipleColors) && !isDragging ? 18 : 8}px` 
+          : `6px 8px 6px ${(singleColor || hasMultipleColors) && !isDragging ? 18 : 8}px`,
+        cursor: isDragging ? "grabbing" : "grab",
+        userSelect: "none",
+        transition: "all 0.15s ease",
+        boxShadow: isDragging ? "0 8px 20px rgba(0,0,0,0.18)" : "0 1px 3px rgba(0,0,0,0.06)",
+        transform: isDragging ? "scale(1.02)" : undefined,
+        opacity: isDragging ? 0.6 : 1,
+        position: "relative",
+        minWidth: 0,
+        maxWidth: "100%",
+        boxSizing: "border-box",
+        overflow: confirmDelete ? "visible" : "hidden",
+      }}
+      onMouseEnter={(e) => {
+        if (!isDragging) {
+          const el = e.currentTarget as HTMLDivElement
+          el.style.borderColor = "var(--accent)"
+          el.style.boxShadow = "0 2px 6px rgba(0,0,0,0.1)"
+          el.style.transform = "translateY(-2px)"
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isDragging) {
+          const el = e.currentTarget as HTMLDivElement
+          el.style.borderColor = "#f59e0b55"
+          el.style.boxShadow = "0 1px 2px rgba(0,0,0,0.04)"
+          el.style.transform = ""
+        }
+      }}
+    >
+      {(singleColor || hasMultipleColors) && !isDragging && (
+        <div style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 10,
+          background: hasMultipleColors ? gradientStr : singleColor,
+          borderTopLeftRadius: 6,
+          borderBottomLeftRadius: 6,
+          zIndex: 1,
+        }} />
+      )}
+      {/* Wiersz tytułu + akcje */}
+      <div style={{ display: "flex", alignItems: "center", gap: 3, position: "relative", zIndex: 2 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ ...titleStyle, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1.25 }}>
+            {titleText}
           </div>
-        }
-        actions={
-          <>
-            <button
-              className="btn"
-              onClick={() => setShowArchived((v) => !v)}
-              style={{ background: showArchived ? "var(--panel-3)" : undefined }}
-            >
-              {showArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
-              {showArchived ? "Ukryj archiwum" : "Pokaż archiwum"}
-            </button>
-            <Link href="/admin/szansa/nowa" className="btn primary" style={{ textDecoration: "none" }}>
-              <Plus size={13} /> Nowa szansa
-            </Link>
-          </>
-        }
-      />
-
-      {/* Stage filter tabs */}
-      <div style={{ display: "flex", gap: 2, marginBottom: 14 }}>
-        {(["all", "lead", "inquiry"] as const).map((key) => {
-          const label = key === "all" ? "Wszystkie" : STAGE_LABELS[key];
-          const count = counts[key];
-          const active = stageFilter === key;
-          return (
-            <button
-              key={key}
-              onClick={() => setStageFilter(key)}
-              style={{
-                padding: "5px 11px",
-                fontSize: 11.5,
-                borderRadius: 4,
-                background: active ? "var(--accent-soft)" : "transparent",
-                color: active ? "var(--accent)" : "var(--text-mute)",
-                border: "1px solid",
-                borderColor: active ? "var(--accent-line)" : "transparent",
-                fontWeight: active ? 600 : 500,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                fontFamily: "inherit",
-              }}
-            >
-              {label}
-              <span style={{
-                fontSize: 10, fontWeight: 600,
-                padding: "0px 5px", borderRadius: 999,
-                background: active ? "var(--accent)" : "var(--panel-3)",
-                color: active ? "#fff" : "var(--text-mute)",
-              }}>
-                {count}
+          <div style={{ fontSize: 11, color: "var(--text-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1, lineHeight: 1.3 }}>
+            {fullName || "—"}
+          </div>
+          {item.customText && (
+            <span className="chip-custom" style={{ marginTop: 3 }}>{item.customText}</span>
+          )}
+          {daysInStatusLabel && (
+            <div style={{ display: "flex", marginTop: 4 }}>
+              <span 
+                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium text-[9.5px] border ${
+                  daysInStatusColor === "red"
+                    ? "bg-red-50 text-red-600 border-red-200/40"
+                    : daysInStatusColor === "amber"
+                    ? "bg-amber-50 text-amber-600 border-amber-200/40"
+                    : "bg-slate-50 text-slate-500 border-slate-200/40"
+                }`}
+                title={`Czas w tym statusie: ${daysInStatusLabel}`}
+              >
+                <svg 
+                  className={`size-2.5 ${
+                    daysInStatusColor === "red"
+                      ? "text-red-400"
+                      : daysInStatusColor === "amber"
+                      ? "text-amber-400"
+                      : "text-slate-400"
+                  }`} 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor" 
+                  strokeWidth={2.5}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                <span className="tabular-nums">{daysInStatusLabel}</span>
               </span>
-            </button>
-          );
-        })}
+            </div>
+          )}
+        </div>
+
+        {/* Chevron rozwijania */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleExpand() }}
+          style={{
+            width: 18, height: 18, borderRadius: 4,
+            background: "transparent", border: "none",
+            color: "var(--text-mute)", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            opacity: 0.6, flexShrink: 0,
+            transition: "opacity 0.15s, background 0.15s",
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; (e.currentTarget as HTMLButtonElement).style.background = "var(--panel-2)" }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.6"; (e.currentTarget as HTMLButtonElement).style.background = "transparent" }}
+          title={expanded ? "Zwiń" : "Rozwiń szczegóły"}
+        >
+          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
+
+        {/* Przycisk archiwizowania */}
+        {onArchive && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onArchive(item) }}
+            style={{
+              width: 18, height: 18, borderRadius: 4,
+              background: "transparent", border: "none",
+              color: "var(--text-mute)", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              opacity: 0.4, flexShrink: 0,
+              transition: "opacity 0.15s, background 0.15s",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; (e.currentTarget as HTMLButtonElement).style.background = "#fef3c7"; (e.currentTarget as HTMLButtonElement).style.color = "#b45309" }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.4"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "var(--text-mute)" }}
+            title="Archiwizuj szansę"
+          >
+            <Archive size={11} />
+          </button>
+        )}
+
+        {/* Przycisk usuwania */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }}
+          style={{
+            width: 18, height: 18, borderRadius: 4,
+            background: "transparent", border: "none",
+            color: "var(--text-mute)", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            opacity: 0.4, flexShrink: 0,
+            transition: "opacity 0.15s, background 0.15s",
+            fontSize: 13, lineHeight: 1,
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; (e.currentTarget as HTMLButtonElement).style.background = "#fee2e2"; (e.currentTarget as HTMLButtonElement).style.color = "#ef4444" }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.4"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "var(--text-mute)" }}
+          title="Usuń"
+        >
+          ×
+        </button>
       </div>
 
-      {/* Table */}
-      {loading ? (
-        <div className="panel" style={{ padding: "40px 20px", textAlign: "center" }}>
-          <span className="mute" style={{ fontSize: 12.5 }}>Ładowanie…</span>
-        </div>
-      ) : filtered.length === 0 ? (
-        <CrmEmptyState message={searchTerm ? "Brak wyników wyszukiwania." : "Brak szans sprzedaży."} />
-      ) : (
-        <div className="panel" style={{ overflow: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--line)", textAlign: "left" }}>
-                <th style={TH}>Klient</th>
-                <th style={TH}>Miasto</th>
-                <th style={TH}>Usługi</th>
-                <th style={TH}>Etap</th>
-                <th style={TH}>Opiekun</th>
-                <th style={{ ...TH, textAlign: "right" }}>Cena</th>
-                <th style={TH}>Utworzono</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((opp) => {
-                const stage = (opp.stage ?? "lead") as Stage;
-                const stageColor = STAGE_COLORS[stage];
-                const clientName = `${opp.firstName} ${opp.lastName}`.trim() || "—";
-                const city = opp.investmentCity || opp.city || "—";
-                const services = opp.services ?? [];
+      {/* Szczegóły rozwinięte */}
+      {expanded && (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--line)" }}>
+          <div style={{
+            display: "inline-block",
+            fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
+            background: "#fef3c7", color: "#b45309",
+            borderRadius: 4, padding: "2px 6px", marginBottom: 6,
+          }}>
+            NOWE
+          </div>
 
-                return (
-                  <tr
-                    key={opp._id}
-                    onClick={() => router.push(`/admin/szansa/${opp._id}`)}
-                    style={{
-                      borderBottom: "1px solid var(--line)",
-                      cursor: "pointer",
-                      transition: "background 0.1s",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel-2)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                  >
-                    <td style={TD}>
-                      <div style={{ fontWeight: 600, color: "var(--text-strong)" }}>
-                        {clientName}
-                      </div>
-                      {opp.email && (
-                        <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 1 }}>
-                          {opp.email}
-                        </div>
-                      )}
-                    </td>
-                    <td style={TD}>
-                      <span style={{ color: "var(--text-dim)" }}>{city}</span>
-                    </td>
-                    <td style={TD}>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                        {services.slice(0, 2).map((s) => (
-                          <span
-                            key={s}
-                            style={{
-                              fontSize: 10, fontWeight: 600,
-                              background: "#f1f5f9", color: "#475569",
-                              borderRadius: 3, padding: "1px 6px",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {s}
-                          </span>
-                        ))}
-                        {services.length > 2 && (
-                          <span style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8" }}>
-                            +{services.length - 2}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td style={TD}>
-                      <span style={{
-                        fontSize: 10.5, fontWeight: 600,
-                        background: stageColor.bg, color: stageColor.text,
-                        borderRadius: 3, padding: "2px 7px",
-                        whiteSpace: "nowrap",
-                      }}>
-                        {STAGE_LABELS[stage]}
-                      </span>
-                    </td>
-                    <td style={TD}>
-                      {opp.assignees && opp.assignees.length > 0 ? (
-                        <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
-                          {opp.assignees.slice(0, 2).map((a) => (
-                            <span
-                              key={a.id}
-                              title={a.name ?? undefined}
-                              style={{
-                                width: 22, height: 22,
-                                borderRadius: "50%",
-                                background: a.color || "#6366f1",
-                                color: "#fff",
-                                fontSize: 9, fontWeight: 700,
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              {(a.name ?? "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
-                            </span>
-                          ))}
-                          {opp.assignees.length > 2 && (
-                            <span style={{ fontSize: 10, color: "var(--text-mute)" }}>
-                              +{opp.assignees.length - 2}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span style={{ color: "var(--text-mute)", fontSize: 11 }}>—</span>
-                      )}
-                    </td>
-                    <td style={{ ...TD, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                      {opp.price != null ? (
-                        <span style={{ fontWeight: 600, color: "var(--text-strong)" }}>
-                          {fmtPLN(opp.price)} zł
-                        </span>
-                      ) : (
-                        <span style={{ color: "var(--text-mute)" }}>—</span>
-                      )}
-                    </td>
-                    <td style={TD}>
-                      <span style={{ color: "var(--text-dim)", fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
-                        {fmtDate(opp._creationTime)}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          {item.price != null && item.price > 0 && (
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)", marginBottom: 2 }}>
+              {item.price.toLocaleString("pl-PL", { style: "currency", currency: "PLN", minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </div>
+          )}
+
+          <ServiceBadges services={item.services} />
+        </div>
+      )}
+
+      {/* Overlay potwierdzenia usuwania */}
+      {confirmDelete && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute", top: 5, right: 5, left: 5,
+            background: "var(--panel)", border: "1px solid #fca5a5",
+            borderRadius: 6, padding: "8px 10px",
+            display: "flex", flexDirection: "column", gap: 6,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+            zIndex: 10,
+          }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#dc2626" }}>
+            Usunąć szansę sprzedaży?
+          </span>
+          <div style={{ display: "flex", gap: 5 }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(item) }}
+              style={{
+                flex: 1, padding: "4px 0", borderRadius: 4, border: "none",
+                background: "#ef4444", color: "#fff",
+                fontSize: 11, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Usuń
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmDelete(false) }}
+              style={{
+                flex: 1, padding: "4px 0", borderRadius: 4,
+                border: "1px solid var(--line)", background: "var(--panel-2)",
+                fontSize: 11, fontWeight: 500, cursor: "pointer", color: "var(--text)",
+              }}
+            >
+              Anuluj
+            </button>
+          </div>
         </div>
       )}
     </div>
-  );
+  )
 }
 
-const TH: React.CSSProperties = {
-  padding: "8px 10px",
-  fontSize: 10.5,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-  color: "var(--text-mute)",
-  whiteSpace: "nowrap",
-};
+export default function SzansePage() {
+  const statusLabels = useStatusLabels()
+  const statuses = useStatuses()
+  const router = useRouter()
 
-const TD: React.CSSProperties = {
-  padding: "10px 10px",
-  verticalAlign: "middle",
-};
+  const [searchQuery, setSearchQuery] = useState("")
+  const [draggingItem, setDraggingItem] = useState<KanbanPendingItem | null>(null)
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [showNewOpportunityModal, setShowNewOpportunityModal] = useState(false)
+
+  const items = useQuery(api.kanban.list)
+  const currentUser = useQuery(api.users.me)
+  const allUsers = useQuery(api.users.listAllActive)
+  const servicesList = useQuery(api.services.list, {}) ?? []
+  const [activeUserFilters, setActiveUserFilters] = useState<Set<string>>(new Set())
+  const [activeServiceFilters, setActiveServiceFilters] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!currentUser?._id) return
+    const key = `panel_user_filter_${currentUser._id}`
+    try {
+      const saved = localStorage.getItem(key)
+      if (saved) {
+        const arr = JSON.parse(saved)
+        if (Array.isArray(arr)) {
+          setTimeout(() => setActiveUserFilters(new Set(arr)), 0)
+        }
+      }
+    } catch {}
+  }, [currentUser?._id])
+
+  const toggleUserFilter = (id: string) => {
+    setActiveUserFilters(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      if (currentUser?._id) {
+        localStorage.setItem(`panel_user_filter_${currentUser._id}`, JSON.stringify([...next]))
+      }
+      return next
+    })
+  }
+
+  const toggleServiceFilter = (name: string) => {
+    setActiveServiceFilters(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  // color → userId lookup as fallback when assignedUserId isn't yet in kanban items
+  const colorToUserId = useMemo(() => {
+    if (!allUsers) return {} as Record<string, string>
+    const map: Record<string, string> = {}
+    for (const u of allUsers) {
+      if (u.color) map[u.color] = u._id as string
+    }
+    return map
+  }, [allUsers])
+
+  const opportunityItems = useMemo(() => {
+    return (items ?? []).filter((i): i is KanbanPendingItem => i.type === "pending")
+  }, [items])
+
+  const displayItems = useMemo(() => {
+    let filtered = opportunityItems.filter(item => {
+      if (activeUserFilters.size === 0) return true
+      const uids: string[] = item.assignees?.map(a => a.id as string) || []
+      if (item.assignedUserId && !uids.includes(item.assignedUserId)) {
+        uids.push(item.assignedUserId)
+      }
+      if (item.assignedUserColor && uids.length === 0) {
+        const uidFromColor = colorToUserId[item.assignedUserColor]
+        if (uidFromColor) uids.push(uidFromColor)
+      }
+
+      if (uids.length === 0) return activeUserFilters.has("__none__")
+      return uids.some(uid => activeUserFilters.has(uid))
+    })
+
+    // Service filter
+    if (activeServiceFilters.size > 0) {
+      filtered = filtered.filter(item => {
+        const itemServices = item.services ?? []
+        return itemServices.some(s => activeServiceFilters.has(s))
+      })
+    }
+    
+    const q = searchQuery.toLowerCase().trim()
+    if (q) {
+      filtered = filtered.filter(item => {
+        const clientName = `${item.clientFirstName ?? ""} ${item.clientLastName ?? ""}`.trim()
+        const company = (item.clientType === "business" ? item.companyName : "") || ""
+        const customText = item.customText || ""
+        const services = item.services?.join(" ") || ""
+        const city = item.investmentCity || item.clientCity || ""
+        
+        return clientName.toLowerCase().includes(q) ||
+               company.toLowerCase().includes(q) ||
+               customText.toLowerCase().includes(q) ||
+               services.toLowerCase().includes(q) ||
+               city.toLowerCase().includes(q)
+      })
+    }
+    
+    return filtered
+  }, [opportunityItems, activeUserFilters, activeServiceFilters, colorToUserId, searchQuery])
+
+  const promoteToMeasurement = useMutation(api.jotformInternal.promoteToMeasurement)
+  const updatePendingStage = useMutation(api.jotformInternal.updatePendingStage)
+  const deletePending = useMutation(api.jotformInternal.deletePending)
+  const archiveOpportunity = useMutation(api.salesOpportunities.archiveOpportunity)
+
+  const topScrollRef = useRef<HTMLDivElement>(null)
+  const bottomScrollRef = useRef<HTMLDivElement>(null)
+  const syncingFromRef = useRef<HTMLDivElement | null>(null)
+  const [scrollWidth, setScrollWidth] = useState(0)
+  const [hasOverflow, setHasOverflow] = useState(false)
+  const [showLeftScroll, setShowLeftScroll] = useState(false)
+  const [showRightScroll, setShowRightScroll] = useState(true)
+
+  const scrollRaf = useRef<number | null>(null)
+  const scrollVelocity = useRef(0)
+  const scrollTarget = useRef(0)
+
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
+
+  const checkScroll = () => {
+    if (!bottomScrollRef.current) return
+    const { scrollLeft, scrollWidth, clientWidth } = bottomScrollRef.current
+    setShowLeftScroll(scrollLeft > 0)
+    setShowRightScroll(Math.ceil(scrollLeft + clientWidth) < scrollWidth - 2)
+  }
+
+  useEffect(() => {
+    const el = bottomScrollRef.current
+    if (!el) return
+    const update = () => {
+      setScrollWidth(el.scrollWidth)
+      setHasOverflow(el.scrollWidth - el.clientWidth > 1)
+      checkScroll()
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    Array.from(el.children).forEach((c) => ro.observe(c))
+    window.addEventListener("resize", checkScroll)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener("resize", checkScroll)
+    }
+  }, [items, expandedCards])
+
+  const runScrollLoop = () => {
+    const el = bottomScrollRef.current
+    if (!el) {
+      scrollRaf.current = null
+      return
+    }
+    scrollVelocity.current += (scrollTarget.current - scrollVelocity.current) * 0.12
+    el.scrollLeft += scrollVelocity.current
+    if (scrollTarget.current === 0 && Math.abs(scrollVelocity.current) < 0.15) {
+      scrollVelocity.current = 0
+      scrollRaf.current = null
+      return
+    }
+    scrollRaf.current = requestAnimationFrame(runScrollLoop)
+  }
+
+  const startScrolling = (direction: "left" | "right") => {
+    const MAX_SPEED = 22
+    scrollTarget.current = direction === "right" ? MAX_SPEED : -MAX_SPEED
+    if (scrollRaf.current == null) {
+      scrollRaf.current = requestAnimationFrame(runScrollLoop)
+    }
+  }
+
+  const stopScrolling = () => {
+    scrollTarget.current = 0
+  }
+
+  useEffect(() => {
+    return () => {
+      if (scrollRaf.current) cancelAnimationFrame(scrollRaf.current)
+    }
+  }, [])
+
+  const visibleColumns = statuses.filter((s) => !s.hidden && s.kind === "opportunity")
+
+  const newLeadsCount = opportunityItems.filter((i) => i.status === "lead").length
+  const totalPending = opportunityItems.length
+
+  const gridTemplate = `repeat(${visibleColumns.length}, minmax(220px, 340px))`
+
+  const syncScroll = (source: HTMLDivElement | null) => {
+    if (!source) return
+    if (syncingFromRef.current && syncingFromRef.current !== source) return
+    syncingFromRef.current = source
+    const left = source.scrollLeft
+    if (topScrollRef.current && topScrollRef.current !== source) topScrollRef.current.scrollLeft = left
+    if (bottomScrollRef.current && bottomScrollRef.current !== source) bottomScrollRef.current.scrollLeft = left
+    checkScroll()
+    requestAnimationFrame(() => { syncingFromRef.current = null })
+  }
+
+  const toggleCard = (id: string) => {
+    setExpandedCards((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const allIds = displayItems.map((i) => i.id)
+  const allExpanded = allIds.length > 0 && allIds.every((id) => expandedCards.has(id))
+  const toggleAll = () => {
+    if (allExpanded) setExpandedCards(new Set())
+    else setExpandedCards(new Set(allIds))
+  }
+
+  async function handleDelete(item: KanbanPendingItem) {
+    try {
+      await deletePending({ pendingId: item.pendingId })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Błąd usuwania"
+      setErrorMsg(msg)
+      setTimeout(() => setErrorMsg(null), 3000)
+    }
+  }
+
+  async function handleArchiveOpportunity(item: KanbanPendingItem) {
+    try {
+      await archiveOpportunity({ opportunityId: item.pendingId })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Błąd archiwizacji"
+      setErrorMsg(msg)
+      setTimeout(() => setErrorMsg(null), 3000)
+    }
+  }
+
+  async function handleStageChange(pendingId: Id<"pendingJotformSubmissions">, stage: "lead" | "inquiry") {
+    try {
+      await updatePendingStage({
+        pendingId,
+        stage,
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Błąd zmiany etapu"
+      setErrorMsg(msg)
+      setTimeout(() => setErrorMsg(null), 3000)
+    }
+  }
+
+  function getValidTargets(item: KanbanPendingItem): string[] {
+    return ["lead", "inquiry", "measurement"].filter((k) => k !== item.status)
+  }
+
+  const handleDragStart = (e: React.DragEvent, item: KanbanPendingItem) => {
+    setDraggingItem(item)
+    e.dataTransfer.effectAllowed = "move"
+    setErrorMsg(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggingItem(null)
+    setDragOverCol(null)
+  }
+
+  const handleDragOver = (e: React.DragEvent, col: string) => {
+    e.preventDefault()
+    const valid = draggingItem ? getValidTargets(draggingItem) : []
+    if (draggingItem?.status === col) {
+      e.dataTransfer.dropEffect = "none"
+    } else if (valid.includes(col)) {
+      e.dataTransfer.dropEffect = "move"
+    } else {
+      e.dataTransfer.dropEffect = "none"
+    }
+    setDragOverCol(col)
+  }
+
+  const handleDrop = async (e: React.DragEvent, targetCol: string) => {
+    e.preventDefault()
+    if (!draggingItem) return
+    const item = draggingItem
+    setDraggingItem(null)
+    setDragOverCol(null)
+
+    if (item.status === targetCol) return
+
+    const valid = getValidTargets(item)
+    if (!valid.includes(targetCol)) {
+      setErrorMsg(`Niedozwolone przejście: ${statusLabels[item.status] ?? item.status} → ${statusLabels[targetCol] ?? targetCol}`)
+      setTimeout(() => setErrorMsg(null), 3000)
+      return
+    }
+
+    try {
+      if (targetCol === "measurement") {
+        await promoteToMeasurement({ pendingId: item.pendingId })
+      } else {
+        await handleStageChange(item.pendingId, targetCol as "lead" | "inquiry")
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Błąd zmiany statusu"
+      setErrorMsg(msg)
+      setTimeout(() => setErrorMsg(null), 3000)
+    }
+  }
+
+  function handleCardClick(item: KanbanPendingItem) {
+    router.push(`/admin/szansa/${item.pendingId}`)
+  }
+
+  const opportunitiesProfit = useMemo(() => {
+    return displayItems
+      .filter((i) => i.status === "inquiry" && typeof i.profit === "number")
+      .reduce((sum, i) => sum + (i.profit || 0), 0)
+  }, [displayItems])
+
+  // Liczba szans sprzedaży (pending items) dla każdej usługi — bez wpływu aktywnych filtrów
+  const serviceCountMap = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const item of opportunityItems) {
+      for (const s of item.services ?? []) {
+        map[s] = (map[s] ?? 0) + 1
+      }
+    }
+    return map
+  }, [opportunityItems])
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0, height: "100%", minHeight: 0 }}>
+      {/* Header */}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-strong)", margin: 0 }}>
+              Szanse sprzedaży
+            </h1>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Link
+                href="/admin/panel?tab=opportunities"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "var(--text-mute)",
+                  textDecoration: "none",
+                  padding: "3px 9px",
+                  borderRadius: 999,
+                  background: "var(--panel-2)",
+                  border: "1px solid var(--line)",
+                  transition: "all 0.15s ease",
+                }}
+                className="hover:text-brand hover:border-brand/30"
+                title="Przejdź do Panelu głównego"
+              >
+                <span>Panel główny</span>
+              </Link>
+              <Link
+                href="/admin/panel?tab=archived-leads"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "var(--text-mute)",
+                  textDecoration: "none",
+                  padding: "3px 9px",
+                  borderRadius: 999,
+                  background: "var(--panel-2)",
+                  border: "1px solid var(--line)",
+                  transition: "all 0.15s ease",
+                }}
+                className="hover:text-brand hover:border-brand/30"
+                title="Przejdź do archiwum szans sprzedaży"
+              >
+                <Archive style={{ width: 12, height: 12 }} />
+                <span>Archiwum LEAD</span>
+              </Link>
+            </div>
+          </div>
+          <p style={{ fontSize: 12, color: "var(--text-mute)", margin: "2px 0 0" }}>
+            {totalPending} {totalPending === 1 ? "szansa sprzedaży" : totalPending < 5 ? "szanse sprzedaży" : "szans sprzedaży"} ogółem
+            {newLeadsCount > 0 && ` · ${newLeadsCount} nowych (lead)`}
+          </p>
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "flex-end" }}>
+          {opportunityItems.length > 0 && (
+            <button
+              onClick={toggleAll}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                padding: "6px 10px", borderRadius: 6,
+                border: "1px solid var(--line)", background: "var(--panel)",
+                fontSize: 12, fontWeight: 500, color: "var(--text)",
+                cursor: "pointer",
+              }}
+              title={allExpanded ? "Zwiń wszystkie karty" : "Rozwiń wszystkie karty"}
+            >
+              {allExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              {allExpanded ? "Zwiń wszystkie" : "Rozwiń wszystkie"}
+            </button>
+          )}
+          <button className="btn primary" onClick={() => router.push("/admin/szansa/nowa")}>
+            <Plus size={13} /> Nowa szansa sprzedaży
+          </button>
+        </div>
+      </div>
+
+      {/* Error toast */}
+      {errorMsg && (
+        <div style={{
+          background: "#fef2f2", border: "1px solid #fca5a5", color: "#dc2626",
+          borderRadius: 6, padding: "8px 14px", fontSize: 12, fontWeight: 500,
+        }}>
+          {errorMsg}
+        </div>
+      )}
+
+      {/* User filter chips */}
+      {allUsers && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
+          {[...allUsers]
+            .sort((a, b) => {
+              if (a._id === currentUser?._id) return -1
+              if (b._id === currentUser?._id) return 1
+              return 0
+            })
+            .map(user => {
+              const name = user.displayName ?? user.login ?? "?"
+              const isMe = user._id === currentUser?._id
+              const active = activeUserFilters.has(user._id as string)
+              return (
+                <button
+                  key={user._id}
+                  onClick={() => toggleUserFilter(user._id as string)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                    background: active ? `${user.color ?? "#64748b"}22` : "var(--panel)",
+                    color: active ? (user.color ?? "var(--accent)") : "var(--text-mute)",
+                    border: `1.5px solid ${active ? (user.color ?? "var(--accent)") : "var(--line)"}`,
+                    fontWeight: active ? 600 : 500, cursor: "pointer",
+                    transition: "all 0.12s", fontFamily: "inherit",
+                  }}
+                >
+                  <span style={{
+                    width: 8, height: 8, borderRadius: "50%",
+                    background: user.color ? (active ? user.color : `${user.color}80`) : (active ? "#64748b" : "#64748b40"),
+                    flexShrink: 0,
+                  }} />
+                  {name}{isMe ? " (Ty)" : ""}
+                </button>
+              )
+            })
+          }
+          <button
+            onClick={() => toggleUserFilter("__none__")}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+              background: activeUserFilters.has("__none__") ? "var(--panel-3)" : "var(--panel)",
+              color: activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)",
+              border: `1.5px solid ${activeUserFilters.has("__none__") ? "var(--text-mute)" : "var(--line)"}`,
+              fontWeight: activeUserFilters.has("__none__") ? 600 : 500, cursor: "pointer",
+              transition: "all 0.12s", fontFamily: "inherit",
+            }}
+          >
+            <span style={{
+              width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+              border: `1.5px dashed ${activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)"}`,
+            }} />
+            Bez przypisania
+          </button>
+        </div>
+      )}
+
+      {/* Service filter chips */}
+      {servicesList.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
+          <span style={{ fontSize: 11, color: "var(--text-mute)", alignSelf: "center", marginRight: 2, fontWeight: 500 }}>Usługi:</span>
+          {servicesList.map((svc, i) => {
+            const color = SERVICE_COLORS[i % SERVICE_COLORS.length]
+            const active = activeServiceFilters.has(svc.name)
+            return (
+              <button
+                key={svc._id}
+                onClick={() => toggleServiceFilter(svc.name)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                  background: active ? color.bg : "var(--panel)",
+                  color: active ? color.text : "var(--text-mute)",
+                  border: `1.5px solid ${active ? color.text + "55" : "var(--line)"}`,
+                  fontWeight: active ? 600 : 500, cursor: "pointer",
+                  transition: "all 0.12s", fontFamily: "inherit",
+                }}
+              >
+                {svc.name}
+                {(serviceCountMap[svc.name] ?? 0) > 0 && (
+                  <span style={{
+                    minWidth: 16, height: 16,
+                    borderRadius: 8,
+                    background: active ? color.text + "22" : "var(--panel-2)",
+                    color: active ? color.text : "var(--text-mute)",
+                    fontSize: 10, fontWeight: 700,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    padding: "0 4px",
+                    lineHeight: 1,
+                  }}>
+                    {serviceCountMap[svc.name]}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+          {activeServiceFilters.size > 0 && (
+            <button
+              onClick={() => setActiveServiceFilters(new Set())}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                padding: "4px 8px", borderRadius: 20, fontSize: 11,
+                background: "transparent",
+                color: "var(--text-mute)",
+                border: "1.5px solid var(--line)",
+                fontWeight: 500, cursor: "pointer",
+                transition: "all 0.12s", fontFamily: "inherit",
+              }}
+              title="Wyczyść filtry usług"
+            >
+              <X size={10} /> Wyczyść
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Zestawienie finansowe */}
+      <div style={{ marginBottom: 12, padding: "8px 16px", background: "var(--panel)", borderRadius: 8, border: "1px solid var(--line)", display: "inline-block" }}>
+        <span style={{ fontSize: 12, color: "var(--text-mute)", marginRight: 8 }}>
+          Zarobek w szansach (Oferta wysłana):
+        </span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)" }}>
+          {opportunitiesProfit.toLocaleString("pl-PL", { style: "currency", currency: "PLN" })}
+        </span>
+      </div>
+
+      {/* Wyszukiwarka */}
+      <div style={{ marginBottom: 12, position: "relative", width: "100%", maxWidth: 400 }}>
+        <Search
+          size={14}
+          style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-mute)" }}
+        />
+        <input
+          type="text"
+          placeholder="Wyszukaj szansę, klienta lub firmę..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: "100%", padding: "8px 12px 8px 34px", borderRadius: 8,
+            border: "1px solid var(--line)", background: "var(--panel-2)",
+            fontSize: 13, color: "var(--text-strong)", outline: "none",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+          }}
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery("")}
+            style={{
+              position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+              background: "none", border: "none", color: "var(--text-mute)", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", padding: 4,
+            }}
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* ── Kontrolki Scrollowania ── */}
+      {(showLeftScroll || showRightScroll) && (
+        <div className="flex justify-center gap-2 mb-2 w-full">
+          <button
+            onMouseEnter={() => showLeftScroll && startScrolling('left')}
+            onMouseLeave={stopScrolling}
+            className={`flex size-9 items-center justify-center rounded-full shadow transition-all ${
+              showLeftScroll ? "bg-[#4abbc3] text-white hover:opacity-90 hover:scale-110 cursor-pointer" : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
+            }`}
+          >
+            <ChevronLeft className="size-5" />
+          </button>
+          <button
+            onMouseEnter={() => showRightScroll && startScrolling('right')}
+            onMouseLeave={stopScrolling}
+            className={`flex size-9 items-center justify-center rounded-full shadow transition-all ${
+              showRightScroll ? "bg-[#4abbc3] text-white hover:opacity-90 hover:scale-110 cursor-pointer" : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
+            }`}
+          >
+            <ChevronRight className="size-5" />
+          </button>
+        </div>
+      )}
+
+      {/* Sticky top scrollbar — widoczny tylko gdy kolumny nie mieszczą się w szerokości */}
+      {hasOverflow && (
+        <div style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--background)", paddingTop: 4, paddingBottom: 2 }}>
+          <div
+            ref={topScrollRef}
+            onScroll={() => syncScroll(topScrollRef.current)}
+            style={{ overflowX: "auto", overflowY: "hidden", height: 14 }}
+          >
+            <div style={{ width: scrollWidth, height: 1 }} />
+          </div>
+        </div>
+      )}
+
+      {/* Headers + bodies — pełna szerokość, grid z minmax */}
+      <div
+        ref={bottomScrollRef}
+        onScroll={() => syncScroll(bottomScrollRef.current)}
+        className="no-scrollbar"
+        style={{ overflow: "auto", paddingBottom: 12, width: "100%", flex: 1, minHeight: 0 }}
+      >
+        <div style={{ minWidth: "100%", minHeight: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* Wiersz nagłówków */}
+          <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8 }}>
+            {visibleColumns.map((col) => {
+              const colItems = displayItems.filter((i) => i.status === col.key).sort(sortItemsByDuration)
+              const validTargets = draggingItem ? getValidTargets(draggingItem) : []
+              const isValid = validTargets.includes(col.key)
+              const isDraggingSameCol = draggingItem?.status === col.key
+              const colOpacity = draggingItem && !isDraggingSameCol && !isValid ? 0.45 : 1
+              const st = deriveStatusStyle(col.color)
+              const onSolid = st.solidText === "#ffffff" ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.12)"
+
+              return (
+                <div
+                  key={col.key}
+                  style={{ minWidth: 0, opacity: colOpacity, transition: "opacity 0.15s" }}
+                  onDragOver={(e) => handleDragOver(e, col.key)}
+                  onDrop={(e) => handleDrop(e, col.key)}
+                  onDragLeave={() => setDragOverCol(null)}
+                >
+                  <div style={{
+                    padding: "7px 10px", borderRadius: 7,
+                    background: st.solidBg, border: `1px solid ${st.solidBorder}`,
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    fontSize: 11.5, fontWeight: 700, color: st.solidText,
+                  }}>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {col.label}
+                    </span>
+                    <span style={{
+                      background: onSolid,
+                      borderRadius: 4, padding: "1px 6px",
+                      fontSize: 10.5, fontWeight: 700, flexShrink: 0, marginLeft: 4,
+                    }}>
+                      {colItems.length}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Wiersz treści kolumn */}
+          <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8, flex: 1, minHeight: 0 }}>
+            {visibleColumns.map((col) => {
+              const colItems = displayItems.filter((i) => i.status === col.key).sort(sortItemsByDuration)
+              const isOver = dragOverCol === col.key
+              const isDraggingOver = draggingItem !== null && isOver
+              const validTargets = draggingItem ? getValidTargets(draggingItem) : []
+              const isValid = validTargets.includes(col.key)
+              const isDraggingSameCol = draggingItem?.status === col.key
+
+              const dropBg: string = "transparent"
+              let dropBorder = `1.5px dashed ${deriveStatusStyle(col.color).solidBorder}`
+              if (isDraggingOver && isValid) {
+                dropBorder = "1.5px dashed var(--accent)"
+              } else if (isDraggingOver && !isValid && !isDraggingSameCol) {
+                dropBorder = "1.5px dashed #fca5a5"
+              }
+
+              const colOpacity = draggingItem && !isDraggingSameCol && !isValid ? 0.45 : 1
+
+              return (
+                <div
+                  key={col.key}
+                  style={{ minWidth: 0, display: "flex", flexDirection: "column", opacity: colOpacity, transition: "opacity 0.15s" }}
+                  onDragOver={(e) => handleDragOver(e, col.key)}
+                  onDrop={(e) => handleDrop(e, col.key)}
+                  onDragLeave={() => setDragOverCol(null)}
+                >
+                  <div style={{
+                    display: "flex", flexDirection: "column", gap: 6,
+                    flex: 1, minHeight: 80, padding: 3, borderRadius: 6,
+                    background: dropBg, border: dropBorder,
+                    transition: "background 0.15s, border 0.15s",
+                  }}>
+                    {colItems.map((item) => (
+                      <KanbanCard
+                        key={item.id}
+                        item={item}
+                        isDragging={draggingItem?.id === item.id}
+                        expanded={expandedCards.has(item.id)}
+                        onToggleExpand={() => toggleCard(item.id)}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                        onDelete={handleDelete}
+                        onClick={() => handleCardClick(item)}
+                        onArchive={handleArchiveOpportunity}
+                      />
+                    ))}
+                    {colItems.length === 0 && (
+                      <div style={{
+                        textAlign: "center", fontSize: 10,
+                        color: "rgba(255,255,255,0.75)", padding: "12px 0",
+                      }}>
+                        Brak szans sprzedaży
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {showNewOpportunityModal && (
+        <ModalPortal>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 100,
+              backgroundColor: "rgba(15, 23, 42, 0.6)",
+              backdropFilter: "blur(4px)",
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "center",
+              padding: "24px 16px",
+              overflowY: "auto",
+            }}
+            onClick={() => setShowNewOpportunityModal(false)}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: 900,
+                background: "var(--panel)",
+                borderRadius: 16,
+                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                padding: "24px",
+                position: "relative",
+                margin: "auto",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <NewOpportunityForm
+                onCancel={() => setShowNewOpportunityModal(false)}
+                onSuccess={(oppId) => {
+                  setShowNewOpportunityModal(false)
+                  router.push(`/admin/szansa/${oppId}`)
+                }}
+              />
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+    </div>
+  )
+}
