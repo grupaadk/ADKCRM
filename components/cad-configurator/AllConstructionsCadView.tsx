@@ -1361,12 +1361,10 @@ export function AllConstructionsCadView({
                             const height = Math.max(item.heightMm || 2300, 400);
                             const panes = Math.max(item.panesCount || 3, 1);
                             const fill = item.fillType || "HART 10";
-                            const color = item.color || "RAL 7016MAT";
                             const isHovered = hoveredItemId === item._id;
 
                             const hasItemAbove =
                               itemIdxInStack < stack.stackedItems.length - 1;
-                            const isStackedAbove = itemIdxInStack > 0;
 
                             const originX =
                               currentStackX + (stack.stackWidth - width) / 2;
@@ -1458,9 +1456,9 @@ export function AllConstructionsCadView({
                                 {isHovered && (
                                   <rect
                                     x={originX - 70}
-                                    y={originY - (hasItemAbove ? 20 : 300)}
+                                    y={originY - (hasItemAbove ? 20 : 220)}
                                     width={width + 240}
-                                    height={height + (hasItemAbove ? 40 : 360)}
+                                    height={height + (hasItemAbove ? 40 : 280)}
                                     rx="20"
                                     fill="#0e7490"
                                     fillOpacity="0.04"
@@ -1468,109 +1466,6 @@ export function AllConstructionsCadView({
                                     strokeWidth="4"
                                     strokeDasharray="12 8"
                                   />
-                                )}
-
-                                {/* Etykieta nagłówkowa pozycji */}
-                                {!hasItemAbove ? (
-                                  <g transform={`translate(${originX}, ${originY - 265})`}>
-                                    <rect
-                                      x="0"
-                                      y="0"
-                                      width={Math.max(width, 900)}
-                                      height="82"
-                                      rx="10"
-                                      fill={
-                                        dragState?.itemId === item._id
-                                          ? "#0e7490"
-                                          : isHovered
-                                          ? "#0e7490"
-                                          : "#0b1220"
-                                      }
-                                    />
-                                    {/* Uchwyt do przeciągania (Grip dots) */}
-                                    <g transform="translate(20, 24)">
-                                      <circle cx="0" cy="8" r="4.5" fill="#4ABBC3" />
-                                      <circle cx="0" cy="24" r="4.5" fill="#4ABBC3" />
-                                      <circle cx="12" cy="8" r="4.5" fill="#4ABBC3" />
-                                      <circle cx="12" cy="24" r="4.5" fill="#4ABBC3" />
-                                    </g>
-                                    <text
-                                      x="50"
-                                      y="54"
-                                      fill="#4ABBC3"
-                                      fontSize="42"
-                                      fontWeight="900"
-                                    >
-                                      [ POZ. {item.positionIndex} ]
-                                    </text>
-                                    <text
-                                      x="305"
-                                      y="54"
-                                      fill="#ffffff"
-                                      fontSize="38"
-                                      fontWeight="700"
-                                    >
-                                      {(item.shortName || item.name).slice(0, 32)}
-                                    </text>
-                                    {isStackedAbove && (
-                                      <text
-                                        x="680"
-                                        y="54"
-                                        fill="#34d399"
-                                        fontSize="32"
-                                        fontWeight="800"
-                                      >
-                                        ▲ NAD POZ. {stack.stackedItems[itemIdxInStack - 1].positionIndex}
-                                      </text>
-                                    )}
-                                    <text
-                                      x={Math.max(width, 900) - 24}
-                                      y="54"
-                                      fill="#a5f3fc"
-                                      fontSize="36"
-                                      fontWeight="800"
-                                      textAnchor="end"
-                                    >
-                                      {item.quantity} szt. · {fill} · {color}
-                                    </text>
-                                  </g>
-                                ) : (
-                                  <g transform={`translate(${originX + 16}, ${originY + 16})`}>
-                                    <rect
-                                      x="0"
-                                      y="0"
-                                      width={Math.min(width - 32, 800)}
-                                      height="62"
-                                      rx="10"
-                                      fill="#0b1220"
-                                      fillOpacity="0.88"
-                                    />
-                                    {/* Uchwyt do przeciągania */}
-                                    <g transform="translate(14, 18)">
-                                      <circle cx="0" cy="6" r="3.5" fill="#4ABBC3" />
-                                      <circle cx="0" cy="18" r="3.5" fill="#4ABBC3" />
-                                      <circle cx="9" cy="6" r="3.5" fill="#4ABBC3" />
-                                      <circle cx="9" cy="18" r="3.5" fill="#4ABBC3" />
-                                    </g>
-                                    <text
-                                      x="38"
-                                      y="42"
-                                      fill="#4ABBC3"
-                                      fontSize="34"
-                                      fontWeight="900"
-                                    >
-                                      [ POZ. {item.positionIndex} ]
-                                    </text>
-                                    <text
-                                      x="250"
-                                      y="42"
-                                      fill="#ffffff"
-                                      fontSize="30"
-                                      fontWeight="700"
-                                    >
-                                      {(item.shortName || item.name).slice(0, 30)}
-                                    </text>
-                                  </g>
                                 )}
 
                           {isTriangle ? (
