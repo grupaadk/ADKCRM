@@ -16,6 +16,7 @@ import { AllConstructionsCadView } from "./AllConstructionsCadView";
 import {
   ArrowLeft,
   Check,
+  ExternalLink,
   Loader2,
   Printer,
   ChevronRight,
@@ -53,6 +54,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [lastPdfUrl, setLastPdfUrl] = useState<string | null>(null);
   const generateOfferPdf = useAction(api.googleDrive.generateOfferPdf);
 
   const handlePrintPdf = async () => {
@@ -65,6 +67,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
         { id: toastId, duration: 6000 }
       );
       if (result.pdfUrl) {
+        setLastPdfUrl(result.pdfUrl);
         window.open(result.pdfUrl, "_blank");
       }
     } catch (err: unknown) {
@@ -357,6 +360,26 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
               {isGeneratingPdf ? "Generowanie..." : "Drukuj / PDF"}
             </span>
           </button>
+
+          {lastPdfUrl && (
+            <a
+              href={lastPdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Otwórz wygenerowaną ofertę PDF w Google Drive"
+              className="flex items-center gap-1 rounded-md font-medium cursor-pointer transition-colors"
+              style={{
+                padding: "4px 10px",
+                fontSize: 11.5,
+                background: "#4ABBC3",
+                color: "#fff",
+                textDecoration: "none",
+              }}
+            >
+              <ExternalLink size={13} />
+              <span className="hidden sm:inline">Otwórz ofertę</span>
+            </a>
+          )}
         </div>
       </header>
 
