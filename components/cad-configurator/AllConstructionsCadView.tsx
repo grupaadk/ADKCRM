@@ -357,7 +357,7 @@ export function AllConstructionsCadView({
   const gapY = 640; // odstęp pionowy między rzędami konstrukcji
   const sheetPadX = 260;
   const sheetPadTop = 400;
-  const sheetPadBottom = 320;
+  const sheetPadBottom = 360;
 
   interface ColumnStack {
     rootItem: CadConstructionItem;
@@ -1353,6 +1353,8 @@ export function AllConstructionsCadView({
                       const currentStackX = stackCursorX;
                       stackCursorX += stack.stackWidth + gapX;
                       let currentBaseY = floorY;
+                      const stackRightX = currentStackX + stack.stackWidth;
+                      const heightDimX = stackRightX + 90;
 
                       return (
                         <g key={`stack-${stack.rootItem._id}-${stackIndex}`}>
@@ -1751,7 +1753,7 @@ export function AllConstructionsCadView({
                             <g>
                               {isTriangle ? (
                                 <>
-                                  {/* DÓŁ: Całkowity wymiar szerokości B */}
+                                  {/* Całkowity wymiar szerokości B */}
                                   <g
                                     className="cursor-pointer"
                                     onMouseEnter={() =>
@@ -1762,91 +1764,185 @@ export function AllConstructionsCadView({
                                       openDimEditor(e, item, "width")
                                     }
                                   >
-                                    <line
-                                      x1={originX}
-                                      y1={originY + height + 5}
-                                      x2={originX}
-                                      y2={originY + height + 75}
-                                      stroke="#64748b"
-                                      strokeWidth="2"
-                                      strokeDasharray="6 6"
-                                    />
-                                    <line
-                                      x1={originX + width}
-                                      y1={originY + height + 5}
-                                      x2={originX + width}
-                                      y2={originY + height + 75}
-                                      stroke="#64748b"
-                                      strokeWidth="2"
-                                      strokeDasharray="6 6"
-                                    />
-                                    <line
-                                      x1={originX}
-                                      y1={originY + height + 60}
-                                      x2={originX + width}
-                                      y2={originY + height + 60}
-                                      stroke={
-                                        hoveredDimKey === `${item._id}-width` ||
-                                        (activeDimEdit?.itemId === item._id &&
-                                          activeDimEdit?.mode === "width")
-                                          ? "#0284c7"
-                                          : "#0b1220"
-                                      }
-                                      strokeWidth={
-                                        hoveredDimKey === `${item._id}-width` ||
-                                        (activeDimEdit?.itemId === item._id &&
-                                          activeDimEdit?.mode === "width")
-                                          ? "5"
-                                          : "3.5"
-                                      }
-                                      markerStart="url(#multiCadArrowStart)"
-                                      markerEnd="url(#multiCadArrowEnd)"
-                                    />
-                                    <rect
-                                      x={originX + width / 2 - 150}
-                                      y={originY + height + 66}
-                                      width={300}
-                                      height={54}
-                                      rx="10"
-                                      fill={
-                                        hoveredDimKey === `${item._id}-width` ||
-                                        (activeDimEdit?.itemId === item._id &&
-                                          activeDimEdit?.mode === "width")
-                                          ? "#e0f2fe"
-                                          : "#ffffff"
-                                      }
-                                      fillOpacity="0.95"
-                                      stroke={
-                                        hoveredDimKey === `${item._id}-width` ||
-                                        (activeDimEdit?.itemId === item._id &&
-                                          activeDimEdit?.mode === "width")
-                                          ? "#0284c7"
-                                          : "#cbd5e1"
-                                      }
-                                      strokeWidth={
-                                        hoveredDimKey === `${item._id}-width` ||
-                                        (activeDimEdit?.itemId === item._id &&
-                                          activeDimEdit?.mode === "width")
-                                          ? "2.5"
-                                          : "1.5"
-                                      }
-                                    />
-                                    <text
-                                      x={originX + width / 2}
-                                      y={originY + height + 105}
-                                      fill={
-                                        hoveredDimKey === `${item._id}-width` ||
-                                        (activeDimEdit?.itemId === item._id &&
-                                          activeDimEdit?.mode === "width")
-                                          ? "#0369a1"
-                                          : "#0b1220"
-                                      }
-                                      fontSize="46"
-                                      fontWeight="900"
-                                      textAnchor="middle"
-                                    >
-                                      B = {width}
-                                    </text>
+                                    {itemIdxInStack > 0 ? (
+                                      // Gdy trójkąt stoi na innej konstrukcji: wymiar szerokości nad trójkątem
+                                      <>
+                                        <line
+                                          x1={originX}
+                                          y1={originY + height}
+                                          x2={originX}
+                                          y2={originY - 95}
+                                          stroke="#64748b"
+                                          strokeWidth="2"
+                                          strokeDasharray="6 6"
+                                        />
+                                        <line
+                                          x1={originX + width}
+                                          y1={originY + height}
+                                          x2={originX + width}
+                                          y2={originY - 95}
+                                          stroke="#64748b"
+                                          strokeWidth="2"
+                                          strokeDasharray="6 6"
+                                        />
+                                        <line
+                                          x1={originX}
+                                          y1={originY - 80}
+                                          x2={originX + width}
+                                          y2={originY - 80}
+                                          stroke={
+                                            hoveredDimKey === `${item._id}-width` ||
+                                            (activeDimEdit?.itemId === item._id &&
+                                              activeDimEdit?.mode === "width")
+                                              ? "#0284c7"
+                                              : "#0b1220"
+                                          }
+                                          strokeWidth={
+                                            hoveredDimKey === `${item._id}-width` ||
+                                            (activeDimEdit?.itemId === item._id &&
+                                              activeDimEdit?.mode === "width")
+                                              ? "5"
+                                              : "3.5"
+                                          }
+                                          markerStart="url(#multiCadArrowStart)"
+                                          markerEnd="url(#multiCadArrowEnd)"
+                                        />
+                                        <rect
+                                          x={originX + width / 2 - 150}
+                                          y={originY - 136}
+                                          width={300}
+                                          height={54}
+                                          rx="10"
+                                          fill={
+                                            hoveredDimKey === `${item._id}-width` ||
+                                            (activeDimEdit?.itemId === item._id &&
+                                              activeDimEdit?.mode === "width")
+                                              ? "#e0f2fe"
+                                              : "#ffffff"
+                                          }
+                                          fillOpacity="0.95"
+                                          stroke={
+                                            hoveredDimKey === `${item._id}-width` ||
+                                            (activeDimEdit?.itemId === item._id &&
+                                              activeDimEdit?.mode === "width")
+                                              ? "#0284c7"
+                                              : "#cbd5e1"
+                                          }
+                                          strokeWidth={
+                                            hoveredDimKey === `${item._id}-width` ||
+                                            (activeDimEdit?.itemId === item._id &&
+                                              activeDimEdit?.mode === "width")
+                                              ? "2.5"
+                                              : "1.5"
+                                          }
+                                        />
+                                        <text
+                                          x={originX + width / 2}
+                                          y={originY - 96}
+                                          fill={
+                                            hoveredDimKey === `${item._id}-width` ||
+                                            (activeDimEdit?.itemId === item._id &&
+                                              activeDimEdit?.mode === "width")
+                                              ? "#0369a1"
+                                              : "#0b1220"
+                                          }
+                                          fontSize="46"
+                                          fontWeight="900"
+                                          textAnchor="middle"
+                                        >
+                                          B = {width}
+                                        </text>
+                                      </>
+                                    ) : (
+                                      // Gdy trójkąt stoi bezpośrednio na posadzce: wymiar szerokości na dole
+                                      <>
+                                        <line
+                                          x1={originX}
+                                          y1={originY + height + 5}
+                                          x2={originX}
+                                          y2={originY + height + 75}
+                                          stroke="#64748b"
+                                          strokeWidth="2"
+                                          strokeDasharray="6 6"
+                                        />
+                                        <line
+                                          x1={originX + width}
+                                          y1={originY + height + 5}
+                                          x2={originX + width}
+                                          y2={originY + height + 75}
+                                          stroke="#64748b"
+                                          strokeWidth="2"
+                                          strokeDasharray="6 6"
+                                        />
+                                        <line
+                                          x1={originX}
+                                          y1={originY + height + 60}
+                                          x2={originX + width}
+                                          y2={originY + height + 60}
+                                          stroke={
+                                            hoveredDimKey === `${item._id}-width` ||
+                                            (activeDimEdit?.itemId === item._id &&
+                                              activeDimEdit?.mode === "width")
+                                              ? "#0284c7"
+                                              : "#0b1220"
+                                          }
+                                          strokeWidth={
+                                            hoveredDimKey === `${item._id}-width` ||
+                                            (activeDimEdit?.itemId === item._id &&
+                                              activeDimEdit?.mode === "width")
+                                              ? "5"
+                                              : "3.5"
+                                          }
+                                          markerStart="url(#multiCadArrowStart)"
+                                          markerEnd="url(#multiCadArrowEnd)"
+                                        />
+                                        <rect
+                                          x={originX + width / 2 - 150}
+                                          y={originY + height + 66}
+                                          width={300}
+                                          height={54}
+                                          rx="10"
+                                          fill={
+                                            hoveredDimKey === `${item._id}-width` ||
+                                            (activeDimEdit?.itemId === item._id &&
+                                              activeDimEdit?.mode === "width")
+                                              ? "#e0f2fe"
+                                              : "#ffffff"
+                                          }
+                                          fillOpacity="0.95"
+                                          stroke={
+                                            hoveredDimKey === `${item._id}-width` ||
+                                            (activeDimEdit?.itemId === item._id &&
+                                              activeDimEdit?.mode === "width")
+                                              ? "#0284c7"
+                                              : "#cbd5e1"
+                                          }
+                                          strokeWidth={
+                                            hoveredDimKey === `${item._id}-width` ||
+                                            (activeDimEdit?.itemId === item._id &&
+                                              activeDimEdit?.mode === "width")
+                                              ? "2.5"
+                                              : "1.5"
+                                          }
+                                        />
+                                        <text
+                                          x={originX + width / 2}
+                                          y={originY + height + 105}
+                                          fill={
+                                            hoveredDimKey === `${item._id}-width` ||
+                                            (activeDimEdit?.itemId === item._id &&
+                                              activeDimEdit?.mode === "width")
+                                              ? "#0369a1"
+                                              : "#0b1220"
+                                          }
+                                          fontSize="46"
+                                          fontWeight="900"
+                                          textAnchor="middle"
+                                        >
+                                          B = {width}
+                                        </text>
+                                      </>
+                                    )}
                                   </g>
 
                                   {/* Całkowity wymiar wysokości H (przy słupku przyściennym) */}
@@ -1863,7 +1959,7 @@ export function AllConstructionsCadView({
                                     <line
                                       x1={isTriangleRight ? originX + width + 5 : originX - 5}
                                       y1={originY}
-                                      x2={isTriangleRight ? originX + width + 75 : originX - 75}
+                                      x2={isTriangleRight ? heightDimX + 25 : originX - 75}
                                       y2={originY}
                                       stroke="#64748b"
                                       strokeWidth="2"
@@ -1872,16 +1968,16 @@ export function AllConstructionsCadView({
                                     <line
                                       x1={isTriangleRight ? originX + width + 5 : originX - 5}
                                       y1={originY + height}
-                                      x2={isTriangleRight ? originX + width + 75 : originX - 75}
+                                      x2={isTriangleRight ? heightDimX + 25 : originX - 75}
                                       y2={originY + height}
                                       stroke="#64748b"
                                       strokeWidth="2"
                                       strokeDasharray="6 6"
                                     />
                                     <line
-                                      x1={isTriangleRight ? originX + width + 60 : originX - 60}
+                                      x1={isTriangleRight ? heightDimX : originX - 60}
                                       y1={originY}
-                                      x2={isTriangleRight ? originX + width + 60 : originX - 60}
+                                      x2={isTriangleRight ? heightDimX : originX - 60}
                                       y2={originY + height}
                                       stroke={
                                         hoveredDimKey === `${item._id}-height` ||
@@ -1903,7 +1999,7 @@ export function AllConstructionsCadView({
                                     <g
                                       transform={
                                         isTriangleRight
-                                          ? `translate(${originX + width + 96}, ${originY + height / 2}) rotate(90)`
+                                          ? `translate(${heightDimX + 40}, ${originY + height / 2}) rotate(90)`
                                           : `translate(${originX - 96}, ${originY + height / 2}) rotate(-90)`
                                       }
                                     >
@@ -1973,7 +2069,7 @@ export function AllConstructionsCadView({
                                 </>
                               ) : (
                                 <>
-                                  {/* Wymiary poszczególnych kwater */}
+                                  {/* Wymiary poszczególnych kwater (gdy na samej górze lub pojedyncza) */}
                                   {!hasItemAbove &&
                                     segments.map((seg, idx) => {
                                       const segStartX = originX + (idx * width) / panes;
@@ -2067,7 +2163,101 @@ export function AllConstructionsCadView({
                                       );
                                     })}
 
-                                  {/* Całkowita szerokość */}
+                                  {/* Wymiary poszczególnych kwater dla konstrukcji dolnej (pod posadzką, aby nie kolidowały z konstrukcją powyżej) */}
+                                  {hasItemAbove && itemIdxInStack === 0 &&
+                                    segments.map((seg, idx) => {
+                                      const segStartX = originX + (idx * width) / panes;
+                                      const segEndX =
+                                        originX + ((idx + 1) * width) / panes;
+                                      const dimY = floorY + 70;
+                                      const segKey = `${item._id}-seg-${idx}`;
+                                      const isSegActive =
+                                        hoveredDimKey === segKey ||
+                                        (activeDimEdit?.itemId === item._id &&
+                                          activeDimEdit?.mode === "pane_width" &&
+                                          activeDimEdit?.paneIndex === idx);
+
+                                      return (
+                                        <g
+                                          key={`bottom-seg-${idx}`}
+                                          className="cursor-pointer"
+                                          onMouseEnter={() =>
+                                            setHoveredDimKey(segKey)
+                                          }
+                                          onMouseLeave={() =>
+                                            setHoveredDimKey(null)
+                                          }
+                                          onClick={(e) =>
+                                            openDimEditor(
+                                              e,
+                                              item,
+                                              "pane_width",
+                                              idx
+                                            )
+                                          }
+                                        >
+                                          <line
+                                            x1={segStartX}
+                                            y1={floorY + 4}
+                                            x2={segStartX}
+                                            y2={dimY + 16}
+                                            stroke="#64748b"
+                                            strokeWidth="2"
+                                            strokeDasharray="6 6"
+                                          />
+                                          <line
+                                            x1={segEndX}
+                                            y1={floorY + 4}
+                                            x2={segEndX}
+                                            y2={dimY + 16}
+                                            stroke="#64748b"
+                                            strokeWidth="2"
+                                            strokeDasharray="6 6"
+                                          />
+                                          <line
+                                            x1={segStartX}
+                                            y1={dimY}
+                                            x2={segEndX}
+                                            y2={dimY}
+                                            stroke={
+                                              isSegActive ? "#0284c7" : "#0b1220"
+                                            }
+                                            strokeWidth={isSegActive ? "4.5" : "3"}
+                                            markerStart="url(#multiCadArrowStart)"
+                                            markerEnd="url(#multiCadArrowEnd)"
+                                          />
+                                          <rect
+                                            x={(segStartX + segEndX) / 2 - 80}
+                                            y={dimY + 8}
+                                            width={160}
+                                            height={46}
+                                            rx="8"
+                                            fill={
+                                              isSegActive ? "#e0f2fe" : "#ffffff"
+                                            }
+                                            fillOpacity="0.95"
+                                            stroke={
+                                              isSegActive ? "#0284c7" : "#cbd5e1"
+                                            }
+                                            strokeWidth={isSegActive ? "2" : "1"}
+                                          />
+                                          <text
+                                            x={(segStartX + segEndX) / 2}
+                                            y={dimY + 44}
+                                            fill={
+                                              isSegActive ? "#0369a1" : "#0b1220"
+                                            }
+                                            fontSize="40"
+                                            fontWeight="800"
+                                            textAnchor="middle"
+                                          >
+                                            {seg.widthMm}
+                                          </text>
+                                        </g>
+                                      );
+                                    })}
+
+                                  {/* Całkowita szerokość na górze (gdy na samej górze lub pojedyncza) */}
                                   {!hasItemAbove && (
                                     <g
                                       className="cursor-pointer"
@@ -2155,8 +2345,8 @@ export function AllConstructionsCadView({
                                           hoveredDimKey === `${item._id}-width` ||
                                           (activeDimEdit?.itemId === item._id &&
                                             activeDimEdit?.mode === "width")
-                                            ? "#0369a1"
-                                            : "#0b1220"
+                                          ? "#0369a1"
+                                          : "#0b1220"
                                         }
                                         fontSize="48"
                                         fontWeight="900"
@@ -2167,7 +2357,107 @@ export function AllConstructionsCadView({
                                     </g>
                                   )}
 
-                                  {/* Całkowita wysokość */}
+                                  {/* Całkowita szerokość na dole pod posadzką (dla konstrukcji dolnej gdy ma inną nad sobą) */}
+                                  {hasItemAbove && itemIdxInStack === 0 && (
+                                    <g
+                                      className="cursor-pointer"
+                                      onMouseEnter={() =>
+                                        setHoveredDimKey(`${item._id}-width`)
+                                      }
+                                      onMouseLeave={() => setHoveredDimKey(null)}
+                                      onClick={(e) =>
+                                        openDimEditor(e, item, "width")
+                                      }
+                                    >
+                                      <line
+                                        x1={originX}
+                                        y1={floorY + 4}
+                                        x2={originX}
+                                        y2={floorY + 185}
+                                        stroke="#64748b"
+                                        strokeWidth="2.5"
+                                        strokeDasharray="6 6"
+                                      />
+                                      <line
+                                        x1={originX + width}
+                                        y1={floorY + 4}
+                                        x2={originX + width}
+                                        y2={floorY + 185}
+                                        stroke="#64748b"
+                                        strokeWidth="2.5"
+                                        strokeDasharray="6 6"
+                                      />
+                                      <line
+                                        x1={originX}
+                                        y1={floorY + 165}
+                                        x2={originX + width}
+                                        y2={floorY + 165}
+                                        stroke={
+                                          hoveredDimKey === `${item._id}-width` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "width")
+                                            ? "#0284c7"
+                                            : "#0b1220"
+                                        }
+                                        strokeWidth={
+                                          hoveredDimKey === `${item._id}-width` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "width")
+                                            ? "5"
+                                            : "3.5"
+                                        }
+                                        markerStart="url(#multiCadArrowStart)"
+                                        markerEnd="url(#multiCadArrowEnd)"
+                                      />
+                                      <rect
+                                        x={originX + width / 2 - 110}
+                                        y={floorY + 173}
+                                        width={220}
+                                        height={54}
+                                        rx="10"
+                                        fill={
+                                          hoveredDimKey === `${item._id}-width` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "width")
+                                            ? "#e0f2fe"
+                                            : "#ffffff"
+                                        }
+                                        fillOpacity="0.95"
+                                        stroke={
+                                          hoveredDimKey === `${item._id}-width` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "width")
+                                            ? "#0284c7"
+                                            : "#cbd5e1"
+                                        }
+                                        strokeWidth={
+                                          hoveredDimKey === `${item._id}-width` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "width")
+                                            ? "2.5"
+                                            : "1.5"
+                                        }
+                                      />
+                                      <text
+                                        x={originX + width / 2}
+                                        y={floorY + 215}
+                                        fill={
+                                          hoveredDimKey === `${item._id}-width` ||
+                                          (activeDimEdit?.itemId === item._id &&
+                                            activeDimEdit?.mode === "width")
+                                          ? "#0369a1"
+                                          : "#0b1220"
+                                        }
+                                        fontSize="48"
+                                        fontWeight="900"
+                                        textAnchor="middle"
+                                      >
+                                        {width}
+                                      </text>
+                                    </g>
+                                  )}
+
+                                  {/* Całkowita wysokość wyrównana w linii całego stosu (heightDimX) */}
                                   <g
                                     className="cursor-pointer"
                                     onMouseEnter={() =>
@@ -2181,7 +2471,7 @@ export function AllConstructionsCadView({
                                     <line
                                       x1={originX + width + 5}
                                       y1={originY}
-                                      x2={originX + width + 105}
+                                      x2={heightDimX + 25}
                                       y2={originY}
                                       stroke="#64748b"
                                       strokeWidth="2.5"
@@ -2190,16 +2480,16 @@ export function AllConstructionsCadView({
                                     <line
                                       x1={originX + width + 5}
                                       y1={originY + height}
-                                      x2={originX + width + 105}
+                                      x2={heightDimX + 25}
                                       y2={originY + height}
                                       stroke="#64748b"
                                       strokeWidth="2.5"
                                       strokeDasharray="6 6"
                                     />
                                     <line
-                                      x1={originX + width + 90}
+                                      x1={heightDimX}
                                       y1={originY}
-                                      x2={originX + width + 90}
+                                      x2={heightDimX}
                                       y2={originY + height}
                                       stroke={
                                         hoveredDimKey === `${item._id}-height` ||
@@ -2219,7 +2509,7 @@ export function AllConstructionsCadView({
                                       markerEnd="url(#multiCadArrowEnd)"
                                     />
                                     <g
-                                      transform={`translate(${originX + width + 130}, ${originY + height / 2}) rotate(90)`}
+                                      transform={`translate(${heightDimX + 40}, ${originY + height / 2}) rotate(90)`}
                                     >
                                       <rect
                                         x={-110}
