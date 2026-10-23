@@ -66,6 +66,7 @@ type DriveResponse = {
   files?: DriveItem[];
   id?: string;
   name?: string;
+  mimeType?: string;
 };
 
 type GoogleDocsTextNode = {
