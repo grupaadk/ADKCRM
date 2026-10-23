@@ -3072,42 +3072,40 @@ export const generateOfferPdf = action({
     // 7. Aktualizacja szablonu Google Docs (jeśli szablon nie był prezentacją Slides)
     if (!processedAsSlides) {
       try {
-        // Przygotuj zestawienie konstrukcji CAD (z opisami, wymiarami, cenami i znacznikami na szkice CAD)
-        const posBlocks = items.length === 0
-          ? "Brak pozycji konstrukcji w ofercie."
-          : items.map((it, idx) => {
-              const num = idx + 1;
-              const sys = it.systemName ? `System: ${it.systemName}` : "";
-              const dims = (it.widthMm && it.heightMm) ? `Wymiary: B=${it.widthMm} mm × H=${it.heightMm} mm` : "";
-              const color = it.color ? `Kolor: ${it.color}` : "";
-              const fill = it.fillType ? `Wypełnienie: ${it.fillType}` : "";
-              const panes = it.panesCount ? `Kwatery: ${it.panesCount}` : "";
-              const hardware = it.hardware ? `Okucia: ${it.hardware}` : "";
-
-              const specs = [sys, dims, color, fill, panes, hardware].filter(Boolean).join("   |   ");
-              const desc = it.description ? `Opis: ${it.description}` : "";
-              const notes = it.notes ? `Uwagi: ${it.notes}` : "";
-
-              const itemTotalNet = (it.priceNet || 0) * (it.quantity || 1);
-              const pricing = `Ilość: ${it.quantity} szt.   |   Cena jedn. netto: ${formatPLN(it.priceNet)}   |   Wartość pozycji netto: ${formatPLN(itemTotalNet)}`;
-
-              const imgPlaceholder = `{{__cad_img_${it.positionIndex}__}}`;
-
-              const lines = [
-                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-                `POZYCJA #${num}: ${it.name.toUpperCase()}`,
-              ];
-              if (specs) lines.push(specs);
-              if (desc) lines.push(desc);
-              if (notes) lines.push(notes);
-              lines.push(``);
-              lines.push(imgPlaceholder);
-              lines.push(``);
-              lines.push(pricing);
-              lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-
-              return lines.join("\n");
-            }).join("\n\n");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const findTextRangeInDoc = (doc: any, target: string): { startIndex: number; endIndex: number } | null => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const scanContent = (contentList: any[]): { startIndex: number; endIndex: number } | null => {
+            if (!Array.isArray(contentList)) return null;
+            for (const elem of contentList) {
+              if (elem.paragraph?.elements) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                for (const pe of elem.paragraph.elements) {
+                  const text = pe.textRun?.content;
+                  if (text && text.includes(target)) {
+                    const offset = text.indexOf(target);
+                    const elemStart = pe.startIndex ?? 0;
+                    return {
+                      startIndex: elemStart + offset,
+                      endIndex: elemStart + offset + target.length,
+                    };
+                  }
+                }
+              } else if (elem.table?.tableRows) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                for (const row of elem.table.tableRows) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  for (const cell of row.tableCells ?? []) {
+                    const res = scanContent(cell.content ?? []);
+                    if (res) return res;
+                  }
+                }
+              }
+            }
+            return null;
+          };
+          return scanContent(doc.body?.content ?? []);
+        };
 
         const docReplacements: Array<{ placeholder: string; value: string }> = [
           // Różne warianty tagu klienta
@@ -3155,13 +3153,6 @@ export const generateOfferPdf = action({
           { placeholder: "{{warunki}}", value: offer.terms || "" },
           { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
           { placeholder: "{{pozycje}}", value: lineItemsSummary },
-
-          // Dedykowany znacznik sekcji CAD
-          { placeholder: "{{pozycje_cad}}", value: posBlocks },
-          { placeholder: "{{POZYCJE_CAD}}", value: posBlocks },
-          { placeholder: "{{ pozycje_cad }}", value: posBlocks },
-          { placeholder: "{{konstrukcje_cad}}", value: posBlocks },
-          { placeholder: "{{rysunki_cad}}", value: posBlocks },
 
           // Wzorce finansowe ze wzorca 1XJnz47VXgNXFrOagFj7JiFxcmesIFWQAkQXS7ckc-6Y:
           {
@@ -3224,40 +3215,301 @@ export const generateOfferPdf = action({
           throw new Error(`Błąd aktualizacji dokumentu Google Docs (${docRes.status}): ${errBody}`);
         }
 
-        // KROK 7b: Podstawienie rysunków CAD w miejsca {{__cad_img_X__}}
+        // KROK 7a: Obsługa sekcji {{pozycje_cad}} w układzie 3-kolumnowym (Tabela zgodna z układem ofert)
+        const currentDocRes = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (currentDocRes.ok) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const currentDoc = (await currentDocRes.json()) as any;
+          const cadTagAliases = [
+            "{{pozycje_cad}}",
+            "{{POZYCJE_CAD}}",
+            "{{ pozycje_cad }}",
+            "{{konstrukcje_cad}}",
+            "{{rysunki_cad}}",
+          ];
+
+          let foundCadTag: { startIndex: number; endIndex: number; tag: string } | null = null;
+          for (const alias of cadTagAliases) {
+            const range = findTextRangeInDoc(currentDoc, alias);
+            if (range) {
+              foundCadTag = { ...range, tag: alias };
+              break;
+            }
+          }
+
+          if (foundCadTag) {
+            if (items.length === 0) {
+              await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  requests: [
+                    {
+                      deleteContentRange: {
+                        range: {
+                          startIndex: foundCadTag.startIndex,
+                          endIndex: foundCadTag.endIndex,
+                        },
+                      },
+                    },
+                    {
+                      insertText: {
+                        location: { index: foundCadTag.startIndex },
+                        text: "Brak pozycji konstrukcji w ofercie.",
+                      },
+                    },
+                  ],
+                }),
+              });
+            } else {
+              // 1. Usuń znacznik {{pozycje_cad}} i wstaw tabelę o N wierszach i 3 kolumnach
+              const tableInsertRes = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  requests: [
+                    {
+                      deleteContentRange: {
+                        range: {
+                          startIndex: foundCadTag.startIndex,
+                          endIndex: foundCadTag.endIndex,
+                        },
+                      },
+                    },
+                    {
+                      insertTable: {
+                        rows: items.length,
+                        columns: 3,
+                        location: { index: foundCadTag.startIndex },
+                      },
+                    },
+                  ],
+                }),
+              });
+
+              if (tableInsertRes.ok) {
+                // 2. Pobierz odświeżony dokument, aby poznać dokładne pozycje komórek tabeli
+                const postTableDocRes = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}`, {
+                  headers: { Authorization: `Bearer ${accessToken}` },
+                });
+                if (postTableDocRes.ok) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const postTableDoc = (await postTableDocRes.json()) as any;
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const tableElem = postTableDoc.body?.content?.find(
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (el: any) =>
+                      el.table &&
+                      el.startIndex >= foundCadTag!.startIndex &&
+                      el.startIndex <= foundCadTag!.startIndex + 5
+                  );
+
+                  if (tableElem?.table?.tableRows) {
+                    // Stylizuj tabelę: przezroczyste obramowania góra/lewo/prawo, delikatna linia na dole, padding
+                    try {
+                      await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
+                        method: "POST",
+                        headers: {
+                          Authorization: `Bearer ${accessToken}`,
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                          requests: [
+                            {
+                              updateTableCellStyle: {
+                                tableStartLocation: { index: tableElem.startIndex },
+                                tableCellStyle: {
+                                  borderTop: {
+                                    color: { color: { rgbColor: { red: 1, green: 1, blue: 1 } } },
+                                    width: { magnitude: 0, unit: "PT" },
+                                    dashStyle: "SOLID",
+                                  },
+                                  borderLeft: {
+                                    color: { color: { rgbColor: { red: 1, green: 1, blue: 1 } } },
+                                    width: { magnitude: 0, unit: "PT" },
+                                    dashStyle: "SOLID",
+                                  },
+                                  borderRight: {
+                                    color: { color: { rgbColor: { red: 1, green: 1, blue: 1 } } },
+                                    width: { magnitude: 0, unit: "PT" },
+                                    dashStyle: "SOLID",
+                                  },
+                                  borderBottom: {
+                                    color: { color: { rgbColor: { red: 0.85, green: 0.85, blue: 0.85 } } },
+                                    width: { magnitude: 0.5, unit: "PT" },
+                                    dashStyle: "SOLID",
+                                  },
+                                  paddingTop: { magnitude: 12, unit: "PT" },
+                                  paddingBottom: { magnitude: 12, unit: "PT" },
+                                  paddingLeft: { magnitude: 6, unit: "PT" },
+                                  paddingRight: { magnitude: 6, unit: "PT" },
+                                },
+                                fields: "borderTop,borderLeft,borderRight,borderBottom,paddingTop,paddingBottom,paddingLeft,paddingRight",
+                              },
+                            },
+                            {
+                              updateTableColumnProperties: {
+                                tableStartLocation: { index: tableElem.startIndex },
+                                columnIndices: [0],
+                                tableColumnProperties: {
+                                  widthType: "FIXED_WIDTH",
+                                  width: { magnitude: 175, unit: "PT" },
+                                },
+                                fields: "width,widthType",
+                              },
+                            },
+                            {
+                              updateTableColumnProperties: {
+                                tableStartLocation: { index: tableElem.startIndex },
+                                columnIndices: [1],
+                                tableColumnProperties: {
+                                  widthType: "FIXED_WIDTH",
+                                  width: { magnitude: 185, unit: "PT" },
+                                },
+                                fields: "width,widthType",
+                              },
+                            },
+                            {
+                              updateTableColumnProperties: {
+                                tableStartLocation: { index: tableElem.startIndex },
+                                columnIndices: [2],
+                                tableColumnProperties: {
+                                  widthType: "FIXED_WIDTH",
+                                  width: { magnitude: 120, unit: "PT" },
+                                },
+                                fields: "width,widthType",
+                              },
+                            },
+                          ],
+                        }),
+                      });
+                    } catch (styleErr) {
+                      console.warn("[generateOfferPdf] Table styling warning:", styleErr);
+                    }
+
+                    // Wypełnij komórki od najwyższego indeksu do najniższego (descending order),
+                    // co gwarantuje 100% spójność indeksów znakowych w Docs API.
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const cellRequests: any[] = [];
+                    const rows = tableElem.table.tableRows;
+                    const formatDim = (mm: number) => mm.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+                    for (let rIdx = rows.length - 1; rIdx >= 0; rIdx--) {
+                      const it = items[rIdx];
+                      if (!it) continue;
+                      const row = rows[rIdx];
+                      const cell0 = row.tableCells?.[0];
+                      const cell1 = row.tableCells?.[1];
+                      const cell2 = row.tableCells?.[2];
+
+                      const c0Start = cell0?.content?.[0]?.paragraph?.elements?.[0]?.startIndex;
+                      const c1Start = cell1?.content?.[0]?.paragraph?.elements?.[0]?.startIndex;
+                      const c2Start = cell2?.content?.[0]?.paragraph?.elements?.[0]?.startIndex;
+
+                      const num = it.positionIndex || rIdx + 1;
+                      const itemTotalNet = (it.priceNet || 0) * (it.quantity || 1);
+
+                      // 1. Prawa kolumna: Ceny
+                      if (typeof c2Start === "number") {
+                        const rightText = `Cena za sztukę netto:\n${formatPLN(it.priceNet)}\n\nWartość netto:\n${formatPLN(itemTotalNet)}`;
+                        cellRequests.push({
+                          insertText: {
+                            location: { index: c2Start },
+                            text: rightText,
+                          },
+                        });
+                      }
+
+                      // 2. Środkowa kolumna: Rysunek CAD
+                      if (typeof c1Start === "number") {
+                        const cadUrl = cadImageMap.get(it.positionIndex) || cadImageMap.get(rIdx + 1);
+                        if (cadUrl) {
+                          cellRequests.push({
+                            insertInlineImage: {
+                              location: { index: c1Start },
+                              uri: cadUrl,
+                              objectSize: {
+                                width: { magnitude: 180, unit: "PT" },
+                                height: { magnitude: 135, unit: "PT" },
+                              },
+                            },
+                          });
+                        } else {
+                          cellRequests.push({
+                            insertText: {
+                              location: { index: c1Start },
+                              text: "[Szkic CAD konstrukcji]",
+                            },
+                          });
+                        }
+                      }
+
+                      // 3. Lewa kolumna: Pozycja, Konstrukcja, Ilość
+                      if (typeof c0Start === "number") {
+                        const sysPrefix = it.systemName ? `${it.systemName} - ` : "";
+                        const detailsList: string[] = [];
+                        if (it.description) detailsList.push(it.description);
+                        if (it.hardware) detailsList.push(it.hardware);
+                        if (it.fillType) detailsList.push(it.fillType);
+                        if (it.color) detailsList.push(it.color);
+                        const detailsStr = detailsList.length > 0 ? detailsList.join(", ") : "";
+                        const mainLine = `${sysPrefix}${it.name}${detailsStr ? ", " + detailsStr : ""}`;
+                        const dimsStr = (it.widthMm && it.heightMm)
+                          ? `\n(B=${formatDim(it.widthMm)}, H=${formatDim(it.heightMm)})`
+                          : "";
+
+                        const leftText = `${num}\n\nKonstrukcja:\n${mainLine}${dimsStr}\n\nIlość:\n${it.quantity || 1}`;
+                        cellRequests.push({
+                          insertText: {
+                            location: { index: c0Start },
+                            text: leftText,
+                          },
+                        });
+                      }
+                    }
+
+                    if (cellRequests.length > 0) {
+                      const populateRes = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
+                        method: "POST",
+                        headers: {
+                          Authorization: `Bearer ${accessToken}`,
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ requests: cellRequests }),
+                      });
+                      if (!populateRes.ok) {
+                        console.warn("[generateOfferPdf] Populating CAD table warning:", await populateRes.text());
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // KROK 7b: Podstawienie rysunków CAD w miejsca {{__cad_img_X__}} (dla niestandardowych szablonów z ręcznymi tagami)
         for (let i = 0; i < items.length; i++) {
           const it = items[i];
           const tag = `{{__cad_img_${it.positionIndex}__}}`;
           const cadUrl = cadImageMap.get(it.positionIndex) || cadImageMap.get(i + 1);
 
           try {
-            const currentDocRes = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}`, {
+            const currentDocRes2 = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}`, {
               headers: { Authorization: `Bearer ${accessToken}` },
             });
-            if (!currentDocRes.ok) break;
+            if (!currentDocRes2.ok) break;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const currentDoc = (await currentDocRes.json()) as any;
-
-            let foundRange: { startIndex: number; endIndex: number } | null = null;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            for (const elem of currentDoc.body?.content ?? []) {
-              if (elem.paragraph?.elements) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                for (const pe of elem.paragraph.elements) {
-                  const text = pe.textRun?.content;
-                  if (text && text.includes(tag)) {
-                    const offset = text.indexOf(tag);
-                    const elemStart = pe.startIndex ?? 0;
-                    foundRange = {
-                      startIndex: elemStart + offset,
-                      endIndex: elemStart + offset + tag.length,
-                    };
-                    break;
-                  }
-                }
-              }
-              if (foundRange) break;
-            }
+            const currentDoc2 = (await currentDocRes2.json()) as any;
+            const foundRange = findTextRangeInDoc(currentDoc2, tag);
 
             if (foundRange) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
