@@ -3500,11 +3500,7 @@ export const generateOfferPdf = action({
                           ? `(B=${formatDim(it.widthMm)}, H=${formatDim(it.heightMm)})`
                           : "";
 
-                        // Pobierz pole "Opis techniczny" z parametrów konstrukcji (item.description)
-                        const techDesc = it.description?.trim();
-                        const descSection = techDesc ? `\n\nOpis techniczny:\n${techDesc}` : "";
-
-                        const leftText = `${num}\n\nKonstrukcja:\n${title}${dimsStr ? "\n" + dimsStr : ""}${descSection}\n\nIlość: ${it.quantity || 1}`;
+                        const leftText = `${num}\n\nKonstrukcja:\n${title}${dimsStr ? "\n" + dimsStr : ""}\n\nIlość: ${it.quantity || 1}`;
                         cellRequests.push({
                           insertText: {
                             location: { index: c0Start },
@@ -3526,7 +3522,7 @@ export const generateOfferPdf = action({
                       if (!populateRes.ok) {
                         console.warn("[generateOfferPdf] Populating CAD table warning:", await populateRes.text());
                       } else {
-                        // 3. Po wstawieniu tekstu, pobierz dokument i wyboldowane etykiety: Konstrukcja:, Opis techniczny:, Ilość: itd.
+                        // 3. Po wstawieniu tekstu, pobierz dokument i wyboldowane etykiety: Konstrukcja:, Ilość: itd.
                         try {
                           const postPopulateDocRes = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}`, {
                             headers: { Authorization: `Bearer ${accessToken}` },
@@ -3538,7 +3534,6 @@ export const generateOfferPdf = action({
                             const boldRequests: any[] = [];
                             const boldLabels = [
                               "Konstrukcja:",
-                              "Opis techniczny:",
                               "Ilość:",
                               "Cena za sztukę netto:",
                               "Wartość netto:",
