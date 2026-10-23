@@ -3072,6 +3072,43 @@ export const generateOfferPdf = action({
     // 7. Aktualizacja szablonu Google Docs (jeśli szablon nie był prezentacją Slides)
     if (!processedAsSlides) {
       try {
+        // Przygotuj zestawienie konstrukcji CAD (z opisami, wymiarami, cenami i znacznikami na szkice CAD)
+        const posBlocks = items.length === 0
+          ? "Brak pozycji konstrukcji w ofercie."
+          : items.map((it, idx) => {
+              const num = idx + 1;
+              const sys = it.systemName ? `System: ${it.systemName}` : "";
+              const dims = (it.widthMm && it.heightMm) ? `Wymiary: B=${it.widthMm} mm × H=${it.heightMm} mm` : "";
+              const color = it.color ? `Kolor: ${it.color}` : "";
+              const fill = it.fillType ? `Wypełnienie: ${it.fillType}` : "";
+              const panes = it.panesCount ? `Kwatery: ${it.panesCount}` : "";
+              const hardware = it.hardware ? `Okucia: ${it.hardware}` : "";
+
+              const specs = [sys, dims, color, fill, panes, hardware].filter(Boolean).join("   |   ");
+              const desc = it.description ? `Opis: ${it.description}` : "";
+              const notes = it.notes ? `Uwagi: ${it.notes}` : "";
+
+              const itemTotalNet = (it.priceNet || 0) * (it.quantity || 1);
+              const pricing = `Ilość: ${it.quantity} szt.   |   Cena jedn. netto: ${formatPLN(it.priceNet)}   |   Wartość pozycji netto: ${formatPLN(itemTotalNet)}`;
+
+              const imgPlaceholder = `{{__cad_img_${it.positionIndex}__}}`;
+
+              const lines = [
+                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+                `POZYCJA #${num}: ${it.name.toUpperCase()}`,
+              ];
+              if (specs) lines.push(specs);
+              if (desc) lines.push(desc);
+              if (notes) lines.push(notes);
+              lines.push(``);
+              lines.push(imgPlaceholder);
+              lines.push(``);
+              lines.push(pricing);
+              lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+
+              return lines.join("\n");
+            }).join("\n\n");
+
         const docReplacements: Array<{ placeholder: string; value: string }> = [
           // Różne warianty tagu klienta
           { placeholder: "{{klient}}", value: clientFullName },
@@ -3119,6 +3156,13 @@ export const generateOfferPdf = action({
           { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
           { placeholder: "{{pozycje}}", value: lineItemsSummary },
 
+          // Dedykowany znacznik sekcji CAD
+          { placeholder: "{{pozycje_cad}}", value: posBlocks },
+          { placeholder: "{{POZYCJE_CAD}}", value: posBlocks },
+          { placeholder: "{{ pozycje_cad }}", value: posBlocks },
+          { placeholder: "{{konstrukcje_cad}}", value: posBlocks },
+          { placeholder: "{{rysunki_cad}}", value: posBlocks },
+
           // Wzorce finansowe ze wzorca 1XJnz47VXgNXFrOagFj7JiFxcmesIFWQAkQXS7ckc-6Y:
           {
             placeholder: "RAZEM =  6 497.69zł netto + 23%VAT =7 992.15 zł brutto",
@@ -3146,6 +3190,19 @@ export const generateOfferPdf = action({
           },
         ];
 
+        // Dodaj indywidualne znaczniki rysunków (np. {{rysunek_1}}) jeśli użytkownik używa sztywnego szablonu
+        for (let i = 0; i < items.length; i++) {
+          const posIdx = items[i].positionIndex;
+          docReplacements.push({
+            placeholder: `{{rysunek_${posIdx}}}`,
+            value: `{{__cad_img_${posIdx}__}}`,
+          });
+          docReplacements.push({
+            placeholder: `{{rysunek_${i + 1}}}`,
+            value: `{{__cad_img_${posIdx}__}}`,
+          });
+        }
+
         const docRequests = docReplacements.map((rep) => ({
           replaceAllText: {
             containsText: { text: rep.placeholder, matchCase: false },
@@ -3165,6 +3222,87 @@ export const generateOfferPdf = action({
           const errBody = await docRes.text();
           console.error(`[generateOfferPdf] Docs batchUpdate error (${docRes.status}): ${errBody}`);
           throw new Error(`Błąd aktualizacji dokumentu Google Docs (${docRes.status}): ${errBody}`);
+        }
+
+        // KROK 7b: Podstawienie rysunków CAD w miejsca {{__cad_img_X__}}
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i];
+          const tag = `{{__cad_img_${it.positionIndex}__}}`;
+          const cadUrl = cadImageMap.get(it.positionIndex) || cadImageMap.get(i + 1);
+
+          try {
+            const currentDocRes = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (!currentDocRes.ok) break;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const currentDoc = (await currentDocRes.json()) as any;
+
+            let foundRange: { startIndex: number; endIndex: number } | null = null;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const elem of currentDoc.body?.content ?? []) {
+              if (elem.paragraph?.elements) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                for (const pe of elem.paragraph.elements) {
+                  const text = pe.textRun?.content;
+                  if (text && text.includes(tag)) {
+                    const offset = text.indexOf(tag);
+                    const elemStart = pe.startIndex ?? 0;
+                    foundRange = {
+                      startIndex: elemStart + offset,
+                      endIndex: elemStart + offset + tag.length,
+                    };
+                    break;
+                  }
+                }
+              }
+              if (foundRange) break;
+            }
+
+            if (foundRange) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const imageRequests: any[] = [
+                {
+                  deleteContentRange: {
+                    range: {
+                      startIndex: foundRange.startIndex,
+                      endIndex: foundRange.endIndex,
+                    },
+                  },
+                },
+              ];
+
+              if (cadUrl) {
+                imageRequests.push({
+                  insertInlineImage: {
+                    location: {
+                      index: foundRange.startIndex,
+                    },
+                    uri: cadUrl,
+                    objectSize: {
+                      width: { magnitude: 450, unit: "PT" },
+                      height: { magnitude: 275, unit: "PT" },
+                    },
+                  },
+                });
+              }
+
+              const imgUpdateRes = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ requests: imageRequests }),
+              });
+              if (!imgUpdateRes.ok) {
+                const imgErr = await imgUpdateRes.text();
+                console.warn(`[generateOfferPdf] Docs image insert warning for position #${it.positionIndex}:`, imgErr);
+              }
+            }
+          } catch (itemImgErr) {
+            console.warn(`[generateOfferPdf] Error inserting CAD image for position #${it.positionIndex}:`, itemImgErr);
+          }
         }
       } catch (docErr) {
         console.warn("[generateOfferPdf] Docs batchUpdate warning:", docErr);
