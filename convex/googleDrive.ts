@@ -3452,21 +3452,19 @@ export const generateOfferPdf = action({
                         }
                       }
 
-                      // 3. Lewa kolumna: Pozycja, Konstrukcja, Ilość
+                      // 3. Lewa kolumna: Pozycja, Konstrukcja, Wymiary, Opis techniczny, Ilość
                       if (typeof c0Start === "number") {
                         const sysPrefix = it.systemName ? `${it.systemName} - ` : "";
-                        const detailsList: string[] = [];
-                        if (it.description) detailsList.push(it.description);
-                        if (it.hardware) detailsList.push(it.hardware);
-                        if (it.fillType) detailsList.push(it.fillType);
-                        if (it.color) detailsList.push(it.color);
-                        const detailsStr = detailsList.length > 0 ? detailsList.join(", ") : "";
-                        const mainLine = `${sysPrefix}${it.name}${detailsStr ? ", " + detailsStr : ""}`;
+                        const title = `${sysPrefix}${it.name}`;
                         const dimsStr = (it.widthMm && it.heightMm)
-                          ? `\n(B=${formatDim(it.widthMm)}, H=${formatDim(it.heightMm)})`
+                          ? `(B=${formatDim(it.widthMm)}, H=${formatDim(it.heightMm)})`
                           : "";
 
-                        const leftText = `${num}\n\nKonstrukcja:\n${mainLine}${dimsStr}\n\nIlość:\n${it.quantity || 1}`;
+                        // Pobierz pole "Opis techniczny" z parametrów konstrukcji (item.description)
+                        const techDesc = it.description?.trim();
+                        const descSection = techDesc ? `\n\nOpis techniczny:\n${techDesc}` : "";
+
+                        const leftText = `${num}\n\nKonstrukcja:\n${title}${dimsStr ? "\n" + dimsStr : ""}${descSection}\n\nIlość:\n${it.quantity || 1}`;
                         cellRequests.push({
                           insertText: {
                             location: { index: c0Start },
