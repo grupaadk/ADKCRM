@@ -6,6 +6,7 @@ import {
   Settings2,
   DollarSign,
   Ruler,
+  Palette,
 } from "lucide-react";
 
 interface LeftPropertiesPanelProps {
@@ -153,6 +154,93 @@ export function LeftPropertiesPanel({
                 Wg szablonu CAD
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* Sekcja: Kolor i Wypełnienie */}
+        <div className="bg-[#f8fafc] p-3 rounded-lg border border-[#e3e7ee] space-y-3">
+          <div className="flex items-center gap-1.5 text-[#0e7490] font-bold text-[11px] uppercase tracking-wide">
+            <Palette size={13} className="text-[#4ABBC3]" /> Kolor i Wypełnienie
+          </div>
+
+          {/* Kolor profili */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[10px] font-medium text-[#7c8597]">
+                Kolor profili (RAL)
+              </label>
+              {item.color && (
+                <span className="font-mono text-[10px] text-[#0e7490] font-bold">
+                  {item.color}
+                </span>
+              )}
+            </div>
+            <input
+              type="text"
+              disabled={readOnly}
+              value={item.color || ""}
+              onChange={(e) => onChange({ color: e.target.value })}
+              placeholder="np. RAL 7016MAT"
+              className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1.5 text-[#0b1220] font-mono text-xs focus:border-[#4ABBC3] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none"
+            />
+            {!readOnly && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {["RAL 7016MAT", "RAL 9005MAT", "RAL 9016", "RAL 7021"].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => onChange({ color: c })}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors border cursor-pointer ${
+                      (item.color || "RAL 7016MAT") === c
+                        ? "bg-[#e0f9fe] border-[#4ABBC3] text-[#0e7490] font-bold"
+                        : "bg-white border-[#e2e8f0] text-[#64748b] hover:border-[#cbd5e1]"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Wypełnienie */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[10px] font-medium text-[#7c8597]">
+                Wypełnienie (szkło / panel)
+              </label>
+              {item.fillType && (
+                <span className="font-mono text-[10px] text-[#0e7490] font-bold">
+                  {item.fillType}
+                </span>
+              )}
+            </div>
+            <input
+              type="text"
+              disabled={readOnly}
+              value={item.fillType || ""}
+              onChange={(e) => onChange({ fillType: e.target.value })}
+              placeholder="np. HART 10"
+              className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1.5 text-[#0b1220] font-mono text-xs focus:border-[#4ABBC3] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none"
+            />
+            {!readOnly && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {["HART 10", "HART 8", "VSG 44.2", "Poliwęglan 16mm"].map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => onChange({ fillType: f })}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors border cursor-pointer ${
+                      (item.fillType || "HART 10") === f
+                        ? "bg-[#e0f9fe] border-[#4ABBC3] text-[#0e7490] font-bold"
+                        : "bg-white border-[#e2e8f0] text-[#64748b] hover:border-[#cbd5e1]"
+                    }`}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
