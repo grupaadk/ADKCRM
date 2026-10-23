@@ -41,6 +41,9 @@ export interface OfferData {
   totalPriceGross: number;
   totalCostNet: number;
   discountPercent?: number;
+  serviceId?: string;
+  serviceName?: string;
+  templateFileId?: string;
   notes?: string;
   terms?: string;
   /** URL ostatnio wygenerowanego PDF-u (Google Drive) */
@@ -134,7 +137,7 @@ export function OfferSummaryTab({
         console.warn("[handlePrintPdf] Ostrzeżenie przy generowaniu zrzutów CAD:", cadErr);
       }
 
-      // 2. Wywołaj akcję generowania oferty PDF z szablonu Prezentacji Google
+      // 2. Wywołaj akcję generowania oferty PDF z szablonu Google Docs (lub Slides wg usługi)
       const result = await generateOfferPdf({
         offerId: offer._id as Id<"offers">,
         itemsCadImages,

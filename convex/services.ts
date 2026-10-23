@@ -34,6 +34,8 @@ export const create = mutation({
     description: v.optional(v.string()),
     icon: v.optional(v.string()),
     showOnWebsite: v.optional(v.boolean()),
+    offerTemplateGoogleDriveId: v.optional(v.string()),
+    offerTemplateName: v.optional(v.string()),
     defaultTasks: v.optional(v.array(v.object({
       title: v.string(),
       daysToComplete: v.optional(v.number()),
@@ -61,6 +63,8 @@ export const create = mutation({
       sortOrder: (last?.sortOrder ?? 0) + 1,
       description: args.description,
       icon: args.icon,
+      offerTemplateGoogleDriveId: args.offerTemplateGoogleDriveId,
+      offerTemplateName: args.offerTemplateName,
       defaultTasks: args.defaultTasks,
       createdBy: userIdentifier(user),
     });
@@ -74,6 +78,8 @@ export const update = mutation({
     description: v.optional(v.string()),
     icon: v.optional(v.string()),
     showOnWebsite: v.optional(v.boolean()),
+    offerTemplateGoogleDriveId: v.optional(v.string()),
+    offerTemplateName: v.optional(v.string()),
     defaultTasks: v.optional(v.array(v.object({
       title: v.string(),
       daysToComplete: v.optional(v.number()),

@@ -71,6 +71,30 @@ export const getOfferWithItems = query({
       client = await ctx.db.get(opportunity.clientId);
     }
 
+    let service = null;
+    if (offer.serviceId) {
+      service = await ctx.db.get(offer.serviceId);
+    } else if (offer.serviceName) {
+      const allServices = await ctx.db.query("services").collect();
+      service =
+        allServices.find(
+          (s) => s.name.toLowerCase() === offer.serviceName?.toLowerCase()
+        ) || null;
+    } else if (opportunity?.services && opportunity.services.length > 0) {
+      const allServices = await ctx.db.query("services").collect();
+      const oppServiceNames = opportunity.services.map((s) => s.trim().toLowerCase());
+      service =
+        allServices.find(
+          (s) =>
+            oppServiceNames.includes(s.name.trim().toLowerCase()) &&
+            Boolean(s.offerTemplateGoogleDriveId)
+        ) ||
+        allServices.find((s) =>
+          oppServiceNames.includes(s.name.trim().toLowerCase())
+        ) ||
+        null;
+    }
+
     const cleanTitle = cleanOfferTitle(offer.title) ?? offer.title;
 
     return {
@@ -81,6 +105,7 @@ export const getOfferWithItems = query({
       items,
       opportunity,
       client,
+      service,
     };
   },
 });
@@ -117,6 +142,26 @@ export const getOrCreateForOpportunity = mutation({
     const variantSuffix = existingOffers.length > 0 ? ` (Wariant ${existingOffers.length + 1})` : "";
     const title = cleanOfferTitle(args.title) || (clientName ? `Oferta dla: ${clientName}${variantSuffix}` : `Oferta${variantSuffix}`);
 
+    let initialServiceId: Id<"services"> | undefined;
+    let initialServiceName: string | undefined;
+    if (opp.services && opp.services.length > 0) {
+      const allServices = await ctx.db.query("services").collect();
+      const oppServiceNames = opp.services.map((s) => s.trim().toLowerCase());
+      const matched =
+        allServices.find(
+          (s) =>
+            oppServiceNames.includes(s.name.trim().toLowerCase()) &&
+            Boolean(s.offerTemplateGoogleDriveId)
+        ) ||
+        allServices.find((s) =>
+          oppServiceNames.includes(s.name.trim().toLowerCase())
+        );
+      if (matched) {
+        initialServiceId = matched._id;
+        initialServiceName = matched.name;
+      }
+    }
+
     const offerId = await ctx.db.insert("offers", {
       opportunityId: args.opportunityId,
       offerNumber,
@@ -126,6 +171,8 @@ export const getOrCreateForOpportunity = mutation({
       totalPriceGross: 0,
       totalCostNet: 0,
       discountPercent: 0,
+      serviceId: initialServiceId,
+      serviceName: initialServiceName,
       notes: opp.comment || undefined,
       createdAt: now,
       updatedAt: now,
@@ -162,6 +209,26 @@ export const createOfferForOpportunity = mutation({
     const variantSuffix = existingOffers.length > 0 ? ` (Wariant ${existingOffers.length + 1})` : "";
     const title = cleanOfferTitle(args.title) || (clientName ? `Oferta dla: ${clientName}${variantSuffix}` : `Oferta${variantSuffix}`);
 
+    let initialServiceId: Id<"services"> | undefined;
+    let initialServiceName: string | undefined;
+    if (opp.services && opp.services.length > 0) {
+      const allServices = await ctx.db.query("services").collect();
+      const oppServiceNames = opp.services.map((s) => s.trim().toLowerCase());
+      const matched =
+        allServices.find(
+          (s) =>
+            oppServiceNames.includes(s.name.trim().toLowerCase()) &&
+            Boolean(s.offerTemplateGoogleDriveId)
+        ) ||
+        allServices.find((s) =>
+          oppServiceNames.includes(s.name.trim().toLowerCase())
+        );
+      if (matched) {
+        initialServiceId = matched._id;
+        initialServiceName = matched.name;
+      }
+    }
+
     const offerId = await ctx.db.insert("offers", {
       opportunityId: args.opportunityId,
       offerNumber,
@@ -171,6 +238,8 @@ export const createOfferForOpportunity = mutation({
       totalPriceGross: 0,
       totalCostNet: 0,
       discountPercent: 0,
+      serviceId: initialServiceId,
+      serviceName: initialServiceName,
       notes: opp.comment || undefined,
       createdAt: now,
       updatedAt: now,
@@ -217,6 +286,9 @@ export const duplicateOffer = mutation({
       totalPriceGross: sourceOffer.totalPriceGross,
       totalCostNet: sourceOffer.totalCostNet,
       discountPercent: sourceOffer.discountPercent,
+      serviceId: sourceOffer.serviceId,
+      serviceName: sourceOffer.serviceName,
+      templateFileId: sourceOffer.templateFileId,
       notes: sourceOffer.notes,
       terms: sourceOffer.terms,
       createdAt: now,
@@ -586,6 +658,9 @@ export const updateOffer = mutation({
       )
     ),
     discountPercent: v.optional(v.number()),
+    serviceId: v.optional(v.id("services")),
+    serviceName: v.optional(v.string()),
+    templateFileId: v.optional(v.string()),
     notes: v.optional(v.string()),
     terms: v.optional(v.string()),
   },

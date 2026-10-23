@@ -2426,8 +2426,9 @@ export const listTemplateFiles = action({
   },
 });
 
+export const DEFAULT_OFFER_DOCS_TEMPLATE_ID = "1XJnz47VXgNXFrOagFj7JiFxcmesIFWQAkQXS7ckc-6Y";
 export const OFFER_SLIDES_TEMPLATE_ID = "1-gl0q_8B9k6eM0mWwh30tAbx9LN8sfhmwrHMRI-ppUg";
-export const OFFER_DOCX_TEMPLATE_ID = OFFER_SLIDES_TEMPLATE_ID;
+export const OFFER_DOCX_TEMPLATE_ID = DEFAULT_OFFER_DOCS_TEMPLATE_ID;
 
 async function uploadBufferToDrive(
   accessToken: string,
@@ -2498,19 +2499,28 @@ export const generateOfferPdf = action({
     ctx,
     args,
   ): Promise<{ pdfUrl: string; fileId: string; fileName: string; folderUrl: string }> => {
-    const templateId = args.templateFileId ?? OFFER_SLIDES_TEMPLATE_ID;
-
-    // 1. Pobierz ofertę i jej pozycje
+    // 1. Pobierz ofertę i jej pozycje oraz powiązaną usługę
     const offerData = await ctx.runQuery(api.offers.getOfferWithItems, {
       offerId: args.offerId,
     });
     if (!offerData || !offerData.offer) {
       throw new Error("Oferta nie została znaleziona.");
     }
-    const { offer, items, opportunity, client } = offerData;
+    const { offer, items, opportunity, client, service } = offerData;
     if (!opportunity) {
       throw new Error("Szansa sprzedaży powiązana z ofertą nie została znaleziona.");
     }
+
+    // Dynamiczne ustalenie szablonu:
+    // 1. Jawnie przekazany w akcji (args.templateFileId)
+    // 2. Przypisany wprost do oferty (offer.templateFileId)
+    // 3. Szablon skonfigurowany w usłudze oferty / szansy (service.offerTemplateGoogleDriveId)
+    // 4. Domyślny szablon Google Docs (DEFAULT_OFFER_DOCS_TEMPLATE_ID)
+    const templateId =
+      args.templateFileId ||
+      offer.templateFileId ||
+      service?.offerTemplateGoogleDriveId ||
+      DEFAULT_OFFER_DOCS_TEMPLATE_ID;
 
     const connection = await getAuthorizedConnection(ctx);
     const accessToken = connection.accessToken;
@@ -2628,361 +2638,511 @@ export const generateOfferPdf = action({
       }
     }
 
-    // 6. Próba aktualizacji szablonu jako Prezentacja Google (Google Slides API)
-    let processedAsSlides = false;
+    // 6. Sprawdź typ pliku szablonu (Google Docs vs Google Slides)
+    let isPresentation = false;
     try {
+      const fileMeta = await driveApiFetchWithRetry(
+        ctx,
+        `/files/${copyDocId}?fields=id,name,mimeType&supportsAllDrives=true`
+      );
+      if (fileMeta?.mimeType === "application/vnd.google-apps.presentation") {
+        isPresentation = true;
+      }
+    } catch (metaErr) {
+      console.warn("[generateOfferPdf] mimeType fetch error:", metaErr);
+    }
+
+    let processedAsSlides = false;
+    if (isPresentation) {
       const presCheckRes = await fetch(`${SLIDES_API_BASE}/presentations/${copyDocId}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
-      if (presCheckRes.ok) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const presentation = (await presCheckRes.json()) as any;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const slides: any[] = presentation.slides ?? [];
-
-        if (slides.length > 0) {
-          processedAsSlides = true;
-
-          // Pomocnicza funkcja do wyciągania tekstu ze slajdu
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const extractSlideText = (slide: any): string => {
-            let res = "";
-            for (const el of slide.pageElements ?? []) {
-              if (el.shape?.text?.textElements) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                for (const te of el.shape.text.textElements) {
-                  if (te.textRun?.content) res += te.textRun.content + " ";
-                }
-              }
-              if (el.table?.tableRows) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                for (const row of el.table.tableRows) {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  for (const cell of row.tableCells ?? []) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    for (const te of cell.text?.textElements ?? []) {
-                      if (te.textRun?.content) res += te.textRun.content + " ";
-                    }
-                  }
-                }
-              }
-            }
-            return res.toLowerCase();
-          };
-
-          // Znajdź slajd wzorcowy pozycji (zawierający markery konstrukcji lub szkicu)
-          let itemTemplateIndex = slides.findIndex((s) => {
-            const txt = extractSlideText(s);
-            return (
-              txt.includes("{{pozycja") ||
-              txt.includes("{{nazwa") ||
-              txt.includes("{{wymiary") ||
-              txt.includes("pozycja") ||
-              txt.includes("konstrukcja") ||
-              txt.includes("szkic") ||
-              txt.includes("pe68") ||
-              txt.includes("drzwi")
-            );
-          });
-
-          if (itemTemplateIndex === -1) {
-            itemTemplateIndex = slides.length >= 2 ? 1 : 0;
-          }
-
-          const itemTemplateSlide = slides[itemTemplateIndex];
-
-          // A. Duplikacja slajdów pozycji dla wielu konstrukcji w ofercie
-          if (items.length > 1 && itemTemplateSlide?.objectId) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const duplicateReqs: any[] = [];
-            for (let i = 1; i < items.length; i++) {
-              duplicateReqs.push({
-                duplicateObject: {
-                  objectId: itemTemplateSlide.objectId,
-                },
-              });
-            }
-
-            if (duplicateReqs.length > 0) {
-              const dupRes = await fetch(`${SLIDES_API_BASE}/presentations/${copyDocId}:batchUpdate`, {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${accessToken}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ requests: duplicateReqs }),
-              });
-              if (!dupRes.ok) {
-                console.warn("[generateOfferPdf] duplicateObject failed:", await dupRes.text());
-              }
-            }
-          }
-
-          // Pobierz odświeżoną strukturę prezentacji (ze zduplikowanymi slajdami i nowymi ID obiektów)
-          const refreshedRes = await fetch(`${SLIDES_API_BASE}/presentations/${copyDocId}`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          });
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const refreshedPres = (await refreshedRes.json()) as any;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const refreshedSlides: any[] = refreshedPres.slides ?? slides;
-
-          // Wyznacz slajdy odpowiadające poszczególnym pozycjom
-          // Nowe slajdy po duplicateObject pojawiają się bezpośrednio po slajdzie wzorcowym
-          const positionSlides = refreshedSlides.slice(
-            itemTemplateIndex,
-            itemTemplateIndex + Math.max(1, items.length)
+      if (!presCheckRes.ok) {
+        const errText = await presCheckRes.text();
+        console.warn(`[generateOfferPdf] Slides API fetch warning (${presCheckRes.status}): ${errText}`);
+        if (presCheckRes.status === 403 || presCheckRes.status === 401) {
+          throw new Error(
+            `Brak uprawnień do edycji Prezentacji Google (status ${presCheckRes.status}). ` +
+            `Twoje konto Google Drive w CRM wymaga odświeżenia uprawnień o Google Slides. ` +
+            `Przejdź do: Ustawienia -> zakładka Google Drive, kliknij 'Rozłącz z Google Drive', a następnie 'Połącz z Google Drive', aby zatwierdzić dostęp do prezentacji.`
           );
+        }
+      } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const presentation = (await presCheckRes.json()) as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const slides: any[] = presentation.slides ?? [];
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const slidesBatchRequests: any[] = [];
+      if (slides.length > 0) {
+        processedAsSlides = true;
 
-          // B. Wypełnij parametry i szkice CAD dla każdej konstrukcji z osobna
-          for (let idx = 0; idx < items.length; idx++) {
-            const it = items[idx];
-            const slide = positionSlides[idx] || positionSlides[0];
-            const slideId = slide?.objectId;
-            if (!slideId) continue;
-
-            const itDims = it.widthMm && it.heightMm ? `B = ${it.widthMm} mm × H = ${it.heightMm} mm` : "";
-            const itSys = it.systemName ? `${it.systemName} - ` : "";
-            const itDesc = `${itSys}${it.name}${itDims ? `\n(${itDims})` : ""}`;
-            const itTotalNet = (it.priceNet || 0) * (it.quantity || 1);
-
-            const posReplacements: Array<{ placeholder: string; value: string }> = [
-              { placeholder: "{{pozycja_nr}}", value: String(idx + 1) },
-              { placeholder: "{{nr_pozycji}}", value: String(idx + 1) },
-              { placeholder: "{{nazwa_konstrukcji}}", value: it.name || `Konstrukcja #${idx + 1}` },
-              { placeholder: "{{nazwa}}", value: it.name || `Konstrukcja #${idx + 1}` },
-              { placeholder: "{{opis_konstrukcji}}", value: it.description || itDesc },
-              { placeholder: "{{opis}}", value: it.description || itDesc },
-              { placeholder: "{{system}}", value: it.systemName || "" },
-              { placeholder: "{{kolor}}", value: it.color || "" },
-              { placeholder: "{{wymiary}}", value: itDims || `${it.widthMm} × ${it.heightMm}` },
-              { placeholder: "{{szerokosc}}", value: `${it.widthMm} mm` },
-              { placeholder: "{{wysokosc}}", value: `${it.heightMm} mm` },
-              { placeholder: "{{szklenie}}", value: it.fillType || "" },
-              { placeholder: "{{wypelnienie}}", value: it.fillType || "" },
-              { placeholder: "{{ilosc}}", value: `${it.quantity} szt.` },
-              { placeholder: "{{cena_netto}}", value: formatPLN(it.priceNet) },
-              { placeholder: "{{wartosc_netto_pozycji}}", value: formatPLN(itTotalNet) },
-              { placeholder: "{{uwagi_pozycji}}", value: it.notes || "" },
-
-              // Wzorce specyficzne z oryginalnego wzorca:
-              {
-                placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016\x0B(B=1 490, H=2 100)",
-                value: itDesc,
-              },
-              {
-                placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016\u000b(B=1\u00a0490, H=2\u00a0100)",
-                value: itDesc,
-              },
-              {
-                placeholder: "6 997,11",
-                value: formatPLN(itTotalNet).replace(" zł", ""),
-              },
-              {
-                placeholder: "6\u00a0997,11",
-                value: formatPLN(itTotalNet).replace(" zł", ""),
-              },
-            ];
-
-            for (const rep of posReplacements) {
-              slidesBatchRequests.push({
-                replaceAllText: {
-                  containsText: {
-                    text: rep.placeholder,
-                    matchCase: false,
-                  },
-                  replaceText: rep.value,
-                  pageObjectIds: [slideId],
-                },
-              });
-            }
-
-            // Podmiana / wstawienie obrazka szkicu CAD dla danej konstrukcji
-            const cadImgUrl = cadImageMap.get(it.positionIndex) ?? cadImageMap.get(idx + 1);
-            if (cadImgUrl) {
+        // Pomocnicza funkcja do wyciągania tekstu ze slajdu
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const extractSlideText = (slide: any): string => {
+          let res = "";
+          for (const el of slide.pageElements ?? []) {
+            if (el.shape?.text?.textElements) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const pageElements: any[] = slide.pageElements ?? [];
-
-              // Szukamy obrazka do podmiany (replaceImage)
-              const existingImageEl = pageElements.find((el) => Boolean(el.image));
-
-              if (existingImageEl) {
-                slidesBatchRequests.push({
-                  replaceImage: {
-                    imageObjectId: existingImageEl.objectId,
-                    url: cadImgUrl,
-                    imageReplaceMethod: "CENTER_INSIDE",
-                  },
-                });
-              } else {
-                // Jeśli nie ma obrazka, szukamy prostokąta/kształtu ze słowem szkic lub cad
-                const placeholderShape = pageElements.find((el) => {
-                  let shapeTxt = "";
-                  if (el.shape?.text?.textElements) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    for (const te of el.shape.text.textElements) {
-                      if (te.textRun?.content) shapeTxt += te.textRun.content + " ";
-                    }
+              for (const te of el.shape.text.textElements) {
+                if (te.textRun?.content) res += te.textRun.content + " ";
+              }
+            }
+            if (el.table?.tableRows) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              for (const row of el.table.tableRows) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                for (const cell of row.tableCells ?? []) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  for (const te of cell.text?.textElements ?? []) {
+                    if (te.textRun?.content) res += te.textRun.content + " ";
                   }
-                  return (
-                    shapeTxt.toLowerCase().includes("szkic") ||
-                    shapeTxt.toLowerCase().includes("cad") ||
-                    shapeTxt.toLowerCase().includes("rysunek")
-                  );
-                });
-
-                if (placeholderShape?.size && placeholderShape?.transform) {
-                  // Usuń placeholder i wstaw obrazek w tym samym miejscu
-                  slidesBatchRequests.push({
-                    deleteObject: { objectId: placeholderShape.objectId },
-                  });
-                  slidesBatchRequests.push({
-                    createImage: {
-                      url: cadImgUrl,
-                      elementProperties: {
-                        pageObjectId: slideId,
-                        size: placeholderShape.size,
-                        transform: placeholderShape.transform,
-                      },
-                    },
-                  });
-                } else {
-                  // Standardowe wstawienie obrazka CAD po lewej stronie slajdu
-                  slidesBatchRequests.push({
-                    createImage: {
-                      url: cadImgUrl,
-                      elementProperties: {
-                        pageObjectId: slideId,
-                        size: {
-                          width: { magnitude: 380, unit: "PT" },
-                          height: { magnitude: 260, unit: "PT" },
-                        },
-                        transform: {
-                          scaleX: 1,
-                          scaleY: 1,
-                          translateX: 40,
-                          translateY: 90,
-                          unit: "PT",
-                        },
-                      },
-                    },
-                  });
                 }
               }
             }
           }
+          return res.toLowerCase();
+        };
 
-          // C. Podstaw ogólne dane oferty i klienta w całej prezentacji (okładka, stopka, podsumowanie)
-          const globalReplacements: Array<{ placeholder: string; value: string }> = [
-            { placeholder: "{{imie}}", value: clientFirstName },
-            { placeholder: "{{nazwisko}}", value: clientLastName },
-            { placeholder: "{{klient}}", value: clientFullName },
-            { placeholder: "{{clientName}}", value: clientFullName },
-            { placeholder: "{{telefon}}", value: clientPhone },
-            { placeholder: "{{phone}}", value: clientPhone },
-            { placeholder: "{{email}}", value: clientEmail },
-            { placeholder: "{{miasto}}", value: clientCity },
-            { placeholder: "{{city}}", value: clientCity },
-            { placeholder: "{{ulica}}", value: clientStreet },
-            { placeholder: "{{street}}", value: clientStreet },
-            { placeholder: "{{kod_pocztowy}}", value: clientPostalCode },
-            { placeholder: "{{postalCode}}", value: clientPostalCode },
-            { placeholder: "{{adres}}", value: clientAddress },
-            { placeholder: "{{address}}", value: clientAddress },
-            { placeholder: "{{numer_oferty}}", value: offer.offerNumber || "" },
-            { placeholder: "{{offerNumber}}", value: offer.offerNumber || "" },
-            { placeholder: "{{tytul_oferty}}", value: offer.title || "" },
-            { placeholder: "{{data}}", value: todayStr },
-            { placeholder: "{{today}}", value: todayStr },
-            { placeholder: "{{wartosc_netto}}", value: totalNetStr },
-            { placeholder: "{{totalNet}}", value: totalNetStr },
-            { placeholder: "{{wartosc_brutto}}", value: totalGrossStr },
-            { placeholder: "{{totalGross}}", value: totalGrossStr },
-            { placeholder: "{{wartość zamówienia netto}}", value: totalNetStr },
-            { placeholder: "{{wartość zamówienia brutto}}", value: totalGrossStr },
-            { placeholder: "{{rabat}}", value: discountPctStr },
-            { placeholder: "{{discount}}", value: discountPctStr },
-            { placeholder: "{{wartosc_przed_rabatem}}", value: netBeforeDiscountStr },
-            { placeholder: "{{uwagi}}", value: offer.notes || "" },
-            { placeholder: "{{notes}}", value: offer.notes || "" },
-            { placeholder: "{{warunki}}", value: offer.terms || "" },
-            { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
-            { placeholder: "{{pozycje}}", value: lineItemsSummary },
+        // Znajdź slajd wzorcowy pozycji (zawierający markery konstrukcji lub szkicu)
+        let itemTemplateIndex = slides.findIndex((s) => {
+          const txt = extractSlideText(s);
+          return (
+            txt.includes("{{pozycja") ||
+            txt.includes("{{nazwa") ||
+            txt.includes("{{wymiary") ||
+            txt.includes("pozycja") ||
+            txt.includes("konstrukcja") ||
+            txt.includes("szkic") ||
+            txt.includes("pe68") ||
+            txt.includes("drzwi")
+          );
+        });
 
-            // Wzorce finansowe ze wzorca:
+        if (itemTemplateIndex === -1) {
+          itemTemplateIndex = slides.length >= 2 ? 1 : 0;
+        }
+
+        const itemTemplateSlide = slides[itemTemplateIndex];
+
+        // A. Duplikacja slajdów pozycji dla wielu konstrukcji w ofercie
+        if (items.length > 1 && itemTemplateSlide?.objectId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const duplicateReqs: any[] = [];
+          for (let i = 1; i < items.length; i++) {
+            duplicateReqs.push({
+              duplicateObject: {
+                objectId: itemTemplateSlide.objectId,
+              },
+            });
+          }
+
+          if (duplicateReqs.length > 0) {
+            const dupRes = await fetch(`${SLIDES_API_BASE}/presentations/${copyDocId}:batchUpdate`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ requests: duplicateReqs }),
+            });
+            if (!dupRes.ok) {
+              console.warn("[generateOfferPdf] duplicateObject failed:", await dupRes.text());
+            }
+          }
+        }
+
+        // Pobierz odświeżoną strukturę prezentacji (ze zduplikowanymi slajdami i nowymi ID obiektów)
+        const refreshedRes = await fetch(`${SLIDES_API_BASE}/presentations/${copyDocId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const refreshedPres = (await refreshedRes.json()) as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const refreshedSlides: any[] = refreshedPres.slides ?? slides;
+
+        // Wyznacz slajdy odpowiadające poszczególnym pozycjom
+        const positionSlides = refreshedSlides.slice(
+          itemTemplateIndex,
+          itemTemplateIndex + Math.max(1, items.length)
+        );
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const textBatchRequests: any[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const imageBatchRequests: any[] = [];
+
+        // B. Wypełnij parametry i szkice CAD dla każdej konstrukcji z osobna
+        for (let idx = 0; idx < items.length; idx++) {
+          const it = items[idx];
+          const slide = positionSlides[idx] || positionSlides[0];
+          const slideId = slide?.objectId;
+          if (!slideId) continue;
+
+          const itDims = it.widthMm && it.heightMm ? `B = ${it.widthMm} mm × H = ${it.heightMm} mm` : "";
+          const itSys = it.systemName ? `${it.systemName} - ` : "";
+          const itDesc = `${itSys}${it.name}${itDims ? `\n(${itDims})` : ""}`;
+          const itTotalNet = (it.priceNet || 0) * (it.quantity || 1);
+
+          const posReplacements: Array<{ placeholder: string; value: string }> = [
+            { placeholder: "{{pozycja_nr}}", value: String(idx + 1) },
+            { placeholder: "{{nr_pozycji}}", value: String(idx + 1) },
+            { placeholder: "{{nazwa_konstrukcji}}", value: it.name || `Konstrukcja #${idx + 1}` },
+            { placeholder: "{{nazwa}}", value: it.name || `Konstrukcja #${idx + 1}` },
+            { placeholder: "{{opis_konstrukcji}}", value: it.description || itDesc },
+            { placeholder: "{{opis}}", value: it.description || itDesc },
+            { placeholder: "{{system}}", value: it.systemName || "" },
+            { placeholder: "{{kolor}}", value: it.color || "" },
+            { placeholder: "{{wymiary}}", value: itDims || `${it.widthMm} × ${it.heightMm}` },
+            { placeholder: "{{szerokosc}}", value: `${it.widthMm} mm` },
+            { placeholder: "{{wysokosc}}", value: `${it.heightMm} mm` },
+            { placeholder: "{{szklenie}}", value: it.fillType || "" },
+            { placeholder: "{{wypelnienie}}", value: it.fillType || "" },
+            { placeholder: "{{ilosc}}", value: `${it.quantity} szt.` },
+            { placeholder: "{{cena_netto}}", value: formatPLN(it.priceNet) },
+            { placeholder: "{{wartosc_netto_pozycji}}", value: formatPLN(itTotalNet) },
+            { placeholder: "{{uwagi_pozycji}}", value: it.notes || "" },
+
+            // Wzorce specyficzne z oryginalnego wzorca:
             {
-              placeholder: "RAZEM =  6 497.69zł netto + 23%VAT =7 992.15 zł brutto",
-              value: `RAZEM =  ${totalNetStr} netto + 23%VAT = ${totalGrossStr} brutto`,
+              placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016\x0B(B=1 490, H=2 100)",
+              value: itDesc,
             },
             {
-              placeholder: "6 997,11 - 20%RABAT = 5 597,69",
-              value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
+              placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016\u000b(B=1\u00a0490, H=2\u00a0100)",
+              value: itDesc,
             },
             {
-              placeholder: "6\u00a0997,11 - 20%RABAT = 5\u00a0597,69",
-              value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
+              placeholder: "6 997,11",
+              value: formatPLN(itTotalNet).replace(" zł", ""),
             },
             {
-              placeholder: "W przypadku potrzeby uzyskania kontroli dostępu: + 200 zł netto",
-              value: offer.notes ? offer.notes : "",
+              placeholder: "6\u00a0997,11",
+              value: formatPLN(itTotalNet).replace(" zł", ""),
             },
           ];
 
-          for (const rep of globalReplacements) {
-            slidesBatchRequests.push({
+          for (const rep of posReplacements) {
+            textBatchRequests.push({
               replaceAllText: {
                 containsText: {
                   text: rep.placeholder,
                   matchCase: false,
                 },
                 replaceText: rep.value,
+                pageObjectIds: [slideId],
               },
             });
           }
 
-          if (slidesBatchRequests.length > 0) {
-            const batchRes = await fetch(`${SLIDES_API_BASE}/presentations/${copyDocId}:batchUpdate`, {
+          // Podmiana / wstawienie obrazka szkicu CAD dla danej konstrukcji
+          const cadImgUrl = cadImageMap.get(it.positionIndex) ?? cadImageMap.get(idx + 1);
+          if (cadImgUrl) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const pageElements: any[] = slide.pageElements ?? [];
+
+            // Szukamy obrazka do podmiany (replaceImage)
+            const existingImageEl = pageElements.find((el) => Boolean(el.image));
+
+            if (existingImageEl) {
+              imageBatchRequests.push({
+                replaceImage: {
+                  imageObjectId: existingImageEl.objectId,
+                  url: cadImgUrl,
+                  imageReplaceMethod: "CENTER_INSIDE",
+                },
+              });
+            } else {
+              // Jeśli nie ma obrazka, szukamy prostokąta/kształtu ze słowem szkic lub cad
+              const placeholderShape = pageElements.find((el) => {
+                let shapeTxt = "";
+                if (el.shape?.text?.textElements) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  for (const te of el.shape.text.textElements) {
+                    if (te.textRun?.content) shapeTxt += te.textRun.content + " ";
+                  }
+                }
+                return (
+                  shapeTxt.toLowerCase().includes("szkic") ||
+                  shapeTxt.toLowerCase().includes("cad") ||
+                  shapeTxt.toLowerCase().includes("rysunek")
+                );
+              });
+
+              if (placeholderShape?.size && placeholderShape?.transform) {
+                imageBatchRequests.push({
+                  deleteObject: { objectId: placeholderShape.objectId },
+                });
+                imageBatchRequests.push({
+                  createImage: {
+                    url: cadImgUrl,
+                    elementProperties: {
+                      pageObjectId: slideId,
+                      size: placeholderShape.size,
+                      transform: placeholderShape.transform,
+                    },
+                  },
+                });
+              } else {
+                imageBatchRequests.push({
+                  createImage: {
+                    url: cadImgUrl,
+                    elementProperties: {
+                      pageObjectId: slideId,
+                      size: {
+                        width: { magnitude: 380, unit: "PT" },
+                        height: { magnitude: 260, unit: "PT" },
+                      },
+                      transform: {
+                        scaleX: 1,
+                        scaleY: 1,
+                        translateX: 40,
+                        translateY: 90,
+                        unit: "PT",
+                      },
+                    },
+                  },
+                });
+              }
+            }
+          }
+        }
+
+        // C. Podstaw ogólne dane oferty i klienta w całej prezentacji (okładka, stopka, podsumowanie)
+        const globalReplacements: Array<{ placeholder: string; value: string }> = [
+          // Różne warianty tagu klienta
+          { placeholder: "{{klient}}", value: clientFullName },
+          { placeholder: "{{KLIENT}}", value: clientFullName },
+          { placeholder: "{{Klient}}", value: clientFullName },
+          { placeholder: "{{ klient }}", value: clientFullName },
+          { placeholder: "{{ KLIENT }}", value: clientFullName },
+          { placeholder: "{{ Klient }}", value: clientFullName },
+          { placeholder: "{{client}}", value: clientFullName },
+          { placeholder: "{{clientName}}", value: clientFullName },
+          { placeholder: "{{imie}}", value: clientFirstName },
+          { placeholder: "{{nazwisko}}", value: clientLastName },
+          { placeholder: "{{telefon}}", value: clientPhone },
+          { placeholder: "{{phone}}", value: clientPhone },
+          { placeholder: "{{email}}", value: clientEmail },
+          { placeholder: "{{miasto}}", value: clientCity },
+          { placeholder: "{{city}}", value: clientCity },
+          { placeholder: "{{ulica}}", value: clientStreet },
+          { placeholder: "{{street}}", value: clientStreet },
+          { placeholder: "{{kod_pocztowy}}", value: clientPostalCode },
+          { placeholder: "{{postalCode}}", value: clientPostalCode },
+          { placeholder: "{{adres}}", value: clientAddress },
+          { placeholder: "{{address}}", value: clientAddress },
+          { placeholder: "{{numer_oferty}}", value: offer.offerNumber || "" },
+          { placeholder: "{{offerNumber}}", value: offer.offerNumber || "" },
+          { placeholder: "{{tytul_oferty}}", value: offer.title || "" },
+          { placeholder: "{{data}}", value: todayStr },
+          { placeholder: "{{today}}", value: todayStr },
+          { placeholder: "{{dzisiaj}}", value: todayStr },
+          { placeholder: "{{wartosc_netto}}", value: totalNetStr },
+          { placeholder: "{{totalNet}}", value: totalNetStr },
+          { placeholder: "{{wartosc_brutto}}", value: totalGrossStr },
+          { placeholder: "{{totalGross}}", value: totalGrossStr },
+          { placeholder: "{{wartość zamówienia netto}}", value: totalNetStr },
+          { placeholder: "{{wartość zamówienia brutto}}", value: totalGrossStr },
+          { placeholder: "{{rabat}}", value: discountPctStr },
+          { placeholder: "{{discount}}", value: discountPctStr },
+          { placeholder: "{{wartosc_przed_rabatem}}", value: netBeforeDiscountStr },
+          { placeholder: "{{uwagi}}", value: offer.notes || "" },
+          { placeholder: "{{notes}}", value: offer.notes || "" },
+          { placeholder: "{{warunki}}", value: offer.terms || "" },
+          { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
+          { placeholder: "{{pozycje}}", value: lineItemsSummary },
+
+          // Wzorce finansowe ze wzorca:
+          {
+            placeholder: "RAZEM =  6 497.69zł netto + 23%VAT =7 992.15 zł brutto",
+            value: `RAZEM =  ${totalNetStr} netto + 23%VAT = ${totalGrossStr} brutto`,
+          },
+          {
+            placeholder: "6 997,11 - 20%RABAT = 5 597,69",
+            value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
+          },
+          {
+            placeholder: "6\u00a0997,11 - 20%RABAT = 5\u00a0597,69",
+            value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
+          },
+          {
+            placeholder: "W przypadku potrzeby uzyskania kontroli dostępu: + 200 zł netto",
+            value: offer.notes ? offer.notes : "",
+          },
+        ];
+
+        // 1. Dodaj globalne podstawienia tekstu dla całej prezentacji
+        for (const rep of globalReplacements) {
+          textBatchRequests.push({
+            replaceAllText: {
+              containsText: {
+                text: rep.placeholder,
+                matchCase: false,
+              },
+              replaceText: rep.value,
+            },
+          });
+        }
+
+        // 2. Jeśli tekst znajduje się we wzorcu lub układzie slajdu (masters / layouts), podmień także tam
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const layoutMasterIds = [
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...(refreshedPres.masters ?? []).map((m: any) => m.objectId),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...(refreshedPres.layouts ?? []).map((l: any) => l.objectId),
+        ].filter(Boolean);
+
+        for (const lmId of layoutMasterIds) {
+          textBatchRequests.push({
+            replaceAllText: {
+              containsText: {
+                text: "{{klient}}",
+                matchCase: false,
+              },
+              replaceText: clientFullName,
+              pageObjectIds: [lmId],
+            },
+          });
+          textBatchRequests.push({
+            replaceAllText: {
+              containsText: {
+                text: "{{numer_oferty}}",
+                matchCase: false,
+              },
+              replaceText: offer.offerNumber || "",
+              pageObjectIds: [lmId],
+            },
+          });
+          textBatchRequests.push({
+            replaceAllText: {
+              containsText: {
+                text: "{{data}}",
+                matchCase: false,
+              },
+              replaceText: todayStr,
+              pageObjectIds: [lmId],
+            },
+          });
+        }
+
+        // KROK 1: Wyślij batch podstawiania tekstów
+        if (textBatchRequests.length > 0) {
+          const textBatchRes = await fetch(`${SLIDES_API_BASE}/presentations/${copyDocId}:batchUpdate`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ requests: textBatchRequests }),
+          });
+
+          if (!textBatchRes.ok) {
+            const errBody = await textBatchRes.text();
+            console.error(`[generateOfferPdf] Slides text batchUpdate error (${textBatchRes.status}): ${errBody}`);
+            throw new Error(`Błąd podstawiania tekstów w Prezentacji Google (${textBatchRes.status}): ${errBody}`);
+          }
+        }
+
+        // KROK 2: Wyślij batch operacji graficznych w osobnym kroku (odporny na błędy)
+        if (imageBatchRequests.length > 0) {
+          try {
+            const imgBatchRes = await fetch(`${SLIDES_API_BASE}/presentations/${copyDocId}:batchUpdate`, {
               method: "POST",
               headers: {
                 Authorization: `Bearer ${accessToken}`,
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({ requests: slidesBatchRequests }),
+              body: JSON.stringify({ requests: imageBatchRequests }),
             });
-            if (!batchRes.ok) {
-              const errBody = await batchRes.text();
-              console.warn(`[generateOfferPdf] Slides batchUpdate warning: ${batchRes.status}: ${errBody}`);
+            if (!imgBatchRes.ok) {
+              const imgErrBody = await imgBatchRes.text();
+              console.warn(`[generateOfferPdf] Slides image batchUpdate warning (${imgBatchRes.status}): ${imgErrBody}`);
             }
+          } catch (imgErr) {
+            console.warn("[generateOfferPdf] Slides image batchUpdate network error:", imgErr);
           }
         }
       }
-    } catch (slidesErr) {
-      console.warn("[generateOfferPdf] Slides API error (will fallback if Doc):", slidesErr);
     }
+  }
 
-    // 7. Fallback dla klasycznego Google Docs (jeśli szablon nie był prezentacją Slides)
+    // 7. Aktualizacja szablonu Google Docs (jeśli szablon nie był prezentacją Slides)
     if (!processedAsSlides) {
       try {
         const docReplacements: Array<{ placeholder: string; value: string }> = [
+          // Różne warianty tagu klienta
+          { placeholder: "{{klient}}", value: clientFullName },
+          { placeholder: "{{KLIENT}}", value: clientFullName },
+          { placeholder: "{{Klient}}", value: clientFullName },
+          { placeholder: "{{ klient }}", value: clientFullName },
+          { placeholder: "{{ KLIENT }}", value: clientFullName },
+          { placeholder: "{{ Klient }}", value: clientFullName },
+          { placeholder: "{{client}}", value: clientFullName },
+          { placeholder: "{{clientName}}", value: clientFullName },
           { placeholder: "{{imie}}", value: clientFirstName },
           { placeholder: "{{nazwisko}}", value: clientLastName },
-          { placeholder: "{{klient}}", value: clientFullName },
-          { placeholder: "{{clientName}}", value: clientFullName },
           { placeholder: "{{telefon}}", value: clientPhone },
+          { placeholder: "{{phone}}", value: clientPhone },
           { placeholder: "{{email}}", value: clientEmail },
+          { placeholder: "{{miasto}}", value: clientCity },
+          { placeholder: "{{city}}", value: clientCity },
+          { placeholder: "{{ulica}}", value: clientStreet },
+          { placeholder: "{{street}}", value: clientStreet },
+          { placeholder: "{{kod_pocztowy}}", value: clientPostalCode },
+          { placeholder: "{{postalCode}}", value: clientPostalCode },
           { placeholder: "{{adres}}", value: clientAddress },
+          { placeholder: "{{address}}", value: clientAddress },
           { placeholder: "{{numer_oferty}}", value: offer.offerNumber || "" },
+          { placeholder: "{{numer oferty}}", value: offer.offerNumber || "" },
+          { placeholder: "{{nr_oferty}}", value: offer.offerNumber || "" },
+          { placeholder: "{{offerNumber}}", value: offer.offerNumber || "" },
+          { placeholder: "{{tytul_oferty}}", value: offer.title || "" },
           { placeholder: "{{data}}", value: todayStr },
+          { placeholder: "{{dzisiaj}}", value: todayStr },
+          { placeholder: "{{today}}", value: todayStr },
+          { placeholder: "{{date}}", value: todayStr },
           { placeholder: "{{wartosc_netto}}", value: totalNetStr },
+          { placeholder: "{{totalNet}}", value: totalNetStr },
           { placeholder: "{{wartosc_brutto}}", value: totalGrossStr },
+          { placeholder: "{{totalGross}}", value: totalGrossStr },
+          { placeholder: "{{wartość zamówienia netto}}", value: totalNetStr },
+          { placeholder: "{{wartość zamówienia brutto}}", value: totalGrossStr },
           { placeholder: "{{rabat}}", value: discountPctStr },
+          { placeholder: "{{discount}}", value: discountPctStr },
+          { placeholder: "{{wartosc_przed_rabatem}}", value: netBeforeDiscountStr },
           { placeholder: "{{uwagi}}", value: offer.notes || "" },
+          { placeholder: "{{notes}}", value: offer.notes || "" },
+          { placeholder: "{{warunki}}", value: offer.terms || "" },
           { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
           { placeholder: "{{pozycje}}", value: lineItemsSummary },
+
+          // Wzorce finansowe ze wzorca 1XJnz47VXgNXFrOagFj7JiFxcmesIFWQAkQXS7ckc-6Y:
+          {
+            placeholder: "RAZEM =  6 497.69zł netto + 23%VAT =7 992.15 zł brutto",
+            value: `RAZEM =  ${totalNetStr} netto + 23%VAT = ${totalGrossStr} brutto`,
+          },
+          {
+            placeholder: "6 997,11 - 20%RABAT = 5 597,69",
+            value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
+          },
+          {
+            placeholder: "6\u00a0997,11 - 20%RABAT = 5\u00a0597,69",
+            value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
+          },
+          {
+            placeholder: "W przypadku potrzeby uzyskania kontroli dostępu: + 200 zł netto",
+            value: offer.notes ? offer.notes : "",
+          },
+          {
+            placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016\x0B(B=1 490, H=2 100)",
+            value: lineItemsSummary || "",
+          },
+          {
+            placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016",
+            value: lineItemsSummary || "",
+          },
         ];
 
         const docRequests = docReplacements.map((rep) => ({
@@ -2992,7 +3152,7 @@ export const generateOfferPdf = action({
           },
         }));
 
-        await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
+        const docRes = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3000,8 +3160,14 @@ export const generateOfferPdf = action({
           },
           body: JSON.stringify({ requests: docRequests }),
         });
+        if (!docRes.ok) {
+          const errBody = await docRes.text();
+          console.error(`[generateOfferPdf] Docs batchUpdate error (${docRes.status}): ${errBody}`);
+          throw new Error(`Błąd aktualizacji dokumentu Google Docs (${docRes.status}): ${errBody}`);
+        }
       } catch (docErr) {
-        console.warn("[generateOfferPdf] Docs fallback batchUpdate warning:", docErr);
+        console.warn("[generateOfferPdf] Docs batchUpdate warning:", docErr);
+        throw docErr;
       }
     }
 

@@ -593,6 +593,8 @@ export default defineSchema({
       title: v.string(),
       daysToComplete: v.optional(v.number()),
     }))),
+    offerTemplateGoogleDriveId: v.optional(v.string()),
+    offerTemplateName: v.optional(v.string()),
     // Pola legacy — do usunięcia po migracji
     unit: v.optional(v.string()),
     unitPrice: v.optional(v.number()),
@@ -1186,6 +1188,9 @@ export default defineSchema({
     totalPriceGross: v.number(),
     totalCostNet: v.number(),
     discountPercent: v.optional(v.number()),
+    serviceId: v.optional(v.id("services")),
+    serviceName: v.optional(v.string()),
+    templateFileId: v.optional(v.string()),
     notes: v.optional(v.string()),
     terms: v.optional(v.string()),
     /** URL ostatnio wygenerowanego PDF-u oferty (Google Drive) */

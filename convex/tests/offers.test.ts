@@ -374,4 +374,59 @@ describe("CAD Offers and Constructions Module", () => {
     expect(svg).toContain("HART 10");
     expect(svg).toContain("POZ. #1: ŚCIANA PRZESUWNA SZKLANA");
   });
+
+  test("assigns Google Docs template to service and resolves it in offer", async () => {
+    const { DEFAULT_OFFER_DOCS_TEMPLATE_ID, OFFER_DOCX_TEMPLATE_ID } = await import("../googleDrive");
+    expect(DEFAULT_OFFER_DOCS_TEMPLATE_ID).toBe("1XJnz47VXgNXFrOagFj7JiFxcmesIFWQAkQXS7ckc-6Y");
+    expect(OFFER_DOCX_TEMPLATE_ID).toBe(DEFAULT_OFFER_DOCS_TEMPLATE_ID);
+
+    const t = convexTest(schema);
+
+    // 1. Create a service with custom Google Docs template
+    const customTemplateId = "1CustomGoogleDocIdForPergolas";
+    const serviceId = await t.run(async (ctx) => {
+      return await ctx.db.insert("services", {
+        name: "Pergole bioklimatyczne",
+        isActive: true,
+        sortOrder: 1,
+        createdBy: "admin@adk.pl",
+        offerTemplateGoogleDriveId: customTemplateId,
+        offerTemplateName: "Szablon wyceny pergoli",
+      });
+    });
+
+    // 2. Create opportunity with that service
+    const oppId = await t.run(async (ctx) => {
+      return await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-PERGOLA",
+        firstName: "Tomasz",
+        lastName: "Nowak",
+        services: ["Pergole bioklimatyczne"],
+        processed: false,
+        stage: "lead",
+      });
+    });
+
+    // 3. Create offer for that opportunity
+    const offerId = await t.mutation(api.offers.getOrCreateForOpportunity, {
+      opportunityId: oppId,
+    });
+
+    // 4. Verify getOfferWithItems returns the matched service and template
+    const offerData = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(offerData).not.toBeNull();
+    expect(offerData!.service).not.toBeNull();
+    expect(offerData!.service!._id).toBe(serviceId);
+    expect(offerData!.service!.offerTemplateGoogleDriveId).toBe(customTemplateId);
+    expect(offerData!.service!.offerTemplateName).toBe("Szablon wyceny pergoli");
+
+    // 5. Update offer with specific override template
+    await t.mutation(api.offers.updateOffer, {
+      offerId,
+      templateFileId: "1OverrideTemplateDirectlyOnOffer",
+    });
+
+    const updatedData = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(updatedData!.offer.templateFileId).toBe("1OverrideTemplateDirectlyOnOffer");
+  });
 });

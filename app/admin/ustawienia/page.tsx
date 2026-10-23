@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Settings,
   Clock,
+  ExternalLink,
 } from "lucide-react";
 import { ITKanbanTab } from "./ITKanbanTab";
 import { EventTypesTab } from "./EventTypesTab";
@@ -2727,8 +2728,22 @@ function ServicesTab() {
   const assignSuppliers = useMutation(api.services.assignSuppliers);
   const seedServices = useMutation(api.services.seed);
 
+  function extractGoogleDocId(input: string): string {
+    const trimmed = input.trim();
+    const match = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) return match[1];
+    return trimmed;
+  }
+
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", icon: "Settings", showOnWebsite: true });
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    icon: "Settings",
+    showOnWebsite: true,
+    offerTemplateGoogleDriveId: "",
+    offerTemplateName: "",
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -2754,9 +2769,18 @@ function ServicesTab() {
         description: form.description || undefined, 
         icon: form.icon || undefined,
         showOnWebsite: form.showOnWebsite,
+        offerTemplateGoogleDriveId: extractGoogleDocId(form.offerTemplateGoogleDriveId) || undefined,
+        offerTemplateName: form.offerTemplateName || undefined,
         defaultTasks: [] 
       });
-      setForm({ name: "", description: "", icon: "Settings", showOnWebsite: true });
+      setForm({
+        name: "",
+        description: "",
+        icon: "Settings",
+        showOnWebsite: true,
+        offerTemplateGoogleDriveId: "",
+        offerTemplateName: "",
+      });
       setShowForm(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Błąd zapisu");
@@ -2765,7 +2789,15 @@ function ServicesTab() {
     }
   }
 
-  async function handleSave(id: Id<"services">, data: { name?: string; description?: string; icon?: string; showOnWebsite?: boolean; defaultTasks?: { title: string; daysToComplete?: number }[] }) {
+  async function handleSave(id: Id<"services">, data: {
+    name?: string;
+    description?: string;
+    icon?: string;
+    showOnWebsite?: boolean;
+    offerTemplateGoogleDriveId?: string;
+    offerTemplateName?: string;
+    defaultTasks?: { title: string; daysToComplete?: number }[];
+  }) {
     await updateService({ id, ...data });
   }
 
@@ -2847,6 +2879,24 @@ function ServicesTab() {
                 placeholder="opcjonalny opis"
               />
             </div>
+            <div className="col-span-2">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Szablon oferty (Google Docs)</label>
+              <input
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                value={form.offerTemplateGoogleDriveId}
+                onChange={(e) => setForm((f) => ({ ...f, offerTemplateGoogleDriveId: e.target.value }))}
+                placeholder="Link lub ID pliku Google Docs"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa szablonu</label>
+              <input
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                value={form.offerTemplateName}
+                onChange={(e) => setForm((f) => ({ ...f, offerTemplateName: e.target.value }))}
+                placeholder="opcjonalna nazwa szablonu"
+              />
+            </div>
             <div className="col-span-4 flex items-center gap-2 pt-1">
               <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
                 <input
@@ -2884,7 +2934,7 @@ function ServicesTab() {
               className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
               Dodaj
             </button>
-            <button type="button" onClick={() => { setShowForm(false); setForm({ name: "", description: "", icon: "Settings", showOnWebsite: true }); setError(null); }}
+            <button type="button" onClick={() => { setShowForm(false); setForm({ name: "", description: "", icon: "Settings", showOnWebsite: true, offerTemplateGoogleDriveId: "", offerTemplateName: "" }); setError(null); }}
               className="rounded-lg border border-slate-300 px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
               Anuluj
             </button>
@@ -2906,6 +2956,7 @@ function ServicesTab() {
                 <th className="w-8 px-2 py-3" />
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Usługa</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Dostawcy</th>
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Szablon oferty</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">Pokaż na WWW</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
                 <th className="w-32" />
@@ -2958,11 +3009,21 @@ function ServicesRow({
     isActive: boolean;
     showOnWebsite?: boolean;
     sortOrder: number;
+    offerTemplateGoogleDriveId?: string;
+    offerTemplateName?: string;
     defaultTasks?: { title: string; daysToComplete?: number }[];
   };
   supplierMap: Map<string, string>;
   allSuppliers: { _id: Id<"suppliers">; name: string }[];
-  onSave: (id: Id<"services">, data: { name?: string; description?: string; icon?: string; showOnWebsite?: boolean; defaultTasks?: { title: string; daysToComplete?: number }[] }) => Promise<void>;
+  onSave: (id: Id<"services">, data: {
+    name?: string;
+    description?: string;
+    icon?: string;
+    showOnWebsite?: boolean;
+    offerTemplateGoogleDriveId?: string;
+    offerTemplateName?: string;
+    defaultTasks?: { title: string; daysToComplete?: number }[];
+  }) => Promise<void>;
   onToggle: (id: Id<"services">) => Promise<void>;
   onToggleWebsite: (id: Id<"services">) => Promise<void>;
   onDelete: (id: Id<"services">) => Promise<void>;
@@ -2970,6 +3031,13 @@ function ServicesRow({
   onMoveUp: (id: Id<"services">, sortOrder: number) => Promise<void>;
   onMoveDown: (id: Id<"services">, sortOrder: number) => Promise<void>;
 }) {
+  function extractGoogleDocId(input: string): string {
+    const trimmed = input.trim();
+    const match = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) return match[1];
+    return trimmed;
+  }
+
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({
     name: service.name,
@@ -2977,6 +3045,8 @@ function ServicesRow({
     icon: service.icon ?? "Settings",
     showOnWebsite: service.showOnWebsite ?? true,
     supplierIds: service.supplierIds ?? [] as Id<"suppliers">[],
+    offerTemplateGoogleDriveId: service.offerTemplateGoogleDriveId ?? "",
+    offerTemplateName: service.offerTemplateName ?? "",
     defaultTasks: service.defaultTasks ?? [],
   });
   const [busy, setBusy] = useState(false);
@@ -2991,6 +3061,8 @@ function ServicesRow({
         description: draft.description || undefined, 
         icon: draft.icon || undefined,
         showOnWebsite: draft.showOnWebsite,
+        offerTemplateGoogleDriveId: extractGoogleDocId(draft.offerTemplateGoogleDriveId) || undefined,
+        offerTemplateName: draft.offerTemplateName || undefined,
         defaultTasks: draft.defaultTasks 
       });
       await onAssignSuppliers(service._id, draft.supplierIds);
@@ -3018,7 +3090,7 @@ function ServicesRow({
   if (editing) {
     return (
       <tr className="bg-blue-50">
-        <td className="px-4 py-3" colSpan={6}>
+        <td className="px-4 py-3" colSpan={7}>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -3035,6 +3107,45 @@ function ServicesRow({
                   className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
                   value={draft.description}
                   onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 border-t border-slate-200/80 pt-2">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    Szablon oferty (Google Docs)
+                  </label>
+                  {draft.offerTemplateGoogleDriveId && (
+                    <a
+                      href={`https://docs.google.com/document/d/${extractGoogleDocId(draft.offerTemplateGoogleDriveId)}/edit`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5"
+                    >
+                      Otwórz szablon ↗
+                    </a>
+                  )}
+                </div>
+                <input
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                  placeholder="Wklej URL lub ID szablonu Docs"
+                  value={draft.offerTemplateGoogleDriveId}
+                  onChange={(e) => setDraft((d) => ({ ...d, offerTemplateGoogleDriveId: e.target.value }))}
+                />
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Domyślnie używany jest ogólny szablon ADK. Wklej link do Google Docs, aby przypisać szablon dla tej usługi.
+                </p>
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  Nazwa szablonu (opcjonalnie)
+                </label>
+                <input
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                  placeholder="np. Wycena okien"
+                  value={draft.offerTemplateName}
+                  onChange={(e) => setDraft((d) => ({ ...d, offerTemplateName: e.target.value }))}
                 />
               </div>
             </div>
@@ -3228,6 +3339,24 @@ function ServicesRow({
           </div>
         ) : (
           <span className="text-xs text-slate-400">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        {service.offerTemplateGoogleDriveId ? (
+          <a
+            href={`https://docs.google.com/document/d/${service.offerTemplateGoogleDriveId}/edit`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium"
+            title="Kliknij, aby otworzyć szablon w Google Docs"
+          >
+            <span className="truncate max-w-[150px]">
+              {service.offerTemplateName || "Szablon Docs"}
+            </span>
+            <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
+          </a>
+        ) : (
+          <span className="text-xs text-slate-400 italic">Domyślny Docs (ADK)</span>
         )}
       </td>
       <td className="px-4 py-3 text-center">
