@@ -3107,6 +3107,46 @@ export const generateOfferPdf = action({
           return scanContent(doc.body?.content ?? []);
         };
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const findAllTextRangesInDoc = (doc: any, target: string): Array<{ startIndex: number; endIndex: number }> => {
+          const results: Array<{ startIndex: number; endIndex: number }> = [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const scanContent = (contentList: any[]) => {
+            if (!Array.isArray(contentList)) return;
+            for (const elem of contentList) {
+              if (elem.paragraph?.elements) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                for (const pe of elem.paragraph.elements) {
+                  const text = pe.textRun?.content;
+                  if (text && text.includes(target)) {
+                    let searchStart = 0;
+                    while (true) {
+                      const idx = text.indexOf(target, searchStart);
+                      if (idx === -1) break;
+                      const elemStart = pe.startIndex ?? 0;
+                      results.push({
+                        startIndex: elemStart + idx,
+                        endIndex: elemStart + idx + target.length,
+                      });
+                      searchStart = idx + target.length;
+                    }
+                  }
+                }
+              } else if (elem.table?.tableRows) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                for (const row of elem.table.tableRows) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  for (const cell of row.tableCells ?? []) {
+                    scanContent(cell.content ?? []);
+                  }
+                }
+              }
+            }
+          };
+          scanContent(doc.body?.content ?? []);
+          return results;
+        };
+
         const docReplacements: Array<{ placeholder: string; value: string }> = [
           // Różne warianty tagu klienta
           { placeholder: "{{klient}}", value: clientFullName },
@@ -3464,7 +3504,7 @@ export const generateOfferPdf = action({
                         const techDesc = it.description?.trim();
                         const descSection = techDesc ? `\n\nOpis techniczny:\n${techDesc}` : "";
 
-                        const leftText = `${num}\n\nKonstrukcja:\n${title}${dimsStr ? "\n" + dimsStr : ""}${descSection}\n\nIlość:\n${it.quantity || 1}`;
+                        const leftText = `${num}\n\nKonstrukcja:\n${title}${dimsStr ? "\n" + dimsStr : ""}${descSection}\n\nIlość: ${it.quantity || 1}`;
                         cellRequests.push({
                           insertText: {
                             location: { index: c0Start },
@@ -3485,6 +3525,79 @@ export const generateOfferPdf = action({
                       });
                       if (!populateRes.ok) {
                         console.warn("[generateOfferPdf] Populating CAD table warning:", await populateRes.text());
+                      } else {
+                        // 3. Po wstawieniu tekstu, pobierz dokument i wyboldowane etykiety: Konstrukcja:, Opis techniczny:, Ilość: itd.
+                        try {
+                          const postPopulateDocRes = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}`, {
+                            headers: { Authorization: `Bearer ${accessToken}` },
+                          });
+                          if (postPopulateDocRes.ok) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const postPopulateDoc = (await postPopulateDocRes.json()) as any;
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const boldRequests: any[] = [];
+                            const boldLabels = [
+                              "Konstrukcja:",
+                              "Opis techniczny:",
+                              "Ilość:",
+                              "Cena za sztukę netto:",
+                              "Wartość netto:",
+                            ];
+
+                            for (const label of boldLabels) {
+                              const ranges = findAllTextRangesInDoc(postPopulateDoc, label);
+                              for (const r of ranges) {
+                                boldRequests.push({
+                                  updateTextStyle: {
+                                    range: { startIndex: r.startIndex, endIndex: r.endIndex },
+                                    textStyle: { bold: true },
+                                    fields: "bold",
+                                  },
+                                });
+                              }
+                            }
+
+                            // Wyboldowanie i powiększenie numerów pozycji (np. 1, 2, 3...)
+                            const populatedTable = postPopulateDoc.body?.content?.find(
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              (el: any) =>
+                                el.table &&
+                                el.startIndex >= foundCadTag!.startIndex &&
+                                el.startIndex <= foundCadTag!.startIndex + 5
+                            );
+                            if (populatedTable?.table?.tableRows) {
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              for (let rowIdx = 0; rowIdx < populatedTable.table.tableRows.length; rowIdx++) {
+                                const rowEl = populatedTable.table.tableRows[rowIdx];
+                                const itm = items[rowIdx];
+                                const numStr = String(itm?.positionIndex || rowIdx + 1);
+                                const c0Start = rowEl.tableCells?.[0]?.content?.[0]?.paragraph?.elements?.[0]?.startIndex;
+                                if (typeof c0Start === "number") {
+                                  boldRequests.push({
+                                    updateTextStyle: {
+                                      range: { startIndex: c0Start, endIndex: c0Start + numStr.length },
+                                      textStyle: { bold: true, fontSize: { magnitude: 13, unit: "PT" } },
+                                      fields: "bold,fontSize",
+                                    },
+                                  });
+                                }
+                              }
+                            }
+
+                            if (boldRequests.length > 0) {
+                              await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
+                                method: "POST",
+                                headers: {
+                                  Authorization: `Bearer ${accessToken}`,
+                                  "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({ requests: boldRequests }),
+                              });
+                            }
+                          }
+                        } catch (boldErr) {
+                          console.warn("[generateOfferPdf] Bold styling warning:", boldErr);
+                        }
                       }
                     }
                   }
