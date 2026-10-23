@@ -2592,6 +2592,31 @@ export const generateOfferPdf = action({
       : offer.totalPriceNet;
     const netBeforeDiscountStr = formatPLN(netBeforeDiscount);
 
+    const vatAmount = Math.max(0, offer.totalPriceGross - offer.totalPriceNet);
+    const vatAmountStr = formatPLN(vatAmount);
+
+    const montazItems = items.filter(
+      (it) => it.name.toLowerCase().includes("montaż") || it.name.toLowerCase().includes("montaz")
+    );
+    const montazNet = montazItems.reduce((acc, it) => acc + (it.priceNet || 0) * (it.quantity || 1), 0);
+    const montazNetStr = formatPLN(montazNet);
+
+    const rabatKalkulacja = (offer.discountPercent && offer.discountPercent > 0)
+      ? `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`
+      : totalNetStr;
+
+    const razemPodsumowanieLinia = `RAZEM =  ${totalNetStr} netto + 23%VAT = ${totalGrossStr} brutto`;
+
+    const podsumowanieFinansowePelne = [
+      "RAZEM:",
+      "Konstrukcje:",
+      `    ${rabatKalkulacja}`,
+      ...(montazNet > 0 ? ["Montaż:", `${montazNetStr}`] : []),
+      "",
+      "",
+      razemPodsumowanieLinia,
+    ].join("\n");
+
     const lineItemsSummary = items.map((it, idx) => {
       const dims = (it.widthMm && it.heightMm) ? ` (B=${it.widthMm}, H=${it.heightMm})` : "";
       const sys = it.systemName ? `${it.systemName} - ` : "";
@@ -2954,6 +2979,18 @@ export const generateOfferPdf = action({
           { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
           { placeholder: "{{pozycje}}", value: lineItemsSummary },
 
+          // Dedykowane makra podsumowania finansowego
+          { placeholder: "{{podsumowanie_finansowe}}", value: podsumowanieFinansowePelne },
+          { placeholder: "{{rozliczenie}}", value: podsumowanieFinansowePelne },
+          { placeholder: "{{rabat_kalkulacja}}", value: rabatKalkulacja },
+          { placeholder: "{{razem_podsumowanie}}", value: razemPodsumowanieLinia },
+          { placeholder: "{{razem_linia}}", value: razemPodsumowanieLinia },
+          { placeholder: "{{montaz}}", value: montazNetStr },
+          { placeholder: "{{montaz_netto}}", value: montazNetStr },
+          { placeholder: "{{kwota_vat}}", value: vatAmountStr },
+          { placeholder: "{{vat}}", value: vatAmountStr },
+          { placeholder: "{{stawka_vat}}", value: "23%" },
+
           // Wzorce finansowe ze wzorca:
           {
             placeholder: "RAZEM =  6 497.69zł netto + 23%VAT =7 992.15 zł brutto",
@@ -3193,6 +3230,18 @@ export const generateOfferPdf = action({
           { placeholder: "{{warunki}}", value: offer.terms || "" },
           { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
           { placeholder: "{{pozycje}}", value: lineItemsSummary },
+
+          // Dedykowane makra podsumowania finansowego
+          { placeholder: "{{podsumowanie_finansowe}}", value: podsumowanieFinansowePelne },
+          { placeholder: "{{rozliczenie}}", value: podsumowanieFinansowePelne },
+          { placeholder: "{{rabat_kalkulacja}}", value: rabatKalkulacja },
+          { placeholder: "{{razem_podsumowanie}}", value: razemPodsumowanieLinia },
+          { placeholder: "{{razem_linia}}", value: razemPodsumowanieLinia },
+          { placeholder: "{{montaz}}", value: montazNetStr },
+          { placeholder: "{{montaz_netto}}", value: montazNetStr },
+          { placeholder: "{{kwota_vat}}", value: vatAmountStr },
+          { placeholder: "{{vat}}", value: vatAmountStr },
+          { placeholder: "{{stawka_vat}}", value: "23%" },
 
           // Wzorce finansowe ze wzorca 1XJnz47VXgNXFrOagFj7JiFxcmesIFWQAkQXS7ckc-6Y:
           {
