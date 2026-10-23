@@ -2624,9 +2624,58 @@ export const generateOfferPdf = action({
       return `${idx + 1}. ${sys}${it.name}${dims}\nIlość: ${it.quantity} szt. | Cena netto: ${formatPLN(it.priceNet)} | Wartość netto: ${formatPLN(itemTotalNet)}`;
     }).join("\n\n");
 
+    // Format daty RRRR-MM-DD
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const dateYMD = `${yyyy}-${mm}-${dd}`;
+
+    // Rozpoznanie klienta biznesowego / firmy
+    const isBusiness =
+      client?.clientType === "business" ||
+      Boolean(client?.companyName?.trim()) ||
+      Boolean(client?.nip?.trim());
+    const companyName = client?.companyName?.trim() || (client?.nip ? `Firma_${client.nip}` : "Firma");
+
+    // Lokalizacja inwestycji: Miejscowość (lub ulica + miejscowość)
+    const investmentLoc = (
+      [opportunity.investmentStreet, opportunity.investmentCity].filter(Boolean).join(" ") ||
+      opportunity.investmentCity ||
+      opportunity.city ||
+      client?.city ||
+      ""
+    ).trim();
+
+    // Usługa: nazwa usługi z oferty lub z szansy sprzedaży
+    const serviceName = (
+      offer.serviceName ||
+      (opportunity.services && opportunity.services.length > 0 ? opportunity.services[0] : "") ||
+      ""
+    ).trim();
+
+    let nazwaOferty: string;
+    if (isBusiness) {
+      // Dla firmy: DATA RRRR-MM-DD_Nazwa firmy_text własny z szansy sprzedaży_Lokalizacja inwestycji_Usługa
+      const customText = opportunity.customText?.trim() || "";
+      const segments = [dateYMD, companyName];
+      if (customText) segments.push(customText);
+      if (investmentLoc) segments.push(investmentLoc);
+      if (serviceName) segments.push(serviceName);
+      nazwaOferty = segments.filter(Boolean).join("_");
+    } else {
+      // Dla klienta indywidualnego: DATA RRRR-MM-DD_Imie_Nazwisko_Lokalizacja inwestycji_Usługa
+      const firstName = (clientFirstName || opportunity.firstName || "").trim();
+      const lastName = (clientLastName || opportunity.lastName || "").trim();
+      const segments = [dateYMD, firstName, lastName];
+      if (investmentLoc) segments.push(investmentLoc);
+      if (serviceName) segments.push(serviceName);
+      nazwaOferty = segments.filter(Boolean).join("_");
+    }
+
     const safeLastName = clientLastName.replace(/[/\\:*?"<>|]/g, "_") || "Klient";
     const safeOfferNumber = (offer.offerNumber || "ADK").replace(/[/\\:*?"<>|]/g, "_");
-    const docCopyName = `Oferta_${safeOfferNumber}_${safeLastName}_temp_${Date.now()}`;
+    const safeOfferName = nazwaOferty.replace(/[/\\:*?"<>|]/g, "_") || `Oferta_${safeOfferNumber}_${safeLastName}`;
+    const docCopyName = `${safeOfferName}_temp_${Date.now()}`;
 
     // 4. Skopiuj szablon na Google Drive
     const copyData = await driveApiFetchWithRetry(
@@ -2961,6 +3010,16 @@ export const generateOfferPdf = action({
           { placeholder: "{{numer_oferty}}", value: offer.offerNumber || "" },
           { placeholder: "{{offerNumber}}", value: offer.offerNumber || "" },
           { placeholder: "{{tytul_oferty}}", value: offer.title || "" },
+          { placeholder: "{{nazwa_oferty}}", value: nazwaOferty },
+          { placeholder: "{{NAZWA_OFERTY}}", value: nazwaOferty },
+          { placeholder: "{{ nazwa_oferty }}", value: nazwaOferty },
+          { placeholder: "{{nazwa oferty}}", value: nazwaOferty },
+          { placeholder: "{{nazwaOferty}}", value: nazwaOferty },
+          { placeholder: "{{nazwa_pliku}}", value: nazwaOferty },
+          { placeholder: "{{offer_name}}", value: nazwaOferty },
+          { placeholder: "{{usluga}}", value: serviceName },
+          { placeholder: "{{lokalizacja}}", value: investmentLoc },
+          { placeholder: "{{lokalizacja_inwestycji}}", value: investmentLoc },
           { placeholder: "{{data}}", value: todayStr },
           { placeholder: "{{today}}", value: todayStr },
           { placeholder: "{{dzisiaj}}", value: todayStr },
@@ -3212,6 +3271,16 @@ export const generateOfferPdf = action({
           { placeholder: "{{nr_oferty}}", value: offer.offerNumber || "" },
           { placeholder: "{{offerNumber}}", value: offer.offerNumber || "" },
           { placeholder: "{{tytul_oferty}}", value: offer.title || "" },
+          { placeholder: "{{nazwa_oferty}}", value: nazwaOferty },
+          { placeholder: "{{NAZWA_OFERTY}}", value: nazwaOferty },
+          { placeholder: "{{ nazwa_oferty }}", value: nazwaOferty },
+          { placeholder: "{{nazwa oferty}}", value: nazwaOferty },
+          { placeholder: "{{nazwaOferty}}", value: nazwaOferty },
+          { placeholder: "{{nazwa_pliku}}", value: nazwaOferty },
+          { placeholder: "{{offer_name}}", value: nazwaOferty },
+          { placeholder: "{{usluga}}", value: serviceName },
+          { placeholder: "{{lokalizacja}}", value: investmentLoc },
+          { placeholder: "{{lokalizacja_inwestycji}}", value: investmentLoc },
           { placeholder: "{{data}}", value: todayStr },
           { placeholder: "{{dzisiaj}}", value: todayStr },
           { placeholder: "{{today}}", value: todayStr },
@@ -3729,7 +3798,7 @@ export const generateOfferPdf = action({
     const pdfBuffer = await exportRes.arrayBuffer();
 
     // 9. Wgraj plik PDF do folderu "Oferty - wysłane do Klienta"
-    const pdfFileName = `Oferta_${safeOfferNumber}_${safeLastName}.pdf`;
+    const pdfFileName = `${safeOfferName}.pdf`;
     const uploadedPdf = await uploadBufferToDrive(
       accessToken,
       pdfBuffer,
