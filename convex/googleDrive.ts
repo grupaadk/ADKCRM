@@ -4951,5 +4951,136 @@ export const uploadBackupDriveFile = action({
   },
 });
 
+export const createTestingOfferTemplateDoc = action({
+  args: {
+    folderId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const parentFolderId = args.folderId || "0AJxR931eVMJoUk9PVA";
+    const connection = await getAuthorizedConnection(ctx);
+    const accessToken = connection.accessToken;
+
+    // 1. Utwórz nowy dokument Google Docs w podanym folderze
+    const createRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files?supportsAllDrives=true`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Wzorzec Oferty ADK z Konstrukcjami CAD",
+          mimeType: "application/vnd.google-apps.document",
+          parents: [parentFolderId],
+        }),
+      }
+    );
+
+    if (!createRes.ok) {
+      const err = await createRes.text();
+      throw new Error(`Błąd tworzenia dokumentu na Google Drive (${createRes.status}): ${err}`);
+    }
+
+    const docFile = (await createRes.json()) as { id: string; name: string };
+    const docId = docFile.id;
+
+    // 2. Przygotuj treść: Strona 1 (Informacje ogólne, klient, finanse) + Podział strony + Strona 2 (Widoki CAD)
+    const page1 = [
+      "OFERTA HANDLOWA",
+      "ADK Stolarka & Konstrukcje Aluminiowe",
+      "",
+      "Numer oferty: {{numer_oferty}}",
+      "Data wystawienia: {{data}}",
+      "",
+      "DANE ZAMAWIAJĄCEGO:",
+      "Klient: {{klient}}",
+      "Telefon: {{telefon}}",
+      "E-mail: {{email}}",
+      "Adres inwestycji: {{adres}}",
+      "",
+      "ZESTAWIENIE POZYCJI W OFERCIE:",
+      "{{lineItemsList}}",
+      "",
+      "PODSUMOWANIE FINANSOWE:",
+      "Wartość zamówienia netto: {{wartosc_netto}}",
+      "Wartość zamówienia brutto: {{wartosc_brutto}}",
+      "Rabat: {{rabat}}",
+      "Wartość przed rabatem: {{wartosc_przed_rabatem}}",
+      "",
+      "UWAGI I WARUNKI REALIZACJI:",
+      "{{uwagi}}",
+      "{{warunki}}",
+      "",
+    ].join("\n");
+
+    const page2 = [
+      "\n",
+      "SPECYFIKACJA TECHNICZNA I WIDOKI KONSTRUKCJI CAD",
+      "",
+      "{{pozycje_cad}}",
+      "",
+    ].join("\n");
+
+    // Wstaw część 1
+    await fetch(`${DOCS_API_BASE}/documents/${docId}:batchUpdate`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        requests: [
+          {
+            insertText: {
+              location: { index: 1 },
+              text: page1,
+            },
+          },
+        ],
+      }),
+    });
+
+    // Pobierz dokument, aby poznać endIndex na wstawienie Page Break i części 2
+    const currentDocRes = await fetch(`${DOCS_API_BASE}/documents/${docId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const currentDoc = (await currentDocRes.json()) as any;
+    const bodyContent = currentDoc.body?.content ?? [];
+    const lastElem = bodyContent[bodyContent.length - 1];
+    const insertIdx = Math.max(1, (lastElem?.endIndex ?? 2) - 1);
+
+    await fetch(`${DOCS_API_BASE}/documents/${docId}:batchUpdate`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        requests: [
+          {
+            insertPageBreak: {
+              location: { index: insertIdx },
+            },
+          },
+          {
+            insertText: {
+              location: { index: insertIdx + 1 },
+              text: page2,
+            },
+          },
+        ],
+      }),
+    });
+
+    return {
+      docId,
+      docUrl: `https://docs.google.com/document/d/${docId}/edit`,
+      name: docFile.name,
+    };
+  },
+});
+
 
 
