@@ -3,6 +3,7 @@ import {
   calculateGlassWallItem,
   calculateGlassSegments,
   findMatchingThreshold,
+  determineGlassWallType,
 } from "../lib/glassWallCalculator";
 
 describe("Glass Wall & Triangle Calculator Engine (Excel verification)", () => {
@@ -111,5 +112,45 @@ describe("Glass Wall & Triangle Calculator Engine (Excel verification)", () => {
     // Montaż trójkąta: 3.37 mb * 200 zł/mb koszt = 674 zł; klient = 3.37 * 250 = 842.50 zł
     expect(triangle.assemblyCostNet).toBeCloseTo(674, 1);
     expect(triangle.assemblyPriceNet).toBeCloseTo(842.5, 1);
+  });
+
+  describe("determineGlassWallType (Excel STANDARD vs NIESTANDARD classification)", () => {
+    test("classifies exact standard dimensions as STANDARD", () => {
+      // Standard widths [940, 1940, 2410, 2900, 3370, 3860, 4330, 4820, 5290, 5780] and heights [2200, 2250, 2300]
+      expect(determineGlassWallType(940, 2300)).toBe("STANDARD");
+      expect(determineGlassWallType(1940, 2300)).toBe("STANDARD");
+      expect(determineGlassWallType(2410, 2250)).toBe("STANDARD");
+      expect(determineGlassWallType(2900, 2200)).toBe("STANDARD");
+      expect(determineGlassWallType(3370, 2300)).toBe("STANDARD");
+      expect(determineGlassWallType(3860, 2300)).toBe("STANDARD");
+      expect(determineGlassWallType(4330, 2300)).toBe("STANDARD");
+      expect(determineGlassWallType(4820, 2300)).toBe("STANDARD");
+      expect(determineGlassWallType(5290, 2300)).toBe("STANDARD");
+      expect(determineGlassWallType(5780, 2300)).toBe("STANDARD");
+    });
+
+    test("tolerates +/- 5mm variance for standard threshold dimensions", () => {
+      expect(determineGlassWallType(4332, 2300)).toBe("STANDARD");
+      expect(determineGlassWallType(4328, 2300)).toBe("STANDARD");
+      expect(determineGlassWallType(1940, 2298)).toBe("STANDARD");
+    });
+
+    test("classifies height > 2300mm as NIESTANDARD (e.g. Row 1 from Excel at 2490mm)", () => {
+      expect(determineGlassWallType(4330, 2490)).toBe("NIESTANDARD");
+      expect(determineGlassWallType(1940, 2350)).toBe("NIESTANDARD");
+      expect(determineGlassWallType(2410, 2500)).toBe("NIESTANDARD");
+    });
+
+    test("classifies custom non-standard width as NIESTANDARD", () => {
+      expect(determineGlassWallType(2000, 2300)).toBe("NIESTANDARD");
+      expect(determineGlassWallType(3000, 2300)).toBe("NIESTANDARD");
+      expect(determineGlassWallType(4000, 2300)).toBe("NIESTANDARD");
+      expect(determineGlassWallType(5000, 2300)).toBe("NIESTANDARD");
+    });
+
+    test("classifies non-standard height as NIESTANDARD", () => {
+      expect(determineGlassWallType(4330, 2100)).toBe("NIESTANDARD");
+      expect(determineGlassWallType(1940, 2220)).toBe("NIESTANDARD");
+    });
   });
 });

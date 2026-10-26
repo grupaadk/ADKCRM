@@ -230,6 +230,45 @@ export const DEFAULT_GLASS_WALL_RATES = {
 export type GlassWallType = "front" | "side" | "triangle" | "foundation" | "lamella";
 export type GlassWallVariant = "standard" | "nonstandard";
 
+/** Standardowe szerokości systemowe w mm (klucze z tabeli STANDARD w Excelu: 94, 194, 241, 290, 337, 386, 433, 482, 529, 578 cm) */
+export const STANDARD_GLASS_WALL_WIDTHS_MM = [
+  940, 1940, 2410, 2900, 3370, 3860, 4330, 4820, 5290, 5780,
+];
+
+/** Standardowe wysokości systemowe w mm (w arkuszu: "standard co 50mm - 2200, 2250, 2300") */
+export const STANDARD_GLASS_WALL_HEIGHTS_MM = [2200, 2250, 2300];
+
+/** Maksymalna wysokość mieszcząca się w typoszeregu standardowym */
+export const STANDARD_GLASS_WALL_MAX_HEIGHT_MM = 2300;
+
+/**
+ * Określa typ "STANDARD" lub "NIESTANDARD" na podstawie logiki z arkusza Excel "OFERTOWANIE ŚCIANKI":
+ * - Szerokość musi odpowiadać jednemu z 10 kluczy standardowych (z tolerancją do 5 mm)
+ * - Wysokość nie może przekraczać 2300 mm i odpowiadać standardowemu typoszeregowi (2200, 2250, 2300 mm)
+ */
+export function determineGlassWallType(
+  widthMm: number,
+  heightMm: number
+): "STANDARD" | "NIESTANDARD" {
+  const isStdWidth = STANDARD_GLASS_WALL_WIDTHS_MM.some(
+    (stdW) => Math.abs(stdW - widthMm) <= 5
+  );
+  if (!isStdWidth) return "NIESTANDARD";
+
+  if (heightMm > STANDARD_GLASS_WALL_MAX_HEIGHT_MM) {
+    return "NIESTANDARD";
+  }
+
+  const isStdHeight = STANDARD_GLASS_WALL_HEIGHTS_MM.some(
+    (stdH) => Math.abs(stdH - heightMm) <= 5
+  );
+  if (!isStdHeight) {
+    return "NIESTANDARD";
+  }
+
+  return "STANDARD";
+}
+
 export interface GlassWallCalculationInput {
   wallType: GlassWallType;
   /** Szerokość w mm */
@@ -314,9 +353,10 @@ export function calculateGlassWallItem(
 
   const threshold = findMatchingThreshold(widthCm);
 
-  // Automatyczny wybór wariantu, jeśli nie podano jawnie
+  // Automatyczny wybór wariantu z uwzględnieniem szerokości i wysokości wg Excela
   const variant: GlassWallVariant =
-    input.variant ?? (Math.abs(widthCm - threshold.widthCm) < 0.1 ? "standard" : "nonstandard");
+    input.variant ??
+    (determineGlassWallType(widthMm, heightMm) === "STANDARD" ? "standard" : "nonstandard");
 
   let profilesCost = 0;
   let glassCost = 0;

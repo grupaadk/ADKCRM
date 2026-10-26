@@ -2,6 +2,7 @@
 
 import React from "react";
 import { CadConstructionItem } from "./CadCanvas";
+import { determineGlassWallType } from "@/convex/lib/glassWallCalculator";
 import {
   Layers,
   Copy,
@@ -59,6 +60,8 @@ export function VerticalPositionsList({
             const isActive = it._id === activeItemId;
             const panes = Math.max(1, it.panesCount || 3);
             const price = it.priceNet || 0;
+            const wallVariant = determineGlassWallType(it.widthMm, it.heightMm);
+            const isStandard = wallVariant === "STANDARD";
             const isTriangle =
               it.name.toLowerCase().includes("trójką") ||
               Boolean(it.shortName && it.shortName.toLowerCase().includes("trójką")) ||
@@ -261,9 +264,20 @@ export function VerticalPositionsList({
 
                 {/* Dimension & System info */}
                 <div className="flex items-center justify-between text-[11px] font-mono text-[#7c8597] mb-1">
-                  <span>
-                    {it.widthMm} × {it.heightMm} mm
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span>
+                      {it.widthMm} × {it.heightMm} mm
+                    </span>
+                    <span
+                      className={`text-[9px] font-bold px-1 py-0.2 rounded border uppercase tracking-wider ${
+                        isStandard
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                      }`}
+                    >
+                      {wallVariant}
+                    </span>
+                  </div>
                   <span>{it.quantity} szt.</span>
                 </div>
 
