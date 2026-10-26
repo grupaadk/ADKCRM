@@ -118,6 +118,230 @@ type DecryptedConnection = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
+ * Konwertuje treść HTML (np. z edytora WYSIWYG uwag do oferty) na czytelny, sformatowany zwykły tekst
+ * z zachowaniem podziałów wierszy i punktorów na szablonach Google Docs / Slides.
+ */
+function htmlToFormattedPlainText(html?: string): string {
+  if (!html) return "";
+  let text = html;
+
+  // 1. Zastąp elementy list punktowanych punktorami
+  text = text.replace(/<li[^>]*>(.*?)<\/li>/gi, "• $1\n");
+
+  // 2. Zastąp znaczniki blokowe i przełamania linii znakami nowej linii
+  text = text.replace(/<br\s*[\/]?>/gi, "\n");
+  text = text.replace(/<\/(p|div|h[1-6]|tr)>/gi, "\n");
+  text = text.replace(/<hr\s*[\/]?>/gi, "\n---\n");
+
+  // 3. Usuń wszystkie pozostałe znaczniki HTML
+  text = text.replace(/<[^>]+>/g, "");
+
+  // 4. Dekoduj typowe encje HTML
+  text = text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&ndash;/gi, "–")
+    .replace(/&mdash;/gi, "—");
+
+  // 5. Oczyść wielokrotne puste linie i białe znaki
+  text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  text = text.replace(/\n{3,}/g, "\n\n");
+  return text.trim();
+}
+
+export type DocsStyleRun = {
+  start: number;
+  end: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+  fontSizePt?: number;
+};
+
+/**
+ * Parsuje kod HTML z edytora WYSIWYG na czysty tekst wraz z wyliczonymi zakresami stylów
+ * (pogrubienie, kursywa, podkreślenie, przekreślenie, nagłówek) do zastosowania przez Google Docs API.
+ */
+function parseHtmlToDocsStyledRuns(html?: string): { plainText: string; runs: DocsStyleRun[] } {
+  if (!html) return { plainText: "", runs: [] };
+
+  const rawRuns: DocsStyleRun[] = [];
+  let outText = "";
+
+  const activeStyles = {
+    bold: 0,
+    italic: 0,
+    underline: 0,
+    strikethrough: 0,
+    heading: 0,
+  };
+
+  const listStack: Array<"ul" | "ol"> = [];
+  let olCounter = 1;
+
+  // Wyrażenie dopasowujące tagi HTML lub tekst pomiędzy nimi
+  const tagRegex = /<(\/)?([a-zA-Z0-9]+)(?:\s+[^>]*)?>|([^<]+)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = tagRegex.exec(html)) !== null) {
+    const isClosing = Boolean(match[1]);
+    const tagName = match[2] ? match[2].toLowerCase() : null;
+    const textContent = match[3];
+
+    if (textContent) {
+      const decoded = textContent
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/&ndash;/gi, "–")
+        .replace(/&mdash;/gi, "—");
+
+      if (decoded.length > 0) {
+        const start = outText.length;
+        outText += decoded;
+        const end = outText.length;
+
+        const isBold = activeStyles.bold > 0 || activeStyles.heading > 0;
+        const isItalic = activeStyles.italic > 0;
+        const isUnderline = activeStyles.underline > 0;
+        const isStrike = activeStyles.strikethrough > 0;
+        const fontSizePt = activeStyles.heading > 0 ? 12 : undefined;
+
+        if (isBold || isItalic || isUnderline || isStrike || fontSizePt) {
+          rawRuns.push({
+            start,
+            end,
+            bold: isBold,
+            italic: isItalic,
+            underline: isUnderline,
+            strikethrough: isStrike,
+            fontSizePt,
+          });
+        }
+      }
+      continue;
+    }
+
+    if (!tagName) continue;
+
+    switch (tagName) {
+      case "b":
+      case "strong":
+        activeStyles.bold = Math.max(0, activeStyles.bold + (isClosing ? -1 : 1));
+        break;
+      case "i":
+      case "em":
+        activeStyles.italic = Math.max(0, activeStyles.italic + (isClosing ? -1 : 1));
+        break;
+      case "u":
+        activeStyles.underline = Math.max(0, activeStyles.underline + (isClosing ? -1 : 1));
+        break;
+      case "s":
+      case "strike":
+      case "del":
+        activeStyles.strikethrough = Math.max(0, activeStyles.strikethrough + (isClosing ? -1 : 1));
+        break;
+      case "h1":
+      case "h2":
+      case "h3":
+      case "h4":
+      case "h5":
+      case "h6":
+        if (!isClosing) {
+          if (outText.length > 0 && !outText.endsWith("\n")) {
+            outText += "\n";
+          }
+          activeStyles.heading++;
+        } else {
+          activeStyles.heading = Math.max(0, activeStyles.heading - 1);
+          if (!outText.endsWith("\n")) {
+            outText += "\n";
+          }
+        }
+        break;
+      case "p":
+      case "div":
+        if (!isClosing) {
+          if (outText.length > 0 && !outText.endsWith("\n")) {
+            outText += "\n";
+          }
+        } else {
+          if (!outText.endsWith("\n")) {
+            outText += "\n";
+          }
+        }
+        break;
+      case "br":
+        outText += "\n";
+        break;
+      case "ul":
+        if (!isClosing) {
+          listStack.push("ul");
+          if (outText.length > 0 && !outText.endsWith("\n")) {
+            outText += "\n";
+          }
+        } else {
+          listStack.pop();
+          if (!outText.endsWith("\n")) {
+            outText += "\n";
+          }
+        }
+        break;
+      case "ol":
+        if (!isClosing) {
+          listStack.push("ol");
+          olCounter = 1;
+          if (outText.length > 0 && !outText.endsWith("\n")) {
+            outText += "\n";
+          }
+        } else {
+          listStack.pop();
+          if (!outText.endsWith("\n")) {
+            outText += "\n";
+          }
+        }
+        break;
+      case "li":
+        if (!isClosing) {
+          if (outText.length > 0 && !outText.endsWith("\n")) {
+            outText += "\n";
+          }
+          const currentList = listStack[listStack.length - 1];
+          if (currentList === "ol") {
+            outText += `${olCounter++}. `;
+          } else {
+            outText += "• ";
+          }
+        } else {
+          if (!outText.endsWith("\n")) {
+            outText += "\n";
+          }
+        }
+        break;
+      case "hr":
+        if (!outText.endsWith("\n")) outText += "\n";
+        outText += "---\n";
+        break;
+    }
+  }
+
+  const plainText = outText.trimEnd();
+  const runs = rawRuns
+    .filter((r) => r.start < plainText.length)
+    .map((r) => ({ ...r, end: Math.min(r.end, plainText.length) }));
+
+  return { plainText, runs };
+}
+
+/**
  * Fetch the full connection record (with encrypted tokens) and decrypt them.
  * For use in actions only — never expose decrypted tokens to the frontend.
  */
@@ -2624,6 +2848,8 @@ export const generateOfferPdf = action({
       return `${idx + 1}. ${sys}${it.name}${dims}\nIlość: ${it.quantity} szt. | Cena netto: ${formatPLN(it.priceNet)} | Wartość netto: ${formatPLN(itemTotalNet)}`;
     }).join("\n\n");
 
+    const offerNotesFormatted = htmlToFormattedPlainText(offer.notes);
+
     // Format daty RRRR-MM-DD
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, "0");
@@ -2876,7 +3102,7 @@ export const generateOfferPdf = action({
             { placeholder: "{{ilosc}}", value: `${it.quantity} szt.` },
             { placeholder: "{{cena_netto}}", value: formatPLN(it.priceNet) },
             { placeholder: "{{wartosc_netto_pozycji}}", value: formatPLN(itTotalNet) },
-            { placeholder: "{{uwagi_pozycji}}", value: it.notes || "" },
+            { placeholder: "{{uwagi_pozycji}}", value: htmlToFormattedPlainText(it.notes) },
 
             // Wzorce specyficzne z oryginalnego wzorca:
             {
@@ -3032,8 +3258,8 @@ export const generateOfferPdf = action({
           { placeholder: "{{rabat}}", value: discountPctStr },
           { placeholder: "{{discount}}", value: discountPctStr },
           { placeholder: "{{wartosc_przed_rabatem}}", value: netBeforeDiscountStr },
-          { placeholder: "{{uwagi}}", value: offer.notes || "" },
-          { placeholder: "{{notes}}", value: offer.notes || "" },
+          { placeholder: "{{uwagi}}", value: offerNotesFormatted },
+          { placeholder: "{{notes}}", value: offerNotesFormatted },
           { placeholder: "{{warunki}}", value: offer.terms || "" },
           { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
           { placeholder: "{{pozycje}}", value: lineItemsSummary },
@@ -3065,7 +3291,7 @@ export const generateOfferPdf = action({
           },
           {
             placeholder: "W przypadku potrzeby uzyskania kontroli dostępu: + 200 zł netto",
-            value: offer.notes ? offer.notes : "",
+            value: offerNotesFormatted,
           },
         ];
 
@@ -3294,8 +3520,8 @@ export const generateOfferPdf = action({
           { placeholder: "{{rabat}}", value: discountPctStr },
           { placeholder: "{{discount}}", value: discountPctStr },
           { placeholder: "{{wartosc_przed_rabatem}}", value: netBeforeDiscountStr },
-          { placeholder: "{{uwagi}}", value: offer.notes || "" },
-          { placeholder: "{{notes}}", value: offer.notes || "" },
+          { placeholder: "{{uwagi}}", value: "{{__uwagi_rich_content__}}" },
+          { placeholder: "{{notes}}", value: "{{__uwagi_rich_content__}}" },
           { placeholder: "{{warunki}}", value: offer.terms || "" },
           { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
           { placeholder: "{{pozycje}}", value: lineItemsSummary },
@@ -3327,7 +3553,7 @@ export const generateOfferPdf = action({
           },
           {
             placeholder: "W przypadku potrzeby uzyskania kontroli dostępu: + 200 zł netto",
-            value: offer.notes ? offer.notes : "",
+            value: "{{__uwagi_rich_content__}}",
           },
           {
             placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016\x0B(B=1 490, H=2 100)",
@@ -3779,6 +4005,121 @@ export const generateOfferPdf = action({
           } catch (itemImgErr) {
             console.warn(`[generateOfferPdf] Error inserting CAD image for position #${it.positionIndex}:`, itemImgErr);
           }
+        }
+
+        // KROK 7c: Formatowane wstawienie uwag do oferty (WYSIWYG HTML -> style Google Docs)
+        try {
+          const notesTag = "{{__uwagi_rich_content__}}";
+          for (let iter = 0; iter < 5; iter++) {
+            const currentDocRes3 = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (!currentDocRes3.ok) break;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const currentDoc3 = (await currentDocRes3.json()) as any;
+            const foundRange = findTextRangeInDoc(currentDoc3, notesTag);
+            if (!foundRange) break;
+
+            const { plainText, runs } = parseHtmlToDocsStyledRuns(offer.notes);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const notesRequests: any[] = [
+              {
+                deleteContentRange: {
+                  range: {
+                    startIndex: foundRange.startIndex,
+                    endIndex: foundRange.endIndex,
+                  },
+                },
+              },
+            ];
+
+            if (plainText.length > 0) {
+              notesRequests.push({
+                insertText: {
+                  location: {
+                    index: foundRange.startIndex,
+                  },
+                  text: plainText,
+                },
+              });
+
+              for (const run of runs) {
+                if (run.start >= run.end) continue;
+                const fields: string[] = [];
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const textStyle: any = {};
+
+                if (run.bold) {
+                  textStyle.bold = true;
+                  fields.push("bold");
+                }
+                if (run.italic) {
+                  textStyle.italic = true;
+                  fields.push("italic");
+                }
+                if (run.underline) {
+                  textStyle.underline = true;
+                  fields.push("underline");
+                }
+                if (run.strikethrough) {
+                  textStyle.strikethrough = true;
+                  fields.push("strikethrough");
+                }
+                if (run.fontSizePt) {
+                  textStyle.fontSize = { magnitude: run.fontSizePt, unit: "PT" };
+                  fields.push("fontSize");
+                }
+
+                if (fields.length > 0) {
+                  notesRequests.push({
+                    updateTextStyle: {
+                      range: {
+                        startIndex: foundRange.startIndex + run.start,
+                        endIndex: foundRange.startIndex + run.end,
+                      },
+                      textStyle,
+                      fields: fields.join(","),
+                    },
+                  });
+                }
+              }
+            }
+
+            const notesUpdateRes = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ requests: notesRequests }),
+            });
+
+            if (!notesUpdateRes.ok) {
+              const notesErr = await notesUpdateRes.text();
+              console.warn("[generateOfferPdf] Docs notes rich text insert warning:", notesErr);
+              // Fallback do prostego wstawienia tekstu w razie błędu stylów
+              await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  requests: [
+                    {
+                      replaceAllText: {
+                        containsText: { text: notesTag, matchCase: false },
+                        replaceText: offerNotesFormatted,
+                      },
+                    },
+                  ],
+                }),
+              });
+              break;
+            }
+          }
+        } catch (notesErr) {
+          console.warn("[generateOfferPdf] Error formatting rich notes in Docs:", notesErr);
         }
       } catch (docErr) {
         console.warn("[generateOfferPdf] Docs batchUpdate warning:", docErr);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAction, useMutation } from "convex/react";
@@ -27,6 +27,18 @@ import {
   Check,
   X,
   TrendingUp,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  List,
+  ListOrdered,
+  Heading3,
+  Undo2,
+  Redo2,
+  RemoveFormatting,
+  Code,
+  Eye,
 } from "lucide-react";
 
 const PRESET_DISCOUNTS = [0, 3, 5, 7, 10, 15, 20];
@@ -100,6 +112,55 @@ export function OfferSummaryTab({
   const [tempTitle, setTempTitle] = useState(offer.title);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
+
+  const [notes, setNotes] = useState(offer.notes || "");
+  const [prevOfferNotes, setPrevOfferNotes] = useState(offer.notes || "");
+  const [notesMode, setNotesMode] = useState<"wysiwyg" | "html">("wysiwyg");
+  const notesEditorRef = useRef<HTMLDivElement>(null);
+
+  if ((offer.notes || "") !== prevOfferNotes) {
+    setPrevOfferNotes(offer.notes || "");
+    setNotes(offer.notes || "");
+  }
+
+  // Synchronizacja treści contentEditable przy zewnętrznych zmianach lub zmianie trybu
+  useEffect(() => {
+    if (notesEditorRef.current && notesMode === "wysiwyg") {
+      if (notesEditorRef.current.innerHTML !== notes) {
+        notesEditorRef.current.innerHTML = notes;
+      }
+    }
+  }, [notes, notesMode]);
+
+  const handleNotesBlur = () => {
+    if (notes !== (offer.notes || "")) {
+      onUpdateOffer({ notes });
+    }
+  };
+
+  const execNotesCommand = (command: string, value: string | undefined = undefined) => {
+    if (readOnly) return;
+    if (notesMode !== "wysiwyg") {
+      setNotesMode("wysiwyg");
+      setTimeout(() => {
+        notesEditorRef.current?.focus();
+        document.execCommand(command, false, value);
+        if (notesEditorRef.current) {
+          const html = notesEditorRef.current.innerHTML;
+          const clean = html === "<p><br></p>" || html === "<br>" ? "" : html;
+          setNotes(clean);
+        }
+      }, 50);
+      return;
+    }
+    notesEditorRef.current?.focus();
+    document.execCommand(command, false, value);
+    if (notesEditorRef.current) {
+      const html = notesEditorRef.current.innerHTML;
+      const clean = html === "<p><br></p>" || html === "<br>" ? "" : html;
+      setNotes(clean);
+    }
+  };
   const generateOfferPdf = useAction(api.googleDrive.generateOfferPdf);
   const duplicateOffer = useMutation(api.offers.duplicateOffer);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
@@ -955,6 +1016,283 @@ export function OfferSummaryTab({
             </table>
           </div>
         )}
+      </div>
+
+      {/* ── 3. UWAGI DO OFERTY (WYSIWYG / HTML) ── */}
+      <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#e2e8f0] flex items-center justify-between flex-wrap gap-3 bg-[#f8fafc]">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-md bg-[rgba(74,187,195,0.12)] text-[#0e7490] border border-[rgba(74,187,195,0.25)]">
+              <FileText size={15} className="text-[#4ABBC3]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-xs text-[#0b1220] uppercase tracking-wider">
+                  Uwagi do oferty
+                </h2>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100/70 text-[#0e7490] border border-teal-200/50">
+                  WYSIWYG HTML
+                </span>
+              </div>
+              <p className="text-[11px] text-[#64748b]">
+                Wpisz uwagi i ustalenia widoczne w wygenerowanym dokumencie oferty PDF (znacznik {"{{uwagi}}"}).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Przełącznik trybu: Wizualny / Kod HTML */}
+            <div className="inline-flex items-center p-0.5 bg-slate-200/70 border border-slate-300/70 rounded-lg text-xs">
+              <button
+                type="button"
+                onClick={() => setNotesMode("wysiwyg")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  notesMode === "wysiwyg"
+                    ? "bg-white text-slate-900 shadow-2xs font-semibold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Edytor wizualny (WYSIWYG)"
+              >
+                <Eye size={12} />
+                <span>Wizualny</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setNotesMode("html")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  notesMode === "html"
+                    ? "bg-white text-slate-900 shadow-2xs font-semibold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Edycja bezpośredniego kodu HTML"
+              >
+                <Code size={12} />
+                <span>Kod HTML</span>
+              </button>
+            </div>
+
+            {!readOnly && notes !== (offer.notes || "") && (
+              <button
+                type="button"
+                onClick={() => onUpdateOffer({ notes })}
+                className="px-3 py-1 rounded-md bg-[#0e7490] hover:bg-[#0c637b] text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+              >
+                <Check size={13} />
+                <span>Zapisz uwagi</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Toolbar formatowania tekstu */}
+        {!readOnly && (
+          <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center flex-wrap gap-1 text-slate-700">
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                execNotesCommand("bold");
+              }}
+              disabled={notesMode !== "wysiwyg"}
+              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              title="Pogrubienie (Ctrl+B)"
+            >
+              <Bold size={14} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                execNotesCommand("italic");
+              }}
+              disabled={notesMode !== "wysiwyg"}
+              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              title="Kursywa (Ctrl+I)"
+            >
+              <Italic size={14} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                execNotesCommand("underline");
+              }}
+              disabled={notesMode !== "wysiwyg"}
+              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              title="Podkreślenie (Ctrl+U)"
+            >
+              <Underline size={14} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                execNotesCommand("strikeThrough");
+              }}
+              disabled={notesMode !== "wysiwyg"}
+              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              title="Przekreślenie"
+            >
+              <Strikethrough size={14} />
+            </button>
+
+            <div className="w-[1px] h-4 bg-slate-300 mx-1" />
+
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                execNotesCommand("formatBlock", "<h3>");
+              }}
+              disabled={notesMode !== "wysiwyg"}
+              className="px-2 py-1 hover:bg-white rounded hover:shadow-2xs text-xs font-bold text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors flex items-center gap-0.5 cursor-pointer"
+              title="Średni nagłówek (H3)"
+            >
+              <Heading3 size={14} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                execNotesCommand("formatBlock", "<p>");
+              }}
+              disabled={notesMode !== "wysiwyg"}
+              className="px-2 py-1 hover:bg-white rounded hover:shadow-2xs text-xs font-medium text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              title="Zwykły akapit (P)"
+            >
+              Akapit
+            </button>
+
+            <div className="w-[1px] h-4 bg-slate-300 mx-1" />
+
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                execNotesCommand("insertUnorderedList");
+              }}
+              disabled={notesMode !== "wysiwyg"}
+              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              title="Lista punktowana"
+            >
+              <List size={14} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                execNotesCommand("insertOrderedList");
+              }}
+              disabled={notesMode !== "wysiwyg"}
+              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              title="Lista numerowana"
+            >
+              <ListOrdered size={14} />
+            </button>
+
+            <div className="w-[1px] h-4 bg-slate-300 mx-1" />
+
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                execNotesCommand("removeFormat");
+              }}
+              disabled={notesMode !== "wysiwyg"}
+              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              title="Wyczyść formatowanie"
+            >
+              <RemoveFormatting size={14} />
+            </button>
+
+            <div className="w-[1px] h-4 bg-slate-300 mx-1" />
+
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                execNotesCommand("undo");
+              }}
+              disabled={notesMode !== "wysiwyg"}
+              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              title="Cofnij (Ctrl+Z)"
+            >
+              <Undo2 size={14} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                execNotesCommand("redo");
+              }}
+              disabled={notesMode !== "wysiwyg"}
+              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              title="Ponów (Ctrl+Y)"
+            >
+              <Redo2 size={14} />
+            </button>
+
+            {notesMode === "html" && (
+              <span className="ml-auto text-[11px] text-amber-700 font-medium">
+                Tryb edycji kodu HTML (możesz wpisywać tagi np. &lt;p&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;strong&gt;)
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="p-4 sm:p-5">
+          {notesMode === "wysiwyg" ? (
+            <div className="relative border border-[#cbd5e1] focus-within:border-[#4ABBC3] focus-within:ring-2 focus-within:ring-[#4ABBC3]/20 rounded-lg bg-[#f8fafc] focus-within:bg-white hover:bg-white transition-all">
+              <div
+                ref={notesEditorRef}
+                contentEditable={!readOnly}
+                suppressContentEditableWarning
+                onInput={(e) => {
+                  const html = e.currentTarget.innerHTML;
+                  if (html === "<p><br></p>" || html === "<br>" || html.trim() === "") {
+                    setNotes("");
+                  } else {
+                    setNotes(html);
+                  }
+                }}
+                onBlur={handleNotesBlur}
+                className="w-full min-h-[160px] max-h-[380px] overflow-y-auto p-3.5 text-xs text-[#0b1220] focus:outline-none leading-relaxed font-sans prose prose-sm max-w-none [&_p]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1.5 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-[#0b1220] [&_h3]:mt-2 [&_h3]:mb-1 [&_strong]:font-semibold [&_strong]:text-[#0b1220] [&_em]:italic [&_u]:underline [&_s]:line-through"
+              />
+              {!notes && (
+                <div
+                  onClick={() => notesEditorRef.current?.focus()}
+                  className="absolute top-3.5 left-3.5 text-xs text-[#94a3b8] pointer-events-none select-none"
+                >
+                  Wpisz uwagi do oferty (np. zakres montażu, termin realizacji, specyfikację, warunki techniczne, ustalenia z inwestorem)...
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="border border-slate-700 rounded-lg overflow-hidden focus-within:border-[#4ABBC3] focus-within:ring-2 focus-within:ring-[#4ABBC3]/20">
+              <textarea
+                rows={7}
+                disabled={readOnly}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                onBlur={handleNotesBlur}
+                placeholder="<p>Wpisz uwagi w formacie HTML...</p>"
+                className="w-full bg-[#0f172a] text-[#e2e8f0] font-mono text-xs p-3.5 focus:outline-none resize-y leading-relaxed border-0 min-h-[160px]"
+                spellCheck={false}
+              />
+            </div>
+          )}
+
+          <div className="flex items-center justify-between mt-2.5 text-[11px] text-[#64748b]">
+            <span>
+              Uwagi zostaną automatycznie zapisane po opuszczeniu pola lub po kliknięciu &quot;Zapisz uwagi&quot;.
+            </span>
+            {notes ? (
+              <span className="font-mono text-[10px] text-slate-400">
+                {notes.length} znaków HTML
+              </span>
+            ) : null}
+          </div>
+        </div>
       </div>
     </div>
   );
