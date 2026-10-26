@@ -186,6 +186,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
         title: patch.title,
         status: patch.status,
         discountPercent: patch.discountPercent,
+        vatRate: patch.vatRate,
         notes: patch.notes,
         terms: patch.terms,
       });

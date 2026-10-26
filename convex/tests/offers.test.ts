@@ -75,6 +75,31 @@ describe("CAD Offers and Constructions Module", () => {
     const expectedDiscounted = Math.round(28500 * 0.9);
     expect(data!.offer.totalPriceNet).toBe(expectedDiscounted);
 
+    // 7b. Test VAT rate change (8%, 0%, 23%)
+    await t.mutation(api.offers.updateOffer, {
+      offerId,
+      vatRate: 8,
+    });
+    data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data!.offer.vatRate).toBe(8);
+    expect(data!.offer.totalPriceGross).toBe(Math.round(expectedDiscounted * 1.08));
+
+    await t.mutation(api.offers.updateOffer, {
+      offerId,
+      vatRate: 0,
+    });
+    data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data!.offer.vatRate).toBe(0);
+    expect(data!.offer.totalPriceGross).toBe(expectedDiscounted);
+
+    await t.mutation(api.offers.updateOffer, {
+      offerId,
+      vatRate: 23,
+    });
+    data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data!.offer.vatRate).toBe(23);
+    expect(data!.offer.totalPriceGross).toBe(Math.round(expectedDiscounted * 1.23));
+
     // 8. Test position duplication
     const dupId = await t.mutation(api.offers.duplicateConstructionPosition, {
       itemId: pos1Id,

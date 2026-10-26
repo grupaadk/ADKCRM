@@ -13,6 +13,7 @@ import { determineGlassWallType } from "@/convex/lib/glassWallCalculator";
 import {
   FileText,
   Percent,
+  Receipt,
   User,
   MapPin,
   Phone,
@@ -43,6 +44,7 @@ import {
 } from "lucide-react";
 
 const PRESET_DISCOUNTS = [0, 3, 5, 7, 10, 15, 20];
+const PRESET_VAT_RATES = [23, 8, 5, 0];
 
 export interface OfferData {
   _id: string;
@@ -54,6 +56,7 @@ export interface OfferData {
   totalPriceGross: number;
   totalCostNet: number;
   discountPercent?: number;
+  vatRate?: number;
   serviceId?: string;
   serviceName?: string;
   templateFileId?: string;
@@ -240,9 +243,18 @@ export function OfferSummaryTab({
     setCustomDiscount(String(discountPct));
   }
 
+  const vatRate = offer.vatRate ?? 23;
+  const [prevVatRate, setPrevVatRate] = useState(vatRate);
+  const [customVatRate, setCustomVatRate] = useState<string>(String(vatRate));
+
+  if (vatRate !== prevVatRate) {
+    setPrevVatRate(vatRate);
+    setCustomVatRate(String(vatRate));
+  }
+
   const discountedNet = Math.round(rawSumNet * (1 - discountPct / 100));
   const discountAmount = rawSumNet - discountedNet;
-  const vatAmount = Math.round(discountedNet * 0.23);
+  const vatAmount = Math.round((discountedNet * vatRate) / 100);
   const totalGross = discountedNet + vatAmount;
   const profitNet = discountedNet - rawCostNet;
   const marginPct =
@@ -467,88 +479,88 @@ export function OfferSummaryTab({
           </div>
         </div>
 
-        {/* Bottom Row of Top Card: Financial KPIs + Inline Discount Bar */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-[#e2e8f0] bg-[#fafbfd]">
-          {/* KPIs (8 cols on lg) */}
-          <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-[#e2e8f0]">
-            {/* Wartość netto */}
-            <div className="p-3.5 px-4">
-              <div className="flex items-center justify-between gap-1 mb-0.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
-                  Wartość netto
-                </span>
-                {discountPct > 0 && (
-                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
-                    -{discountPct}%
-                  </span>
-                )}
-              </div>
-              <div className="text-lg font-extrabold font-mono text-[#0e7490] leading-tight">
-                {discountedNet.toLocaleString("pl-PL")} zł
-              </div>
-              <div className="text-[10px] text-[#94a3b8] font-mono mt-0.5">
-                {discountPct > 0
-                  ? `Przed rabatem: ${rawSumNet.toLocaleString("pl-PL")} zł`
-                  : `Suma ${items.length} poz. (${totalQuantity} szt.)`}
-              </div>
-            </div>
-
-            {/* Wartość brutto */}
-            <div className="p-3.5 px-4">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] block mb-0.5">
-                Wartość brutto (23%)
+        {/* Financial KPIs (Row 1) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-[#e2e8f0] bg-[#fafbfd]">
+          {/* Wartość netto */}
+          <div className="p-3.5 px-4">
+            <div className="flex items-center justify-between gap-1 mb-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                Wartość netto
               </span>
-              <div className="text-lg font-extrabold font-mono text-[#0b1220] leading-tight">
-                {totalGross.toLocaleString("pl-PL")} zł
-              </div>
-              <div className="text-[10px] text-[#94a3b8] font-mono mt-0.5">
-                VAT 23%: {vatAmount.toLocaleString("pl-PL")} zł
-              </div>
-            </div>
-
-            {/* Koszty własne */}
-            <div className="p-3.5 px-4">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] block mb-0.5">
-                Koszty własne netto
-              </span>
-              <div className="text-lg font-bold font-mono text-[#475569] leading-tight">
-                {rawCostNet.toLocaleString("pl-PL")} zł
-              </div>
-              <div className="text-[10px] text-[#94a3b8] mt-0.5">
-                Materiały i produkcja
-              </div>
-            </div>
-
-            {/* Zysk i marża */}
-            <div className="p-3.5 px-4">
-              <div className="flex items-center justify-between gap-1 mb-0.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
-                  Szacowany zysk
+              {discountPct > 0 && (
+                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
+                  -{discountPct}%
                 </span>
-                <span
-                  className={`text-[10px] font-mono font-bold inline-flex items-center gap-0.5 ${
-                    marginPct >= 20 ? "text-emerald-600" : "text-amber-600"
-                  }`}
-                >
-                  <TrendingUp size={10} />
-                  {marginPct}%
-                </span>
-              </div>
-              <div
-                className={`text-lg font-extrabold font-mono leading-tight ${
-                  profitNet >= 0 ? "text-emerald-600" : "text-rose-600"
-                }`}
-              >
-                {profitNet.toLocaleString("pl-PL")} zł
-              </div>
-              <div className="text-[10px] text-[#94a3b8] mt-0.5">
-                Marża handlowa: {marginPct}%
-              </div>
+              )}
+            </div>
+            <div className="text-lg font-extrabold font-mono text-[#0e7490] leading-tight">
+              {discountedNet.toLocaleString("pl-PL")} zł
+            </div>
+            <div className="text-[10px] text-[#94a3b8] font-mono mt-0.5">
+              {discountPct > 0
+                ? `Przed rabatem: ${rawSumNet.toLocaleString("pl-PL")} zł`
+                : `Suma ${items.length} poz. (${totalQuantity} szt.)`}
             </div>
           </div>
 
-          {/* Rabat handlowy (4 cols on lg) */}
-          <div className="lg:col-span-4 p-3.5 px-4 flex flex-col justify-center bg-white">
+          {/* Wartość brutto */}
+          <div className="p-3.5 px-4">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] block mb-0.5">
+              Wartość brutto ({vatRate}%)
+            </span>
+            <div className="text-lg font-extrabold font-mono text-[#0b1220] leading-tight">
+              {totalGross.toLocaleString("pl-PL")} zł
+            </div>
+            <div className="text-[10px] text-[#94a3b8] font-mono mt-0.5">
+              VAT {vatRate}%: {vatAmount.toLocaleString("pl-PL")} zł
+            </div>
+          </div>
+
+          {/* Koszty własne */}
+          <div className="p-3.5 px-4">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] block mb-0.5">
+              Koszty własne netto
+            </span>
+            <div className="text-lg font-bold font-mono text-[#475569] leading-tight">
+              {rawCostNet.toLocaleString("pl-PL")} zł
+            </div>
+            <div className="text-[10px] text-[#94a3b8] mt-0.5">
+              Materiały i produkcja
+            </div>
+          </div>
+
+          {/* Zysk i marża */}
+          <div className="p-3.5 px-4">
+            <div className="flex items-center justify-between gap-1 mb-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                Szacowany zysk
+              </span>
+              <span
+                className={`text-[10px] font-mono font-bold inline-flex items-center gap-0.5 ${
+                  marginPct >= 20 ? "text-emerald-600" : "text-amber-600"
+                }`}
+              >
+                <TrendingUp size={10} />
+                {marginPct}%
+              </span>
+            </div>
+            <div
+              className={`text-lg font-extrabold font-mono leading-tight ${
+                profitNet >= 0 ? "text-emerald-600" : "text-rose-600"
+              }`}
+            >
+              {profitNet.toLocaleString("pl-PL")} zł
+            </div>
+            <div className="text-[10px] text-[#94a3b8] mt-0.5">
+              Marża handlowa: {marginPct}%
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Rabat handlowy + Stawka VAT (Obok siebie) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#e2e8f0] bg-white border-t border-[#e2e8f0]">
+          {/* Rabat handlowy */}
+          <div className="p-3.5 px-4 flex flex-col justify-center">
             <div className="flex items-center justify-between gap-2 mb-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] flex items-center gap-1">
                 <Percent size={11} className="text-[#4ABBC3]" />
@@ -620,6 +632,83 @@ export function OfferSummaryTab({
                   }`}
                   placeholder="Inny"
                   title="Własny procent rabatu"
+                />
+                <span className="text-[11px] font-mono font-bold text-[#64748b]">
+                  %
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Stawka VAT (Obok rabatu handlowego) */}
+          <div className="p-3.5 px-4 flex flex-col justify-center bg-[#fafbfd]/50">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] flex items-center gap-1">
+                <Receipt size={11} className="text-[#4ABBC3]" />
+                <span>Stawka VAT</span>
+              </span>
+              <span className="text-[11px] font-mono text-[#64748b]">
+                Kwota VAT:{" "}
+                <strong className="text-[#0b1220]">
+                  {vatAmount.toLocaleString("pl-PL")} zł
+                </strong>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1 flex-wrap">
+                {PRESET_VAT_RATES.map((rate) => {
+                  const isActive = vatRate === rate;
+                  return (
+                    <button
+                      key={rate}
+                      type="button"
+                      disabled={readOnly}
+                      onClick={() => {
+                        setCustomVatRate(String(rate));
+                        onUpdateOffer({ vatRate: rate });
+                      }}
+                      className={`px-2 py-0.5 text-[11px] font-mono font-semibold rounded border transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-[#0e7490] text-white border-[#0e7490]"
+                          : "bg-[#f8fafc] text-[#475569] border-[#cbd5e1] hover:border-[#4ABBC3] hover:text-[#0e7490]"
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {rate}%
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="inline-flex items-center gap-1 ml-auto">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  disabled={readOnly}
+                  value={customVatRate}
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    setCustomVatRate(text);
+                    if (text.trim() === "") {
+                      onUpdateOffer({ vatRate: 23 });
+                      return;
+                    }
+                    const val = parseFloat(text);
+                    if (!isNaN(val) && val >= 0 && val <= 100) {
+                      onUpdateOffer({
+                        vatRate: Math.round(val * 10) / 10,
+                      });
+                    }
+                  }}
+                  className={`w-14 bg-white border rounded px-2 py-0.5 text-[#0b1220] font-mono font-bold text-[11px] text-right focus:outline-none transition-colors ${
+                    !PRESET_VAT_RATES.includes(vatRate)
+                      ? "border-[#0e7490] ring-1 ring-[#0e7490]/30"
+                      : "border-[#cbd5e1] focus:border-[#4ABBC3]"
+                  }`}
+                  placeholder="Inna"
+                  title="Własna stawka VAT (%)"
                 />
                 <span className="text-[11px] font-mono font-bold text-[#64748b]">
                   %
@@ -1023,7 +1112,7 @@ export function OfferSummaryTab({
                     {discountedNet.toLocaleString("pl-PL")} zł
                   </td>
                   <td className="py-3 px-4 text-right text-[11px] text-[#64748b]">
-                    brutto: {totalGross.toLocaleString("pl-PL")} zł
+                    brutto ({vatRate}%): {totalGross.toLocaleString("pl-PL")} zł
                   </td>
                 </tr>
               </tfoot>

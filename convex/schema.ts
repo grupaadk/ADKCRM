@@ -1188,6 +1188,7 @@ export default defineSchema({
     totalPriceGross: v.number(),
     totalCostNet: v.number(),
     discountPercent: v.optional(v.number()),
+    vatRate: v.optional(v.number()),
     serviceId: v.optional(v.id("services")),
     serviceName: v.optional(v.string()),
     templateFileId: v.optional(v.string()),

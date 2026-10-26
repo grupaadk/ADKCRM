@@ -2816,6 +2816,8 @@ export const generateOfferPdf = action({
       : offer.totalPriceNet;
     const netBeforeDiscountStr = formatPLN(netBeforeDiscount);
 
+    const vatRate = (offer as { vatRate?: number }).vatRate ?? 23;
+    const vatRateStr = `${vatRate}%`;
     const vatAmount = Math.max(0, offer.totalPriceGross - offer.totalPriceNet);
     const vatAmountStr = formatPLN(vatAmount);
 
@@ -2829,7 +2831,7 @@ export const generateOfferPdf = action({
       ? `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`
       : totalNetStr;
 
-    const razemPodsumowanieLinia = `RAZEM =  ${totalNetStr} netto + 23%VAT = ${totalGrossStr} brutto`;
+    const razemPodsumowanieLinia = `RAZEM =  ${totalNetStr} netto + ${vatRateStr}VAT = ${totalGrossStr} brutto`;
 
     const podsumowanieFinansowePelne = [
       "RAZEM:",
@@ -3274,12 +3276,12 @@ export const generateOfferPdf = action({
           { placeholder: "{{montaz_netto}}", value: montazNetStr },
           { placeholder: "{{kwota_vat}}", value: vatAmountStr },
           { placeholder: "{{vat}}", value: vatAmountStr },
-          { placeholder: "{{stawka_vat}}", value: "23%" },
+          { placeholder: "{{stawka_vat}}", value: vatRateStr },
 
           // Wzorce finansowe ze wzorca:
           {
             placeholder: "RAZEM =  6 497.69zł netto + 23%VAT =7 992.15 zł brutto",
-            value: `RAZEM =  ${totalNetStr} netto + 23%VAT = ${totalGrossStr} brutto`,
+            value: `RAZEM =  ${totalNetStr} netto + ${vatRateStr}VAT = ${totalGrossStr} brutto`,
           },
           {
             placeholder: "6 997,11 - 20%RABAT = 5 597,69",
@@ -3536,12 +3538,12 @@ export const generateOfferPdf = action({
           { placeholder: "{{montaz_netto}}", value: montazNetStr },
           { placeholder: "{{kwota_vat}}", value: vatAmountStr },
           { placeholder: "{{vat}}", value: vatAmountStr },
-          { placeholder: "{{stawka_vat}}", value: "23%" },
+          { placeholder: "{{stawka_vat}}", value: vatRateStr },
 
           // Wzorce finansowe ze wzorca 1XJnz47VXgNXFrOagFj7JiFxcmesIFWQAkQXS7ckc-6Y:
           {
             placeholder: "RAZEM =  6 497.69zł netto + 23%VAT =7 992.15 zł brutto",
-            value: `RAZEM =  ${totalNetStr} netto + 23%VAT = ${totalGrossStr} brutto`,
+            value: `RAZEM =  ${totalNetStr} netto + ${vatRateStr}VAT = ${totalGrossStr} brutto`,
           },
           {
             placeholder: "6 997,11 - 20%RABAT = 5 597,69",

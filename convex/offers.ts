@@ -171,6 +171,7 @@ export const getOrCreateForOpportunity = mutation({
       totalPriceGross: 0,
       totalCostNet: 0,
       discountPercent: 0,
+      vatRate: 23,
       serviceId: initialServiceId,
       serviceName: initialServiceName,
       notes: opp.comment || undefined,
@@ -238,6 +239,7 @@ export const createOfferForOpportunity = mutation({
       totalPriceGross: 0,
       totalCostNet: 0,
       discountPercent: 0,
+      vatRate: 23,
       serviceId: initialServiceId,
       serviceName: initialServiceName,
       notes: opp.comment || undefined,
@@ -286,6 +288,7 @@ export const duplicateOffer = mutation({
       totalPriceGross: sourceOffer.totalPriceGross,
       totalCostNet: sourceOffer.totalCostNet,
       discountPercent: sourceOffer.discountPercent,
+      vatRate: sourceOffer.vatRate ?? 23,
       serviceId: sourceOffer.serviceId,
       serviceName: sourceOffer.serviceName,
       templateFileId: sourceOffer.templateFileId,
@@ -658,6 +661,7 @@ export const updateOffer = mutation({
       )
     ),
     discountPercent: v.optional(v.number()),
+    vatRate: v.optional(v.number()),
     serviceId: v.optional(v.id("services")),
     serviceName: v.optional(v.string()),
     templateFileId: v.optional(v.string()),
@@ -672,7 +676,7 @@ export const updateOffer = mutation({
     }
     await ctx.db.patch(offerId, patch);
 
-    if (fields.discountPercent !== undefined) {
+    if (fields.discountPercent !== undefined || fields.vatRate !== undefined) {
       await recalculateOffer(ctx, offerId);
     }
   },
@@ -700,8 +704,9 @@ async function recalculateOffer(ctx: MutationCtx, offerId: Id<"offers">) {
   }
 
   const discount = offer.discountPercent || 0;
+  const vatRate = offer.vatRate ?? 23;
   const finalNet = Math.round(subtotalNet * (1 - discount / 100));
-  const finalGross = Math.round(finalNet * 1.23);
+  const finalGross = Math.round(finalNet * (1 + vatRate / 100));
 
   await ctx.db.patch(offerId, {
     totalPriceNet: finalNet,
