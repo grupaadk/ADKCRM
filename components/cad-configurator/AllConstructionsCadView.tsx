@@ -20,7 +20,6 @@ import {
   Move,
   Grid,
   Focus,
-  Grid3X3,
 } from "lucide-react";
 
 interface AllConstructionsCadViewProps {
@@ -315,7 +314,7 @@ export function AllConstructionsCadView({
   // ── Obliczenia układu dla Wspólnego Arkusza CAD ("sheet") ──
   // Obsługa układania konstrukcji pionowo (jedna nad drugą np. trójkąt nad drzwiami) oraz w rzędach (jedna pod drugą)
   // Duży, swobodny obszar roboczy CAD (Model Space) z wielometrowymi marginesami i siatką techniczną
-  const [workspacePreset, setWorkspacePreset] = useState<"standard" | "large" | "extra">("large");
+  const [workspacePreset] = useState<"standard" | "large" | "extra">("large");
   const [showCadGrid, setShowCadGrid] = useState<boolean>(true);
 
   const { minWorkspaceW, minWorkspaceH, sheetPadX, sheetPadTop, sheetPadBottom } = useMemo(() => {
@@ -397,7 +396,7 @@ export function AllConstructionsCadView({
           ? Array.from({ length: panes }).map((_, i) => ({
               widthMm: i === panes - 1 ? nextWidth - paneW * (panes - 1) : paneW,
               heightMm: nextHeight - 103,
-              fill: it.fillType || "HART 10",
+              fill: it.fillType,
             }))
           : it.segments;
       return {
@@ -1183,40 +1182,6 @@ export function AllConstructionsCadView({
 
               <div className="h-4 w-px bg-[#e3e7ee] mx-0.5" />
 
-              {/* Wybór wielkości obszaru roboczego CAD (Model Space) */}
-              <div className="flex items-center gap-1 bg-slate-100 rounded p-0.5 border border-[#cbd5e1]">
-                <span
-                  className="text-[10px] text-[#475569] font-medium px-1 flex items-center gap-1"
-                  title="Rozmiar wirtualnej przestrzeni roboczej CAD"
-                >
-                  <Grid3X3 size={11} className="text-[#0e7490]" />
-                  <span className="hidden md:inline">Obszar:</span>
-                </span>
-                {(
-                  [
-                    { key: "standard", label: "10m", title: "Standardowy obszar roboczy (10 × 6 m)" },
-                    { key: "large", label: "14m", title: "Duży obszar roboczy CAD (14 × 8.5 m)" },
-                    { key: "extra", label: "22m", title: "Bardzo duży obszar CAD (22 × 12 m)" },
-                  ] as const
-                ).map((p) => (
-                  <button
-                    key={p.key}
-                    type="button"
-                    onClick={() => setWorkspacePreset(p.key)}
-                    title={p.title}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                      workspacePreset === p.key
-                        ? "bg-white text-[#0e7490] shadow-2xs"
-                        : "text-[#64748b] hover:text-[#0b1220]"
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="h-4 w-px bg-[#e3e7ee] mx-0.5" />
-
               {/* Przycisk Dopasuj do konstrukcji */}
               <button
                 type="button"
@@ -1227,13 +1192,6 @@ export function AllConstructionsCadView({
                 <Focus size={12} />
                 <span className="hidden md:inline">Dopasuj</span>
               </button>
-
-              <span
-                className="hidden xl:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono text-[#64748b] bg-slate-100 border border-[#e2e8f0]"
-                title="Scroll = Płynny Zoom, LPM na wolnym polu lub Scroll-click = Przesuwanie (Łapka)"
-              >
-                Scroll: Zoom · Przeciągnij tło: Łapka
-              </span>
 
               <button
                 type="button"
@@ -1537,7 +1495,6 @@ export function AllConstructionsCadView({
                             const width = Math.max(item.widthMm || 2880, 400);
                             const height = Math.max(item.heightMm || 2300, 400);
                             const panes = Math.max(item.panesCount || 3, 1);
-                            const fill = item.fillType || "HART 10";
                             const isHovered = hoveredItemId === item._id;
 
                             const hasItemAbove =
@@ -1735,20 +1692,6 @@ export function AllConstructionsCadView({
                                 stroke="#38bdf8"
                                 strokeWidth="2"
                               />
-
-
-
-                              {/* Parametry wewnątrz trójkąta */}
-                              <text
-                                x={originX + width * (isTriangleRight ? 0.65 : 0.35)}
-                                y={yGlassBot - 35}
-                                fill="#0b1220"
-                                fontSize="42"
-                                fontWeight="900"
-                                textAnchor="middle"
-                              >
-                                {fill}
-                              </text>
                             </>
                           ) : (
                             <>
@@ -2989,8 +2932,6 @@ export function AllConstructionsCadView({
               const width = Math.max(item.widthMm || 2880, 400);
               const height = Math.max(item.heightMm || 2300, 400);
               const panes = Math.max(item.panesCount || 3, 1);
-              const fill = item.fillType || "HART 10";
-              const color = item.color || "RAL 7016MAT";
               const paneWidth = Math.round(width / panes);
 
               const isTriangle =
@@ -3088,10 +3029,6 @@ export function AllConstructionsCadView({
                           </button>
                           <span>·</span>
                           <span>{isTriangle ? "Trójkąt dachowy" : `${panes}-torowy`}</span>
-                          <span>·</span>
-                          <span>{fill}</span>
-                          <span>·</span>
-                          <span>{color}</span>
                         </div>
                       </div>
                     </div>
@@ -3214,17 +3151,6 @@ export function AllConstructionsCadView({
                             stroke="#38bdf8"
                             strokeWidth="2"
                           />
-
-                          <text
-                            x={padLeft + width * (isTriangleRightCard ? 0.65 : 0.35)}
-                            y={yGlassBotCard - 35}
-                            fill="#0b1220"
-                            fontSize="42"
-                            fontWeight="900"
-                            textAnchor="middle"
-                          >
-                            {fill}
-                          </text>
 
                           {showDimensions && (
                             <g>
