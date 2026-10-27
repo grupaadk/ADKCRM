@@ -116,6 +116,20 @@ describe("CAD Offers and Constructions Module", () => {
 
     data = await t.query(api.offers.getOfferWithItems, { offerId });
     expect(data!.items.length).toBe(2);
+
+    // 10. Test recalculateOffer gracefully handles nonexistent opportunity document
+    await t.run(async (ctx) => {
+      await ctx.db.delete(oppId);
+    });
+    const pos3Id = await t.mutation(api.offers.addConstructionPosition, {
+      offerId,
+      name: "Pozycja po usunięciu szansy",
+      widthMm: 2000,
+      heightMm: 2000,
+      priceNet: 5000,
+      costNet: 3000,
+    });
+    expect(pos3Id).toBeDefined();
   });
 
   test("manages construction templates in settings catalog", async () => {

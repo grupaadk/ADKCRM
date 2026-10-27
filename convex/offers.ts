@@ -544,6 +544,14 @@ export const updateConstructionPosition = mutation({
     const newColor = fields.color ?? item.color ?? "RAL 7016MAT";
 
     if (fields.widthMm !== undefined || fields.heightMm !== undefined || fields.panesCount !== undefined || fields.fillType !== undefined || fields.color !== undefined) {
+      // Jeśli nazwa nie została jawnie podana, a zawierała w sobie stare wymiary (np. "1940x2300" lub "1940 × 2300"), zaktualizuj wymiary w nazwie
+      if (!fields.name && (fields.widthMm !== undefined || fields.heightMm !== undefined)) {
+        const oldDimRegex = new RegExp(`\\b${item.widthMm}\\s*[x×]\\s*${item.heightMm}\\b`, "i");
+        if (oldDimRegex.test(item.name)) {
+          patch.name = item.name.replace(oldDimRegex, `${newWidth}×${newHeight}`);
+        }
+      }
+
       const paneWidth = Math.round(newWidth / newPanes);
       patch.segments = Array.from({ length: newPanes }).map((_, i) => ({
         widthMm: i === newPanes - 1 ? newWidth - paneWidth * (newPanes - 1) : paneWidth,
@@ -715,25 +723,28 @@ async function recalculateOffer(ctx: MutationCtx, offerId: Id<"offers">) {
     updatedAt: Date.now(),
   });
 
-  // Synchronizuj wyliczoną kwotę z szansą sprzedaży
+  // Synchronizuj wyliczoną kwotę z szansą sprzedaży (jeśli istnieje w bazie)
   if (offer.opportunityId) {
-    const oppOffers = await ctx.db
-      .query("offers")
-      .withIndex("by_opportunity", (q) => q.eq("opportunityId", offer.opportunityId!))
-      .collect();
+    const opp = await ctx.db.get(offer.opportunityId);
+    if (opp) {
+      const oppOffers = await ctx.db
+        .query("offers")
+        .withIndex("by_opportunity", (q) => q.eq("opportunityId", offer.opportunityId!))
+        .collect();
 
-    // Jeśli inna oferta jest oznaczona jako "accepted", nie nadpisuj kwoty szansy inną ofertą
-    const hasOtherAccepted = oppOffers.some(
-      (o) => o._id !== offerId && o.status === "accepted"
-    );
+      // Jeśli inna oferta jest oznaczona jako "accepted", nie nadpisuj kwoty szansy inną ofertą
+      const hasOtherAccepted = oppOffers.some(
+        (o) => o._id !== offerId && o.status === "accepted"
+      );
 
-    if (!hasOtherAccepted || offer.status === "accepted") {
-      const profit = finalNet - totalCost;
-      await ctx.db.patch(offer.opportunityId, {
-        price: finalNet,
-        cost: totalCost,
-        profit,
-      });
+      if (!hasOtherAccepted || offer.status === "accepted") {
+        const profit = finalNet - totalCost;
+        await ctx.db.patch(offer.opportunityId, {
+          price: finalNet,
+          cost: totalCost,
+          profit,
+        });
+      }
     }
   }
 }

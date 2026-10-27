@@ -96,7 +96,142 @@ interface OfferSummaryTabProps {
   onDuplicatePosition: (itemId: string) => void;
   onDeletePosition: (itemId: string) => void;
   onAddNewPosition: () => void;
+  onUpdateDimensions?: (
+    itemId: string,
+    patch: { widthMm?: number; heightMm?: number }
+  ) => void;
   readOnly?: boolean;
+}
+
+interface InlineDimensionCellProps {
+  itemId: string;
+  widthMm: number;
+  heightMm: number;
+  panesCount: number;
+  readOnly?: boolean;
+  onUpdateDimensions?: (
+    itemId: string,
+    patch: { widthMm?: number; heightMm?: number }
+  ) => void;
+}
+
+function InlineDimensionCell({
+  itemId,
+  widthMm,
+  heightMm,
+  panesCount,
+  readOnly,
+  onUpdateDimensions,
+}: InlineDimensionCellProps) {
+  const [wStr, setWStr] = useState(String(widthMm));
+  const [hStr, setHStr] = useState(String(heightMm));
+  const [isSavedRecently, setIsSavedRecently] = useState(false);
+
+  useEffect(() => {
+    setWStr(String(widthMm));
+  }, [widthMm]);
+
+  useEffect(() => {
+    setHStr(String(heightMm));
+  }, [heightMm]);
+
+  const commit = () => {
+    if (!onUpdateDimensions || readOnly) return;
+    const w = parseInt(wStr, 10);
+    const h = parseInt(hStr, 10);
+
+    const validW = !isNaN(w) && w >= 200 && w <= 20000 ? w : widthMm;
+    const validH = !isNaN(h) && h >= 200 && h <= 10000 ? h : heightMm;
+
+    setWStr(String(validW));
+    setHStr(String(validH));
+
+    if (validW !== widthMm || validH !== heightMm) {
+      onUpdateDimensions(itemId, { widthMm: validW, heightMm: validH });
+      setIsSavedRecently(true);
+      setTimeout(() => setIsSavedRecently(false), 1500);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      (e.target as HTMLInputElement).blur();
+    } else if (e.key === "Escape") {
+      setWStr(String(widthMm));
+      setHStr(String(heightMm));
+      (e.target as HTMLInputElement).blur();
+    }
+  };
+
+  if (readOnly || !onUpdateDimensions) {
+    return (
+      <td className="py-3 px-4 text-center">
+        <div className="font-mono font-bold text-xs text-[#0b1220]">
+          {widthMm} × {heightMm} mm
+        </div>
+        <div className="text-[10px] text-[#64748b] mt-0.5">
+          System {panesCount}-torowy
+        </div>
+      </td>
+    );
+  }
+
+  return (
+    <td
+      className="py-3 px-4 text-center"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="inline-flex items-center justify-center gap-1">
+        {/* Szerokość B */}
+        <div className="relative group/w">
+          <input
+            type="number"
+            min={200}
+            max={20000}
+            step={10}
+            value={wStr}
+            onChange={(e) => setWStr(e.target.value)}
+            onBlur={commit}
+            onKeyDown={handleKeyDown}
+            title="Szerokość B (mm) — naciśnij Enter lub kliknij obok, aby zapisać"
+            className="w-16 h-7 text-center font-mono font-bold text-xs text-[#0b1220] bg-white border border-[#cbd5e1] hover:border-[#4ABBC3] focus:border-[#0e7490] focus:ring-2 focus:ring-[#0e7490]/20 rounded transition-all focus:outline-none shadow-2xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+        </div>
+
+        <span className="font-bold text-[#64748b] text-xs select-none">×</span>
+
+        {/* Wysokość H */}
+        <div className="relative group/h">
+          <input
+            type="number"
+            min={200}
+            max={10000}
+            step={10}
+            value={hStr}
+            onChange={(e) => setHStr(e.target.value)}
+            onBlur={commit}
+            onKeyDown={handleKeyDown}
+            title="Wysokość H (mm) — naciśnij Enter lub kliknij obok, aby zapisać"
+            className="w-16 h-7 text-center font-mono font-bold text-xs text-[#0b1220] bg-white border border-[#cbd5e1] hover:border-[#4ABBC3] focus:border-[#0e7490] focus:ring-2 focus:ring-[#0e7490]/20 rounded transition-all focus:outline-none shadow-2xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+        </div>
+
+        <span className="text-[11px] font-mono text-[#64748b] select-none pl-0.5">
+          mm
+        </span>
+      </div>
+
+      <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#64748b] mt-0.5">
+        <span>System {panesCount}-torowy</span>
+        {isSavedRecently && (
+          <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold text-[9px] animate-pulse">
+            <Check size={10} />
+            <span>Zapisano</span>
+          </span>
+        )}
+      </div>
+    </td>
+  );
 }
 
 export function OfferSummaryTab({
@@ -109,6 +244,7 @@ export function OfferSummaryTab({
   onDuplicatePosition,
   onDeletePosition,
   onAddNewPosition,
+  onUpdateDimensions,
   readOnly = false,
 }: OfferSummaryTabProps) {
   const router = useRouter();
@@ -1017,15 +1153,15 @@ export function OfferSummaryTab({
                         </div>
                       </td>
 
-                      {/* Dimensions */}
-                      <td className="py-3 px-4 text-center">
-                        <div className="font-mono font-bold text-xs text-[#0b1220]">
-                          {it.widthMm} × {it.heightMm} mm
-                        </div>
-                        <div className="text-[10px] text-[#64748b] mt-0.5">
-                          System {panes}-torowy
-                        </div>
-                      </td>
+                      {/* Dimensions (Inline Editable) */}
+                      <InlineDimensionCell
+                        itemId={it._id}
+                        widthMm={it.widthMm}
+                        heightMm={it.heightMm}
+                        panesCount={panes}
+                        readOnly={readOnly}
+                        onUpdateDimensions={onUpdateDimensions}
+                      />
 
                       {/* Quantity */}
                       <td className="py-3 px-4 text-center font-mono font-bold text-xs text-[#0b1220]">
@@ -1128,18 +1264,13 @@ export function OfferSummaryTab({
             <div className="p-1.5 rounded-md bg-[rgba(74,187,195,0.12)] text-[#0e7490] border border-[rgba(74,187,195,0.25)]">
               <FileText size={15} className="text-[#4ABBC3]" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-bold text-xs text-[#0b1220] uppercase tracking-wider">
-                  Uwagi do oferty
-                </h2>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100/70 text-[#0e7490] border border-teal-200/50">
-                  WYSIWYG HTML
-                </span>
-              </div>
-              <p className="text-[11px] text-[#64748b]">
-                Wpisz uwagi i ustalenia widoczne w wygenerowanym dokumencie oferty PDF (znacznik {"{{uwagi}}"}).
-              </p>
+            <div className="flex items-center gap-2">
+              <h2 className="font-bold text-xs text-[#0b1220] uppercase tracking-wider">
+                Uwagi do oferty
+              </h2>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100/70 text-[#0e7490] border border-teal-200/50">
+                WYSIWYG HTML
+              </span>
             </div>
           </div>
 

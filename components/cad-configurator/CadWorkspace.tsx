@@ -472,6 +472,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
             onDuplicatePosition={handleDuplicate}
             onDeletePosition={handleDelete}
             onAddNewPosition={() => setIsAddModalOpen(true)}
+            onUpdateDimensions={handleUpdatePositionDimensions}
           />
         ) : (
           <div className="flex-1 flex overflow-hidden">
