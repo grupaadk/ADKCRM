@@ -1,6 +1,6 @@
 import { mutation, internalMutation, query, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { Id } from "./_generated/dataModel";
+import { Id, Doc } from "./_generated/dataModel";
 
 /**
  * Usuwa słowo "Przedstawiciel" z tytułów ofert i nazw klientów w całym systemie
@@ -58,12 +58,73 @@ export const getOfferWithItems = query({
     const offer = await ctx.db.get(args.offerId);
     if (!offer) return null;
 
-    const items = await ctx.db
+    const rawItems = await ctx.db
       .query("offerConstructions")
       .withIndex("by_offer", (q) => q.eq("offerId", args.offerId))
       .collect();
 
-    items.sort((a, b) => a.positionIndex - b.positionIndex);
+    rawItems.sort((a, b) => a.positionIndex - b.positionIndex);
+
+    let allConstructionsCache: Doc<"constructions">[] | null = null;
+
+    // Wzbogacamy pozycje o cennik z szablonu, jeśli nie mają jeszcze własnych filarów cenowych
+    const items = await Promise.all(
+      rawItems.map(async (item) => {
+        let tpl: Doc<"constructions"> | null = null;
+        if (item.constructionId) {
+          tpl = await ctx.db.get(item.constructionId);
+        }
+        if (!tpl) {
+          if (!allConstructionsCache) {
+            allConstructionsCache = await ctx.db.query("constructions").collect();
+          }
+          const short = (item.shortName || "").trim().toLowerCase();
+          const name = (item.name || "").trim().toLowerCase();
+          tpl =
+            allConstructionsCache.find((c) => {
+              const code = (c.code || "").trim().toLowerCase();
+              const cName = (c.name || "").trim().toLowerCase();
+              return (
+                (code && (short === code || name.includes(code))) ||
+                (cName && (short === cName || name === cName))
+              );
+            }) || null;
+        }
+
+        const hasExplicitPillars =
+          (item.materialPriceNet !== undefined && item.materialPriceNet !== null) ||
+          (item.installationPriceNet !== undefined && item.installationPriceNet !== null);
+
+        if (!hasExplicitPillars && tpl) {
+          const matCost = tpl.materialCostNet ?? (item.costNet || 0);
+          const matPrice = tpl.materialPriceNet ?? (item.priceNet || 0);
+          const instCost = tpl.installationCostNet ?? 0;
+          const instPrice = tpl.installationPriceNet ?? 0;
+          const combinedPrice =
+            (tpl.materialPriceNet || 0) + (tpl.installationPriceNet || 0) > 0
+              ? (tpl.materialPriceNet || 0) + (tpl.installationPriceNet || 0)
+              : item.priceNet;
+          const combinedCost =
+            (tpl.materialCostNet || 0) + (tpl.installationCostNet || 0) > 0
+              ? (tpl.materialCostNet || 0) + (tpl.installationCostNet || 0)
+              : item.costNet;
+
+          return {
+            ...item,
+            constructionId: item.constructionId ?? tpl._id,
+            materialCostNet: matCost,
+            materialPriceNet: matPrice,
+            installationCostNet: instCost,
+            installationPriceNet: instPrice,
+            installationUnit: tpl.installationUnit,
+            installationUnitRate: tpl.installationUnitRate,
+            priceNet: combinedPrice,
+            costNet: combinedCost,
+          };
+        }
+        return item;
+      })
+    );
 
     const opportunity = await ctx.db.get(offer.opportunityId);
     let client = null;
@@ -700,6 +761,74 @@ export const updateOffer = mutation({
     if (fields.discountPercent !== undefined || fields.vatRate !== undefined) {
       await recalculateOffer(ctx, offerId);
     }
+  },
+});
+
+/**
+ * Synchronizuje pozycje oferty z aktualnymi cenami i kosztami z bazy szablonów konstrukcji
+ */
+export const syncOfferWithConstructionTemplates = mutation({
+  args: {
+    offerId: v.id("offers"),
+  },
+  handler: async (ctx, args) => {
+    const rawItems = await ctx.db
+      .query("offerConstructions")
+      .withIndex("by_offer", (q) => q.eq("offerId", args.offerId))
+      .collect();
+
+    const allConstructions = await ctx.db.query("constructions").collect();
+
+    let updatedCount = 0;
+    for (const item of rawItems) {
+      let tpl: Doc<"constructions"> | null = null;
+      if (item.constructionId) {
+        tpl = await ctx.db.get(item.constructionId);
+      }
+      if (!tpl) {
+        const short = (item.shortName || "").trim().toLowerCase();
+        const name = (item.name || "").trim().toLowerCase();
+        tpl =
+          allConstructions.find((c) => {
+            const code = (c.code || "").trim().toLowerCase();
+            const cName = (c.name || "").trim().toLowerCase();
+            return (
+              (code && (short === code || name.includes(code))) ||
+              (cName && (short === cName || name === cName))
+            );
+          }) || null;
+      }
+
+      if (tpl) {
+        const matCost = tpl.materialCostNet ?? (item.costNet || 0);
+        const matPrice = tpl.materialPriceNet ?? (item.priceNet || 0);
+        const instCost = tpl.installationCostNet ?? 0;
+        const instPrice = tpl.installationPriceNet ?? 0;
+        const combinedPrice =
+          (tpl.materialPriceNet || 0) + (tpl.installationPriceNet || 0) > 0
+            ? (tpl.materialPriceNet || 0) + (tpl.installationPriceNet || 0)
+            : (tpl.defaultPriceNet ?? item.priceNet);
+        const combinedCost =
+          (tpl.materialCostNet || 0) + (tpl.installationCostNet || 0) > 0
+            ? (tpl.materialCostNet || 0) + (tpl.installationCostNet || 0)
+            : item.costNet;
+
+        await ctx.db.patch(item._id, {
+          constructionId: tpl._id,
+          materialCostNet: matCost,
+          materialPriceNet: matPrice,
+          installationCostNet: instCost,
+          installationPriceNet: instPrice,
+          priceNet: combinedPrice,
+          costNet: combinedCost,
+          updatedAt: Date.now(),
+        });
+        updatedCount++;
+      }
+    }
+
+    await recalculateOffer(ctx, args.offerId);
+    return { updatedCount };
   },
 });
 

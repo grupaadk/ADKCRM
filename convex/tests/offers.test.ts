@@ -527,4 +527,91 @@ describe("CAD Offers and Constructions Module", () => {
     const updatedData = await t.query(api.offers.getOfferWithItems, { offerId });
     expect(updatedData!.offer.templateFileId).toBe("1OverrideTemplateDirectlyOnOffer");
   });
+
+  test("synchronizes offer positions with construction templates (material & installation split)", async () => {
+    const t = convexTest(schema);
+
+    // 1. Create a construction template SZKLO-2T-194 with material and installation prices
+    const templateId = await t.mutation(api.constructions.create, {
+      name: "SZKŁO 2-TOROWE 1940x2300",
+      code: "SZKLO-2T-194",
+      defaultWidthMm: 1940,
+      defaultHeightMm: 2300,
+      defaultPanesCount: 2,
+      materialCostNet: 1400,
+      materialPriceNet: 2100,
+      installationCostNet: 400,
+      installationPriceNet: 969,
+      defaultPriceNet: 3069,
+    });
+    expect(templateId).toBeDefined();
+
+    // 2. Create opportunity and offer
+    const oppId = await t.run(async (ctx) => {
+      return await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-SZKLO-SYNC",
+        firstName: "Jan",
+        lastName: "Kowalski",
+        processed: false,
+        stage: "lead",
+      });
+    });
+
+    const offerId = await t.mutation(api.offers.getOrCreateForOpportunity, {
+      opportunityId: oppId,
+    });
+
+    // 3. Add position as legacy un-split snapshot (only priceNet 3069, no materialPriceNet / installationPriceNet)
+    const itemId = await t.run(async (ctx) => {
+      return await ctx.db.insert("offerConstructions", {
+        offerId,
+        positionIndex: 1,
+        constructionId: templateId,
+        name: "SZKŁO 2-TOROWE 1940x2300",
+        shortName: "SZKLO-2T-194",
+        quantity: 1,
+        widthMm: 1940,
+        heightMm: 2300,
+        panesCount: 2,
+        priceNet: 3069,
+        costNet: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    // 4. Test query hydration: getOfferWithItems automatically enriches missing pillars from template
+    const hydrated = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(hydrated).not.toBeNull();
+    const pos = hydrated!.items[0];
+    expect(pos.materialPriceNet).toBe(2100);
+    expect(pos.installationPriceNet).toBe(969);
+    expect(pos.materialCostNet).toBe(1400);
+    expect(pos.installationCostNet).toBe(400);
+
+    // 5. Update template prices in settings
+    await t.mutation(api.constructions.update, {
+      id: templateId,
+      materialCostNet: 1500,
+      materialPriceNet: 2300,
+      installationCostNet: 500,
+      installationPriceNet: 1100,
+    });
+
+    // 6. Explicitly sync offer with templates
+    const syncRes = await t.mutation(api.offers.syncOfferWithConstructionTemplates, {
+      offerId,
+    });
+    expect(syncRes.updatedCount).toBe(1);
+
+    // 7. Verify document was patched and offer totals recalculated
+    const afterSync = await t.query(api.offers.getOfferWithItems, { offerId });
+    const posAfter = afterSync!.items[0];
+    expect(posAfter.materialPriceNet).toBe(2300);
+    expect(posAfter.installationPriceNet).toBe(1100);
+    expect(posAfter.priceNet).toBe(3400);
+    expect(posAfter.costNet).toBe(2000);
+    expect(afterSync!.offer.totalPriceNet).toBe(3400);
+    expect(afterSync!.offer.totalCostNet).toBe(2000);
+  });
 });

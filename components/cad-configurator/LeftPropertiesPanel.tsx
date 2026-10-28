@@ -22,6 +22,17 @@ export function LeftPropertiesPanel({
 }: LeftPropertiesPanelProps) {
   const price = item.priceNet || 0;
   const cost = item.costNet || 0;
+  const instPrice = item.installationPriceNet || 0;
+  const instCost = item.installationCostNet || 0;
+  const matPrice =
+    item.materialPriceNet !== undefined
+      ? item.materialPriceNet
+      : Math.max(0, price - instPrice);
+  const matCost =
+    item.materialCostNet !== undefined
+      ? item.materialCostNet
+      : Math.max(0, cost - instCost);
+
   const profit = price - cost;
   const marginPct = price > 0 ? Math.round((profit / price) * 100) : 0;
 
@@ -267,38 +278,145 @@ export function LeftPropertiesPanel({
             <DollarSign size={13} className="text-[#4ABBC3]" /> Finanse pozycji
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          {/* Filar 1: Materiał */}
+          <div className="bg-white p-2.5 rounded-md border border-[#e3e7ee] space-y-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 block">
+              1. Materiał
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[9px] font-medium text-[#7c8597] mb-0.5">
+                  Koszt materiału
+                </label>
+                <input
+                  type="number"
+                  step={50}
+                  min={0}
+                  disabled={readOnly}
+                  value={matCost}
+                  onChange={(e) => {
+                    const newMatCost = Math.max(0, parseFloat(e.target.value) || 0);
+                    onChange({
+                      materialCostNet: newMatCost,
+                      costNet: newMatCost + instCost,
+                    });
+                  }}
+                  className="w-full bg-white border border-[#d4dae3] rounded px-2 py-1 text-xs text-[#0b1220] font-mono focus:border-[#4ABBC3] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] font-medium text-[#7c8597] mb-0.5">
+                  Cena materiału
+                </label>
+                <input
+                  type="number"
+                  step={50}
+                  min={0}
+                  disabled={readOnly}
+                  value={matPrice}
+                  onChange={(e) => {
+                    const newMatPrice = Math.max(0, parseFloat(e.target.value) || 0);
+                    onChange({
+                      materialPriceNet: newMatPrice,
+                      priceNet: newMatPrice + instPrice,
+                    });
+                  }}
+                  className="w-full bg-white border border-[#d4dae3] rounded px-2 py-1 text-xs text-[#0e7490] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Filar 2: Montaż */}
+          <div className="bg-white p-2.5 rounded-md border border-[#e3e7ee] space-y-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 block">
+              2. Montaż
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[9px] font-medium text-[#7c8597] mb-0.5">
+                  Koszt montażu
+                </label>
+                <input
+                  type="number"
+                  step={50}
+                  min={0}
+                  disabled={readOnly}
+                  value={instCost}
+                  onChange={(e) => {
+                    const newInstCost = Math.max(0, parseFloat(e.target.value) || 0);
+                    onChange({
+                      installationCostNet: newInstCost,
+                      costNet: matCost + newInstCost,
+                    });
+                  }}
+                  className="w-full bg-white border border-[#d4dae3] rounded px-2 py-1 text-xs text-[#0b1220] font-mono focus:border-[#4ABBC3] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] font-medium text-[#7c8597] mb-0.5">
+                  Cena montażu
+                </label>
+                <input
+                  type="number"
+                  step={50}
+                  min={0}
+                  disabled={readOnly}
+                  value={instPrice}
+                  onChange={(e) => {
+                    const newInstPrice = Math.max(0, parseFloat(e.target.value) || 0);
+                    onChange({
+                      installationPriceNet: newInstPrice,
+                      priceNet: matPrice + newInstPrice,
+                    });
+                  }}
+                  className="w-full bg-white border border-[#d4dae3] rounded px-2 py-1 text-xs text-[#0e7490] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Łączna cena i koszt */}
+          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#e3e7ee]">
             <div>
-              <label className="block text-[10px] font-medium text-[#7c8597] mb-1">
-                Cena netto (PLN)
+              <label className="block text-[10px] font-bold text-[#0b1220] mb-1">
+                Cena łączna netto
               </label>
               <input
                 type="number"
                 step={50}
                 min={0}
                 disabled={readOnly}
-                value={item.priceNet || 0}
-                onChange={(e) =>
-                  onChange({ priceNet: Math.max(0, parseFloat(e.target.value) || 0) })
-                }
-                className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none"
+                value={price}
+                onChange={(e) => {
+                  const newPrice = Math.max(0, parseFloat(e.target.value) || 0);
+                  onChange({
+                    priceNet: newPrice,
+                    materialPriceNet: Math.max(0, newPrice - instPrice),
+                  });
+                }}
+                className="w-full bg-[#f1f5f9] border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-extrabold focus:border-[#4ABBC3] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-medium text-[#7c8597] mb-1">
-                Koszt netto (PLN)
+              <label className="block text-[10px] font-bold text-[#0b1220] mb-1">
+                Koszt łączny netto
               </label>
               <input
                 type="number"
                 step={50}
                 min={0}
                 disabled={readOnly}
-                value={item.costNet || 0}
-                onChange={(e) =>
-                  onChange({ costNet: Math.max(0, parseFloat(e.target.value) || 0) })
-                }
-                className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono focus:border-[#4ABBC3] focus:outline-none"
+                value={cost}
+                onChange={(e) => {
+                  const newCost = Math.max(0, parseFloat(e.target.value) || 0);
+                  onChange({
+                    costNet: newCost,
+                    materialCostNet: Math.max(0, newCost - instCost),
+                  });
+                }}
+                className="w-full bg-[#f1f5f9] border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono focus:border-[#4ABBC3] focus:outline-none"
               />
             </div>
           </div>

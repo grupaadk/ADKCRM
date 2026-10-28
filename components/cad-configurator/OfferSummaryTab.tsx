@@ -26,6 +26,7 @@ import {
   Copy,
   Plus,
   Layers,
+  RefreshCw,
   Check,
   X,
   TrendingUp,
@@ -304,6 +305,31 @@ export function OfferSummaryTab({
   const generateOfferPdf = useAction(api.googleDrive.generateOfferPdf);
   const duplicateOffer = useMutation(api.offers.duplicateOffer);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
+  const syncWithTemplates = useMutation(api.offers.syncOfferWithConstructionTemplates);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncWithTemplates = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    const toastId = toast.loading("Pobieranie aktualnych cen z bazy szablonów...");
+    try {
+      const res = await syncWithTemplates({
+        offerId: offer._id as Id<"offers">,
+      });
+      toast.success(
+        res.updatedCount > 0
+          ? `Pomyślnie zsynchronizowano ${res.updatedCount} pozycji z szablonami!`
+          : "Wszystkie pozycje są już zgodne z bazą szablonów.",
+        { id: toastId }
+      );
+    } catch (err: unknown) {
+      console.error("[syncWithTemplates] error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Błąd synchronizacji: ${msg}`, { id: toastId });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleDuplicateOffer = async () => {
     if (isDuplicating) return;
@@ -907,15 +933,32 @@ export function OfferSummaryTab({
           </div>
 
           {!readOnly && (
-            <button
-              type="button"
-              onClick={onAddNewPosition}
-              className="btn primary"
-              style={{ padding: "6px 14px", fontSize: 12 }}
-            >
-              <Plus size={14} strokeWidth={2.5} />
-              <span>Dodaj konstrukcję</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSyncWithTemplates}
+                disabled={isSyncing}
+                title="Pobierz aktualne ceny materiału i montażu z bazy szablonów konstrukcji"
+                className="btn secondary"
+                style={{ padding: "6px 12px", fontSize: 12 }}
+              >
+                {isSyncing ? (
+                  <Loader2 size={13} className="animate-spin text-[#0e7490]" />
+                ) : (
+                  <RefreshCw size={13} className="text-[#0e7490]" />
+                )}
+                <span>{isSyncing ? "Synchronizacja..." : "Zsynchronizuj z szablonami"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={onAddNewPosition}
+                className="btn primary"
+                style={{ padding: "6px 14px", fontSize: 12 }}
+              >
+                <Plus size={14} strokeWidth={2.5} />
+                <span>Dodaj konstrukcję</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -1173,6 +1216,13 @@ export function OfferSummaryTab({
                               {it.fillType || "HART 10"}
                             </strong>
                           </span>
+                          {(it.materialPriceNet !== undefined || it.installationPriceNet !== undefined) && (
+                            <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                              <span>mat: <strong className="text-slate-800">{(it.materialPriceNet ?? (it.priceNet || 0)).toLocaleString("pl-PL")} zł</strong></span>
+                              <span className="text-slate-300">•</span>
+                              <span>montaż: <strong className="text-[#0e7490]">{(it.installationPriceNet ?? 0).toLocaleString("pl-PL")} zł</strong></span>
+                            </span>
+                          )}
                         </div>
                       </td>
 
