@@ -54,9 +54,11 @@ export const create = mutation({
     materialCostNet: v.optional(v.union(v.number(), v.null())),
     materialMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"), v.null())),
     materialMarkupValue: v.optional(v.union(v.number(), v.null())),
+    materialPriceNet: v.optional(v.union(v.number(), v.null())),
     installationCostNet: v.optional(v.union(v.number(), v.null())),
     installationMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"), v.null())),
     installationMarkupValue: v.optional(v.union(v.number(), v.null())),
+    installationPriceNet: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.query("constructions").collect();
@@ -82,13 +84,18 @@ export const create = mutation({
       defaultPanesCount: args.defaultPanesCount !== undefined && args.defaultPanesCount !== null ? args.defaultPanesCount : undefined,
       defaultFillType: args.defaultFillType?.trim() || undefined,
       defaultWarning: args.defaultWarning?.trim() || undefined,
-      defaultPriceNet: args.defaultPriceNet !== undefined ? args.defaultPriceNet : undefined,
+      defaultPriceNet:
+        args.defaultPriceNet !== undefined
+          ? args.defaultPriceNet
+          : (args.materialPriceNet || 0) + (args.installationPriceNet || 0) || undefined,
       materialCostNet: args.materialCostNet ?? undefined,
       materialMarkupType: args.materialMarkupType ?? undefined,
       materialMarkupValue: args.materialMarkupValue ?? undefined,
+      materialPriceNet: args.materialPriceNet ?? undefined,
       installationCostNet: args.installationCostNet ?? undefined,
       installationMarkupType: args.installationMarkupType ?? undefined,
       installationMarkupValue: args.installationMarkupValue ?? undefined,
+      installationPriceNet: args.installationPriceNet ?? undefined,
       isActive: true,
       sortOrder: nextOrder,
       createdAt: now,
@@ -119,9 +126,11 @@ export const update = mutation({
     materialCostNet: v.optional(v.union(v.number(), v.null())),
     materialMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"), v.null())),
     materialMarkupValue: v.optional(v.union(v.number(), v.null())),
+    materialPriceNet: v.optional(v.union(v.number(), v.null())),
     installationCostNet: v.optional(v.union(v.number(), v.null())),
     installationMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"), v.null())),
     installationMarkupValue: v.optional(v.union(v.number(), v.null())),
+    installationPriceNet: v.optional(v.union(v.number(), v.null())),
     isActive: v.optional(v.boolean()),
     sortOrder: v.optional(v.number()),
   },
@@ -150,13 +159,21 @@ export const update = mutation({
     if (fields.defaultPanesCount !== undefined) patch.defaultPanesCount = fields.defaultPanesCount ?? undefined;
     if (fields.defaultFillType !== undefined) patch.defaultFillType = fields.defaultFillType?.trim() || undefined;
     if (fields.defaultWarning !== undefined) patch.defaultWarning = fields.defaultWarning.trim() || undefined;
-    if (fields.defaultPriceNet !== undefined) patch.defaultPriceNet = fields.defaultPriceNet;
+    if (fields.defaultPriceNet !== undefined) {
+      patch.defaultPriceNet = fields.defaultPriceNet;
+    } else if (fields.materialPriceNet !== undefined || fields.installationPriceNet !== undefined) {
+      const mat = fields.materialPriceNet !== undefined ? (fields.materialPriceNet ?? 0) : (existing.materialPriceNet ?? 0);
+      const inst = fields.installationPriceNet !== undefined ? (fields.installationPriceNet ?? 0) : (existing.installationPriceNet ?? 0);
+      patch.defaultPriceNet = mat + inst > 0 ? mat + inst : undefined;
+    }
     if (fields.materialCostNet !== undefined) patch.materialCostNet = fields.materialCostNet ?? undefined;
     if (fields.materialMarkupType !== undefined) patch.materialMarkupType = fields.materialMarkupType ?? undefined;
     if (fields.materialMarkupValue !== undefined) patch.materialMarkupValue = fields.materialMarkupValue ?? undefined;
+    if (fields.materialPriceNet !== undefined) patch.materialPriceNet = fields.materialPriceNet ?? undefined;
     if (fields.installationCostNet !== undefined) patch.installationCostNet = fields.installationCostNet ?? undefined;
     if (fields.installationMarkupType !== undefined) patch.installationMarkupType = fields.installationMarkupType ?? undefined;
     if (fields.installationMarkupValue !== undefined) patch.installationMarkupValue = fields.installationMarkupValue ?? undefined;
+    if (fields.installationPriceNet !== undefined) patch.installationPriceNet = fields.installationPriceNet ?? undefined;
     if (fields.isActive !== undefined) patch.isActive = fields.isActive;
     if (fields.sortOrder !== undefined) patch.sortOrder = fields.sortOrder;
 

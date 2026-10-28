@@ -200,9 +200,11 @@ describe("CAD Offers and Constructions Module", () => {
       materialCostNet: 2500,
       materialMarkupType: "percent",
       materialMarkupValue: 30,
+      materialPriceNet: 3250,
       installationCostNet: 800,
       installationMarkupType: "amount",
       installationMarkupValue: 400,
+      installationPriceNet: 1200,
       defaultPriceNet: 4450,
     });
     const fixItem = await t.query(api.constructions.get, { id: fixId });
@@ -210,9 +212,11 @@ describe("CAD Offers and Constructions Module", () => {
     expect(fixItem?.materialCostNet).toBe(2500);
     expect(fixItem?.materialMarkupType).toBe("percent");
     expect(fixItem?.materialMarkupValue).toBe(30);
+    expect(fixItem?.materialPriceNet).toBe(3250);
     expect(fixItem?.installationCostNet).toBe(800);
     expect(fixItem?.installationMarkupType).toBe("amount");
     expect(fixItem?.installationMarkupValue).toBe(400);
+    expect(fixItem?.installationPriceNet).toBe(1200);
     expect(fixItem?.defaultPriceNet).toBe(4450);
 
     // Update pricing fields
@@ -220,10 +224,15 @@ describe("CAD Offers and Constructions Module", () => {
       id: fixId,
       materialCostNet: 3000,
       materialMarkupValue: 25,
+      materialPriceNet: 3750,
+      installationPriceNet: 1500,
     });
     const updatedFix = await t.query(api.constructions.get, { id: fixId });
     expect(updatedFix?.materialCostNet).toBe(3000);
     expect(updatedFix?.materialMarkupValue).toBe(25);
+    expect(updatedFix?.materialPriceNet).toBe(3750);
+    expect(updatedFix?.installationPriceNet).toBe(1500);
+    expect(updatedFix?.defaultPriceNet).toBe(5250);
   });
 
   test("manages construction categories dictionary and links them to constructions", async () => {

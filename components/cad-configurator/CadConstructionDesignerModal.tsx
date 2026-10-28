@@ -12,6 +12,7 @@ import {
   Palette,
   DollarSign,
   ArrowLeft,
+  ArrowRight,
   FileText,
 } from "lucide-react";
 
@@ -60,9 +61,11 @@ interface CadConstructionDesignerModalProps {
     materialCostNet?: number;
     materialMarkupType?: "percent" | "amount";
     materialMarkupValue?: number;
+    materialPriceNet?: number;
     installationCostNet?: number;
     installationMarkupType?: "percent" | "amount";
     installationMarkupValue?: number;
+    installationPriceNet?: number;
   }) => Promise<void>;
   initialData?: ConstructionDoc | null;
   categories: CategoryDoc[] | undefined;
@@ -77,6 +80,9 @@ export function CadConstructionDesignerModal({
 }: CadConstructionDesignerModalProps) {
   const isEditing = Boolean(initialData?._id);
 
+  // Aktywna zakładka panelu bocznego (Parametry CAD vs Cennik i marża)
+  const [activeSidebarTab, setActiveSidebarTab] = useState<"params" | "pricing">("params");
+
   // Form State - podstawowe parametry konstrukcji CAD
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -89,16 +95,20 @@ export function CadConstructionDesignerModal({
   const [heightMm, setHeightMm] = useState(2300);
   const [hasTracks, setHasTracks] = useState(true);
   const [panesCount, setPanesCount] = useState<number | null>(3);
-  const [priceNet, setPriceNet] = useState<number | "">("");
 
-  // Cennik, koszty i narzuty
+  // Filar 1: Koszt, narzut i cena materiału
   const [materialCostNet, setMaterialCostNet] = useState<number | "">("");
   const [materialMarkupType, setMaterialMarkupType] = useState<"percent" | "amount">("percent");
   const [materialMarkupValue, setMaterialMarkupValue] = useState<number | "">("");
+  const [materialPriceNet, setMaterialPriceNet] = useState<number | "">("");
+  const [isMaterialPriceOverridden, setIsMaterialPriceOverridden] = useState(false);
+
+  // Filar 2: Koszt, narzut i cena montażu
   const [installationCostNet, setInstallationCostNet] = useState<number | "">("");
   const [installationMarkupType, setInstallationMarkupType] = useState<"percent" | "amount">("percent");
   const [installationMarkupValue, setInstallationMarkupValue] = useState<number | "">("");
-  const [isPriceOverridden, setIsPriceOverridden] = useState(false);
+  const [installationPriceNet, setInstallationPriceNet] = useState<number | "">("");
+  const [isInstallationPriceOverridden, setIsInstallationPriceOverridden] = useState(false);
 
   // Wartości domyślne / zachowywane w tle dla zgodności z modelem danych
   const [systemName, setSystemName] = useState("");
@@ -112,7 +122,7 @@ export function CadConstructionDesignerModal({
   // Pomocnik kalkulacji ceny jednostkowej pozycji (koszt + narzut)
   const calcItemPrice = (cost: number | "", type: "percent" | "amount", markup: number | ""): number => {
     if (cost === "" || cost === 0) return 0;
-    if (markup === "" || markup === 0) return cost;
+    if (markup === "" || markup === 0) return typeof cost === "number" ? cost : 0;
     if (type === "percent") {
       return Math.round(cost * (1 + markup / 100));
     }
@@ -129,35 +139,35 @@ export function CadConstructionDesignerModal({
     [installationCostNet, installationMarkupType, installationMarkupValue]
   );
 
-  const suggestedTotalPrice = useMemo(
-    () => computedMaterialPrice + computedInstallationPrice,
-    [computedMaterialPrice, computedInstallationPrice]
-  );
+  // Liczbowe wartości kosztów, cen i rentowności materiału
+  const numMatCost = typeof materialCostNet === "number" ? materialCostNet : 0;
+  const numMatPrice = typeof materialPriceNet === "number" ? materialPriceNet : (materialPriceNet !== "" ? parseFloat(materialPriceNet as string) : 0);
+  const materialProfit = numMatPrice - numMatCost;
+  const materialMarginPercent = numMatPrice > 0 ? Math.round((materialProfit / numMatPrice) * 100) : 0;
 
-  const totalCost = useMemo(
-    () =>
-      (typeof materialCostNet === "number" ? materialCostNet : 0) +
-      (typeof installationCostNet === "number" ? installationCostNet : 0),
-    [materialCostNet, installationCostNet]
-  );
+  // Liczbowe wartości kosztów, cen i rentowności montażu
+  const numInstCost = typeof installationCostNet === "number" ? installationCostNet : 0;
+  const numInstPrice = typeof installationPriceNet === "number" ? installationPriceNet : (installationPriceNet !== "" ? parseFloat(installationPriceNet as string) : 0);
+  const installationProfit = numInstPrice - numInstCost;
+  const installationMarginPercent = numInstPrice > 0 ? Math.round((installationProfit / numInstPrice) * 100) : 0;
 
-  const finalPrice = typeof priceNet === "number" ? priceNet : (priceNet !== "" ? parseFloat(priceNet as string) : 0);
-  const profit = finalPrice - totalCost;
-  const marginPercent = finalPrice > 0 ? Math.round((profit / finalPrice) * 100) : 0;
+  // Łączne wartości pozycji (handlowiec)
+  const totalCost = numMatCost + numInstCost;
+  const totalPrice = numMatPrice + numInstPrice;
+  const totalProfit = totalPrice - totalCost;
+  const totalMarginPercent = totalPrice > 0 ? Math.round((totalProfit / totalPrice) * 100) : 0;
 
-  const handlePricingChange = (
-    newMatCost: number | "",
-    newMatType: "percent" | "amount",
-    newMatMarkup: number | "",
-    newInstCost: number | "",
-    newInstType: "percent" | "amount",
-    newInstMarkup: number | ""
-  ) => {
-    const matP = calcItemPrice(newMatCost, newMatType, newMatMarkup);
-    const instP = calcItemPrice(newInstCost, newInstType, newInstMarkup);
-    const sum = matP + instP;
-    if (!isPriceOverridden) {
-      setPriceNet(sum > 0 ? sum : "");
+  const handleMaterialChange = (newCost: number | "", newType: "percent" | "amount", newMarkup: number | "") => {
+    const comp = calcItemPrice(newCost, newType, newMarkup);
+    if (!isMaterialPriceOverridden) {
+      setMaterialPriceNet(comp > 0 ? comp : "");
+    }
+  };
+
+  const handleInstallationChange = (newCost: number | "", newType: "percent" | "amount", newMarkup: number | "") => {
+    const comp = calcItemPrice(newCost, newType, newMarkup);
+    if (!isInstallationPriceOverridden) {
+      setInstallationPriceNet(comp > 0 ? comp : "");
     }
   };
 
@@ -191,6 +201,7 @@ export function CadConstructionDesignerModal({
       setHasTracks(hasDefPanes);
       setPanesCount(hasDefPanes ? initialData.defaultPanesCount! : null);
 
+      // Filar 1: Materiał
       const matCost =
         initialData.materialCostNet !== undefined && initialData.materialCostNet !== null
           ? initialData.materialCostNet
@@ -204,6 +215,19 @@ export function CadConstructionDesignerModal({
           : "";
       setMaterialMarkupValue(matMarkup);
 
+      const compMat = calcItemPrice(matCost, matType, matMarkup);
+      let initMatPrice: number | "" = "";
+      if (initialData.materialPriceNet !== undefined && initialData.materialPriceNet !== null) {
+        initMatPrice = initialData.materialPriceNet;
+      } else if (compMat > 0) {
+        initMatPrice = compMat;
+      } else if (initialData.defaultPriceNet !== undefined && initialData.defaultPriceNet !== null) {
+        initMatPrice = initialData.defaultPriceNet;
+      }
+      setMaterialPriceNet(initMatPrice);
+      setIsMaterialPriceOverridden(Boolean(initMatPrice !== "" && compMat > 0 && initMatPrice !== compMat));
+
+      // Filar 2: Montaż
       const instCost =
         initialData.installationCostNet !== undefined && initialData.installationCostNet !== null
           ? initialData.installationCostNet
@@ -217,16 +241,15 @@ export function CadConstructionDesignerModal({
           : "";
       setInstallationMarkupValue(instMarkup);
 
-      const savedPrice =
-        initialData.defaultPriceNet !== undefined && initialData.defaultPriceNet !== null
-          ? initialData.defaultPriceNet
-          : "";
-      setPriceNet(savedPrice);
-
-      const compMat = calcItemPrice(matCost, matType, matMarkup);
       const compInst = calcItemPrice(instCost, instType, instMarkup);
-      const totalSuggested = compMat + compInst;
-      setIsPriceOverridden(Boolean(savedPrice !== "" && totalSuggested > 0 && savedPrice !== totalSuggested));
+      let initInstPrice: number | "" = "";
+      if (initialData.installationPriceNet !== undefined && initialData.installationPriceNet !== null) {
+        initInstPrice = initialData.installationPriceNet;
+      } else if (compInst > 0) {
+        initInstPrice = compInst;
+      }
+      setInstallationPriceNet(initInstPrice);
+      setIsInstallationPriceOverridden(Boolean(initInstPrice !== "" && compInst > 0 && initInstPrice !== compInst));
 
       setSystemName(initialData.defaultSystem || "");
 
@@ -256,11 +279,13 @@ export function CadConstructionDesignerModal({
       setMaterialCostNet("");
       setMaterialMarkupType("percent");
       setMaterialMarkupValue("");
+      setMaterialPriceNet("");
+      setIsMaterialPriceOverridden(false);
       setInstallationCostNet("");
       setInstallationMarkupType("percent");
       setInstallationMarkupValue("");
-      setPriceNet("");
-      setIsPriceOverridden(false);
+      setInstallationPriceNet("");
+      setIsInstallationPriceOverridden(false);
       setSystemName("");
       setHasGlassAndColor(true);
       setColor("RAL 7016MAT");
@@ -326,7 +351,7 @@ export function CadConstructionDesignerModal({
       heightMm: Math.max(400, heightMm),
       panesCount: panes,
       fillType: hasGlassAndColor && fillType.trim() ? fillType.trim() : "HART 10",
-      priceNet: typeof priceNet === "number" ? priceNet : (priceNet !== "" ? parseFloat(priceNet as string) : 0),
+      priceNet: totalPrice,
       costNet: totalCost,
       segments: Array.from({ length: panes }).map((_, i) => ({
         widthMm: i === panes - 1 ? widthMm - singlePaneWidthMm * (panes - 1) : singlePaneWidthMm,
@@ -354,7 +379,7 @@ export function CadConstructionDesignerModal({
     hasTracks,
     panesCount,
     fillType,
-    priceNet,
+    totalPrice,
     totalCost,
     singlePaneWidthMm,
   ]);
@@ -376,6 +401,20 @@ export function CadConstructionDesignerModal({
       finalCode = parts.length > 1 ? parts.join("-") : "CAD-PROJEKT";
     }
 
+    const finalMatPrice =
+      typeof materialPriceNet === "number"
+        ? materialPriceNet
+        : materialPriceNet !== ""
+        ? parseFloat(materialPriceNet)
+        : undefined;
+    const finalInstPrice =
+      typeof installationPriceNet === "number"
+        ? installationPriceNet
+        : installationPriceNet !== ""
+        ? parseFloat(installationPriceNet)
+        : undefined;
+    const combinedPrice = (finalMatPrice || 0) + (finalInstPrice || 0);
+
     setSaving(true);
     try {
       await onSave({
@@ -392,18 +431,15 @@ export function CadConstructionDesignerModal({
         defaultPanesCount: hasTracks && panesCount ? panesCount : undefined,
         defaultFillType: hasGlassAndColor && fillType.trim() ? fillType.trim() : undefined,
         defaultWarning: warning.trim() || undefined,
-        defaultPriceNet:
-          typeof priceNet === "number"
-            ? priceNet
-            : priceNet !== ""
-            ? parseFloat(priceNet)
-            : undefined,
+        defaultPriceNet: combinedPrice > 0 ? combinedPrice : undefined,
         materialCostNet: typeof materialCostNet === "number" ? materialCostNet : undefined,
         materialMarkupType: materialCostNet !== "" ? materialMarkupType : undefined,
         materialMarkupValue: typeof materialMarkupValue === "number" ? materialMarkupValue : undefined,
+        materialPriceNet: finalMatPrice,
         installationCostNet: typeof installationCostNet === "number" ? installationCostNet : undefined,
         installationMarkupType: installationCostNet !== "" ? installationMarkupType : undefined,
         installationMarkupValue: typeof installationMarkupValue === "number" ? installationMarkupValue : undefined,
+        installationPriceNet: finalInstPrice,
       });
       onClose();
     } catch (err) {
@@ -508,19 +544,51 @@ export function CadConstructionDesignerModal({
         <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden bg-slate-100">
           {/* LEWY PANEL KONTROLNY: Parametry Geometrii CAD */}
           <div className="w-full md:w-[420px] bg-white border-r border-slate-200 flex flex-col shrink-0 h-full overflow-hidden">
-            {/* Nagłówek panelu bocznego */}
-            <div className="h-10 bg-slate-50 border-b border-slate-200 px-4 flex items-center justify-between shrink-0">
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Sliders size={13} className="text-cyan-600" /> Parametry konstrukcji CAD
-              </span>
+            {/* Przełącznik zakładek panelu bocznego: Parametry CAD vs Cennik i marża */}
+            <div className="h-11 bg-slate-50 border-b border-slate-200 px-3 flex items-center justify-between shrink-0 gap-2">
+              <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-200/80 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setActiveSidebarTab("params")}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all cursor-pointer ${
+                    activeSidebarTab === "params"
+                      ? "bg-white text-slate-900 shadow-xs font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Sliders size={13} className={activeSidebarTab === "params" ? "text-cyan-600" : "text-slate-500"} />
+                  <span>Parametry CAD</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveSidebarTab("pricing")}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all cursor-pointer ${
+                    activeSidebarTab === "pricing"
+                      ? "bg-white text-slate-900 shadow-xs font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <DollarSign size={13} className={activeSidebarTab === "pricing" ? "text-cyan-600" : "text-slate-500"} />
+                  <span>Cennik i marża</span>
+                  {totalPrice > 0 && (
+                    <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold ml-0.5">
+                      {totalPrice.toLocaleString("pl-PL")} zł
+                    </span>
+                  )}
+                </button>
+              </div>
+
               <span className="font-mono text-[10px] text-slate-500">
-                {hasDimensions ? `${widthMm} × ${heightMm} mm` : "Wymiary: brak"}
+                {hasDimensions ? `${widthMm} × ${heightMm}` : "—"}
               </span>
             </div>
 
             {/* Zawartość formularza parametrów */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
-              {/* Identyfikacja szablonu */}
+              {activeSidebarTab === "params" ? (
+                <>
+                  {/* Identyfikacja szablonu */}
               <div className="space-y-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
@@ -579,278 +647,45 @@ export function CadConstructionDesignerModal({
                 </div>
               </div>
 
-              {/* Kalkulacja cenowa: Koszt materiału, Koszt montażu i Narzuty */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <DollarSign size={13} className="text-cyan-600" /> Cennik i kalkulacja marży
-                  </span>
-                  {finalPrice > 0 && (
-                    <span className="font-mono text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      {finalPrice.toLocaleString("pl-PL")} zł netto
+              {/* Kafel szybkiego przejścia do cennika i marży */}
+              <div
+                onClick={() => setActiveSidebarTab("pricing")}
+                className="bg-emerald-50/70 hover:bg-emerald-50/90 border border-emerald-200 rounded-xl p-3 flex items-center justify-between cursor-pointer transition-colors shadow-2xs"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0">
+                    <DollarSign size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold text-emerald-950 block uppercase tracking-wider">
+                      Cennik pozycji CAD
                     </span>
-                  )}
-                </div>
-
-                {/* 1. KOSZT MATERIAŁU + NARZUT */}
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700">
-                      1. Koszt materiału
-                    </span>
-                    {computedMaterialPrice > 0 && (
-                      <span className="font-mono text-[10px] text-slate-600 font-medium">
-                        Cena po narzucie: <strong className="text-slate-900">{computedMaterialPrice.toLocaleString("pl-PL")} zł</strong>
+                    {totalPrice > 0 ? (
+                      <div className="flex items-center gap-1.5 text-[11px] font-mono flex-wrap">
+                        <span className="text-slate-700">
+                          Mat: <strong className="text-slate-900">{numMatPrice > 0 ? `${numMatPrice.toLocaleString("pl-PL")} zł` : "—"}</strong>
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-slate-700">
+                          Montaż: <strong className="text-slate-900">{numInstPrice > 0 ? `${numInstPrice.toLocaleString("pl-PL")} zł` : "—"}</strong>
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span className="font-bold text-emerald-700">
+                          Razem: {totalPrice.toLocaleString("pl-PL")} zł
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        Brak cen — kliknij, aby ustawić materiał i montaż
                       </span>
                     )}
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10px] text-slate-500 mb-0.5 font-medium">
-                        Koszt bazowy
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min={0}
-                          step={50}
-                          value={materialCostNet}
-                          onChange={(e) => {
-                            const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
-                            setMaterialCostNet(val);
-                            handlePricingChange(val, materialMarkupType, materialMarkupValue, installationCostNet, installationMarkupType, installationMarkupValue);
-                          }}
-                          placeholder="0"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
-                          zł
-                        </span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-0.5">
-                        <label className="text-[10px] text-slate-500 font-medium">
-                          Narzut
-                        </label>
-                        <div className="inline-flex rounded border border-slate-200 overflow-hidden bg-slate-100 text-[9px] font-bold">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setMaterialMarkupType("percent");
-                              handlePricingChange(materialCostNet, "percent", materialMarkupValue, installationCostNet, installationMarkupType, installationMarkupValue);
-                            }}
-                            className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
-                              materialMarkupType === "percent" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-200"
-                            }`}
-                          >
-                            %
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setMaterialMarkupType("amount");
-                              handlePricingChange(materialCostNet, "amount", materialMarkupValue, installationCostNet, installationMarkupType, installationMarkupValue);
-                            }}
-                            className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
-                              materialMarkupType === "amount" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-200"
-                            }`}
-                          >
-                            zł
-                          </button>
-                        </div>
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min={0}
-                          step={materialMarkupType === "percent" ? 5 : 50}
-                          value={materialMarkupValue}
-                          onChange={(e) => {
-                            const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
-                            setMaterialMarkupValue(val);
-                            handlePricingChange(materialCostNet, materialMarkupType, val, installationCostNet, installationMarkupType, installationMarkupValue);
-                          }}
-                          placeholder="0"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
-                          {materialMarkupType === "percent" ? "%" : "zł"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
-
-                {/* 2. KOSZT MONTAŻU + NARZUT */}
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700">
-                      2. Koszt montażu
-                    </span>
-                    {computedInstallationPrice > 0 && (
-                      <span className="font-mono text-[10px] text-slate-600 font-medium">
-                        Cena po narzucie: <strong className="text-slate-900">{computedInstallationPrice.toLocaleString("pl-PL")} zł</strong>
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10px] text-slate-500 mb-0.5 font-medium">
-                        Koszt bazowy
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min={0}
-                          step={50}
-                          value={installationCostNet}
-                          onChange={(e) => {
-                            const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
-                            setInstallationCostNet(val);
-                            handlePricingChange(materialCostNet, materialMarkupType, materialMarkupValue, val, installationMarkupType, installationMarkupValue);
-                          }}
-                          placeholder="0"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
-                          zł
-                        </span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-0.5">
-                        <label className="text-[10px] text-slate-500 font-medium">
-                          Narzut
-                        </label>
-                        <div className="inline-flex rounded border border-slate-200 overflow-hidden bg-slate-100 text-[9px] font-bold">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setInstallationMarkupType("percent");
-                              handlePricingChange(materialCostNet, materialMarkupType, materialMarkupValue, installationCostNet, "percent", installationMarkupValue);
-                            }}
-                            className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
-                              installationMarkupType === "percent" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-200"
-                            }`}
-                          >
-                            %
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setInstallationMarkupType("amount");
-                              handlePricingChange(materialCostNet, materialMarkupType, materialMarkupValue, installationCostNet, "amount", installationMarkupValue);
-                            }}
-                            className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
-                              installationMarkupType === "amount" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-200"
-                            }`}
-                          >
-                            zł
-                          </button>
-                        </div>
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min={0}
-                          step={installationMarkupType === "percent" ? 5 : 50}
-                          value={installationMarkupValue}
-                          onChange={(e) => {
-                            const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
-                            setInstallationMarkupValue(val);
-                            handlePricingChange(materialCostNet, materialMarkupType, materialMarkupValue, installationCostNet, installationMarkupType, val);
-                          }}
-                          placeholder="0"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
-                          {installationMarkupType === "percent" ? "%" : "zł"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. PODSUMOWANIE I CENA KOŃCOWA NETTO */}
-                <div className="pt-1.5 border-t border-slate-200 space-y-2">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                        Cena końcowa netto
-                        {isPriceOverridden && (
-                          <span className="text-[9px] font-normal text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
-                            Ręcznie zmodyfikowana
-                          </span>
-                        )}
-                      </label>
-                      {isPriceOverridden && suggestedTotalPrice > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsPriceOverridden(false);
-                            setPriceNet(suggestedTotalPrice);
-                          }}
-                          className="text-[10px] text-cyan-600 hover:text-cyan-800 font-semibold cursor-pointer"
-                          title="Przywróć cenę wyliczoną z kosztów i narzutów"
-                        >
-                          Auto ({suggestedTotalPrice.toLocaleString("pl-PL")} zł)
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min={0}
-                        step={50}
-                        value={priceNet}
-                        onChange={(e) => {
-                          const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
-                          setPriceNet(val);
-                          setIsPriceOverridden(true);
-                        }}
-                        placeholder={suggestedTotalPrice > 0 ? String(suggestedTotalPrice) : "np. 4500"}
-                        className={`w-full bg-white border rounded-lg px-3 py-1.5 text-slate-900 font-mono font-bold focus:outline-none text-xs pr-18 ${
-                          isPriceOverridden
-                            ? "border-amber-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-                            : "border-slate-300 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
-                        }`}
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-[11px] pointer-events-none">
-                        zł netto
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Wskaźniki kosztów i marży dla handlowca */}
-                  {(totalCost > 0 || finalPrice > 0) && (
-                    <div className="bg-slate-100/90 rounded-lg p-2 text-[10px] font-mono grid grid-cols-3 gap-1 text-center border border-slate-200">
-                      <div>
-                        <span className="text-slate-400 block font-sans text-[9px] uppercase font-semibold">Koszt całkowity</span>
-                        <span className="font-bold text-slate-700">{totalCost.toLocaleString("pl-PL")} zł</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block font-sans text-[9px] uppercase font-semibold">Zysk handlowy</span>
-                        <span className={`font-bold ${profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                          {profit >= 0 ? `+${profit.toLocaleString("pl-PL")} zł` : `${profit.toLocaleString("pl-PL")} zł`}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block font-sans text-[9px] uppercase font-semibold">Marża</span>
-                        <span className={`font-bold ${marginPercent >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                          {marginPercent}%
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 shrink-0 ml-2">
+                  <span>Cennik</span>
+                  <ArrowRight size={13} />
                 </div>
               </div>
-
               {/* Liczba torów w szablonie (opcjonalny blok) */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5 transition-all">
                 <div className="flex items-center justify-between gap-3">
@@ -1197,16 +1032,448 @@ export function CadConstructionDesignerModal({
                   </div>
                 )}
               </div>
+            </>
+          ) : (
+            /* ══════════════════════════════════════════════════════════════════════ */
+            /* DEDYKOWANY OSOBNY WIDOK: CENNIK I KALKULACJA MARŻY                    */
+            /* ══════════════════════════════════════════════════════════════════════ */
+            <div className="space-y-3.5 animate-in fade-in duration-150">
+              {/* Karta kontekstowa konstrukcji */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div className="min-w-0 pr-2">
+                  <span className="text-xs font-bold text-slate-800 block truncate">
+                    {name || "Nowa konstrukcja CAD"}
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-medium truncate block">
+                    {categoryName || "Brak kategorii"} · {hasDimensions ? `${widthMm} × ${heightMm} mm` : "Wymiary dowolne"}
+                    {hasTracks && panesCount ? ` · ${panesCount}T` : ""}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveSidebarTab("params")}
+                  className="text-[10px] font-semibold text-cyan-600 hover:text-cyan-800 flex items-center gap-0.5 shrink-0 cursor-pointer"
+                >
+                  <span>Parametry</span>
+                  <ArrowRight size={11} />
+                </button>
+              </div>
+
+              {/* 1. KOSZT, NARZUT I CENA MATERIAŁU */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-md bg-cyan-100 text-cyan-800 flex items-center justify-center text-[10px] font-bold">1</span>
+                    <div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 block">
+                        Materiał
+                      </span>
+                      <span className="text-[9px] text-slate-400">Konstrukcja, profile, szklenie, akcesoria</span>
+                    </div>
+                  </div>
+                  {isMaterialPriceOverridden ? (
+                    <span className="text-[9px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                      Cena ręczna
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      Cena z narzutu
+                    </span>
+                  )}
+                </div>
+
+                {/* Koszt bazowy + Narzut */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-1 font-semibold uppercase tracking-wider">
+                      Koszt materiału
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={0}
+                        step={50}
+                        value={materialCostNet}
+                        onChange={(e) => {
+                          const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
+                          setMaterialCostNet(val);
+                          handleMaterialChange(val, materialMarkupType, materialMarkupValue);
+                        }}
+                        placeholder="0"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
+                        zł
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                        Narzut na materiał
+                      </label>
+                      <div className="inline-flex rounded border border-slate-200 overflow-hidden bg-slate-100 text-[9px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMaterialMarkupType("percent");
+                            handleMaterialChange(materialCostNet, "percent", materialMarkupValue);
+                          }}
+                          className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
+                            materialMarkupType === "percent" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          %
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMaterialMarkupType("amount");
+                            handleMaterialChange(materialCostNet, "amount", materialMarkupValue);
+                          }}
+                          className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
+                            materialMarkupType === "amount" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          zł
+                        </button>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={0}
+                        step={materialMarkupType === "percent" ? 5 : 50}
+                        value={materialMarkupValue}
+                        onChange={(e) => {
+                          const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
+                          setMaterialMarkupValue(val);
+                          handleMaterialChange(materialCostNet, materialMarkupType, val);
+                        }}
+                        placeholder="0"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
+                        {materialMarkupType === "percent" ? "%" : "zł"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cena materiału netto */}
+                <div className="bg-slate-50/70 p-2.5 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                      Cena materiału netto
+                    </label>
+                    {isMaterialPriceOverridden && computedMaterialPrice > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMaterialPriceOverridden(false);
+                          setMaterialPriceNet(computedMaterialPrice);
+                        }}
+                        className="text-[10px] text-cyan-600 hover:text-cyan-800 font-semibold cursor-pointer"
+                        title="Przywróć cenę wyliczoną z kosztu i narzutu"
+                      >
+                        Auto ({computedMaterialPrice.toLocaleString("pl-PL")} zł)
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={0}
+                      step={50}
+                      value={materialPriceNet}
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
+                        setMaterialPriceNet(val);
+                        setIsMaterialPriceOverridden(true);
+                      }}
+                      placeholder={computedMaterialPrice > 0 ? String(computedMaterialPrice) : "0"}
+                      className={`w-full bg-white border rounded-lg px-3 py-1.5 text-slate-900 font-mono font-bold focus:outline-none text-xs pr-14 ${
+                        isMaterialPriceOverridden
+                          ? "border-amber-400 focus:border-amber-500"
+                          : "border-slate-300 focus:border-cyan-500"
+                      }`}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-[10px] pointer-events-none">
+                      zł netto
+                    </span>
+                  </div>
+
+                  {/* Rentowność materiału */}
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/60 font-mono text-[10px]">
+                    <span className="text-slate-500 font-sans">
+                      Koszt: <strong className="text-slate-800">{numMatCost.toLocaleString("pl-PL")} zł</strong>
+                    </span>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-slate-500 font-sans">
+                      Zysk: <strong className={materialProfit >= 0 ? "text-emerald-700" : "text-rose-600"}>
+                        {materialProfit >= 0 ? `+${materialProfit.toLocaleString("pl-PL")}` : materialProfit.toLocaleString("pl-PL")} zł
+                      </strong>
+                    </span>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-slate-500 font-sans">
+                      Marża: <strong className={materialMarginPercent >= 0 ? "text-emerald-700" : "text-rose-600"}>
+                        {materialMarginPercent}%
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. KOSZT, NARZUT I CENA MONTAŻU */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-md bg-cyan-100 text-cyan-800 flex items-center justify-center text-[10px] font-bold">2</span>
+                    <div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 block">
+                        Montaż
+                      </span>
+                      <span className="text-[9px] text-slate-400">Robocizna, transport, ekipa montażowa</span>
+                    </div>
+                  </div>
+                  {isInstallationPriceOverridden ? (
+                    <span className="text-[9px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                      Cena ręczna
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      Cena z narzutu
+                    </span>
+                  )}
+                </div>
+
+                {/* Koszt bazowy + Narzut */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-1 font-semibold uppercase tracking-wider">
+                      Koszt montażu
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={0}
+                        step={50}
+                        value={installationCostNet}
+                        onChange={(e) => {
+                          const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
+                          setInstallationCostNet(val);
+                          handleInstallationChange(val, installationMarkupType, installationMarkupValue);
+                        }}
+                        placeholder="0"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
+                        zł
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                        Narzut na montaż
+                      </label>
+                      <div className="inline-flex rounded border border-slate-200 overflow-hidden bg-slate-100 text-[9px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInstallationMarkupType("percent");
+                            handleInstallationChange(installationCostNet, "percent", installationMarkupValue);
+                          }}
+                          className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
+                            installationMarkupType === "percent" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          %
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInstallationMarkupType("amount");
+                            handleInstallationChange(installationCostNet, "amount", installationMarkupValue);
+                          }}
+                          className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
+                            installationMarkupType === "amount" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          zł
+                        </button>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={0}
+                        step={installationMarkupType === "percent" ? 5 : 50}
+                        value={installationMarkupValue}
+                        onChange={(e) => {
+                          const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
+                          setInstallationMarkupValue(val);
+                          handleInstallationChange(installationCostNet, installationMarkupType, val);
+                        }}
+                        placeholder="0"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
+                        {installationMarkupType === "percent" ? "%" : "zł"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cena montażu netto */}
+                <div className="bg-slate-50/70 p-2.5 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                      Cena montażu netto
+                    </label>
+                    {isInstallationPriceOverridden && computedInstallationPrice > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsInstallationPriceOverridden(false);
+                          setInstallationPriceNet(computedInstallationPrice);
+                        }}
+                        className="text-[10px] text-cyan-600 hover:text-cyan-800 font-semibold cursor-pointer"
+                        title="Przywróć cenę wyliczoną z kosztu i narzutu"
+                      >
+                        Auto ({computedInstallationPrice.toLocaleString("pl-PL")} zł)
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={0}
+                      step={50}
+                      value={installationPriceNet}
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
+                        setInstallationPriceNet(val);
+                        setIsInstallationPriceOverridden(true);
+                      }}
+                      placeholder={computedInstallationPrice > 0 ? String(computedInstallationPrice) : "0"}
+                      className={`w-full bg-white border rounded-lg px-3 py-1.5 text-slate-900 font-mono font-bold focus:outline-none text-xs pr-14 ${
+                        isInstallationPriceOverridden
+                          ? "border-amber-400 focus:border-amber-500"
+                          : "border-slate-300 focus:border-cyan-500"
+                      }`}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-[10px] pointer-events-none">
+                      zł netto
+                    </span>
+                  </div>
+
+                  {/* Rentowność montażu */}
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/60 font-mono text-[10px]">
+                    <span className="text-slate-500 font-sans">
+                      Koszt: <strong className="text-slate-800">{numInstCost.toLocaleString("pl-PL")} zł</strong>
+                    </span>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-slate-500 font-sans">
+                      Zysk: <strong className={installationProfit >= 0 ? "text-emerald-700" : "text-rose-600"}>
+                        {installationProfit >= 0 ? `+${installationProfit.toLocaleString("pl-PL")}` : installationProfit.toLocaleString("pl-PL")} zł
+                      </strong>
+                    </span>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-slate-500 font-sans">
+                      Marża: <strong className={installationMarginPercent >= 0 ? "text-emerald-700" : "text-rose-600"}>
+                        {installationMarginPercent}%
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. PODSUMOWANIE POZYCJI CAD (WIDOK HANDLOWCA) */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">
+                    Podsumowanie pozycji CAD (widok handlowca)
+                  </span>
+                  {totalPrice > 0 && (
+                    <span className="text-[10px] font-mono text-slate-500">
+                      Brutto (23%): <strong className="text-slate-900">{Math.round(totalPrice * 1.23).toLocaleString("pl-PL")} zł</strong>
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-center font-mono">
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                    <span className="text-slate-400 block font-sans text-[9px] uppercase font-semibold">Cena łączna netto</span>
+                    <span className="text-sm font-bold text-emerald-700 block">
+                      {totalPrice > 0 ? `${totalPrice.toLocaleString("pl-PL")} zł` : "—"}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-sans block mt-0.5 truncate">
+                      Mat: {numMatPrice.toLocaleString("pl-PL")} zł + Montaż: {numInstPrice.toLocaleString("pl-PL")} zł
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                    <span className="text-slate-400 block font-sans text-[9px] uppercase font-semibold">Koszt łączny</span>
+                    <span className="text-sm font-bold text-slate-700 block">
+                      {totalCost > 0 ? `${totalCost.toLocaleString("pl-PL")} zł` : "—"}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-sans block mt-0.5 truncate">
+                      Mat: {numMatCost.toLocaleString("pl-PL")} zł + Montaż: {numInstCost.toLocaleString("pl-PL")} zł
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                    <span className="text-slate-400 block font-sans text-[9px] uppercase font-semibold">Zysk łączny</span>
+                    <span className={`text-sm font-bold block ${totalProfit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                      {totalProfit >= 0 ? `+${totalProfit.toLocaleString("pl-PL")} zł` : `${totalProfit.toLocaleString("pl-PL")} zł`}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-sans block mt-0.5 truncate">
+                      Zysk mat: {materialProfit.toLocaleString("pl-PL")} zł · montaż: {installationProfit.toLocaleString("pl-PL")} zł
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                    <span className="text-slate-400 block font-sans text-[9px] uppercase font-semibold">Marża łączna</span>
+                    <span className={`text-sm font-bold block ${totalMarginPercent >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                      {totalMarginPercent}%
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-sans block mt-0.5 truncate">
+                      Marża mat: {materialMarginPercent}% · montaż: {installationMarginPercent}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-slate-500 bg-white/80 p-2.5 rounded-lg border border-slate-200/80 leading-relaxed">
+                  💡 <strong>Struktura oferty:</strong> Koszty i ceny materiałów oraz montażu poszczególnych konstrukcji zostaną w ofercie zsumowane do całościowych pozycji (Cena materiału oraz Cena montażu).
+                </div>
+              </div>
             </div>
+          )}
+        </div>
 
             {/* Stopka lewego panelu ze statystykami */}
             <div className="h-12 bg-slate-50 border-t border-slate-200 px-4 flex items-center justify-between text-[11px] shrink-0 font-mono">
               <span className="text-slate-500 font-sans">Powierzchnia:</span>
               <span className="font-bold text-slate-800">{hasDimensions ? `${areaM2} m²` : "—"}</span>
               <span className="text-slate-300">|</span>
-              <span className="text-slate-500 font-sans">Cena:</span>
+              <span className="text-slate-500 font-sans">Mat:</span>
+              <span className="font-bold text-slate-800">
+                {numMatPrice > 0 ? `${numMatPrice.toLocaleString("pl-PL")} zł` : "—"}
+              </span>
+              <span className="text-slate-300">|</span>
+              <span className="text-slate-500 font-sans">Montaż:</span>
+              <span className="font-bold text-slate-800">
+                {numInstPrice > 0 ? `${numInstPrice.toLocaleString("pl-PL")} zł` : "—"}
+              </span>
+              <span className="text-slate-300">|</span>
+              <span className="text-slate-500 font-sans">Razem:</span>
               <span className="font-bold text-emerald-700">
-                {priceNet !== "" ? `${Number(priceNet).toLocaleString("pl-PL")} zł` : "—"}
+                {totalPrice > 0 ? `${totalPrice.toLocaleString("pl-PL")} zł` : "—"}
               </span>
               {totalCost > 0 && (
                 <>
