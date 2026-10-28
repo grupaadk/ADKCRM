@@ -1216,13 +1216,6 @@ export function OfferSummaryTab({
                               {it.fillType || "HART 10"}
                             </strong>
                           </span>
-                          {(it.materialPriceNet !== undefined || it.installationPriceNet !== undefined) && (
-                            <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                              <span>mat: <strong className="text-slate-800">{(it.materialPriceNet ?? (it.priceNet || 0)).toLocaleString("pl-PL")} zł</strong></span>
-                              <span className="text-slate-300">•</span>
-                              <span>montaż: <strong className="text-[#0e7490]">{(it.installationPriceNet ?? 0).toLocaleString("pl-PL")} zł</strong></span>
-                            </span>
-                          )}
                         </div>
                       </td>
 
