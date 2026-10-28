@@ -162,7 +162,7 @@ export function ConstructionsTab() {
     defaultColor?: string;
     defaultWidthMm: number;
     defaultHeightMm: number;
-    defaultPanesCount: number;
+    defaultPanesCount?: number;
     defaultFillType?: string;
     defaultWarning?: string;
     defaultPriceNet?: number;
@@ -179,7 +179,7 @@ export function ConstructionsTab() {
         defaultColor: data.defaultColor,
         defaultWidthMm: data.defaultWidthMm,
         defaultHeightMm: data.defaultHeightMm,
-        defaultPanesCount: data.defaultPanesCount,
+        defaultPanesCount: data.defaultPanesCount !== undefined ? data.defaultPanesCount : null,
         defaultFillType: data.defaultFillType,
         defaultWarning: data.defaultWarning ?? "",
         defaultPriceNet: data.defaultPriceNet,
@@ -195,7 +195,7 @@ export function ConstructionsTab() {
         defaultColor: data.defaultColor,
         defaultWidthMm: data.defaultWidthMm,
         defaultHeightMm: data.defaultHeightMm,
-        defaultPanesCount: data.defaultPanesCount,
+        defaultPanesCount: data.defaultPanesCount !== undefined ? data.defaultPanesCount : null,
         defaultFillType: data.defaultFillType,
         defaultWarning: data.defaultWarning,
         defaultPriceNet: data.defaultPriceNet,
@@ -484,7 +484,7 @@ export function ConstructionsTab() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredConstructions.map((c, index) => {
-                      const panes = Math.max(1, c.defaultPanesCount || 3);
+                      const panes = Math.max(1, c.defaultPanesCount || 1);
                       const width = c.defaultWidthMm || 2880;
                       const height = c.defaultHeightMm || 2300;
 
@@ -674,7 +674,9 @@ export function ConstructionsTab() {
                           <td className="px-3 py-3 text-slate-700 whitespace-nowrap font-mono text-[11px]">
                             <div>{width} × {height} mm</div>
                             <div className="text-[10px] text-slate-400 font-sans font-normal">
-                              {panes} {panes === 1 ? "tor" : panes < 5 ? "tory" : "torów"}
+                              {c.defaultPanesCount
+                                ? `${c.defaultPanesCount} ${c.defaultPanesCount === 1 ? "tor" : c.defaultPanesCount < 5 ? "tory" : "torów"}`
+                                : "brak torów"}
                             </div>
                           </td>
 
@@ -1166,13 +1168,17 @@ export function ConstructionsTab() {
                   {previewConstruction.defaultWidthMm || 2880} × {previewConstruction.defaultHeightMm || 2300} mm
                 </span>
                 <span className="text-slate-500 font-sans">
-                  ({previewConstruction.defaultPanesCount || 3}{" "}
-                  {previewConstruction.defaultPanesCount === 1
-                    ? "tor"
-                    : (previewConstruction.defaultPanesCount || 3) < 5
-                    ? "tory"
-                    : "torów"}
-                  )
+                  {previewConstruction.defaultPanesCount ? (
+                    `(${previewConstruction.defaultPanesCount} ${
+                      previewConstruction.defaultPanesCount === 1
+                        ? "tor"
+                        : previewConstruction.defaultPanesCount < 5
+                        ? "tory"
+                        : "torów"
+                    })`
+                  ) : (
+                    "(brak torów)"
+                  )}
                 </span>
               </div>
               <div className="h-3 w-px bg-slate-200" />
@@ -1223,14 +1229,14 @@ export function ConstructionsTab() {
                   quantity: 1,
                   widthMm: previewConstruction.defaultWidthMm || 2880,
                   heightMm: previewConstruction.defaultHeightMm || 2300,
-                  panesCount: previewConstruction.defaultPanesCount || 3,
+                  panesCount: previewConstruction.defaultPanesCount || 1,
                   fillType: previewConstruction.defaultFillType || "HART 10",
                   segments: Array.from({
-                    length: Math.max(1, previewConstruction.defaultPanesCount || 3),
+                    length: Math.max(1, previewConstruction.defaultPanesCount || 1),
                   }).map(() => ({
                     widthMm: Math.round(
                       (previewConstruction.defaultWidthMm || 2880) /
-                        Math.max(1, previewConstruction.defaultPanesCount || 3)
+                        Math.max(1, previewConstruction.defaultPanesCount || 1)
                     ),
                     heightMm: previewConstruction.defaultHeightMm || 2300,
                     fill: previewConstruction.defaultFillType || "HART 10",

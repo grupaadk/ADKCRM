@@ -182,6 +182,24 @@ describe("CAD Offers and Constructions Module", () => {
     });
     item = await t.query(api.constructions.get, { id: newId });
     expect(item?.description).toBeUndefined();
+
+    // Verify optional defaultPanesCount can be cleared with null
+    await t.mutation(api.constructions.update, {
+      id: newId,
+      defaultPanesCount: null,
+    });
+    item = await t.query(api.constructions.get, { id: newId });
+    expect(item?.defaultPanesCount).toBeUndefined();
+
+    // Create construction without defaultPanesCount
+    const fixId = await t.mutation(api.constructions.create, {
+      name: "Ściana stała FIX",
+      code: "FIX-1",
+      defaultWidthMm: 1200,
+      defaultHeightMm: 2300,
+    });
+    const fixItem = await t.query(api.constructions.get, { id: fixId });
+    expect(fixItem?.defaultPanesCount).toBeUndefined();
   });
 
   test("manages construction categories dictionary and links them to constructions", async () => {

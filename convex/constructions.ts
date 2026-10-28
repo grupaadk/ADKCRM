@@ -47,7 +47,7 @@ export const create = mutation({
     defaultColor: v.optional(v.string()),
     defaultWidthMm: v.optional(v.number()),
     defaultHeightMm: v.optional(v.number()),
-    defaultPanesCount: v.optional(v.number()),
+    defaultPanesCount: v.optional(v.union(v.number(), v.null())),
     defaultFillType: v.optional(v.string()),
     defaultWarning: v.optional(v.string()),
     defaultPriceNet: v.optional(v.number()),
@@ -73,7 +73,7 @@ export const create = mutation({
       defaultColor: args.defaultColor?.trim() || "RAL 7016MAT",
       defaultWidthMm: args.defaultWidthMm || 2880,
       defaultHeightMm: args.defaultHeightMm || 2300,
-      defaultPanesCount: args.defaultPanesCount || 3,
+      defaultPanesCount: args.defaultPanesCount !== undefined && args.defaultPanesCount !== null ? args.defaultPanesCount : undefined,
       defaultFillType: args.defaultFillType?.trim() || "HART 10",
       defaultWarning: args.defaultWarning?.trim() || undefined,
       defaultPriceNet: args.defaultPriceNet !== undefined ? args.defaultPriceNet : undefined,
@@ -100,7 +100,7 @@ export const update = mutation({
     defaultColor: v.optional(v.string()),
     defaultWidthMm: v.optional(v.number()),
     defaultHeightMm: v.optional(v.number()),
-    defaultPanesCount: v.optional(v.number()),
+    defaultPanesCount: v.optional(v.union(v.number(), v.null())),
     defaultFillType: v.optional(v.string()),
     defaultWarning: v.optional(v.string()),
     defaultPriceNet: v.optional(v.number()),
@@ -129,7 +129,7 @@ export const update = mutation({
     if (fields.defaultColor !== undefined) patch.defaultColor = fields.defaultColor.trim() || undefined;
     if (fields.defaultWidthMm !== undefined) patch.defaultWidthMm = fields.defaultWidthMm;
     if (fields.defaultHeightMm !== undefined) patch.defaultHeightMm = fields.defaultHeightMm;
-    if (fields.defaultPanesCount !== undefined) patch.defaultPanesCount = fields.defaultPanesCount;
+    if (fields.defaultPanesCount !== undefined) patch.defaultPanesCount = fields.defaultPanesCount ?? undefined;
     if (fields.defaultFillType !== undefined) patch.defaultFillType = fields.defaultFillType.trim() || undefined;
     if (fields.defaultWarning !== undefined) patch.defaultWarning = fields.defaultWarning.trim() || undefined;
     if (fields.defaultPriceNet !== undefined) patch.defaultPriceNet = fields.defaultPriceNet;

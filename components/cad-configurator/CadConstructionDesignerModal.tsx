@@ -51,7 +51,7 @@ interface CadConstructionDesignerModalProps {
     defaultColor?: string;
     defaultWidthMm: number;
     defaultHeightMm: number;
-    defaultPanesCount: number;
+    defaultPanesCount?: number;
     defaultFillType?: string;
     defaultWarning?: string;
     defaultPriceNet?: number;
@@ -77,7 +77,7 @@ export function CadConstructionDesignerModal({
   const [description, setDescription] = useState("");
   const [widthMm, setWidthMm] = useState(2880);
   const [heightMm, setHeightMm] = useState(2300);
-  const [panesCount, setPanesCount] = useState(3);
+  const [panesCount, setPanesCount] = useState<number | null>(3);
   const [priceNet, setPriceNet] = useState<number | "">("");
 
   // Wartości domyślne / zachowywane w tle dla zgodności z modelem danych
@@ -100,7 +100,11 @@ export function CadConstructionDesignerModal({
       setDescription(initialData.description || "");
       setWidthMm(initialData.defaultWidthMm || 2880);
       setHeightMm(initialData.defaultHeightMm || 2300);
-      setPanesCount(initialData.defaultPanesCount || 3);
+      setPanesCount(
+        initialData.defaultPanesCount !== undefined && initialData.defaultPanesCount !== null
+          ? initialData.defaultPanesCount
+          : null
+      );
       setPriceNet(initialData.defaultPriceNet !== undefined ? initialData.defaultPriceNet : "");
       setSystemName(initialData.defaultSystem || "");
       setColor(initialData.defaultColor || "RAL 7016MAT");
@@ -116,7 +120,7 @@ export function CadConstructionDesignerModal({
       setDescription("");
       setWidthMm(isDefaultGlass ? 2410 : 2000);
       setHeightMm(2300);
-      setPanesCount(isDefaultGlass ? 3 : 1);
+      setPanesCount(isDefaultGlass ? 3 : null);
       setPriceNet("");
       setSystemName("");
       setColor("RAL 7016MAT");
@@ -142,16 +146,20 @@ export function CadConstructionDesignerModal({
 
   // Automatyczny kod konstrukcji na podstawie wymiarów i torów
   const generateCode = () => {
-    setCode(`CAD-${panesCount}T-${widthMm}x${heightMm}`);
+    if (panesCount) {
+      setCode(`CAD-${panesCount}T-${widthMm}x${heightMm}`);
+    } else {
+      setCode(`CAD-${widthMm}x${heightMm}`);
+    }
   };
 
   // Wskaźniki techniczne
   const areaM2 = Math.round((widthMm * heightMm * 0.000001) * 100) / 100;
-  const singlePaneWidthMm = Math.round(widthMm / Math.max(1, panesCount));
+  const singlePaneWidthMm = panesCount && panesCount > 0 ? Math.round(widthMm / panesCount) : widthMm;
 
   // Konstrukcja dla podglądu na żywo w CadCanvas
   const liveCadItem: CadConstructionItem = useMemo(() => {
-    const panes = Math.max(1, panesCount);
+    const panes = panesCount && panesCount > 0 ? panesCount : 1;
     return {
       _id: initialData?._id || "temp-designer-preview",
       positionIndex: 1,
@@ -202,7 +210,9 @@ export function CadConstructionDesignerModal({
 
     let finalCode = code.trim().toUpperCase();
     if (!finalCode) {
-      finalCode = `CAD-${panesCount}T-${widthMm}x${heightMm}`;
+      finalCode = panesCount
+        ? `CAD-${panesCount}T-${widthMm}x${heightMm}`
+        : `CAD-${widthMm}x${heightMm}`;
     }
 
     setSaving(true);
@@ -218,7 +228,7 @@ export function CadConstructionDesignerModal({
         defaultColor: color.trim() || "RAL 7016MAT",
         defaultWidthMm: widthMm,
         defaultHeightMm: heightMm,
-        defaultPanesCount: panesCount,
+        defaultPanesCount: panesCount ?? undefined,
         defaultFillType: fillType.trim() || "HART 10",
         defaultWarning: warning.trim(),
         defaultPriceNet:
@@ -435,18 +445,36 @@ export function CadConstructionDesignerModal({
                 <div className="flex items-center justify-between">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                     <Layers size={13} className="text-cyan-600" /> Liczba torów
+                    <span className="text-[10px] text-slate-400 font-normal lowercase">(opcjonalnie)</span>
                   </label>
-                  <span className="font-mono text-[11px] font-bold text-cyan-800 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200">
-                    {panesCount} {panesCount === 1 ? "tor" : panesCount < 5 ? "tory" : "torów"}
+                  <span className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded border ${
+                    panesCount
+                      ? "text-cyan-800 bg-cyan-50 border-cyan-200"
+                      : "text-slate-600 bg-slate-100 border-slate-300"
+                  }`}>
+                    {panesCount
+                      ? `${panesCount} ${panesCount === 1 ? "tor" : panesCount < 5 ? "tory" : "torów"}`
+                      : "Brak torów (nie dotyczy)"}
                   </span>
                 </div>
 
                 <p className="text-[10px] text-slate-500">
-                  Ustaw domyślną liczbę torów dla tego szablonu konstrukcji (w ofercie będzie ona pobierana z tego szablonu):
+                  Ustaw domyślną liczbę torów lub wybierz &quot;Brak&quot;, jeśli konstrukcja nie posiada torów jezdnych (np. fix, trójkąt, zadaszenie):
                 </p>
 
                 {/* Przyciski szybkiego wyboru liczby torów */}
                 <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPanesCount(null)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition-all cursor-pointer border ${
+                      panesCount === null
+                        ? "bg-slate-700 text-white border-slate-800 shadow-xs ring-2 ring-slate-500/20"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                    }`}
+                  >
+                    Brak
+                  </button>
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((cnt) => (
                     <button
                       key={cnt}
@@ -464,10 +492,17 @@ export function CadConstructionDesignerModal({
                 </div>
 
                 {/* Parametry skrzydła wyliczone */}
-                <div className="bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between font-mono text-[11px] mt-1">
-                  <span className="text-slate-500 font-sans">Szerokość 1 skrzydła na torze:</span>
-                  <span className="font-bold text-slate-900">~{singlePaneWidthMm} mm</span>
-                </div>
+                {panesCount ? (
+                  <div className="bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between font-mono text-[11px] mt-1">
+                    <span className="text-slate-500 font-sans">Szerokość 1 skrzydła na torze:</span>
+                    <span className="font-bold text-slate-900">~{singlePaneWidthMm} mm</span>
+                  </div>
+                ) : (
+                  <div className="bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between text-[11px] mt-1 text-slate-500">
+                    <span className="font-sans">Układ konstrukcji:</span>
+                    <span className="font-semibold text-slate-700">Jednolita (brak podziału na tory)</span>
+                  </div>
+                )}
 
                 {/* Warianty gotowych systemów szklanych */}
                 {isGlassCategory && (
@@ -657,7 +692,7 @@ export function CadConstructionDesignerModal({
                 <>
                   <span className="text-slate-300">|</span>
                   <span className="text-slate-500 font-sans">Tory:</span>
-                  <span className="font-bold text-slate-800">{panesCount}T</span>
+                  <span className="font-bold text-slate-800">{panesCount ? `${panesCount}T` : "Brak"}</span>
                 </>
               )}
             </div>
