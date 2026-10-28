@@ -1193,11 +1193,11 @@ export function CadConstructionDesignerModal({
                 </div>
               </div>
 
-              {/* 3. PODSUMOWANIE POZYCJI CAD (WIDOK HANDLOWCA) */}
+              {/* 3. PODSUMOWANIE */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">
-                    Podsumowanie pozycji CAD (widok handlowca)
+                    Podsumowanie
                   </span>
                   {totalPrice > 0 && (
                     <span className="text-[10px] font-mono text-slate-500">
@@ -1253,40 +1253,64 @@ export function CadConstructionDesignerModal({
         </div>
 
             {/* Stopka lewego panelu ze statystykami */}
-            <div className="h-12 bg-slate-50 border-t border-slate-200 px-4 flex items-center justify-between text-[11px] shrink-0 font-mono">
-              <span className="text-slate-500 font-sans">Powierzchnia:</span>
-              <span className="font-bold text-slate-800">{hasDimensions ? `${areaM2} m²` : "—"}</span>
-              <span className="text-slate-300">|</span>
-              <span className="text-slate-500 font-sans">Mat:</span>
-              <span className="font-bold text-slate-800">
-                {numMatPrice > 0 ? `${numMatPrice.toLocaleString("pl-PL")} zł` : "—"}
-              </span>
-              <span className="text-slate-300">|</span>
-              <span className="text-slate-500 font-sans">Montaż:</span>
-              <span className="font-bold text-slate-800">
-                {numInstPrice > 0 ? `${numInstPrice.toLocaleString("pl-PL")} zł` : "—"}
-              </span>
-              <span className="text-slate-300">|</span>
-              <span className="text-slate-500 font-sans">Razem:</span>
-              <span className="font-bold text-emerald-700">
-                {totalPrice > 0 ? `${totalPrice.toLocaleString("pl-PL")} zł` : "—"}
-              </span>
-              {totalCost > 0 && (
-                <>
-                  <span className="text-slate-300">|</span>
-                  <span className="text-slate-500 font-sans">Koszt:</span>
-                  <span className="font-bold text-slate-700">{totalCost.toLocaleString("pl-PL")} zł</span>
-                </>
-              )}
-              {isGlassCategory && (
-                <>
-                  <span className="text-slate-300">|</span>
-                  <span className="text-slate-500 font-sans">Tory:</span>
-                  <span className="font-bold text-slate-800">
-                    {hasTracks && panesCount ? `${panesCount}T` : "Brak"}
+            <div className="py-2 px-3.5 bg-slate-50 border-t border-slate-200 flex flex-col justify-center gap-1 shrink-0">
+              {/* Linia 1: Parametry techniczne i koszt bazowy */}
+              <div className="flex items-center justify-between text-[10px] text-slate-500 whitespace-nowrap">
+                <div className="flex items-center gap-2">
+                  <span className="whitespace-nowrap">
+                    Pow:{" "}
+                    <strong className="font-mono text-slate-800 font-semibold">
+                      {hasDimensions ? `${areaM2}\u00A0m²` : "—"}
+                    </strong>
                   </span>
-                </>
-              )}
+                  {isGlassCategory && (
+                    <>
+                      <span className="text-slate-300">·</span>
+                      <span className="whitespace-nowrap">
+                        Tory:{" "}
+                        <strong className="font-mono text-slate-800 font-semibold">
+                          {hasTracks && panesCount ? `${panesCount}T` : "Brak"}
+                        </strong>
+                      </span>
+                    </>
+                  )}
+                </div>
+                {totalCost > 0 && (
+                  <span className="text-slate-400 whitespace-nowrap">
+                    Koszt:{" "}
+                    <strong className="font-mono text-slate-600 font-medium">
+                      {totalCost.toLocaleString("pl-PL")}&nbsp;zł
+                    </strong>
+                  </span>
+                )}
+              </div>
+
+              {/* Linia 2: Wycena handlowa (Materiał, Montaż, Razem) */}
+              <div className="flex items-center justify-between text-[11px] whitespace-nowrap pt-1 border-t border-slate-200/60">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <span className="whitespace-nowrap">
+                    Mat:{" "}
+                    <strong className="font-mono text-slate-900 font-bold">
+                      {numMatPrice > 0 ? `${numMatPrice.toLocaleString("pl-PL")}\u00A0zł` : "—"}
+                    </strong>
+                  </span>
+                  <span className="text-slate-300">·</span>
+                  <span className="whitespace-nowrap">
+                    Montaż:{" "}
+                    <strong className="font-mono text-slate-900 font-bold">
+                      {numInstPrice > 0 ? `${numInstPrice.toLocaleString("pl-PL")}\u00A0zł` : "—"}
+                    </strong>
+                  </span>
+                </div>
+                <div className="whitespace-nowrap">
+                  <span className="text-[10px] text-slate-400 font-sans uppercase font-bold mr-1">
+                    Razem:
+                  </span>
+                  <span className="font-mono font-bold text-emerald-700 text-xs">
+                    {totalPrice > 0 ? `${totalPrice.toLocaleString("pl-PL")}\u00A0zł` : "—"}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
