@@ -96,19 +96,15 @@ export function CadConstructionDesignerModal({
   const [hasTracks, setHasTracks] = useState(true);
   const [panesCount, setPanesCount] = useState<number | null>(3);
 
-  // Filar 1: Koszt, narzut i cena materiału
+  // Filar 1: Koszt i narzut na materiał
   const [materialCostNet, setMaterialCostNet] = useState<number | "">("");
   const [materialMarkupType, setMaterialMarkupType] = useState<"percent" | "amount">("percent");
   const [materialMarkupValue, setMaterialMarkupValue] = useState<number | "">("");
-  const [materialPriceNet, setMaterialPriceNet] = useState<number | "">("");
-  const [isMaterialPriceOverridden, setIsMaterialPriceOverridden] = useState(false);
 
-  // Filar 2: Koszt, narzut i cena montażu
+  // Filar 2: Koszt i narzut na montaż
   const [installationCostNet, setInstallationCostNet] = useState<number | "">("");
   const [installationMarkupType, setInstallationMarkupType] = useState<"percent" | "amount">("percent");
   const [installationMarkupValue, setInstallationMarkupValue] = useState<number | "">("");
-  const [installationPriceNet, setInstallationPriceNet] = useState<number | "">("");
-  const [isInstallationPriceOverridden, setIsInstallationPriceOverridden] = useState(false);
 
   // Wartości domyślne / zachowywane w tle dla zgodności z modelem danych
   const [systemName, setSystemName] = useState("");
@@ -141,13 +137,13 @@ export function CadConstructionDesignerModal({
 
   // Liczbowe wartości kosztów, cen i rentowności materiału
   const numMatCost = typeof materialCostNet === "number" ? materialCostNet : 0;
-  const numMatPrice = typeof materialPriceNet === "number" ? materialPriceNet : (materialPriceNet !== "" ? parseFloat(materialPriceNet as string) : 0);
+  const numMatPrice = computedMaterialPrice;
   const materialProfit = numMatPrice - numMatCost;
   const materialMarginPercent = numMatPrice > 0 ? Math.round((materialProfit / numMatPrice) * 100) : 0;
 
   // Liczbowe wartości kosztów, cen i rentowności montażu
   const numInstCost = typeof installationCostNet === "number" ? installationCostNet : 0;
-  const numInstPrice = typeof installationPriceNet === "number" ? installationPriceNet : (installationPriceNet !== "" ? parseFloat(installationPriceNet as string) : 0);
+  const numInstPrice = computedInstallationPrice;
   const installationProfit = numInstPrice - numInstCost;
   const installationMarginPercent = numInstPrice > 0 ? Math.round((installationProfit / numInstPrice) * 100) : 0;
 
@@ -156,20 +152,6 @@ export function CadConstructionDesignerModal({
   const totalPrice = numMatPrice + numInstPrice;
   const totalProfit = totalPrice - totalCost;
   const totalMarginPercent = totalPrice > 0 ? Math.round((totalProfit / totalPrice) * 100) : 0;
-
-  const handleMaterialChange = (newCost: number | "", newType: "percent" | "amount", newMarkup: number | "") => {
-    const comp = calcItemPrice(newCost, newType, newMarkup);
-    if (!isMaterialPriceOverridden) {
-      setMaterialPriceNet(comp > 0 ? comp : "");
-    }
-  };
-
-  const handleInstallationChange = (newCost: number | "", newType: "percent" | "amount", newMarkup: number | "") => {
-    const comp = calcItemPrice(newCost, newType, newMarkup);
-    if (!isInstallationPriceOverridden) {
-      setInstallationPriceNet(comp > 0 ? comp : "");
-    }
-  };
 
   // Inicjalizacja danych po otwarciu
   useEffect(() => {
@@ -215,18 +197,6 @@ export function CadConstructionDesignerModal({
           : "";
       setMaterialMarkupValue(matMarkup);
 
-      const compMat = calcItemPrice(matCost, matType, matMarkup);
-      let initMatPrice: number | "" = "";
-      if (initialData.materialPriceNet !== undefined && initialData.materialPriceNet !== null) {
-        initMatPrice = initialData.materialPriceNet;
-      } else if (compMat > 0) {
-        initMatPrice = compMat;
-      } else if (initialData.defaultPriceNet !== undefined && initialData.defaultPriceNet !== null) {
-        initMatPrice = initialData.defaultPriceNet;
-      }
-      setMaterialPriceNet(initMatPrice);
-      setIsMaterialPriceOverridden(Boolean(initMatPrice !== "" && compMat > 0 && initMatPrice !== compMat));
-
       // Filar 2: Montaż
       const instCost =
         initialData.installationCostNet !== undefined && initialData.installationCostNet !== null
@@ -240,16 +210,6 @@ export function CadConstructionDesignerModal({
           ? initialData.installationMarkupValue
           : "";
       setInstallationMarkupValue(instMarkup);
-
-      const compInst = calcItemPrice(instCost, instType, instMarkup);
-      let initInstPrice: number | "" = "";
-      if (initialData.installationPriceNet !== undefined && initialData.installationPriceNet !== null) {
-        initInstPrice = initialData.installationPriceNet;
-      } else if (compInst > 0) {
-        initInstPrice = compInst;
-      }
-      setInstallationPriceNet(initInstPrice);
-      setIsInstallationPriceOverridden(Boolean(initInstPrice !== "" && compInst > 0 && initInstPrice !== compInst));
 
       setSystemName(initialData.defaultSystem || "");
 
@@ -279,13 +239,9 @@ export function CadConstructionDesignerModal({
       setMaterialCostNet("");
       setMaterialMarkupType("percent");
       setMaterialMarkupValue("");
-      setMaterialPriceNet("");
-      setIsMaterialPriceOverridden(false);
       setInstallationCostNet("");
       setInstallationMarkupType("percent");
       setInstallationMarkupValue("");
-      setInstallationPriceNet("");
-      setIsInstallationPriceOverridden(false);
       setSystemName("");
       setHasGlassAndColor(true);
       setColor("RAL 7016MAT");
@@ -401,19 +357,7 @@ export function CadConstructionDesignerModal({
       finalCode = parts.length > 1 ? parts.join("-") : "CAD-PROJEKT";
     }
 
-    const finalMatPrice =
-      typeof materialPriceNet === "number"
-        ? materialPriceNet
-        : materialPriceNet !== ""
-        ? parseFloat(materialPriceNet)
-        : undefined;
-    const finalInstPrice =
-      typeof installationPriceNet === "number"
-        ? installationPriceNet
-        : installationPriceNet !== ""
-        ? parseFloat(installationPriceNet)
-        : undefined;
-    const combinedPrice = (finalMatPrice || 0) + (finalInstPrice || 0);
+    const combinedPrice = computedMaterialPrice + computedInstallationPrice;
 
     setSaving(true);
     try {
@@ -435,11 +379,11 @@ export function CadConstructionDesignerModal({
         materialCostNet: typeof materialCostNet === "number" ? materialCostNet : undefined,
         materialMarkupType: materialCostNet !== "" ? materialMarkupType : undefined,
         materialMarkupValue: typeof materialMarkupValue === "number" ? materialMarkupValue : undefined,
-        materialPriceNet: finalMatPrice,
+        materialPriceNet: computedMaterialPrice > 0 ? computedMaterialPrice : undefined,
         installationCostNet: typeof installationCostNet === "number" ? installationCostNet : undefined,
         installationMarkupType: installationCostNet !== "" ? installationMarkupType : undefined,
         installationMarkupValue: typeof installationMarkupValue === "number" ? installationMarkupValue : undefined,
-        installationPriceNet: finalInstPrice,
+        installationPriceNet: computedInstallationPrice > 0 ? computedInstallationPrice : undefined,
       });
       onClose();
     } catch (err) {
@@ -1059,7 +1003,7 @@ export function CadConstructionDesignerModal({
                 </button>
               </div>
 
-              {/* 1. KOSZT, NARZUT I CENA MATERIAŁU */}
+              {/* 1. KOSZT I NARZUT NA MATERIAŁ */}
               <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1071,14 +1015,12 @@ export function CadConstructionDesignerModal({
                       <span className="text-[9px] text-slate-400">Konstrukcja, profile, szklenie, akcesoria</span>
                     </div>
                   </div>
-                  {isMaterialPriceOverridden ? (
-                    <span className="text-[9px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                      Cena ręczna
+                  {computedMaterialPrice > 0 ? (
+                    <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                      Cena: <strong className="text-slate-900">{computedMaterialPrice.toLocaleString("pl-PL")} zł</strong>
                     </span>
                   ) : (
-                    <span className="text-[9px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                      Cena z narzutu
-                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">Brak ceny</span>
                   )}
                 </div>
 
@@ -1097,7 +1039,6 @@ export function CadConstructionDesignerModal({
                         onChange={(e) => {
                           const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
                           setMaterialCostNet(val);
-                          handleMaterialChange(val, materialMarkupType, materialMarkupValue);
                         }}
                         placeholder="0"
                         className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
@@ -1116,10 +1057,7 @@ export function CadConstructionDesignerModal({
                       <div className="inline-flex rounded border border-slate-200 overflow-hidden bg-slate-100 text-[9px] font-bold">
                         <button
                           type="button"
-                          onClick={() => {
-                            setMaterialMarkupType("percent");
-                            handleMaterialChange(materialCostNet, "percent", materialMarkupValue);
-                          }}
+                          onClick={() => setMaterialMarkupType("percent")}
                           className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
                             materialMarkupType === "percent" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-200"
                           }`}
@@ -1128,10 +1066,7 @@ export function CadConstructionDesignerModal({
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            setMaterialMarkupType("amount");
-                            handleMaterialChange(materialCostNet, "amount", materialMarkupValue);
-                          }}
+                          onClick={() => setMaterialMarkupType("amount")}
                           className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
                             materialMarkupType === "amount" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-200"
                           }`}
@@ -1149,7 +1084,6 @@ export function CadConstructionDesignerModal({
                         onChange={(e) => {
                           const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
                           setMaterialMarkupValue(val);
-                          handleMaterialChange(materialCostNet, materialMarkupType, val);
                         }}
                         placeholder="0"
                         className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
@@ -1160,73 +1094,9 @@ export function CadConstructionDesignerModal({
                     </div>
                   </div>
                 </div>
-
-                {/* Cena materiału netto */}
-                <div className="bg-slate-50/70 p-2.5 rounded-lg border border-slate-200">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-700">
-                      Cena materiału netto
-                    </label>
-                    {isMaterialPriceOverridden && computedMaterialPrice > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsMaterialPriceOverridden(false);
-                          setMaterialPriceNet(computedMaterialPrice);
-                        }}
-                        className="text-[10px] text-cyan-600 hover:text-cyan-800 font-semibold cursor-pointer"
-                        title="Przywróć cenę wyliczoną z kosztu i narzutu"
-                      >
-                        Auto ({computedMaterialPrice.toLocaleString("pl-PL")} zł)
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min={0}
-                      step={50}
-                      value={materialPriceNet}
-                      onChange={(e) => {
-                        const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
-                        setMaterialPriceNet(val);
-                        setIsMaterialPriceOverridden(true);
-                      }}
-                      placeholder={computedMaterialPrice > 0 ? String(computedMaterialPrice) : "0"}
-                      className={`w-full bg-white border rounded-lg px-3 py-1.5 text-slate-900 font-mono font-bold focus:outline-none text-xs pr-14 ${
-                        isMaterialPriceOverridden
-                          ? "border-amber-400 focus:border-amber-500"
-                          : "border-slate-300 focus:border-cyan-500"
-                      }`}
-                    />
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-[10px] pointer-events-none">
-                      zł netto
-                    </span>
-                  </div>
-
-                  {/* Rentowność materiału */}
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/60 font-mono text-[10px]">
-                    <span className="text-slate-500 font-sans">
-                      Koszt: <strong className="text-slate-800">{numMatCost.toLocaleString("pl-PL")} zł</strong>
-                    </span>
-                    <span className="text-slate-300">|</span>
-                    <span className="text-slate-500 font-sans">
-                      Zysk: <strong className={materialProfit >= 0 ? "text-emerald-700" : "text-rose-600"}>
-                        {materialProfit >= 0 ? `+${materialProfit.toLocaleString("pl-PL")}` : materialProfit.toLocaleString("pl-PL")} zł
-                      </strong>
-                    </span>
-                    <span className="text-slate-300">|</span>
-                    <span className="text-slate-500 font-sans">
-                      Marża: <strong className={materialMarginPercent >= 0 ? "text-emerald-700" : "text-rose-600"}>
-                        {materialMarginPercent}%
-                      </strong>
-                    </span>
-                  </div>
-                </div>
               </div>
 
-              {/* 2. KOSZT, NARZUT I CENA MONTAŻU */}
+              {/* 2. KOSZT I NARZUT NA MONTAŻ */}
               <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1238,14 +1108,12 @@ export function CadConstructionDesignerModal({
                       <span className="text-[9px] text-slate-400">Robocizna, transport, ekipa montażowa</span>
                     </div>
                   </div>
-                  {isInstallationPriceOverridden ? (
-                    <span className="text-[9px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                      Cena ręczna
+                  {computedInstallationPrice > 0 ? (
+                    <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                      Cena: <strong className="text-slate-900">{computedInstallationPrice.toLocaleString("pl-PL")} zł</strong>
                     </span>
                   ) : (
-                    <span className="text-[9px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                      Cena z narzutu
-                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">Brak ceny</span>
                   )}
                 </div>
 
@@ -1264,7 +1132,6 @@ export function CadConstructionDesignerModal({
                         onChange={(e) => {
                           const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
                           setInstallationCostNet(val);
-                          handleInstallationChange(val, installationMarkupType, installationMarkupValue);
                         }}
                         placeholder="0"
                         className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
@@ -1283,10 +1150,7 @@ export function CadConstructionDesignerModal({
                       <div className="inline-flex rounded border border-slate-200 overflow-hidden bg-slate-100 text-[9px] font-bold">
                         <button
                           type="button"
-                          onClick={() => {
-                            setInstallationMarkupType("percent");
-                            handleInstallationChange(installationCostNet, "percent", installationMarkupValue);
-                          }}
+                          onClick={() => setInstallationMarkupType("percent")}
                           className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
                             installationMarkupType === "percent" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-200"
                           }`}
@@ -1295,10 +1159,7 @@ export function CadConstructionDesignerModal({
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            setInstallationMarkupType("amount");
-                            handleInstallationChange(installationCostNet, "amount", installationMarkupValue);
-                          }}
+                          onClick={() => setInstallationMarkupType("amount")}
                           className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
                             installationMarkupType === "amount" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-200"
                           }`}
@@ -1316,7 +1177,6 @@ export function CadConstructionDesignerModal({
                         onChange={(e) => {
                           const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
                           setInstallationMarkupValue(val);
-                          handleInstallationChange(installationCostNet, installationMarkupType, val);
                         }}
                         placeholder="0"
                         className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
@@ -1325,70 +1185,6 @@ export function CadConstructionDesignerModal({
                         {installationMarkupType === "percent" ? "%" : "zł"}
                       </span>
                     </div>
-                  </div>
-                </div>
-
-                {/* Cena montażu netto */}
-                <div className="bg-slate-50/70 p-2.5 rounded-lg border border-slate-200">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-700">
-                      Cena montażu netto
-                    </label>
-                    {isInstallationPriceOverridden && computedInstallationPrice > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsInstallationPriceOverridden(false);
-                          setInstallationPriceNet(computedInstallationPrice);
-                        }}
-                        className="text-[10px] text-cyan-600 hover:text-cyan-800 font-semibold cursor-pointer"
-                        title="Przywróć cenę wyliczoną z kosztu i narzutu"
-                      >
-                        Auto ({computedInstallationPrice.toLocaleString("pl-PL")} zł)
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min={0}
-                      step={50}
-                      value={installationPriceNet}
-                      onChange={(e) => {
-                        const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
-                        setInstallationPriceNet(val);
-                        setIsInstallationPriceOverridden(true);
-                      }}
-                      placeholder={computedInstallationPrice > 0 ? String(computedInstallationPrice) : "0"}
-                      className={`w-full bg-white border rounded-lg px-3 py-1.5 text-slate-900 font-mono font-bold focus:outline-none text-xs pr-14 ${
-                        isInstallationPriceOverridden
-                          ? "border-amber-400 focus:border-amber-500"
-                          : "border-slate-300 focus:border-cyan-500"
-                      }`}
-                    />
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-[10px] pointer-events-none">
-                      zł netto
-                    </span>
-                  </div>
-
-                  {/* Rentowność montażu */}
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/60 font-mono text-[10px]">
-                    <span className="text-slate-500 font-sans">
-                      Koszt: <strong className="text-slate-800">{numInstCost.toLocaleString("pl-PL")} zł</strong>
-                    </span>
-                    <span className="text-slate-300">|</span>
-                    <span className="text-slate-500 font-sans">
-                      Zysk: <strong className={installationProfit >= 0 ? "text-emerald-700" : "text-rose-600"}>
-                        {installationProfit >= 0 ? `+${installationProfit.toLocaleString("pl-PL")}` : installationProfit.toLocaleString("pl-PL")} zł
-                      </strong>
-                    </span>
-                    <span className="text-slate-300">|</span>
-                    <span className="text-slate-500 font-sans">
-                      Marża: <strong className={installationMarginPercent >= 0 ? "text-emerald-700" : "text-rose-600"}>
-                        {installationMarginPercent}%
-                      </strong>
-                    </span>
                   </div>
                 </div>
               </div>
