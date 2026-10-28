@@ -1168,6 +1168,8 @@ export default defineSchema({
     materialMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"))),
     materialMarkupValue: v.optional(v.number()),
     materialPriceNet: v.optional(v.number()),
+    installationUnit: v.optional(v.union(v.literal("m2"), v.literal("mb"), v.literal("fixed"))),
+    installationUnitRate: v.optional(v.number()),
     installationCostNet: v.optional(v.number()),
     installationMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"))),
     installationMarkupValue: v.optional(v.number()),

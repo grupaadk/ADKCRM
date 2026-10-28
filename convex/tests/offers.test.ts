@@ -201,6 +201,8 @@ describe("CAD Offers and Constructions Module", () => {
       materialMarkupType: "percent",
       materialMarkupValue: 30,
       materialPriceNet: 3250,
+      installationUnit: "m2",
+      installationUnitRate: 150,
       installationCostNet: 800,
       installationMarkupType: "amount",
       installationMarkupValue: 400,
@@ -213,6 +215,8 @@ describe("CAD Offers and Constructions Module", () => {
     expect(fixItem?.materialMarkupType).toBe("percent");
     expect(fixItem?.materialMarkupValue).toBe(30);
     expect(fixItem?.materialPriceNet).toBe(3250);
+    expect(fixItem?.installationUnit).toBe("m2");
+    expect(fixItem?.installationUnitRate).toBe(150);
     expect(fixItem?.installationCostNet).toBe(800);
     expect(fixItem?.installationMarkupType).toBe("amount");
     expect(fixItem?.installationMarkupValue).toBe(400);
@@ -222,12 +226,16 @@ describe("CAD Offers and Constructions Module", () => {
     // Update pricing fields
     await t.mutation(api.constructions.update, {
       id: fixId,
+      installationUnit: "mb",
+      installationUnitRate: 200,
       materialCostNet: 3000,
       materialMarkupValue: 25,
       materialPriceNet: 3750,
       installationPriceNet: 1500,
     });
     const updatedFix = await t.query(api.constructions.get, { id: fixId });
+    expect(updatedFix?.installationUnit).toBe("mb");
+    expect(updatedFix?.installationUnitRate).toBe(200);
     expect(updatedFix?.materialCostNet).toBe(3000);
     expect(updatedFix?.materialMarkupValue).toBe(25);
     expect(updatedFix?.materialPriceNet).toBe(3750);

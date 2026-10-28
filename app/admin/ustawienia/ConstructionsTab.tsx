@@ -169,6 +169,8 @@ export function ConstructionsTab() {
     materialMarkupType?: "percent" | "amount";
     materialMarkupValue?: number;
     materialPriceNet?: number;
+    installationUnit?: "m2" | "mb" | "fixed";
+    installationUnitRate?: number;
     installationCostNet?: number;
     installationMarkupType?: "percent" | "amount";
     installationMarkupValue?: number;
@@ -194,6 +196,8 @@ export function ConstructionsTab() {
         materialMarkupType: data.materialMarkupType !== undefined ? data.materialMarkupType : null,
         materialMarkupValue: data.materialMarkupValue !== undefined ? data.materialMarkupValue : null,
         materialPriceNet: data.materialPriceNet !== undefined ? data.materialPriceNet : null,
+        installationUnit: data.installationUnit !== undefined ? data.installationUnit : null,
+        installationUnitRate: data.installationUnitRate !== undefined ? data.installationUnitRate : null,
         installationCostNet: data.installationCostNet !== undefined ? data.installationCostNet : null,
         installationMarkupType: data.installationMarkupType !== undefined ? data.installationMarkupType : null,
         installationMarkupValue: data.installationMarkupValue !== undefined ? data.installationMarkupValue : null,
@@ -218,6 +222,8 @@ export function ConstructionsTab() {
         materialMarkupType: data.materialMarkupType,
         materialMarkupValue: data.materialMarkupValue,
         materialPriceNet: data.materialPriceNet,
+        installationUnit: data.installationUnit,
+        installationUnitRate: data.installationUnitRate,
         installationCostNet: data.installationCostNet,
         installationMarkupType: data.installationMarkupType,
         installationMarkupValue: data.installationMarkupValue,
@@ -762,7 +768,11 @@ export function ConstructionsTab() {
                                   </span>
                                   {c.installationCostNet ? (
                                     <span className="text-[9px] text-slate-400 font-sans ml-1">
-                                      (k: {c.installationCostNet.toLocaleString("pl-PL")} zł)
+                                      (k: {c.installationCostNet.toLocaleString("pl-PL")} zł
+                                      {c.installationUnit && c.installationUnit !== "fixed" && c.installationUnitRate
+                                        ? ` · ${c.installationUnitRate} zł/${c.installationUnit}`
+                                        : ""}
+                                      )
                                     </span>
                                   ) : null}
                                 </div>

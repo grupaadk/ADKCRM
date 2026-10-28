@@ -62,6 +62,8 @@ interface CadConstructionDesignerModalProps {
     materialMarkupType?: "percent" | "amount";
     materialMarkupValue?: number;
     materialPriceNet?: number;
+    installationUnit?: "m2" | "mb" | "fixed";
+    installationUnitRate?: number;
     installationCostNet?: number;
     installationMarkupType?: "percent" | "amount";
     installationMarkupValue?: number;
@@ -96,12 +98,18 @@ export function CadConstructionDesignerModal({
   const [hasTracks, setHasTracks] = useState(true);
   const [panesCount, setPanesCount] = useState<number | null>(3);
 
+  // Wskaźniki wymiarowe
+  const areaM2 = Math.round(widthMm * heightMm * 0.000001 * 100) / 100;
+  const widthMb = Math.round((widthMm / 1000) * 100) / 100;
+
   // Filar 1: Koszt i narzut na materiał
   const [materialCostNet, setMaterialCostNet] = useState<number | "">("");
   const [materialMarkupType, setMaterialMarkupType] = useState<"percent" | "amount">("percent");
   const [materialMarkupValue, setMaterialMarkupValue] = useState<number | "">("");
 
-  // Filar 2: Koszt i narzut na montaż
+  // Filar 2: Jednostka, stawka, koszt i narzut na montaż
+  const [installationUnit, setInstallationUnit] = useState<"m2" | "mb" | "fixed">("m2");
+  const [installationUnitRate, setInstallationUnitRate] = useState<number | "">("");
   const [installationCostNet, setInstallationCostNet] = useState<number | "">("");
   const [installationMarkupType, setInstallationMarkupType] = useState<"percent" | "amount">("percent");
   const [installationMarkupValue, setInstallationMarkupValue] = useState<number | "">("");
@@ -130,9 +138,21 @@ export function CadConstructionDesignerModal({
     [materialCostNet, materialMarkupType, materialMarkupValue]
   );
 
+  const computedInstallationCost = useMemo(() => {
+    if (installationUnit === "m2") {
+      if (typeof installationUnitRate !== "number" || installationUnitRate <= 0) return 0;
+      return Math.round(installationUnitRate * areaM2);
+    }
+    if (installationUnit === "mb") {
+      if (typeof installationUnitRate !== "number" || installationUnitRate <= 0) return 0;
+      return Math.round(installationUnitRate * (widthMm / 1000));
+    }
+    return typeof installationCostNet === "number" ? installationCostNet : 0;
+  }, [installationUnit, installationUnitRate, installationCostNet, areaM2, widthMm]);
+
   const computedInstallationPrice = useMemo(
-    () => calcItemPrice(installationCostNet, installationMarkupType, installationMarkupValue),
-    [installationCostNet, installationMarkupType, installationMarkupValue]
+    () => calcItemPrice(computedInstallationCost, installationMarkupType, installationMarkupValue),
+    [computedInstallationCost, installationMarkupType, installationMarkupValue]
   );
 
   // Liczbowe wartości kosztów, cen i rentowności materiału
@@ -142,7 +162,7 @@ export function CadConstructionDesignerModal({
   const materialMarginPercent = numMatPrice > 0 ? Math.round((materialProfit / numMatPrice) * 100) : 0;
 
   // Liczbowe wartości kosztów, cen i rentowności montażu
-  const numInstCost = typeof installationCostNet === "number" ? installationCostNet : 0;
+  const numInstCost = computedInstallationCost;
   const numInstPrice = computedInstallationPrice;
   const installationProfit = numInstPrice - numInstCost;
   const installationMarginPercent = numInstPrice > 0 ? Math.round((installationProfit / numInstPrice) * 100) : 0;
@@ -198,6 +218,13 @@ export function CadConstructionDesignerModal({
       setMaterialMarkupValue(matMarkup);
 
       // Filar 2: Montaż
+      const instUnit = (initialData.installationUnit as "m2" | "mb" | "fixed") || (initialData.installationUnitRate ? "m2" : (initialData.installationCostNet ? "fixed" : "m2"));
+      setInstallationUnit(instUnit);
+      const instRate =
+        initialData.installationUnitRate !== undefined && initialData.installationUnitRate !== null
+          ? initialData.installationUnitRate
+          : "";
+      setInstallationUnitRate(instRate);
       const instCost =
         initialData.installationCostNet !== undefined && initialData.installationCostNet !== null
           ? initialData.installationCostNet
@@ -239,6 +266,8 @@ export function CadConstructionDesignerModal({
       setMaterialCostNet("");
       setMaterialMarkupType("percent");
       setMaterialMarkupValue("");
+      setInstallationUnit("m2");
+      setInstallationUnitRate("");
       setInstallationCostNet("");
       setInstallationMarkupType("percent");
       setInstallationMarkupValue("");
@@ -287,7 +316,6 @@ export function CadConstructionDesignerModal({
   };
 
   // Wskaźniki techniczne
-  const areaM2 = Math.round((widthMm * heightMm * 0.000001) * 100) / 100;
   const singlePaneWidthMm = hasTracks && panesCount && panesCount > 0 ? Math.round(widthMm / panesCount) : widthMm;
 
   // Konstrukcja dla podglądu na żywo w CadCanvas
@@ -380,8 +408,10 @@ export function CadConstructionDesignerModal({
         materialMarkupType: materialCostNet !== "" ? materialMarkupType : undefined,
         materialMarkupValue: typeof materialMarkupValue === "number" ? materialMarkupValue : undefined,
         materialPriceNet: computedMaterialPrice > 0 ? computedMaterialPrice : undefined,
-        installationCostNet: typeof installationCostNet === "number" ? installationCostNet : undefined,
-        installationMarkupType: installationCostNet !== "" ? installationMarkupType : undefined,
+        installationUnit: installationUnit,
+        installationUnitRate: typeof installationUnitRate === "number" ? installationUnitRate : undefined,
+        installationCostNet: computedInstallationCost > 0 ? computedInstallationCost : undefined,
+        installationMarkupType: computedInstallationCost > 0 ? installationMarkupType : undefined,
         installationMarkupValue: typeof installationMarkupValue === "number" ? installationMarkupValue : undefined,
         installationPriceNet: computedInstallationPrice > 0 ? computedInstallationPrice : undefined,
       });
@@ -1111,39 +1141,136 @@ export function CadConstructionDesignerModal({
                     </div>
                   </div>
                   {computedInstallationPrice > 0 ? (
-                    <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                      Cena: <strong className="text-slate-900">{computedInstallationPrice.toLocaleString("pl-PL")} zł</strong>
-                    </span>
+                    <div className="text-right">
+                      <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 inline-block">
+                        Cena: <strong className="text-slate-900">{computedInstallationPrice.toLocaleString("pl-PL")} zł</strong>
+                      </span>
+                      {installationUnit !== "fixed" && typeof installationUnitRate === "number" && installationUnitRate > 0 && (
+                        <span className="text-[9px] text-slate-400 font-mono block mt-0.5">
+                          {installationUnitRate} zł/{installationUnit} (koszt: {numInstCost.toLocaleString("pl-PL")} zł)
+                        </span>
+                      )}
+                    </div>
                   ) : (
                     <span className="text-[10px] text-slate-400 font-medium">Brak ceny</span>
                   )}
                 </div>
 
+                {/* Wybór jednostki miary montażu: m2 | mb | fixed */}
+                <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 flex items-center justify-between gap-1.5">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider shrink-0">
+                    Rozliczenie:
+                  </span>
+                  <div className="inline-flex rounded-md border border-slate-200 p-0.5 bg-white text-[10px] font-bold shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setInstallationUnit("m2")}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                        installationUnit === "m2"
+                          ? "bg-cyan-600 text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                      title="Kalkulacja wg powierzchni w m²"
+                    >
+                      m²
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInstallationUnit("mb")}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                        installationUnit === "mb"
+                          ? "bg-cyan-600 text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                      title="Kalkulacja wg szerokości w mb"
+                    >
+                      mb
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInstallationUnit("fixed")}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                        installationUnit === "fixed"
+                          ? "bg-cyan-600 text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                      title="Stała kwota bez przeliczania"
+                    >
+                      Ryczałt
+                    </button>
+                  </div>
+                </div>
+
                 {/* Koszt bazowy + Narzut */}
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <div className="h-6 flex items-center mb-1">
-                      <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-                        Koszt montażu
+                    <div className="h-6 flex items-center justify-between mb-1">
+                      <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider truncate">
+                        {installationUnit === "m2"
+                          ? "Stawka za m²"
+                          : installationUnit === "mb"
+                          ? "Stawka za mb"
+                          : "Koszt montażu"}
                       </label>
+                      {installationUnit === "m2" && (
+                        <span className="text-[9px] font-mono text-slate-400">
+                          {areaM2} m²
+                        </span>
+                      )}
+                      {installationUnit === "mb" && (
+                        <span className="text-[9px] font-mono text-slate-400">
+                          {widthMb} mb
+                        </span>
+                      )}
                     </div>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min={0}
-                        step={50}
-                        value={installationCostNet}
-                        onChange={(e) => {
-                          const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
-                          setInstallationCostNet(val);
-                        }}
-                        placeholder="0"
-                        className="w-full h-8 bg-slate-50 border border-slate-300 rounded-lg px-2.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
-                        zł
-                      </span>
-                    </div>
+                    {installationUnit === "fixed" ? (
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          step={50}
+                          value={installationCostNet}
+                          onChange={(e) => {
+                            const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
+                            setInstallationCostNet(val);
+                          }}
+                          placeholder="0"
+                          className="w-full h-8 bg-slate-50 border border-slate-300 rounded-lg px-2.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
+                          zł
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          step={10}
+                          value={installationUnitRate}
+                          onChange={(e) => {
+                            const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
+                            setInstallationUnitRate(val);
+                          }}
+                          placeholder="0"
+                          className="w-full h-8 bg-slate-50 border border-slate-300 rounded-lg px-2.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-12"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
+                          {installationUnit === "m2" ? "zł/m²" : "zł/mb"}
+                        </span>
+                      </div>
+                    )}
+                    {/* Pomocnicze wyliczenie */}
+                    {installationUnit === "m2" && typeof installationUnitRate === "number" && installationUnitRate > 0 && (
+                      <div className="text-[9px] text-slate-500 font-mono mt-1 truncate">
+                        {areaM2} m² × {installationUnitRate} zł = <strong>{numInstCost.toLocaleString("pl-PL")} zł</strong>
+                      </div>
+                    )}
+                    {installationUnit === "mb" && typeof installationUnitRate === "number" && installationUnitRate > 0 && (
+                      <div className="text-[9px] text-slate-500 font-mono mt-1 truncate">
+                        {widthMb} mb × {installationUnitRate} zł = <strong>{numInstCost.toLocaleString("pl-PL")} zł</strong>
+                      </div>
+                    )}
                   </div>
 
                   <div>

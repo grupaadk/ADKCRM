@@ -77,6 +77,8 @@ export const create = mutation({
     materialMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"), v.null())),
     materialMarkupValue: v.optional(v.union(v.number(), v.null())),
     materialPriceNet: v.optional(v.union(v.number(), v.null())),
+    installationUnit: v.optional(v.union(v.literal("m2"), v.literal("mb"), v.literal("fixed"), v.null())),
+    installationUnitRate: v.optional(v.union(v.number(), v.null())),
     installationCostNet: v.optional(v.union(v.number(), v.null())),
     installationMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"), v.null())),
     installationMarkupValue: v.optional(v.union(v.number(), v.null())),
@@ -114,6 +116,8 @@ export const create = mutation({
       materialMarkupType: args.materialMarkupType ?? undefined,
       materialMarkupValue: args.materialMarkupValue ?? undefined,
       materialPriceNet: args.materialPriceNet ?? undefined,
+      installationUnit: args.installationUnit ?? undefined,
+      installationUnitRate: args.installationUnitRate ?? undefined,
       installationCostNet: args.installationCostNet ?? undefined,
       installationMarkupType: args.installationMarkupType ?? undefined,
       installationMarkupValue: args.installationMarkupValue ?? undefined,
@@ -149,6 +153,8 @@ export const update = mutation({
     materialMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"), v.null())),
     materialMarkupValue: v.optional(v.union(v.number(), v.null())),
     materialPriceNet: v.optional(v.union(v.number(), v.null())),
+    installationUnit: v.optional(v.union(v.literal("m2"), v.literal("mb"), v.literal("fixed"), v.null())),
+    installationUnitRate: v.optional(v.union(v.number(), v.null())),
     installationCostNet: v.optional(v.union(v.number(), v.null())),
     installationMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"), v.null())),
     installationMarkupValue: v.optional(v.union(v.number(), v.null())),
@@ -192,6 +198,8 @@ export const update = mutation({
     if (fields.materialMarkupType !== undefined) patch.materialMarkupType = fields.materialMarkupType ?? undefined;
     if (fields.materialMarkupValue !== undefined) patch.materialMarkupValue = fields.materialMarkupValue ?? undefined;
     if (fields.materialPriceNet !== undefined) patch.materialPriceNet = fields.materialPriceNet ?? undefined;
+    if (fields.installationUnit !== undefined) patch.installationUnit = fields.installationUnit ?? undefined;
+    if (fields.installationUnitRate !== undefined) patch.installationUnitRate = fields.installationUnitRate ?? undefined;
     if (fields.installationCostNet !== undefined) patch.installationCostNet = fields.installationCostNet ?? undefined;
     if (fields.installationMarkupType !== undefined) patch.installationMarkupType = fields.installationMarkupType ?? undefined;
     if (fields.installationMarkupValue !== undefined) patch.installationMarkupValue = fields.installationMarkupValue ?? undefined;
