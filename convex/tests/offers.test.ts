@@ -197,9 +197,33 @@ describe("CAD Offers and Constructions Module", () => {
       code: "FIX-1",
       defaultWidthMm: 1200,
       defaultHeightMm: 2300,
+      materialCostNet: 2500,
+      materialMarkupType: "percent",
+      materialMarkupValue: 30,
+      installationCostNet: 800,
+      installationMarkupType: "amount",
+      installationMarkupValue: 400,
+      defaultPriceNet: 4450,
     });
     const fixItem = await t.query(api.constructions.get, { id: fixId });
     expect(fixItem?.defaultPanesCount).toBeUndefined();
+    expect(fixItem?.materialCostNet).toBe(2500);
+    expect(fixItem?.materialMarkupType).toBe("percent");
+    expect(fixItem?.materialMarkupValue).toBe(30);
+    expect(fixItem?.installationCostNet).toBe(800);
+    expect(fixItem?.installationMarkupType).toBe("amount");
+    expect(fixItem?.installationMarkupValue).toBe(400);
+    expect(fixItem?.defaultPriceNet).toBe(4450);
+
+    // Update pricing fields
+    await t.mutation(api.constructions.update, {
+      id: fixId,
+      materialCostNet: 3000,
+      materialMarkupValue: 25,
+    });
+    const updatedFix = await t.query(api.constructions.get, { id: fixId });
+    expect(updatedFix?.materialCostNet).toBe(3000);
+    expect(updatedFix?.materialMarkupValue).toBe(25);
   });
 
   test("manages construction categories dictionary and links them to constructions", async () => {

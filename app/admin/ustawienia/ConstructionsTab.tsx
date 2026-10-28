@@ -165,6 +165,12 @@ export function ConstructionsTab() {
     defaultFillType?: string;
     defaultWarning?: string;
     defaultPriceNet?: number;
+    materialCostNet?: number;
+    materialMarkupType?: "percent" | "amount";
+    materialMarkupValue?: number;
+    installationCostNet?: number;
+    installationMarkupType?: "percent" | "amount";
+    installationMarkupValue?: number;
   }) => {
     if (data.id) {
       await updateConstruction({
@@ -182,6 +188,12 @@ export function ConstructionsTab() {
         defaultFillType: data.defaultFillType !== undefined ? data.defaultFillType : null,
         defaultWarning: data.defaultWarning ?? "",
         defaultPriceNet: data.defaultPriceNet,
+        materialCostNet: data.materialCostNet !== undefined ? data.materialCostNet : null,
+        materialMarkupType: data.materialMarkupType !== undefined ? data.materialMarkupType : null,
+        materialMarkupValue: data.materialMarkupValue !== undefined ? data.materialMarkupValue : null,
+        installationCostNet: data.installationCostNet !== undefined ? data.installationCostNet : null,
+        installationMarkupType: data.installationMarkupType !== undefined ? data.installationMarkupType : null,
+        installationMarkupValue: data.installationMarkupValue !== undefined ? data.installationMarkupValue : null,
       });
     } else {
       await createConstruction({
@@ -198,6 +210,12 @@ export function ConstructionsTab() {
         defaultFillType: data.defaultFillType,
         defaultWarning: data.defaultWarning,
         defaultPriceNet: data.defaultPriceNet,
+        materialCostNet: data.materialCostNet,
+        materialMarkupType: data.materialMarkupType,
+        materialMarkupValue: data.materialMarkupValue,
+        installationCostNet: data.installationCostNet,
+        installationMarkupType: data.installationMarkupType,
+        installationMarkupValue: data.installationMarkupValue,
       });
     }
     setActiveView("constructions");
@@ -714,9 +732,16 @@ export function ConstructionsTab() {
                           {/* Cena netto */}
                           <td className="px-3 py-3 whitespace-nowrap font-mono text-xs">
                             {c.defaultPriceNet !== undefined && c.defaultPriceNet !== null ? (
-                              <span className="font-bold text-slate-800">
-                                {c.defaultPriceNet.toLocaleString("pl-PL")} zł
-                              </span>
+                              <div>
+                                <span className="font-bold text-slate-800">
+                                  {c.defaultPriceNet.toLocaleString("pl-PL")} zł
+                                </span>
+                                {(c.materialCostNet || c.installationCostNet) && (
+                                  <div className="text-[10px] text-slate-400 font-sans font-normal mt-0.5">
+                                    koszt: {((c.materialCostNet || 0) + (c.installationCostNet || 0)).toLocaleString("pl-PL")} zł
+                                  </div>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-slate-400 italic font-sans text-[11px]">Brak ceny</span>
                             )}
