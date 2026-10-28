@@ -9,7 +9,6 @@ import { Id } from "@/convex/_generated/dataModel";
 import toast from "react-hot-toast";
 import { CadConstructionItem } from "./CadCanvas";
 import { uploadCadSnapshotsForOffer } from "./cadSvgRenderer";
-import { determineGlassWallType } from "@/convex/lib/glassWallCalculator";
 import {
   FileText,
   Percent,
@@ -931,8 +930,6 @@ export function OfferSummaryTab({
                   const qty = it.quantity || 1;
                   const totalLinePrice = unitPrice * qty;
                   const panes = Math.max(1, it.panesCount || 3);
-                  const wallVariant = determineGlassWallType(it.widthMm, it.heightMm);
-                  const isStandard = wallVariant === "STANDARD";
 
                   return (
                     <tr
@@ -1118,15 +1115,6 @@ export function OfferSummaryTab({
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-[#0b1220] group-hover:text-[#0e7490] transition-colors text-xs md:text-sm">
                             {it.name}
-                          </span>
-                          <span
-                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase border shrink-0 ${
-                              isStandard
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : "bg-amber-50 text-amber-700 border-amber-200"
-                            }`}
-                          >
-                            {wallVariant}
                           </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-[#64748b] mt-1">

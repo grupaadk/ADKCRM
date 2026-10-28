@@ -2,7 +2,6 @@
 
 import React from "react";
 import { CadConstructionItem } from "./CadCanvas";
-import { determineGlassWallType } from "@/convex/lib/glassWallCalculator";
 import {
   Settings2,
   DollarSign,
@@ -25,8 +24,6 @@ export function LeftPropertiesPanel({
   const cost = item.costNet || 0;
   const profit = price - cost;
   const marginPct = price > 0 ? Math.round((profit / price) * 100) : 0;
-  const wallVariant = determineGlassWallType(item.widthMm || 0, item.heightMm || 0);
-  const isStandard = wallVariant === "STANDARD";
 
   return (
     <aside className="w-80 bg-white border-r border-[#e3e7ee] flex flex-col h-full text-[#1f2937] select-none overflow-hidden shrink-0">
@@ -91,15 +88,6 @@ export function LeftPropertiesPanel({
               <Ruler size={13} className="text-[#4ABBC3]" /> Wymiary CAD
             </div>
             <div className="flex items-center gap-1.5">
-              <span
-                className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border tracking-wider uppercase ${
-                  isStandard
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : "bg-amber-50 text-amber-700 border-amber-200"
-                }`}
-              >
-                {wallVariant}
-              </span>
               <span className="text-[10px] text-[#7c8597] font-mono">
                 {Math.round(((item.widthMm || 0) * (item.heightMm || 0)) / 10000) / 100} m²
               </span>
