@@ -31,6 +31,10 @@ export interface CadConstructionItem {
   fillType?: string;
   priceNet?: number;
   costNet?: number;
+  materialCostNet?: number;
+  materialPriceNet?: number;
+  installationCostNet?: number;
+  installationPriceNet?: number;
   segments?: CadSegment[];
   placedAboveItemId?: string;
   placedBelowItemId?: string;

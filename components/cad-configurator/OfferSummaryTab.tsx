@@ -11,6 +11,7 @@ import { CadConstructionItem } from "./CadCanvas";
 import { uploadCadSnapshotsForOffer } from "./cadSvgRenderer";
 import {
   FileText,
+  Calculator,
   Percent,
   Receipt,
   User,
@@ -368,6 +369,40 @@ export function OfferSummaryTab({
     0
   );
   const totalQuantity = items.reduce((acc, it) => acc + (it.quantity || 1), 0);
+
+  // Kalkulacja filarów całości oferty: Materiał i Montaż
+  const totalMaterialCost = items.reduce((acc, it) => {
+    const q = it.quantity || 1;
+    const cost = it.materialCostNet !== undefined && it.materialCostNet !== null ? it.materialCostNet : (it.costNet || 0);
+    return acc + cost * q;
+  }, 0);
+
+  const totalInstallationCost = items.reduce((acc, it) => {
+    const q = it.quantity || 1;
+    const cost = it.installationCostNet !== undefined && it.installationCostNet !== null ? it.installationCostNet : 0;
+    return acc + cost * q;
+  }, 0);
+
+  const totalInstallationPrice = items.reduce((acc, it) => {
+    const q = it.quantity || 1;
+    const price = it.installationPriceNet !== undefined && it.installationPriceNet !== null ? it.installationPriceNet : 0;
+    return acc + price * q;
+  }, 0);
+
+  const totalMaterialPrice = items.reduce((acc, it) => {
+    const q = it.quantity || 1;
+    if (it.materialPriceNet !== undefined && it.materialPriceNet !== null) {
+      return acc + it.materialPriceNet * q;
+    }
+    const inst = (it.installationPriceNet || 0) * q;
+    return acc + Math.max(0, (it.priceNet || 0) * q - inst);
+  }, 0);
+
+  const totalCombinedCost = totalMaterialCost + totalInstallationCost;
+  const matProfit = totalMaterialPrice - totalMaterialCost;
+  const matMarginPct = totalMaterialPrice > 0 ? Math.round((matProfit / totalMaterialPrice) * 100) : 0;
+  const instProfit = totalInstallationPrice - totalInstallationCost;
+  const instMarginPct = totalInstallationPrice > 0 ? Math.round((instProfit / totalInstallationPrice) * 100) : 0;
 
   const discountPct = offer.discountPercent || 0;
   const [prevDiscountPct, setPrevDiscountPct] = useState(discountPct);
@@ -1245,7 +1280,176 @@ export function OfferSummaryTab({
         )}
       </div>
 
-      {/* ── 3. UWAGI DO OFERTY (WYSIWYG / HTML) ── */}
+      {/* ── 3. KALKULACJA KOSZTÓW I CEN (MATERIAŁ, MONTAŻ, PODSUMOWANIE) ── */}
+      <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#e2e8f0] flex items-center justify-between bg-[#f8fafc]">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-md bg-[rgba(74,187,195,0.12)] text-[#0e7490] border border-[rgba(74,187,195,0.25)]">
+              <Calculator size={15} className="text-[#4ABBC3]" />
+            </div>
+            <div>
+              <h2 className="font-bold text-xs text-[#0b1220] uppercase tracking-wider">
+                Kalkulacja kosztów i cen oferty
+              </h2>
+              <p className="text-[11px] text-[#64748b]">
+                Podział na koszt i cenę materiału oraz montażu dla całości oferty
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-200/80 text-slate-700">
+            {items.length} {items.length === 1 ? "pozycja" : items.length < 5 ? "pozycje" : "pozycji"}
+          </span>
+        </div>
+
+        <div className="p-4 md:p-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* 1. MATERIAŁ */}
+            <div className="bg-[#f8fafc] border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-800">
+                    <span className="w-5 h-5 rounded-md bg-cyan-100 text-cyan-800 flex items-center justify-center text-[10px] font-bold">1</span>
+                    Materiał
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-sans">Konstrukcje i profile</span>
+                </div>
+
+                <div className="space-y-2.5 font-mono">
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-between">
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-slate-400 block font-sans">
+                        Koszt materiału
+                      </span>
+                      <span className="text-sm font-bold text-slate-700">
+                        {totalMaterialCost > 0 ? `${totalMaterialCost.toLocaleString("pl-PL")} zł` : "—"}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-sans">Koszt zakupu</span>
+                  </div>
+
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-between">
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-slate-400 block font-sans">
+                        Cena materiału
+                      </span>
+                      <span className="text-base font-extrabold text-[#0e7490]">
+                        {totalMaterialPrice > 0 ? `${totalMaterialPrice.toLocaleString("pl-PL")} zł` : "—"}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-cyan-700 font-bold font-sans">Netto</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 mt-3 border-t border-slate-200 flex items-center justify-between text-[11px] font-mono">
+                <span className="text-slate-500 font-sans text-[10px]">Zysk z materiału:</span>
+                <span className={`font-bold ${matProfit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                  {matProfit >= 0 ? `+${matProfit.toLocaleString("pl-PL")} zł` : `${matProfit.toLocaleString("pl-PL")} zł`}
+                  <span className="text-[10px] font-normal text-slate-400 ml-1">({matMarginPct}%)</span>
+                </span>
+              </div>
+            </div>
+
+            {/* 2. MONTAŻ */}
+            <div className="bg-[#f8fafc] border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-800">
+                    <span className="w-5 h-5 rounded-md bg-cyan-100 text-cyan-800 flex items-center justify-center text-[10px] font-bold">2</span>
+                    Montaż
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-sans">Robocizna i transport</span>
+                </div>
+
+                <div className="space-y-2.5 font-mono">
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-between">
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-slate-400 block font-sans">
+                        Koszt montażu
+                      </span>
+                      <span className="text-sm font-bold text-slate-700">
+                        {totalInstallationCost > 0 ? `${totalInstallationCost.toLocaleString("pl-PL")} zł` : "—"}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-sans">Koszt ekipy</span>
+                  </div>
+
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-between">
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-slate-400 block font-sans">
+                        Cena montażu
+                      </span>
+                      <span className="text-base font-extrabold text-[#0e7490]">
+                        {totalInstallationPrice > 0 ? `${totalInstallationPrice.toLocaleString("pl-PL")} zł` : "—"}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-cyan-700 font-bold font-sans">Netto</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 mt-3 border-t border-slate-200 flex items-center justify-between text-[11px] font-mono">
+                <span className="text-slate-500 font-sans text-[10px]">Zysk z montażu:</span>
+                <span className={`font-bold ${instProfit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                  {instProfit >= 0 ? `+${instProfit.toLocaleString("pl-PL")} zł` : `${instProfit.toLocaleString("pl-PL")} zł`}
+                  <span className="text-[10px] font-normal text-slate-400 ml-1">({instMarginPct}%)</span>
+                </span>
+              </div>
+            </div>
+
+            {/* 3. PODSUMOWANIE */}
+            <div className="bg-gradient-to-br from-[#0b1220] to-[#1e293b] text-white rounded-xl p-4 flex flex-col justify-between shadow-md">
+              <div>
+                <div className="flex items-center justify-between mb-3 border-b border-slate-700/60 pb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                    Podsumowanie
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-sans">Całość oferty</span>
+                </div>
+
+                <div className="space-y-2 font-mono">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-300 font-sans text-[11px]">Koszt łączny:</span>
+                    <span className="font-bold text-slate-200">
+                      {totalCombinedCost.toLocaleString("pl-PL")} zł
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-300 font-sans text-[11px]">Cena łączna netto:</span>
+                    <span className="font-extrabold text-base text-emerald-400">
+                      {discountedNet.toLocaleString("pl-PL")} zł
+                    </span>
+                  </div>
+
+                  {discountPct > 0 && (
+                    <div className="text-[10px] text-amber-300/90 text-right -mt-1 font-sans">
+                      (w tym rabat -{discountPct}%: -{discountAmount.toLocaleString("pl-PL")} zł)
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-700/60">
+                    <span className="text-slate-400 font-sans text-[11px]">Brutto ({vatRate}%):</span>
+                    <span className="font-bold text-slate-300">
+                      {totalGross.toLocaleString("pl-PL")} zł
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 mt-3 border-t border-slate-700/80 flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-300 font-sans text-[11px]">Zysk łączny:</span>
+                <span className={`font-extrabold ${profitNet >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {profitNet >= 0 ? `+${profitNet.toLocaleString("pl-PL")} zł` : `${profitNet.toLocaleString("pl-PL")} zł`}
+                  <span className="text-[10px] font-normal text-slate-400 ml-1">({marginPct}%)</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 4. UWAGI DO OFERTY (WYSIWYG / HTML) ── */}
       <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs overflow-hidden">
         <div className="px-5 py-3.5 border-b border-[#e2e8f0] flex items-center justify-between flex-wrap gap-3 bg-[#f8fafc]">
           <div className="flex items-center gap-2.5">

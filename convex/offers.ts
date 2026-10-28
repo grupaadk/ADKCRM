@@ -305,6 +305,7 @@ export const duplicateOffer = mutation({
       .collect();
 
     for (const item of items) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { _id, _creationTime, offerId, ...itemData } = item;
       await ctx.db.insert("offerConstructions", {
         ...itemData,
@@ -423,6 +424,10 @@ export const addConstructionPosition = mutation({
     fillType: v.optional(v.string()),
     priceNet: v.optional(v.number()),
     costNet: v.optional(v.number()),
+    materialCostNet: v.optional(v.number()),
+    materialPriceNet: v.optional(v.number()),
+    installationCostNet: v.optional(v.number()),
+    installationPriceNet: v.optional(v.number()),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -483,7 +488,11 @@ export const addConstructionPosition = mutation({
       panesCount: panes,
       fillType: fill,
       priceNet: args.priceNet ?? construction?.defaultPriceNet ?? 0,
-      costNet: args.costNet ?? 0,
+      costNet: args.costNet ?? (construction ? (construction.materialCostNet || 0) + (construction.installationCostNet || 0) : 0),
+      materialCostNet: args.materialCostNet ?? construction?.materialCostNet ?? args.costNet ?? 0,
+      materialPriceNet: args.materialPriceNet ?? construction?.materialPriceNet ?? (args.priceNet ?? construction?.defaultPriceNet ?? 0),
+      installationCostNet: args.installationCostNet ?? construction?.installationCostNet ?? 0,
+      installationPriceNet: args.installationPriceNet ?? construction?.installationPriceNet ?? 0,
       segments,
       createdAt: now,
       updatedAt: now,
@@ -518,6 +527,10 @@ export const updateConstructionPosition = mutation({
     fillType: v.optional(v.string()),
     priceNet: v.optional(v.number()),
     costNet: v.optional(v.number()),
+    materialCostNet: v.optional(v.number()),
+    materialPriceNet: v.optional(v.number()),
+    installationCostNet: v.optional(v.number()),
+    installationPriceNet: v.optional(v.number()),
     placedAboveItemId: v.optional(v.union(v.string(), v.null())),
     placedBelowItemId: v.optional(v.union(v.string(), v.null())),
     rowIndex: v.optional(v.union(v.number(), v.null())),

@@ -1232,6 +1232,10 @@ export default defineSchema({
     fillType: v.optional(v.string()),
     priceNet: v.number(),
     costNet: v.number(),
+    materialCostNet: v.optional(v.number()),
+    materialPriceNet: v.optional(v.number()),
+    installationCostNet: v.optional(v.number()),
+    installationPriceNet: v.optional(v.number()),
     segments: v.optional(
       v.array(
         v.object({
