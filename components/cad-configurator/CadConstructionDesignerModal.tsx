@@ -1027,9 +1027,11 @@ export function CadConstructionDesignerModal({
                 {/* Koszt bazowy + Narzut */}
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[10px] text-slate-500 mb-1 font-semibold uppercase tracking-wider">
-                      Koszt materiału
-                    </label>
+                    <div className="h-6 flex items-center mb-1">
+                      <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                        Koszt materiału
+                      </label>
+                    </div>
                     <div className="relative">
                       <input
                         type="number"
@@ -1041,7 +1043,7 @@ export function CadConstructionDesignerModal({
                           setMaterialCostNet(val);
                         }}
                         placeholder="0"
-                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
+                        className="w-full h-8 bg-slate-50 border border-slate-300 rounded-lg px-2.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
                         zł
@@ -1050,11 +1052,11 @@ export function CadConstructionDesignerModal({
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                    <div className="h-6 flex items-center justify-between mb-1">
+                      <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider truncate mr-1">
                         Narzut na materiał
                       </label>
-                      <div className="inline-flex rounded border border-slate-200 overflow-hidden bg-slate-100 text-[9px] font-bold">
+                      <div className="inline-flex rounded border border-slate-200 overflow-hidden bg-slate-100 text-[9px] font-bold shrink-0">
                         <button
                           type="button"
                           onClick={() => setMaterialMarkupType("percent")}
@@ -1086,7 +1088,7 @@ export function CadConstructionDesignerModal({
                           setMaterialMarkupValue(val);
                         }}
                         placeholder="0"
-                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
+                        className="w-full h-8 bg-slate-50 border border-slate-300 rounded-lg px-2.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
                         {materialMarkupType === "percent" ? "%" : "zł"}
@@ -1120,9 +1122,11 @@ export function CadConstructionDesignerModal({
                 {/* Koszt bazowy + Narzut */}
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[10px] text-slate-500 mb-1 font-semibold uppercase tracking-wider">
-                      Koszt montażu
-                    </label>
+                    <div className="h-6 flex items-center mb-1">
+                      <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                        Koszt montażu
+                      </label>
+                    </div>
                     <div className="relative">
                       <input
                         type="number"
@@ -1134,7 +1138,7 @@ export function CadConstructionDesignerModal({
                           setInstallationCostNet(val);
                         }}
                         placeholder="0"
-                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
+                        className="w-full h-8 bg-slate-50 border border-slate-300 rounded-lg px-2.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
                         zł
@@ -1143,11 +1147,11 @@ export function CadConstructionDesignerModal({
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                    <div className="h-6 flex items-center justify-between mb-1">
+                      <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider truncate mr-1">
                         Narzut na montaż
                       </label>
-                      <div className="inline-flex rounded border border-slate-200 overflow-hidden bg-slate-100 text-[9px] font-bold">
+                      <div className="inline-flex rounded border border-slate-200 overflow-hidden bg-slate-100 text-[9px] font-bold shrink-0">
                         <button
                           type="button"
                           onClick={() => setInstallationMarkupType("percent")}
@@ -1179,7 +1183,7 @@ export function CadConstructionDesignerModal({
                           setInstallationMarkupValue(val);
                         }}
                         placeholder="0"
-                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
+                        className="w-full h-8 bg-slate-50 border border-slate-300 rounded-lg px-2.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
                         {installationMarkupType === "percent" ? "%" : "zł"}
@@ -1242,10 +1246,6 @@ export function CadConstructionDesignerModal({
                       Marża mat: {materialMarginPercent}% · montaż: {installationMarginPercent}%
                     </span>
                   </div>
-                </div>
-
-                <div className="text-[10px] text-slate-500 bg-white/80 p-2.5 rounded-lg border border-slate-200/80 leading-relaxed">
-                  💡 <strong>Struktura oferty:</strong> Koszty i ceny materiałów oraz montażu poszczególnych konstrukcji zostaną w ofercie zsumowane do całościowych pozycji (Cena materiału oraz Cena montażu).
                 </div>
               </div>
             </div>
