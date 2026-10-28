@@ -42,13 +42,13 @@ export const create = mutation({
     code: v.string(),
     categoryId: v.optional(v.id("constructionCategories")),
     category: v.optional(v.string()),
-    description: v.optional(v.string()),
+    description: v.optional(v.union(v.string(), v.null())),
     defaultSystem: v.optional(v.string()),
-    defaultColor: v.optional(v.string()),
-    defaultWidthMm: v.optional(v.number()),
-    defaultHeightMm: v.optional(v.number()),
+    defaultColor: v.optional(v.union(v.string(), v.null())),
+    defaultWidthMm: v.optional(v.union(v.number(), v.null())),
+    defaultHeightMm: v.optional(v.union(v.number(), v.null())),
     defaultPanesCount: v.optional(v.union(v.number(), v.null())),
-    defaultFillType: v.optional(v.string()),
+    defaultFillType: v.optional(v.union(v.string(), v.null())),
     defaultWarning: v.optional(v.string()),
     defaultPriceNet: v.optional(v.number()),
   },
@@ -70,11 +70,11 @@ export const create = mutation({
       category: categoryName,
       description: args.description?.trim() || undefined,
       defaultSystem: args.defaultSystem?.trim() || undefined,
-      defaultColor: args.defaultColor?.trim() || "RAL 7016MAT",
-      defaultWidthMm: args.defaultWidthMm || 2880,
-      defaultHeightMm: args.defaultHeightMm || 2300,
+      defaultColor: args.defaultColor?.trim() || undefined,
+      defaultWidthMm: args.defaultWidthMm || undefined,
+      defaultHeightMm: args.defaultHeightMm || undefined,
       defaultPanesCount: args.defaultPanesCount !== undefined && args.defaultPanesCount !== null ? args.defaultPanesCount : undefined,
-      defaultFillType: args.defaultFillType?.trim() || "HART 10",
+      defaultFillType: args.defaultFillType?.trim() || undefined,
       defaultWarning: args.defaultWarning?.trim() || undefined,
       defaultPriceNet: args.defaultPriceNet !== undefined ? args.defaultPriceNet : undefined,
       isActive: true,
@@ -95,13 +95,13 @@ export const update = mutation({
     code: v.optional(v.string()),
     categoryId: v.optional(v.id("constructionCategories")),
     category: v.optional(v.string()),
-    description: v.optional(v.string()),
+    description: v.optional(v.union(v.string(), v.null())),
     defaultSystem: v.optional(v.string()),
-    defaultColor: v.optional(v.string()),
-    defaultWidthMm: v.optional(v.number()),
-    defaultHeightMm: v.optional(v.number()),
+    defaultColor: v.optional(v.union(v.string(), v.null())),
+    defaultWidthMm: v.optional(v.union(v.number(), v.null())),
+    defaultHeightMm: v.optional(v.union(v.number(), v.null())),
     defaultPanesCount: v.optional(v.union(v.number(), v.null())),
-    defaultFillType: v.optional(v.string()),
+    defaultFillType: v.optional(v.union(v.string(), v.null())),
     defaultWarning: v.optional(v.string()),
     defaultPriceNet: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
@@ -124,13 +124,13 @@ export const update = mutation({
     } else if (fields.category !== undefined) {
       patch.category = fields.category.trim() || undefined;
     }
-    if (fields.description !== undefined) patch.description = fields.description.trim() || undefined;
-    if (fields.defaultSystem !== undefined) patch.defaultSystem = fields.defaultSystem.trim() || undefined;
-    if (fields.defaultColor !== undefined) patch.defaultColor = fields.defaultColor.trim() || undefined;
-    if (fields.defaultWidthMm !== undefined) patch.defaultWidthMm = fields.defaultWidthMm;
-    if (fields.defaultHeightMm !== undefined) patch.defaultHeightMm = fields.defaultHeightMm;
+    if (fields.description !== undefined) patch.description = fields.description?.trim() || undefined;
+    if (fields.defaultSystem !== undefined) patch.defaultSystem = fields.defaultSystem?.trim() || undefined;
+    if (fields.defaultColor !== undefined) patch.defaultColor = fields.defaultColor?.trim() || undefined;
+    if (fields.defaultWidthMm !== undefined) patch.defaultWidthMm = fields.defaultWidthMm ?? undefined;
+    if (fields.defaultHeightMm !== undefined) patch.defaultHeightMm = fields.defaultHeightMm ?? undefined;
     if (fields.defaultPanesCount !== undefined) patch.defaultPanesCount = fields.defaultPanesCount ?? undefined;
-    if (fields.defaultFillType !== undefined) patch.defaultFillType = fields.defaultFillType.trim() || undefined;
+    if (fields.defaultFillType !== undefined) patch.defaultFillType = fields.defaultFillType?.trim() || undefined;
     if (fields.defaultWarning !== undefined) patch.defaultWarning = fields.defaultWarning.trim() || undefined;
     if (fields.defaultPriceNet !== undefined) patch.defaultPriceNet = fields.defaultPriceNet;
     if (fields.isActive !== undefined) patch.isActive = fields.isActive;

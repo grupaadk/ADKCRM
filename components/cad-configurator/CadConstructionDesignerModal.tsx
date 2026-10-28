@@ -11,6 +11,8 @@ import {
   Sliders,
   Palette,
   DollarSign,
+  ArrowLeft,
+  FileText,
 } from "lucide-react";
 
 export type CategoryDoc = Doc<"constructionCategories">;
@@ -38,7 +40,7 @@ export const GLASS_SYSTEM_PRESETS: GlassSystemPreset[] = [
 ];
 
 interface CadConstructionDesignerModalProps {
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
   onSave: (data: {
     id?: Id<"constructions">;
@@ -49,8 +51,8 @@ interface CadConstructionDesignerModalProps {
     description?: string;
     defaultSystem?: string;
     defaultColor?: string;
-    defaultWidthMm: number;
-    defaultHeightMm: number;
+    defaultWidthMm?: number;
+    defaultHeightMm?: number;
     defaultPanesCount?: number;
     defaultFillType?: string;
     defaultWarning?: string;
@@ -74,14 +76,18 @@ export function CadConstructionDesignerModal({
   const [code, setCode] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [categoryName, setCategoryName] = useState("");
+  const [hasDescription, setHasDescription] = useState(false);
   const [description, setDescription] = useState("");
+  const [hasDimensions, setHasDimensions] = useState(true);
   const [widthMm, setWidthMm] = useState(2880);
   const [heightMm, setHeightMm] = useState(2300);
+  const [hasTracks, setHasTracks] = useState(true);
   const [panesCount, setPanesCount] = useState<number | null>(3);
   const [priceNet, setPriceNet] = useState<number | "">("");
 
   // Wartości domyślne / zachowywane w tle dla zgodności z modelem danych
   const [systemName, setSystemName] = useState("");
+  const [hasGlassAndColor, setHasGlassAndColor] = useState(true);
   const [color, setColor] = useState("RAL 7016MAT");
   const [fillType, setFillType] = useState("HART 10");
   const [warning, setWarning] = useState("");
@@ -97,18 +103,38 @@ export function CadConstructionDesignerModal({
       setCode(initialData.code || "");
       setCategoryId(initialData.categoryId || "");
       setCategoryName(initialData.category || "");
+
+      const hasDefDesc = Boolean(initialData.description && initialData.description.trim().length > 0);
+      setHasDescription(hasDefDesc);
       setDescription(initialData.description || "");
+
+      const hasDefDims =
+        initialData.defaultWidthMm !== undefined &&
+        initialData.defaultWidthMm !== null &&
+        initialData.defaultHeightMm !== undefined &&
+        initialData.defaultHeightMm !== null;
+      setHasDimensions(hasDefDims);
       setWidthMm(initialData.defaultWidthMm || 2880);
       setHeightMm(initialData.defaultHeightMm || 2300);
-      setPanesCount(
-        initialData.defaultPanesCount !== undefined && initialData.defaultPanesCount !== null
-          ? initialData.defaultPanesCount
-          : null
-      );
+
+      const hasDefPanes =
+        initialData.defaultPanesCount !== undefined &&
+        initialData.defaultPanesCount !== null &&
+        initialData.defaultPanesCount > 0;
+      setHasTracks(hasDefPanes);
+      setPanesCount(hasDefPanes ? initialData.defaultPanesCount! : null);
+
       setPriceNet(initialData.defaultPriceNet !== undefined ? initialData.defaultPriceNet : "");
       setSystemName(initialData.defaultSystem || "");
+
+      const hasDefGlassAndColor = Boolean(
+        (initialData.defaultColor && initialData.defaultColor.trim().length > 0) ||
+        (initialData.defaultFillType && initialData.defaultFillType.trim().length > 0)
+      );
+      setHasGlassAndColor(hasDefGlassAndColor);
       setColor(initialData.defaultColor || "RAL 7016MAT");
       setFillType(initialData.defaultFillType || "HART 10");
+
       setWarning(initialData.defaultWarning || "");
     } else {
       const defaultCat = categories?.find((c) => c.isActive) || categories?.[0];
@@ -117,17 +143,30 @@ export function CadConstructionDesignerModal({
       setCode("");
       setCategoryId(defaultCat?._id || "");
       setCategoryName(defaultCat?.name || "Systemy szklane");
+      setHasDescription(false);
       setDescription("");
+      setHasDimensions(true);
       setWidthMm(isDefaultGlass ? 2410 : 2000);
       setHeightMm(2300);
+      setHasTracks(isDefaultGlass);
       setPanesCount(isDefaultGlass ? 3 : null);
       setPriceNet("");
       setSystemName("");
+      setHasGlassAndColor(true);
       setColor("RAL 7016MAT");
       setFillType("HART 10");
       setWarning("");
     }
   }, [isOpen, initialData, categories]);
+
+  const toggleHasTracks = (enabled: boolean) => {
+    setHasTracks(enabled);
+    if (!enabled) {
+      setPanesCount(null);
+    } else {
+      setPanesCount(3);
+    }
+  };
 
   // Czy wybrana kategoria to "Systemy szklane"
   const isGlassCategory = useMemo(() => {
@@ -146,57 +185,63 @@ export function CadConstructionDesignerModal({
 
   // Automatyczny kod konstrukcji na podstawie wymiarów i torów
   const generateCode = () => {
-    if (panesCount) {
-      setCode(`CAD-${panesCount}T-${widthMm}x${heightMm}`);
-    } else {
-      setCode(`CAD-${widthMm}x${heightMm}`);
+    const parts = ["CAD"];
+    if (hasTracks && panesCount) {
+      parts.push(`${panesCount}T`);
     }
+    if (hasDimensions) {
+      parts.push(`${widthMm}x${heightMm}`);
+    }
+    setCode(parts.length > 1 ? parts.join("-") : "CAD-PROJEKT");
   };
 
   // Wskaźniki techniczne
   const areaM2 = Math.round((widthMm * heightMm * 0.000001) * 100) / 100;
-  const singlePaneWidthMm = panesCount && panesCount > 0 ? Math.round(widthMm / panesCount) : widthMm;
+  const singlePaneWidthMm = hasTracks && panesCount && panesCount > 0 ? Math.round(widthMm / panesCount) : widthMm;
 
   // Konstrukcja dla podglądu na żywo w CadCanvas
   const liveCadItem: CadConstructionItem = useMemo(() => {
-    const panes = panesCount && panesCount > 0 ? panesCount : 1;
+    const panes = hasTracks && panesCount && panesCount > 0 ? panesCount : 1;
     return {
       _id: initialData?._id || "temp-designer-preview",
       positionIndex: 1,
       name: name || "Nowa konstrukcja CAD",
       shortName: code || "CAD",
-      description: description || undefined,
+      description: hasDescription && description.trim() ? description.trim() : undefined,
       warning: warning || undefined,
-      color: color || "RAL 7016MAT",
+      color: hasGlassAndColor && color.trim() ? color.trim() : "RAL 7016MAT",
       systemName: systemName || undefined,
       quantity: 1,
       widthMm: Math.max(400, widthMm),
       heightMm: Math.max(400, heightMm),
       panesCount: panes,
-      fillType: fillType || "HART 10",
+      fillType: hasGlassAndColor && fillType.trim() ? fillType.trim() : "HART 10",
       priceNet: typeof priceNet === "number" ? priceNet : (priceNet !== "" ? parseFloat(priceNet as string) : 0),
       costNet: 0,
       segments: Array.from({ length: panes }).map((_, i) => ({
         widthMm: i === panes - 1 ? widthMm - singlePaneWidthMm * (panes - 1) : singlePaneWidthMm,
         heightMm: Math.max(200, heightMm - 103),
-        fill: fillType || "HART 10",
+        fill: hasGlassAndColor && fillType.trim() ? fillType.trim() : "HART 10",
         weightKg: Math.round((singlePaneWidthMm * heightMm * 0.000001 * 25) * 10) / 10,
-        profileTop: `5448 ${color}`,
-        profileBottom: `5450 ${color}`,
-        profileLeft: `5450 ${color}`,
-        profileRight: `5450 ${color}`,
+        profileTop: `5448 ${color || "RAL 7016MAT"}`,
+        profileBottom: `5450 ${color || "RAL 7016MAT"}`,
+        profileLeft: `5450 ${color || "RAL 7016MAT"}`,
+        profileRight: `5450 ${color || "RAL 7016MAT"}`,
       })),
     };
   }, [
     initialData?._id,
     name,
     code,
+    hasDescription,
     description,
     warning,
+    hasGlassAndColor,
     color,
     systemName,
     widthMm,
     heightMm,
+    hasTracks,
     panesCount,
     fillType,
     priceNet,
@@ -210,9 +255,14 @@ export function CadConstructionDesignerModal({
 
     let finalCode = code.trim().toUpperCase();
     if (!finalCode) {
-      finalCode = panesCount
-        ? `CAD-${panesCount}T-${widthMm}x${heightMm}`
-        : `CAD-${widthMm}x${heightMm}`;
+      const parts = ["CAD"];
+      if (hasTracks && panesCount) {
+        parts.push(`${panesCount}T`);
+      }
+      if (hasDimensions) {
+        parts.push(`${widthMm}x${heightMm}`);
+      }
+      finalCode = parts.length > 1 ? parts.join("-") : "CAD-PROJEKT";
     }
 
     setSaving(true);
@@ -223,14 +273,14 @@ export function CadConstructionDesignerModal({
         code: finalCode,
         categoryId: categoryId ? (categoryId as Id<"constructionCategories">) : undefined,
         category: categoryName.trim() || undefined,
-        description: description.trim(),
+        description: hasDescription && description.trim() ? description.trim() : undefined,
         defaultSystem: systemName.trim() || undefined,
-        defaultColor: color.trim() || "RAL 7016MAT",
-        defaultWidthMm: widthMm,
-        defaultHeightMm: heightMm,
-        defaultPanesCount: panesCount ?? undefined,
-        defaultFillType: fillType.trim() || "HART 10",
-        defaultWarning: warning.trim(),
+        defaultColor: hasGlassAndColor && color.trim() ? color.trim() : undefined,
+        defaultWidthMm: hasDimensions ? widthMm : undefined,
+        defaultHeightMm: hasDimensions ? heightMm : undefined,
+        defaultPanesCount: hasTracks && panesCount ? panesCount : undefined,
+        defaultFillType: hasGlassAndColor && fillType.trim() ? fillType.trim() : undefined,
+        defaultWarning: warning.trim() || undefined,
         defaultPriceNet:
           typeof priceNet === "number"
             ? priceNet
@@ -246,29 +296,31 @@ export function CadConstructionDesignerModal({
     }
   };
 
-  if (!isOpen) return null;
+  if (isOpen !== undefined && !isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !saving) onClose();
-      }}
-    >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl h-[94vh] max-h-[94vh] border border-slate-200 overflow-hidden flex flex-col">
-        {/* ══════════════════════════════════════════════════════════════════════ */}
-        {/* TOP HEADER: Status, Tytuł, Akcje Zapisu                                */}
-        {/* ══════════════════════════════════════════════════════════════════════ */}
-        <div className="h-14 px-5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-700 flex items-center justify-center text-white shadow-sm shadow-cyan-600/30">
-              <Ruler size={19} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-900 text-sm">
-                  {isEditing ? "Edytor konstrukcji CAD" : "Kreator konstrukcji CAD"}
-                </span>
+    <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden flex flex-col h-[calc(100vh-210px)] min-h-[680px]">
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* TOP HEADER: Status, Tytuł, Akcje Zapisu                                */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      <div className="h-14 px-5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 -ml-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Wróć do listy konstrukcji"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-700 flex items-center justify-center text-white shadow-xs shadow-cyan-600/30">
+            <Ruler size={19} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-900 text-sm">
+                {isEditing ? "Edytor konstrukcji CAD" : "Kreator konstrukcji CAD"}
+              </span>
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
                     isEditing
@@ -345,7 +397,7 @@ export function CadConstructionDesignerModal({
                 <Sliders size={13} className="text-cyan-600" /> Parametry konstrukcji CAD
               </span>
               <span className="font-mono text-[10px] text-slate-500">
-                {widthMm} × {heightMm} mm
+                {hasDimensions ? `${widthMm} × ${heightMm} mm` : "Wymiary: brak"}
               </span>
             </div>
 
@@ -440,249 +492,358 @@ export function CadConstructionDesignerModal({
                 </div>
               </div>
 
-              {/* Liczba torów w szablonie */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <Layers size={13} className="text-cyan-600" /> Liczba torów
-                    <span className="text-[10px] text-slate-400 font-normal lowercase">(opcjonalnie)</span>
-                  </label>
-                  <span className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded border ${
-                    panesCount
-                      ? "text-cyan-800 bg-cyan-50 border-cyan-200"
-                      : "text-slate-600 bg-slate-100 border-slate-300"
-                  }`}>
-                    {panesCount
-                      ? `${panesCount} ${panesCount === 1 ? "tor" : panesCount < 5 ? "tory" : "torów"}`
-                      : "Brak torów (nie dotyczy)"}
-                  </span>
-                </div>
-
-                <p className="text-[10px] text-slate-500">
-                  Ustaw domyślną liczbę torów lub wybierz &quot;Brak&quot;, jeśli konstrukcja nie posiada torów jezdnych (np. fix, trójkąt, zadaszenie):
-                </p>
-
-                {/* Przyciski szybkiego wyboru liczby torów */}
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setPanesCount(null)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition-all cursor-pointer border ${
-                      panesCount === null
-                        ? "bg-slate-700 text-white border-slate-800 shadow-xs ring-2 ring-slate-500/20"
-                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
-                    }`}
-                  >
-                    Brak
-                  </button>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((cnt) => (
+              {/* Liczba torów w szablonie (opcjonalny blok) */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5 transition-all">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
                     <button
-                      key={cnt}
                       type="button"
-                      onClick={() => setPanesCount(cnt)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer border ${
-                        panesCount === cnt
-                          ? "bg-cyan-600 text-white border-cyan-700 shadow-xs ring-2 ring-cyan-500/20"
-                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                      role="switch"
+                      aria-checked={hasTracks}
+                      onClick={() => toggleHasTracks(!hasTracks)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        hasTracks ? "bg-cyan-600" : "bg-slate-300"
                       }`}
                     >
-                      {cnt}T
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          hasTracks ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
                     </button>
-                  ))}
+                    <label
+                      onClick={() => toggleHasTracks(!hasTracks)}
+                      className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 cursor-pointer select-none"
+                    >
+                      <Layers size={13} className="text-cyan-600" /> Liczba torów
+                      <span className="text-[10px] text-slate-400 font-normal lowercase">(opcjonalnie)</span>
+                    </label>
+                  </div>
+
+                  {hasTracks && panesCount ? (
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded border text-cyan-800 bg-cyan-50 border-cyan-200">
+                      {panesCount} {panesCount === 1 ? "tor" : panesCount < 5 ? "tory" : "torów"}
+                    </span>
+                  ) : null}
                 </div>
 
-                {/* Parametry skrzydła wyliczone */}
-                {panesCount ? (
-                  <div className="bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between font-mono text-[11px] mt-1">
-                    <span className="text-slate-500 font-sans">Szerokość 1 skrzydła na torze:</span>
-                    <span className="font-bold text-slate-900">~{singlePaneWidthMm} mm</span>
-                  </div>
+                {!hasTracks ? (
+                  <p className="text-[10px] text-slate-500">
+                    Konstrukcja nie posiada torów jezdnych (np. fix, trójkąt, zadaszenie). Włącz przełącznik powyżej, jeśli ta konstrukcja ma posiadać tory.
+                  </p>
                 ) : (
-                  <div className="bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between text-[11px] mt-1 text-slate-500">
-                    <span className="font-sans">Układ konstrukcji:</span>
-                    <span className="font-semibold text-slate-700">Jednolita (brak podziału na tory)</span>
-                  </div>
-                )}
+                  <>
+                    <p className="text-[10px] text-slate-500">
+                      Ustaw domyślną liczbę torów dla tej konstrukcji przesuwnej:
+                    </p>
 
-                {/* Warianty gotowych systemów szklanych */}
-                {isGlassCategory && (
-                  <div className="pt-2 border-t border-slate-200 space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                      Lub wybierz gotowy wariant wymiarowy:
-                    </span>
-                    <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-0.5">
-                      {GLASS_SYSTEM_PRESETS.map((preset) => {
-                        const isSelected =
-                          panesCount === preset.tracks &&
-                          widthMm === preset.widthMm &&
-                          heightMm === preset.heightMm;
+                    {/* Przyciski szybkiego wyboru liczby torów */}
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((cnt) => (
+                        <button
+                          key={cnt}
+                          type="button"
+                          onClick={() => setPanesCount(cnt)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer border ${
+                            panesCount === cnt
+                              ? "bg-cyan-600 text-white border-cyan-700 shadow-xs ring-2 ring-cyan-500/20"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                          }`}
+                        >
+                          {cnt}T
+                        </button>
+                      ))}
+                    </div>
 
-                        return (
-                          <button
-                            key={preset.id}
-                            type="button"
-                            onClick={() => {
-                              setPanesCount(preset.tracks);
-                              setWidthMm(preset.widthMm);
-                              setHeightMm(preset.heightMm);
-                            }}
-                            className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-2 cursor-pointer ${
-                              isSelected
-                                ? "bg-cyan-50/90 border-cyan-500 shadow-xs ring-1 ring-cyan-500/30"
-                                : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span
-                                className={`w-5 h-5 rounded flex items-center justify-center font-mono font-bold text-[10px] shrink-0 ${
+                    {/* Parametry skrzydła wyliczone */}
+                    <div className="bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between font-mono text-[11px] mt-1">
+                      <span className="text-slate-500 font-sans">Szerokość 1 skrzydła na torze:</span>
+                      <span className="font-bold text-slate-900">~{singlePaneWidthMm} mm</span>
+                    </div>
+
+                    {/* Warianty gotowych systemów szklanych */}
+                    {isGlassCategory && (
+                      <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                          Lub wybierz gotowy wariant wymiarowy:
+                        </span>
+                        <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-0.5">
+                          {GLASS_SYSTEM_PRESETS.map((preset) => {
+                            const isSelected =
+                              panesCount === preset.tracks &&
+                              widthMm === preset.widthMm &&
+                              heightMm === preset.heightMm;
+
+                            return (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => {
+                                  setPanesCount(preset.tracks);
+                                  setWidthMm(preset.widthMm);
+                                  setHeightMm(preset.heightMm);
+                                  setHasDimensions(true);
+                                }}
+                                className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-2 cursor-pointer ${
                                   isSelected
-                                    ? "bg-cyan-600 text-white"
-                                    : "bg-slate-100 text-slate-700"
+                                    ? "bg-cyan-50/90 border-cyan-500 shadow-xs ring-1 ring-cyan-500/30"
+                                    : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80"
                                 }`}
                               >
-                                {preset.tracks}T
-                              </span>
-                              <div className="min-w-0">
-                                <span
-                                  className={`font-bold text-[11px] block ${
-                                    isSelected ? "text-cyan-950 font-bold" : "text-slate-800"
-                                  }`}
-                                >
-                                  {preset.label}
-                                </span>
-                                <span className="text-[10px] font-mono text-slate-500">
-                                  {preset.sublabel}
-                                </span>
-                              </div>
-                            </div>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span
+                                    className={`w-5 h-5 rounded flex items-center justify-center font-mono font-bold text-[10px] shrink-0 ${
+                                      isSelected
+                                        ? "bg-cyan-600 text-white"
+                                        : "bg-slate-100 text-slate-700"
+                                    }`}
+                                  >
+                                    {preset.tracks}T
+                                  </span>
+                                  <div className="min-w-0">
+                                    <span
+                                      className={`font-bold text-[11px] block ${
+                                        isSelected ? "text-cyan-950 font-bold" : "text-slate-800"
+                                      }`}
+                                    >
+                                      {preset.label}
+                                    </span>
+                                    <span className="text-[10px] font-mono text-slate-500">
+                                      {preset.sublabel}
+                                    </span>
+                                  </div>
+                                </div>
 
-                            <div className="shrink-0 flex items-center gap-1.5">
-                              <span className="font-mono font-semibold text-[10px] text-slate-500 bg-slate-100 px-1 py-0.5 rounded">
-                                {preset.widthMm} × {preset.heightMm} mm
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })}
+                                <div className="shrink-0 flex items-center gap-1.5">
+                                  <span className="font-mono font-semibold text-[10px] text-slate-500 bg-slate-100 px-1 py-0.5 rounded">
+                                    {preset.widthMm} × {preset.heightMm} mm
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Wymiary gabarytowe (opcjonalny blok) */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5 transition-all">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={hasDimensions}
+                      onClick={() => setHasDimensions(!hasDimensions)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        hasDimensions ? "bg-cyan-600" : "bg-slate-300"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          hasDimensions ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                    <label
+                      onClick={() => setHasDimensions(!hasDimensions)}
+                      className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 cursor-pointer select-none"
+                    >
+                      <Ruler size={13} className="text-cyan-600" /> Wymiary całkowite [mm]
+                      <span className="text-[10px] text-slate-400 font-normal lowercase">(opcjonalnie)</span>
+                    </label>
+                  </div>
+
+                  {hasDimensions ? (
+                    <span className="font-mono text-[10px] text-cyan-700 font-bold bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200">
+                      {widthMm} × {heightMm} mm
+                    </span>
+                  ) : null}
+                </div>
+
+                {!hasDimensions ? (
+                  <p className="text-[10px] text-slate-500">
+                    Konstrukcja nie posiada narzuconych wymiarów gabarytowych. Włącz przełącznik powyżej, jeśli ta konstrukcja ma posiadać domyślne wymiary.
+                  </p>
+                ) : (
+                  <div className="space-y-3 pt-1">
+                    {/* Szerokość całkowita */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-semibold text-slate-700">Szerokość całkowita (W)</label>
+                        <span className="font-mono font-bold text-slate-900">{widthMm} mm</span>
+                      </div>
+                      <input
+                        type="number"
+                        min={400}
+                        max={15000}
+                        step={10}
+                        value={widthMm}
+                        onChange={(e) => setWidthMm(Math.max(400, parseInt(e.target.value) || 400))}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+
+                    {/* Wysokość całkowita */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-semibold text-slate-700">Wysokość całkowita (H)</label>
+                        <span className="font-mono font-bold text-slate-900">{heightMm} mm</span>
+                      </div>
+                      <input
+                        type="number"
+                        min={400}
+                        max={4500}
+                        step={10}
+                        value={heightMm}
+                        onChange={(e) => setHeightMm(Math.max(400, parseInt(e.target.value) || 400))}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500"
+                      />
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Wymiary gabarytowe */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <Ruler size={13} className="text-cyan-600" /> Wymiary całkowite [mm]
-                  </span>
-                  <span className="font-mono text-[10px] text-cyan-700 font-bold bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200">
-                    {widthMm} × {heightMm} mm
-                  </span>
+              {/* Specyfikacja materiałowa: Szklenie i Kolorystyka (opcjonalny blok) */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5 transition-all">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={hasGlassAndColor}
+                      onClick={() => setHasGlassAndColor(!hasGlassAndColor)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        hasGlassAndColor ? "bg-cyan-600" : "bg-slate-300"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          hasGlassAndColor ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                    <label
+                      onClick={() => setHasGlassAndColor(!hasGlassAndColor)}
+                      className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 cursor-pointer select-none"
+                    >
+                      <Palette size={13} className="text-cyan-600" /> Szklenie i Kolorystyka profili
+                      <span className="text-[10px] text-slate-400 font-normal lowercase">(opcjonalnie)</span>
+                    </label>
+                  </div>
+
+                  {hasGlassAndColor && (fillType || color) ? (
+                    <span className="font-mono text-[10px] text-cyan-700 font-bold bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200 truncate max-w-[170px]">
+                      {[fillType, color].filter(Boolean).join(" • ")}
+                    </span>
+                  ) : null}
                 </div>
 
-                {/* Szerokość całkowita */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-semibold text-slate-700">Szerokość całkowita (W)</label>
-                    <span className="font-mono font-bold text-slate-900">{widthMm} mm</span>
-                  </div>
-                  <input
-                    type="number"
-                    min={400}
-                    max={15000}
-                    step={10}
-                    value={widthMm}
-                    onChange={(e) => setWidthMm(Math.max(400, parseInt(e.target.value) || 400))}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
+                {!hasGlassAndColor ? (
+                  <p className="text-[10px] text-slate-500">
+                    Brak domyślnego szklenia i koloru. Włącz przełącznik powyżej, jeśli chcesz zdefiniować domyślne wypełnienie oraz kod RAL dla tej konstrukcji.
+                  </p>
+                ) : (
+                  <div className="space-y-3 pt-1">
+                    {/* Szklenie / Wypełnienie */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Szklenie / Wypełnienie
+                        </label>
+                        {fillType && (
+                          <span className="font-mono text-[10px] text-cyan-700 font-bold">
+                            {fillType}
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={fillType}
+                        onChange={(e) => setFillType(e.target.value)}
+                        placeholder="np. HART 10, VSG 44.2, PAKIET 4/16/4..."
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-medium focus:outline-none focus:border-cyan-500 text-xs"
+                      />
+                    </div>
 
-                {/* Wysokość całkowita */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-semibold text-slate-700">Wysokość całkowita (H)</label>
-                    <span className="font-mono font-bold text-slate-900">{heightMm} mm</span>
+                    {/* Kolor profili */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Kolor profili (RAL)
+                        </label>
+                        {color && (
+                          <span className="font-mono text-[10px] text-cyan-700 font-bold">
+                            {color}
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={color}
+                        onChange={(e) => setColor(e.target.value)}
+                        placeholder="np. RAL 7016MAT, RAL 9005MAT, RAL 9016..."
+                        className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-medium focus:outline-none focus:border-cyan-500 text-xs"
+                      />
+                    </div>
                   </div>
-                  <input
-                    type="number"
-                    min={400}
-                    max={4500}
-                    step={10}
-                    value={heightMm}
-                    onChange={(e) => setHeightMm(Math.max(400, parseInt(e.target.value) || 400))}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
+                )}
               </div>
 
-              {/* Specyfikacja materiałowa: Szklenie i Kolorystyka */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                  <Palette size={13} className="text-cyan-600" /> Szklenie i Kolorystyka profili
-                </span>
-
-                {/* Szklenie / Wypełnienie */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      Szklenie / Wypełnienie
+              {/* Opis techniczny szablonu (opcjonalny blok) */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5 transition-all">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={hasDescription}
+                      onClick={() => setHasDescription(!hasDescription)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        hasDescription ? "bg-cyan-600" : "bg-slate-300"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          hasDescription ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                    <label
+                      onClick={() => setHasDescription(!hasDescription)}
+                      className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 cursor-pointer select-none"
+                    >
+                      <FileText size={13} className="text-cyan-600" /> Opis techniczny szablonu
+                      <span className="text-[10px] text-slate-400 font-normal lowercase">(opcjonalnie)</span>
                     </label>
-                    {fillType && (
-                      <span className="font-mono text-[10px] text-cyan-700 font-bold">
-                        {fillType}
-                      </span>
-                    )}
                   </div>
-                  <input
-                    type="text"
-                    value={fillType}
-                    onChange={(e) => setFillType(e.target.value)}
-                    placeholder="np. HART 10, VSG 44.2, PAKIET 4/16/4..."
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-medium focus:outline-none focus:border-cyan-500 text-xs"
-                  />
                 </div>
 
-                {/* Kolor profili */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      Kolor profili (RAL)
-                    </label>
-                    {color && (
-                      <span className="font-mono text-[10px] text-cyan-700 font-bold">
-                        {color}
-                      </span>
-                    )}
+                {!hasDescription ? (
+                  <p className="text-[10px] text-slate-500">
+                    Brak opisu technicznego. Włącz przełącznik powyżej, jeśli chcesz dodać szczegółowe notatki, wytyczne montażowe lub specyfikację szablonu.
+                  </p>
+                ) : (
+                  <div className="pt-1">
+                    <textarea
+                      rows={2}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Krótki opis przeznaczenia, montażu i parametrów"
+                      className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-700 text-xs focus:outline-none focus:border-cyan-500 resize-none"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    placeholder="np. RAL 7016MAT, RAL 9005MAT, RAL 9016..."
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-medium focus:outline-none focus:border-cyan-500 text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Opis techniczny */}
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Opis techniczny szablonu
-                </label>
-                <textarea
-                  rows={2}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Krótki opis przeznaczenia, montażu i parametrów"
-                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-700 text-xs focus:outline-none focus:border-cyan-500 resize-none"
-                />
+                )}
               </div>
             </div>
 
             {/* Stopka lewego panelu ze statystykami */}
             <div className="h-12 bg-slate-50 border-t border-slate-200 px-4 flex items-center justify-between text-[11px] shrink-0 font-mono">
               <span className="text-slate-500 font-sans">Powierzchnia:</span>
-              <span className="font-bold text-slate-800">{areaM2} m²</span>
+              <span className="font-bold text-slate-800">{hasDimensions ? `${areaM2} m²` : "—"}</span>
               <span className="text-slate-300">|</span>
               <span className="text-slate-500 font-sans">Cena:</span>
               <span className="font-bold text-emerald-700">
@@ -692,7 +853,9 @@ export function CadConstructionDesignerModal({
                 <>
                   <span className="text-slate-300">|</span>
                   <span className="text-slate-500 font-sans">Tory:</span>
-                  <span className="font-bold text-slate-800">{panesCount ? `${panesCount}T` : "Brak"}</span>
+                  <span className="font-bold text-slate-800">
+                    {hasTracks && panesCount ? `${panesCount}T` : "Brak"}
+                  </span>
                 </>
               )}
             </div>
@@ -731,6 +894,8 @@ export function CadConstructionDesignerModal({
           </div>
         </div>
       </div>
-    </div>
   );
 }
+
+export const CadConstructionEditor = CadConstructionDesignerModal;
+export type { CadConstructionDesignerModalProps as CadConstructionEditorProps };

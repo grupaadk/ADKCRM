@@ -71,11 +71,10 @@ export function ConstructionsTab() {
     ensureTriangle().catch(() => {});
   }, [categories, seedCategories, ensureTriangle]);
 
-  // View state: 'constructions' | 'categories'
-  const [activeView, setActiveView] = useState<"constructions" | "categories">("constructions");
+  // View state: 'constructions' | 'categories' | 'editor'
+  const [activeView, setActiveView] = useState<"constructions" | "categories" | "editor">("constructions");
 
-  // Construction Search and CAD Designer Modal
-  const [cadDesignerOpen, setCadDesignerOpen] = useState(false);
+  // Construction Search and CAD Designer
   const [editingConstruction, setEditingConstruction] = useState<ConstructionDoc | null>(null);
   const [previewConstruction, setPreviewConstruction] = useState<ConstructionDoc | null>(null);
   const [seeding, setSeeding] = useState(false);
@@ -143,12 +142,12 @@ export function ConstructionsTab() {
   // Handlers for Constructions (CAD Designer)
   const handleOpenCreate = () => {
     setEditingConstruction(null);
-    setCadDesignerOpen(true);
+    setActiveView("editor");
   };
 
   const handleOpenEdit = (c: ConstructionDoc) => {
     setEditingConstruction(c);
-    setCadDesignerOpen(true);
+    setActiveView("editor");
   };
 
   const handleSaveCadConstruction = async (data: {
@@ -160,8 +159,8 @@ export function ConstructionsTab() {
     description?: string;
     defaultSystem?: string;
     defaultColor?: string;
-    defaultWidthMm: number;
-    defaultHeightMm: number;
+    defaultWidthMm?: number;
+    defaultHeightMm?: number;
     defaultPanesCount?: number;
     defaultFillType?: string;
     defaultWarning?: string;
@@ -174,13 +173,13 @@ export function ConstructionsTab() {
         code: data.code,
         categoryId: data.categoryId,
         category: data.category ?? "",
-        description: data.description ?? "",
+        description: data.description !== undefined ? data.description : null,
         defaultSystem: data.defaultSystem,
-        defaultColor: data.defaultColor,
-        defaultWidthMm: data.defaultWidthMm,
-        defaultHeightMm: data.defaultHeightMm,
+        defaultColor: data.defaultColor !== undefined ? data.defaultColor : null,
+        defaultWidthMm: data.defaultWidthMm !== undefined ? data.defaultWidthMm : null,
+        defaultHeightMm: data.defaultHeightMm !== undefined ? data.defaultHeightMm : null,
         defaultPanesCount: data.defaultPanesCount !== undefined ? data.defaultPanesCount : null,
-        defaultFillType: data.defaultFillType,
+        defaultFillType: data.defaultFillType !== undefined ? data.defaultFillType : null,
         defaultWarning: data.defaultWarning ?? "",
         defaultPriceNet: data.defaultPriceNet,
       });
@@ -201,6 +200,7 @@ export function ConstructionsTab() {
         defaultPriceNet: data.defaultPriceNet,
       });
     }
+    setActiveView("constructions");
   };
 
   const handleDelete = async (id: Id<"constructions">) => {
@@ -308,6 +308,23 @@ export function ConstructionsTab() {
     await reorderCategory({ id: current._id, sortOrder: newCurrentOrder });
     await reorderCategory({ id: next._id, sortOrder: newNextOrder });
   };
+
+  if (activeView === "editor") {
+    return (
+      <div className="space-y-3 animate-in fade-in duration-150">
+        <CadConstructionDesignerModal
+          isOpen={true}
+          onClose={() => {
+            setEditingConstruction(null);
+            setActiveView("constructions");
+          }}
+          onSave={handleSaveCadConstruction}
+          initialData={editingConstruction}
+          categories={categories}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -485,8 +502,6 @@ export function ConstructionsTab() {
                   <tbody className="divide-y divide-slate-100">
                     {filteredConstructions.map((c, index) => {
                       const panes = Math.max(1, c.defaultPanesCount || 1);
-                      const width = c.defaultWidthMm || 2880;
-                      const height = c.defaultHeightMm || 2300;
 
                       // Category style badge
                       const linkedCat = c.categoryId ? categoryMap.get(c.categoryId) : undefined;
@@ -672,7 +687,11 @@ export function ConstructionsTab() {
 
                           {/* Wymiary */}
                           <td className="px-3 py-3 text-slate-700 whitespace-nowrap font-mono text-[11px]">
-                            <div>{width} × {height} mm</div>
+                            <div>
+                              {c.defaultWidthMm && c.defaultHeightMm
+                                ? `${c.defaultWidthMm} × ${c.defaultHeightMm} mm`
+                                : "Brak wymiarów"}
+                            </div>
                             <div className="text-[10px] text-slate-400 font-sans font-normal">
                               {c.defaultPanesCount
                                 ? `${c.defaultPanesCount} ${c.defaultPanesCount === 1 ? "tor" : c.defaultPanesCount < 5 ? "tory" : "torów"}`
@@ -973,17 +992,6 @@ export function ConstructionsTab() {
           </div>
         </div>
       )}
-
-      {/* ════════════════════════════════════════════════════════════════════════ */}
-      {/* MODAL: PROJEKTANT KONSTRUKCJI CAD (TWORZENIE I EDYCJA Z CADEM)           */}
-      {/* ════════════════════════════════════════════════════════════════════════ */}
-      <CadConstructionDesignerModal
-        isOpen={cadDesignerOpen}
-        onClose={() => setCadDesignerOpen(false)}
-        onSave={handleSaveCadConstruction}
-        initialData={editingConstruction}
-        categories={categories}
-      />
 
       {/* ════════════════════════════════════════════════════════════════════════ */}
       {/* MODAL: DODAJ / EDYTUJ KATEGORIĘ                                        */}
