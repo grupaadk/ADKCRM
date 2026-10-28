@@ -14,7 +14,19 @@ export const list = query({
       constructions = constructions.filter((c) => c.isActive);
     }
     return constructions
-      .map((c) => ({ ...c, defaultWarning: undefined }))
+      .map((c) => {
+        const mat = c.materialPriceNet || 0;
+        const inst = c.installationPriceNet || 0;
+        const hasSpecific = c.materialPriceNet !== undefined || c.installationPriceNet !== undefined;
+        const effectivePrice = hasSpecific
+          ? (mat + inst > 0 ? mat + inst : undefined)
+          : (c.defaultPriceNet && c.defaultPriceNet > 0 ? c.defaultPriceNet : undefined);
+        return {
+          ...c,
+          defaultPriceNet: effectivePrice,
+          defaultWarning: undefined,
+        };
+      })
       .sort((a, b) => a.sortOrder - b.sortOrder);
   },
 });
@@ -29,7 +41,17 @@ export const get = query({
   handler: async (ctx, args) => {
     const c = await ctx.db.get(args.id);
     if (!c) return null;
-    return { ...c, defaultWarning: undefined };
+    const mat = c.materialPriceNet || 0;
+    const inst = c.installationPriceNet || 0;
+    const hasSpecific = c.materialPriceNet !== undefined || c.installationPriceNet !== undefined;
+    const effectivePrice = hasSpecific
+      ? (mat + inst > 0 ? mat + inst : undefined)
+      : (c.defaultPriceNet && c.defaultPriceNet > 0 ? c.defaultPriceNet : undefined);
+    return {
+      ...c,
+      defaultPriceNet: effectivePrice,
+      defaultWarning: undefined,
+    };
   },
 });
 
@@ -164,7 +186,7 @@ export const update = mutation({
     } else if (fields.materialPriceNet !== undefined || fields.installationPriceNet !== undefined) {
       const mat = fields.materialPriceNet !== undefined ? (fields.materialPriceNet ?? 0) : (existing.materialPriceNet ?? 0);
       const inst = fields.installationPriceNet !== undefined ? (fields.installationPriceNet ?? 0) : (existing.installationPriceNet ?? 0);
-      patch.defaultPriceNet = mat + inst > 0 ? mat + inst : undefined;
+      patch.defaultPriceNet = mat + inst > 0 ? mat + inst : 0;
     }
     if (fields.materialCostNet !== undefined) patch.materialCostNet = fields.materialCostNet ?? undefined;
     if (fields.materialMarkupType !== undefined) patch.materialMarkupType = fields.materialMarkupType ?? undefined;

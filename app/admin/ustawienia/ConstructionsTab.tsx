@@ -737,12 +737,13 @@ export function ConstructionsTab() {
 
                           {/* Cena netto */}
                           <td className="px-3 py-3 whitespace-nowrap font-mono text-xs">
-                            {c.materialPriceNet !== undefined || c.installationPriceNet !== undefined || c.defaultPriceNet !== undefined ? (
+                            {((c.materialPriceNet !== undefined && c.materialPriceNet !== null && c.materialPriceNet > 0) ||
+                             (c.installationPriceNet !== undefined && c.installationPriceNet !== null && c.installationPriceNet > 0)) ? (
                               <div className="space-y-0.5">
                                 <div className="text-[11px] text-slate-800">
                                   <span className="text-slate-400 font-sans text-[10px]">Mat: </span>
                                   <span className="font-bold">
-                                    {c.materialPriceNet !== undefined && c.materialPriceNet !== null
+                                    {c.materialPriceNet !== undefined && c.materialPriceNet !== null && c.materialPriceNet > 0
                                       ? `${c.materialPriceNet.toLocaleString("pl-PL")} zł`
                                       : "—"}
                                   </span>
@@ -755,7 +756,7 @@ export function ConstructionsTab() {
                                 <div className="text-[11px] text-slate-800">
                                   <span className="text-slate-400 font-sans text-[10px]">Montaż: </span>
                                   <span className="font-bold">
-                                    {c.installationPriceNet !== undefined && c.installationPriceNet !== null
+                                    {c.installationPriceNet !== undefined && c.installationPriceNet !== null && c.installationPriceNet > 0
                                       ? `${c.installationPriceNet.toLocaleString("pl-PL")} zł`
                                       : "—"}
                                   </span>
@@ -767,7 +768,7 @@ export function ConstructionsTab() {
                                 </div>
                                 <div className="text-[10px] text-emerald-700 font-bold border-t border-slate-100 pt-0.5 mt-0.5">
                                   <span className="text-slate-400 font-sans font-normal">Razem: </span>
-                                  {((c.materialPriceNet || 0) + (c.installationPriceNet || 0) || c.defaultPriceNet || 0).toLocaleString("pl-PL")} zł
+                                  {((c.materialPriceNet || 0) + (c.installationPriceNet || 0)).toLocaleString("pl-PL")} zł
                                 </div>
                               </div>
                             ) : (
