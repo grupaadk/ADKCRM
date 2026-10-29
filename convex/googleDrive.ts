@@ -5901,5 +5901,42 @@ export const createTestingOfferTemplateDoc = action({
   },
 });
 
+export const exportGoogleSheetXlsxBase64 = action({
+  args: {
+    fileId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    let connection = await getAuthorizedConnection(ctx);
+    const exportUrl = `${DRIVE_API_BASE}/files/${args.fileId}/export?mimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet&supportsAllDrives=true`;
+
+    let res = await fetch(exportUrl, {
+      headers: { Authorization: `Bearer ${connection.accessToken}` },
+    });
+
+    if (res.status === 401) {
+      connection = await getAuthorizedConnection(ctx, { forceRefresh: true });
+      res = await fetch(exportUrl, {
+        headers: { Authorization: `Bearer ${connection.accessToken}` },
+      });
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Failed to export spreadsheet (${res.status}): ${errText}`);
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = "";
+    const len = bytes.byteLength;
+    const chunkSize = 8192;
+    for (let i = 0; i < len; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode.apply(null, Array.from(chunk));
+    }
+    return btoa(binary);
+  },
+});
+
 
 

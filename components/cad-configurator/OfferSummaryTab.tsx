@@ -9,6 +9,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import toast from "react-hot-toast";
 import { CadConstructionItem } from "./CadCanvas";
 import { uploadCadSnapshotsForOffer } from "./cadSvgRenderer";
+import { isGlassSystemConstruction, checkIsStandard } from "@/lib/glassPricing";
 import {
   FileText,
   Calculator,
@@ -1190,11 +1191,46 @@ export function OfferSummaryTab({
 
                       {/* Name, Color, Glass */}
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-[#0b1220] group-hover:text-[#0e7490] transition-colors text-xs md:text-sm">
-                            {it.name}
-                          </span>
-                        </div>
+                        {(() => {
+                          const isGlass = isGlassSystemConstruction({
+                            name: it.name,
+                            shortName: it.shortName,
+                            systemName: it.systemName,
+                            fillType: it.fillType,
+                          });
+                          const standardInfo = isGlass
+                            ? checkIsStandard(
+                                Math.round(it.widthMm / 10),
+                                Math.round(it.heightMm / 10)
+                              )
+                            : null;
+
+                          return (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-[#0b1220] group-hover:text-[#0e7490] transition-colors text-xs md:text-sm">
+                                {it.name}
+                              </span>
+                              {standardInfo && (
+                                standardInfo.isStandard ? (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs"
+                                    title="Wymiar standardowy (wysokość ze skokiem co 5 cm, szerokość modułowa)"
+                                  >
+                                    <Check size={10} strokeWidth={2.5} />
+                                    STANDARD
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200/80 shadow-2xs"
+                                    title={standardInfo.reason || "Wymiar niestandardowy (wyliczony wg kalkulatora szkła)"}
+                                  >
+                                    NIESTANDARD {standardInfo.standardWidthCm ? `(${standardInfo.standardWidthCm})` : ""}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          );
+                        })()}
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-[#64748b] mt-1">
                           {it.systemName ? (
                             <span>

@@ -7,7 +7,14 @@ import {
   DollarSign,
   Ruler,
   Palette,
+  Check,
+  Calculator,
 } from "lucide-react";
+import {
+  isGlassSystemConstruction,
+  checkIsStandard,
+  calculateGlassSystemPricing,
+} from "@/lib/glassPricing";
 
 interface LeftPropertiesPanelProps {
   item: CadConstructionItem;
@@ -35,6 +42,20 @@ export function LeftPropertiesPanel({
 
   const profit = price - cost;
   const marginPct = price > 0 ? Math.round((profit / price) * 100) : 0;
+
+  const isGlass = isGlassSystemConstruction({
+    name: item.name,
+    shortName: item.shortName,
+    systemName: item.systemName,
+    fillType: item.fillType,
+  });
+
+  const standardInfo = isGlass
+    ? checkIsStandard(
+        Math.round((item.widthMm || 0) / 10),
+        Math.round((item.heightMm || 0) / 10)
+      )
+    : null;
 
   return (
     <aside className="w-80 bg-white border-r border-[#e3e7ee] flex flex-col h-full text-[#1f2937] select-none overflow-hidden shrink-0">
@@ -168,6 +189,28 @@ export function LeftPropertiesPanel({
               </span>
             </div>
           </div>
+
+          {standardInfo && (
+            <div className="flex items-center justify-between pt-2 border-t border-[#e3e7ee]">
+              <span className="text-[10px] text-[#7c8597] font-medium">Standard wyceny:</span>
+              {standardInfo.isStandard ? (
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  title="Wymiar standardowy (wysokość ze skokiem co 5 cm, szerokość modułowa)"
+                >
+                  <Check size={10} strokeWidth={2.5} />
+                  STANDARD ({standardInfo.standardWidthCm})
+                </span>
+              ) : (
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-200"
+                  title={standardInfo.reason}
+                >
+                  NIESTANDARD ({standardInfo.standardWidthCm})
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Sekcja: Kolor i Wypełnienie */}
@@ -436,6 +479,35 @@ export function LeftPropertiesPanel({
               </span>
             </div>
           </div>
+
+          {isGlass && !readOnly && (
+            <button
+              type="button"
+              onClick={() => {
+                const calc = calculateGlassSystemPricing(
+                  item.widthMm || 2880,
+                  item.heightMm || 2300
+                );
+                onChange({
+                  materialCostNet: calc.materialCostNet,
+                  materialPriceNet: calc.materialPriceNet,
+                  installationCostNet: calc.installationCostNet,
+                  installationPriceNet: calc.installationPriceNet,
+                  priceNet: calc.priceNet,
+                  costNet: calc.costNet,
+                  panesCount: calc.panesCount,
+                  isStandard: calc.isStandard,
+                  pricingTier: calc.pricingTier,
+                  standardWidthCm: calc.standardWidthCm,
+                });
+              }}
+              className="w-full text-center text-[11px] font-semibold text-[#0e7490] hover:text-[#085366] bg-[#f0fdfa] hover:bg-[#ccfbf1] border border-[#99f6e4] py-1.5 rounded transition-colors flex items-center justify-center gap-1.5"
+              title="Przelicz automatycznie koszty i ceny wg formuł z kalkulatora szkła (Excel)"
+            >
+              <Calculator size={13} className="text-[#0e7490]" />
+              <span>Przelicz z kalkulatora szkła (Excel)</span>
+            </button>
+          )}
         </div>
 
         {/* Uwagi konstrukcyjne */}

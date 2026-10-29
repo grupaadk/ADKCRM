@@ -1206,6 +1206,11 @@ export default defineSchema({
     terms: v.optional(v.string()),
     /** URL ostatnio wygenerowanego PDF-u oferty (Google Drive) */
     lastPdfUrl: v.optional(v.string()),
+    installationCostNet: v.optional(v.number()),
+    installationPriceNet: v.optional(v.number()),
+    installationItems: v.optional(v.any()),
+    installationTeamName: v.optional(v.string()),
+    pricingTier: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -1236,6 +1241,9 @@ export default defineSchema({
     materialPriceNet: v.optional(v.number()),
     installationCostNet: v.optional(v.number()),
     installationPriceNet: v.optional(v.number()),
+    isStandard: v.optional(v.boolean()),
+    pricingTier: v.optional(v.string()), // "STANDARD" | "NIESTANDARD"
+    standardWidthCm: v.optional(v.number()),
     segments: v.optional(
       v.array(
         v.object({

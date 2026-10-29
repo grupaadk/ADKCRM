@@ -1,6 +1,11 @@
 import { mutation, internalMutation, query, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { Id, Doc } from "./_generated/dataModel";
+import {
+  calculateGlassSystemPricing,
+  checkIsStandard,
+  isGlassSystemConstruction,
+} from "../lib/glassPricing";
 
 /**
  * Usuwa słowo "Przedstawiciel" z tytułów ofert i nazw klientów w całym systemie
@@ -91,38 +96,93 @@ export const getOfferWithItems = query({
             }) || null;
         }
 
+        const isGlass =
+          isGlassSystemConstruction({
+            name: item.name,
+            shortName: item.shortName,
+            systemName: item.systemName,
+            fillType: item.fillType,
+          }) ||
+          (tpl?.category || "").toLowerCase().includes("szkl");
+
+        const standardCheck = isGlass
+          ? checkIsStandard(
+              Math.round((item.widthMm || 0) / 10),
+              Math.round((item.heightMm || 0) / 10)
+            )
+          : null;
+
         const hasExplicitPillars =
           (item.materialPriceNet !== undefined && item.materialPriceNet !== null) ||
           (item.installationPriceNet !== undefined && item.installationPriceNet !== null);
 
-        if (!hasExplicitPillars && tpl) {
-          const matCost = tpl.materialCostNet ?? (item.costNet || 0);
-          const matPrice = tpl.materialPriceNet ?? (item.priceNet || 0);
-          const instCost = tpl.installationCostNet ?? 0;
-          const instPrice = tpl.installationPriceNet ?? 0;
-          const combinedPrice =
-            (tpl.materialPriceNet || 0) + (tpl.installationPriceNet || 0) > 0
-              ? (tpl.materialPriceNet || 0) + (tpl.installationPriceNet || 0)
-              : item.priceNet;
-          const combinedCost =
-            (tpl.materialCostNet || 0) + (tpl.installationCostNet || 0) > 0
-              ? (tpl.materialCostNet || 0) + (tpl.installationCostNet || 0)
-              : item.costNet;
+        if (!hasExplicitPillars && (tpl || isGlass)) {
+          let matCost = item.costNet || 0;
+          let matPrice = item.priceNet || 0;
+          let instCost = 0;
+          let instPrice = 0;
+          let combinedPrice = item.priceNet;
+          let combinedCost = item.costNet;
+
+          if (tpl && (tpl.materialPriceNet !== undefined || tpl.materialCostNet !== undefined)) {
+            matCost = tpl.materialCostNet ?? (item.costNet || 0);
+            matPrice = tpl.materialPriceNet ?? (item.priceNet || 0);
+            instCost = tpl.installationCostNet ?? 0;
+            instPrice = tpl.installationPriceNet ?? 0;
+            combinedPrice =
+              (tpl.materialPriceNet || 0) + (tpl.installationPriceNet || 0) > 0
+                ? (tpl.materialPriceNet || 0) + (tpl.installationPriceNet || 0)
+                : item.priceNet;
+            combinedCost =
+              (tpl.materialCostNet || 0) + (tpl.installationCostNet || 0) > 0
+                ? (tpl.materialCostNet || 0) + (tpl.installationCostNet || 0)
+                : item.costNet;
+          } else if (isGlass) {
+            const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm);
+            matCost = calc.materialCostNet;
+            matPrice = calc.materialPriceNet;
+            instCost = calc.installationCostNet;
+            instPrice = calc.installationPriceNet;
+            combinedPrice = calc.priceNet;
+            combinedCost = calc.costNet;
+          } else if (tpl) {
+            matCost = tpl.materialCostNet ?? (item.costNet || 0);
+            matPrice = tpl.materialPriceNet ?? (item.priceNet || 0);
+            instCost = tpl.installationCostNet ?? 0;
+            instPrice = tpl.installationPriceNet ?? 0;
+            combinedPrice =
+              (tpl.materialPriceNet || 0) + (tpl.installationPriceNet || 0) > 0
+                ? (tpl.materialPriceNet || 0) + (tpl.installationPriceNet || 0)
+                : item.priceNet;
+            combinedCost =
+              (tpl.materialCostNet || 0) + (tpl.installationCostNet || 0) > 0
+                ? (tpl.materialCostNet || 0) + (tpl.installationCostNet || 0)
+                : item.costNet;
+          }
 
           return {
             ...item,
-            constructionId: item.constructionId ?? tpl._id,
+            constructionId: item.constructionId ?? tpl?._id,
+            isStandard: standardCheck?.isStandard ?? item.isStandard,
+            pricingTier: standardCheck?.pricingTier ?? item.pricingTier,
+            standardWidthCm: standardCheck?.standardWidthCm ?? item.standardWidthCm,
             materialCostNet: matCost,
             materialPriceNet: matPrice,
             installationCostNet: instCost,
             installationPriceNet: instPrice,
-            installationUnit: tpl.installationUnit,
-            installationUnitRate: tpl.installationUnitRate,
+            installationUnit: tpl?.installationUnit,
+            installationUnitRate: tpl?.installationUnitRate,
             priceNet: combinedPrice,
             costNet: combinedCost,
           };
         }
-        return item;
+
+        return {
+          ...item,
+          isStandard: standardCheck?.isStandard ?? item.isStandard,
+          pricingTier: standardCheck?.pricingTier ?? item.pricingTier,
+          standardWidthCm: standardCheck?.standardWidthCm ?? item.standardWidthCm,
+        };
       })
     );
 
@@ -592,6 +652,9 @@ export const updateConstructionPosition = mutation({
     materialPriceNet: v.optional(v.number()),
     installationCostNet: v.optional(v.number()),
     installationPriceNet: v.optional(v.number()),
+    isStandard: v.optional(v.boolean()),
+    pricingTier: v.optional(v.string()),
+    standardWidthCm: v.optional(v.number()),
     placedAboveItemId: v.optional(v.union(v.string(), v.null())),
     placedBelowItemId: v.optional(v.union(v.string(), v.null())),
     rowIndex: v.optional(v.union(v.number(), v.null())),
@@ -637,6 +700,23 @@ export const updateConstructionPosition = mutation({
         profileLeft: `5450 ${newColor}`,
         profileRight: `5450 ${newColor}`,
       }));
+    }
+
+    const isGlass = isGlassSystemConstruction({
+      name: (fields.name as string) ?? item.name,
+      shortName: (fields.shortName as string) ?? item.shortName,
+      systemName: (fields.systemName as string) ?? item.systemName,
+      fillType: (fields.fillType as string) ?? item.fillType,
+    });
+
+    if (isGlass && (fields.widthMm !== undefined || fields.heightMm !== undefined)) {
+      const stdCheck = checkIsStandard(
+        Math.round(newWidth / 10),
+        Math.round(newHeight / 10)
+      );
+      patch.isStandard = fields.isStandard ?? stdCheck.isStandard;
+      patch.pricingTier = fields.pricingTier ?? stdCheck.pricingTier;
+      patch.standardWidthCm = fields.standardWidthCm ?? stdCheck.standardWidthCm;
     }
 
     await ctx.db.patch(itemId, patch);
@@ -799,7 +879,16 @@ export const syncOfferWithConstructionTemplates = mutation({
           }) || null;
       }
 
-      if (tpl) {
+      const isGlass =
+        isGlassSystemConstruction({
+          name: item.name,
+          shortName: item.shortName,
+          systemName: item.systemName,
+          fillType: item.fillType,
+        }) ||
+        (tpl?.category || "").toLowerCase().includes("szkl");
+
+      if (tpl && (tpl.materialPriceNet !== undefined || tpl.materialCostNet !== undefined)) {
         const matCost = tpl.materialCostNet ?? (item.costNet || 0);
         const matPrice = tpl.materialPriceNet ?? (item.priceNet || 0);
         const instCost = tpl.installationCostNet ?? 0;
@@ -821,6 +910,22 @@ export const syncOfferWithConstructionTemplates = mutation({
           installationPriceNet: instPrice,
           priceNet: combinedPrice,
           costNet: combinedCost,
+          updatedAt: Date.now(),
+        });
+        updatedCount++;
+      } else if (isGlass) {
+        const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm);
+        await ctx.db.patch(item._id, {
+          constructionId: tpl?._id ?? item.constructionId,
+          isStandard: calc.isStandard,
+          pricingTier: calc.pricingTier,
+          standardWidthCm: calc.standardWidthCm,
+          materialCostNet: calc.materialCostNet,
+          materialPriceNet: calc.materialPriceNet,
+          installationCostNet: calc.installationCostNet,
+          installationPriceNet: calc.installationPriceNet,
+          priceNet: calc.priceNet,
+          costNet: calc.costNet,
           updatedAt: Date.now(),
         });
         updatedCount++;

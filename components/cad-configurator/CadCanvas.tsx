@@ -35,6 +35,9 @@ export interface CadConstructionItem {
   materialPriceNet?: number;
   installationCostNet?: number;
   installationPriceNet?: number;
+  isStandard?: boolean;
+  pricingTier?: "STANDARD" | "NIESTANDARD" | string;
+  standardWidthCm?: number;
   segments?: CadSegment[];
   placedAboveItemId?: string;
   placedBelowItemId?: string;
