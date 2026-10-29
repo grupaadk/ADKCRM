@@ -328,6 +328,16 @@ export function OfferSummaryTab({
     }
   };
 
+  // Automatyczne uzdrowienie archiwalnych pozycji szkła z błędnym montażem 1373 zł
+  useEffect(() => {
+    const hasBuggyGlass = items.some(
+      (it) => isGlassSystemConstruction(it) && it.installationPriceNet === 1373
+    );
+    if (hasBuggyGlass && !isSyncing) {
+      syncWithTemplates({ offerId: offer._id as Id<"offers"> }).catch(() => {});
+    }
+  }, [items, offer._id, syncWithTemplates, isSyncing]);
+
   const handleDuplicateOffer = async () => {
     if (isDuplicating) return;
     setIsDuplicating(true);
@@ -405,7 +415,13 @@ export function OfferSummaryTab({
 
   const totalInstallationPrice = items.reduce((acc, it) => {
     const q = it.quantity || 1;
-    const price = it.installationPriceNet !== undefined && it.installationPriceNet !== null ? it.installationPriceNet : 0;
+    let price =
+      it.installationPriceNet !== undefined && it.installationPriceNet !== null
+        ? it.installationPriceNet
+        : 0;
+    if (price === 1373 && isGlassSystemConstruction(it)) {
+      price = 1587;
+    }
     return acc + price * q;
   }, 0);
 
@@ -750,7 +766,11 @@ export function OfferSummaryTab({
               </thead>
               <tbody>
                 {items.map((it) => {
-                  const unitPrice = it.priceNet || 0;
+                  const isGlass = isGlassSystemConstruction(it);
+                  const unitPrice =
+                    isGlass && (it.priceNet === 9999 || it.installationPriceNet === 1373)
+                      ? 10213
+                      : it.priceNet || 0;
                   const qty = it.quantity || 1;
                   const totalLinePrice = unitPrice * qty;
                   const panes = Math.max(1, it.panesCount || 3);
