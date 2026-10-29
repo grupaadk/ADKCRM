@@ -625,4 +625,53 @@ describe("CAD Offers and Constructions Module", () => {
     expect(afterSync2!.items[0].brushesCostNet).toBe(65);
     expect(afterSync2!.items[0].handlesCostNet).toBe(57);
   });
+
+  test("buildOfferReplacements correctly resolves {{Montaż}} and montage macros from CAD constructions", async () => {
+    const { buildOfferReplacements } = await import("../googleDrive");
+
+    const sampleOffer = {
+      offerNumber: "OF-2026-TEST",
+      title: "Oferta z montażem CAD",
+      totalPriceNet: 3301,
+      totalPriceGross: 4060,
+      discountPercent: 0,
+      vatRate: 23,
+    };
+
+    const sampleItems = [
+      {
+        name: "Ściana przesuwna 3-torowa",
+        priceNet: 3301,
+        materialPriceNet: 2719,
+        installationPriceNet: 582,
+        quantity: 1,
+      },
+    ];
+
+    const result = buildOfferReplacements({
+      offer: sampleOffer,
+      items: sampleItems,
+      clientFullName: "Jan Kowalski",
+      isDocsTemplate: true,
+    });
+
+    expect(result.montazNet).toBe(582);
+    expect(result.montazNetStr).toBe("582,00 zł");
+    expect(result.totalMaterialNet).toBe(2719);
+    expect(result.materialNetStr).toBe("2 719,00 zł");
+
+    // Weryfikacja obecności kluczowych wariantów placeholdera {{Montaż}}
+    const getReplacement = (tag: string) =>
+      result.replacements.find((r) => r.placeholder === tag)?.value;
+
+    expect(getReplacement("{{Montaż}}")).toBe("582,00 zł");
+    expect(getReplacement("{{montaż}}")).toBe("582,00 zł");
+    expect(getReplacement("{{MONTAŻ}}")).toBe("582,00 zł");
+    expect(getReplacement("{{montaz}}")).toBe("582,00 zł");
+    expect(getReplacement("{{Montaż}} zł")).toBe("582,00 zł");
+    expect(getReplacement("{{Montaż}} netto")).toBe("582,00 zł netto");
+    expect(getReplacement("{{cena_montażu}}")).toBe("582,00 zł");
+    expect(getReplacement("{{Konstrukcje}}")).toBe("2 719,00 zł");
+    expect(result.podsumowanieFinansowePelne).toContain("Montaż:\n582,00 zł");
+  });
 });

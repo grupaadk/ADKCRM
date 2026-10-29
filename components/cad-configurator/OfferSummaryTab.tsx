@@ -414,10 +414,6 @@ export function OfferSummaryTab({
   }, 0);
 
   const totalCombinedCost = totalMaterialCost + totalInstallationCost;
-  const matProfit = totalMaterialPrice - totalMaterialCost;
-  const matMarginPct = totalMaterialPrice > 0 ? Math.round((matProfit / totalMaterialPrice) * 100) : 0;
-  const instProfit = totalInstallationPrice - totalInstallationCost;
-  const instMarginPct = totalInstallationPrice > 0 ? Math.round((instProfit / totalInstallationPrice) * 100) : 0;
 
   const discountPct = offer.discountPercent || 0;
   const [prevDiscountPct, setPrevDiscountPct] = useState(discountPct);
@@ -1411,9 +1407,12 @@ export function OfferSummaryTab({
                 <div className="font-sans font-bold text-sm text-[#0b1220]">
                   Konstrukcje:
                 </div>
-                <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5">
-                  (cena katalogowa: {totalMaterialPrice.toLocaleString("pl-PL")} zł • koszty: {totalMaterialCost.toLocaleString("pl-PL")} zł • marża: {matMarginPct}%
-                  {discountPct > 0 ? ` • upust: -${discountAmount.toLocaleString("pl-PL")} zł` : ""})
+                <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5 space-y-0.5">
+                  <div>cena katalogowa: {totalMaterialPrice.toLocaleString("pl-PL")} zł</div>
+                  <div>koszty: {totalMaterialCost.toLocaleString("pl-PL")} zł</div>
+                  {discountPct > 0 && (
+                    <div className="text-rose-500 font-medium">upust: -{discountAmount.toLocaleString("pl-PL")} zł</div>
+                  )}
                 </div>
               </div>
 
@@ -1495,7 +1494,7 @@ export function OfferSummaryTab({
                   Montaż:
                 </div>
                 <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5">
-                  (koszt ekipy: {totalInstallationCost.toLocaleString("pl-PL")} zł • marża: {instMarginPct}%)
+                  koszt ekipy: {totalInstallationCost.toLocaleString("pl-PL")} zł
                 </div>
               </div>
 

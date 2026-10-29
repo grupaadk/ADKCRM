@@ -2308,9 +2308,22 @@ export const copyTemplate = action({
       const finalPct = 100 - advancePct - advance2Pct;
       const round2 = (n: number) => Math.round(n * 100) / 100;
       const lineItemsList = lineItemsResult.items.map((item) => item.name).join("\n");
+      const installationNetTotal = lineItemsResult.items.reduce((acc, item) => {
+        const q = item.quantity || 1;
+        const price =
+          item.installationPriceNet !== undefined && item.installationPriceNet !== null
+            ? item.installationPriceNet
+            : 0;
+        return acc + price * q;
+      }, 0);
       const computedFields = {
         estimateTotal: formatPLN(totalGross),
         estimateNetTotal: formatPLN(totalNet),
+        installationNetTotal: formatPLN(installationNetTotal),
+        installationPriceNet: formatPLN(installationNetTotal),
+        montaz: formatPLN(installationNetTotal),
+        montaż: formatPLN(installationNetTotal),
+        Montaż: formatPLN(installationNetTotal),
         lineItemsList,
         // Faktura VAT
         invoiceVatPct: effectiveType === "vat" ? "100%" : "",
@@ -2498,9 +2511,22 @@ export const copyWarrantyTemplate = action({
       const finalPct = 100 - advancePct - advance2Pct;
       const round2 = (n: number) => Math.round(n * 100) / 100;
       const lineItemsList = lineItemsResult.items.map((item) => item.name).join("\n");
+      const installationNetTotal = lineItemsResult.items.reduce((acc, item) => {
+        const q = item.quantity || 1;
+        const price =
+          item.installationPriceNet !== undefined && item.installationPriceNet !== null
+            ? item.installationPriceNet
+            : 0;
+        return acc + price * q;
+      }, 0);
       const computedFields = {
         estimateTotal: formatPLN(totalGross),
         estimateNetTotal: formatPLN(totalNet),
+        installationNetTotal: formatPLN(installationNetTotal),
+        installationPriceNet: formatPLN(installationNetTotal),
+        montaz: formatPLN(installationNetTotal),
+        montaż: formatPLN(installationNetTotal),
+        Montaż: formatPLN(installationNetTotal),
         lineItemsList,
         invoiceVatPct: effectiveType === "vat" ? "100%" : "",
         invoiceVatAmount: effectiveType === "vat" ? formatPLN(totalGross) : "",
@@ -2707,6 +2733,367 @@ async function uploadBufferToDrive(
   };
 }
 
+export function formatPLNCurrency(amount: number): string {
+  const rounded = Math.round(amount * 100) / 100;
+  const str = rounded.toFixed(2);
+  const dotIdx = str.indexOf(".");
+  const intPart = str.slice(0, dotIdx);
+  const decPart = str.slice(dotIdx + 1);
+  return `${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ")},${decPart} zł`;
+}
+
+/**
+ * Oblicza podsumowania finansowe oraz listę podstawień makr (placeholderów) dla szablonów ofert Google Docs i Slides.
+ */
+export function buildOfferReplacements(params: {
+  offer: {
+    offerNumber?: string;
+    title?: string;
+    totalPriceNet: number;
+    totalPriceGross: number;
+    discountPercent?: number;
+    vatRate?: number;
+    installationPriceNet?: number;
+    terms?: string;
+    notes?: string;
+  };
+  items: Array<{
+    name: string;
+    shortName?: string;
+    priceNet: number;
+    quantity?: number;
+    materialPriceNet?: number;
+    installationPriceNet?: number;
+    costNet?: number;
+    systemName?: string;
+    widthMm?: number;
+    heightMm?: number;
+    positionIndex?: number;
+  }>;
+  clientFullName?: string;
+  clientFirstName?: string;
+  clientLastName?: string;
+  clientPhone?: string;
+  clientEmail?: string;
+  clientCity?: string;
+  clientStreet?: string;
+  clientPostalCode?: string;
+  clientAddress?: string;
+  nazwaOferty?: string;
+  serviceName?: string;
+  investmentLoc?: string;
+  todayStr?: string;
+  offerNotesFormatted?: string;
+  isDocsTemplate?: boolean;
+}) {
+  const {
+    offer,
+    items,
+    clientFullName = "Klient",
+    clientFirstName = "",
+    clientLastName = "",
+    clientPhone = "",
+    clientEmail = "",
+    clientCity = "",
+    clientStreet = "",
+    clientPostalCode = "",
+    clientAddress = "",
+    nazwaOferty = offer.title || "Oferta",
+    serviceName = "",
+    investmentLoc = "",
+    todayStr = "",
+    offerNotesFormatted = "",
+    isDocsTemplate = false,
+  } = params;
+
+  const totalNetStr = formatPLNCurrency(offer.totalPriceNet);
+  const totalGrossStr = formatPLNCurrency(offer.totalPriceGross);
+  const discountPctStr = `${offer.discountPercent || 0}%`;
+  const netBeforeDiscount =
+    offer.discountPercent && offer.discountPercent > 0
+      ? offer.totalPriceNet / (1 - offer.discountPercent / 100)
+      : offer.totalPriceNet;
+  const netBeforeDiscountStr = formatPLNCurrency(netBeforeDiscount);
+
+  const vatRate = (offer as { vatRate?: number }).vatRate ?? 23;
+  const vatRateStr = `${vatRate}%`;
+  const vatAmount = Math.max(0, offer.totalPriceGross - offer.totalPriceNet);
+  const vatAmountStr = formatPLNCurrency(vatAmount);
+
+  // 1. Z pozycji konstrukcji CAD (suma installationPriceNet * quantity)
+  const cadMontazNet = items.reduce((acc, it) => {
+    const q = it.quantity || 1;
+    const price =
+      it.installationPriceNet !== undefined && it.installationPriceNet !== null
+        ? it.installationPriceNet
+        : 0;
+    return acc + price * q;
+  }, 0);
+
+  // 2. Fallback dla ofert ze standardową pozycją o nazwie "Montaż"
+  const legacyMontazItems = items.filter(
+    (it) => it.name.toLowerCase().includes("montaż") || it.name.toLowerCase().includes("montaz")
+  );
+  const legacyMontazNet = legacyMontazItems.reduce(
+    (acc, it) => acc + (it.priceNet || 0) * (it.quantity || 1),
+    0
+  );
+
+  // 3. Fallback do pola w ofercie offer.installationPriceNet
+  const offerInstPriceNet =
+    offer.installationPriceNet !== undefined && offer.installationPriceNet !== null
+      ? offer.installationPriceNet
+      : 0;
+
+  const montazNet =
+    cadMontazNet > 0
+      ? cadMontazNet
+      : offerInstPriceNet > 0
+        ? offerInstPriceNet
+        : legacyMontazNet;
+  const montazNetStr = formatPLNCurrency(montazNet);
+
+  const montazGross = Math.round(montazNet * (1 + vatRate / 100));
+  const montazGrossStr = formatPLNCurrency(montazGross);
+
+  // Wartość materiału / konstrukcji bez montażu
+  const totalMaterialNet = items.reduce((acc, it) => {
+    const q = it.quantity || 1;
+    if (it.materialPriceNet !== undefined && it.materialPriceNet !== null) {
+      return acc + it.materialPriceNet * q;
+    }
+    const inst = (it.installationPriceNet || 0) * q;
+    return acc + Math.max(0, (it.priceNet || 0) * q - inst);
+  }, 0);
+  const materialNetStr = formatPLNCurrency(totalMaterialNet);
+
+  const rabatKalkulacja =
+    offer.discountPercent && offer.discountPercent > 0
+      ? `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`
+      : totalNetStr;
+
+  const razemPodsumowanieLinia = `RAZEM =  ${totalNetStr} netto + ${vatRateStr}VAT = ${totalGrossStr} brutto`;
+
+  const podsumowanieFinansowePelne = [
+    "RAZEM:",
+    "Konstrukcje:",
+    `    ${rabatKalkulacja}`,
+    ...(montazNet > 0 ? ["Montaż:", `${montazNetStr}`] : []),
+    "",
+    "",
+    razemPodsumowanieLinia,
+  ].join("\n");
+
+  const lineItemsSummary = items
+    .map((it, idx) => {
+      const dims = it.widthMm && it.heightMm ? ` (B=${it.widthMm}, H=${it.heightMm})` : "";
+      const sys = it.systemName ? `${it.systemName} - ` : "";
+      const itemTotalNet = (it.priceNet || 0) * (it.quantity || 1);
+      return `${idx + 1}. ${sys}${it.name}${dims}\nIlość: ${it.quantity ?? 1} szt. | Cena netto: ${formatPLNCurrency(it.priceNet)} | Wartość netto: ${formatPLNCurrency(itemTotalNet)}`;
+    })
+    .join("\n\n");
+
+  const notesValue = isDocsTemplate ? "{{__uwagi_rich_content__}}" : offerNotesFormatted;
+
+  const replacements: Array<{ placeholder: string; value: string }> = [
+    // Różne warianty tagu klienta
+    { placeholder: "{{klient}}", value: clientFullName },
+    { placeholder: "{{KLIENT}}", value: clientFullName },
+    { placeholder: "{{Klient}}", value: clientFullName },
+    { placeholder: "{{ klient }}", value: clientFullName },
+    { placeholder: "{{ KLIENT }}", value: clientFullName },
+    { placeholder: "{{ Klient }}", value: clientFullName },
+    { placeholder: "{{client}}", value: clientFullName },
+    { placeholder: "{{clientName}}", value: clientFullName },
+    { placeholder: "{{imie}}", value: clientFirstName },
+    { placeholder: "{{nazwisko}}", value: clientLastName },
+    { placeholder: "{{telefon}}", value: clientPhone },
+    { placeholder: "{{phone}}", value: clientPhone },
+    { placeholder: "{{email}}", value: clientEmail },
+    { placeholder: "{{miasto}}", value: clientCity },
+    { placeholder: "{{city}}", value: clientCity },
+    { placeholder: "{{ulica}}", value: clientStreet },
+    { placeholder: "{{street}}", value: clientStreet },
+    { placeholder: "{{kod_pocztowy}}", value: clientPostalCode },
+    { placeholder: "{{postalCode}}", value: clientPostalCode },
+    { placeholder: "{{adres}}", value: clientAddress },
+    { placeholder: "{{address}}", value: clientAddress },
+    { placeholder: "{{numer_oferty}}", value: offer.offerNumber || "" },
+    { placeholder: "{{numer oferty}}", value: offer.offerNumber || "" },
+    { placeholder: "{{nr_oferty}}", value: offer.offerNumber || "" },
+    { placeholder: "{{offerNumber}}", value: offer.offerNumber || "" },
+    { placeholder: "{{tytul_oferty}}", value: offer.title || "" },
+    { placeholder: "{{nazwa_oferty}}", value: nazwaOferty },
+    { placeholder: "{{NAZWA_OFERTY}}", value: nazwaOferty },
+    { placeholder: "{{ nazwa_oferty }}", value: nazwaOferty },
+    { placeholder: "{{nazwa oferty}}", value: nazwaOferty },
+    { placeholder: "{{nazwaOferty}}", value: nazwaOferty },
+    { placeholder: "{{nazwa_pliku}}", value: nazwaOferty },
+    { placeholder: "{{offer_name}}", value: nazwaOferty },
+    { placeholder: "{{usluga}}", value: serviceName },
+    { placeholder: "{{lokalizacja}}", value: investmentLoc },
+    { placeholder: "{{lokalizacja_inwestycji}}", value: investmentLoc },
+    { placeholder: "{{data}}", value: todayStr },
+    { placeholder: "{{dzisiaj}}", value: todayStr },
+    { placeholder: "{{today}}", value: todayStr },
+    { placeholder: "{{date}}", value: todayStr },
+    { placeholder: "{{wartosc_netto}}", value: totalNetStr },
+    { placeholder: "{{totalNet}}", value: totalNetStr },
+    { placeholder: "{{wartosc_brutto}}", value: totalGrossStr },
+    { placeholder: "{{totalGross}}", value: totalGrossStr },
+    { placeholder: "{{wartość zamówienia netto}}", value: totalNetStr },
+    { placeholder: "{{wartość zamówienia brutto}}", value: totalGrossStr },
+    { placeholder: "{{rabat}}", value: discountPctStr },
+    { placeholder: "{{discount}}", value: discountPctStr },
+    { placeholder: "{{wartosc_przed_rabatem}}", value: netBeforeDiscountStr },
+    { placeholder: "{{uwagi}}", value: notesValue },
+    { placeholder: "{{notes}}", value: notesValue },
+    { placeholder: "{{warunki}}", value: offer.terms || "" },
+    { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
+    { placeholder: "{{pozycje}}", value: lineItemsSummary },
+
+    // Dedykowane makra podsumowania finansowego
+    { placeholder: "{{podsumowanie_finansowe}}", value: podsumowanieFinansowePelne },
+    { placeholder: "{{rozliczenie}}", value: podsumowanieFinansowePelne },
+    { placeholder: "{{rabat_kalkulacja}}", value: rabatKalkulacja },
+    { placeholder: "{{razem_podsumowanie}}", value: razemPodsumowanieLinia },
+    { placeholder: "{{razem_linia}}", value: razemPodsumowanieLinia },
+
+    // 1. Z jednostkami walutowymi i dopiskiem netto (aby nie dublować "zł" w szablonie)
+    { placeholder: "{{Montaż}} zł netto", value: `${montazNetStr} netto` },
+    { placeholder: "{{montaż}} zł netto", value: `${montazNetStr} netto` },
+    { placeholder: "{{Montaż}} netto", value: `${montazNetStr} netto` },
+    { placeholder: "{{montaż}} netto", value: `${montazNetStr} netto` },
+    { placeholder: "{{montaz}} netto", value: `${montazNetStr} netto` },
+    { placeholder: "{{Montaz}} netto", value: `${montazNetStr} netto` },
+    { placeholder: "{{Montaż}} zł", value: montazNetStr },
+    { placeholder: "{{montaż}} zł", value: montazNetStr },
+    { placeholder: "{{MONTAŻ}} zł", value: montazNetStr },
+    { placeholder: "{{ Montaż }} zł", value: montazNetStr },
+    { placeholder: "{{ montaż }} zł", value: montazNetStr },
+    { placeholder: "{{Montaż}}zł", value: montazNetStr },
+    { placeholder: "{{montaż}}zł", value: montazNetStr },
+    { placeholder: "{{Montaz}} zł", value: montazNetStr },
+    { placeholder: "{{montaz}} zł", value: montazNetStr },
+    { placeholder: "{{montaz}}zł", value: montazNetStr },
+    { placeholder: "{{Montaz}}zł", value: montazNetStr },
+    { placeholder: "{{ Montaz }} zł", value: montazNetStr },
+    { placeholder: "{{ montaz }} zł", value: montazNetStr },
+
+    // 2. Podstawowe tagi montażu (z polskimi znakami i bez)
+    { placeholder: "{{Montaż}}", value: montazNetStr },
+    { placeholder: "{{montaż}}", value: montazNetStr },
+    { placeholder: "{{MONTAŻ}}", value: montazNetStr },
+    { placeholder: "{{ Montaż }}", value: montazNetStr },
+    { placeholder: "{{ montaż }}", value: montazNetStr },
+    { placeholder: "{{ MONTAŻ }}", value: montazNetStr },
+    { placeholder: "{{Montaz}}", value: montazNetStr },
+    { placeholder: "{{montaz}}", value: montazNetStr },
+    { placeholder: "{{MONTAZ}}", value: montazNetStr },
+    { placeholder: "{{ Montaz }}", value: montazNetStr },
+    { placeholder: "{{ montaz }}", value: montazNetStr },
+    { placeholder: "{{ MONTAZ }}", value: montazNetStr },
+    { placeholder: "{{cena_montazu}}", value: montazNetStr },
+    { placeholder: "{{cena_montażu}}", value: montazNetStr },
+    { placeholder: "{{Cena montażu}}", value: montazNetStr },
+    { placeholder: "{{cena montażu}}", value: montazNetStr },
+    { placeholder: "{{Cena montazu}}", value: montazNetStr },
+    { placeholder: "{{cena montazu}}", value: montazNetStr },
+    { placeholder: "{{koszt_montazu}}", value: montazNetStr },
+    { placeholder: "{{koszt_montażu}}", value: montazNetStr },
+    { placeholder: "{{Koszt montażu}}", value: montazNetStr },
+    { placeholder: "{{Koszt montazu}}", value: montazNetStr },
+    { placeholder: "{{montaz_netto}}", value: montazNetStr },
+    { placeholder: "{{montaż_netto}}", value: montazNetStr },
+    { placeholder: "{{Montaż_netto}}", value: montazNetStr },
+    { placeholder: "{{Montaz_netto}}", value: montazNetStr },
+    { placeholder: "{{montaż netto}}", value: montazNetStr },
+    { placeholder: "{{montaz netto}}", value: montazNetStr },
+    { placeholder: "{{Montaż netto}}", value: montazNetStr },
+    { placeholder: "{{Montaz netto}}", value: montazNetStr },
+
+    // 3. Warianty brutto montażu
+    { placeholder: "{{montaz_brutto}}", value: montazGrossStr },
+    { placeholder: "{{montaż_brutto}}", value: montazGrossStr },
+    { placeholder: "{{Montaż_brutto}}", value: montazGrossStr },
+    { placeholder: "{{Montaz_brutto}}", value: montazGrossStr },
+    { placeholder: "{{Montaż brutto}}", value: montazGrossStr },
+    { placeholder: "{{montaż brutto}}", value: montazGrossStr },
+    { placeholder: "{{montaz brutto}}", value: montazGrossStr },
+
+    // 4. Konstrukcje / materiał
+    { placeholder: "{{konstrukcje}}", value: materialNetStr },
+    { placeholder: "{{Konstrukcje}}", value: materialNetStr },
+    { placeholder: "{{KONSTRUKCJE}}", value: materialNetStr },
+    { placeholder: "{{ konstrukcja }}", value: materialNetStr },
+    { placeholder: "{{konstrukcja}}", value: materialNetStr },
+    { placeholder: "{{Konstrukcja}}", value: materialNetStr },
+    { placeholder: "{{material}}", value: materialNetStr },
+    { placeholder: "{{materiał}}", value: materialNetStr },
+    { placeholder: "{{Material}}", value: materialNetStr },
+    { placeholder: "{{Materiał}}", value: materialNetStr },
+
+    { placeholder: "{{kwota_vat}}", value: vatAmountStr },
+    { placeholder: "{{vat}}", value: vatAmountStr },
+    { placeholder: "{{stawka_vat}}", value: vatRateStr },
+
+    // Wzorce finansowe ze wzorca 1XJnz47VXgNXFrOagFj7JiFxcmesIFWQAkQXS7ckc-6Y:
+    {
+      placeholder: "RAZEM =  6 497.69zł netto + 23%VAT =7 992.15 zł brutto",
+      value: `RAZEM =  ${totalNetStr} netto + ${vatRateStr}VAT = ${totalGrossStr} brutto`,
+    },
+    {
+      placeholder: "6 997,11 - 20%RABAT = 5 597,69",
+      value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
+    },
+    {
+      placeholder: "6\u00a0997,11 - 20%RABAT = 5\u00a0597,69",
+      value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
+    },
+    ...(isDocsTemplate
+      ? [
+          {
+            placeholder: "W przypadku potrzeby uzyskania kontroli dostępu: + 200 zł netto",
+            value: "{{__uwagi_rich_content__}}",
+          },
+        ]
+      : [
+          {
+            placeholder: "W przypadku potrzeby uzyskania kontroli dostępu: + 200 zł netto",
+            value: offerNotesFormatted,
+          },
+        ]),
+    {
+      placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016\x0B(B=1 490, H=2 100)",
+      value: lineItemsSummary || "",
+    },
+    {
+      placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016",
+      value: lineItemsSummary || "",
+    },
+  ];
+
+  return {
+    montazNet,
+    montazNetStr,
+    montazGross,
+    montazGrossStr,
+    totalMaterialNet,
+    materialNetStr,
+    totalNetStr,
+    totalGrossStr,
+    discountPctStr,
+    netBeforeDiscountStr,
+    vatRateStr,
+    vatAmountStr,
+    rabatKalkulacja,
+    razemPodsumowanieLinia,
+    podsumowanieFinansowePelne,
+    lineItemsSummary,
+    replacements,
+  };
+}
+
 export const generateOfferPdf = action({
   args: {
     offerId: v.id("offers"),
@@ -2786,15 +3173,6 @@ export const generateOfferPdf = action({
     }
 
     // 3. Przygotuj dane do podstawienia
-    const formatPLN = (amount: number): string => {
-      const rounded = Math.round(amount * 100) / 100;
-      const str = rounded.toFixed(2);
-      const dotIdx = str.indexOf(".");
-      const intPart = str.slice(0, dotIdx);
-      const decPart = str.slice(dotIdx + 1);
-      return `${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ")},${decPart} zł`;
-    };
-
     const clientFirstName = opportunity.firstName || client?.firstName || "";
     const clientLastName = opportunity.lastName || client?.lastName || "";
     const clientFullName = [clientFirstName, clientLastName].filter(Boolean).join(" ") || "Klient";
@@ -2807,49 +3185,6 @@ export const generateOfferPdf = action({
 
     const now = new Date();
     const todayStr = `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}.${now.getFullYear()}`;
-
-    const totalNetStr = formatPLN(offer.totalPriceNet);
-    const totalGrossStr = formatPLN(offer.totalPriceGross);
-    const discountPctStr = `${offer.discountPercent || 0}%`;
-    const netBeforeDiscount = (offer.discountPercent && offer.discountPercent > 0)
-      ? offer.totalPriceNet / (1 - offer.discountPercent / 100)
-      : offer.totalPriceNet;
-    const netBeforeDiscountStr = formatPLN(netBeforeDiscount);
-
-    const vatRate = (offer as { vatRate?: number }).vatRate ?? 23;
-    const vatRateStr = `${vatRate}%`;
-    const vatAmount = Math.max(0, offer.totalPriceGross - offer.totalPriceNet);
-    const vatAmountStr = formatPLN(vatAmount);
-
-    const montazItems = items.filter(
-      (it) => it.name.toLowerCase().includes("montaż") || it.name.toLowerCase().includes("montaz")
-    );
-    const montazNet = montazItems.reduce((acc, it) => acc + (it.priceNet || 0) * (it.quantity || 1), 0);
-    const montazNetStr = formatPLN(montazNet);
-
-    const rabatKalkulacja = (offer.discountPercent && offer.discountPercent > 0)
-      ? `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`
-      : totalNetStr;
-
-    const razemPodsumowanieLinia = `RAZEM =  ${totalNetStr} netto + ${vatRateStr}VAT = ${totalGrossStr} brutto`;
-
-    const podsumowanieFinansowePelne = [
-      "RAZEM:",
-      "Konstrukcje:",
-      `    ${rabatKalkulacja}`,
-      ...(montazNet > 0 ? ["Montaż:", `${montazNetStr}`] : []),
-      "",
-      "",
-      razemPodsumowanieLinia,
-    ].join("\n");
-
-    const lineItemsSummary = items.map((it, idx) => {
-      const dims = (it.widthMm && it.heightMm) ? ` (B=${it.widthMm}, H=${it.heightMm})` : "";
-      const sys = it.systemName ? `${it.systemName} - ` : "";
-      const itemTotalNet = (it.priceNet || 0) * (it.quantity || 1);
-      return `${idx + 1}. ${sys}${it.name}${dims}\nIlość: ${it.quantity} szt. | Cena netto: ${formatPLN(it.priceNet)} | Wartość netto: ${formatPLN(itemTotalNet)}`;
-    }).join("\n\n");
-
     const offerNotesFormatted = htmlToFormattedPlainText(offer.notes);
 
     // Format daty RRRR-MM-DD
@@ -2904,6 +3239,46 @@ export const generateOfferPdf = action({
     const safeOfferNumber = (offer.offerNumber || "ADK").replace(/[/\\:*?"<>|]/g, "_");
     const safeOfferName = nazwaOferty.replace(/[/\\:*?"<>|]/g, "_") || `Oferta_${safeOfferNumber}_${safeLastName}`;
     const docCopyName = `${safeOfferName}_temp_${Date.now()}`;
+
+    const slidesFinancials = buildOfferReplacements({
+      offer,
+      items,
+      clientFullName,
+      clientFirstName,
+      clientLastName,
+      clientPhone,
+      clientEmail,
+      clientCity,
+      clientStreet,
+      clientPostalCode,
+      clientAddress,
+      nazwaOferty,
+      serviceName,
+      investmentLoc,
+      todayStr,
+      offerNotesFormatted,
+      isDocsTemplate: false,
+    });
+
+    const docsFinancials = buildOfferReplacements({
+      offer,
+      items,
+      clientFullName,
+      clientFirstName,
+      clientLastName,
+      clientPhone,
+      clientEmail,
+      clientCity,
+      clientStreet,
+      clientPostalCode,
+      clientAddress,
+      nazwaOferty,
+      serviceName,
+      investmentLoc,
+      todayStr,
+      offerNotesFormatted,
+      isDocsTemplate: true,
+    });
 
     // 4. Skopiuj szablon na Google Drive
     const copyData = await driveApiFetchWithRetry(
@@ -3212,90 +3587,7 @@ export const generateOfferPdf = action({
         }
 
         // C. Podstaw ogólne dane oferty i klienta w całej prezentacji (okładka, stopka, podsumowanie)
-        const globalReplacements: Array<{ placeholder: string; value: string }> = [
-          // Różne warianty tagu klienta
-          { placeholder: "{{klient}}", value: clientFullName },
-          { placeholder: "{{KLIENT}}", value: clientFullName },
-          { placeholder: "{{Klient}}", value: clientFullName },
-          { placeholder: "{{ klient }}", value: clientFullName },
-          { placeholder: "{{ KLIENT }}", value: clientFullName },
-          { placeholder: "{{ Klient }}", value: clientFullName },
-          { placeholder: "{{client}}", value: clientFullName },
-          { placeholder: "{{clientName}}", value: clientFullName },
-          { placeholder: "{{imie}}", value: clientFirstName },
-          { placeholder: "{{nazwisko}}", value: clientLastName },
-          { placeholder: "{{telefon}}", value: clientPhone },
-          { placeholder: "{{phone}}", value: clientPhone },
-          { placeholder: "{{email}}", value: clientEmail },
-          { placeholder: "{{miasto}}", value: clientCity },
-          { placeholder: "{{city}}", value: clientCity },
-          { placeholder: "{{ulica}}", value: clientStreet },
-          { placeholder: "{{street}}", value: clientStreet },
-          { placeholder: "{{kod_pocztowy}}", value: clientPostalCode },
-          { placeholder: "{{postalCode}}", value: clientPostalCode },
-          { placeholder: "{{adres}}", value: clientAddress },
-          { placeholder: "{{address}}", value: clientAddress },
-          { placeholder: "{{numer_oferty}}", value: offer.offerNumber || "" },
-          { placeholder: "{{offerNumber}}", value: offer.offerNumber || "" },
-          { placeholder: "{{tytul_oferty}}", value: offer.title || "" },
-          { placeholder: "{{nazwa_oferty}}", value: nazwaOferty },
-          { placeholder: "{{NAZWA_OFERTY}}", value: nazwaOferty },
-          { placeholder: "{{ nazwa_oferty }}", value: nazwaOferty },
-          { placeholder: "{{nazwa oferty}}", value: nazwaOferty },
-          { placeholder: "{{nazwaOferty}}", value: nazwaOferty },
-          { placeholder: "{{nazwa_pliku}}", value: nazwaOferty },
-          { placeholder: "{{offer_name}}", value: nazwaOferty },
-          { placeholder: "{{usluga}}", value: serviceName },
-          { placeholder: "{{lokalizacja}}", value: investmentLoc },
-          { placeholder: "{{lokalizacja_inwestycji}}", value: investmentLoc },
-          { placeholder: "{{data}}", value: todayStr },
-          { placeholder: "{{today}}", value: todayStr },
-          { placeholder: "{{dzisiaj}}", value: todayStr },
-          { placeholder: "{{wartosc_netto}}", value: totalNetStr },
-          { placeholder: "{{totalNet}}", value: totalNetStr },
-          { placeholder: "{{wartosc_brutto}}", value: totalGrossStr },
-          { placeholder: "{{totalGross}}", value: totalGrossStr },
-          { placeholder: "{{wartość zamówienia netto}}", value: totalNetStr },
-          { placeholder: "{{wartość zamówienia brutto}}", value: totalGrossStr },
-          { placeholder: "{{rabat}}", value: discountPctStr },
-          { placeholder: "{{discount}}", value: discountPctStr },
-          { placeholder: "{{wartosc_przed_rabatem}}", value: netBeforeDiscountStr },
-          { placeholder: "{{uwagi}}", value: offerNotesFormatted },
-          { placeholder: "{{notes}}", value: offerNotesFormatted },
-          { placeholder: "{{warunki}}", value: offer.terms || "" },
-          { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
-          { placeholder: "{{pozycje}}", value: lineItemsSummary },
-
-          // Dedykowane makra podsumowania finansowego
-          { placeholder: "{{podsumowanie_finansowe}}", value: podsumowanieFinansowePelne },
-          { placeholder: "{{rozliczenie}}", value: podsumowanieFinansowePelne },
-          { placeholder: "{{rabat_kalkulacja}}", value: rabatKalkulacja },
-          { placeholder: "{{razem_podsumowanie}}", value: razemPodsumowanieLinia },
-          { placeholder: "{{razem_linia}}", value: razemPodsumowanieLinia },
-          { placeholder: "{{montaz}}", value: montazNetStr },
-          { placeholder: "{{montaz_netto}}", value: montazNetStr },
-          { placeholder: "{{kwota_vat}}", value: vatAmountStr },
-          { placeholder: "{{vat}}", value: vatAmountStr },
-          { placeholder: "{{stawka_vat}}", value: vatRateStr },
-
-          // Wzorce finansowe ze wzorca:
-          {
-            placeholder: "RAZEM =  6 497.69zł netto + 23%VAT =7 992.15 zł brutto",
-            value: `RAZEM =  ${totalNetStr} netto + ${vatRateStr}VAT = ${totalGrossStr} brutto`,
-          },
-          {
-            placeholder: "6 997,11 - 20%RABAT = 5 597,69",
-            value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
-          },
-          {
-            placeholder: "6\u00a0997,11 - 20%RABAT = 5\u00a0597,69",
-            value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
-          },
-          {
-            placeholder: "W przypadku potrzeby uzyskania kontroli dostępu: + 200 zł netto",
-            value: offerNotesFormatted,
-          },
-        ];
+        const globalReplacements = slidesFinancials.replacements;
 
         // 1. Dodaj globalne podstawienia tekstu dla całej prezentacji
         for (const rep of globalReplacements) {
@@ -3472,99 +3764,7 @@ export const generateOfferPdf = action({
         };
 
         const docReplacements: Array<{ placeholder: string; value: string }> = [
-          // Różne warianty tagu klienta
-          { placeholder: "{{klient}}", value: clientFullName },
-          { placeholder: "{{KLIENT}}", value: clientFullName },
-          { placeholder: "{{Klient}}", value: clientFullName },
-          { placeholder: "{{ klient }}", value: clientFullName },
-          { placeholder: "{{ KLIENT }}", value: clientFullName },
-          { placeholder: "{{ Klient }}", value: clientFullName },
-          { placeholder: "{{client}}", value: clientFullName },
-          { placeholder: "{{clientName}}", value: clientFullName },
-          { placeholder: "{{imie}}", value: clientFirstName },
-          { placeholder: "{{nazwisko}}", value: clientLastName },
-          { placeholder: "{{telefon}}", value: clientPhone },
-          { placeholder: "{{phone}}", value: clientPhone },
-          { placeholder: "{{email}}", value: clientEmail },
-          { placeholder: "{{miasto}}", value: clientCity },
-          { placeholder: "{{city}}", value: clientCity },
-          { placeholder: "{{ulica}}", value: clientStreet },
-          { placeholder: "{{street}}", value: clientStreet },
-          { placeholder: "{{kod_pocztowy}}", value: clientPostalCode },
-          { placeholder: "{{postalCode}}", value: clientPostalCode },
-          { placeholder: "{{adres}}", value: clientAddress },
-          { placeholder: "{{address}}", value: clientAddress },
-          { placeholder: "{{numer_oferty}}", value: offer.offerNumber || "" },
-          { placeholder: "{{numer oferty}}", value: offer.offerNumber || "" },
-          { placeholder: "{{nr_oferty}}", value: offer.offerNumber || "" },
-          { placeholder: "{{offerNumber}}", value: offer.offerNumber || "" },
-          { placeholder: "{{tytul_oferty}}", value: offer.title || "" },
-          { placeholder: "{{nazwa_oferty}}", value: nazwaOferty },
-          { placeholder: "{{NAZWA_OFERTY}}", value: nazwaOferty },
-          { placeholder: "{{ nazwa_oferty }}", value: nazwaOferty },
-          { placeholder: "{{nazwa oferty}}", value: nazwaOferty },
-          { placeholder: "{{nazwaOferty}}", value: nazwaOferty },
-          { placeholder: "{{nazwa_pliku}}", value: nazwaOferty },
-          { placeholder: "{{offer_name}}", value: nazwaOferty },
-          { placeholder: "{{usluga}}", value: serviceName },
-          { placeholder: "{{lokalizacja}}", value: investmentLoc },
-          { placeholder: "{{lokalizacja_inwestycji}}", value: investmentLoc },
-          { placeholder: "{{data}}", value: todayStr },
-          { placeholder: "{{dzisiaj}}", value: todayStr },
-          { placeholder: "{{today}}", value: todayStr },
-          { placeholder: "{{date}}", value: todayStr },
-          { placeholder: "{{wartosc_netto}}", value: totalNetStr },
-          { placeholder: "{{totalNet}}", value: totalNetStr },
-          { placeholder: "{{wartosc_brutto}}", value: totalGrossStr },
-          { placeholder: "{{totalGross}}", value: totalGrossStr },
-          { placeholder: "{{wartość zamówienia netto}}", value: totalNetStr },
-          { placeholder: "{{wartość zamówienia brutto}}", value: totalGrossStr },
-          { placeholder: "{{rabat}}", value: discountPctStr },
-          { placeholder: "{{discount}}", value: discountPctStr },
-          { placeholder: "{{wartosc_przed_rabatem}}", value: netBeforeDiscountStr },
-          { placeholder: "{{uwagi}}", value: "{{__uwagi_rich_content__}}" },
-          { placeholder: "{{notes}}", value: "{{__uwagi_rich_content__}}" },
-          { placeholder: "{{warunki}}", value: offer.terms || "" },
-          { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
-          { placeholder: "{{pozycje}}", value: lineItemsSummary },
-
-          // Dedykowane makra podsumowania finansowego
-          { placeholder: "{{podsumowanie_finansowe}}", value: podsumowanieFinansowePelne },
-          { placeholder: "{{rozliczenie}}", value: podsumowanieFinansowePelne },
-          { placeholder: "{{rabat_kalkulacja}}", value: rabatKalkulacja },
-          { placeholder: "{{razem_podsumowanie}}", value: razemPodsumowanieLinia },
-          { placeholder: "{{razem_linia}}", value: razemPodsumowanieLinia },
-          { placeholder: "{{montaz}}", value: montazNetStr },
-          { placeholder: "{{montaz_netto}}", value: montazNetStr },
-          { placeholder: "{{kwota_vat}}", value: vatAmountStr },
-          { placeholder: "{{vat}}", value: vatAmountStr },
-          { placeholder: "{{stawka_vat}}", value: vatRateStr },
-
-          // Wzorce finansowe ze wzorca 1XJnz47VXgNXFrOagFj7JiFxcmesIFWQAkQXS7ckc-6Y:
-          {
-            placeholder: "RAZEM =  6 497.69zł netto + 23%VAT =7 992.15 zł brutto",
-            value: `RAZEM =  ${totalNetStr} netto + ${vatRateStr}VAT = ${totalGrossStr} brutto`,
-          },
-          {
-            placeholder: "6 997,11 - 20%RABAT = 5 597,69",
-            value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
-          },
-          {
-            placeholder: "6\u00a0997,11 - 20%RABAT = 5\u00a0597,69",
-            value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
-          },
-          {
-            placeholder: "W przypadku potrzeby uzyskania kontroli dostępu: + 200 zł netto",
-            value: "{{__uwagi_rich_content__}}",
-          },
-          {
-            placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016\x0B(B=1 490, H=2 100)",
-            value: lineItemsSummary || "",
-          },
-          {
-            placeholder: "PE68 - Drzwi otwierane na zewnątrz, klamka - klamka, szyba potrójna, RAL  7016",
-            value: lineItemsSummary || "",
-          },
+          ...docsFinancials.replacements,
         ];
 
         // Dodaj indywidualne znaczniki rysunków (np. {{rysunek_1}}) jeśli użytkownik używa sztywnego szablonu

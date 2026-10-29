@@ -30,6 +30,7 @@ const CLIENT_FIELDS = [
   { value: "lineItemsList", label: "Lista pozycji (nazwa, ilość, kwota brutto)" },
   { value: "estimateTotal", label: "Kwota wyceny (brutto)" },
   { value: "estimateNetTotal", label: "Kwota wyceny (netto)" },
+  { value: "installationNetTotal", label: "Cena montażu (netto)" },
   { value: "invoiceVatPct", label: "Faktura VAT — procent" },
   { value: "invoiceVatAmount", label: "Faktura VAT — kwota (brutto)" },
   { value: "invoiceVatNetAmount", label: "Faktura VAT — kwota (netto)" },
