@@ -13,8 +13,6 @@ import { isGlassSystemConstruction, checkIsStandard } from "@/lib/glassPricing";
 import {
   FileText,
   Calculator,
-  Percent,
-  Receipt,
   User,
   MapPin,
   Phone,
@@ -675,245 +673,6 @@ export function OfferSummaryTab({
             )}
           </div>
         </div>
-
-        {/* Financial KPIs (Row 1) */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-[#e2e8f0] bg-[#fafbfd]">
-          {/* Wartość netto */}
-          <div className="p-3.5 px-4">
-            <div className="flex items-center justify-between gap-1 mb-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
-                Wartość netto
-              </span>
-              {discountPct > 0 && (
-                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
-                  -{discountPct}%
-                </span>
-              )}
-            </div>
-            <div className="text-lg font-extrabold font-mono text-[#0e7490] leading-tight">
-              {discountedNet.toLocaleString("pl-PL")} zł
-            </div>
-            <div className="text-[10px] text-[#94a3b8] font-mono mt-0.5">
-              {discountPct > 0
-                ? `Przed rabatem: ${rawSumNet.toLocaleString("pl-PL")} zł`
-                : `Suma ${items.length} poz. (${totalQuantity} szt.)`}
-            </div>
-          </div>
-
-          {/* Wartość brutto */}
-          <div className="p-3.5 px-4">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] block mb-0.5">
-              Wartość brutto ({vatRate}%)
-            </span>
-            <div className="text-lg font-extrabold font-mono text-[#0b1220] leading-tight">
-              {totalGross.toLocaleString("pl-PL")} zł
-            </div>
-            <div className="text-[10px] text-[#94a3b8] font-mono mt-0.5">
-              VAT {vatRate}%: {vatAmount.toLocaleString("pl-PL")} zł
-            </div>
-          </div>
-
-          {/* Koszty własne */}
-          <div className="p-3.5 px-4">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] block mb-0.5">
-              Koszty własne netto
-            </span>
-            <div className="text-lg font-bold font-mono text-[#475569] leading-tight">
-              {rawCostNet.toLocaleString("pl-PL")} zł
-            </div>
-            <div className="text-[10px] text-[#94a3b8] mt-0.5">
-              Materiały i produkcja
-            </div>
-          </div>
-
-          {/* Zysk i marża */}
-          <div className="p-3.5 px-4">
-            <div className="flex items-center justify-between gap-1 mb-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
-                Szacowany zysk
-              </span>
-              <span
-                className={`text-[10px] font-mono font-bold inline-flex items-center gap-0.5 ${
-                  marginPct >= 20 ? "text-emerald-600" : "text-amber-600"
-                }`}
-              >
-                <TrendingUp size={10} />
-                {marginPct}%
-              </span>
-            </div>
-            <div
-              className={`text-lg font-extrabold font-mono leading-tight ${
-                profitNet >= 0 ? "text-emerald-600" : "text-rose-600"
-              }`}
-            >
-              {profitNet.toLocaleString("pl-PL")} zł
-            </div>
-            <div className="text-[10px] text-[#94a3b8] mt-0.5">
-              Marża handlowa: {marginPct}%
-            </div>
-          </div>
-        </div>
-
-        {/* Row 2: Rabat handlowy + Stawka VAT (Obok siebie) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#e2e8f0] bg-white border-t border-[#e2e8f0]">
-          {/* Rabat handlowy */}
-          <div className="p-3.5 px-4 flex flex-col justify-center">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] flex items-center gap-1">
-                <Percent size={11} className="text-[#4ABBC3]" />
-                <span>Rabat handlowy</span>
-              </span>
-              <span className="text-[11px] font-mono text-[#64748b]">
-                Upust:{" "}
-                <strong
-                  className={
-                    discountAmount > 0 ? "text-amber-600" : "text-[#0b1220]"
-                  }
-                >
-                  {discountAmount > 0 ? `-${discountAmount.toLocaleString("pl-PL")} zł` : "0 zł"}
-                </strong>
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <div className="flex items-center gap-1 flex-wrap">
-                {PRESET_DISCOUNTS.map((preset) => {
-                  const isActive = discountPct === preset;
-                  return (
-                    <button
-                      key={preset}
-                      type="button"
-                      disabled={readOnly}
-                      onClick={() => {
-                        setCustomDiscount(String(preset));
-                        onUpdateOffer({ discountPercent: preset });
-                      }}
-                      className={`px-2 py-0.5 text-[11px] font-mono font-semibold rounded border transition-all cursor-pointer ${
-                        isActive
-                          ? "bg-[#0e7490] text-white border-[#0e7490]"
-                          : "bg-[#f8fafc] text-[#475569] border-[#cbd5e1] hover:border-[#4ABBC3] hover:text-[#0e7490]"
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      {preset}%
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="inline-flex items-center gap-1 ml-auto">
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.5}
-                  disabled={readOnly}
-                  value={customDiscount}
-                  onChange={(e) => {
-                    const text = e.target.value;
-                    setCustomDiscount(text);
-                    if (text.trim() === "") {
-                      onUpdateOffer({ discountPercent: 0 });
-                      return;
-                    }
-                    const val = parseFloat(text);
-                    if (!isNaN(val) && val >= 0 && val <= 100) {
-                      onUpdateOffer({
-                        discountPercent: Math.round(val * 10) / 10,
-                      });
-                    }
-                  }}
-                  className={`w-14 bg-white border rounded px-2 py-0.5 text-[#0b1220] font-mono font-bold text-[11px] text-right focus:outline-none transition-colors ${
-                    !PRESET_DISCOUNTS.includes(discountPct)
-                      ? "border-[#0e7490] ring-1 ring-[#0e7490]/30"
-                      : "border-[#cbd5e1] focus:border-[#4ABBC3]"
-                  }`}
-                  placeholder="Inny"
-                  title="Własny procent rabatu"
-                />
-                <span className="text-[11px] font-mono font-bold text-[#64748b]">
-                  %
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Stawka VAT (Obok rabatu handlowego) */}
-          <div className="p-3.5 px-4 flex flex-col justify-center bg-[#fafbfd]/50">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] flex items-center gap-1">
-                <Receipt size={11} className="text-[#4ABBC3]" />
-                <span>Stawka VAT</span>
-              </span>
-              <span className="text-[11px] font-mono text-[#64748b]">
-                Kwota VAT:{" "}
-                <strong className="text-[#0b1220]">
-                  {vatAmount.toLocaleString("pl-PL")} zł
-                </strong>
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <div className="flex items-center gap-1 flex-wrap">
-                {PRESET_VAT_RATES.map((rate) => {
-                  const isActive = vatRate === rate;
-                  return (
-                    <button
-                      key={rate}
-                      type="button"
-                      disabled={readOnly}
-                      onClick={() => {
-                        setCustomVatRate(String(rate));
-                        onUpdateOffer({ vatRate: rate });
-                      }}
-                      className={`px-2 py-0.5 text-[11px] font-mono font-semibold rounded border transition-all cursor-pointer ${
-                        isActive
-                          ? "bg-[#0e7490] text-white border-[#0e7490]"
-                          : "bg-[#f8fafc] text-[#475569] border-[#cbd5e1] hover:border-[#4ABBC3] hover:text-[#0e7490]"
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      {rate}%
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="inline-flex items-center gap-1 ml-auto">
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={1}
-                  disabled={readOnly}
-                  value={customVatRate}
-                  onChange={(e) => {
-                    const text = e.target.value;
-                    setCustomVatRate(text);
-                    if (text.trim() === "") {
-                      onUpdateOffer({ vatRate: 23 });
-                      return;
-                    }
-                    const val = parseFloat(text);
-                    if (!isNaN(val) && val >= 0 && val <= 100) {
-                      onUpdateOffer({
-                        vatRate: Math.round(val * 10) / 10,
-                      });
-                    }
-                  }}
-                  className={`w-14 bg-white border rounded px-2 py-0.5 text-[#0b1220] font-mono font-bold text-[11px] text-right focus:outline-none transition-colors ${
-                    !PRESET_VAT_RATES.includes(vatRate)
-                      ? "border-[#0e7490] ring-1 ring-[#0e7490]/30"
-                      : "border-[#cbd5e1] focus:border-[#4ABBC3]"
-                  }`}
-                  placeholder="Inna"
-                  title="Własna stawka VAT (%)"
-                />
-                <span className="text-[11px] font-mono font-bold text-[#64748b]">
-                  %
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* ── 2. WYKAZ KONSTRUKCJI W OFERCIE ── */}
@@ -1359,163 +1118,371 @@ export function OfferSummaryTab({
         )}
       </div>
 
-      {/* ── 3. KALKULACJA KOSZTÓW I CEN (MINIMALISTYCZNA) ── */}
+      {/* ── 3. PODSUMOWANIE OFERTY (WG SZKICU) ── */}
       <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs overflow-hidden">
-        <div className="px-5 py-3 border-b border-[#e2e8f0] flex items-center justify-between bg-[#f8fafc]">
+        {/* Header */}
+        <div className="px-5 py-3.5 border-b border-[#e2e8f0] flex items-center justify-between bg-[#f8fafc]">
           <div className="flex items-center gap-2">
-            <div className="p-1 rounded-md bg-[rgba(74,187,195,0.12)] text-[#0e7490] border border-[rgba(74,187,195,0.25)]">
-              <Calculator size={13} className="text-[#4ABBC3]" />
+            <div className="p-1.5 rounded-md bg-[rgba(74,187,195,0.12)] text-[#0e7490] border border-[rgba(74,187,195,0.25)]">
+              <Calculator size={15} className="text-[#4ABBC3]" />
             </div>
-            <h2 className="font-bold text-xs text-[#0b1220] uppercase tracking-wider">
-              Kalkulacja kosztów i marży oferty
-            </h2>
+            <div>
+              <h2 className="font-bold text-xs text-[#0b1220] uppercase tracking-wider">
+                Podsumowanie oferty
+              </h2>
+              <p className="text-[11px] text-[#64748b]">
+                Kalkulacja cen katalogowych, rabat handlowy, VAT i rentowność
+              </p>
+            </div>
           </div>
-          <span className="text-[11px] font-mono text-slate-500">
-            {items.length} {items.length === 1 ? "pozycja" : items.length < 5 ? "pozycje" : "pozycji"}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-[11px] font-mono font-bold px-2.5 py-1 rounded-full border ${
+                marginPct >= 20
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : marginPct >= 10
+                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                  : "bg-rose-50 text-rose-700 border-rose-200"
+              }`}
+            >
+              Marża całkowita: {marginPct}%
+            </span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
-          {/* 1. MATERIAŁ */}
-          <div className="p-4 flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
-                Materiał
-              </span>
-              <span
-                className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${
-                  matProfit >= 0
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                    : "bg-rose-50 text-rose-700 border border-rose-200/60"
-                }`}
-              >
-                marża {matMarginPct}%
-              </span>
+        {/* Content: 2 Columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-[#e2e8f0]">
+          {/* LEWA KOLUMNA: Konstrukcje, Montaż, Razem (z kosztami) */}
+          <div className="p-5 flex flex-col justify-between space-y-4 bg-white">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-[#64748b] border-b border-[#f1f5f9] pb-2">
+              Koszty bazowe i ceny katalogowe
             </div>
 
-            <div className="space-y-2 font-mono text-xs">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[11px] font-sans">Koszt zakupu:</span>
-                <span className="font-medium text-slate-700">
-                  {totalMaterialCost > 0 ? `${totalMaterialCost.toLocaleString("pl-PL")} zł` : "—"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-600 font-sans font-medium">Cena netto:</span>
-                <span className="font-bold text-sm text-[#0e7490]">
-                  {totalMaterialPrice > 0 ? `${totalMaterialPrice.toLocaleString("pl-PL")} zł` : "—"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[11px]">
-                <span className="text-slate-400 font-sans text-[10px]">Zysk z materiału:</span>
-                <span className={`font-semibold ${matProfit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                  {matProfit >= 0 ? `+${matProfit.toLocaleString("pl-PL")} zł` : `${matProfit.toLocaleString("pl-PL")} zł`}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. MONTAŻ */}
-          <div className="p-4 flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
-                Montaż
-              </span>
-              <span
-                className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${
-                  instProfit >= 0
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                    : "bg-rose-50 text-rose-700 border border-rose-200/60"
-                }`}
-              >
-                marża {instMarginPct}%
-              </span>
-            </div>
-
-            <div className="space-y-2 font-mono text-xs">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[11px] font-sans">Koszt ekipy:</span>
-                <span className="font-medium text-slate-700">
-                  {totalInstallationCost > 0 ? `${totalInstallationCost.toLocaleString("pl-PL")} zł` : "—"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-600 font-sans font-medium">Cena netto:</span>
-                <span className="font-bold text-sm text-[#0e7490]">
-                  {totalInstallationPrice > 0 ? `${totalInstallationPrice.toLocaleString("pl-PL")} zł` : "—"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[11px]">
-                <span className="text-slate-400 font-sans text-[10px]">Zysk z montażu:</span>
-                <span className={`font-semibold ${instProfit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                  {instProfit >= 0 ? `+${instProfit.toLocaleString("pl-PL")} zł` : `${instProfit.toLocaleString("pl-PL")} zł`}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 3. PODSUMOWANIE (RAZEM) */}
-          <div className="p-4 flex flex-col justify-between bg-slate-50/60">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900">
-                Razem
-              </span>
-              <span
-                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                  profitNet >= 0
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300/70"
-                    : "bg-rose-100 text-rose-800 border border-rose-300/70"
-                }`}
-              >
-                marża {marginPct}%
-              </span>
-            </div>
-
-            <div className="space-y-2 font-mono text-xs">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[11px] font-sans">Koszt łączny:</span>
-                <span className="font-medium text-slate-700">
-                  {totalCombinedCost.toLocaleString("pl-PL")} zł
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-900 font-sans font-bold">Cena łączna netto:</span>
+            <div className="space-y-3.5">
+              {/* 1. Konstrukcje (Cena katalogowa) */}
+              <div className="p-3.5 rounded-lg bg-[#fafbfd] border border-[#f1f5f9] flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-bold text-[#0b1220]">
+                    KONSTRUKCJE <span className="text-[10px] font-normal text-[#64748b]">(Cena katalogowa)</span>
+                  </div>
+                  <div className="text-[11px] text-[#64748b] font-mono mt-1">
+                    koszta = <strong className="text-[#475569]">{totalMaterialCost.toLocaleString("pl-PL")} zł</strong>
+                    {totalMaterialPrice > 0 && (
+                      <span className="ml-2 text-[10px] text-emerald-600 font-semibold">
+                        (marża {matMarginPct}%)
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <div className="text-right">
-                  <span className="font-extrabold text-sm md:text-base text-slate-900">
-                    {discountedNet.toLocaleString("pl-PL")} zł
-                  </span>
-                  {discountPct > 0 && (
-                    <span className="block text-[10px] text-amber-600 font-sans">
-                      (-{discountPct}% rabatu)
-                    </span>
-                  )}
+                  <div className="text-base font-extrabold font-mono text-[#0b1220]">
+                    {totalMaterialPrice.toLocaleString("pl-PL")} zł
+                  </div>
+                  <div className="text-[10px] text-[#94a3b8]">netto</div>
                 </div>
               </div>
-              <div className="flex items-center justify-between pt-1.5 border-t border-slate-200 text-[11px]">
-                <span className="text-slate-500 font-sans text-[10px]">Zysk łączny:</span>
-                <span className={`font-bold ${profitNet >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                  {profitNet >= 0 ? `+${profitNet.toLocaleString("pl-PL")} zł` : `${profitNet.toLocaleString("pl-PL")} zł`}
-                </span>
+
+              {/* 2. Montaż */}
+              <div className="p-3.5 rounded-lg bg-[#fafbfd] border border-[#f1f5f9] flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-bold text-[#0b1220] flex items-center gap-1">
+                    <span className="text-[#4ABBC3] font-black">+</span>
+                    <span>MONTAŻ</span>
+                  </div>
+                  <div className="text-[11px] text-[#64748b] font-mono mt-1">
+                    koszta = <strong className="text-[#475569]">{totalInstallationCost.toLocaleString("pl-PL")} zł</strong>
+                    {totalInstallationPrice > 0 && (
+                      <span className="ml-2 text-[10px] text-emerald-600 font-semibold">
+                        (marża {instMarginPct}%)
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-base font-extrabold font-mono text-[#0b1220]">
+                    {totalInstallationPrice.toLocaleString("pl-PL")} zł
+                  </div>
+                  <div className="text-[10px] text-[#94a3b8]">netto</div>
+                </div>
+              </div>
+
+              {/* 3. Razem (suma bazowa) */}
+              <div className="p-3.5 rounded-lg bg-[#f0f9ff]/60 border border-[#bae6fd]/60 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-extrabold text-[#0369a1] uppercase tracking-wider">
+                    RAZEM <span className="text-[10px] font-normal lowercase tracking-normal text-[#0284c7]">(suma bazowa netto)</span>
+                  </div>
+                  <div className="text-[11px] text-[#0369a1] font-mono mt-1">
+                    koszta łączne = <strong className="text-[#0c4a6e]">{totalCombinedCost.toLocaleString("pl-PL")} zł</strong>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-black font-mono text-[#0369a1]">
+                    {rawSumNet.toLocaleString("pl-PL")} zł
+                  </div>
+                  <div className="text-[10px] text-[#0284c7]">katalogowo netto</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-[10px] text-[#94a3b8] italic pt-1">
+              * Koszty własne obejmują zakup materiałów, profili, okuć oraz robociznę ekip montażowych.
+            </div>
+          </div>
+
+          {/* PRAWA KOLUMNA: Rabat -> Cena po rabacie -> VAT -> Wartość brutto -> Zysk */}
+          <div className="p-5 flex flex-col justify-between space-y-4 bg-[#fafbfd]">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-[#64748b] border-b border-[#e2e8f0] pb-2">
+              Kalkulacja końcowa i podatki
+            </div>
+
+            <div className="space-y-3.5">
+              {/* - RABAT */}
+              <div className="bg-white p-3 rounded-lg border border-[#e2e8f0]">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-xs font-bold text-[#0b1220] flex items-center gap-1">
+                    <span className="text-amber-500 font-bold">-</span>
+                    <span>RABAT</span>
+                  </span>
+                  <span className="text-xs font-mono">
+                    Upust:{" "}
+                    <strong className={discountAmount > 0 ? "text-amber-600" : "text-[#64748b]"}>
+                      {discountAmount > 0 ? `-${discountAmount.toLocaleString("pl-PL")} zł` : "0 zł"}
+                    </strong>
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {PRESET_DISCOUNTS.map((preset) => {
+                      const isActive = discountPct === preset;
+                      return (
+                        <button
+                          key={preset}
+                          type="button"
+                          disabled={readOnly}
+                          onClick={() => {
+                            setCustomDiscount(String(preset));
+                            onUpdateOffer({ discountPercent: preset });
+                          }}
+                          className={`px-2 py-0.5 text-[11px] font-mono font-semibold rounded border transition-all cursor-pointer ${
+                            isActive
+                              ? "bg-[#0e7490] text-white border-[#0e7490]"
+                              : "bg-[#f8fafc] text-[#475569] border-[#cbd5e1] hover:border-[#4ABBC3] hover:text-[#0e7490]"
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          {preset}%
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="inline-flex items-center gap-1 ml-auto">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      disabled={readOnly}
+                      value={customDiscount}
+                      onChange={(e) => {
+                        const text = e.target.value;
+                        setCustomDiscount(text);
+                        if (text.trim() === "") {
+                          onUpdateOffer({ discountPercent: 0 });
+                          return;
+                        }
+                        const val = parseFloat(text);
+                        if (!isNaN(val) && val >= 0 && val <= 100) {
+                          onUpdateOffer({
+                            discountPercent: Math.round(val * 10) / 10,
+                          });
+                        }
+                      }}
+                      className={`w-14 bg-white border rounded px-2 py-0.5 text-[#0b1220] font-mono font-bold text-[11px] text-right focus:outline-none transition-colors ${
+                        !PRESET_DISCOUNTS.includes(discountPct)
+                          ? "border-[#0e7490] ring-1 ring-[#0e7490]/30"
+                          : "border-[#cbd5e1] focus:border-[#4ABBC3]"
+                      }`}
+                      placeholder="Inny"
+                      title="Własny procent rabatu"
+                    />
+                    <span className="text-[11px] font-mono font-bold text-[#64748b]">
+                      %
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* = Cena po rabacie (Netto) */}
+              <div className="p-3 rounded-lg bg-white border border-[#e2e8f0] flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-bold text-[#0b1220] flex items-center gap-1">
+                    <span className="text-[#0e7490] font-black">=</span>
+                    <span>Cena po rabacie (Netto)</span>
+                  </div>
+                  <div className="text-[10px] text-[#64748b] mt-0.5">
+                    {discountPct > 0 ? `Zastosowano upust handlowy ${discountPct}%` : "Brak rabatu"}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-extrabold font-mono text-[#0e7490]">
+                    {discountedNet.toLocaleString("pl-PL")} zł
+                  </div>
+                </div>
+              </div>
+
+              {/* + Stawka VAT */}
+              <div className="bg-white p-3 rounded-lg border border-[#e2e8f0]">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-xs font-bold text-[#0b1220] flex items-center gap-1">
+                    <span className="text-[#0e7490] font-bold">+</span>
+                    <span>Stawka VAT</span>
+                  </span>
+                  <span className="text-xs font-mono">
+                    Kwota VAT:{" "}
+                    <strong className="text-[#0b1220]">
+                      {vatAmount.toLocaleString("pl-PL")} zł
+                    </strong>
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {PRESET_VAT_RATES.map((rate) => {
+                      const isActive = vatRate === rate;
+                      return (
+                        <button
+                          key={rate}
+                          type="button"
+                          disabled={readOnly}
+                          onClick={() => {
+                            setCustomVatRate(String(rate));
+                            onUpdateOffer({ vatRate: rate });
+                          }}
+                          className={`px-2 py-0.5 text-[11px] font-mono font-semibold rounded border transition-all cursor-pointer ${
+                            isActive
+                              ? "bg-[#0e7490] text-white border-[#0e7490]"
+                              : "bg-[#f8fafc] text-[#475569] border-[#cbd5e1] hover:border-[#4ABBC3] hover:text-[#0e7490]"
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          {rate}%
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="inline-flex items-center gap-1 ml-auto">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      disabled={readOnly}
+                      value={customVatRate}
+                      onChange={(e) => {
+                        const text = e.target.value;
+                        setCustomVatRate(text);
+                        if (text.trim() === "") {
+                          onUpdateOffer({ vatRate: 23 });
+                          return;
+                        }
+                        const val = parseFloat(text);
+                        if (!isNaN(val) && val >= 0 && val <= 100) {
+                          onUpdateOffer({
+                            vatRate: Math.round(val * 10) / 10,
+                          });
+                        }
+                      }}
+                      className={`w-14 bg-white border rounded px-2 py-0.5 text-[#0b1220] font-mono font-bold text-[11px] text-right focus:outline-none transition-colors ${
+                        !PRESET_VAT_RATES.includes(vatRate)
+                          ? "border-[#0e7490] ring-1 ring-[#0e7490]/30"
+                          : "border-[#cbd5e1] focus:border-[#4ABBC3]"
+                      }`}
+                      placeholder="Inna"
+                      title="Własna stawka VAT (%)"
+                    />
+                    <span className="text-[11px] font-mono font-bold text-[#64748b]">
+                      %
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* = Wartość brutto */}
+              <div className="p-3.5 rounded-lg bg-slate-900 text-white flex items-center justify-between gap-3 shadow-xs">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1">
+                    <span className="text-[#4ABBC3] font-black">=</span>
+                    <span>Wartość brutto ({vatRate}%)</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                    Do zapłaty przez Klienta
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xl font-black font-mono text-white">
+                    {totalGross.toLocaleString("pl-PL")} zł
+                  </div>
+                </div>
+              </div>
+
+              {/* Szacowany zysk i marża */}
+              <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp size={16} className={profitNet >= 0 ? "text-emerald-600" : "text-rose-600"} />
+                  <div>
+                    <div className="text-xs font-bold text-slate-800">
+                      Szacowany zysk
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      Po uwzględnieniu rabatu i wszystkich kosztów
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${
+                      profitNet >= 0
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                        : "bg-rose-100 text-rose-800 border border-rose-300"
+                    }`}
+                  >
+                    marża {marginPct}%
+                  </span>
+                  <div
+                    className={`text-base font-black font-mono ${
+                      profitNet >= 0 ? "text-emerald-700" : "text-rose-600"
+                    }`}
+                  >
+                    {profitNet >= 0 ? `+${profitNet.toLocaleString("pl-PL")} zł` : `${profitNet.toLocaleString("pl-PL")} zł`}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── 4. UWAGI DO OFERTY (WYSIWYG / HTML) ── */}
+      {/* ── 4. USTALENIA (WYSIWYG / HTML) ── */}
       <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs overflow-hidden">
         <div className="px-5 py-3.5 border-b border-[#e2e8f0] flex items-center justify-between flex-wrap gap-3 bg-[#f8fafc]">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-md bg-[rgba(74,187,195,0.12)] text-[#0e7490] border border-[rgba(74,187,195,0.25)]">
               <FileText size={15} className="text-[#4ABBC3]" />
             </div>
-            <div className="flex items-center gap-2">
-              <h2 className="font-bold text-xs text-[#0b1220] uppercase tracking-wider">
-                Uwagi do oferty
-              </h2>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100/70 text-[#0e7490] border border-teal-200/50">
-                WYSIWYG HTML
-              </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-xs text-[#0b1220] uppercase tracking-wider">
+                  Ustalenia
+                </h2>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100/70 text-[#0e7490] border border-teal-200/50">
+                  WYSIWYG HTML
+                </span>
+              </div>
+              <p className="text-[11px] text-[#64748b]">
+                Ustalenia do oferty i wytyczne montażowe
+              </p>
             </div>
           </div>
 
@@ -1557,7 +1524,7 @@ export function OfferSummaryTab({
                 className="px-3 py-1 rounded-md bg-[#0e7490] hover:bg-[#0c637b] text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
               >
                 <Check size={13} />
-                <span>Zapisz uwagi</span>
+                <span>Zapisz ustalenia</span>
               </button>
             )}
           </div>
@@ -1742,7 +1709,7 @@ export function OfferSummaryTab({
                   onClick={() => notesEditorRef.current?.focus()}
                   className="absolute top-3.5 left-3.5 text-xs text-[#94a3b8] pointer-events-none select-none"
                 >
-                  Wpisz uwagi do oferty (np. zakres montażu, termin realizacji, specyfikację, warunki techniczne, ustalenia z inwestorem)...
+                  Wpisz ustalenia do oferty (np. zakres prac i montażu, wytyczne techniczne, termin realizacji, ustalenia z inwestorem)...
                 </div>
               )}
             </div>
@@ -1754,7 +1721,7 @@ export function OfferSummaryTab({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 onBlur={handleNotesBlur}
-                placeholder="<p>Wpisz uwagi w formacie HTML...</p>"
+                placeholder="<p>Wpisz ustalenia w formacie HTML...</p>"
                 className="w-full bg-[#0f172a] text-[#e2e8f0] font-mono text-xs p-3.5 focus:outline-none resize-y leading-relaxed border-0 min-h-[160px]"
                 spellCheck={false}
               />
@@ -1763,7 +1730,7 @@ export function OfferSummaryTab({
 
           <div className="flex items-center justify-between mt-2.5 text-[11px] text-[#64748b]">
             <span>
-              Uwagi zostaną automatycznie zapisane po opuszczeniu pola lub po kliknięciu &quot;Zapisz uwagi&quot;.
+              Ustalenia zostaną automatycznie zapisane po opuszczeniu pola lub po kliknięciu &quot;Zapisz ustalenia&quot;.
             </span>
             {notes ? (
               <span className="font-mono text-[10px] text-slate-400">
