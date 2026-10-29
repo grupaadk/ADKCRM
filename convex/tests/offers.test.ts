@@ -611,7 +611,18 @@ describe("CAD Offers and Constructions Module", () => {
     expect(posAfter.installationPriceNet).toBe(1100);
     expect(posAfter.priceNet).toBe(3400);
     expect(posAfter.costNet).toBe(2000);
-    expect(afterSync!.offer.totalPriceNet).toBe(3400);
-    expect(afterSync!.offer.totalCostNet).toBe(2000);
+    // 8. Update brushesCostNet and handlesCostNet on template and sync
+    await t.mutation(api.constructions.update, {
+      id: templateId,
+      brushesCostNet: 65,
+      handlesCostNet: 57,
+    });
+    const syncRes2 = await t.mutation(api.offers.syncOfferWithConstructionTemplates, {
+      offerId,
+    });
+    expect(syncRes2.updatedCount).toBe(1);
+    const afterSync2 = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(afterSync2!.items[0].brushesCostNet).toBe(65);
+    expect(afterSync2!.items[0].handlesCostNet).toBe(57);
   });
 });

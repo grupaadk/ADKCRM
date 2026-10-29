@@ -13,6 +13,12 @@ export interface GlassModuleCatalogEntry {
   widthCm: StandardModuleWidthCm;
   panes: number;
   label: string;
+  /** Koszt samego systemu/profili (zł netto) */
+  systemCostNet: number;
+  /** Koszt kompletu szczotek (zł netto) */
+  brushesCostNet: number;
+  /** Koszt kompletu uchwytów (zł netto) */
+  handlesCostNet: number;
   /** Koszt zestawu standardowego ze szkłem (zł netto) */
   standardCostNet: number;
   /** Koszt profili i akcesoriów bez szkła (zł netto) */
@@ -27,6 +33,9 @@ export const GLASS_MODULE_CATALOG: Record<
     widthCm: 94,
     panes: 1,
     label: "1-torowy (94 cm)",
+    systemCostNet: 1667,
+    brushesCostNet: 65,
+    handlesCostNet: 57,
     standardCostNet: 1789,
     nonStandardProfilesCostNet: 1155,
   },
@@ -34,6 +43,9 @@ export const GLASS_MODULE_CATALOG: Record<
     widthCm: 194,
     panes: 2,
     label: "2-torowy (194 cm)",
+    systemCostNet: 1667,
+    brushesCostNet: 65,
+    handlesCostNet: 57,
     standardCostNet: 1789,
     nonStandardProfilesCostNet: 1155,
   },
@@ -41,6 +53,9 @@ export const GLASS_MODULE_CATALOG: Record<
     widthCm: 241,
     panes: 3,
     label: "3-torowy połówkowy (241 cm)",
+    systemCostNet: 2431,
+    brushesCostNet: 89,
+    handlesCostNet: 81,
     standardCostNet: 2601,
     nonStandardProfilesCostNet: 1650,
   },
@@ -48,6 +63,9 @@ export const GLASS_MODULE_CATALOG: Record<
     widthCm: 290,
     panes: 3,
     label: "3-torowy (290 cm)",
+    systemCostNet: 2431,
+    brushesCostNet: 89,
+    handlesCostNet: 81,
     standardCostNet: 2601,
     nonStandardProfilesCostNet: 1650,
   },
@@ -55,6 +73,9 @@ export const GLASS_MODULE_CATALOG: Record<
     widthCm: 337,
     panes: 4,
     label: "4-torowy połówkowy (337 cm)",
+    systemCostNet: 3317,
+    brushesCostNet: 122,
+    handlesCostNet: 114,
     standardCostNet: 3553,
     nonStandardProfilesCostNet: 2285,
   },
@@ -62,6 +83,9 @@ export const GLASS_MODULE_CATALOG: Record<
     widthCm: 386,
     panes: 4,
     label: "4-torowy (386 cm)",
+    systemCostNet: 3317,
+    brushesCostNet: 122,
+    handlesCostNet: 114,
     standardCostNet: 3553,
     nonStandardProfilesCostNet: 2285,
   },
@@ -69,6 +93,9 @@ export const GLASS_MODULE_CATALOG: Record<
     widthCm: 433,
     panes: 5,
     label: "5-torowy połówkowy (433 cm)",
+    systemCostNet: 4244,
+    brushesCostNet: 154,
+    handlesCostNet: 138,
     standardCostNet: 4536,
     nonStandardProfilesCostNet: 3072,
   },
@@ -76,6 +103,9 @@ export const GLASS_MODULE_CATALOG: Record<
     widthCm: 482,
     panes: 5,
     label: "5-torowy (482 cm)",
+    systemCostNet: 4244,
+    brushesCostNet: 154,
+    handlesCostNet: 138,
     standardCostNet: 4536,
     nonStandardProfilesCostNet: 3072,
   },
@@ -83,6 +113,9 @@ export const GLASS_MODULE_CATALOG: Record<
     widthCm: 529,
     panes: 6,
     label: "6-torowy połówkowy (529 cm)",
+    systemCostNet: 5325,
+    brushesCostNet: 187,
+    handlesCostNet: 163,
     standardCostNet: 5675,
     nonStandardProfilesCostNet: 4017,
   },
@@ -90,6 +123,9 @@ export const GLASS_MODULE_CATALOG: Record<
     widthCm: 578,
     panes: 6,
     label: "6-torowy (578 cm)",
+    systemCostNet: 5325,
+    brushesCostNet: 187,
+    handlesCostNet: 163,
     standardCostNet: 5675,
     nonStandardProfilesCostNet: 4017,
   },
@@ -240,6 +276,9 @@ export function calculateGlassSystemPricing(
     standardWidthCm,
     glassAreaM2,
     panesCount: moduleInfo.panes,
+    systemCostNet: moduleInfo.systemCostNet,
+    brushesCostNet: moduleInfo.brushesCostNet,
+    handlesCostNet: moduleInfo.handlesCostNet,
     materialCostNet: Math.round(materialCostNet),
     materialPriceNet,
     installationCostNet,

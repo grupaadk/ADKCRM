@@ -546,6 +546,8 @@ export const addConstructionPosition = mutation({
     priceNet: v.optional(v.number()),
     costNet: v.optional(v.number()),
     materialCostNet: v.optional(v.number()),
+    brushesCostNet: v.optional(v.number()),
+    handlesCostNet: v.optional(v.number()),
     materialPriceNet: v.optional(v.number()),
     installationCostNet: v.optional(v.number()),
     installationPriceNet: v.optional(v.number()),
@@ -611,6 +613,8 @@ export const addConstructionPosition = mutation({
       priceNet: args.priceNet ?? construction?.defaultPriceNet ?? 0,
       costNet: args.costNet ?? (construction ? (construction.materialCostNet || 0) + (construction.installationCostNet || 0) : 0),
       materialCostNet: args.materialCostNet ?? construction?.materialCostNet ?? args.costNet ?? 0,
+      brushesCostNet: args.brushesCostNet ?? construction?.brushesCostNet ?? undefined,
+      handlesCostNet: args.handlesCostNet ?? construction?.handlesCostNet ?? undefined,
       materialPriceNet: args.materialPriceNet ?? construction?.materialPriceNet ?? (args.priceNet ?? construction?.defaultPriceNet ?? 0),
       installationCostNet: args.installationCostNet ?? construction?.installationCostNet ?? 0,
       installationPriceNet: args.installationPriceNet ?? construction?.installationPriceNet ?? 0,
@@ -649,6 +653,8 @@ export const updateConstructionPosition = mutation({
     priceNet: v.optional(v.number()),
     costNet: v.optional(v.number()),
     materialCostNet: v.optional(v.number()),
+    brushesCostNet: v.optional(v.number()),
+    handlesCostNet: v.optional(v.number()),
     materialPriceNet: v.optional(v.number()),
     installationCostNet: v.optional(v.number()),
     installationPriceNet: v.optional(v.number()),
@@ -905,6 +911,8 @@ export const syncOfferWithConstructionTemplates = mutation({
         await ctx.db.patch(item._id, {
           constructionId: tpl._id,
           materialCostNet: matCost,
+          brushesCostNet: tpl.brushesCostNet,
+          handlesCostNet: tpl.handlesCostNet,
           materialPriceNet: matPrice,
           installationCostNet: instCost,
           installationPriceNet: instPrice,
@@ -921,6 +929,8 @@ export const syncOfferWithConstructionTemplates = mutation({
           pricingTier: calc.pricingTier,
           standardWidthCm: calc.standardWidthCm,
           materialCostNet: calc.materialCostNet,
+          brushesCostNet: calc.brushesCostNet,
+          handlesCostNet: calc.handlesCostNet,
           materialPriceNet: calc.materialPriceNet,
           installationCostNet: calc.installationCostNet,
           installationPriceNet: calc.installationPriceNet,
@@ -949,14 +959,12 @@ async function recalculateOffer(ctx: MutationCtx, offerId: Id<"offers">) {
     .withIndex("by_offer", (q) => q.eq("offerId", offerId))
     .collect();
 
-  let subtotalNet = 0;
   let totalCost = 0;
   let materialNet = 0;
   let installationNet = 0;
 
   for (const it of items) {
     const q = it.quantity || 1;
-    subtotalNet += (it.priceNet || 0) * q;
     totalCost += (it.costNet || 0) * q;
     if (it.materialPriceNet !== undefined && it.materialPriceNet !== null) {
       materialNet += it.materialPriceNet * q;

@@ -32,6 +32,8 @@ export interface CadConstructionItem {
   priceNet?: number;
   costNet?: number;
   materialCostNet?: number;
+  brushesCostNet?: number;
+  handlesCostNet?: number;
   materialPriceNet?: number;
   installationCostNet?: number;
   installationPriceNet?: number;

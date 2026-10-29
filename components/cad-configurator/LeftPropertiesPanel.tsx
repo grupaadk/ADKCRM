@@ -368,6 +368,60 @@ export function LeftPropertiesPanel({
                 />
               </div>
             </div>
+
+            {/* Szczotki i Uchwyty kpl */}
+            <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-100">
+              <div>
+                <label className="block text-[9px] font-medium text-[#7c8597] mb-0.5">
+                  Szczotki kpl (zł)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={5}
+                  disabled={readOnly}
+                  value={item.brushesCostNet || ""}
+                  onChange={(e) => {
+                    const newBrushes = Math.max(0, parseFloat(e.target.value) || 0);
+                    const oldBrushes = item.brushesCostNet || 0;
+                    const diff = newBrushes - oldBrushes;
+                    const newMatCost = Math.max(0, matCost + diff);
+                    onChange({
+                      brushesCostNet: newBrushes,
+                      materialCostNet: newMatCost,
+                      costNet: newMatCost + instCost,
+                    });
+                  }}
+                  placeholder="0"
+                  className="w-full bg-white border border-[#d4dae3] rounded px-2 py-1 text-xs text-[#0b1220] font-mono focus:border-[#4ABBC3] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] font-medium text-[#7c8597] mb-0.5">
+                  Uchwyty kpl (zł)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={5}
+                  disabled={readOnly}
+                  value={item.handlesCostNet || ""}
+                  onChange={(e) => {
+                    const newHandles = Math.max(0, parseFloat(e.target.value) || 0);
+                    const oldHandles = item.handlesCostNet || 0;
+                    const diff = newHandles - oldHandles;
+                    const newMatCost = Math.max(0, matCost + diff);
+                    onChange({
+                      handlesCostNet: newHandles,
+                      materialCostNet: newMatCost,
+                      costNet: newMatCost + instCost,
+                    });
+                  }}
+                  placeholder="0"
+                  className="w-full bg-white border border-[#d4dae3] rounded px-2 py-1 text-xs text-[#0b1220] font-mono focus:border-[#4ABBC3] focus:outline-none"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Filar 2: Montaż */}
@@ -490,6 +544,8 @@ export function LeftPropertiesPanel({
                 );
                 onChange({
                   materialCostNet: calc.materialCostNet,
+                  brushesCostNet: calc.brushesCostNet,
+                  handlesCostNet: calc.handlesCostNet,
                   materialPriceNet: calc.materialPriceNet,
                   installationCostNet: calc.installationCostNet,
                   installationPriceNet: calc.installationPriceNet,

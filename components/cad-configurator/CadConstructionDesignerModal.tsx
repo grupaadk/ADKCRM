@@ -26,18 +26,20 @@ export interface GlassSystemPreset {
   heightMm: number;
   label: string;
   sublabel: string;
+  brushesCostNet?: number;
+  handlesCostNet?: number;
 }
 
 export const GLASS_SYSTEM_PRESETS: GlassSystemPreset[] = [
-  { id: "2t-194", tracks: 2, widthMm: 1940, heightMm: 2300, label: "System 2-torowy", sublabel: "194 cm / wys. 230 cm" },
-  { id: "3t-241", tracks: 3, widthMm: 2410, heightMm: 2300, label: "System 3-torowy", sublabel: "241 cm / wys. 230 cm" },
-  { id: "3t-290", tracks: 3, widthMm: 2900, heightMm: 2300, label: "System 3-torowy", sublabel: "290 cm / wys. 230 cm" },
-  { id: "4t-337", tracks: 4, widthMm: 3370, heightMm: 2300, label: "System 4-torowy", sublabel: "337 cm / wys. 230 cm" },
-  { id: "4t-386", tracks: 4, widthMm: 3860, heightMm: 2300, label: "System 4-torowy", sublabel: "386 cm / wys. 230 cm" },
-  { id: "5t-433", tracks: 5, widthMm: 4330, heightMm: 2300, label: "System 5-torowy", sublabel: "433 cm / wys. 230 cm" },
-  { id: "5t-482", tracks: 5, widthMm: 4820, heightMm: 2300, label: "System 5-torowy", sublabel: "482 cm / wys. 230 cm" },
-  { id: "6t-529", tracks: 6, widthMm: 5290, heightMm: 2300, label: "System 6-torowy", sublabel: "529 cm / wys. 230 cm" },
-  { id: "6t-578", tracks: 6, widthMm: 5780, heightMm: 2300, label: "System 6-torowy", sublabel: "578 cm / wys. 230 cm" },
+  { id: "2t-194", tracks: 2, widthMm: 1940, heightMm: 2300, label: "System 2-torowy", sublabel: "194 cm / wys. 230 cm", brushesCostNet: 65, handlesCostNet: 57 },
+  { id: "3t-241", tracks: 3, widthMm: 2410, heightMm: 2300, label: "System 3-torowy", sublabel: "241 cm / wys. 230 cm", brushesCostNet: 89, handlesCostNet: 81 },
+  { id: "3t-290", tracks: 3, widthMm: 2900, heightMm: 2300, label: "System 3-torowy", sublabel: "290 cm / wys. 230 cm", brushesCostNet: 89, handlesCostNet: 81 },
+  { id: "4t-337", tracks: 4, widthMm: 3370, heightMm: 2300, label: "System 4-torowy", sublabel: "337 cm / wys. 230 cm", brushesCostNet: 122, handlesCostNet: 114 },
+  { id: "4t-386", tracks: 4, widthMm: 3860, heightMm: 2300, label: "System 4-torowy", sublabel: "386 cm / wys. 230 cm", brushesCostNet: 122, handlesCostNet: 114 },
+  { id: "5t-433", tracks: 5, widthMm: 4330, heightMm: 2300, label: "System 5-torowy", sublabel: "433 cm / wys. 230 cm", brushesCostNet: 154, handlesCostNet: 138 },
+  { id: "5t-482", tracks: 5, widthMm: 4820, heightMm: 2300, label: "System 5-torowy", sublabel: "482 cm / wys. 230 cm", brushesCostNet: 154, handlesCostNet: 138 },
+  { id: "6t-529", tracks: 6, widthMm: 5290, heightMm: 2300, label: "System 6-torowy", sublabel: "529 cm / wys. 230 cm", brushesCostNet: 187, handlesCostNet: 163 },
+  { id: "6t-578", tracks: 6, widthMm: 5780, heightMm: 2300, label: "System 6-torowy", sublabel: "578 cm / wys. 230 cm", brushesCostNet: 187, handlesCostNet: 163 },
 ];
 
 interface CadConstructionDesignerModalProps {
@@ -59,6 +61,8 @@ interface CadConstructionDesignerModalProps {
     defaultWarning?: string;
     defaultPriceNet?: number;
     materialCostNet?: number;
+    brushesCostNet?: number;
+    handlesCostNet?: number;
     materialMarkupType?: "percent" | "amount";
     materialMarkupValue?: number;
     materialPriceNet?: number;
@@ -104,6 +108,8 @@ export function CadConstructionDesignerModal({
 
   // Filar 1: Koszt i narzut na materiał
   const [materialCostNet, setMaterialCostNet] = useState<number | "">("");
+  const [brushesCostNet, setBrushesCostNet] = useState<number | "">("");
+  const [handlesCostNet, setHandlesCostNet] = useState<number | "">("");
   const [materialMarkupType, setMaterialMarkupType] = useState<"percent" | "amount">("percent");
   const [materialMarkupValue, setMaterialMarkupValue] = useState<number | "">("");
 
@@ -133,9 +139,14 @@ export function CadConstructionDesignerModal({
     return Math.round(cost + markup);
   };
 
+  const numBaseMatCost = typeof materialCostNet === "number" ? materialCostNet : 0;
+  const numBrushesCost = typeof brushesCostNet === "number" ? brushesCostNet : 0;
+  const numHandlesCost = typeof handlesCostNet === "number" ? handlesCostNet : 0;
+  const totalMaterialCost = numBaseMatCost + numBrushesCost + numHandlesCost;
+
   const computedMaterialPrice = useMemo(
-    () => calcItemPrice(materialCostNet, materialMarkupType, materialMarkupValue),
-    [materialCostNet, materialMarkupType, materialMarkupValue]
+    () => calcItemPrice(totalMaterialCost > 0 ? totalMaterialCost : materialCostNet, materialMarkupType, materialMarkupValue),
+    [totalMaterialCost, materialCostNet, materialMarkupType, materialMarkupValue]
   );
 
   const computedInstallationCost = useMemo(() => {
@@ -156,7 +167,7 @@ export function CadConstructionDesignerModal({
   );
 
   // Liczbowe wartości kosztów, cen i rentowności materiału
-  const numMatCost = typeof materialCostNet === "number" ? materialCostNet : 0;
+  const numMatCost = totalMaterialCost > 0 ? totalMaterialCost : (typeof materialCostNet === "number" ? materialCostNet : 0);
   const numMatPrice = computedMaterialPrice;
   const materialProfit = numMatPrice - numMatCost;
   const materialMarginPercent = numMatPrice > 0 ? Math.round((materialProfit / numMatPrice) * 100) : 0;
@@ -209,6 +220,16 @@ export function CadConstructionDesignerModal({
           ? initialData.materialCostNet
           : "";
       setMaterialCostNet(matCost);
+      const brushes =
+        initialData.brushesCostNet !== undefined && initialData.brushesCostNet !== null
+          ? initialData.brushesCostNet
+          : "";
+      setBrushesCostNet(brushes);
+      const handles =
+        initialData.handlesCostNet !== undefined && initialData.handlesCostNet !== null
+          ? initialData.handlesCostNet
+          : "";
+      setHandlesCostNet(handles);
       const matType = initialData.materialMarkupType || "percent";
       setMaterialMarkupType(matType);
       const matMarkup =
@@ -405,6 +426,8 @@ export function CadConstructionDesignerModal({
         defaultWarning: warning.trim() || undefined,
         defaultPriceNet: combinedPrice > 0 ? combinedPrice : undefined,
         materialCostNet: typeof materialCostNet === "number" ? materialCostNet : undefined,
+        brushesCostNet: typeof brushesCostNet === "number" ? brushesCostNet : undefined,
+        handlesCostNet: typeof handlesCostNet === "number" ? handlesCostNet : undefined,
         materialMarkupType: materialCostNet !== "" ? materialMarkupType : undefined,
         materialMarkupValue: typeof materialMarkupValue === "number" ? materialMarkupValue : undefined,
         materialPriceNet: computedMaterialPrice > 0 ? computedMaterialPrice : undefined,
@@ -751,6 +774,12 @@ export function CadConstructionDesignerModal({
                                   setWidthMm(preset.widthMm);
                                   setHeightMm(preset.heightMm);
                                   setHasDimensions(true);
+                                  if (preset.brushesCostNet !== undefined) {
+                                    setBrushesCostNet(preset.brushesCostNet);
+                                  }
+                                  if (preset.handlesCostNet !== undefined) {
+                                    setHandlesCostNet(preset.handlesCostNet);
+                                  }
                                 }}
                                 className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-2 cursor-pointer ${
                                   isSelected
@@ -1123,6 +1152,68 @@ export function CadConstructionDesignerModal({
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
                         {materialMarkupType === "percent" ? "%" : "zł"}
                       </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dodatki szklarskie: Szczotki kpl i Uchwyty kpl */}
+                <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                      Akcesoria szklarskie (szczotki i uchwyty)
+                    </label>
+                    {(numBrushesCost > 0 || numHandlesCost > 0) && (
+                      <span className="text-[10px] font-mono text-cyan-700 bg-cyan-50 px-1.5 py-0.5 rounded border border-cyan-200">
+                        Suma materiału: {totalMaterialCost.toLocaleString("pl-PL")} zł
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[9px] text-slate-500 font-medium mb-1">
+                        Szczotki kpl
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          step={5}
+                          value={brushesCostNet}
+                          onChange={(e) => {
+                            const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
+                            setBrushesCostNet(val);
+                          }}
+                          placeholder="0"
+                          className="w-full h-8 bg-slate-50 border border-slate-300 rounded-lg px-2.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
+                          zł
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] text-slate-500 font-medium mb-1">
+                        Uchwyty kpl
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          step={5}
+                          value={handlesCostNet}
+                          onChange={(e) => {
+                            const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
+                            setHandlesCostNet(val);
+                          }}
+                          placeholder="0"
+                          className="w-full h-8 bg-slate-50 border border-slate-300 rounded-lg px-2.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
+                          zł
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -74,6 +74,8 @@ export const create = mutation({
     defaultWarning: v.optional(v.string()),
     defaultPriceNet: v.optional(v.number()),
     materialCostNet: v.optional(v.union(v.number(), v.null())),
+    brushesCostNet: v.optional(v.union(v.number(), v.null())),
+    handlesCostNet: v.optional(v.union(v.number(), v.null())),
     materialMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"), v.null())),
     materialMarkupValue: v.optional(v.union(v.number(), v.null())),
     materialPriceNet: v.optional(v.union(v.number(), v.null())),
@@ -113,6 +115,8 @@ export const create = mutation({
           ? args.defaultPriceNet
           : (args.materialPriceNet || 0) + (args.installationPriceNet || 0) || undefined,
       materialCostNet: args.materialCostNet ?? undefined,
+      brushesCostNet: args.brushesCostNet ?? undefined,
+      handlesCostNet: args.handlesCostNet ?? undefined,
       materialMarkupType: args.materialMarkupType ?? undefined,
       materialMarkupValue: args.materialMarkupValue ?? undefined,
       materialPriceNet: args.materialPriceNet ?? undefined,
@@ -150,6 +154,8 @@ export const update = mutation({
     defaultWarning: v.optional(v.string()),
     defaultPriceNet: v.optional(v.number()),
     materialCostNet: v.optional(v.union(v.number(), v.null())),
+    brushesCostNet: v.optional(v.union(v.number(), v.null())),
+    handlesCostNet: v.optional(v.union(v.number(), v.null())),
     materialMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"), v.null())),
     materialMarkupValue: v.optional(v.union(v.number(), v.null())),
     materialPriceNet: v.optional(v.union(v.number(), v.null())),
@@ -195,6 +201,8 @@ export const update = mutation({
       patch.defaultPriceNet = mat + inst > 0 ? mat + inst : 0;
     }
     if (fields.materialCostNet !== undefined) patch.materialCostNet = fields.materialCostNet ?? undefined;
+    if (fields.brushesCostNet !== undefined) patch.brushesCostNet = fields.brushesCostNet ?? undefined;
+    if (fields.handlesCostNet !== undefined) patch.handlesCostNet = fields.handlesCostNet ?? undefined;
     if (fields.materialMarkupType !== undefined) patch.materialMarkupType = fields.materialMarkupType ?? undefined;
     if (fields.materialMarkupValue !== undefined) patch.materialMarkupValue = fields.materialMarkupValue ?? undefined;
     if (fields.materialPriceNet !== undefined) patch.materialPriceNet = fields.materialPriceNet ?? undefined;
