@@ -3207,7 +3207,7 @@ export const generateOfferPdf = action({
       client?.clientType === "business" ||
       Boolean(client?.companyName?.trim()) ||
       Boolean(client?.nip?.trim());
-    const companyName = client?.companyName?.trim() || (client?.nip ? `Firma_${client.nip}` : "Firma");
+    const companyName = client?.companyName?.trim() || (client?.nip ? `Firma ${client.nip}` : "Firma");
 
     // Lokalizacja inwestycji: Miejscowość (lub ulica + miejscowość)
     const investmentLoc = (
@@ -3227,27 +3227,27 @@ export const generateOfferPdf = action({
 
     let nazwaOferty: string;
     if (isBusiness) {
-      // Dla firmy: DATA RRRR-MM-DD_Nazwa firmy_text własny z szansy sprzedaży_Lokalizacja inwestycji_Usługa
+      // Dla firmy: RRRR-MM-DD Nazwa firmy Tekst własny Lokalizacja Usługa
       const customText = opportunity.customText?.trim() || "";
       const segments = [dateYMD, companyName];
       if (customText) segments.push(customText);
       if (investmentLoc) segments.push(investmentLoc);
       if (serviceName) segments.push(serviceName);
-      nazwaOferty = segments.filter(Boolean).join("_");
+      nazwaOferty = segments.filter(Boolean).join(" ");
     } else {
-      // Dla klienta indywidualnego: DATA RRRR-MM-DD_Imie_Nazwisko_Lokalizacja inwestycji_Usługa
+      // Dla klienta indywidualnego: RRRR-MM-DD Imię Nazwisko Lokalizacja Usługa
       const firstName = (clientFirstName || opportunity.firstName || "").trim();
       const lastName = (clientLastName || opportunity.lastName || "").trim();
       const segments = [dateYMD, firstName, lastName];
       if (investmentLoc) segments.push(investmentLoc);
       if (serviceName) segments.push(serviceName);
-      nazwaOferty = segments.filter(Boolean).join("_");
+      nazwaOferty = segments.filter(Boolean).join(" ");
     }
 
-    const safeLastName = clientLastName.replace(/[/\\:*?"<>|]/g, "_") || "Klient";
+    const safeLastName = clientLastName.replace(/[/\\:*?"<>|]/g, " ").trim() || "Klient";
     const safeOfferNumber = (offer.offerNumber || "ADK").replace(/[/\\:*?"<>|]/g, "_");
-    const safeOfferName = nazwaOferty.replace(/[/\\:*?"<>|]/g, "_") || `Oferta_${safeOfferNumber}_${safeLastName}`;
-    const docCopyName = `${safeOfferName}_temp_${Date.now()}`;
+    const safeOfferName = nazwaOferty.replace(/[/\\:*?"<>|]/g, " ").replace(/\s+/g, " ").trim() || `Oferta ${safeOfferNumber} ${safeLastName}`;
+    const docCopyName = `${safeOfferName.replace(/\s+/g, "_")}_temp_${Date.now()}`;
 
     const slidesFinancials = buildOfferReplacements({
       offer,
