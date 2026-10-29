@@ -1105,293 +1105,294 @@ export function OfferSummaryTab({
 
 
 
-      {/* ── 4. USTALENIA (WYSIWYG / HTML) ── */}
-      <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-[#e2e8f0] flex items-center justify-between flex-wrap gap-3 bg-[#f8fafc]">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-md bg-[rgba(74,187,195,0.12)] text-[#0e7490] border border-[rgba(74,187,195,0.25)]">
-              <FileText size={15} className="text-[#4ABBC3]" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-bold text-xs text-[#0b1220] uppercase tracking-wider">
-                  Ustalenia
-                </h2>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100/70 text-[#0e7490] border border-teal-200/50">
-                  WYSIWYG HTML
-                </span>
+      {/* ── 4. DOLNA SEKCJA: USTALENIA (LEWA STRONA) + PODSUMOWANIE OFERTY (PRAWA STRONA) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        {/* Lewa kolumna: Ustalenia (WYSIWYG / HTML) */}
+        <div className="lg:col-span-5 xl:col-span-6 bg-white rounded-xl border border-[#e2e8f0] shadow-xs overflow-hidden flex flex-col">
+          <div className="px-5 py-3.5 border-b border-[#e2e8f0] flex items-center justify-between flex-wrap gap-3 bg-[#f8fafc]">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-md bg-[rgba(74,187,195,0.12)] text-[#0e7490] border border-[rgba(74,187,195,0.25)]">
+                <FileText size={15} className="text-[#4ABBC3]" />
               </div>
-              <p className="text-[11px] text-[#64748b]">
-                Ustalenia do oferty i wytyczne montażowe
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Przełącznik trybu: Wizualny / Kod HTML */}
-            <div className="inline-flex items-center p-0.5 bg-slate-200/70 border border-slate-300/70 rounded-lg text-xs">
-              <button
-                type="button"
-                onClick={() => setNotesMode("wysiwyg")}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
-                  notesMode === "wysiwyg"
-                    ? "bg-white text-slate-900 shadow-2xs font-semibold"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-                title="Edytor wizualny (WYSIWYG)"
-              >
-                <Eye size={12} />
-                <span>Wizualny</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setNotesMode("html")}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
-                  notesMode === "html"
-                    ? "bg-white text-slate-900 shadow-2xs font-semibold"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-                title="Edycja bezpośredniego kodu HTML"
-              >
-                <Code size={12} />
-                <span>Kod HTML</span>
-              </button>
-            </div>
-
-            {!readOnly && notes !== (offer.notes || "") && (
-              <button
-                type="button"
-                onClick={() => onUpdateOffer({ notes })}
-                className="px-3 py-1 rounded-md bg-[#0e7490] hover:bg-[#0c637b] text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
-              >
-                <Check size={13} />
-                <span>Zapisz ustalenia</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Toolbar formatowania tekstu */}
-        {!readOnly && (
-          <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center flex-wrap gap-1 text-slate-700">
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                execNotesCommand("bold");
-              }}
-              disabled={notesMode !== "wysiwyg"}
-              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
-              title="Pogrubienie (Ctrl+B)"
-            >
-              <Bold size={14} />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                execNotesCommand("italic");
-              }}
-              disabled={notesMode !== "wysiwyg"}
-              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
-              title="Kursywa (Ctrl+I)"
-            >
-              <Italic size={14} />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                execNotesCommand("underline");
-              }}
-              disabled={notesMode !== "wysiwyg"}
-              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
-              title="Podkreślenie (Ctrl+U)"
-            >
-              <Underline size={14} />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                execNotesCommand("strikeThrough");
-              }}
-              disabled={notesMode !== "wysiwyg"}
-              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
-              title="Przekreślenie"
-            >
-              <Strikethrough size={14} />
-            </button>
-
-            <div className="w-[1px] h-4 bg-slate-300 mx-1" />
-
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                execNotesCommand("formatBlock", "<h3>");
-              }}
-              disabled={notesMode !== "wysiwyg"}
-              className="px-2 py-1 hover:bg-white rounded hover:shadow-2xs text-xs font-bold text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors flex items-center gap-0.5 cursor-pointer"
-              title="Średni nagłówek (H3)"
-            >
-              <Heading3 size={14} />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                execNotesCommand("formatBlock", "<p>");
-              }}
-              disabled={notesMode !== "wysiwyg"}
-              className="px-2 py-1 hover:bg-white rounded hover:shadow-2xs text-xs font-medium text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
-              title="Zwykły akapit (P)"
-            >
-              Akapit
-            </button>
-
-            <div className="w-[1px] h-4 bg-slate-300 mx-1" />
-
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                execNotesCommand("insertUnorderedList");
-              }}
-              disabled={notesMode !== "wysiwyg"}
-              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
-              title="Lista punktowana"
-            >
-              <List size={14} />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                execNotesCommand("insertOrderedList");
-              }}
-              disabled={notesMode !== "wysiwyg"}
-              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
-              title="Lista numerowana"
-            >
-              <ListOrdered size={14} />
-            </button>
-
-            <div className="w-[1px] h-4 bg-slate-300 mx-1" />
-
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                execNotesCommand("removeFormat");
-              }}
-              disabled={notesMode !== "wysiwyg"}
-              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
-              title="Wyczyść formatowanie"
-            >
-              <RemoveFormatting size={14} />
-            </button>
-
-            <div className="w-[1px] h-4 bg-slate-300 mx-1" />
-
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                execNotesCommand("undo");
-              }}
-              disabled={notesMode !== "wysiwyg"}
-              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
-              title="Cofnij (Ctrl+Z)"
-            >
-              <Undo2 size={14} />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                execNotesCommand("redo");
-              }}
-              disabled={notesMode !== "wysiwyg"}
-              className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
-              title="Ponów (Ctrl+Y)"
-            >
-              <Redo2 size={14} />
-            </button>
-
-            {notesMode === "html" && (
-              <span className="ml-auto text-[11px] text-amber-700 font-medium">
-                Tryb edycji kodu HTML (możesz wpisywać tagi np. &lt;p&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;strong&gt;)
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="p-4 sm:p-5">
-          {notesMode === "wysiwyg" ? (
-            <div className="relative border border-[#cbd5e1] focus-within:border-[#4ABBC3] focus-within:ring-2 focus-within:ring-[#4ABBC3]/20 rounded-lg bg-[#f8fafc] focus-within:bg-white hover:bg-white transition-all">
-              <div
-                ref={notesEditorRef}
-                contentEditable={!readOnly}
-                suppressContentEditableWarning
-                onInput={(e) => {
-                  const html = e.currentTarget.innerHTML;
-                  if (html === "<p><br></p>" || html === "<br>" || html.trim() === "") {
-                    setNotes("");
-                  } else {
-                    setNotes(html);
-                  }
-                }}
-                onBlur={handleNotesBlur}
-                className="w-full min-h-[160px] max-h-[380px] overflow-y-auto p-3.5 text-xs text-[#0b1220] focus:outline-none leading-relaxed font-sans prose prose-sm max-w-none [&_p]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1.5 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-[#0b1220] [&_h3]:mt-2 [&_h3]:mb-1 [&_strong]:font-semibold [&_strong]:text-[#0b1220] [&_em]:italic [&_u]:underline [&_s]:line-through"
-              />
-              {!notes && (
-                <div
-                  onClick={() => notesEditorRef.current?.focus()}
-                  className="absolute top-3.5 left-3.5 text-xs text-[#94a3b8] pointer-events-none select-none"
-                >
-                  Wpisz ustalenia do oferty (np. zakres prac i montażu, wytyczne techniczne, termin realizacji, ustalenia z inwestorem)...
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-bold text-xs text-[#0b1220] uppercase tracking-wider">
+                    Ustalenia
+                  </h2>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100/70 text-[#0e7490] border border-teal-200/50">
+                    WYSIWYG HTML
+                  </span>
                 </div>
+                <p className="text-[11px] text-[#64748b]">
+                  Ustalenia do oferty i wytyczne montażowe
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Przełącznik trybu: Wizualny / Kod HTML */}
+              <div className="inline-flex items-center p-0.5 bg-slate-200/70 border border-slate-300/70 rounded-lg text-xs">
+                <button
+                  type="button"
+                  onClick={() => setNotesMode("wysiwyg")}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                    notesMode === "wysiwyg"
+                      ? "bg-white text-slate-900 shadow-2xs font-semibold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  title="Edytor wizualny (WYSIWYG)"
+                >
+                  <Eye size={12} />
+                  <span>Wizualny</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNotesMode("html")}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                    notesMode === "html"
+                      ? "bg-white text-slate-900 shadow-2xs font-semibold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  title="Edycja bezpośredniego kodu HTML"
+                >
+                  <Code size={12} />
+                  <span>Kod HTML</span>
+                </button>
+              </div>
+
+              {!readOnly && notes !== (offer.notes || "") && (
+                <button
+                  type="button"
+                  onClick={() => onUpdateOffer({ notes })}
+                  className="px-3 py-1 rounded-md bg-[#0e7490] hover:bg-[#0c637b] text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                >
+                  <Check size={13} />
+                  <span>Zapisz ustalenia</span>
+                </button>
               )}
             </div>
-          ) : (
-            <div className="border border-slate-700 rounded-lg overflow-hidden focus-within:border-[#4ABBC3] focus-within:ring-2 focus-within:ring-[#4ABBC3]/20">
-              <textarea
-                rows={7}
-                disabled={readOnly}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                onBlur={handleNotesBlur}
-                placeholder="<p>Wpisz ustalenia w formacie HTML...</p>"
-                className="w-full bg-[#0f172a] text-[#e2e8f0] font-mono text-xs p-3.5 focus:outline-none resize-y leading-relaxed border-0 min-h-[160px]"
-                spellCheck={false}
-              />
+          </div>
+
+          {/* Toolbar formatowania tekstu */}
+          {!readOnly && (
+            <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center flex-wrap gap-1 text-slate-700">
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  execNotesCommand("bold");
+                }}
+                disabled={notesMode !== "wysiwyg"}
+                className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                title="Pogrubienie (Ctrl+B)"
+              >
+                <Bold size={14} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  execNotesCommand("italic");
+                }}
+                disabled={notesMode !== "wysiwyg"}
+                className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                title="Kursywa (Ctrl+I)"
+              >
+                <Italic size={14} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  execNotesCommand("underline");
+                }}
+                disabled={notesMode !== "wysiwyg"}
+                className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                title="Podkreślenie (Ctrl+U)"
+              >
+                <Underline size={14} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  execNotesCommand("strikeThrough");
+                }}
+                disabled={notesMode !== "wysiwyg"}
+                className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                title="Przekreślenie"
+              >
+                <Strikethrough size={14} />
+              </button>
+
+              <div className="w-[1px] h-4 bg-slate-300 mx-1" />
+
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  execNotesCommand("formatBlock", "<h3>");
+                }}
+                disabled={notesMode !== "wysiwyg"}
+                className="px-2 py-1 hover:bg-white rounded hover:shadow-2xs text-xs font-bold text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors flex items-center gap-0.5 cursor-pointer"
+                title="Średni nagłówek (H3)"
+              >
+                <Heading3 size={14} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  execNotesCommand("formatBlock", "<p>");
+                }}
+                disabled={notesMode !== "wysiwyg"}
+                className="px-2 py-1 hover:bg-white rounded hover:shadow-2xs text-xs font-medium text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                title="Zwykły akapit (P)"
+              >
+                Akapit
+              </button>
+
+              <div className="w-[1px] h-4 bg-slate-300 mx-1" />
+
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  execNotesCommand("insertUnorderedList");
+                }}
+                disabled={notesMode !== "wysiwyg"}
+                className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                title="Lista punktowana"
+              >
+                <List size={14} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  execNotesCommand("insertOrderedList");
+                }}
+                disabled={notesMode !== "wysiwyg"}
+                className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                title="Lista numerowana"
+              >
+                <ListOrdered size={14} />
+              </button>
+
+              <div className="w-[1px] h-4 bg-slate-300 mx-1" />
+
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  execNotesCommand("removeFormat");
+                }}
+                disabled={notesMode !== "wysiwyg"}
+                className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                title="Wyczyść formatowanie"
+              >
+                <RemoveFormatting size={14} />
+              </button>
+
+              <div className="w-[1px] h-4 bg-slate-300 mx-1" />
+
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  execNotesCommand("undo");
+                }}
+                disabled={notesMode !== "wysiwyg"}
+                className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                title="Cofnij (Ctrl+Z)"
+              >
+                <Undo2 size={14} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  execNotesCommand("redo");
+                }}
+                disabled={notesMode !== "wysiwyg"}
+                className="p-1.5 hover:bg-white rounded hover:shadow-2xs text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                title="Ponów (Ctrl+Y)"
+              >
+                <Redo2 size={14} />
+              </button>
+
+              {notesMode === "html" && (
+                <span className="ml-auto text-[11px] text-amber-700 font-medium">
+                  Tryb kodu HTML
+                </span>
+              )}
             </div>
           )}
 
-          <div className="flex items-center justify-between mt-2.5 text-[11px] text-[#64748b]">
-            <span>
-              Ustalenia zostaną automatycznie zapisane po opuszczeniu pola lub po kliknięciu &quot;Zapisz ustalenia&quot;.
-            </span>
-            {notes ? (
-              <span className="font-mono text-[10px] text-slate-400">
-                {notes.length} znaków HTML
+          <div className="p-4 sm:p-5 flex-1 flex flex-col">
+            {notesMode === "wysiwyg" ? (
+              <div className="relative border border-[#cbd5e1] focus-within:border-[#4ABBC3] focus-within:ring-2 focus-within:ring-[#4ABBC3]/20 rounded-lg bg-[#f8fafc] focus-within:bg-white hover:bg-white transition-all flex-1 flex flex-col">
+                <div
+                  ref={notesEditorRef}
+                  contentEditable={!readOnly}
+                  suppressContentEditableWarning
+                  onInput={(e) => {
+                    const html = e.currentTarget.innerHTML;
+                    if (html === "<p><br></p>" || html === "<br>" || html.trim() === "") {
+                      setNotes("");
+                    } else {
+                      setNotes(html);
+                    }
+                  }}
+                  onBlur={handleNotesBlur}
+                  className="w-full flex-1 min-h-[160px] max-h-[360px] overflow-y-auto p-3.5 text-xs text-[#0b1220] focus:outline-none leading-relaxed font-sans prose prose-sm max-w-none [&_p]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1.5 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-[#0b1220] [&_h3]:mt-2 [&_h3]:mb-1 [&_strong]:font-semibold [&_strong]:text-[#0b1220] [&_em]:italic [&_u]:underline [&_s]:line-through"
+                />
+                {!notes && (
+                  <div
+                    onClick={() => notesEditorRef.current?.focus()}
+                    className="absolute top-3.5 left-3.5 text-xs text-[#94a3b8] pointer-events-none select-none"
+                  >
+                    Wpisz ustalenia do oferty (np. zakres prac i montażu, wytyczne techniczne, termin realizacji, ustalenia z inwestorem)...
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="border border-slate-700 rounded-lg overflow-hidden focus-within:border-[#4ABBC3] focus-within:ring-2 focus-within:ring-[#4ABBC3]/20 flex-1 flex flex-col">
+                <textarea
+                  rows={7}
+                  disabled={readOnly}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  onBlur={handleNotesBlur}
+                  placeholder="<p>Wpisz ustalenia w formacie HTML...</p>"
+                  className="w-full flex-1 bg-[#0f172a] text-[#e2e8f0] font-mono text-xs p-3.5 focus:outline-none resize-y leading-relaxed border-0 min-h-[160px]"
+                  spellCheck={false}
+                />
+              </div>
+            )}
+
+            <div className="flex items-center justify-between mt-2.5 text-[11px] text-[#64748b]">
+              <span>
+                Automatyczny zapis po opuszczeniu pola.
               </span>
-            ) : null}
+              {notes ? (
+                <span className="font-mono text-[10px] text-slate-400">
+                  {notes.length} znaków HTML
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ── 4. PODSUMOWANIE OFERTY (WYRÓWNANE DO PRAWEJ STRONY) ── */}
-      <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs p-6 sm:p-8">
-        <div className="flex justify-end">
-          <div className="w-full max-w-3xl space-y-4">
+        {/* Prawa kolumna: Podsumowanie oferty */}
+        <div className="lg:col-span-7 xl:col-span-6 bg-white rounded-xl border border-[#e2e8f0] shadow-xs p-5 sm:p-6 flex flex-col justify-between space-y-4">
+          <div className="space-y-4">
             <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
               <h2 className="font-extrabold text-xs text-[#0b1220] uppercase tracking-wider">
                 Podsumowanie oferty
               </h2>
               <div className="text-[11px] text-[#64748b] font-mono">
-                Rentowność handlowa:{" "}
+                Rentowność:{" "}
                 <span
                   className={`font-bold px-2 py-0.5 rounded ${
                     marginPct >= 20
@@ -1406,21 +1407,22 @@ export function OfferSummaryTab({
 
             {/* Linia: Konstrukcje */}
             <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 py-2">
-              <div>
+              <div className="shrink-0">
                 <div className="font-sans font-bold text-sm text-[#0b1220]">
                   Konstrukcje:
                 </div>
                 <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5">
-                  (cena katalogowa: {totalMaterialPrice.toLocaleString("pl-PL")} zł • koszty konstrukcji: {totalMaterialCost.toLocaleString("pl-PL")} zł • marża: {matMarginPct}%)
+                  (cena katalogowa: {totalMaterialPrice.toLocaleString("pl-PL")} zł • koszty: {totalMaterialCost.toLocaleString("pl-PL")} zł • marża: {matMarginPct}%
+                  {discountPct > 0 ? ` • upust: -${discountAmount.toLocaleString("pl-PL")} zł` : ""})
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 font-mono text-sm sm:text-base text-[#0b1220] flex-wrap justify-end">
-                <span className="font-medium text-slate-700">
+              <div className="flex items-center gap-2 font-mono text-sm sm:text-base text-[#0b1220] whitespace-nowrap shrink-0 justify-end">
+                <span className="font-medium text-slate-700 min-w-[85px] text-right">
                   {totalMaterialPrice.toLocaleString("pl-PL")} zł
                 </span>
 
-                <span className="text-rose-500 font-bold">-</span>
+                <span className="text-rose-500 font-bold select-none">-</span>
 
                 {/* Czyste, jednolite pole rabatu */}
                 <div className="inline-flex items-center gap-1.5 bg-white border border-[#cbd5e1] hover:border-rose-400 focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-500/20 rounded-md px-2 py-1 transition-all shadow-2xs">
@@ -1445,7 +1447,7 @@ export function OfferSummaryTab({
                         });
                       }
                     }}
-                    className="w-12 bg-transparent text-[#0b1220] font-mono font-bold text-sm text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-11 bg-transparent text-[#0b1220] font-mono font-bold text-sm text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     placeholder="0"
                     title="Wpisz procent rabatu"
                   />
@@ -1454,16 +1456,11 @@ export function OfferSummaryTab({
                   </span>
                 </div>
 
-                <span className="text-slate-400 font-bold">=</span>
+                <span className="text-slate-400 font-bold select-none">=</span>
 
-                <span className="font-extrabold text-[#0e7490]">
+                <span className="font-extrabold text-[#0e7490] min-w-[100px] text-right">
                   {discountedMaterialNet.toLocaleString("pl-PL")} zł
                 </span>
-                {discountPct > 0 && (
-                  <span className="text-[11px] text-rose-600 font-sans font-semibold">
-                    (-{discountAmount.toLocaleString("pl-PL")} zł)
-                  </span>
-                )}
               </div>
             </div>
 
@@ -1493,35 +1490,35 @@ export function OfferSummaryTab({
 
             {/* Linia: Montaż */}
             <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 py-3 border-t border-slate-100">
-              <div>
+              <div className="shrink-0">
                 <div className="font-sans font-bold text-sm text-[#0b1220]">
                   Montaż:
                 </div>
                 <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5">
-                  (koszt montażu / ekipy: {totalInstallationCost.toLocaleString("pl-PL")} zł • marża: {instMarginPct}%)
+                  (koszt ekipy: {totalInstallationCost.toLocaleString("pl-PL")} zł • marża: {instMarginPct}%)
                 </div>
               </div>
 
-              <div className="font-mono text-sm sm:text-base font-bold text-slate-800 text-right">
+              <div className="font-mono text-sm sm:text-base font-bold text-slate-800 text-right min-w-[100px] whitespace-nowrap shrink-0">
                 {totalInstallationPrice.toLocaleString("pl-PL")} zł
               </div>
             </div>
 
             {/* Linia podsumowania: RAZEM */}
-            <div className="pt-5 mt-3 border-t-2 border-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="font-sans font-black text-base md:text-lg text-[#0b1220] tracking-wider uppercase">
+            <div className="pt-4 mt-2 border-t-2 border-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="font-sans font-black text-base text-[#0b1220] tracking-wider uppercase shrink-0">
                 RAZEM =
               </div>
 
-              <div className="flex items-center gap-3 font-mono text-base md:text-lg flex-wrap justify-end">
+              <div className="flex flex-wrap items-center gap-2.5 font-mono text-sm sm:text-base whitespace-nowrap shrink-0 justify-end">
                 <span className="font-extrabold text-[#0e7490]">
                   {finalOfferNet.toLocaleString("pl-PL")} zł netto
                 </span>
 
-                <span className="text-slate-400 font-bold">+</span>
+                <span className="text-slate-400 font-bold select-none">+</span>
 
                 {/* Wybór stawki VAT w linii równania */}
-                <div className="inline-flex items-center gap-1 bg-slate-100 border border-slate-300 rounded px-2.5 py-1 text-xs md:text-sm font-sans">
+                <div className="inline-flex items-center gap-1 bg-slate-100 border border-slate-300 rounded px-2 py-0.5 text-xs font-sans">
                   <select
                     disabled={readOnly}
                     value={vatRate}
@@ -1537,30 +1534,30 @@ export function OfferSummaryTab({
                   <span className="font-bold text-slate-700">VAT</span>
                 </div>
 
-                <span className="text-slate-400 font-bold">=</span>
+                <span className="text-slate-400 font-bold select-none">=</span>
 
-                <span className="font-black text-lg md:text-2xl text-slate-900 bg-slate-100/90 px-3.5 py-1.5 rounded-lg border border-slate-300/80">
+                <span className="font-black text-base sm:text-xl text-slate-900 bg-slate-100/90 px-3 py-1 rounded-lg border border-slate-300/80 min-w-[135px] text-right">
                   {finalOfferGross.toLocaleString("pl-PL")} zł brutto
                 </span>
               </div>
             </div>
+          </div>
 
-            {/* Dyskretne podsumowanie kosztów i rentowności dla handlowca */}
-            <div className="mt-5 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748b] font-mono">
-              <div>
-                Koszta łączne: <strong className="text-slate-700">{totalCombinedCost.toLocaleString("pl-PL")} zł</strong>
-              </div>
-              <div>
-                Szacowany zysk:{" "}
-                <strong className={profitNet >= 0 ? "text-emerald-600" : "text-rose-600"}>
-                  {profitNet >= 0 ? `+${profitNet.toLocaleString("pl-PL")}` : profitNet.toLocaleString("pl-PL")} zł
-                </strong>
-                {" • "}
-                Marża handlowa:{" "}
-                <strong className={marginPct >= 20 ? "text-emerald-600" : "text-amber-600"}>
-                  {marginPct}%
-                </strong>
-              </div>
+          {/* Dyskretne podsumowanie kosztów i rentowności dla handlowca */}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748b] font-mono">
+            <div>
+              Koszta łączne: <strong className="text-slate-700">{totalCombinedCost.toLocaleString("pl-PL")} zł</strong>
+            </div>
+            <div>
+              Szacowany zysk:{" "}
+              <strong className={profitNet >= 0 ? "text-emerald-600" : "text-rose-600"}>
+                {profitNet >= 0 ? `+${profitNet.toLocaleString("pl-PL")}` : profitNet.toLocaleString("pl-PL")} zł
+              </strong>
+              {" • "}
+              Marża:{" "}
+              <strong className={marginPct >= 20 ? "text-emerald-600" : "text-amber-600"}>
+                {marginPct}%
+              </strong>
             </div>
           </div>
         </div>
