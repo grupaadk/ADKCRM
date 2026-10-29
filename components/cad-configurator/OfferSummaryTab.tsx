@@ -1422,8 +1422,8 @@ export function OfferSummaryTab({
 
                 <span className="text-rose-500 font-bold">-</span>
 
-                {/* Pole rabatu w linii równania */}
-                <div className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 rounded px-2 py-0.5">
+                {/* Czyste, jednolite pole rabatu */}
+                <div className="inline-flex items-center gap-1.5 bg-white border border-[#cbd5e1] hover:border-rose-400 focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-500/20 rounded-md px-2 py-1 transition-all shadow-2xs">
                   <input
                     type="number"
                     min={0}
@@ -1445,11 +1445,13 @@ export function OfferSummaryTab({
                         });
                       }
                     }}
-                    className="w-12 bg-transparent text-rose-700 font-mono font-bold text-xs text-right focus:outline-none"
+                    className="w-12 bg-transparent text-[#0b1220] font-mono font-bold text-sm text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     placeholder="0"
                     title="Wpisz procent rabatu"
                   />
-                  <span className="text-rose-700 font-bold text-xs">% RABAT</span>
+                  <span className="text-rose-600 font-sans font-bold text-xs tracking-wide select-none">
+                    % RABAT
+                  </span>
                 </div>
 
                 <span className="text-slate-400 font-bold">=</span>
