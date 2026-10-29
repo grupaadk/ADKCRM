@@ -2892,8 +2892,13 @@ export function buildOfferReplacements(params: {
     .map((it, idx) => {
       const dims = it.widthMm && it.heightMm ? ` (B=${it.widthMm}, H=${it.heightMm})` : "";
       const sys = it.systemName ? `${it.systemName} - ` : "";
-      const itemTotalNet = (it.priceNet || 0) * (it.quantity || 1);
-      return `${idx + 1}. ${sys}${it.name}${dims}\nIlość: ${it.quantity ?? 1} szt. | Cena netto: ${formatPLNCurrency(it.priceNet)} | Wartość netto: ${formatPLNCurrency(itemTotalNet)}`;
+      const instPrice = typeof it.installationPriceNet === "number" ? it.installationPriceNet : 0;
+      const matPrice =
+        typeof it.materialPriceNet === "number"
+          ? it.materialPriceNet
+          : Math.max(0, (it.priceNet || 0) - instPrice);
+      const itemTotalNet = matPrice * (it.quantity || 1);
+      return `${idx + 1}. ${sys}${it.name}${dims}\nIlość: ${it.quantity ?? 1} szt. | Cena netto: ${formatPLNCurrency(matPrice)} | Wartość netto: ${formatPLNCurrency(itemTotalNet)}`;
     })
     .join("\n\n");
 
@@ -3464,7 +3469,12 @@ export const generateOfferPdf = action({
           const itDims = it.widthMm && it.heightMm ? `B = ${it.widthMm} mm × H = ${it.heightMm} mm` : "";
           const itSys = it.systemName ? `${it.systemName} - ` : "";
           const itDesc = `${itSys}${it.name}${itDims ? `\n(${itDims})` : ""}`;
-          const itTotalNet = (it.priceNet || 0) * (it.quantity || 1);
+          const instPrice = typeof it.installationPriceNet === "number" ? it.installationPriceNet : 0;
+          const matPrice =
+            typeof it.materialPriceNet === "number"
+              ? it.materialPriceNet
+              : Math.max(0, (it.priceNet || 0) - instPrice);
+          const itTotalNet = matPrice * (it.quantity || 1);
 
           const posReplacements: Array<{ placeholder: string; value: string }> = [
             { placeholder: "{{pozycja_nr}}", value: String(idx + 1) },
@@ -3481,7 +3491,7 @@ export const generateOfferPdf = action({
             { placeholder: "{{szklenie}}", value: it.fillType || "" },
             { placeholder: "{{wypelnienie}}", value: it.fillType || "" },
             { placeholder: "{{ilosc}}", value: `${it.quantity} szt.` },
-            { placeholder: "{{cena_netto}}", value: formatPLN(it.priceNet) },
+            { placeholder: "{{cena_netto}}", value: formatPLN(matPrice) },
             { placeholder: "{{wartosc_netto_pozycji}}", value: formatPLN(itTotalNet) },
             { placeholder: "{{uwagi_pozycji}}", value: htmlToFormattedPlainText(it.notes) },
 
@@ -4005,11 +4015,16 @@ export const generateOfferPdf = action({
                       const c2Start = cell2?.content?.[0]?.paragraph?.elements?.[0]?.startIndex;
 
                       const num = it.positionIndex || rIdx + 1;
-                      const itemTotalNet = (it.priceNet || 0) * (it.quantity || 1);
+                      const instPrice = typeof it.installationPriceNet === "number" ? it.installationPriceNet : 0;
+                      const matPrice =
+                        typeof it.materialPriceNet === "number"
+                          ? it.materialPriceNet
+                          : Math.max(0, (it.priceNet || 0) - instPrice);
+                      const itemTotalNet = matPrice * (it.quantity || 1);
 
                       // 1. Prawa kolumna: Ceny
                       if (typeof c2Start === "number") {
-                        const rightText = `Cena za sztukę netto:\n${formatPLN(it.priceNet)}\n\nWartość netto:\n${formatPLN(itemTotalNet)}`;
+                        const rightText = `Cena za sztukę netto:\n${formatPLN(matPrice)}\n\nWartość netto:\n${formatPLN(itemTotalNet)}`;
                         cellRequests.push({
                           insertText: {
                             location: { index: c2Start },
