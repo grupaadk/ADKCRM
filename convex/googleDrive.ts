@@ -2310,9 +2310,10 @@ export const copyTemplate = action({
       const lineItemsList = lineItemsResult.items.map((item) => item.name).join("\n");
       const installationNetTotal = lineItemsResult.items.reduce((acc, item) => {
         const q = item.quantity || 1;
+        const it = item as Record<string, unknown>;
         const price =
-          item.installationPriceNet !== undefined && item.installationPriceNet !== null
-            ? item.installationPriceNet
+          typeof it.installationPriceNet === "number"
+            ? it.installationPriceNet
             : 0;
         return acc + price * q;
       }, 0);
@@ -2513,9 +2514,10 @@ export const copyWarrantyTemplate = action({
       const lineItemsList = lineItemsResult.items.map((item) => item.name).join("\n");
       const installationNetTotal = lineItemsResult.items.reduce((acc, item) => {
         const q = item.quantity || 1;
+        const it = item as Record<string, unknown>;
         const price =
-          item.installationPriceNet !== undefined && item.installationPriceNet !== null
-            ? item.installationPriceNet
+          typeof it.installationPriceNet === "number"
+            ? it.installationPriceNet
             : 0;
         return acc + price * q;
       }, 0);
@@ -2741,6 +2743,8 @@ export function formatPLNCurrency(amount: number): string {
   const decPart = str.slice(dotIdx + 1);
   return `${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ")},${decPart} zł`;
 }
+
+export const formatPLN = formatPLNCurrency;
 
 /**
  * Oblicza podsumowania finansowe oraz listę podstawień makr (placeholderów) dla szablonów ofert Google Docs i Slides.
