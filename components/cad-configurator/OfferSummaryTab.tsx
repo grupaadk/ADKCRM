@@ -1103,187 +1103,7 @@ export function OfferSummaryTab({
         )}
       </div>
 
-      {/* ── 3. PODSUMOWANIE OFERTY (STYL DOKUMENTOWY — ZGODNY ZE SKRYPTEM I SZKICEM) ── */}
-      <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs p-6 sm:p-8">
-        <div className="flex items-center justify-between mb-6 pb-2.5 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <h2 className="font-extrabold text-xs text-[#0b1220] uppercase tracking-wider">
-              Podsumowanie oferty
-            </h2>
-          </div>
-          <div className="text-[11px] text-[#64748b] font-mono">
-            Rentowność handlowa:{" "}
-            <span
-              className={`font-bold px-2 py-0.5 rounded ${
-                marginPct >= 20
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "bg-amber-50 text-amber-700"
-              }`}
-            >
-              marża {marginPct}%
-            </span>
-          </div>
-        </div>
 
-        <div className="space-y-4 max-w-4xl">
-          {/* Linia: Konstrukcje */}
-          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 py-2">
-            <div>
-              <div className="font-sans font-bold text-sm text-[#0b1220]">
-                Konstrukcje:
-              </div>
-              <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5">
-                (cena katalogowa: {totalMaterialPrice.toLocaleString("pl-PL")} zł • koszty konstrukcji: {totalMaterialCost.toLocaleString("pl-PL")} zł • marża: {matMarginPct}%)
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 font-mono text-sm sm:text-base text-[#0b1220] flex-wrap justify-end">
-              <span className="font-medium text-slate-700">
-                {totalMaterialPrice.toLocaleString("pl-PL")} zł
-              </span>
-
-              <span className="text-rose-500 font-bold">-</span>
-
-              {/* Pole rabatu w linii równania */}
-              <div className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 rounded px-2 py-0.5">
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.5}
-                  disabled={readOnly}
-                  value={customDiscount}
-                  onChange={(e) => {
-                    const text = e.target.value;
-                    setCustomDiscount(text);
-                    if (text.trim() === "") {
-                      onUpdateOffer({ discountPercent: 0 });
-                      return;
-                    }
-                    const val = parseFloat(text);
-                    if (!isNaN(val) && val >= 0 && val <= 100) {
-                      onUpdateOffer({
-                        discountPercent: Math.round(val * 10) / 10,
-                      });
-                    }
-                  }}
-                  className="w-12 bg-transparent text-rose-700 font-mono font-bold text-xs text-right focus:outline-none"
-                  placeholder="0"
-                  title="Wpisz procent rabatu"
-                />
-                <span className="text-rose-700 font-bold text-xs">% RABAT</span>
-              </div>
-
-              <span className="text-slate-400 font-bold">=</span>
-
-              <span className="font-extrabold text-[#0e7490]">
-                {discountedMaterialNet.toLocaleString("pl-PL")} zł
-              </span>
-              {discountPct > 0 && (
-                <span className="text-[11px] text-rose-600 font-sans font-semibold">
-                  (-{discountAmount.toLocaleString("pl-PL")} zł)
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Szybki wybór rabatu */}
-          {!readOnly && (
-            <div className="flex items-center gap-1.5 justify-end -mt-2">
-              <span className="text-[10px] text-slate-400 font-sans">Szybki rabat:</span>
-              {PRESET_DISCOUNTS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => {
-                    setCustomDiscount(String(preset));
-                    onUpdateOffer({ discountPercent: preset });
-                  }}
-                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-                    discountPct === preset
-                      ? "bg-rose-600 text-white font-bold"
-                      : "bg-slate-100 hover:bg-slate-200 text-slate-600"
-                  }`}
-                >
-                  {preset}%
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Linia: Montaż */}
-          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 py-3 border-t border-slate-100">
-            <div>
-              <div className="font-sans font-bold text-sm text-[#0b1220]">
-                Montaż:
-              </div>
-              <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5">
-                (koszt montażu / ekipy: {totalInstallationCost.toLocaleString("pl-PL")} zł • marża: {instMarginPct}%)
-              </div>
-            </div>
-
-            <div className="font-mono text-sm sm:text-base font-bold text-slate-800 text-right">
-              {totalInstallationPrice.toLocaleString("pl-PL")} zł
-            </div>
-          </div>
-
-          {/* Linia podsumowania: RAZEM */}
-          <div className="pt-5 mt-3 border-t-2 border-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="font-sans font-black text-base md:text-lg text-[#0b1220] tracking-wider uppercase">
-              RAZEM =
-            </div>
-
-            <div className="flex items-center gap-3 font-mono text-base md:text-lg flex-wrap justify-end">
-              <span className="font-extrabold text-[#0e7490]">
-                {finalOfferNet.toLocaleString("pl-PL")} zł netto
-              </span>
-
-              <span className="text-slate-400 font-bold">+</span>
-
-              {/* Wybór stawki VAT w linii równania */}
-              <div className="inline-flex items-center gap-1 bg-slate-100 border border-slate-300 rounded px-2.5 py-1 text-xs md:text-sm font-sans">
-                <select
-                  disabled={readOnly}
-                  value={vatRate}
-                  onChange={(e) => onUpdateOffer({ vatRate: Number(e.target.value) })}
-                  className="bg-transparent font-mono font-bold text-[#0b1220] focus:outline-none cursor-pointer"
-                >
-                  {PRESET_VAT_RATES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}%
-                    </option>
-                  ))}
-                </select>
-                <span className="font-bold text-slate-700">VAT</span>
-              </div>
-
-              <span className="text-slate-400 font-bold">=</span>
-
-              <span className="font-black text-lg md:text-2xl text-slate-900 bg-slate-100/90 px-3.5 py-1.5 rounded-lg border border-slate-300/80">
-                {finalOfferGross.toLocaleString("pl-PL")} zł brutto
-              </span>
-            </div>
-          </div>
-
-          {/* Dyskretne podsumowanie kosztów i rentowności dla handlowca */}
-          <div className="mt-5 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748b] font-mono">
-            <div>
-              Koszta łączne: <strong className="text-slate-700">{totalCombinedCost.toLocaleString("pl-PL")} zł</strong>
-            </div>
-            <div>
-              Szacowany zysk:{" "}
-              <strong className={profitNet >= 0 ? "text-emerald-600" : "text-rose-600"}>
-                {profitNet >= 0 ? `+${profitNet.toLocaleString("pl-PL")}` : profitNet.toLocaleString("pl-PL")} zł
-              </strong>
-              {" • "}
-              Marża handlowa:{" "}
-              <strong className={marginPct >= 20 ? "text-emerald-600" : "text-amber-600"}>
-                {marginPct}%
-              </strong>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* ── 4. USTALENIA (WYSIWYG / HTML) ── */}
       <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs overflow-hidden">
@@ -1558,6 +1378,188 @@ export function OfferSummaryTab({
                 {notes.length} znaków HTML
               </span>
             ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 4. PODSUMOWANIE OFERTY (WYRÓWNANE DO PRAWEJ STRONY) ── */}
+      <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs p-6 sm:p-8">
+        <div className="flex justify-end">
+          <div className="w-full max-w-3xl space-y-4">
+            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+              <h2 className="font-extrabold text-xs text-[#0b1220] uppercase tracking-wider">
+                Podsumowanie oferty
+              </h2>
+              <div className="text-[11px] text-[#64748b] font-mono">
+                Rentowność handlowa:{" "}
+                <span
+                  className={`font-bold px-2 py-0.5 rounded ${
+                    marginPct >= 20
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  marża {marginPct}%
+                </span>
+              </div>
+            </div>
+
+            {/* Linia: Konstrukcje */}
+            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 py-2">
+              <div>
+                <div className="font-sans font-bold text-sm text-[#0b1220]">
+                  Konstrukcje:
+                </div>
+                <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5">
+                  (cena katalogowa: {totalMaterialPrice.toLocaleString("pl-PL")} zł • koszty konstrukcji: {totalMaterialCost.toLocaleString("pl-PL")} zł • marża: {matMarginPct}%)
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 font-mono text-sm sm:text-base text-[#0b1220] flex-wrap justify-end">
+                <span className="font-medium text-slate-700">
+                  {totalMaterialPrice.toLocaleString("pl-PL")} zł
+                </span>
+
+                <span className="text-rose-500 font-bold">-</span>
+
+                {/* Pole rabatu w linii równania */}
+                <div className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 rounded px-2 py-0.5">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.5}
+                    disabled={readOnly}
+                    value={customDiscount}
+                    onChange={(e) => {
+                      const text = e.target.value;
+                      setCustomDiscount(text);
+                      if (text.trim() === "") {
+                        onUpdateOffer({ discountPercent: 0 });
+                        return;
+                      }
+                      const val = parseFloat(text);
+                      if (!isNaN(val) && val >= 0 && val <= 100) {
+                        onUpdateOffer({
+                          discountPercent: Math.round(val * 10) / 10,
+                        });
+                      }
+                    }}
+                    className="w-12 bg-transparent text-rose-700 font-mono font-bold text-xs text-right focus:outline-none"
+                    placeholder="0"
+                    title="Wpisz procent rabatu"
+                  />
+                  <span className="text-rose-700 font-bold text-xs">% RABAT</span>
+                </div>
+
+                <span className="text-slate-400 font-bold">=</span>
+
+                <span className="font-extrabold text-[#0e7490]">
+                  {discountedMaterialNet.toLocaleString("pl-PL")} zł
+                </span>
+                {discountPct > 0 && (
+                  <span className="text-[11px] text-rose-600 font-sans font-semibold">
+                    (-{discountAmount.toLocaleString("pl-PL")} zł)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Szybki wybór rabatu */}
+            {!readOnly && (
+              <div className="flex items-center gap-1.5 justify-end -mt-2">
+                <span className="text-[10px] text-slate-400 font-sans">Szybki rabat:</span>
+                {PRESET_DISCOUNTS.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setCustomDiscount(String(preset));
+                      onUpdateOffer({ discountPercent: preset });
+                    }}
+                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                      discountPct === preset
+                        ? "bg-rose-600 text-white font-bold"
+                        : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {preset}%
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Linia: Montaż */}
+            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 py-3 border-t border-slate-100">
+              <div>
+                <div className="font-sans font-bold text-sm text-[#0b1220]">
+                  Montaż:
+                </div>
+                <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5">
+                  (koszt montażu / ekipy: {totalInstallationCost.toLocaleString("pl-PL")} zł • marża: {instMarginPct}%)
+                </div>
+              </div>
+
+              <div className="font-mono text-sm sm:text-base font-bold text-slate-800 text-right">
+                {totalInstallationPrice.toLocaleString("pl-PL")} zł
+              </div>
+            </div>
+
+            {/* Linia podsumowania: RAZEM */}
+            <div className="pt-5 mt-3 border-t-2 border-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="font-sans font-black text-base md:text-lg text-[#0b1220] tracking-wider uppercase">
+                RAZEM =
+              </div>
+
+              <div className="flex items-center gap-3 font-mono text-base md:text-lg flex-wrap justify-end">
+                <span className="font-extrabold text-[#0e7490]">
+                  {finalOfferNet.toLocaleString("pl-PL")} zł netto
+                </span>
+
+                <span className="text-slate-400 font-bold">+</span>
+
+                {/* Wybór stawki VAT w linii równania */}
+                <div className="inline-flex items-center gap-1 bg-slate-100 border border-slate-300 rounded px-2.5 py-1 text-xs md:text-sm font-sans">
+                  <select
+                    disabled={readOnly}
+                    value={vatRate}
+                    onChange={(e) => onUpdateOffer({ vatRate: Number(e.target.value) })}
+                    className="bg-transparent font-mono font-bold text-[#0b1220] focus:outline-none cursor-pointer"
+                  >
+                    {PRESET_VAT_RATES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}%
+                      </option>
+                    ))}
+                  </select>
+                  <span className="font-bold text-slate-700">VAT</span>
+                </div>
+
+                <span className="text-slate-400 font-bold">=</span>
+
+                <span className="font-black text-lg md:text-2xl text-slate-900 bg-slate-100/90 px-3.5 py-1.5 rounded-lg border border-slate-300/80">
+                  {finalOfferGross.toLocaleString("pl-PL")} zł brutto
+                </span>
+              </div>
+            </div>
+
+            {/* Dyskretne podsumowanie kosztów i rentowności dla handlowca */}
+            <div className="mt-5 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748b] font-mono">
+              <div>
+                Koszta łączne: <strong className="text-slate-700">{totalCombinedCost.toLocaleString("pl-PL")} zł</strong>
+              </div>
+              <div>
+                Szacowany zysk:{" "}
+                <strong className={profitNet >= 0 ? "text-emerald-600" : "text-rose-600"}>
+                  {profitNet >= 0 ? `+${profitNet.toLocaleString("pl-PL")}` : profitNet.toLocaleString("pl-PL")} zł
+                </strong>
+                {" • "}
+                Marża handlowa:{" "}
+                <strong className={marginPct >= 20 ? "text-emerald-600" : "text-amber-600"}>
+                  {marginPct}%
+                </strong>
+              </div>
+            </div>
           </div>
         </div>
       </div>
