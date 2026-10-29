@@ -388,8 +388,13 @@ export function OfferSummaryTab({
   // Kalkulacja filarów całości oferty: Materiał i Montaż
   const totalMaterialCost = items.reduce((acc, it) => {
     const q = it.quantity || 1;
-    const cost = it.materialCostNet !== undefined && it.materialCostNet !== null ? it.materialCostNet : (it.costNet || 0);
-    return acc + cost * q;
+    const baseCost =
+      it.materialCostNet !== undefined && it.materialCostNet !== null
+        ? it.materialCostNet
+        : it.costNet || 0;
+    const brushes = it.brushesCostNet || 0;
+    const handles = it.handlesCostNet || 0;
+    return acc + (baseCost + brushes + handles) * q;
   }, 0);
 
   const totalInstallationCost = items.reduce((acc, it) => {

@@ -14,7 +14,9 @@ import {
   ArrowLeft,
   ArrowRight,
   FileText,
+  Calculator,
 } from "lucide-react";
+import { calculateGlassSystemPricing } from "@/lib/glassPricing";
 
 export type CategoryDoc = Doc<"constructionCategories">;
 export type ConstructionDoc = Doc<"constructions">;
@@ -26,20 +28,21 @@ export interface GlassSystemPreset {
   heightMm: number;
   label: string;
   sublabel: string;
+  systemCostNet?: number;
   brushesCostNet?: number;
   handlesCostNet?: number;
 }
 
 export const GLASS_SYSTEM_PRESETS: GlassSystemPreset[] = [
-  { id: "2t-194", tracks: 2, widthMm: 1940, heightMm: 2300, label: "System 2-torowy", sublabel: "194 cm / wys. 230 cm", brushesCostNet: 65, handlesCostNet: 57 },
-  { id: "3t-241", tracks: 3, widthMm: 2410, heightMm: 2300, label: "System 3-torowy", sublabel: "241 cm / wys. 230 cm", brushesCostNet: 89, handlesCostNet: 81 },
-  { id: "3t-290", tracks: 3, widthMm: 2900, heightMm: 2300, label: "System 3-torowy", sublabel: "290 cm / wys. 230 cm", brushesCostNet: 89, handlesCostNet: 81 },
-  { id: "4t-337", tracks: 4, widthMm: 3370, heightMm: 2300, label: "System 4-torowy", sublabel: "337 cm / wys. 230 cm", brushesCostNet: 122, handlesCostNet: 114 },
-  { id: "4t-386", tracks: 4, widthMm: 3860, heightMm: 2300, label: "System 4-torowy", sublabel: "386 cm / wys. 230 cm", brushesCostNet: 122, handlesCostNet: 114 },
-  { id: "5t-433", tracks: 5, widthMm: 4330, heightMm: 2300, label: "System 5-torowy", sublabel: "433 cm / wys. 230 cm", brushesCostNet: 154, handlesCostNet: 138 },
-  { id: "5t-482", tracks: 5, widthMm: 4820, heightMm: 2300, label: "System 5-torowy", sublabel: "482 cm / wys. 230 cm", brushesCostNet: 154, handlesCostNet: 138 },
-  { id: "6t-529", tracks: 6, widthMm: 5290, heightMm: 2300, label: "System 6-torowy", sublabel: "529 cm / wys. 230 cm", brushesCostNet: 187, handlesCostNet: 163 },
-  { id: "6t-578", tracks: 6, widthMm: 5780, heightMm: 2300, label: "System 6-torowy", sublabel: "578 cm / wys. 230 cm", brushesCostNet: 187, handlesCostNet: 163 },
+  { id: "2t-194", tracks: 2, widthMm: 1940, heightMm: 2300, label: "System 2-torowy", sublabel: "194 cm / wys. 230 cm", systemCostNet: 1572, brushesCostNet: 65, handlesCostNet: 57 },
+  { id: "3t-241", tracks: 3, widthMm: 2410, heightMm: 2300, label: "System 3-torowy", sublabel: "241 cm / wys. 230 cm", systemCostNet: 2470, brushesCostNet: 89, handlesCostNet: 81 },
+  { id: "3t-290", tracks: 3, widthMm: 2900, heightMm: 2300, label: "System 3-torowy", sublabel: "290 cm / wys. 230 cm", systemCostNet: 2470, brushesCostNet: 89, handlesCostNet: 81 },
+  { id: "4t-337", tracks: 4, widthMm: 3370, heightMm: 2300, label: "System 4-torowy", sublabel: "337 cm / wys. 230 cm", systemCostNet: 3367, brushesCostNet: 122, handlesCostNet: 114 },
+  { id: "4t-386", tracks: 4, widthMm: 3860, heightMm: 2300, label: "System 4-torowy", sublabel: "386 cm / wys. 230 cm", systemCostNet: 3367, brushesCostNet: 122, handlesCostNet: 114 },
+  { id: "5t-433", tracks: 5, widthMm: 4330, heightMm: 2300, label: "System 5-torowy", sublabel: "433 cm / wys. 230 cm", systemCostNet: 4265, brushesCostNet: 154, handlesCostNet: 138 },
+  { id: "5t-482", tracks: 5, widthMm: 4820, heightMm: 2300, label: "System 5-torowy", sublabel: "482 cm / wys. 230 cm", systemCostNet: 4265, brushesCostNet: 154, handlesCostNet: 138 },
+  { id: "6t-529", tracks: 6, widthMm: 5290, heightMm: 2300, label: "System 6-torowy", sublabel: "529 cm / wys. 230 cm", systemCostNet: 5325, brushesCostNet: 187, handlesCostNet: 163 },
+  { id: "6t-578", tracks: 6, widthMm: 5780, heightMm: 2300, label: "System 6-torowy", sublabel: "578 cm / wys. 230 cm", systemCostNet: 5325, brushesCostNet: 187, handlesCostNet: 163 },
 ];
 
 interface CadConstructionDesignerModalProps {
@@ -239,7 +242,17 @@ export function CadConstructionDesignerModal({
       setMaterialMarkupValue(matMarkup);
 
       // Filar 2: Montaż
-      const instUnit = (initialData.installationUnit as "m2" | "mb" | "fixed") || (initialData.installationUnitRate ? "m2" : (initialData.installationCostNet ? "fixed" : "m2"));
+      const isGlass =
+        (initialData.category && initialData.category.toLowerCase().includes("szklan")) ||
+        (categoryName && categoryName.toLowerCase().includes("szklan"));
+      const defaultUnit = isGlass ? "mb" : "m2";
+      const instUnit =
+        (initialData.installationUnit as "m2" | "mb" | "fixed") ||
+        (initialData.installationUnitRate
+          ? defaultUnit
+          : initialData.installationCostNet
+          ? "fixed"
+          : defaultUnit);
       setInstallationUnit(instUnit);
       const instRate =
         initialData.installationUnitRate !== undefined && initialData.installationUnitRate !== null
@@ -774,12 +787,22 @@ export function CadConstructionDesignerModal({
                                   setWidthMm(preset.widthMm);
                                   setHeightMm(preset.heightMm);
                                   setHasDimensions(true);
+                                  if (preset.systemCostNet !== undefined) {
+                                    setMaterialCostNet(preset.systemCostNet);
+                                  }
                                   if (preset.brushesCostNet !== undefined) {
                                     setBrushesCostNet(preset.brushesCostNet);
                                   }
                                   if (preset.handlesCostNet !== undefined) {
                                     setHandlesCostNet(preset.handlesCostNet);
                                   }
+                                  setMaterialMarkupType("percent");
+                                  setMaterialMarkupValue(52);
+                                  // Systemy szklane w Excelu montaż mają rozliczany z metrów bieżących (250 zł/mb ekipa, 300 zł/mb klient)
+                                  setInstallationUnit("mb");
+                                  setInstallationUnitRate(250);
+                                  setInstallationMarkupType("percent");
+                                  setInstallationMarkupValue(20);
                                 }}
                                 className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-2 cursor-pointer ${
                                   isSelected
@@ -1061,6 +1084,30 @@ export function CadConstructionDesignerModal({
                   <ArrowRight size={11} />
                 </button>
               </div>
+
+              {/* Przelicz z kalkulatora szkła (Excel) */}
+              {isGlassCategory && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const calc = calculateGlassSystemPricing(widthMm, heightMm);
+                    setMaterialCostNet(calc.systemCostNet);
+                    setBrushesCostNet(calc.brushesCostNet);
+                    setHandlesCostNet(calc.handlesCostNet);
+                    setMaterialMarkupType("percent");
+                    setMaterialMarkupValue(52);
+                    setInstallationUnit("mb");
+                    setInstallationUnitRate(250);
+                    setInstallationMarkupType("percent");
+                    setInstallationMarkupValue(20);
+                  }}
+                  className="w-full text-center text-xs font-semibold text-cyan-800 hover:text-cyan-950 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 py-2 px-3 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                  title="Wczytaj automatycznie koszty i ceny z oficjalnego kalkulatora szkła (Excel)"
+                >
+                  <Calculator size={14} className="text-cyan-600" />
+                  <span>Przelicz z kalkulatora szkła (Excel)</span>
+                </button>
+              )}
 
               {/* 1. KOSZT I NARZUT NA MATERIAŁ */}
               <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3 shadow-2xs">
