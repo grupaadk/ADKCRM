@@ -141,7 +141,26 @@ export function LeftPropertiesPanel({
                 onChange={(e) => {
                   const val = parseInt(e.target.value);
                   if (!Number.isNaN(val) && val >= 300) {
-                    onChange({ widthMm: Math.min(12000, val) });
+                    const nextW = Math.min(12000, val);
+                    if (isGlass) {
+                      const calc = calculateGlassSystemPricing(nextW, item.heightMm || 2300);
+                      onChange({
+                        widthMm: nextW,
+                        materialCostNet: calc.materialCostNet,
+                        brushesCostNet: calc.brushesCostNet,
+                        handlesCostNet: calc.handlesCostNet,
+                        materialPriceNet: calc.materialPriceNet,
+                        installationCostNet: calc.installationCostNet,
+                        installationPriceNet: calc.installationPriceNet,
+                        priceNet: calc.priceNet,
+                        costNet: calc.costNet,
+                        isStandard: calc.isStandard,
+                        pricingTier: calc.pricingTier,
+                        standardWidthCm: calc.standardWidthCm,
+                      });
+                    } else {
+                      onChange({ widthMm: nextW });
+                    }
                   }
                 }}
                 className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none"
@@ -162,7 +181,26 @@ export function LeftPropertiesPanel({
                 onChange={(e) => {
                   const val = parseInt(e.target.value);
                   if (!Number.isNaN(val) && val >= 300) {
-                    onChange({ heightMm: Math.min(6000, val) });
+                    const nextH = Math.min(6000, val);
+                    if (isGlass) {
+                      const calc = calculateGlassSystemPricing(item.widthMm || 2880, nextH);
+                      onChange({
+                        heightMm: nextH,
+                        materialCostNet: calc.materialCostNet,
+                        brushesCostNet: calc.brushesCostNet,
+                        handlesCostNet: calc.handlesCostNet,
+                        materialPriceNet: calc.materialPriceNet,
+                        installationCostNet: calc.installationCostNet,
+                        installationPriceNet: calc.installationPriceNet,
+                        priceNet: calc.priceNet,
+                        costNet: calc.costNet,
+                        isStandard: calc.isStandard,
+                        pricingTier: calc.pricingTier,
+                        standardWidthCm: calc.standardWidthCm,
+                      });
+                    } else {
+                      onChange({ heightMm: nextH });
+                    }
                   }
                 }}
                 className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none"

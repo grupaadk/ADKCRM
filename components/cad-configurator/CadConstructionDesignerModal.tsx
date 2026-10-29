@@ -16,7 +16,7 @@ import {
   FileText,
   Calculator,
 } from "lucide-react";
-import { calculateGlassSystemPricing } from "@/lib/glassPricing";
+import { calculateGlassSystemPricing, getStandardWidthCm } from "@/lib/glassPricing";
 
 export type CategoryDoc = Doc<"constructionCategories">;
 export type ConstructionDoc = Doc<"constructions">;
@@ -159,10 +159,13 @@ export function CadConstructionDesignerModal({
     }
     if (installationUnit === "mb") {
       if (typeof installationUnitRate !== "number" || installationUnitRate <= 0) return 0;
-      return Math.round(installationUnitRate * (widthMm / 1000));
+      const effectiveMb = isGlassCategory
+        ? getStandardWidthCm(Math.round(widthMm / 10)) / 100
+        : widthMm / 1000;
+      return Math.round(installationUnitRate * effectiveMb);
     }
     return typeof installationCostNet === "number" ? installationCostNet : 0;
-  }, [installationUnit, installationUnitRate, installationCostNet, areaM2, widthMm]);
+  }, [installationUnit, installationUnitRate, installationCostNet, areaM2, widthMm, isGlassCategory]);
 
   const computedClientInstallationUnitRate = useMemo(() => {
     if (installationUnit === "fixed" || typeof installationUnitRate !== "number" || installationUnitRate <= 0) return 0;
@@ -180,7 +183,10 @@ export function CadConstructionDesignerModal({
     }
     if (installationUnit === "mb") {
       if (typeof installationUnitRate !== "number" || installationUnitRate <= 0) return 0;
-      return Math.round(computedClientInstallationUnitRate * (widthMm / 1000));
+      const effectiveMb = isGlassCategory
+        ? getStandardWidthCm(Math.round(widthMm / 10)) / 100
+        : widthMm / 1000;
+      return Math.round(computedClientInstallationUnitRate * effectiveMb);
     }
     return calcItemPrice(computedInstallationCost, installationMarkupType, installationMarkupValue);
   }, [
@@ -192,6 +198,7 @@ export function CadConstructionDesignerModal({
     computedInstallationCost,
     installationMarkupType,
     installationMarkupValue,
+    isGlassCategory,
   ]);
 
   // Liczbowe wartości kosztów, cen i rentowności materiału
@@ -1116,7 +1123,8 @@ export function CadConstructionDesignerModal({
                   type="button"
                   onClick={() => {
                     const calc = calculateGlassSystemPricing(widthMm, heightMm);
-                    setMaterialCostNet(calc.systemCostNet);
+                    const baseMatCost = calc.materialCostNet - calc.brushesCostNet - calc.handlesCostNet;
+                    setMaterialCostNet(baseMatCost > 0 ? baseMatCost : calc.materialCostNet);
                     setBrushesCostNet(calc.brushesCostNet);
                     setHandlesCostNet(calc.handlesCostNet);
                     setMaterialMarkupType("percent");

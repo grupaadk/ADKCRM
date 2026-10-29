@@ -674,4 +674,72 @@ describe("CAD Offers and Constructions Module", () => {
     expect(getReplacement("{{Konstrukcje}}")).toBe("2 719,00 zł");
     expect(result.podsumowanieFinansowePelne).toContain("Montaż:\n582,00 zł");
   });
+
+  test("calculates non-standard glass wall (5000x2300 mm) dynamically matching Excel sheet (11 626 zł)", async () => {
+    const t = convexTest(schema);
+
+    const oppId = await t.run(async (ctx) => {
+      return await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-EXCEL-500",
+        firstName: "Tomasz",
+        lastName: "Excelowski",
+        processed: false,
+        stage: "lead",
+      });
+    });
+
+    const offerId = await t.mutation(api.offers.getOrCreateForOpportunity, {
+      opportunityId: oppId,
+    });
+
+    // 1. Dodaj pozycję standardową 5290x2300 mm (10 213 zł)
+    const itemId = await t.mutation(api.offers.addConstructionPosition, {
+      offerId,
+      name: "System całoszklany 6-torowy 5290x2300",
+      widthMm: 5290,
+      heightMm: 2300,
+      panesCount: 6,
+      fillType: "HART 10",
+      color: "RAL 7016MAT",
+      materialCostNet: 5675,
+      materialPriceNet: 8626,
+      installationCostNet: 1323,
+      installationPriceNet: 1587,
+      priceNet: 10213,
+      costNet: 6998,
+    });
+
+    let data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data!.offer.totalPriceNet).toBe(10213);
+    expect(data!.items[0].materialPriceNet).toBe(8626);
+    expect(data!.items[0].installationPriceNet).toBe(1587);
+
+    // 2. Zmień wymiary na niestandardowe 5000x2300 mm (jak w arkuszu użytkownika)
+    await t.mutation(api.offers.updateConstructionPosition, {
+      itemId,
+      widthMm: 5000,
+      heightMm: 2300,
+    });
+
+    data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data).not.toBeNull();
+    const pos = data!.items[0];
+
+    // Excel: Szkło 11.5 m² * 225 zł + 4017 zł = 6605 zł
+    expect(pos.materialCostNet).toBe(6605);
+    // Excel: 6605 * 1.52 = 10 039 zł
+    expect(pos.materialPriceNet).toBe(10039);
+    // Excel: Montaż 5.29 mb * 250 zł = 1323 zł
+    expect(pos.installationCostNet).toBe(1323);
+    // Excel: Montaż klient 5.29 mb * 300 zł = 1587 zł
+    expect(pos.installationPriceNet).toBe(1587);
+    // Excel: SUMA 10039 + 1587 = 11 626 zł
+    expect(pos.priceNet).toBe(11626);
+    expect(pos.isStandard).toBe(false);
+    expect(pos.pricingTier).toBe("NIESTANDARD");
+    expect(pos.standardWidthCm).toBe(529);
+
+    // Cała oferta netto musi wynosić dokładnie 11 626 zł
+    expect(data!.offer.totalPriceNet).toBe(11626);
+  });
 });

@@ -112,15 +112,17 @@ export const getOfferWithItems = query({
             )
           : null;
 
-        const isLegacyBuggyInstallation =
+        const isGlassStale =
           isGlass &&
+          typeof item.widthMm === "number" &&
+          typeof item.heightMm === "number" &&
           (item.installationPriceNet === 1373 ||
             item.installationPriceNet === 3093 ||
-            (typeof item.widthMm === "number" &&
-              item.installationPriceNet !== undefined &&
-              item.installationPriceNet === Math.round(250 * (item.widthMm / 1000)) + 50));
+            item.installationPriceNet === Math.round(250 * (item.widthMm / 1000)) + 50 ||
+            (!standardCheck?.isStandard && (item.materialPriceNet === 8626 || item.priceNet === 10213)) ||
+            (tpl && Boolean(tpl.defaultWidthMm) && tpl.defaultWidthMm !== item.widthMm));
 
-        if (isLegacyBuggyInstallation) {
+        if (isGlassStale) {
           const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm);
           return {
             ...item,
@@ -252,10 +254,38 @@ export const getOfferWithItems = query({
 
     const cleanTitle = cleanOfferTitle(offer.title) ?? offer.title;
 
+    let computedTotalCost = 0;
+    let computedMaterialNet = 0;
+    let computedInstallationNet = 0;
+    for (const it of items) {
+      const q = it.quantity || 1;
+      const matPrice = it.materialPriceNet;
+      const instPrice = it.installationPriceNet || 0;
+      const matCost = it.materialCostNet;
+      const instCost = it.installationCostNet || 0;
+
+      computedTotalCost += (matCost !== undefined ? matCost + instCost : (it.costNet || 0)) * q;
+      if (matPrice !== undefined && matPrice !== null) {
+        computedMaterialNet += matPrice * q;
+      } else {
+        computedMaterialNet += Math.max(0, (it.priceNet || 0) * q - instPrice * q);
+      }
+      computedInstallationNet += instPrice * q;
+    }
+
+    const discount = offer.discountPercent || 0;
+    const vatRate = offer.vatRate ?? 23;
+    const discountedMaterial = Math.round(computedMaterialNet * (1 - discount / 100));
+    const dynamicNet = discountedMaterial + computedInstallationNet;
+    const dynamicGross = Math.round(dynamicNet * (1 + vatRate / 100));
+
     return {
       offer: {
         ...offer,
         title: cleanTitle,
+        totalPriceNet: dynamicNet > 0 ? dynamicNet : offer.totalPriceNet,
+        totalPriceGross: dynamicGross > 0 ? dynamicGross : offer.totalPriceGross,
+        totalCostNet: computedTotalCost > 0 ? computedTotalCost : offer.totalCostNet,
       },
       items,
       opportunity,
@@ -750,13 +780,22 @@ export const updateConstructionPosition = mutation({
     });
 
     if (isGlass && (fields.widthMm !== undefined || fields.heightMm !== undefined)) {
-      const stdCheck = checkIsStandard(
-        Math.round(newWidth / 10),
-        Math.round(newHeight / 10)
-      );
-      patch.isStandard = fields.isStandard ?? stdCheck.isStandard;
-      patch.pricingTier = fields.pricingTier ?? stdCheck.pricingTier;
-      patch.standardWidthCm = fields.standardWidthCm ?? stdCheck.standardWidthCm;
+      const calc = calculateGlassSystemPricing(newWidth, newHeight);
+      patch.isStandard = fields.isStandard ?? calc.isStandard;
+      patch.pricingTier = fields.pricingTier ?? calc.pricingTier;
+      patch.standardWidthCm = fields.standardWidthCm ?? calc.standardWidthCm;
+
+      // Jeśli wymiary uległy zmianie i nie podano jawnie nowej ceny ręcznej, przelicz dynamicznie koszty i ceny wg Excela
+      if (fields.materialPriceNet === undefined && fields.priceNet === undefined) {
+        patch.materialCostNet = calc.materialCostNet;
+        patch.brushesCostNet = calc.brushesCostNet;
+        patch.handlesCostNet = calc.handlesCostNet;
+        patch.materialPriceNet = calc.materialPriceNet;
+        patch.installationCostNet = calc.installationCostNet;
+        patch.installationPriceNet = calc.installationPriceNet;
+        patch.priceNet = calc.priceNet;
+        patch.costNet = calc.costNet;
+      }
     }
 
     await ctx.db.patch(itemId, patch);
@@ -928,7 +967,15 @@ export const syncOfferWithConstructionTemplates = mutation({
         }) ||
         (tpl?.category || "").toLowerCase().includes("szkl");
 
-      if (tpl && (tpl.materialPriceNet !== undefined || tpl.materialCostNet !== undefined)) {
+      const useTemplateDirectly =
+        Boolean(tpl) &&
+        (tpl!.materialPriceNet !== undefined || tpl!.materialCostNet !== undefined) &&
+        (!isGlass ||
+          (Boolean(tpl!.defaultWidthMm) &&
+            tpl!.defaultWidthMm === item.widthMm &&
+            checkIsStandard(Math.round(item.widthMm / 10), Math.round(item.heightMm / 10)).isStandard));
+
+      if (useTemplateDirectly && tpl) {
         const matCost = tpl.materialCostNet ?? (item.costNet || 0);
         const matPrice = tpl.materialPriceNet ?? (item.priceNet || 0);
         let instCost = tpl.installationCostNet ?? 0;
@@ -1030,11 +1077,22 @@ async function recalculateOffer(ctx: MutationCtx, offerId: Id<"offers">) {
     let matCost = it.materialCostNet;
     let matPrice = it.materialPriceNet;
 
-    if (
+    const stdCheck =
+      isGlass && typeof it.widthMm === "number" && typeof it.heightMm === "number"
+        ? checkIsStandard(Math.round(it.widthMm / 10), Math.round(it.heightMm / 10))
+        : null;
+
+    const isGlassNeedsRecalc =
       isGlass &&
+      typeof it.widthMm === "number" &&
+      typeof it.heightMm === "number" &&
       (instPrice === 1373 ||
-        (typeof it.widthMm === "number" && instPrice === Math.round(250 * (it.widthMm / 1000)) + 50))
-    ) {
+        instPrice === 3093 ||
+        instPrice === Math.round(250 * (it.widthMm / 1000)) + 50 ||
+        (!stdCheck?.isStandard && (matPrice === 8626 || price === 10213)) ||
+        matPrice === undefined);
+
+    if (isGlassNeedsRecalc) {
       const calc = calculateGlassSystemPricing(it.widthMm, it.heightMm);
       instPrice = calc.installationPriceNet;
       cost = calc.costNet;
@@ -1043,6 +1101,9 @@ async function recalculateOffer(ctx: MutationCtx, offerId: Id<"offers">) {
       matPrice = calc.materialPriceNet;
 
       await ctx.db.patch(it._id, {
+        isStandard: calc.isStandard,
+        pricingTier: calc.pricingTier,
+        standardWidthCm: calc.standardWidthCm,
         installationPriceNet: calc.installationPriceNet,
         installationCostNet: calc.installationCostNet,
         materialPriceNet: calc.materialPriceNet,

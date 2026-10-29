@@ -9,7 +9,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import toast from "react-hot-toast";
 import { CadConstructionItem } from "./CadCanvas";
 import { uploadCadSnapshotsForOffer } from "./cadSvgRenderer";
-import { isGlassSystemConstruction, checkIsStandard } from "@/lib/glassPricing";
+import { isGlassSystemConstruction, checkIsStandard, calculateGlassSystemPricing } from "@/lib/glassPricing";
 import {
   FileText,
   User,
@@ -328,12 +328,16 @@ export function OfferSummaryTab({
     }
   };
 
-  // Automatyczne uzdrowienie archiwalnych pozycji szkła z błędnym montażem 1373 zł
+  // Automatyczne uzdrowienie archiwalnych pozycji szkła z błędnym montażem 1373 zł lub nieaktualną ceną materiału (np. 10 213 zł zamiast 11 626 zł)
   useEffect(() => {
-    const hasBuggyGlass = items.some(
-      (it) => isGlassSystemConstruction(it) && it.installationPriceNet === 1373
-    );
-    if (hasBuggyGlass && !isSyncing) {
+    const hasStaleGlass = items.some((it) => {
+      if (!isGlassSystemConstruction(it) || !it.widthMm || !it.heightMm) return false;
+      if (it.installationPriceNet === 1373 || it.installationPriceNet === 3093) return true;
+      const std = checkIsStandard(Math.round(it.widthMm / 10), Math.round(it.heightMm / 10));
+      if (!std.isStandard && (it.materialPriceNet === 8626 || it.priceNet === 10213)) return true;
+      return false;
+    });
+    if (hasStaleGlass && !isSyncing) {
       syncWithTemplates({ offerId: offer._id as Id<"offers"> }).catch(() => {});
     }
   }, [items, offer._id, syncWithTemplates, isSyncing]);
@@ -427,6 +431,12 @@ export function OfferSummaryTab({
 
   const totalMaterialPrice = items.reduce((acc, it) => {
     const q = it.quantity || 1;
+    if (isGlassSystemConstruction(it) && it.widthMm && it.heightMm) {
+      const calc = calculateGlassSystemPricing(it.widthMm, it.heightMm);
+      if (!calc.isStandard && (it.materialPriceNet === 8626 || it.priceNet === 10213)) {
+        return acc + calc.materialPriceNet * q;
+      }
+    }
     if (it.materialPriceNet !== undefined && it.materialPriceNet !== null) {
       return acc + it.materialPriceNet * q;
     }
@@ -770,10 +780,16 @@ export function OfferSummaryTab({
                     it.installationPriceNet !== undefined && it.installationPriceNet !== null
                       ? it.installationPriceNet
                       : 0;
-                  const matUnitPrice =
+                  let matUnitPrice =
                     it.materialPriceNet !== undefined && it.materialPriceNet !== null
                       ? it.materialPriceNet
                       : Math.max(0, (it.priceNet || 0) - instPrice);
+                  if (isGlassSystemConstruction(it) && it.widthMm && it.heightMm) {
+                    const calc = calculateGlassSystemPricing(it.widthMm, it.heightMm);
+                    if (!calc.isStandard && (matUnitPrice === 8626 || it.priceNet === 10213)) {
+                      matUnitPrice = calc.materialPriceNet;
+                    }
+                  }
                   const qty = it.quantity || 1;
                   const totalLineMatPrice = matUnitPrice * qty;
                   const panes = Math.max(1, it.panesCount || 3);
