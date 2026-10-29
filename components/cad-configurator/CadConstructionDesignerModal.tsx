@@ -164,10 +164,35 @@ export function CadConstructionDesignerModal({
     return typeof installationCostNet === "number" ? installationCostNet : 0;
   }, [installationUnit, installationUnitRate, installationCostNet, areaM2, widthMm]);
 
-  const computedInstallationPrice = useMemo(
-    () => calcItemPrice(computedInstallationCost, installationMarkupType, installationMarkupValue),
-    [computedInstallationCost, installationMarkupType, installationMarkupValue]
-  );
+  const computedClientInstallationUnitRate = useMemo(() => {
+    if (installationUnit === "fixed" || typeof installationUnitRate !== "number" || installationUnitRate <= 0) return 0;
+    const markupVal = typeof installationMarkupValue === "number" ? installationMarkupValue : 0;
+    if (installationMarkupType === "percent") {
+      return Math.round(installationUnitRate * (1 + markupVal / 100));
+    }
+    return Math.round(installationUnitRate + markupVal);
+  }, [installationUnit, installationUnitRate, installationMarkupType, installationMarkupValue]);
+
+  const computedInstallationPrice = useMemo(() => {
+    if (installationUnit === "m2") {
+      if (typeof installationUnitRate !== "number" || installationUnitRate <= 0) return 0;
+      return Math.round(computedClientInstallationUnitRate * areaM2);
+    }
+    if (installationUnit === "mb") {
+      if (typeof installationUnitRate !== "number" || installationUnitRate <= 0) return 0;
+      return Math.round(computedClientInstallationUnitRate * (widthMm / 1000));
+    }
+    return calcItemPrice(computedInstallationCost, installationMarkupType, installationMarkupValue);
+  }, [
+    installationUnit,
+    installationUnitRate,
+    computedClientInstallationUnitRate,
+    areaM2,
+    widthMm,
+    computedInstallationCost,
+    installationMarkupType,
+    installationMarkupValue,
+  ]);
 
   // Liczbowe wartości kosztów, cen i rentowności materiału
   const numMatCost = totalMaterialCost > 0 ? totalMaterialCost : (typeof materialCostNet === "number" ? materialCostNet : 0);
@@ -1285,7 +1310,7 @@ export function CadConstructionDesignerModal({
                       </span>
                       {installationUnit !== "fixed" && typeof installationUnitRate === "number" && installationUnitRate > 0 && (
                         <span className="text-[9px] text-slate-400 font-mono block mt-0.5">
-                          {installationUnitRate} zł/{installationUnit} (koszt: {numInstCost.toLocaleString("pl-PL")} zł)
+                          stawka klienta: {computedClientInstallationUnitRate > 0 ? computedClientInstallationUnitRate : installationUnitRate} zł/{installationUnit} (koszt: {installationUnitRate} zł/{installationUnit})
                         </span>
                       )}
                     </div>
@@ -1451,9 +1476,21 @@ export function CadConstructionDesignerModal({
                         className="w-full h-8 bg-slate-50 border border-slate-300 rounded-lg px-2.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-cyan-500 text-xs pr-7"
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-[10px] pointer-events-none">
-                        {installationMarkupType === "percent" ? "%" : "zł"}
+                        {installationMarkupType === "percent"
+                          ? "%"
+                          : installationUnit === "m2"
+                          ? "zł/m²"
+                          : installationUnit === "mb"
+                          ? "zł/mb"
+                          : "zł"}
                       </span>
                     </div>
+                    {/* Pomocnicze wyliczenie stawki klienta */}
+                    {installationUnit !== "fixed" && typeof installationUnitRate === "number" && installationUnitRate > 0 && (
+                      <div className="text-[9px] text-slate-500 font-mono mt-1 truncate">
+                        Cena dla klienta: <strong>{computedClientInstallationUnitRate} {installationUnit === "m2" ? "zł/m²" : "zł/mb"}</strong>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
