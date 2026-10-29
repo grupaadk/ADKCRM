@@ -766,13 +766,16 @@ export function OfferSummaryTab({
               </thead>
               <tbody>
                 {items.map((it) => {
-                  const isGlass = isGlassSystemConstruction(it);
-                  const unitPrice =
-                    isGlass && (it.priceNet === 9999 || it.installationPriceNet === 1373)
-                      ? 10213
-                      : it.priceNet || 0;
+                  const instPrice =
+                    it.installationPriceNet !== undefined && it.installationPriceNet !== null
+                      ? it.installationPriceNet
+                      : 0;
+                  const matUnitPrice =
+                    it.materialPriceNet !== undefined && it.materialPriceNet !== null
+                      ? it.materialPriceNet
+                      : Math.max(0, (it.priceNet || 0) - instPrice);
                   const qty = it.quantity || 1;
-                  const totalLinePrice = unitPrice * qty;
+                  const totalLineMatPrice = matUnitPrice * qty;
                   const panes = Math.max(1, it.panesCount || 3);
 
                   return (
@@ -1035,14 +1038,24 @@ export function OfferSummaryTab({
                         {qty} szt.
                       </td>
 
-                      {/* Unit Price */}
+                      {/* Unit Price (Cena samej konstrukcji) */}
                       <td className="py-3 px-4 text-right font-mono text-xs text-[#475569]">
-                        {unitPrice.toLocaleString("pl-PL")} zł
+                        <div>{matUnitPrice.toLocaleString("pl-PL")} zł</div>
+                        {instPrice > 0 && (
+                          <div className="text-[10px] text-slate-400 font-sans">
+                            + montaż: {instPrice.toLocaleString("pl-PL")} zł
+                          </div>
+                        )}
                       </td>
 
-                      {/* Total Net */}
+                      {/* Total Net (Wartość samej konstrukcji) */}
                       <td className="py-3 px-4 text-right font-mono font-bold text-xs md:text-sm text-[#0b1220]">
-                        {totalLinePrice.toLocaleString("pl-PL")} zł
+                        <div>{totalLineMatPrice.toLocaleString("pl-PL")} zł</div>
+                        {instPrice > 0 && qty > 1 && (
+                          <div className="text-[10px] text-slate-400 font-normal font-sans">
+                            + montaż: {(instPrice * qty).toLocaleString("pl-PL")} zł
+                          </div>
+                        )}
                       </td>
 
                       {/* Actions */}
@@ -1109,13 +1122,13 @@ export function OfferSummaryTab({
                     {totalQuantity} szt.
                   </td>
                   <td className="py-3 px-4 text-right text-[#64748b]">
-                    {discountPct > 0 ? `Rabat -${discountPct}%:` : "Suma netto:"}
+                    Konstrukcje netto:
                   </td>
                   <td className="py-3 px-4 text-right font-extrabold text-sm text-[#0e7490]">
-                    {finalOfferNet.toLocaleString("pl-PL")} zł
+                    {totalMaterialPrice.toLocaleString("pl-PL")} zł
                   </td>
                   <td className="py-3 px-4 text-right text-[11px] text-[#64748b]">
-                    brutto ({vatRate}%): {finalOfferGross.toLocaleString("pl-PL")} zł
+                    {totalInstallationPrice > 0 ? `+ montaż: ${totalInstallationPrice.toLocaleString("pl-PL")} zł` : ""}
                   </td>
                 </tr>
               </tfoot>
