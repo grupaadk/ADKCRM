@@ -951,16 +951,29 @@ async function recalculateOffer(ctx: MutationCtx, offerId: Id<"offers">) {
 
   let subtotalNet = 0;
   let totalCost = 0;
+  let materialNet = 0;
+  let installationNet = 0;
 
   for (const it of items) {
     const q = it.quantity || 1;
     subtotalNet += (it.priceNet || 0) * q;
     totalCost += (it.costNet || 0) * q;
+    if (it.materialPriceNet !== undefined && it.materialPriceNet !== null) {
+      materialNet += it.materialPriceNet * q;
+    } else {
+      const inst = (it.installationPriceNet || 0) * q;
+      materialNet += Math.max(0, (it.priceNet || 0) * q - inst);
+    }
+    if (it.installationPriceNet !== undefined && it.installationPriceNet !== null) {
+      installationNet += it.installationPriceNet * q;
+    }
   }
 
   const discount = offer.discountPercent || 0;
   const vatRate = offer.vatRate ?? 23;
-  const finalNet = Math.round(subtotalNet * (1 - discount / 100));
+  // Rabat naliczany jest od wartości konstrukcji/materiału (montaż pozostaje bez rabatu)
+  const discountedMaterial = Math.round(materialNet * (1 - discount / 100));
+  const finalNet = discountedMaterial + installationNet;
   const finalGross = Math.round(finalNet * (1 + vatRate / 100));
 
   await ctx.db.patch(offerId, {
