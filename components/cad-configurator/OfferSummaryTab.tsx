@@ -262,7 +262,6 @@ function InlineDimensionCell({
 
 interface InlineAdditionRowProps {
   addition: OfferAdditionItem;
-  items: CadConstructionItem[];
   readOnly?: boolean;
   onUpdate: (id: Id<"offerAdditions">, patch: Partial<OfferAdditionItem>) => Promise<void>;
   onRemove: (id: Id<"offerAdditions">) => Promise<void>;
@@ -270,7 +269,6 @@ interface InlineAdditionRowProps {
 
 function InlineAdditionRow({
   addition,
-  items,
   readOnly,
   onUpdate,
   onRemove,
@@ -280,7 +278,6 @@ function InlineAdditionRow({
   const [priceStr, setPriceStr] = useState(String(addition.priceNet));
   const [instPriceStr, setInstPriceStr] = useState(String(addition.installationPriceNet ?? 0));
   const [unit, setUnit] = useState(addition.unit || "szt.");
-  const [targetId, setTargetId] = useState(addition.targetConstructionId || "");
 
   const [prevAddition, setPrevAddition] = useState(addition);
   if (addition !== prevAddition) {
@@ -290,7 +287,6 @@ function InlineAdditionRow({
     setPriceStr(String(addition.priceNet));
     setInstPriceStr(String(addition.installationPriceNet ?? 0));
     setUnit(addition.unit || "szt.");
-    setTargetId(addition.targetConstructionId || "");
   }
 
   const commitName = () => {
@@ -334,13 +330,6 @@ function InlineAdditionRow({
     }
   };
 
-  const handleTargetChange = (newTarget: string) => {
-    setTargetId(newTarget);
-    onUpdate(addition._id as Id<"offerAdditions">, {
-      targetConstructionId: newTarget || undefined,
-    });
-  };
-
   const handleUnitChange = (newUnit: string) => {
     setUnit(newUnit);
     onUpdate(addition._id as Id<"offerAdditions">, { unit: newUnit });
@@ -374,33 +363,7 @@ function InlineAdditionRow({
         )}
       </td>
 
-      {/* Kolumna 3: Dotyczy pozycji */}
-      <td className="py-2.5 px-3">
-        {readOnly ? (
-          <span className="text-[#475569]">
-            {(() => {
-              if (!addition.targetConstructionId) return "Cała oferta (ogólny)";
-              const match = items.find((c) => c._id === addition.targetConstructionId);
-              return match ? `Poz. ${match.positionIndex}: ${match.name}` : "Konstrukcja";
-            })()}
-          </span>
-        ) : (
-          <select
-            value={targetId}
-            onChange={(e) => handleTargetChange(e.target.value)}
-            className="w-full text-xs text-[#334155] bg-white border border-slate-200 hover:border-slate-300 focus:border-[#4ABBC3] rounded px-2 py-1 outline-none transition-all cursor-pointer"
-          >
-            <option value="">🌐 Cała oferta (ogólny)</option>
-            {items.map((c) => (
-              <option key={c._id} value={c._id}>
-                📍 Poz. {c.positionIndex}: {c.name.slice(0, 30)}
-              </option>
-            ))}
-          </select>
-        )}
-      </td>
-
-      {/* Kolumna 4: Ilość */}
+      {/* Kolumna 3: Ilość */}
       <td className="py-2.5 px-3 text-center">
         {readOnly ? (
           <span className="font-mono font-bold text-[#0b1220]">{addition.quantity}</span>
@@ -642,7 +605,6 @@ export function OfferSummaryTab({
 
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
-  const [targetForCatalog, setTargetForCatalog] = useState<string>("");
 
   const handleAddCustomAddition = async () => {
     try {
@@ -673,7 +635,6 @@ export function OfferSummaryTab({
         costNet: tpl.defaultCostNet,
         installationPriceNet: tpl.defaultInstallationPriceNet,
         installationCostNet: tpl.defaultInstallationCostNet,
-        targetConstructionId: targetForCatalog ? (targetForCatalog as Id<"offerConstructions">) : undefined,
       });
       toast.success(`Dodano: ${tpl.name}`);
     } catch (err: unknown) {
@@ -1576,7 +1537,6 @@ export function OfferSummaryTab({
                 <tr>
                   <th className="py-2.5 px-3 text-center w-10">Lp</th>
                   <th className="py-2.5 px-3">Nazwa dodatku</th>
-                  <th className="py-2.5 px-3 w-52">Dotyczy pozycji</th>
                   <th className="py-2.5 px-3 text-center w-20">Ilość</th>
                   <th className="py-2.5 px-3 text-center w-20">J.m.</th>
                   <th className="py-2.5 px-3 text-right w-28">Cena jedn.</th>
@@ -1590,17 +1550,10 @@ export function OfferSummaryTab({
                   <InlineAdditionRow
                     key={addition._id}
                     addition={addition}
-                    items={items}
                     readOnly={readOnly}
                     onUpdate={async (id, patch) => {
                       await updateOfferAddition({
                         id,
-                        targetConstructionId:
-                          patch.targetConstructionId !== undefined
-                            ? patch.targetConstructionId
-                              ? (patch.targetConstructionId as Id<"offerConstructions">)
-                              : null
-                            : undefined,
                         name: patch.name,
                         quantity: patch.quantity,
                         unit: patch.unit,
@@ -1620,7 +1573,7 @@ export function OfferSummaryTab({
               </tbody>
               <tfoot className="bg-[#f8fafc] border-t-2 border-[#e2e8f0] font-mono text-xs">
                 <tr>
-                  <td colSpan={3} className="py-2.5 px-3 text-right font-sans font-bold text-[#475569]">
+                  <td colSpan={2} className="py-2.5 px-3 text-right font-sans font-bold text-[#475569]">
                     Razem dodatki ({additionsList.length}):
                   </td>
                   <td className="py-2.5 px-3 text-center font-bold text-[#0b1220]">
@@ -2232,35 +2185,17 @@ export function OfferSummaryTab({
               </button>
             </div>
 
-            {/* Target selector & Search bar */}
-            <div className="p-4 border-b border-slate-100 bg-white space-y-3">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <div className="flex-1 relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={catalogSearch}
-                    onChange={(e) => setCatalogSearch(e.target.value)}
-                    placeholder="Szukaj dodatku (np. zamek, uszczelka, pilot)..."
-                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-[#4ABBC3] focus:outline-none transition-colors"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">Przypisz do:</span>
-                  <select
-                    value={targetForCatalog}
-                    onChange={(e) => setTargetForCatalog(e.target.value)}
-                    className="text-xs text-[#334155] bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-[#4ABBC3] focus:outline-none cursor-pointer"
-                  >
-                    <option value="">🌐 Cała oferta (ogólny)</option>
-                    {items.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        📍 Poz. {c.positionIndex}: {c.name.slice(0, 24)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {/* Search bar */}
+            <div className="p-4 border-b border-slate-100 bg-white">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={catalogSearch}
+                  onChange={(e) => setCatalogSearch(e.target.value)}
+                  placeholder="Szukaj dodatku (np. zamek, uszczelka, pilot)..."
+                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-[#4ABBC3] focus:outline-none transition-colors"
+                />
               </div>
             </div>
 
