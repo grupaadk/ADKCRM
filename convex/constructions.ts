@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { DEFAULT_TRIANGLE_PRICING_RANGES } from "../lib/pricingRanges";
 
 /**
  * Pobiera listę konstrukcji z bazy danych
@@ -85,6 +86,21 @@ export const create = mutation({
     installationMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"), v.null())),
     installationMarkupValue: v.optional(v.union(v.number(), v.null())),
     installationPriceNet: v.optional(v.union(v.number(), v.null())),
+    pricingRanges: v.optional(
+      v.union(
+        v.array(
+          v.object({
+            id: v.optional(v.string()),
+            label: v.optional(v.string()),
+            minWidthMm: v.number(),
+            maxWidthMm: v.number(),
+            priceNet: v.number(),
+            costNet: v.optional(v.number()),
+          })
+        ),
+        v.null()
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.query("constructions").collect();
@@ -126,6 +142,7 @@ export const create = mutation({
       installationMarkupType: args.installationMarkupType ?? undefined,
       installationMarkupValue: args.installationMarkupValue ?? undefined,
       installationPriceNet: args.installationPriceNet ?? undefined,
+      pricingRanges: args.pricingRanges ?? undefined,
       isActive: true,
       sortOrder: nextOrder,
       createdAt: now,
@@ -165,6 +182,21 @@ export const update = mutation({
     installationMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"), v.null())),
     installationMarkupValue: v.optional(v.union(v.number(), v.null())),
     installationPriceNet: v.optional(v.union(v.number(), v.null())),
+    pricingRanges: v.optional(
+      v.union(
+        v.array(
+          v.object({
+            id: v.optional(v.string()),
+            label: v.optional(v.string()),
+            minWidthMm: v.number(),
+            maxWidthMm: v.number(),
+            priceNet: v.number(),
+            costNet: v.optional(v.number()),
+          })
+        ),
+        v.null()
+      )
+    ),
     isActive: v.optional(v.boolean()),
     sortOrder: v.optional(v.number()),
   },
@@ -212,6 +244,7 @@ export const update = mutation({
     if (fields.installationMarkupType !== undefined) patch.installationMarkupType = fields.installationMarkupType ?? undefined;
     if (fields.installationMarkupValue !== undefined) patch.installationMarkupValue = fields.installationMarkupValue ?? undefined;
     if (fields.installationPriceNet !== undefined) patch.installationPriceNet = fields.installationPriceNet ?? undefined;
+    if (fields.pricingRanges !== undefined) patch.pricingRanges = fields.pricingRanges ?? undefined;
     if (fields.isActive !== undefined) patch.isActive = fields.isActive;
     if (fields.sortOrder !== undefined) patch.sortOrder = fields.sortOrder;
 
@@ -434,7 +467,16 @@ export const ensureTriangleConstruction = mutation({
         defaultHeightMm: 600,
         defaultPanesCount: 1,
         defaultFillType: "HART 10",
-        defaultPriceNet: 2400,
+        defaultPriceNet: 854 + 750,
+        materialPriceNet: 854,
+        materialCostNet: 854,
+        installationUnit: "mb",
+        installationUnitRate: 200,
+        installationMarkupType: "amount",
+        installationMarkupValue: 50,
+        installationCostNet: 600,
+        installationPriceNet: 750,
+        pricingRanges: DEFAULT_TRIANGLE_PRICING_RANGES,
         isActive: true,
         sortOrder: nextConstrOrder,
         createdAt: now,
@@ -442,12 +484,32 @@ export const ensureTriangleConstruction = mutation({
       });
       leftConstruction = (await ctx.db.get(constrId))!;
       createdLeft = true;
-    } else if (!leftConstruction.categoryId || leftConstruction.category !== triangleCategory.name) {
-      await ctx.db.patch(leftConstruction._id, {
-        categoryId: triangleCategory._id,
-        category: triangleCategory.name,
-        updatedAt: now,
-      });
+    } else {
+      const needsPatch =
+        !leftConstruction.categoryId ||
+        leftConstruction.category !== triangleCategory.name ||
+        !leftConstruction.pricingRanges ||
+        leftConstruction.pricingRanges.length === 0 ||
+        leftConstruction.installationUnit !== "mb" ||
+        leftConstruction.installationUnitRate !== 200;
+
+      if (needsPatch) {
+        await ctx.db.patch(leftConstruction._id, {
+          categoryId: triangleCategory._id,
+          category: triangleCategory.name,
+          installationUnit: "mb",
+          installationUnitRate: 200,
+          installationMarkupType: "amount",
+          installationMarkupValue: 50,
+          installationCostNet: Math.round(((leftConstruction.defaultWidthMm || 3000) / 1000) * 200),
+          installationPriceNet: Math.round(((leftConstruction.defaultWidthMm || 3000) / 1000) * 250),
+          pricingRanges:
+            leftConstruction.pricingRanges && leftConstruction.pricingRanges.length > 0
+              ? leftConstruction.pricingRanges
+              : DEFAULT_TRIANGLE_PRICING_RANGES,
+          updatedAt: now,
+        });
+      }
     }
 
     // PRAWY
@@ -477,7 +539,16 @@ export const ensureTriangleConstruction = mutation({
         defaultHeightMm: 600,
         defaultPanesCount: 1,
         defaultFillType: "HART 10",
-        defaultPriceNet: 2400,
+        defaultPriceNet: 854 + 750,
+        materialPriceNet: 854,
+        materialCostNet: 854,
+        installationUnit: "mb",
+        installationUnitRate: 200,
+        installationMarkupType: "amount",
+        installationMarkupValue: 50,
+        installationCostNet: 600,
+        installationPriceNet: 750,
+        pricingRanges: DEFAULT_TRIANGLE_PRICING_RANGES,
         isActive: true,
         sortOrder: nextConstrOrder,
         createdAt: now,
@@ -485,12 +556,32 @@ export const ensureTriangleConstruction = mutation({
       });
       rightConstruction = (await ctx.db.get(constrId))!;
       createdRight = true;
-    } else if (!rightConstruction.categoryId || rightConstruction.category !== triangleCategory.name) {
-      await ctx.db.patch(rightConstruction._id, {
-        categoryId: triangleCategory._id,
-        category: triangleCategory.name,
-        updatedAt: now,
-      });
+    } else {
+      const needsPatch =
+        !rightConstruction.categoryId ||
+        rightConstruction.category !== triangleCategory.name ||
+        !rightConstruction.pricingRanges ||
+        rightConstruction.pricingRanges.length === 0 ||
+        rightConstruction.installationUnit !== "mb" ||
+        rightConstruction.installationUnitRate !== 200;
+
+      if (needsPatch) {
+        await ctx.db.patch(rightConstruction._id, {
+          categoryId: triangleCategory._id,
+          category: triangleCategory.name,
+          installationUnit: "mb",
+          installationUnitRate: 200,
+          installationMarkupType: "amount",
+          installationMarkupValue: 50,
+          installationCostNet: Math.round(((rightConstruction.defaultWidthMm || 3000) / 1000) * 200),
+          installationPriceNet: Math.round(((rightConstruction.defaultWidthMm || 3000) / 1000) * 250),
+          pricingRanges:
+            rightConstruction.pricingRanges && rightConstruction.pricingRanges.length > 0
+              ? rightConstruction.pricingRanges
+              : DEFAULT_TRIANGLE_PRICING_RANGES,
+          updatedAt: now,
+        });
+      }
     }
 
     return {

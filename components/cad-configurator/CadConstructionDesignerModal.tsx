@@ -15,8 +15,17 @@ import {
   ArrowRight,
   FileText,
   Calculator,
+  Plus,
+  Trash2,
+  Sparkles,
+  CheckCircle2,
 } from "lucide-react";
 import { calculateGlassSystemPricing, getStandardWidthCm } from "@/lib/glassPricing";
+import {
+  PricingRangeItem,
+  DEFAULT_TRIANGLE_PRICING_RANGES,
+  matchPricingRange,
+} from "@/lib/pricingRanges";
 
 export type CategoryDoc = Doc<"constructionCategories">;
 export type ConstructionDoc = Doc<"constructions">;
@@ -75,6 +84,7 @@ interface CadConstructionDesignerModalProps {
     installationMarkupType?: "percent" | "amount";
     installationMarkupValue?: number;
     installationPriceNet?: number;
+    pricingRanges?: PricingRangeItem[];
   }) => Promise<void>;
   initialData?: ConstructionDoc | null;
   categories: CategoryDoc[] | undefined;
@@ -122,6 +132,11 @@ export function CadConstructionDesignerModal({
   const [installationCostNet, setInstallationCostNet] = useState<number | "">("");
   const [installationMarkupType, setInstallationMarkupType] = useState<"percent" | "amount">("percent");
   const [installationMarkupValue, setInstallationMarkupValue] = useState<number | "">("");
+
+  // Warunki cenowe wg wymiaru B (zakresy szerokości / tory)
+  const [pricingRanges, setPricingRanges] = useState<PricingRangeItem[]>(
+    initialData?.pricingRanges || []
+  );
 
   // Wartości domyślne / zachowywane w tle dla zgodności z modelem danych
   const [systemName, setSystemName] = useState("");
@@ -315,6 +330,7 @@ export function CadConstructionDesignerModal({
       setFillType(initialData.defaultFillType || "HART 10");
 
       setWarning(initialData.defaultWarning || "");
+      setPricingRanges(initialData.pricingRanges || []);
     } else {
       const defaultCat = categories?.find((c) => c.isActive) || categories?.[0];
       const isDefaultGlass = (defaultCat?.name || "Systemy szklane").trim().toLowerCase().includes("szklan");
@@ -327,6 +343,7 @@ export function CadConstructionDesignerModal({
       setHasDimensions(true);
       setWidthMm(isDefaultGlass ? 2410 : 2000);
       setHeightMm(2300);
+      setPricingRanges([]);
       setHasTracks(isDefaultGlass);
       setPanesCount(isDefaultGlass ? 3 : null);
       setMaterialCostNet("");
@@ -434,6 +451,48 @@ export function CadConstructionDesignerModal({
     singlePaneWidthMm,
   ]);
 
+  const matchedRangeForCurrentWidth = useMemo(() => {
+    return matchPricingRange(pricingRanges, widthMm);
+  }, [pricingRanges, widthMm]);
+
+  const handleAddRange = () => {
+    const last = pricingRanges[pricingRanges.length - 1];
+    const nextMin = last ? last.maxWidthMm + 1 : 0;
+    const nextMax = nextMin + 500;
+    setPricingRanges([
+      ...pricingRanges,
+      {
+        id: `range-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        minWidthMm: nextMin,
+        maxWidthMm: nextMax,
+        priceNet: last ? last.priceNet : 854,
+        costNet: last?.costNet ?? (last ? last.priceNet : 854),
+        label: `Zakres ${nextMin}–${nextMax} mm`,
+      },
+    ]);
+  };
+
+  const handleLoadDefaultTriangleRanges = () => {
+    setPricingRanges(
+      DEFAULT_TRIANGLE_PRICING_RANGES.map((r, i) => ({
+        ...r,
+        id: `triangle-${i}-${Date.now()}`,
+      }))
+    );
+  };
+
+  const handleUpdateRange = (index: number, patch: Partial<PricingRangeItem>) => {
+    setPricingRanges((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...patch };
+      return next;
+    });
+  };
+
+  const handleRemoveRange = (index: number) => {
+    setPricingRanges((prev) => prev.filter((_, i) => i !== index));
+  };
+
   // Obsługa zapisu
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -482,6 +541,7 @@ export function CadConstructionDesignerModal({
         installationMarkupType: computedInstallationCost > 0 ? installationMarkupType : undefined,
         installationMarkupValue: typeof installationMarkupValue === "number" ? installationMarkupValue : undefined,
         installationPriceNet: computedInstallationPrice > 0 ? computedInstallationPrice : undefined,
+        pricingRanges: pricingRanges.length > 0 ? pricingRanges : undefined,
       });
       onClose();
     } catch (err) {
@@ -1503,7 +1563,168 @@ export function CadConstructionDesignerModal({
                 </div>
               </div>
 
-              {/* 3. PODSUMOWANIE */}
+              {/* 3. WARUNKI CENOWE WG WYMIARU B (ZAKRESY / TORY) */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-md bg-purple-100 text-purple-800 flex items-center justify-center text-[10px] font-bold">
+                      3
+                    </span>
+                    <div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 block">
+                        Warunki cenowe wg wymiaru B (tory / zakresy)
+                      </span>
+                      <span className="text-[9px] text-slate-400">
+                        Zmienna cena w zależności od szerokości B (np. trójkąty pod tory)
+                      </span>
+                    </div>
+                  </div>
+                  {pricingRanges.length > 0 && (
+                    <span className="text-[10px] font-mono bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200 font-bold">
+                      {pricingRanges.length} {pricingRanges.length === 1 ? "zakres" : pricingRanges.length < 5 ? "zakresy" : "zakresów"}
+                    </span>
+                  )}
+                </div>
+
+                {/* Banner dopasowania dla aktualnego wymiaru B */}
+                {pricingRanges.length > 0 && matchedRangeForCurrentWidth && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-2.5 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5 text-purple-900 font-medium text-[11px]">
+                      <CheckCircle2 size={13} className="text-purple-600 shrink-0" />
+                      <span>
+                        Dla szerokości <strong>B = {widthMm} mm</strong> pasuje:{" "}
+                        <strong>{matchedRangeForCurrentWidth.label || `${matchedRangeForCurrentWidth.minWidthMm}–${matchedRangeForCurrentWidth.maxWidthMm} mm`}</strong>
+                      </span>
+                    </div>
+                    <span className="font-mono font-bold text-purple-950 bg-white px-2 py-0.5 rounded border border-purple-200 shadow-2xs text-[11px]">
+                      {matchedRangeForCurrentWidth.priceNet.toLocaleString("pl-PL")} zł netto
+                    </span>
+                  </div>
+                )}
+
+                {/* Tabela zakresów */}
+                {pricingRanges.length > 0 ? (
+                  <div className="border border-slate-200 rounded-lg overflow-hidden bg-slate-50/50">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-slate-100/80 text-[10px] font-bold uppercase text-slate-600 border-b border-slate-200">
+                        <tr>
+                          <th className="py-1.5 px-2">Etykieta / Tor</th>
+                          <th className="py-1.5 px-1.5 w-16">Od (mm)</th>
+                          <th className="py-1.5 px-1.5 w-16">Do (mm)</th>
+                          <th className="py-1.5 px-1.5 w-20">Cena (zł)</th>
+                          <th className="py-1.5 px-1.5 w-20">Koszt (zł)</th>
+                          <th className="py-1.5 px-1 w-7 text-center"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 font-mono">
+                        {pricingRanges.map((range, idx) => {
+                          const isCurrent =
+                            matchedRangeForCurrentWidth &&
+                            matchedRangeForCurrentWidth.minWidthMm === range.minWidthMm &&
+                            matchedRangeForCurrentWidth.maxWidthMm === range.maxWidthMm;
+                          return (
+                            <tr
+                              key={range.id || idx}
+                              className={isCurrent ? "bg-purple-50/70 font-semibold" : "bg-white hover:bg-slate-50"}
+                            >
+                              <td className="p-1">
+                                <input
+                                  type="text"
+                                  value={range.label || ""}
+                                  onChange={(e) => handleUpdateRange(idx, { label: e.target.value })}
+                                  placeholder="np. System 2-torowy 194 cm"
+                                  className="w-full h-7 bg-white border border-slate-200 rounded px-1.5 text-[10px] font-sans focus:outline-none focus:border-purple-400"
+                                />
+                              </td>
+                              <td className="p-1">
+                                <input
+                                  type="number"
+                                  value={range.minWidthMm}
+                                  onChange={(e) =>
+                                    handleUpdateRange(idx, { minWidthMm: parseInt(e.target.value, 10) || 0 })
+                                  }
+                                  className="w-full h-7 bg-white border border-slate-200 rounded px-1 text-[10px] text-center focus:outline-none focus:border-purple-400"
+                                />
+                              </td>
+                              <td className="p-1">
+                                <input
+                                  type="number"
+                                  value={range.maxWidthMm}
+                                  onChange={(e) =>
+                                    handleUpdateRange(idx, { maxWidthMm: parseInt(e.target.value, 10) || 0 })
+                                  }
+                                  className="w-full h-7 bg-white border border-slate-200 rounded px-1 text-[10px] text-center focus:outline-none focus:border-purple-400"
+                                />
+                              </td>
+                              <td className="p-1">
+                                <input
+                                  type="number"
+                                  value={range.priceNet}
+                                  onChange={(e) =>
+                                    handleUpdateRange(idx, { priceNet: parseFloat(e.target.value) || 0 })
+                                  }
+                                  className="w-full h-7 bg-white border border-slate-200 rounded px-1 text-[10px] text-right font-bold text-slate-900 focus:outline-none focus:border-purple-400"
+                                />
+                              </td>
+                              <td className="p-1">
+                                <input
+                                  type="number"
+                                  value={range.costNet ?? ""}
+                                  onChange={(e) =>
+                                    handleUpdateRange(idx, {
+                                      costNet: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
+                                    })
+                                  }
+                                  placeholder="—"
+                                  className="w-full h-7 bg-white border border-slate-200 rounded px-1 text-[10px] text-right text-slate-600 focus:outline-none focus:border-purple-400"
+                                />
+                              </td>
+                              <td className="p-1 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveRange(idx)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                  title="Usuń ten zakres"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-3 px-2 border border-dashed border-slate-200 rounded-lg bg-slate-50 text-[11px] text-slate-500">
+                    Brak zdefiniowanych progów cenowych. Konstrukcja używa standardowej stałej ceny powyżej.
+                  </div>
+                )}
+
+                {/* Przyciski akcji */}
+                <div className="flex items-center gap-2 flex-wrap pt-1">
+                  <button
+                    type="button"
+                    onClick={handleAddRange}
+                    className="px-2.5 py-1.5 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Plus size={12} />
+                    <span>Dodaj zakres</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleLoadDefaultTriangleRanges}
+                    className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs ml-auto"
+                    title="Wstawia 9 gotowych progów torowych (194–578 cm) wg wyceny trójkątów z Excela"
+                  >
+                    <Sparkles size={12} className="text-amber-500" />
+                    <span>Załaduj 9 progów Excela (2T–6T)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. PODSUMOWANIE */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">

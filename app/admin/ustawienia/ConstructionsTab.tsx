@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { CadCanvas } from "@/components/cad-configurator/CadCanvas";
 import { CadConstructionDesignerModal } from "@/components/cad-configurator/CadConstructionDesignerModal";
+import { PricingRangeItem } from "@/lib/pricingRanges";
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string; dot: string; label: string }> = {
   cyan: { bg: "bg-cyan-50", text: "text-cyan-700", border: "border-cyan-200", dot: "bg-cyan-500", label: "Morski (Cyan)" },
@@ -175,6 +176,7 @@ export function ConstructionsTab() {
     installationMarkupType?: "percent" | "amount";
     installationMarkupValue?: number;
     installationPriceNet?: number;
+    pricingRanges?: PricingRangeItem[];
   }) => {
     if (data.id) {
       await updateConstruction({
@@ -204,6 +206,7 @@ export function ConstructionsTab() {
         installationMarkupType: data.installationMarkupType !== undefined ? data.installationMarkupType : null,
         installationMarkupValue: data.installationMarkupValue !== undefined ? data.installationMarkupValue : null,
         installationPriceNet: data.installationPriceNet !== undefined ? data.installationPriceNet : null,
+        pricingRanges: data.pricingRanges ?? null,
       });
     } else {
       await createConstruction({
@@ -232,6 +235,7 @@ export function ConstructionsTab() {
         installationMarkupType: data.installationMarkupType,
         installationMarkupValue: data.installationMarkupValue,
         installationPriceNet: data.installationPriceNet,
+        pricingRanges: data.pricingRanges,
       });
     }
     setActiveView("constructions");

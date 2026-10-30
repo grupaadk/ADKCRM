@@ -6,6 +6,7 @@ import {
   checkIsStandard,
   isGlassSystemConstruction,
 } from "../lib/glassPricing";
+import { matchPricingRange } from "../lib/pricingRanges";
 
 /**
  * Usuwa słowo "Przedstawiciel" z tytułów ofert i nazw klientów w całym systemie
@@ -139,6 +140,45 @@ export const getOfferWithItems = query({
             priceNet: calc.priceNet,
             costNet: calc.costNet,
           };
+        }
+
+        if (tpl?.pricingRanges && tpl.pricingRanges.length > 0 && typeof item.widthMm === "number") {
+          const matchedRange = matchPricingRange(tpl.pricingRanges, item.widthMm);
+          if (matchedRange) {
+            const isStaleRange =
+              item.materialPriceNet === undefined ||
+              item.materialPriceNet === 0 ||
+              item.materialPriceNet === 2400 ||
+              item.priceNet === 2400 ||
+              item.priceNet === 0;
+
+            if (isStaleRange) {
+              let instCost = item.installationCostNet ?? tpl.installationCostNet ?? 0;
+              let instPrice = item.installationPriceNet ?? tpl.installationPriceNet ?? 0;
+              if (tpl.installationUnit === "mb" && (item.installationPriceNet === undefined || item.installationPriceNet === 0)) {
+                const rateCost = tpl.installationUnitRate ?? 200;
+                const rateClient =
+                  tpl.installationMarkupType === "percent"
+                    ? Math.round(rateCost * (1 + (tpl.installationMarkupValue || 0) / 100))
+                    : rateCost + (tpl.installationMarkupValue || 50);
+                instCost = Math.round((item.widthMm / 1000) * rateCost);
+                instPrice = Math.round((item.widthMm / 1000) * rateClient);
+              }
+              const matCost = matchedRange.costNet ?? matchedRange.priceNet;
+              const matPrice = matchedRange.priceNet;
+              return {
+                ...item,
+                constructionId: item.constructionId ?? tpl._id,
+                pricingTier: matchedRange.label || `${matchedRange.minWidthMm}-${matchedRange.maxWidthMm} mm`,
+                materialCostNet: matCost,
+                materialPriceNet: matPrice,
+                installationCostNet: instCost,
+                installationPriceNet: instPrice,
+                priceNet: matPrice + instPrice,
+                costNet: matCost + instCost,
+              };
+            }
+          }
         }
 
         const hasExplicitPillars =
@@ -656,6 +696,35 @@ export const addConstructionPosition = mutation({
       profileRight: `5450 ${color}`,
     }));
 
+    // Sprawdź czy szablon posiada warunki cenowe wg wymiaru B (np. trójkąty)
+    const matchedRange = construction?.pricingRanges
+      ? matchPricingRange(construction.pricingRanges, width)
+      : null;
+
+    const baseMaterialPrice = matchedRange
+      ? matchedRange.priceNet
+      : (args.materialPriceNet ?? construction?.materialPriceNet ?? (args.priceNet ?? construction?.defaultPriceNet ?? 0));
+
+    const baseMaterialCost = matchedRange
+      ? (matchedRange.costNet ?? matchedRange.priceNet)
+      : (args.materialCostNet ?? construction?.materialCostNet ?? args.costNet ?? 0);
+
+    let baseInstPrice = args.installationPriceNet ?? construction?.installationPriceNet ?? 0;
+    let baseInstCost = args.installationCostNet ?? construction?.installationCostNet ?? 0;
+
+    if (construction?.installationUnit === "mb" && args.installationPriceNet === undefined) {
+      const rateCost = construction.installationUnitRate ?? 200;
+      const rateClient =
+        construction.installationMarkupType === "percent"
+          ? Math.round(rateCost * (1 + (construction.installationMarkupValue || 0) / 100))
+          : rateCost + (construction.installationMarkupValue || 50);
+      baseInstCost = Math.round((width / 1000) * rateCost);
+      baseInstPrice = Math.round((width / 1000) * rateClient);
+    }
+
+    const basePriceNet = args.priceNet ?? (matchedRange ? (baseMaterialPrice + baseInstPrice) : (construction?.defaultPriceNet ?? 0));
+    const baseCostNet = args.costNet ?? (matchedRange ? (baseMaterialCost + baseInstCost) : (construction ? (construction.materialCostNet || 0) + (construction.installationCostNet || 0) : 0));
+
     const now = Date.now();
     const itemId = await ctx.db.insert("offerConstructions", {
       offerId: args.offerId,
@@ -674,14 +743,15 @@ export const addConstructionPosition = mutation({
       heightMm: height,
       panesCount: panes,
       fillType: fill,
-      priceNet: args.priceNet ?? construction?.defaultPriceNet ?? 0,
-      costNet: args.costNet ?? (construction ? (construction.materialCostNet || 0) + (construction.installationCostNet || 0) : 0),
-      materialCostNet: args.materialCostNet ?? construction?.materialCostNet ?? args.costNet ?? 0,
+      priceNet: basePriceNet,
+      costNet: baseCostNet,
+      materialCostNet: baseMaterialCost,
       brushesCostNet: args.brushesCostNet ?? construction?.brushesCostNet ?? undefined,
       handlesCostNet: args.handlesCostNet ?? construction?.handlesCostNet ?? undefined,
-      materialPriceNet: args.materialPriceNet ?? construction?.materialPriceNet ?? (args.priceNet ?? construction?.defaultPriceNet ?? 0),
-      installationCostNet: args.installationCostNet ?? construction?.installationCostNet ?? 0,
-      installationPriceNet: args.installationPriceNet ?? construction?.installationPriceNet ?? 0,
+      materialPriceNet: baseMaterialPrice,
+      installationCostNet: baseInstCost,
+      installationPriceNet: baseInstPrice,
+      pricingTier: matchedRange ? (matchedRange.label || `${matchedRange.minWidthMm}-${matchedRange.maxWidthMm} mm`) : undefined,
       segments,
       createdAt: now,
       updatedAt: now,
@@ -795,6 +865,49 @@ export const updateConstructionPosition = mutation({
         patch.installationPriceNet = calc.installationPriceNet;
         patch.priceNet = calc.priceNet;
         patch.costNet = calc.costNet;
+      }
+    } else if (fields.widthMm !== undefined) {
+      // Obsługa szablonów z cennikiem schodkowym (np. trójkąty tarasowe lewe i prawe)
+      let tpl = item.constructionId ? await ctx.db.get(item.constructionId) : null;
+      if (!tpl) {
+        const allConstructions = await ctx.db.query("constructions").collect();
+        const short = (item.shortName || "").trim().toLowerCase();
+        const name = (item.name || "").trim().toLowerCase();
+        tpl =
+          allConstructions.find((c) => {
+            const code = (c.code || "").trim().toLowerCase();
+            const cName = (c.name || "").trim().toLowerCase();
+            return (
+              (code && (short === code || name.includes(code))) ||
+              (cName && (short === cName || name === cName))
+            );
+          }) || null;
+      }
+
+      if (tpl?.pricingRanges && tpl.pricingRanges.length > 0) {
+        const matched = matchPricingRange(tpl.pricingRanges, newWidth);
+        if (matched && fields.materialPriceNet === undefined && fields.priceNet === undefined) {
+          let instPrice = (fields.installationPriceNet as number | undefined) ?? item.installationPriceNet ?? 0;
+          let instCost = (fields.installationCostNet as number | undefined) ?? item.installationCostNet ?? 0;
+          if (tpl.installationUnit === "mb" && fields.installationPriceNet === undefined) {
+            const rateCost = tpl.installationUnitRate ?? 200;
+            const rateClient =
+              tpl.installationMarkupType === "percent"
+                ? Math.round(rateCost * (1 + (tpl.installationMarkupValue || 0) / 100))
+                : rateCost + (tpl.installationMarkupValue || 50);
+            instCost = Math.round((newWidth / 1000) * rateCost);
+            instPrice = Math.round((newWidth / 1000) * rateClient);
+            patch.installationPriceNet = instPrice;
+            patch.installationCostNet = instCost;
+          }
+          const matPrice = matched.priceNet;
+          const matCost = matched.costNet ?? matched.priceNet;
+          patch.materialPriceNet = matPrice;
+          patch.materialCostNet = matCost;
+          patch.priceNet = matPrice + instPrice;
+          patch.costNet = matCost + instCost;
+          patch.pricingTier = matched.label || `${matched.minWidthMm}-${matched.maxWidthMm} mm`;
+        }
       }
     }
 
@@ -966,6 +1079,38 @@ export const syncOfferWithConstructionTemplates = mutation({
           fillType: item.fillType,
         }) ||
         (tpl?.category || "").toLowerCase().includes("szkl");
+
+      if (tpl?.pricingRanges && tpl.pricingRanges.length > 0 && typeof item.widthMm === "number") {
+        const matched = matchPricingRange(tpl.pricingRanges, item.widthMm);
+        if (matched) {
+          let instPrice = item.installationPriceNet ?? tpl.installationPriceNet ?? 0;
+          let instCost = item.installationCostNet ?? tpl.installationCostNet ?? 0;
+          if (tpl.installationUnit === "mb") {
+            const rateCost = tpl.installationUnitRate ?? 200;
+            const rateClient =
+              tpl.installationMarkupType === "percent"
+                ? Math.round(rateCost * (1 + (tpl.installationMarkupValue || 0) / 100))
+                : rateCost + (tpl.installationMarkupValue || 50);
+            instCost = Math.round((item.widthMm / 1000) * rateCost);
+            instPrice = Math.round((item.widthMm / 1000) * rateClient);
+          }
+          const matPrice = matched.priceNet;
+          const matCost = matched.costNet ?? matched.priceNet;
+          await ctx.db.patch(item._id, {
+            constructionId: tpl._id,
+            materialCostNet: matCost,
+            materialPriceNet: matPrice,
+            installationCostNet: instCost,
+            installationPriceNet: instPrice,
+            priceNet: matPrice + instPrice,
+            costNet: matCost + instCost,
+            pricingTier: matched.label || `${matched.minWidthMm}-${matched.maxWidthMm} mm`,
+            updatedAt: Date.now(),
+          });
+          updatedCount++;
+          continue;
+        }
+      }
 
       const useTemplateDirectly =
         Boolean(tpl) &&

@@ -1176,6 +1176,18 @@ export default defineSchema({
     installationMarkupType: v.optional(v.union(v.literal("percent"), v.literal("amount"))),
     installationMarkupValue: v.optional(v.number()),
     installationPriceNet: v.optional(v.number()),
+    pricingRanges: v.optional(
+      v.array(
+        v.object({
+          id: v.optional(v.string()),
+          label: v.optional(v.string()),
+          minWidthMm: v.number(),
+          maxWidthMm: v.number(),
+          priceNet: v.number(),
+          costNet: v.optional(v.number()),
+        })
+      )
+    ),
     isActive: v.boolean(),
     sortOrder: v.number(),
     createdAt: v.number(),

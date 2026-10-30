@@ -1,6 +1,9 @@
 "use client";
 
 import React from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { CadConstructionItem } from "./CadCanvas";
 import {
   Settings2,
@@ -15,6 +18,10 @@ import {
   checkIsStandard,
   calculateGlassSystemPricing,
 } from "@/lib/glassPricing";
+import {
+  matchPricingRange,
+  DEFAULT_TRIANGLE_PRICING_RANGES,
+} from "@/lib/pricingRanges";
 
 interface LeftPropertiesPanelProps {
   item: CadConstructionItem;
@@ -42,6 +49,26 @@ export function LeftPropertiesPanel({
 
   const profit = price - cost;
   const marginPct = price > 0 ? Math.round((profit / price) * 100) : 0;
+
+  const template = useQuery(
+    api.constructions.get,
+    item.constructionId ? { id: item.constructionId as Id<"constructions"> } : "skip"
+  );
+
+  const isTriangle =
+    item.name.toLowerCase().includes("trójką") ||
+    Boolean(item.shortName && item.shortName.toLowerCase().includes("trójką"));
+
+  const effectivePricingRanges =
+    template?.pricingRanges && template.pricingRanges.length > 0
+      ? template.pricingRanges
+      : isTriangle
+      ? DEFAULT_TRIANGLE_PRICING_RANGES
+      : null;
+
+  const matchedRange = effectivePricingRanges
+    ? matchPricingRange(effectivePricingRanges, item.widthMm)
+    : null;
 
   const isGlass = isGlassSystemConstruction({
     name: item.name,
@@ -158,6 +185,34 @@ export function LeftPropertiesPanel({
                         pricingTier: calc.pricingTier,
                         standardWidthCm: calc.standardWidthCm,
                       });
+                    } else if (effectivePricingRanges) {
+                      const range = matchPricingRange(effectivePricingRanges, nextW);
+                      if (range) {
+                        let curInstPrice = item.installationPriceNet ?? template?.installationPriceNet ?? 0;
+                        let curInstCost = item.installationCostNet ?? template?.installationCostNet ?? 0;
+                        if (template?.installationUnit === "mb") {
+                          const rateCost = template.installationUnitRate ?? 200;
+                          const rateClient =
+                            template.installationMarkupType === "percent"
+                              ? Math.round(rateCost * (1 + (template.installationMarkupValue || 0) / 100))
+                              : rateCost + (template.installationMarkupValue || 50);
+                          curInstCost = Math.round((nextW / 1000) * rateCost);
+                          curInstPrice = Math.round((nextW / 1000) * rateClient);
+                        }
+                        const mCost = range.costNet ?? range.priceNet;
+                        onChange({
+                          widthMm: nextW,
+                          materialPriceNet: range.priceNet,
+                          materialCostNet: mCost,
+                          installationCostNet: curInstCost,
+                          installationPriceNet: curInstPrice,
+                          priceNet: range.priceNet + curInstPrice,
+                          costNet: mCost + curInstCost,
+                          pricingTier: range.label || `${range.minWidthMm}-${range.maxWidthMm} mm`,
+                        });
+                      } else {
+                        onChange({ widthMm: nextW });
+                      }
                     } else {
                       onChange({ widthMm: nextW });
                     }
@@ -247,6 +302,18 @@ export function LeftPropertiesPanel({
                   NIESTANDARD ({standardInfo.standardWidthCm})
                 </span>
               )}
+            </div>
+          )}
+
+          {matchedRange && (
+            <div className="flex items-center justify-between pt-2 border-t border-[#e3e7ee]">
+              <span className="text-[10px] text-[#7c8597] font-medium">Zakres B (tory):</span>
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#e0f9fe] text-[#0e7490] border border-[#bae6fd]"
+                title={`Próg dla B=${item.widthMm || 0} mm: ${matchedRange.minWidthMm}–${matchedRange.maxWidthMm} mm`}
+              >
+                {matchedRange.label || `${matchedRange.maxWidthMm} mm`} ({matchedRange.priceNet.toLocaleString("pl-PL")} zł)
+              </span>
             </div>
           )}
         </div>

@@ -205,6 +205,10 @@ export function isGlassSystemConstruction(item: {
   fillType?: string;
 }): boolean {
   const text = `${item.name || ""} ${item.shortName || ""} ${item.systemName || ""} ${item.fillType || ""}`.toLowerCase();
+  // Trójkąty tarasowe pod krokwie mają osobną wycenę (wg cennika schodkowego / torów) i nie są ścianami przesuwnymi
+  if (text.includes("trójką") || text.includes("trojkat")) {
+    return false;
+  }
   return (
     text.includes("szkł") ||
     text.includes("szklo") ||
