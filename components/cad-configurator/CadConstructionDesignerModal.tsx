@@ -465,8 +465,8 @@ export function CadConstructionDesignerModal({
         id: `range-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         minWidthMm: nextMin,
         maxWidthMm: nextMax,
-        priceNet: last ? last.priceNet : 854,
-        costNet: last?.costNet ?? (last ? last.priceNet : 854),
+        costNet: last ? (last.costNet ?? last.priceNet) : 854,
+        priceNet: calcItemPrice(last ? (last.costNet ?? last.priceNet) : 854, materialMarkupType, materialMarkupValue) || 854,
         label: `Zakres ${nextMin}–${nextMax} mm`,
       },
     ]);
@@ -474,17 +474,44 @@ export function CadConstructionDesignerModal({
 
   const handleLoadDefaultTriangleRanges = () => {
     setPricingRanges(
-      DEFAULT_TRIANGLE_PRICING_RANGES.map((r, i) => ({
-        ...r,
-        id: `triangle-${i}-${Date.now()}`,
-      }))
+      DEFAULT_TRIANGLE_PRICING_RANGES.map((r, i) => {
+        const cost = r.costNet ?? r.priceNet;
+        const price = calcItemPrice(cost, materialMarkupType, materialMarkupValue) || r.priceNet;
+        return {
+          ...r,
+          id: `triangle-${i}-${Date.now()}`,
+          costNet: cost,
+          priceNet: price,
+        };
+      })
+    );
+  };
+
+  const handleRecalculateRangesWithCurrentMarkup = () => {
+    setPricingRanges((prev) =>
+      prev.map((r) => {
+        const cost = r.costNet ?? r.priceNet;
+        const price = calcItemPrice(cost, materialMarkupType, materialMarkupValue) || cost;
+        return {
+          ...r,
+          costNet: cost,
+          priceNet: price,
+        };
+      })
     );
   };
 
   const handleUpdateRange = (index: number, patch: Partial<PricingRangeItem>) => {
     setPricingRanges((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], ...patch };
+      const current = next[index];
+      const updated = { ...current, ...patch };
+      if (patch.costNet !== undefined && patch.priceNet === undefined) {
+        const cost = patch.costNet || 0;
+        const price = calcItemPrice(cost, materialMarkupType, materialMarkupValue) || cost;
+        updated.priceNet = price;
+      }
+      next[index] = updated;
       return next;
     });
   };
@@ -1596,9 +1623,14 @@ export function CadConstructionDesignerModal({
                         <strong>{matchedRangeForCurrentWidth.label || `${matchedRangeForCurrentWidth.minWidthMm}–${matchedRangeForCurrentWidth.maxWidthMm} mm`}</strong>
                       </span>
                     </div>
-                    <span className="font-mono font-bold text-purple-950 bg-white px-2 py-0.5 rounded border border-purple-200 shadow-2xs text-[11px]">
-                      {matchedRangeForCurrentWidth.priceNet.toLocaleString("pl-PL")} zł netto
-                    </span>
+                    <div className="flex items-center gap-2 font-mono">
+                      <span className="text-[10px] text-slate-600">
+                        Koszt mat.: <strong>{matchedRangeForCurrentWidth.costNet} zł</strong>
+                      </span>
+                      <span className="font-bold text-purple-950 bg-white px-2 py-0.5 rounded border border-purple-200 shadow-2xs text-[11px]">
+                        Cena z narzutem: {matchedRangeForCurrentWidth.priceNet.toLocaleString("pl-PL")} zł
+                      </span>
+                    </div>
                   </div>
                 )}
 
@@ -1611,8 +1643,8 @@ export function CadConstructionDesignerModal({
                           <th className="py-1.5 px-2">Etykieta / Tor</th>
                           <th className="py-1.5 px-1.5 w-16">Od (mm)</th>
                           <th className="py-1.5 px-1.5 w-16">Do (mm)</th>
-                          <th className="py-1.5 px-1.5 w-20">Cena (zł)</th>
-                          <th className="py-1.5 px-1.5 w-20">Koszt (zł)</th>
+                          <th className="py-1.5 px-1.5 w-24">Koszt mat. (zł)</th>
+                          <th className="py-1.5 px-1.5 w-24">Cena z narzutem (zł)</th>
                           <th className="py-1.5 px-1 w-7 text-center"></th>
                         </tr>
                       </thead>
@@ -1659,24 +1691,24 @@ export function CadConstructionDesignerModal({
                               <td className="p-1">
                                 <input
                                   type="number"
-                                  value={range.priceNet}
+                                  value={range.costNet ?? ""}
                                   onChange={(e) =>
-                                    handleUpdateRange(idx, { priceNet: parseFloat(e.target.value) || 0 })
+                                    handleUpdateRange(idx, {
+                                      costNet: parseFloat(e.target.value) || 0,
+                                    })
                                   }
-                                  className="w-full h-7 bg-white border border-slate-200 rounded px-1 text-[10px] text-right font-bold text-slate-900 focus:outline-none focus:border-purple-400"
+                                  placeholder="0"
+                                  className="w-full h-7 bg-white border border-slate-200 rounded px-1 text-[10px] text-right font-mono text-slate-800 focus:outline-none focus:border-purple-400"
                                 />
                               </td>
                               <td className="p-1">
                                 <input
                                   type="number"
-                                  value={range.costNet ?? ""}
+                                  value={range.priceNet}
                                   onChange={(e) =>
-                                    handleUpdateRange(idx, {
-                                      costNet: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
-                                    })
+                                    handleUpdateRange(idx, { priceNet: parseFloat(e.target.value) || 0 })
                                   }
-                                  placeholder="—"
-                                  className="w-full h-7 bg-white border border-slate-200 rounded px-1 text-[10px] text-right text-slate-600 focus:outline-none focus:border-purple-400"
+                                  className="w-full h-7 bg-white border border-slate-200 rounded px-1 text-[10px] text-right font-bold text-slate-900 focus:outline-none focus:border-purple-400"
                                 />
                               </td>
                               <td className="p-1 text-center">
@@ -1711,6 +1743,18 @@ export function CadConstructionDesignerModal({
                     <Plus size={12} />
                     <span>Dodaj zakres</span>
                   </button>
+
+                  {pricingRanges.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleRecalculateRangesWithCurrentMarkup}
+                      className="px-2.5 py-1.5 text-[11px] font-medium text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                      title="Przelicza ceny z narzutem dla wszystkich wierszy na podstawie wpisanego narzutu na materiał w sekcji 1"
+                    >
+                      <Calculator size={12} />
+                      <span>Przelicz ceny progów wg narzutu ({materialMarkupValue || 0}{materialMarkupType === "percent" ? "%" : " zł"})</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"

@@ -467,9 +467,11 @@ export const ensureTriangleConstruction = mutation({
         defaultHeightMm: 600,
         defaultPanesCount: 1,
         defaultFillType: "HART 10",
-        defaultPriceNet: 854 + 750,
-        materialPriceNet: 854,
+        defaultPriceNet: 1298 + 750,
+        materialPriceNet: 1298,
         materialCostNet: 854,
+        materialMarkupType: "percent",
+        materialMarkupValue: 52,
         installationUnit: "mb",
         installationUnitRate: 200,
         installationMarkupType: "amount",
@@ -490,6 +492,7 @@ export const ensureTriangleConstruction = mutation({
         leftConstruction.category !== triangleCategory.name ||
         !leftConstruction.pricingRanges ||
         leftConstruction.pricingRanges.length === 0 ||
+        leftConstruction.materialMarkupValue !== 52 ||
         leftConstruction.installationUnit !== "mb" ||
         leftConstruction.installationUnitRate !== 200;
 
@@ -497,16 +500,18 @@ export const ensureTriangleConstruction = mutation({
         await ctx.db.patch(leftConstruction._id, {
           categoryId: triangleCategory._id,
           category: triangleCategory.name,
+          materialCostNet: 854,
+          materialPriceNet: 1298,
+          materialMarkupType: "percent",
+          materialMarkupValue: 52,
+          defaultPriceNet: 1298 + Math.round(((leftConstruction.defaultWidthMm || 3000) / 1000) * 250),
           installationUnit: "mb",
           installationUnitRate: 200,
           installationMarkupType: "amount",
           installationMarkupValue: 50,
           installationCostNet: Math.round(((leftConstruction.defaultWidthMm || 3000) / 1000) * 200),
           installationPriceNet: Math.round(((leftConstruction.defaultWidthMm || 3000) / 1000) * 250),
-          pricingRanges:
-            leftConstruction.pricingRanges && leftConstruction.pricingRanges.length > 0
-              ? leftConstruction.pricingRanges
-              : DEFAULT_TRIANGLE_PRICING_RANGES,
+          pricingRanges: DEFAULT_TRIANGLE_PRICING_RANGES,
           updatedAt: now,
         });
       }
@@ -539,9 +544,11 @@ export const ensureTriangleConstruction = mutation({
         defaultHeightMm: 600,
         defaultPanesCount: 1,
         defaultFillType: "HART 10",
-        defaultPriceNet: 854 + 750,
-        materialPriceNet: 854,
+        defaultPriceNet: 1298 + 750,
+        materialPriceNet: 1298,
         materialCostNet: 854,
+        materialMarkupType: "percent",
+        materialMarkupValue: 52,
         installationUnit: "mb",
         installationUnitRate: 200,
         installationMarkupType: "amount",
@@ -562,6 +569,7 @@ export const ensureTriangleConstruction = mutation({
         rightConstruction.category !== triangleCategory.name ||
         !rightConstruction.pricingRanges ||
         rightConstruction.pricingRanges.length === 0 ||
+        rightConstruction.materialMarkupValue !== 52 ||
         rightConstruction.installationUnit !== "mb" ||
         rightConstruction.installationUnitRate !== 200;
 
@@ -569,16 +577,18 @@ export const ensureTriangleConstruction = mutation({
         await ctx.db.patch(rightConstruction._id, {
           categoryId: triangleCategory._id,
           category: triangleCategory.name,
+          materialCostNet: 854,
+          materialPriceNet: 1298,
+          materialMarkupType: "percent",
+          materialMarkupValue: 52,
+          defaultPriceNet: 1298 + Math.round(((rightConstruction.defaultWidthMm || 3000) / 1000) * 250),
           installationUnit: "mb",
           installationUnitRate: 200,
           installationMarkupType: "amount",
           installationMarkupValue: 50,
           installationCostNet: Math.round(((rightConstruction.defaultWidthMm || 3000) / 1000) * 200),
           installationPriceNet: Math.round(((rightConstruction.defaultWidthMm || 3000) / 1000) * 250),
-          pricingRanges:
-            rightConstruction.pricingRanges && rightConstruction.pricingRanges.length > 0
-              ? rightConstruction.pricingRanges
-              : DEFAULT_TRIANGLE_PRICING_RANGES,
+          pricingRanges: DEFAULT_TRIANGLE_PRICING_RANGES,
           updatedAt: now,
         });
       }

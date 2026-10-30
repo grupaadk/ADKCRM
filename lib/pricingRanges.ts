@@ -8,23 +8,41 @@ export interface PricingRangeItem {
   label?: string; // np. "System 2-torowy 194 cm"
   minWidthMm: number; // np. 0 lub 1941
   maxWidthMm: number; // np. 1940 lub 2410
-  priceNet: number; // cena netto (np. 854)
-  costNet?: number; // koszt netto (opcjonalny)
+  costNet: number; // koszt materiału netto (np. 854)
+  priceNet: number; // cena materiału netto po narzucie (np. 1298 przy 52% narzutu)
+}
+
+/**
+ * Oblicza cenę materiału na podstawie kosztu i zadanego narzutu
+ */
+export function computeRangePrice(
+  costNet: number,
+  markupType?: "percent" | "amount",
+  markupValue?: number
+): number {
+  if (costNet <= 0) return 0;
+  if (!markupValue || markupValue <= 0) return costNet;
+  if (markupType === "percent") {
+    return Math.round(costNet * (1 + markupValue / 100));
+  }
+  return Math.round(costNet + markupValue);
 }
 
 /**
  * 9 domyślnych progów dla trójkątów tarasowych lewych i prawych wg Excela
+ * Koszt materiału: kolumna F Excela (wiersze 43-51)
+ * Cena z narzutem: koszt * (1 + 52% narzutu)
  */
 export const DEFAULT_TRIANGLE_PRICING_RANGES: PricingRangeItem[] = [
-  { minWidthMm: 0, maxWidthMm: 1940, priceNet: 854, costNet: 854, label: "System 2-torowy 194 cm" },
-  { minWidthMm: 1941, maxWidthMm: 2410, priceNet: 854, costNet: 854, label: "System 3-torowy 241 cm" },
-  { minWidthMm: 2411, maxWidthMm: 2900, priceNet: 854, costNet: 854, label: "System 3-torowy 290 cm" },
-  { minWidthMm: 2901, maxWidthMm: 3370, priceNet: 1016, costNet: 1016, label: "System 4-torowy 337 cm" },
-  { minWidthMm: 3371, maxWidthMm: 3860, priceNet: 1179, costNet: 1179, label: "System 4-torowy 386 cm" },
-  { minWidthMm: 3861, maxWidthMm: 4330, priceNet: 1463, costNet: 1463, label: "System 5-torowy 433 cm" },
-  { minWidthMm: 4331, maxWidthMm: 4820, priceNet: 1707, costNet: 1707, label: "System 5-torowy 482 cm" },
-  { minWidthMm: 4821, maxWidthMm: 5290, priceNet: 2439, costNet: 2439, label: "System 6-torowy 529 cm" },
-  { minWidthMm: 5291, maxWidthMm: 5780, priceNet: 2683, costNet: 2683, label: "System 6-torowy 578 cm" },
+  { minWidthMm: 0, maxWidthMm: 1940, costNet: 854, priceNet: 1298, label: "System 2-torowy 194 cm" },
+  { minWidthMm: 1941, maxWidthMm: 2410, costNet: 854, priceNet: 1298, label: "System 3-torowy 241 cm" },
+  { minWidthMm: 2411, maxWidthMm: 2900, costNet: 854, priceNet: 1298, label: "System 3-torowy 290 cm" },
+  { minWidthMm: 2901, maxWidthMm: 3370, costNet: 1016, priceNet: 1544, label: "System 4-torowy 337 cm" },
+  { minWidthMm: 3371, maxWidthMm: 3860, costNet: 1179, priceNet: 1792, label: "System 4-torowy 386 cm" },
+  { minWidthMm: 3861, maxWidthMm: 4330, costNet: 1463, priceNet: 2224, label: "System 5-torowy 433 cm" },
+  { minWidthMm: 4331, maxWidthMm: 4820, costNet: 1707, priceNet: 2595, label: "System 5-torowy 482 cm" },
+  { minWidthMm: 4821, maxWidthMm: 5290, costNet: 2439, priceNet: 3707, label: "System 6-torowy 529 cm" },
+  { minWidthMm: 5291, maxWidthMm: 5780, costNet: 2683, priceNet: 4078, label: "System 6-torowy 578 cm" },
 ];
 
 /**

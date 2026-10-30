@@ -165,7 +165,12 @@ export const getOfferWithItems = query({
                 instPrice = Math.round((item.widthMm / 1000) * rateClient);
               }
               const matCost = matchedRange.costNet ?? matchedRange.priceNet;
-              const matPrice = matchedRange.priceNet;
+              const matPrice =
+                matchedRange.priceNet && matchedRange.priceNet !== matchedRange.costNet
+                  ? matchedRange.priceNet
+                  : (tpl.materialMarkupType === "percent"
+                      ? Math.round(matCost * (1 + (tpl.materialMarkupValue || 0) / 100))
+                      : matCost + (tpl.materialMarkupValue || 0));
               return {
                 ...item,
                 constructionId: item.constructionId ?? tpl._id,
@@ -701,13 +706,17 @@ export const addConstructionPosition = mutation({
       ? matchPricingRange(construction.pricingRanges, width)
       : null;
 
-    const baseMaterialPrice = matchedRange
-      ? matchedRange.priceNet
-      : (args.materialPriceNet ?? construction?.materialPriceNet ?? (args.priceNet ?? construction?.defaultPriceNet ?? 0));
-
     const baseMaterialCost = matchedRange
       ? (matchedRange.costNet ?? matchedRange.priceNet)
       : (args.materialCostNet ?? construction?.materialCostNet ?? args.costNet ?? 0);
+
+    const baseMaterialPrice = matchedRange
+      ? (matchedRange.priceNet && matchedRange.priceNet !== matchedRange.costNet
+          ? matchedRange.priceNet
+          : (construction?.materialMarkupType === "percent"
+              ? Math.round(baseMaterialCost * (1 + (construction.materialMarkupValue || 0) / 100))
+              : baseMaterialCost + (construction?.materialMarkupValue || 0)))
+      : (args.materialPriceNet ?? construction?.materialPriceNet ?? (args.priceNet ?? construction?.defaultPriceNet ?? 0));
 
     let baseInstPrice = args.installationPriceNet ?? construction?.installationPriceNet ?? 0;
     let baseInstCost = args.installationCostNet ?? construction?.installationCostNet ?? 0;
@@ -900,8 +909,13 @@ export const updateConstructionPosition = mutation({
             patch.installationPriceNet = instPrice;
             patch.installationCostNet = instCost;
           }
-          const matPrice = matched.priceNet;
           const matCost = matched.costNet ?? matched.priceNet;
+          const matPrice =
+            matched.priceNet && matched.priceNet !== matched.costNet
+              ? matched.priceNet
+              : (tpl.materialMarkupType === "percent"
+                  ? Math.round(matCost * (1 + (tpl.materialMarkupValue || 0) / 100))
+                  : matCost + (tpl.materialMarkupValue || 0));
           patch.materialPriceNet = matPrice;
           patch.materialCostNet = matCost;
           patch.priceNet = matPrice + instPrice;
@@ -1094,8 +1108,13 @@ export const syncOfferWithConstructionTemplates = mutation({
             instCost = Math.round((item.widthMm / 1000) * rateCost);
             instPrice = Math.round((item.widthMm / 1000) * rateClient);
           }
-          const matPrice = matched.priceNet;
           const matCost = matched.costNet ?? matched.priceNet;
+          const matPrice =
+            matched.priceNet && matched.priceNet !== matched.costNet
+              ? matched.priceNet
+              : (tpl.materialMarkupType === "percent"
+                  ? Math.round(matCost * (1 + (tpl.materialMarkupValue || 0) / 100))
+                  : matCost + (tpl.materialMarkupValue || 0));
           await ctx.db.patch(item._id, {
             constructionId: tpl._id,
             materialCostNet: matCost,

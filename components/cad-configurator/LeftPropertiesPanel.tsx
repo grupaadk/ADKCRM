@@ -200,13 +200,20 @@ export function LeftPropertiesPanel({
                           curInstPrice = Math.round((nextW / 1000) * rateClient);
                         }
                         const mCost = range.costNet ?? range.priceNet;
+                        const mPrice =
+                          range.priceNet && range.priceNet !== range.costNet
+                            ? range.priceNet
+                            : (template?.materialMarkupType === "percent"
+                                ? Math.round(mCost * (1 + (template.materialMarkupValue || 0) / 100))
+                                : mCost + (template?.materialMarkupValue || 0));
+
                         onChange({
                           widthMm: nextW,
-                          materialPriceNet: range.priceNet,
+                          materialPriceNet: mPrice,
                           materialCostNet: mCost,
                           installationCostNet: curInstCost,
                           installationPriceNet: curInstPrice,
-                          priceNet: range.priceNet + curInstPrice,
+                          priceNet: mPrice + curInstPrice,
                           costNet: mCost + curInstCost,
                           pricingTier: range.label || `${range.minWidthMm}-${range.maxWidthMm} mm`,
                         });
@@ -310,9 +317,9 @@ export function LeftPropertiesPanel({
               <span className="text-[10px] text-[#7c8597] font-medium">Zakres B (tory):</span>
               <span
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#e0f9fe] text-[#0e7490] border border-[#bae6fd]"
-                title={`Próg dla B=${item.widthMm || 0} mm: ${matchedRange.minWidthMm}–${matchedRange.maxWidthMm} mm`}
+                title={`Próg dla B=${item.widthMm || 0} mm: ${matchedRange.minWidthMm}–${matchedRange.maxWidthMm} mm (Koszt: ${matchedRange.costNet} zł, Cena z narzutem: ${matchedRange.priceNet} zł)`}
               >
-                {matchedRange.label || `${matchedRange.maxWidthMm} mm`} ({matchedRange.priceNet.toLocaleString("pl-PL")} zł)
+                {matchedRange.label || `${matchedRange.maxWidthMm} mm`} (koszt: {matchedRange.costNet} zł)
               </span>
             </div>
           )}

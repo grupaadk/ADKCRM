@@ -754,14 +754,16 @@ describe("CAD Offers and Constructions Module", () => {
     expect(triangles.leftId).toBeDefined();
     expect(triangles.rightId).toBeDefined();
 
-    // Sprawdź, czy szablony mają zapisane 9 progów
+    // Sprawdź, czy szablony mają zapisane 9 progów z kosztem materiału i ceną z narzutem 52%
     const leftTpl = await t.query(api.constructions.get, { id: triangles.leftId });
     expect(leftTpl?.pricingRanges).toBeDefined();
     expect(leftTpl?.pricingRanges?.length).toBe(9);
     expect(leftTpl?.pricingRanges?.[0].maxWidthMm).toBe(1940);
-    expect(leftTpl?.pricingRanges?.[0].priceNet).toBe(854);
+    expect(leftTpl?.pricingRanges?.[0].costNet).toBe(854);
+    expect(leftTpl?.pricingRanges?.[0].priceNet).toBe(1298); // 854 * 1.52
     expect(leftTpl?.pricingRanges?.[8].maxWidthMm).toBe(5780);
-    expect(leftTpl?.pricingRanges?.[8].priceNet).toBe(2683);
+    expect(leftTpl?.pricingRanges?.[8].costNet).toBe(2683);
+    expect(leftTpl?.pricingRanges?.[8].priceNet).toBe(4078); // 2683 * 1.52
 
     // 2. Utwórz ofertę
     const oppId = await t.run(async (ctx) => {
@@ -781,7 +783,7 @@ describe("CAD Offers and Constructions Module", () => {
       opportunityId: oppId,
     });
 
-    // 3. Dodaj pozycję trójkąta o szerokości B = 1800 mm (mieści się w 194 cm -> 854 zł, montaż 1.8 mb * 250 zł = 450 zł)
+    // 3. Dodaj pozycję trójkąta o szerokości B = 1800 mm (koszt materiału 854 zł, cena z narzutem 1298 zł, montaż 1.8 mb * 250 zł = 450 zł)
     const posId = await t.mutation(api.offers.addConstructionPosition, {
       offerId,
       constructionId: triangles.leftId,
@@ -795,14 +797,16 @@ describe("CAD Offers and Constructions Module", () => {
 
     let data = await t.query(api.offers.getOfferWithItems, { offerId });
     expect(data?.items.length).toBe(1);
-    expect(data?.items[0].materialPriceNet).toBe(854);
+    expect(data?.items[0].materialCostNet).toBe(854);
+    expect(data?.items[0].materialPriceNet).toBe(1298);
     expect(data?.items[0].installationPriceNet).toBe(450); // 1.8 mb * 250 zł
     expect(data?.items[0].installationCostNet).toBe(360);  // 1.8 mb * 200 zł
-    expect(data?.items[0].priceNet).toBe(854 + 450);
+    expect(data?.items[0].priceNet).toBe(1298 + 450);
+    expect(data?.items[0].costNet).toBe(854 + 360);
     expect(data?.items[0].pricingTier).toBe("System 2-torowy 194 cm");
-    expect(data?.offer.totalPriceNet).toBe(854 + 450);
+    expect(data?.offer.totalPriceNet).toBe(1298 + 450);
 
-    // 4. Zmień szerokość B na 3000 mm (System 4-torowy 337 cm -> 1016 zł, montaż 3.0 mb * 250 zł = 750 zł)
+    // 4. Zmień szerokość B na 3000 mm (koszt materiału 1016 zł, cena 1544 zł, montaż 3.0 mb * 250 zł = 750 zł)
     await t.mutation(api.offers.updateConstructionPosition, {
       itemId: posId,
       widthMm: 3000,
@@ -810,40 +814,43 @@ describe("CAD Offers and Constructions Module", () => {
 
     data = await t.query(api.offers.getOfferWithItems, { offerId });
     expect(data?.items[0].widthMm).toBe(3000);
-    expect(data?.items[0].materialPriceNet).toBe(1016);
+    expect(data?.items[0].materialCostNet).toBe(1016);
+    expect(data?.items[0].materialPriceNet).toBe(1544);
     expect(data?.items[0].installationPriceNet).toBe(750); // 3.0 mb * 250 zł
     expect(data?.items[0].installationCostNet).toBe(600);  // 3.0 mb * 200 zł
-    expect(data?.items[0].priceNet).toBe(1016 + 750);
+    expect(data?.items[0].priceNet).toBe(1544 + 750);
     expect(data?.items[0].pricingTier).toBe("System 4-torowy 337 cm");
-    expect(data?.offer.totalPriceNet).toBe(1016 + 750);
+    expect(data?.offer.totalPriceNet).toBe(1544 + 750);
 
-    // 5. Zmień szerokość B na 5000 mm (System 6-torowy 529 cm -> 2439 zł, montaż 5.0 mb * 250 zł = 1250 zł)
+    // 5. Zmień szerokość B na 5000 mm (koszt materiału 2439 zł, cena 3707 zł, montaż 5.0 mb * 250 zł = 1250 zł)
     await t.mutation(api.offers.updateConstructionPosition, {
       itemId: posId,
       widthMm: 5000,
     });
 
     data = await t.query(api.offers.getOfferWithItems, { offerId });
-    expect(data?.items[0].materialPriceNet).toBe(2439);
+    expect(data?.items[0].materialCostNet).toBe(2439);
+    expect(data?.items[0].materialPriceNet).toBe(3707);
     expect(data?.items[0].installationPriceNet).toBe(1250); // 5.0 mb * 250 zł
     expect(data?.items[0].installationCostNet).toBe(1000);  // 5.0 mb * 200 zł
-    expect(data?.items[0].priceNet).toBe(2439 + 1250);
+    expect(data?.items[0].priceNet).toBe(3707 + 1250);
     expect(data?.items[0].pricingTier).toBe("System 6-torowy 529 cm");
-    expect(data?.offer.totalPriceNet).toBe(2439 + 1250);
+    expect(data?.offer.totalPriceNet).toBe(3707 + 1250);
 
-    // 6. Zmień szerokość B na 5500 mm (System 6-torowy 578 cm -> 2683 zł, montaż 5.5 mb * 250 zł = 1375 zł)
+    // 6. Zmień szerokość B na 5500 mm (koszt materiału 2683 zł, cena 4078 zł, montaż 5.5 mb * 250 zł = 1375 zł)
     await t.mutation(api.offers.updateConstructionPosition, {
       itemId: posId,
       widthMm: 5500,
     });
 
     data = await t.query(api.offers.getOfferWithItems, { offerId });
-    expect(data?.items[0].materialPriceNet).toBe(2683);
+    expect(data?.items[0].materialCostNet).toBe(2683);
+    expect(data?.items[0].materialPriceNet).toBe(4078);
     expect(data?.items[0].installationPriceNet).toBe(1375); // 5.5 mb * 250 zł
     expect(data?.items[0].installationCostNet).toBe(1100);  // 5.5 mb * 200 zł
-    expect(data?.items[0].priceNet).toBe(2683 + 1375);
+    expect(data?.items[0].priceNet).toBe(4078 + 1375);
     expect(data?.items[0].pricingTier).toBe("System 6-torowy 578 cm");
-    expect(data?.offer.totalPriceNet).toBe(2683 + 1375);
+    expect(data?.offer.totalPriceNet).toBe(4078 + 1375);
 
     // 7. Sprawdź synchronizację z szablonami
     await t.mutation(api.offers.syncOfferWithConstructionTemplates, {
@@ -851,9 +858,10 @@ describe("CAD Offers and Constructions Module", () => {
     });
 
     data = await t.query(api.offers.getOfferWithItems, { offerId });
-    expect(data?.items[0].materialPriceNet).toBe(2683);
+    expect(data?.items[0].materialCostNet).toBe(2683);
+    expect(data?.items[0].materialPriceNet).toBe(4078);
     expect(data?.items[0].installationPriceNet).toBe(1375);
-    expect(data?.items[0].priceNet).toBe(2683 + 1375);
-    expect(data?.offer.totalPriceNet).toBe(2683 + 1375);
+    expect(data?.items[0].priceNet).toBe(4078 + 1375);
+    expect(data?.offer.totalPriceNet).toBe(4078 + 1375);
   });
 });
