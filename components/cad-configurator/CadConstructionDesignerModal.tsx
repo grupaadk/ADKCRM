@@ -17,7 +17,6 @@ import {
   Calculator,
   Plus,
   Trash2,
-  CheckCircle2,
 } from "lucide-react";
 import { calculateGlassSystemPricing, getStandardWidthCm } from "@/lib/glassPricing";
 import {
@@ -1595,27 +1594,6 @@ export function CadConstructionDesignerModal({
                     </span>
                   )}
                 </div>
-
-                {/* Banner dopasowania dla aktualnego wymiaru B */}
-                {pricingRanges.length > 0 && matchedRangeForCurrentWidth && (
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-2.5 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5 text-purple-900 font-medium text-[11px]">
-                      <CheckCircle2 size={13} className="text-purple-600 shrink-0" />
-                      <span>
-                        Dla szerokości <strong>B = {widthMm} mm</strong> pasuje zakres:{" "}
-                        <strong>{matchedRangeForCurrentWidth.minWidthMm}–{matchedRangeForCurrentWidth.maxWidthMm} mm</strong>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 font-mono">
-                      <span className="text-[10px] text-slate-600">
-                        Koszt mat.: <strong>{matchedRangeForCurrentWidth.costNet} zł</strong>
-                      </span>
-                      <span className="font-bold text-purple-950 bg-white px-2 py-0.5 rounded border border-purple-200 shadow-2xs text-[11px]">
-                        Cena z narzutem: {matchedRangeForCurrentWidth.priceNet.toLocaleString("pl-PL")} zł
-                      </span>
-                    </div>
-                  </div>
-                )}
 
                 {/* Tabela zakresów */}
                 {pricingRanges.length > 0 ? (
