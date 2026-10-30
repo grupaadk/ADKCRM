@@ -17,13 +17,11 @@ import {
   Calculator,
   Plus,
   Trash2,
-  Sparkles,
   CheckCircle2,
 } from "lucide-react";
 import { calculateGlassSystemPricing, getStandardWidthCm } from "@/lib/glassPricing";
 import {
   PricingRangeItem,
-  DEFAULT_TRIANGLE_PRICING_RANGES,
   matchPricingRange,
 } from "@/lib/pricingRanges";
 
@@ -470,21 +468,6 @@ export function CadConstructionDesignerModal({
         label: `Zakres ${nextMin}–${nextMax} mm`,
       },
     ]);
-  };
-
-  const handleLoadDefaultTriangleRanges = () => {
-    setPricingRanges(
-      DEFAULT_TRIANGLE_PRICING_RANGES.map((r, i) => {
-        const cost = r.costNet ?? r.priceNet;
-        const price = calcItemPrice(cost, materialMarkupType, materialMarkupValue) || r.priceNet;
-        return {
-          ...r,
-          id: `triangle-${i}-${Date.now()}`,
-          costNet: cost,
-          priceNet: price,
-        };
-      })
-    );
   };
 
   const handleRecalculateRangesWithCurrentMarkup = () => {
@@ -1745,16 +1728,6 @@ export function CadConstructionDesignerModal({
                       <span>Przelicz ceny progów wg narzutu ({materialMarkupValue || 0}{materialMarkupType === "percent" ? "%" : " zł"})</span>
                     </button>
                   )}
-
-                  <button
-                    type="button"
-                    onClick={handleLoadDefaultTriangleRanges}
-                    className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs ml-auto"
-                    title="Wstawia 9 gotowych progów torowych (194–578 cm) wg wyceny trójkątów z Excela"
-                  >
-                    <Sparkles size={12} className="text-amber-500" />
-                    <span>Załaduj 9 progów Excela (2T–6T)</span>
-                  </button>
                 </div>
               </div>
 
