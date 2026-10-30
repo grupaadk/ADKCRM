@@ -801,6 +801,25 @@ export function OfferSummaryTab({
                   const qty = it.quantity || 1;
                   const totalLineMatPrice = matUnitPrice * qty;
                   const panes = Math.max(1, it.panesCount || 3);
+                  const isTriangle =
+                    it.name.toLowerCase().includes("trójką") ||
+                    Boolean(
+                      it.shortName &&
+                        it.shortName.toLowerCase().includes("trójką")
+                    ) ||
+                    Boolean(
+                      it.systemName &&
+                        (it.systemName.toLowerCase().includes("krokiew") ||
+                          it.systemName.toLowerCase().includes("profil h"))
+                    );
+
+                  const isTriangleRight =
+                    isTriangle &&
+                    ((it.name || "").toLowerCase().includes("praw") ||
+                      Boolean(
+                        it.shortName &&
+                          it.shortName.toLowerCase().includes("praw")
+                      ));
 
                   return (
                     <tr
@@ -820,29 +839,7 @@ export function OfferSummaryTab({
                             className="w-24 h-14 mx-auto bg-white rounded border border-[#cbd5e1] group-hover:border-[#4ABBC3] flex items-center justify-center p-1 transition-colors shadow-2xs"
                             title="Otwórz pozycję w edytorze CAD"
                           >
-                            {(() => {
-                              const isTriangle =
-                                it.name.toLowerCase().includes("trójką") ||
-                                Boolean(
-                                  it.shortName &&
-                                    it.shortName.toLowerCase().includes("trójką")
-                                ) ||
-                                Boolean(
-                                  it.systemName &&
-                                    (it.systemName.toLowerCase().includes("krokiew") ||
-                                      it.systemName.toLowerCase().includes("profil h"))
-                                );
-
-                              const isTriangleRight =
-                                isTriangle &&
-                                ((it.name || "").toLowerCase().includes("praw") ||
-                                  Boolean(
-                                    it.shortName &&
-                                      it.shortName.toLowerCase().includes("praw")
-                                  ));
-
-                              return (
-                                <svg
+                            <svg
                                   viewBox="0 0 140 70"
                                   className="w-full h-full"
                                   preserveAspectRatio="xMidYMid meet"
@@ -976,8 +973,6 @@ export function OfferSummaryTab({
                                     </>
                                   )}
                                 </svg>
-                              );
-                            })()}
                           </div>
                         </td>
 
