@@ -119,6 +119,12 @@ export function CadConstructionDesignerModal({
   const areaM2 = Math.round(widthMm * heightMm * 0.000001 * 100) / 100;
   const widthMb = Math.round((widthMm / 1000) * 100) / 100;
 
+  // Czy wybrana kategoria to "Systemy szklane"
+  const isGlassCategory = useMemo(() => {
+    const raw = (categoryName || categories?.find((c) => c._id === categoryId)?.name || "").trim().toLowerCase();
+    return raw.includes("szklan");
+  }, [categoryName, categoryId, categories]);
+
   // Filar 1: Koszt i narzut na materiał
   const [materialCostNet, setMaterialCostNet] = useState<number | "">("");
   const [brushesCostNet, setBrushesCostNet] = useState<number | "">("");
@@ -370,12 +376,6 @@ export function CadConstructionDesignerModal({
       setPanesCount(3);
     }
   };
-
-  // Czy wybrana kategoria to "Systemy szklane"
-  const isGlassCategory = useMemo(() => {
-    const raw = (categoryName || categories?.find((c) => c._id === categoryId)?.name || "").trim().toLowerCase();
-    return raw.includes("szklan");
-  }, [categoryName, categoryId, categories]);
 
   // Synchronizacja nazwy kategorii po zmianie wybranego ID
   const handleCategorySelect = (id: string) => {

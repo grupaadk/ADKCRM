@@ -17,6 +17,7 @@ export interface CadSegment {
 export interface CadConstructionItem {
   _id: string;
   positionIndex: number;
+  constructionId?: string;
   name: string;
   shortName?: string;
   description?: string;
