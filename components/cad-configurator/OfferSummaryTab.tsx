@@ -106,6 +106,8 @@ interface InlineDimensionCellProps {
   widthMm: number;
   heightMm: number;
   panesCount: number;
+  isTriangle?: boolean;
+  hasTracks?: boolean;
   readOnly?: boolean;
   onUpdateDimensions?: (
     itemId: string,
@@ -118,6 +120,8 @@ function InlineDimensionCell({
   widthMm,
   heightMm,
   panesCount,
+  isTriangle,
+  hasTracks,
   readOnly,
   onUpdateDimensions,
 }: InlineDimensionCellProps) {
@@ -167,9 +171,11 @@ function InlineDimensionCell({
         <div className="font-mono font-bold text-xs text-[#0b1220]">
           {widthMm} × {heightMm} mm
         </div>
-        <div className="text-[10px] text-[#64748b] mt-0.5">
-          System {panesCount}-torowy
-        </div>
+        {!isTriangle && hasTracks !== false && panesCount > 1 && (
+          <div className="text-[10px] text-[#64748b] mt-0.5">
+            System {panesCount}-torowy
+          </div>
+        )}
       </td>
     );
   }
@@ -220,7 +226,9 @@ function InlineDimensionCell({
       </div>
 
       <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#64748b] mt-0.5">
-        <span>System {panesCount}-torowy</span>
+        {!isTriangle && hasTracks !== false && panesCount > 1 && (
+          <span>System {panesCount}-torowy</span>
+        )}
         {isSavedRecently && (
           <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold text-[9px] animate-pulse">
             <Check size={10} />
@@ -1045,6 +1053,8 @@ export function OfferSummaryTab({
                         widthMm={it.widthMm}
                         heightMm={it.heightMm}
                         panesCount={panes}
+                        isTriangle={isTriangle}
+                        hasTracks={!isTriangle && (it.panesCount ? it.panesCount > 1 : true)}
                         readOnly={readOnly}
                         onUpdateDimensions={onUpdateDimensions}
                       />

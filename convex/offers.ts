@@ -97,6 +97,13 @@ export const getOfferWithItems = query({
             }) || null;
         }
 
+        const isTriangle =
+          (item.name || "").toLowerCase().includes("trójką") ||
+          (tpl?.name || "").toLowerCase().includes("trójką") ||
+          (tpl?.code || "").toLowerCase().includes("trojkat") ||
+          Boolean(item.shortName && item.shortName.toLowerCase().includes("trójką"));
+        const effectivePanesCount = isTriangle ? 1 : item.panesCount;
+
         const isGlass =
           isGlassSystemConstruction({
             name: item.name,
@@ -127,6 +134,7 @@ export const getOfferWithItems = query({
           const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm);
           return {
             ...item,
+            panesCount: effectivePanesCount,
             constructionId: item.constructionId ?? tpl?._id,
             isStandard: standardCheck?.isStandard ?? item.isStandard,
             pricingTier: standardCheck?.pricingTier ?? item.pricingTier,
@@ -173,6 +181,7 @@ export const getOfferWithItems = query({
                       : matCost + (tpl.materialMarkupValue || 0));
               return {
                 ...item,
+                panesCount: effectivePanesCount,
                 constructionId: item.constructionId ?? tpl._id,
                 pricingTier: matchedRange.label || `${matchedRange.minWidthMm}-${matchedRange.maxWidthMm} mm`,
                 materialCostNet: matCost,
@@ -243,6 +252,7 @@ export const getOfferWithItems = query({
 
           return {
             ...item,
+            panesCount: effectivePanesCount,
             constructionId: item.constructionId ?? tpl?._id,
             isStandard: standardCheck?.isStandard ?? item.isStandard,
             pricingTier: standardCheck?.pricingTier ?? item.pricingTier,
@@ -260,6 +270,7 @@ export const getOfferWithItems = query({
 
         return {
           ...item,
+          panesCount: effectivePanesCount,
           isStandard: standardCheck?.isStandard ?? item.isStandard,
           pricingTier: standardCheck?.pricingTier ?? item.pricingTier,
           standardWidthCm: standardCheck?.standardWidthCm ?? item.standardWidthCm,
@@ -679,14 +690,23 @@ export const addConstructionPosition = mutation({
       construction = await ctx.db.get(args.constructionId);
     }
 
-    const width = args.widthMm || construction?.defaultWidthMm || 2880;
-    const height = args.heightMm || construction?.defaultHeightMm || 2300;
-    const panes = args.panesCount || construction?.defaultPanesCount || 3;
+    const isTriangle =
+      (args.name || construction?.name || "").toLowerCase().includes("trójką") ||
+      (construction?.code || "").toLowerCase().includes("trojkat");
+
+    const width = args.widthMm || construction?.defaultWidthMm || (isTriangle ? 3000 : 2880);
+    const height = args.heightMm || construction?.defaultHeightMm || (isTriangle ? 600 : 2300);
+    const panes = args.panesCount || construction?.defaultPanesCount || (isTriangle ? 1 : 3);
     const paneWidth = Math.round(width / panes);
     const system = args.systemName || construction?.defaultSystem || undefined;
     const color = args.color || construction?.defaultColor || "RAL 7016MAT";
     const fill = args.fillType || construction?.defaultFillType || "HART 10";
-    const name = args.name || construction?.name || `System całoszklany ${panes}-torowy (B=${width.toLocaleString("pl-PL")}, H=${height.toLocaleString("pl-PL")})`;
+    const name =
+      args.name ||
+      construction?.name ||
+      (isTriangle
+        ? `Trójkąt podkrokwiowy (B=${width.toLocaleString("pl-PL")}, H=${height.toLocaleString("pl-PL")})`
+        : `System całoszklany ${panes}-torowy (B=${width.toLocaleString("pl-PL")}, H=${height.toLocaleString("pl-PL")})`);
     const shortName = construction?.name || `Konstrukcja ${positionIndex}`;
 
     // Przykładowe segmenty dla wizualizacji CAD
