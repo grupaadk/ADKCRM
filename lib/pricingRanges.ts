@@ -8,7 +8,7 @@ export interface PricingRangeItem {
   label?: string; // np. "System 2-torowy 194 cm"
   minWidthMm: number; // np. 0 lub 1941
   maxWidthMm: number; // np. 1940 lub 2410
-  costNet: number; // koszt materiału netto (np. 854)
+  costNet?: number; // koszt materiału netto (np. 854)
   priceNet: number; // cena materiału netto po narzucie (np. 1298 przy 52% narzutu)
 }
 
