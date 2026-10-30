@@ -330,12 +330,12 @@ export function LeftPropertiesPanel({
 
           {matchedRange && (
             <div className="flex items-center justify-between pt-2 border-t border-[#e3e7ee]">
-              <span className="text-[10px] text-[#7c8597] font-medium">Zakres B (tory):</span>
+              <span className="text-[10px] text-[#7c8597] font-medium">Zakres szerokości B:</span>
               <span
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#e0f9fe] text-[#0e7490] border border-[#bae6fd]"
                 title={`Próg dla B=${item.widthMm || 0} mm: ${matchedRange.minWidthMm}–${matchedRange.maxWidthMm} mm (Koszt: ${matchedRange.costNet} zł, Cena z narzutem: ${matchedRange.priceNet} zł)`}
               >
-                {matchedRange.label || `${matchedRange.maxWidthMm} mm`} (koszt: {matchedRange.costNet} zł)
+                {matchedRange.minWidthMm}–{matchedRange.maxWidthMm} mm (koszt: {matchedRange.costNet} zł)
               </span>
             </div>
           )}

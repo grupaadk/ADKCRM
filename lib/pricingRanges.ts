@@ -34,15 +34,15 @@ export function computeRangePrice(
  * Cena z narzutem: koszt * (1 + 52% narzutu)
  */
 export const DEFAULT_TRIANGLE_PRICING_RANGES: PricingRangeItem[] = [
-  { minWidthMm: 0, maxWidthMm: 1940, costNet: 854, priceNet: 1298, label: "System 2-torowy 194 cm" },
-  { minWidthMm: 1941, maxWidthMm: 2410, costNet: 854, priceNet: 1298, label: "System 3-torowy 241 cm" },
-  { minWidthMm: 2411, maxWidthMm: 2900, costNet: 854, priceNet: 1298, label: "System 3-torowy 290 cm" },
-  { minWidthMm: 2901, maxWidthMm: 3370, costNet: 1016, priceNet: 1544, label: "System 4-torowy 337 cm" },
-  { minWidthMm: 3371, maxWidthMm: 3860, costNet: 1179, priceNet: 1792, label: "System 4-torowy 386 cm" },
-  { minWidthMm: 3861, maxWidthMm: 4330, costNet: 1463, priceNet: 2224, label: "System 5-torowy 433 cm" },
-  { minWidthMm: 4331, maxWidthMm: 4820, costNet: 1707, priceNet: 2595, label: "System 5-torowy 482 cm" },
-  { minWidthMm: 4821, maxWidthMm: 5290, costNet: 2439, priceNet: 3707, label: "System 6-torowy 529 cm" },
-  { minWidthMm: 5291, maxWidthMm: 5780, costNet: 2683, priceNet: 4078, label: "System 6-torowy 578 cm" },
+  { minWidthMm: 0, maxWidthMm: 1940, costNet: 854, priceNet: 1298, label: "0–1940 mm" },
+  { minWidthMm: 1941, maxWidthMm: 2410, costNet: 854, priceNet: 1298, label: "1941–2410 mm" },
+  { minWidthMm: 2411, maxWidthMm: 2900, costNet: 854, priceNet: 1298, label: "2411–2900 mm" },
+  { minWidthMm: 2901, maxWidthMm: 3370, costNet: 1016, priceNet: 1544, label: "2901–3370 mm" },
+  { minWidthMm: 3371, maxWidthMm: 3860, costNet: 1179, priceNet: 1792, label: "3371–3860 mm" },
+  { minWidthMm: 3861, maxWidthMm: 4330, costNet: 1463, priceNet: 2224, label: "3861–4330 mm" },
+  { minWidthMm: 4331, maxWidthMm: 4820, costNet: 1707, priceNet: 2595, label: "4331–4820 mm" },
+  { minWidthMm: 4821, maxWidthMm: 5290, costNet: 2439, priceNet: 3707, label: "4821–5290 mm" },
+  { minWidthMm: 5291, maxWidthMm: 5780, costNet: 2683, priceNet: 4078, label: "5291–5780 mm" },
 ];
 
 /**

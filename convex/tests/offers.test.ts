@@ -803,7 +803,7 @@ describe("CAD Offers and Constructions Module", () => {
     expect(data?.items[0].installationCostNet).toBe(360);  // 1.8 mb * 200 zł
     expect(data?.items[0].priceNet).toBe(1298 + 450);
     expect(data?.items[0].costNet).toBe(854 + 360);
-    expect(data?.items[0].pricingTier).toBe("System 2-torowy 194 cm");
+    expect(data?.items[0].pricingTier).toBe("0–1940 mm");
     expect(data?.offer.totalPriceNet).toBe(1298 + 450);
 
     // 4. Zmień szerokość B na 3000 mm (koszt materiału 1016 zł, cena 1544 zł, montaż 3.0 mb * 250 zł = 750 zł)
@@ -819,7 +819,7 @@ describe("CAD Offers and Constructions Module", () => {
     expect(data?.items[0].installationPriceNet).toBe(750); // 3.0 mb * 250 zł
     expect(data?.items[0].installationCostNet).toBe(600);  // 3.0 mb * 200 zł
     expect(data?.items[0].priceNet).toBe(1544 + 750);
-    expect(data?.items[0].pricingTier).toBe("System 4-torowy 337 cm");
+    expect(data?.items[0].pricingTier).toBe("2901–3370 mm");
     expect(data?.offer.totalPriceNet).toBe(1544 + 750);
 
     // 5. Zmień szerokość B na 5000 mm (koszt materiału 2439 zł, cena 3707 zł, montaż 5.0 mb * 250 zł = 1250 zł)
@@ -834,7 +834,7 @@ describe("CAD Offers and Constructions Module", () => {
     expect(data?.items[0].installationPriceNet).toBe(1250); // 5.0 mb * 250 zł
     expect(data?.items[0].installationCostNet).toBe(1000);  // 5.0 mb * 200 zł
     expect(data?.items[0].priceNet).toBe(3707 + 1250);
-    expect(data?.items[0].pricingTier).toBe("System 6-torowy 529 cm");
+    expect(data?.items[0].pricingTier).toBe("4821–5290 mm");
     expect(data?.offer.totalPriceNet).toBe(3707 + 1250);
 
     // 6. Zmień szerokość B na 5500 mm (koszt materiału 2683 zł, cena 4078 zł, montaż 5.5 mb * 250 zł = 1375 zł)
@@ -849,7 +849,7 @@ describe("CAD Offers and Constructions Module", () => {
     expect(data?.items[0].installationPriceNet).toBe(1375); // 5.5 mb * 250 zł
     expect(data?.items[0].installationCostNet).toBe(1100);  // 5.5 mb * 200 zł
     expect(data?.items[0].priceNet).toBe(4078 + 1375);
-    expect(data?.items[0].pricingTier).toBe("System 6-torowy 578 cm");
+    expect(data?.items[0].pricingTier).toBe("5291–5780 mm");
     expect(data?.offer.totalPriceNet).toBe(4078 + 1375);
 
     // 7. Sprawdź synchronizację z szablonami

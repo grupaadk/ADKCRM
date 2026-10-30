@@ -1599,10 +1599,10 @@ export function CadConstructionDesignerModal({
                     </span>
                     <div>
                       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 block">
-                        Warunki cenowe wg wymiaru B (tory / zakresy)
+                        Warunki cenowe wg wymiaru B (zakresy szerokości)
                       </span>
                       <span className="text-[9px] text-slate-400">
-                        Zmienna cena w zależności od szerokości B (np. trójkąty pod tory)
+                        Zmienna cena w zależności od szerokości B (np. progi wymiarowe trójkąta)
                       </span>
                     </div>
                   </div>
@@ -1619,8 +1619,8 @@ export function CadConstructionDesignerModal({
                     <div className="flex items-center gap-1.5 text-purple-900 font-medium text-[11px]">
                       <CheckCircle2 size={13} className="text-purple-600 shrink-0" />
                       <span>
-                        Dla szerokości <strong>B = {widthMm} mm</strong> pasuje:{" "}
-                        <strong>{matchedRangeForCurrentWidth.label || `${matchedRangeForCurrentWidth.minWidthMm}–${matchedRangeForCurrentWidth.maxWidthMm} mm`}</strong>
+                        Dla szerokości <strong>B = {widthMm} mm</strong> pasuje zakres:{" "}
+                        <strong>{matchedRangeForCurrentWidth.minWidthMm}–{matchedRangeForCurrentWidth.maxWidthMm} mm</strong>
                       </span>
                     </div>
                     <div className="flex items-center gap-2 font-mono">
@@ -1640,12 +1640,11 @@ export function CadConstructionDesignerModal({
                     <table className="w-full text-left text-[11px]">
                       <thead className="bg-slate-100/80 text-[10px] font-bold uppercase text-slate-600 border-b border-slate-200">
                         <tr>
-                          <th className="py-1.5 px-2">Etykieta / Tor</th>
-                          <th className="py-1.5 px-1.5 w-16">Od (mm)</th>
-                          <th className="py-1.5 px-1.5 w-16">Do (mm)</th>
-                          <th className="py-1.5 px-1.5 w-24">Koszt mat. (zł)</th>
-                          <th className="py-1.5 px-1.5 w-24">Cena z narzutem (zł)</th>
-                          <th className="py-1.5 px-1 w-7 text-center"></th>
+                          <th className="py-1.5 px-2">Od (mm)</th>
+                          <th className="py-1.5 px-2">Do (mm)</th>
+                          <th className="py-1.5 px-2">Koszt mat. (zł)</th>
+                          <th className="py-1.5 px-2">Cena z narzutem (zł)</th>
+                          <th className="py-1.5 px-1 w-8 text-center"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 font-mono">
@@ -1661,21 +1660,12 @@ export function CadConstructionDesignerModal({
                             >
                               <td className="p-1">
                                 <input
-                                  type="text"
-                                  value={range.label || ""}
-                                  onChange={(e) => handleUpdateRange(idx, { label: e.target.value })}
-                                  placeholder="np. System 2-torowy 194 cm"
-                                  className="w-full h-7 bg-white border border-slate-200 rounded px-1.5 text-[10px] font-sans focus:outline-none focus:border-purple-400"
-                                />
-                              </td>
-                              <td className="p-1">
-                                <input
                                   type="number"
                                   value={range.minWidthMm}
                                   onChange={(e) =>
                                     handleUpdateRange(idx, { minWidthMm: parseInt(e.target.value, 10) || 0 })
                                   }
-                                  className="w-full h-7 bg-white border border-slate-200 rounded px-1 text-[10px] text-center focus:outline-none focus:border-purple-400"
+                                  className="w-full h-7 bg-white border border-slate-200 rounded px-1.5 text-[10px] text-center focus:outline-none focus:border-purple-400"
                                 />
                               </td>
                               <td className="p-1">
