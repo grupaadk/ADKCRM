@@ -2822,11 +2822,6 @@ export function buildOfferReplacements(params: {
   const totalNetStr = formatPLNCurrency(offer.totalPriceNet);
   const totalGrossStr = formatPLNCurrency(offer.totalPriceGross);
   const discountPctStr = `${offer.discountPercent || 0}%`;
-  const netBeforeDiscount =
-    offer.discountPercent && offer.discountPercent > 0
-      ? offer.totalPriceNet / (1 - offer.discountPercent / 100)
-      : offer.totalPriceNet;
-  const netBeforeDiscountStr = formatPLNCurrency(netBeforeDiscount);
 
   const vatRate = (offer as { vatRate?: number }).vatRate ?? 23;
   const vatRateStr = `${vatRate}%`;
@@ -2878,7 +2873,6 @@ export function buildOfferReplacements(params: {
   const montazGross = Math.round(montazNet * (1 + vatRate / 100));
   const montazGrossStr = formatPLNCurrency(montazGross);
 
-  // Wartość materiału / konstrukcji bez montażu
   const totalMaterialNet = items.reduce((acc, it) => {
     const q = it.quantity || 1;
     if (it.materialPriceNet !== undefined && it.materialPriceNet !== null) {
@@ -2889,11 +2883,6 @@ export function buildOfferReplacements(params: {
   }, 0);
   const materialNetStr = formatPLNCurrency(totalMaterialNet);
 
-  const rabatKalkulacja =
-    offer.discountPercent && offer.discountPercent > 0
-      ? `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`
-      : totalNetStr;
-
   // Wartość dodatków i akcesoriów
   const totalAdditionsNet = additions.reduce(
     (acc, add) => acc + (add.priceNet || 0) * (add.quantity || 1),
@@ -2902,6 +2891,16 @@ export function buildOfferReplacements(params: {
   const additionsNetStr = formatPLNCurrency(totalAdditionsNet);
   const totalAdditionsGross = Math.round(totalAdditionsNet * (1 + vatRate / 100));
   const additionsGrossStr = formatPLNCurrency(totalAdditionsGross);
+
+  const totalBaseNet = totalMaterialNet + totalAdditionsNet;
+  const discountPct = offer.discountPercent || 0;
+  const discountedBaseNet = Math.round(totalBaseNet * (1 - discountPct / 100));
+  const netBeforeDiscountStr = formatPLNCurrency(totalBaseNet);
+
+  const rabatKalkulacja =
+    discountPct > 0
+      ? `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${formatPLNCurrency(discountedBaseNet)}`
+      : formatPLNCurrency(totalBaseNet);
 
   const additionsListStr = additions
     .map((add, idx) => {
@@ -2930,7 +2929,7 @@ export function buildOfferReplacements(params: {
     razemPodsumowanieLinia,
   ].join("\n");
 
-  const lineItemsSummary = items
+  const itemsText = items
     .map((it, idx) => {
       const dims = it.widthMm && it.heightMm ? ` (B=${it.widthMm}, H=${it.heightMm})` : "";
       const sys = it.systemName ? `${it.systemName} - ` : "";
@@ -2943,6 +2942,24 @@ export function buildOfferReplacements(params: {
       return `${idx + 1}. ${sys}${it.name}${dims}\nIlość: ${it.quantity ?? 1} szt. | Cena netto: ${formatPLNCurrency(matPrice)} | Wartość netto: ${formatPLNCurrency(itemTotalNet)}`;
     })
     .join("\n\n");
+
+  const additionsSummaryText =
+    additions.length > 0
+      ? `\n\nDodatki i akcesoria do oferty:\n` +
+        additions
+          .map((add, idx) => {
+            const u = add.unit || "szt.";
+            const totalLine = (add.priceNet || 0) * (add.quantity || 1);
+            const inst =
+              (add.installationPriceNet || 0) > 0
+                ? ` (+ montaż: ${formatPLNCurrency((add.installationPriceNet || 0) * (add.quantity || 1))})`
+                : "";
+            return `${idx + 1}. ${add.name}\nIlość: ${add.quantity} ${u} | Cena netto: ${formatPLNCurrency(add.priceNet)} | Wartość netto: ${formatPLNCurrency(totalLine)}${inst}`;
+          })
+          .join("\n\n")
+      : "";
+
+  const lineItemsSummary = (itemsText + additionsSummaryText).trim();
 
   const notesValue = isDocsTemplate ? "{{__uwagi_rich_content__}}" : offerNotesFormatted;
 
@@ -3020,6 +3037,11 @@ export function buildOfferReplacements(params: {
     { placeholder: "{{dodatki}}", value: additionsTableStr },
     { placeholder: "{{Dodatki}}", value: additionsTableStr },
     { placeholder: "{{DODATKI}}", value: additionsTableStr },
+    { placeholder: "{{dodatki_netto}}", value: additionsNetStr },
+    { placeholder: "{{DODATKI_NETTO}}", value: additionsNetStr },
+    { placeholder: "{{dodatki_brutto}}", value: additionsGrossStr },
+    { placeholder: "{{DODATKI_BRUTTO}}", value: additionsGrossStr },
+    { placeholder: "{{additions}}", value: additionsListStr },
 
     // 1. Z jednostkami walutowymi i dopiskiem netto (aby nie dublować "zł" w szablonie)
     { placeholder: "{{Montaż}} zł netto", value: `${montazNetStr} netto` },
@@ -3895,7 +3917,8 @@ export const generateOfferPdf = action({
           }
 
           if (foundCadTag) {
-            if (items.length === 0) {
+            const totalTableRows = items.length + additions.length;
+            if (totalTableRows === 0) {
               await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
                 method: "POST",
                 headers: {
@@ -3915,7 +3938,7 @@ export const generateOfferPdf = action({
                     {
                       insertText: {
                         location: { index: foundCadTag.startIndex },
-                        text: "Brak pozycji konstrukcji w ofercie.",
+                        text: "Brak pozycji i dodatków w ofercie.",
                       },
                     },
                   ],
@@ -3941,7 +3964,7 @@ export const generateOfferPdf = action({
                     },
                     {
                       insertTable: {
-                        rows: items.length,
+                        rows: totalTableRows,
                         columns: 3,
                         location: { index: foundCadTag.startIndex },
                       },
@@ -4058,8 +4081,6 @@ export const generateOfferPdf = action({
                     const formatDim = (mm: number) => mm.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 
                     for (let rIdx = rows.length - 1; rIdx >= 0; rIdx--) {
-                      const it = items[rIdx];
-                      if (!it) continue;
                       const row = rows[rIdx];
                       const cell0 = row.tableCells?.[0];
                       const cell1 = row.tableCells?.[1];
@@ -4069,64 +4090,115 @@ export const generateOfferPdf = action({
                       const c1Start = cell1?.content?.[0]?.paragraph?.elements?.[0]?.startIndex;
                       const c2Start = cell2?.content?.[0]?.paragraph?.elements?.[0]?.startIndex;
 
-                      const num = it.positionIndex || rIdx + 1;
-                      const instPrice = typeof it.installationPriceNet === "number" ? it.installationPriceNet : 0;
-                      const matPrice =
-                        typeof it.materialPriceNet === "number"
-                          ? it.materialPriceNet
-                          : Math.max(0, (it.priceNet || 0) - instPrice);
-                      const itemTotalNet = matPrice * (it.quantity || 1);
+                      if (rIdx < items.length) {
+                        const it = items[rIdx];
+                        if (!it) continue;
 
-                      // 1. Prawa kolumna: Ceny
-                      if (typeof c2Start === "number") {
-                        const rightText = `Cena za sztukę netto:\n${formatPLN(matPrice)}\n\nWartość netto:\n${formatPLN(itemTotalNet)}`;
-                        cellRequests.push({
-                          insertText: {
-                            location: { index: c2Start },
-                            text: rightText,
-                          },
-                        });
-                      }
+                        const num = it.positionIndex || rIdx + 1;
+                        const instPrice = typeof it.installationPriceNet === "number" ? it.installationPriceNet : 0;
+                        const matPrice =
+                          typeof it.materialPriceNet === "number"
+                            ? it.materialPriceNet
+                            : Math.max(0, (it.priceNet || 0) - instPrice);
+                        const itemTotalNet = matPrice * (it.quantity || 1);
 
-                      // 2. Środkowa kolumna: Rysunek CAD
-                      if (typeof c1Start === "number") {
-                        const cadUrl = cadImageMap.get(it.positionIndex) || cadImageMap.get(rIdx + 1);
-                        if (cadUrl) {
-                          cellRequests.push({
-                            insertInlineImage: {
-                              location: { index: c1Start },
-                              uri: cadUrl,
-                              objectSize: {
-                                width: { magnitude: 180, unit: "PT" },
-                                height: { magnitude: 135, unit: "PT" },
-                              },
-                            },
-                          });
-                        } else {
+                        // 1. Prawa kolumna: Ceny
+                        if (typeof c2Start === "number") {
+                          const rightText = `Cena za sztukę netto:\n${formatPLN(matPrice)}\n\nWartość netto:\n${formatPLN(itemTotalNet)}`;
                           cellRequests.push({
                             insertText: {
-                              location: { index: c1Start },
-                              text: "[Szkic CAD konstrukcji]",
+                              location: { index: c2Start },
+                              text: rightText,
                             },
                           });
                         }
-                      }
 
-                      // 3. Lewa kolumna: Pozycja, Konstrukcja, Wymiary, Opis techniczny, Ilość
-                      if (typeof c0Start === "number") {
-                        const sysPrefix = it.systemName ? `${it.systemName} - ` : "";
-                        const title = `${sysPrefix}${it.name}`;
-                        const dimsStr = (it.widthMm && it.heightMm)
-                          ? `(B=${formatDim(it.widthMm)}, H=${formatDim(it.heightMm)})`
-                          : "";
+                        // 2. Środkowa kolumna: Rysunek CAD
+                        if (typeof c1Start === "number") {
+                          const cadUrl = cadImageMap.get(it.positionIndex) || cadImageMap.get(rIdx + 1);
+                          if (cadUrl) {
+                            cellRequests.push({
+                              insertInlineImage: {
+                                location: { index: c1Start },
+                                uri: cadUrl,
+                                objectSize: {
+                                  width: { magnitude: 180, unit: "PT" },
+                                  height: { magnitude: 135, unit: "PT" },
+                                },
+                              },
+                            });
+                          } else {
+                            cellRequests.push({
+                              insertText: {
+                                location: { index: c1Start },
+                                text: "[Szkic CAD konstrukcji]",
+                              },
+                            });
+                          }
+                        }
 
-                        const leftText = `${num}\n\nKonstrukcja:\n${title}${dimsStr ? "\n" + dimsStr : ""}\n\nIlość: ${it.quantity || 1}`;
-                        cellRequests.push({
-                          insertText: {
-                            location: { index: c0Start },
-                            text: leftText,
-                          },
-                        });
+                        // 3. Lewa kolumna: Pozycja, Konstrukcja, Wymiary, Opis techniczny, Ilość
+                        if (typeof c0Start === "number") {
+                          const sysPrefix = it.systemName ? `${it.systemName} - ` : "";
+                          const title = `${sysPrefix}${it.name}`;
+                          const dimsStr = (it.widthMm && it.heightMm)
+                            ? `(B=${formatDim(it.widthMm)}, H=${formatDim(it.heightMm)})`
+                            : "";
+
+                          const leftText = `${num}\n\nKonstrukcja:\n${title}${dimsStr ? "\n" + dimsStr : ""}\n\nIlość: ${it.quantity || 1}`;
+                          cellRequests.push({
+                            insertText: {
+                              location: { index: c0Start },
+                              text: leftText,
+                            },
+                          });
+                        }
+                      } else {
+                        // Wiersz dodatku / akcesorium do oferty
+                        const addIdx = rIdx - items.length;
+                        const add = additions[addIdx];
+                        if (!add) continue;
+
+                        const addQty = add.quantity || 1;
+                        const addPrice = add.priceNet || 0;
+                        const addTotal = addPrice * addQty;
+                        const instPrice = (add.installationPriceNet || 0) * addQty;
+
+                        // 1. Prawa kolumna: Ceny
+                        if (typeof c2Start === "number") {
+                          const rightText = `Cena za sztukę netto:\n${formatPLN(addPrice)}\n\nWartość netto:\n${formatPLN(addTotal)}`;
+                          cellRequests.push({
+                            insertText: {
+                              location: { index: c2Start },
+                              text: rightText,
+                            },
+                          });
+                        }
+
+                        // 2. Środkowa kolumna: Rodzaj pozycji i ew. montaż
+                        if (typeof c1Start === "number") {
+                          const midText = instPrice > 0
+                            ? `Dodatek / Akcesorium\nMontaż: ${formatPLN(instPrice)}`
+                            : "Dodatek / Akcesorium";
+                          cellRequests.push({
+                            insertText: {
+                              location: { index: c1Start },
+                              text: midText,
+                            },
+                          });
+                        }
+
+                        // 3. Lewa kolumna: Nazwa, Ilość, Jednostka
+                        if (typeof c0Start === "number") {
+                          const u = add.unit || "szt.";
+                          const leftText = `Dodatek ${addIdx + 1}\n\nNazwa:\n${add.name}\n\nIlość: ${addQty} ${u}`;
+                          cellRequests.push({
+                            insertText: {
+                              location: { index: c0Start },
+                              text: leftText,
+                            },
+                          });
+                        }
                       }
                     }
 
@@ -4154,6 +4226,7 @@ export const generateOfferPdf = action({
                             const boldRequests: any[] = [];
                             const boldLabels = [
                               "Konstrukcja:",
+                              "Nazwa:",
                               "Ilość:",
                               "Cena za sztukę netto:",
                               "Wartość netto:",
@@ -4172,7 +4245,7 @@ export const generateOfferPdf = action({
                               }
                             }
 
-                            // Wyboldowanie i powiększenie numerów pozycji (np. 1, 2, 3...)
+                            // Wyboldowanie i powiększenie numerów pozycji (np. 1, 2, 3... oraz Dodatek 1, Dodatek 2...)
                             const populatedTable = postPopulateDoc.body?.content?.find(
                               // eslint-disable-next-line @typescript-eslint/no-explicit-any
                               (el: any) =>
@@ -4184,10 +4257,16 @@ export const generateOfferPdf = action({
                               // eslint-disable-next-line @typescript-eslint/no-explicit-any
                               for (let rowIdx = 0; rowIdx < populatedTable.table.tableRows.length; rowIdx++) {
                                 const rowEl = populatedTable.table.tableRows[rowIdx];
-                                const itm = items[rowIdx];
-                                const numStr = String(itm?.positionIndex || rowIdx + 1);
+                                let numStr = "";
+                                if (rowIdx < items.length) {
+                                  const itm = items[rowIdx];
+                                  numStr = String(itm?.positionIndex || rowIdx + 1);
+                                } else {
+                                  const addIdx = rowIdx - items.length;
+                                  numStr = `Dodatek ${addIdx + 1}`;
+                                }
                                 const c0Start = rowEl.tableCells?.[0]?.content?.[0]?.paragraph?.elements?.[0]?.startIndex;
-                                if (typeof c0Start === "number") {
+                                if (typeof c0Start === "number" && numStr) {
                                   boldRequests.push({
                                     updateTextStyle: {
                                       range: { startIndex: c0Start, endIndex: c0Start + numStr.length },

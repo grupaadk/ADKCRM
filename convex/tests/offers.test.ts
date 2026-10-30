@@ -988,5 +988,19 @@ describe("CAD Offers and Constructions Module", () => {
 
     data = await t.query(api.offers.getOfferWithItems, { offerId });
     expect(data?.additions.length).toBe(1);
+
+    // 11. Test buildOfferReplacements includes additions in lineItemsSummary and financial placeholders
+    const { buildOfferReplacements } = await import("../googleDrive");
+    const replacementsData = buildOfferReplacements({
+      offer: data!.offer,
+      items: data!.items,
+      additions: data!.additions,
+      clientFullName: "Jan Kowalski",
+    });
+    expect(replacementsData.lineItemsSummary).toContain("Zamek boczny z kluczykiem");
+    expect(replacementsData.lineItemsSummary).toContain("Dodatki i akcesoria do oferty");
+    const dodatkiNettoRep = replacementsData.replacements.find((r) => r.placeholder === "{{dodatki_netto}}");
+    expect(dodatkiNettoRep).toBeDefined();
+    expect(dodatkiNettoRep?.value).toContain("1 350"); // 3 * 450 = 1350 zł
   });
 });

@@ -278,16 +278,84 @@ function InlineAdditionRow({
   const [priceStr, setPriceStr] = useState(String(addition.priceNet));
   const [instPriceStr, setInstPriceStr] = useState(String(addition.installationPriceNet ?? 0));
   const [unit, setUnit] = useState(addition.unit || "szt.");
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
 
-  const [prevAddition, setPrevAddition] = useState(addition);
-  if (addition !== prevAddition) {
-    setPrevAddition(addition);
-    setName(addition.name);
-    setQtyStr(String(addition.quantity));
-    setPriceStr(String(addition.priceNet));
-    setInstPriceStr(String(addition.installationPriceNet ?? 0));
-    setUnit(addition.unit || "szt.");
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [prevSynced, setPrevSynced] = useState({
+    name: addition.name,
+    quantity: addition.quantity,
+    priceNet: addition.priceNet,
+    installationPriceNet: addition.installationPriceNet ?? 0,
+    unit: addition.unit || "szt.",
+  });
+
+  const currentInstPrice = addition.installationPriceNet ?? 0;
+  const currentUnit = addition.unit || "szt.";
+
+  const hasExternallyChanged =
+    prevSynced.name !== addition.name ||
+    prevSynced.quantity !== addition.quantity ||
+    prevSynced.priceNet !== addition.priceNet ||
+    prevSynced.installationPriceNet !== currentInstPrice ||
+    prevSynced.unit !== currentUnit;
+
+  if (hasExternallyChanged) {
+    setPrevSynced({
+      name: addition.name,
+      quantity: addition.quantity,
+      priceNet: addition.priceNet,
+      installationPriceNet: currentInstPrice,
+      unit: currentUnit,
+    });
+    if (focusedField !== "name") setName(addition.name);
+    if (focusedField !== "qty") setQtyStr(String(addition.quantity));
+    if (focusedField !== "price") setPriceStr(String(addition.priceNet));
+    if (focusedField !== "instPrice") setInstPriceStr(String(currentInstPrice));
+    setUnit(currentUnit);
   }
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
+  const performSave = async (patch: Partial<OfferAdditionItem>) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    setSaveState("saving");
+    try {
+      await onUpdate(addition._id as Id<"offerAdditions">, patch);
+      setPrevSynced((prev) => ({
+        ...prev,
+        ...patch,
+        installationPriceNet: patch.installationPriceNet ?? prev.installationPriceNet,
+        unit: patch.unit ?? prev.unit,
+      }));
+      setSaveState("saved");
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        setSaveState("idle");
+      }, 2500);
+    } catch (err) {
+      console.error("Błąd zapisu dodatku:", err);
+      setSaveState("idle");
+    }
+  };
+
+  const scheduleSave = (patch: Partial<OfferAdditionItem>) => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    setSaveState("saving");
+    debounceTimerRef.current = setTimeout(() => {
+      performSave(patch);
+    }, 450);
+  };
 
   const commitName = () => {
     const trimmed = name.trim();
@@ -295,8 +363,8 @@ function InlineAdditionRow({
       setName(addition.name);
       return;
     }
-    if (trimmed !== addition.name) {
-      onUpdate(addition._id as Id<"offerAdditions">, { name: trimmed });
+    if (trimmed !== prevSynced.name) {
+      performSave({ name: trimmed });
     }
   };
 
@@ -306,8 +374,8 @@ function InlineAdditionRow({
       setQtyStr(String(addition.quantity));
       return;
     }
-    if (val !== addition.quantity) {
-      onUpdate(addition._id as Id<"offerAdditions">, { quantity: val });
+    if (val !== prevSynced.quantity) {
+      performSave({ quantity: val });
     }
   };
 
@@ -317,22 +385,22 @@ function InlineAdditionRow({
       setPriceStr(String(addition.priceNet));
       return;
     }
-    if (val !== addition.priceNet) {
-      onUpdate(addition._id as Id<"offerAdditions">, { priceNet: val });
+    if (val !== prevSynced.priceNet) {
+      performSave({ priceNet: val });
     }
   };
 
   const commitInstPrice = () => {
     const val = parseFloat(instPriceStr);
     const valid = isNaN(val) || val < 0 ? 0 : val;
-    if (valid !== (addition.installationPriceNet ?? 0)) {
-      onUpdate(addition._id as Id<"offerAdditions">, { installationPriceNet: valid });
+    if (valid !== prevSynced.installationPriceNet) {
+      performSave({ installationPriceNet: valid });
     }
   };
 
   const handleUnitChange = (newUnit: string) => {
     setUnit(newUnit);
-    onUpdate(addition._id as Id<"offerAdditions">, { unit: newUnit });
+    performSave({ unit: newUnit });
   };
 
   const parsedQty = parseFloat(qtyStr) || addition.quantity || 1;
@@ -354,8 +422,16 @@ function InlineAdditionRow({
           <input
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={commitName}
+            onFocus={() => setFocusedField("name")}
+            onChange={(e) => {
+              const v = e.target.value;
+              setName(v);
+              if (v.trim()) scheduleSave({ name: v.trim() });
+            }}
+            onBlur={() => {
+              setFocusedField(null);
+              commitName();
+            }}
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
             placeholder="Nazwa dodatku (np. Zamek, Pilot, Transport)..."
             className="w-full font-semibold text-[#0b1220] bg-transparent hover:bg-slate-50 focus:bg-white border border-transparent hover:border-slate-300 focus:border-[#4ABBC3] rounded px-2 py-1 outline-none transition-all placeholder:font-normal placeholder:text-slate-400"
@@ -373,8 +449,17 @@ function InlineAdditionRow({
             min={0.1}
             step={1}
             value={qtyStr}
-            onChange={(e) => setQtyStr(e.target.value)}
-            onBlur={commitQty}
+            onFocus={() => setFocusedField("qty")}
+            onChange={(e) => {
+              const v = e.target.value;
+              setQtyStr(v);
+              const num = parseFloat(v);
+              if (!isNaN(num) && num > 0) scheduleSave({ quantity: num });
+            }}
+            onBlur={() => {
+              setFocusedField(null);
+              commitQty();
+            }}
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
             className="w-16 text-center font-mono font-bold text-[#0b1220] bg-white border border-slate-200 hover:border-slate-300 focus:border-[#4ABBC3] rounded px-1.5 py-1 outline-none transition-all"
           />
@@ -411,8 +496,17 @@ function InlineAdditionRow({
               min={0}
               step={1}
               value={priceStr}
-              onChange={(e) => setPriceStr(e.target.value)}
-              onBlur={commitPrice}
+              onFocus={() => setFocusedField("price")}
+              onChange={(e) => {
+                const v = e.target.value;
+                setPriceStr(v);
+                const num = parseFloat(v);
+                if (!isNaN(num) && num >= 0) scheduleSave({ priceNet: num });
+              }}
+              onBlur={() => {
+                setFocusedField(null);
+                commitPrice();
+              }}
               onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
               className="w-20 text-right font-mono text-xs text-[#0b1220] bg-white border border-slate-200 hover:border-slate-300 focus:border-[#4ABBC3] rounded px-1.5 py-1 outline-none transition-all"
             />
@@ -439,8 +533,17 @@ function InlineAdditionRow({
               min={0}
               step={1}
               value={instPriceStr}
-              onChange={(e) => setInstPriceStr(e.target.value)}
-              onBlur={commitInstPrice}
+              onFocus={() => setFocusedField("instPrice")}
+              onChange={(e) => {
+                const v = e.target.value;
+                setInstPriceStr(v);
+                const num = parseFloat(v);
+                if (!isNaN(num) && num >= 0) scheduleSave({ installationPriceNet: num });
+              }}
+              onBlur={() => {
+                setFocusedField(null);
+                commitInstPrice();
+              }}
               onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
               placeholder="0"
               className="w-16 text-right font-mono text-xs text-[#0b1220] bg-white border border-slate-200 hover:border-slate-300 focus:border-[#4ABBC3] rounded px-1.5 py-1 outline-none transition-all placeholder:text-slate-300"
@@ -450,18 +553,37 @@ function InlineAdditionRow({
         )}
       </td>
 
-      {/* Kolumna 9: Akcje */}
+      {/* Kolumna 9: Akcje i status zapisu */}
       <td className="py-2.5 px-3 text-right">
-        {!readOnly && (
-          <button
-            type="button"
-            onClick={() => onRemove(addition._id as Id<"offerAdditions">)}
-            title="Usuń dodatek z oferty"
-            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-          >
-            <Trash2 size={13} />
-          </button>
-        )}
+        <div className="flex items-center justify-end gap-1.5">
+          {saveState === "saving" && (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] text-amber-600 font-medium animate-pulse"
+              title="Zapisywanie zmian..."
+            >
+              <Loader2 size={11} className="animate-spin" />
+            </span>
+          )}
+          {saveState === "saved" && (
+            <span
+              className="inline-flex items-center gap-0.5 text-[10px] text-emerald-600 font-semibold"
+              title="Wszystkie zmiany zostały pomyślnie zapisane"
+            >
+              <Check size={12} />
+              <span className="hidden sm:inline text-[9px]">Zapisano</span>
+            </span>
+          )}
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => onRemove(addition._id as Id<"offerAdditions">)}
+              title="Usuń dodatek z oferty"
+              className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
       </td>
     </tr>
   );
@@ -644,6 +766,12 @@ export function OfferSummaryTab({
   };
 
   const handlePrintPdf = async () => {
+    if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    // Krótka chwila na ukończenie ewentualnych mutacji w toku (np. z debounced zapisu dodatków)
+    await new Promise((r) => setTimeout(r, 250));
+
     setIsGeneratingPdf(true);
     const toastId = toast.loading("Przygotowywanie szkiców CAD i generowanie oferty PDF...");
     try {
