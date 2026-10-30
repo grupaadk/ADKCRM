@@ -49,6 +49,7 @@ import type * as lib_phone from "../lib/phone.js";
 import type * as lib_sentry from "../lib/sentry.js";
 import type * as migrations from "../migrations.js";
 import type * as notes from "../notes.js";
+import type * as offerAdditionTemplates from "../offerAdditionTemplates.js";
 import type * as offerEmails from "../offerEmails.js";
 import type * as offers from "../offers.js";
 import type * as orderLineItems from "../orderLineItems.js";
@@ -125,6 +126,7 @@ declare const fullApi: ApiFromModules<{
   "lib/sentry": typeof lib_sentry;
   migrations: typeof migrations;
   notes: typeof notes;
+  offerAdditionTemplates: typeof offerAdditionTemplates;
   offerEmails: typeof offerEmails;
   offers: typeof offers;
   orderLineItems: typeof orderLineItems;

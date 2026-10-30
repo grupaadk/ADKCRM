@@ -310,6 +310,12 @@ export const getOfferWithItems = query({
 
     const cleanTitle = cleanOfferTitle(offer.title) ?? offer.title;
 
+    const additionsRaw = await ctx.db
+      .query("offerAdditions")
+      .withIndex("by_offer", (q) => q.eq("offerId", args.offerId))
+      .collect();
+    const additions = additionsRaw.sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+
     let computedTotalCost = 0;
     let computedMaterialNet = 0;
     let computedInstallationNet = 0;
@@ -329,10 +335,23 @@ export const getOfferWithItems = query({
       computedInstallationNet += instPrice * q;
     }
 
+    let computedAdditionsNet = 0;
+    for (const add of additions) {
+      const q = add.quantity || 1;
+      const addPrice = (add.priceNet || 0) * q;
+      const addCost = (add.costNet || 0) * q;
+      const addInstPrice = (add.installationPriceNet || 0) * q;
+      const addInstCost = (add.installationCostNet || 0) * q;
+
+      computedAdditionsNet += addPrice;
+      computedInstallationNet += addInstPrice;
+      computedTotalCost += addCost + addInstCost;
+    }
+
     const discount = offer.discountPercent || 0;
     const vatRate = offer.vatRate ?? 23;
-    const discountedMaterial = Math.round(computedMaterialNet * (1 - discount / 100));
-    const dynamicNet = discountedMaterial + computedInstallationNet;
+    const discountedBase = Math.round((computedMaterialNet + computedAdditionsNet) * (1 - discount / 100));
+    const dynamicNet = discountedBase + computedInstallationNet;
     const dynamicGross = Math.round(dynamicNet * (1 + vatRate / 100));
 
     return {
@@ -344,6 +363,7 @@ export const getOfferWithItems = query({
         totalCostNet: computedTotalCost > 0 ? computedTotalCost : offer.totalCostNet,
       },
       items,
+      additions,
       opportunity,
       client,
       service,
@@ -539,18 +559,40 @@ export const duplicateOffer = mutation({
       updatedAt: now,
     });
 
-    // Skopiuj wszystkie konstrukcje
+    // Skopiuj wszystkie konstrukcje i zachowaj mapowanie starych ID na nowe ID
     const items = await ctx.db
       .query("offerConstructions")
       .withIndex("by_offer", (q) => q.eq("offerId", args.offerId))
       .collect();
 
+    const constructionIdMap = new Map<string, Id<"offerConstructions">>();
+
     for (const item of items) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { _id, _creationTime, offerId, ...itemData } = item;
-      await ctx.db.insert("offerConstructions", {
+      const newItemId = await ctx.db.insert("offerConstructions", {
         ...itemData,
         offerId: newOfferId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      constructionIdMap.set(_id, newItemId);
+    }
+
+    // Skopiuj wszystkie dodatki do nowej oferty
+    const additions = await ctx.db
+      .query("offerAdditions")
+      .withIndex("by_offer", (q) => q.eq("offerId", args.offerId))
+      .collect();
+
+    for (const add of additions) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { _id, _creationTime, offerId, targetConstructionId, ...addData } = add;
+      const newTargetId = targetConstructionId ? constructionIdMap.get(targetConstructionId) : undefined;
+      await ctx.db.insert("offerAdditions", {
+        ...addData,
+        offerId: newOfferId,
+        targetConstructionId: newTargetId,
         createdAt: now,
         updatedAt: now,
       });
@@ -1000,6 +1042,147 @@ export const reorderConstructionPositions = mutation({
 });
 
 /**
+ * Dodaje dodatek / akcesorium do oferty
+ */
+export const addOfferAddition = mutation({
+  args: {
+    offerId: v.id("offers"),
+    targetConstructionId: v.optional(v.union(v.id("offerConstructions"), v.null())),
+    templateId: v.optional(v.id("offerAdditionTemplates")),
+    sourceTemplateId: v.optional(v.id("offerAdditionTemplates")),
+    name: v.string(),
+    quantity: v.number(),
+    unit: v.optional(v.string()),
+    priceNet: v.number(),
+    costNet: v.optional(v.number()),
+    installationPriceNet: v.optional(v.number()),
+    installationCostNet: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    description: v.optional(v.string()),
+    orderIndex: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const offer = await ctx.db.get(args.offerId);
+    if (!offer) throw new Error("Oferta nie znaleziona");
+
+    const existing = await ctx.db
+      .query("offerAdditions")
+      .withIndex("by_offer", (q) => q.eq("offerId", args.offerId))
+      .collect();
+
+    const orderIndex = args.orderIndex ?? (existing.length + 1);
+    const resolvedTemplateId = args.templateId ?? args.sourceTemplateId;
+    const resolvedNotes = (args.notes ?? args.description)?.trim() || undefined;
+
+    const additionId = await ctx.db.insert("offerAdditions", {
+      offerId: args.offerId,
+      targetConstructionId: args.targetConstructionId ?? undefined,
+      templateId: resolvedTemplateId,
+      name: args.name.trim(),
+      quantity: args.quantity > 0 ? args.quantity : 1,
+      unit: args.unit?.trim() || "szt.",
+      priceNet: args.priceNet,
+      costNet: args.costNet,
+      installationPriceNet: args.installationPriceNet,
+      installationCostNet: args.installationCostNet,
+      notes: resolvedNotes,
+      orderIndex,
+      createdAt: Date.now(),
+    });
+
+    await recalculateOffer(ctx, args.offerId);
+    return additionId;
+  },
+});
+
+/**
+ * Aktualizuje dodatek w ofercie
+ */
+export const updateOfferAddition = mutation({
+  args: {
+    id: v.id("offerAdditions"),
+    targetConstructionId: v.optional(v.union(v.id("offerConstructions"), v.null())),
+    templateId: v.optional(v.id("offerAdditionTemplates")),
+    sourceTemplateId: v.optional(v.id("offerAdditionTemplates")),
+    name: v.optional(v.string()),
+    quantity: v.optional(v.number()),
+    unit: v.optional(v.string()),
+    priceNet: v.optional(v.number()),
+    costNet: v.optional(v.number()),
+    installationPriceNet: v.optional(v.number()),
+    installationCostNet: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    description: v.optional(v.string()),
+    orderIndex: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const addition = await ctx.db.get(args.id);
+    if (!addition) throw new Error("Dodatek nie został znaleziony");
+
+    const patch: Partial<Doc<"offerAdditions">> = {
+      updatedAt: Date.now(),
+    };
+
+    if (args.targetConstructionId !== undefined) {
+      patch.targetConstructionId = args.targetConstructionId ?? undefined;
+    }
+    if (args.templateId !== undefined || args.sourceTemplateId !== undefined) {
+      patch.templateId = (args.templateId ?? args.sourceTemplateId) ?? undefined;
+    }
+    if (args.name !== undefined) patch.name = args.name.trim();
+    if (args.quantity !== undefined) patch.quantity = args.quantity > 0 ? args.quantity : 1;
+    if (args.unit !== undefined) patch.unit = args.unit.trim();
+    if (args.priceNet !== undefined) patch.priceNet = args.priceNet;
+    if (args.costNet !== undefined) patch.costNet = args.costNet;
+    if (args.installationPriceNet !== undefined) patch.installationPriceNet = args.installationPriceNet;
+    if (args.installationCostNet !== undefined) patch.installationCostNet = args.installationCostNet;
+    if (args.notes !== undefined || args.description !== undefined) {
+      patch.notes = (args.notes ?? args.description)?.trim() || undefined;
+    }
+    if (args.orderIndex !== undefined) patch.orderIndex = args.orderIndex;
+
+    await ctx.db.patch(args.id, patch);
+    await recalculateOffer(ctx, addition.offerId);
+    return args.id;
+  },
+});
+
+/**
+ * Usuwa dodatek z oferty
+ */
+export const removeOfferAddition = mutation({
+  args: {
+    id: v.id("offerAdditions"),
+  },
+  handler: async (ctx, args) => {
+    const addition = await ctx.db.get(args.id);
+    if (!addition) throw new Error("Dodatek nie został znaleziony");
+
+    await ctx.db.delete(args.id);
+    await recalculateOffer(ctx, addition.offerId);
+    return true;
+  },
+});
+
+/**
+ * Zmienia kolejność dodatków w ofercie
+ */
+export const reorderOfferAdditions = mutation({
+  args: {
+    offerId: v.id("offers"),
+    additionIds: v.array(v.id("offerAdditions")),
+  },
+  handler: async (ctx, args) => {
+    for (let i = 0; i < args.additionIds.length; i++) {
+      await ctx.db.patch(args.additionIds[i], {
+        orderIndex: i + 1,
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
+/**
  * Duplikuje pozycję konstrukcji
  */
 export const duplicateConstructionPosition = mutation({
@@ -1310,11 +1493,29 @@ async function recalculateOffer(ctx: MutationCtx, offerId: Id<"offers">) {
     installationNet += instPrice * q;
   }
 
+  const additions = await ctx.db
+    .query("offerAdditions")
+    .withIndex("by_offer", (q) => q.eq("offerId", offerId))
+    .collect();
+
+  let additionsNet = 0;
+  for (const add of additions) {
+    const q = add.quantity || 1;
+    const addPrice = (add.priceNet || 0) * q;
+    const addCost = (add.costNet || 0) * q;
+    const addInstPrice = (add.installationPriceNet || 0) * q;
+    const addInstCost = (add.installationCostNet || 0) * q;
+
+    additionsNet += addPrice;
+    installationNet += addInstPrice;
+    totalCost += addCost + addInstCost;
+  }
+
   const discount = offer.discountPercent || 0;
   const vatRate = offer.vatRate ?? 23;
-  // Rabat naliczany jest od wartości konstrukcji/materiału (montaż pozostaje bez rabatu)
-  const discountedMaterial = Math.round(materialNet * (1 - discount / 100));
-  const finalNet = discountedMaterial + installationNet;
+  // Rabat naliczany jest od wartości konstrukcji i dodatków (montaż pozostaje bez rabatu)
+  const discountedBase = Math.round((materialNet + additionsNet) * (1 - discount / 100));
+  const finalNet = discountedBase + installationNet;
   const finalGross = Math.round(finalNet * (1 + vatRate / 100));
 
   await ctx.db.patch(offerId, {

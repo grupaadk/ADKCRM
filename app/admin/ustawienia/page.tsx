@@ -34,6 +34,7 @@ import { InstallationTeamsTab } from "./InstallationTeamsTab";
 import { TaskTemplatesTab } from "./TaskTemplatesTab";
 import { VatRateNamesTab } from "./VatRateNamesTab";
 import { ConstructionsTab } from "./ConstructionsTab";
+import { OfferAdditionsTab } from "./OfferAdditionsTab";
 
 const IconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   AppWindow,
@@ -60,7 +61,7 @@ function ServiceIcon({ name, className = "h-4 w-4" }: { name?: string; className
   return <IconComponent className={className} />;
 }
 
-type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "konstrukcje" | "nazwy-vat" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe" | "szablony-zadan";
+type Tab = "google-drive" | "jotform" | "fakturownia" | "szablony" | "sms" | "crm" | "logi" | "uslugi" | "konstrukcje" | "dodatki" | "nazwy-vat" | "dostawcy" | "wydatki" | "it-kanban" | "typy-wydarzen" | "ekipy-montazowe" | "szablony-zadan";
 
 const EMPTY_TEMPLATE = {
   type: "custom",
@@ -4094,6 +4095,7 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "crm", label: "CRM" },
   { key: "uslugi", label: "Usługi" },
   { key: "konstrukcje", label: "Baza konstrukcji CAD" },
+  { key: "dodatki", label: "Katalog dodatków" },
   { key: "nazwy-vat", label: "Nazwy pozycji (VAT)" },
   { key: "dostawcy", label: "Dostawcy" },
   { key: "wydatki", label: "Kategorie wydatków" },
@@ -4172,6 +4174,7 @@ export default function UstawieniaPage() {
       {activeTab === "crm" && <CrmTab />}
       {activeTab === "uslugi" && <ServicesTab />}
       {activeTab === "konstrukcje" && <ConstructionsTab />}
+      {activeTab === "dodatki" && <OfferAdditionsTab />}
       {activeTab === "nazwy-vat" && <VatRateNamesTab />}
       {activeTab === "dostawcy" && <SuppliersTab />}
       {activeTab === "wydatki" && <ExpenseCategoriesTab />}

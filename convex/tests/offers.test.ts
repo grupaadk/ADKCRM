@@ -864,4 +864,129 @@ describe("CAD Offers and Constructions Module", () => {
     expect(data?.items[0].priceNet).toBe(4078 + 1375);
     expect(data?.offer.totalPriceNet).toBe(4078 + 1375);
   });
+
+  test("manages offer additions, recalculates totals with discount, and duplicates with re-mapped constructions", async () => {
+    const t = convexTest(schema);
+
+    // 1. Seed addition templates
+    const seedRes = await t.mutation(api.offerAdditionTemplates.seedDefaultsIfEmpty, {});
+    expect(seedRes).toBeGreaterThan(0);
+
+    const templates = await t.query(api.offerAdditionTemplates.list, { activeOnly: true });
+    expect(templates.length).toBeGreaterThan(0);
+    const lockTpl = templates.find((tpl) => tpl.name.includes("Zamek")) || templates[0];
+
+    // 2. Create opportunity and offer
+    const oppId = await t.run(async (ctx) => {
+      return await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-ADDITIONS-1",
+        firstName: "Marek",
+        lastName: "Nowak",
+        processed: false,
+        stage: "lead",
+      });
+    });
+
+    const offerId = await t.mutation(api.offers.getOrCreateForOpportunity, {
+      opportunityId: oppId,
+    });
+
+    // 3. Add construction position
+    const pos1Id = await t.mutation(api.offers.addConstructionPosition, {
+      offerId,
+      name: "Konstrukcja Główna",
+      widthMm: 3000,
+      heightMm: 2500,
+      panesCount: 3,
+      priceNet: 10000,
+      costNet: 6000,
+      materialPriceNet: 8500,
+      materialCostNet: 5000,
+      installationPriceNet: 1500,
+      installationCostNet: 1000,
+    });
+
+    // 4. Add addition linked to Poz 1 (lock: 450 zł sale, 220 zł cost, 80 zł montage, 50 zł montage cost)
+    const add1Id = await t.mutation(api.offers.addOfferAddition, {
+      offerId,
+      targetConstructionId: pos1Id,
+      sourceTemplateId: lockTpl._id,
+      name: "Zamek boczny z kluczykiem",
+      quantity: 2,
+      unit: "szt.",
+      priceNet: 450,
+      costNet: 220,
+      installationPriceNet: 80,
+      installationCostNet: 50,
+    });
+
+    // 5. Add general addition (Transport: 500 zł sale, 300 zł cost, 0 montage)
+    const add2Id = await t.mutation(api.offers.addOfferAddition, {
+      offerId,
+      name: "Transport i zabezpieczenie ładunku",
+      quantity: 1,
+      unit: "kpl.",
+      priceNet: 500,
+      costNet: 300,
+    });
+
+    // 6. Check offer totals
+    // Construction: matPrice 8500, instPrice 1500, matCost 5000, instCost 1000
+    // Addition 1: price 2*450=900, inst 2*80=160, cost 2*220=440, instCost 2*50=100
+    // Addition 2: price 1*500=500, cost 1*300=300
+    // Base Net (Material + Additions): 8500 + 900 + 500 = 9900 zł
+    // Installation Net: 1500 + 160 = 1660 zł
+    // Total Net (0% discount): 9900 + 1660 = 11560 zł
+    // Total Cost: 6000 + 540 + 300 = 6840 zł
+    let data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data?.additions.length).toBe(2);
+    expect(data?.offer.totalPriceNet).toBe(11560);
+    expect(data?.offer.totalCostNet).toBe(6840);
+    expect(data?.offer.totalPriceGross).toBe(Math.round(11560 * 1.23));
+
+    // 7. Apply 10% discount to offer
+    // Discounted Base Net: 9900 * 0.9 = 8910 zł
+    // Total Net: 8910 + 1660 = 10570 zł
+    await t.mutation(api.offers.updateOffer, {
+      offerId,
+      discountPercent: 10,
+    });
+
+    data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data?.offer.totalPriceNet).toBe(10570);
+    expect(data?.offer.totalPriceGross).toBe(Math.round(10570 * 1.23));
+
+    // 8. Update addition 1
+    await t.mutation(api.offers.updateOfferAddition, {
+      id: add1Id,
+      quantity: 3,
+    });
+
+    data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data?.additions.find((a) => a._id === add1Id)?.quantity).toBe(3);
+
+    // 9. Test duplicateOffer with additions
+    const duplicatedOfferId = await t.mutation(api.offers.duplicateOffer, {
+      offerId,
+    });
+    expect(duplicatedOfferId).toBeDefined();
+
+    const dupData = await t.query(api.offers.getOfferWithItems, { offerId: duplicatedOfferId });
+    expect(dupData?.items.length).toBe(1);
+    expect(dupData?.additions.length).toBe(2);
+    // Pos1 in duplicate offer should have different ID
+    const newPosId = dupData?.items[0]._id;
+    expect(newPosId).not.toBe(pos1Id);
+    // Addition in duplicate offer should be re-mapped to newPosId
+    const dupAdd1 = dupData?.additions.find((a) => a.name.includes("Zamek"));
+    expect(dupAdd1?.targetConstructionId).toBe(newPosId);
+
+    // 10. Remove addition 2 from original offer
+    await t.mutation(api.offers.removeOfferAddition, {
+      id: add2Id,
+    });
+
+    data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data?.additions.length).toBe(1);
+  });
 });

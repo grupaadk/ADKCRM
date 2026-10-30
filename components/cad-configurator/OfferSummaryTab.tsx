@@ -3,9 +3,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAction, useMutation } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { Id, Doc } from "@/convex/_generated/dataModel";
 import toast from "react-hot-toast";
 import { CadConstructionItem } from "./CadCanvas";
 import { uploadCadSnapshotsForOffer } from "./cadSvgRenderer";
@@ -39,6 +39,9 @@ import {
   RemoveFormatting,
   Code,
   Eye,
+  PackagePlus,
+  Sparkles,
+  Search,
 } from "lucide-react";
 
 const PRESET_DISCOUNTS = [0, 3, 5, 7, 10, 15, 20];
@@ -66,6 +69,22 @@ export interface OfferData {
   updatedAt: number;
 }
 
+export interface OfferAdditionItem {
+  _id: string;
+  offerId: string;
+  name: string;
+  description?: string;
+  targetConstructionId?: string;
+  sourceTemplateId?: string;
+  quantity: number;
+  unit: string;
+  priceNet: number;
+  costNet?: number;
+  installationPriceNet?: number;
+  installationCostNet?: number;
+  orderIndex?: number;
+}
+
 export interface OpportunityData {
   _id: string;
   firstName?: string;
@@ -87,6 +106,7 @@ export interface OpportunityData {
 interface OfferSummaryTabProps {
   offer: OfferData;
   items: CadConstructionItem[];
+  additions?: OfferAdditionItem[];
   opportunity?: OpportunityData | null;
   onUpdateOffer: (patch: Partial<OfferData>) => void;
   onOpenPositionInCad: (itemId: string) => void;
@@ -240,9 +260,254 @@ function InlineDimensionCell({
   );
 }
 
+interface InlineAdditionRowProps {
+  addition: OfferAdditionItem;
+  items: CadConstructionItem[];
+  readOnly?: boolean;
+  onUpdate: (id: Id<"offerAdditions">, patch: Partial<OfferAdditionItem>) => Promise<void>;
+  onRemove: (id: Id<"offerAdditions">) => Promise<void>;
+}
+
+function InlineAdditionRow({
+  addition,
+  items,
+  readOnly,
+  onUpdate,
+  onRemove,
+}: InlineAdditionRowProps) {
+  const [name, setName] = useState(addition.name);
+  const [qtyStr, setQtyStr] = useState(String(addition.quantity));
+  const [priceStr, setPriceStr] = useState(String(addition.priceNet));
+  const [instPriceStr, setInstPriceStr] = useState(String(addition.installationPriceNet ?? 0));
+  const [unit, setUnit] = useState(addition.unit || "szt.");
+  const [targetId, setTargetId] = useState(addition.targetConstructionId || "");
+
+  const [prevAddition, setPrevAddition] = useState(addition);
+  if (addition !== prevAddition) {
+    setPrevAddition(addition);
+    setName(addition.name);
+    setQtyStr(String(addition.quantity));
+    setPriceStr(String(addition.priceNet));
+    setInstPriceStr(String(addition.installationPriceNet ?? 0));
+    setUnit(addition.unit || "szt.");
+    setTargetId(addition.targetConstructionId || "");
+  }
+
+  const commitName = () => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setName(addition.name);
+      return;
+    }
+    if (trimmed !== addition.name) {
+      onUpdate(addition._id as Id<"offerAdditions">, { name: trimmed });
+    }
+  };
+
+  const commitQty = () => {
+    const val = parseFloat(qtyStr);
+    if (isNaN(val) || val <= 0) {
+      setQtyStr(String(addition.quantity));
+      return;
+    }
+    if (val !== addition.quantity) {
+      onUpdate(addition._id as Id<"offerAdditions">, { quantity: val });
+    }
+  };
+
+  const commitPrice = () => {
+    const val = parseFloat(priceStr);
+    if (isNaN(val) || val < 0) {
+      setPriceStr(String(addition.priceNet));
+      return;
+    }
+    if (val !== addition.priceNet) {
+      onUpdate(addition._id as Id<"offerAdditions">, { priceNet: val });
+    }
+  };
+
+  const commitInstPrice = () => {
+    const val = parseFloat(instPriceStr);
+    const valid = isNaN(val) || val < 0 ? 0 : val;
+    if (valid !== (addition.installationPriceNet ?? 0)) {
+      onUpdate(addition._id as Id<"offerAdditions">, { installationPriceNet: valid });
+    }
+  };
+
+  const handleTargetChange = (newTarget: string) => {
+    setTargetId(newTarget);
+    onUpdate(addition._id as Id<"offerAdditions">, {
+      targetConstructionId: newTarget || undefined,
+    });
+  };
+
+  const handleUnitChange = (newUnit: string) => {
+    setUnit(newUnit);
+    onUpdate(addition._id as Id<"offerAdditions">, { unit: newUnit });
+  };
+
+  const parsedQty = parseFloat(qtyStr) || addition.quantity || 1;
+  const parsedPrice = parseFloat(priceStr) || addition.priceNet || 0;
+  const totalLineNet = Math.round(parsedQty * parsedPrice);
+
+  return (
+    <tr className="hover:bg-[#f8fafc] transition-colors border-b border-slate-100 last:border-b-0 text-xs">
+      {/* Kolumna 1: Lp */}
+      <td className="py-2.5 px-3 text-center text-[#64748b] font-mono text-[11px]">
+        {addition.orderIndex !== undefined ? addition.orderIndex + 1 : "—"}
+      </td>
+
+      {/* Kolumna 2: Nazwa dodatku */}
+      <td className="py-2.5 px-3">
+        {readOnly ? (
+          <span className="font-semibold text-[#0b1220]">{addition.name}</span>
+        ) : (
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            placeholder="Nazwa dodatku (np. Zamek, Pilot, Transport)..."
+            className="w-full font-semibold text-[#0b1220] bg-transparent hover:bg-slate-50 focus:bg-white border border-transparent hover:border-slate-300 focus:border-[#4ABBC3] rounded px-2 py-1 outline-none transition-all placeholder:font-normal placeholder:text-slate-400"
+          />
+        )}
+      </td>
+
+      {/* Kolumna 3: Dotyczy pozycji */}
+      <td className="py-2.5 px-3">
+        {readOnly ? (
+          <span className="text-[#475569]">
+            {(() => {
+              if (!addition.targetConstructionId) return "Cała oferta (ogólny)";
+              const match = items.find((c) => c._id === addition.targetConstructionId);
+              return match ? `Poz. ${match.positionIndex}: ${match.name}` : "Konstrukcja";
+            })()}
+          </span>
+        ) : (
+          <select
+            value={targetId}
+            onChange={(e) => handleTargetChange(e.target.value)}
+            className="w-full text-xs text-[#334155] bg-white border border-slate-200 hover:border-slate-300 focus:border-[#4ABBC3] rounded px-2 py-1 outline-none transition-all cursor-pointer"
+          >
+            <option value="">🌐 Cała oferta (ogólny)</option>
+            {items.map((c) => (
+              <option key={c._id} value={c._id}>
+                📍 Poz. {c.positionIndex}: {c.name.slice(0, 30)}
+              </option>
+            ))}
+          </select>
+        )}
+      </td>
+
+      {/* Kolumna 4: Ilość */}
+      <td className="py-2.5 px-3 text-center">
+        {readOnly ? (
+          <span className="font-mono font-bold text-[#0b1220]">{addition.quantity}</span>
+        ) : (
+          <input
+            type="number"
+            min={0.1}
+            step={1}
+            value={qtyStr}
+            onChange={(e) => setQtyStr(e.target.value)}
+            onBlur={commitQty}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            className="w-16 text-center font-mono font-bold text-[#0b1220] bg-white border border-slate-200 hover:border-slate-300 focus:border-[#4ABBC3] rounded px-1.5 py-1 outline-none transition-all"
+          />
+        )}
+      </td>
+
+      {/* Kolumna 5: Jednostka */}
+      <td className="py-2.5 px-3 text-center">
+        {readOnly ? (
+          <span className="text-[#64748b] font-mono text-[11px]">{addition.unit}</span>
+        ) : (
+          <select
+            value={unit}
+            onChange={(e) => handleUnitChange(e.target.value)}
+            className="text-xs font-mono text-[#475569] bg-white border border-slate-200 hover:border-slate-300 focus:border-[#4ABBC3] rounded px-1.5 py-1 outline-none transition-all cursor-pointer"
+          >
+            <option value="szt.">szt.</option>
+            <option value="mb">mb</option>
+            <option value="kpl.">kpl.</option>
+            <option value="m²">m²</option>
+            <option value="usł.">usł.</option>
+          </select>
+        )}
+      </td>
+
+      {/* Kolumna 6: Cena jedn. netto */}
+      <td className="py-2.5 px-3 text-right">
+        {readOnly ? (
+          <span className="font-mono text-[#334155]">{addition.priceNet.toLocaleString("pl-PL")} zł</span>
+        ) : (
+          <div className="inline-flex items-center gap-1 justify-end">
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={priceStr}
+              onChange={(e) => setPriceStr(e.target.value)}
+              onBlur={commitPrice}
+              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+              className="w-20 text-right font-mono text-xs text-[#0b1220] bg-white border border-slate-200 hover:border-slate-300 focus:border-[#4ABBC3] rounded px-1.5 py-1 outline-none transition-all"
+            />
+            <span className="text-slate-400 font-mono text-[10px]">zł</span>
+          </div>
+        )}
+      </td>
+
+      {/* Kolumna 7: Wartość netto */}
+      <td className="py-2.5 px-3 text-right font-mono font-bold text-xs text-[#0b1220]">
+        {totalLineNet.toLocaleString("pl-PL")} zł
+      </td>
+
+      {/* Kolumna 8: Montaż netto */}
+      <td className="py-2.5 px-3 text-right">
+        {readOnly ? (
+          <span className="font-mono text-xs text-slate-500">
+            {addition.installationPriceNet ? `${(addition.installationPriceNet * addition.quantity).toLocaleString("pl-PL")} zł` : "—"}
+          </span>
+        ) : (
+          <div className="inline-flex items-center gap-1 justify-end">
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={instPriceStr}
+              onChange={(e) => setInstPriceStr(e.target.value)}
+              onBlur={commitInstPrice}
+              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+              placeholder="0"
+              className="w-16 text-right font-mono text-xs text-[#0b1220] bg-white border border-slate-200 hover:border-slate-300 focus:border-[#4ABBC3] rounded px-1.5 py-1 outline-none transition-all placeholder:text-slate-300"
+            />
+            <span className="text-slate-400 font-mono text-[10px]">zł</span>
+          </div>
+        )}
+      </td>
+
+      {/* Kolumna 9: Akcje */}
+      <td className="py-2.5 px-3 text-right">
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => onRemove(addition._id as Id<"offerAdditions">)}
+            title="Usuń dodatek z oferty"
+            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 export function OfferSummaryTab({
   offer,
   items,
+  additions = [],
   opportunity,
   onUpdateOffer,
   onOpenPositionInCad,
@@ -369,6 +634,54 @@ export function OfferSummaryTab({
     }
   };
 
+  const addOfferAddition = useMutation(api.offers.addOfferAddition);
+  const updateOfferAddition = useMutation(api.offers.updateOfferAddition);
+  const removeOfferAddition = useMutation(api.offers.removeOfferAddition);
+  const catalogTemplates = useQuery(api.offerAdditionTemplates.list, { activeOnly: true });
+  const seedDefaultTemplates = useMutation(api.offerAdditionTemplates.seedDefaultsIfEmpty);
+
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [targetForCatalog, setTargetForCatalog] = useState<string>("");
+
+  const handleAddCustomAddition = async () => {
+    try {
+      await addOfferAddition({
+        offerId: offer._id as Id<"offers">,
+        name: "Nowy dodatek",
+        quantity: 1,
+        unit: "szt.",
+        priceNet: 0,
+      });
+      toast.success("Dodano nową pozycję dodatku");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Błąd: ${msg}`);
+    }
+  };
+
+  const handleAddFromTemplate = async (tpl: Doc<"offerAdditionTemplates">) => {
+    try {
+      await addOfferAddition({
+        offerId: offer._id as Id<"offers">,
+        sourceTemplateId: tpl._id,
+        name: tpl.name,
+        description: tpl.description,
+        quantity: 1,
+        unit: tpl.unit,
+        priceNet: tpl.defaultPriceNet,
+        costNet: tpl.defaultCostNet,
+        installationPriceNet: tpl.defaultInstallationPriceNet,
+        installationCostNet: tpl.defaultInstallationCostNet,
+        targetConstructionId: targetForCatalog ? (targetForCatalog as Id<"offerConstructions">) : undefined,
+      });
+      toast.success(`Dodano: ${tpl.name}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Błąd: ${msg}`);
+    }
+  };
+
   const handlePrintPdf = async () => {
     setIsGeneratingPdf(true);
     const toastId = toast.loading("Przygotowywanie szkiców CAD i generowanie oferty PDF...");
@@ -452,7 +765,31 @@ export function OfferSummaryTab({
     return acc + Math.max(0, (it.priceNet || 0) * q - inst);
   }, 0);
 
-  const totalCombinedCost = totalMaterialCost + totalInstallationCost;
+  // Kalkulacja dodatków
+  const additionsList = additions || [];
+  const totalAdditionsPrice = additionsList.reduce(
+    (acc, a) => acc + (a.priceNet || 0) * (a.quantity || 1),
+    0
+  );
+  const totalAdditionsCost = additionsList.reduce(
+    (acc, a) => acc + (a.costNet || 0) * (a.quantity || 1),
+    0
+  );
+  const totalAdditionsInstallationPrice = additionsList.reduce(
+    (acc, a) => acc + (a.installationPriceNet || 0) * (a.quantity || 1),
+    0
+  );
+  const totalAdditionsInstallationCost = additionsList.reduce(
+    (acc, a) => acc + (a.installationCostNet || 0) * (a.quantity || 1),
+    0
+  );
+
+  const totalBasePrice = totalMaterialPrice + totalAdditionsPrice;
+  const totalBaseCost = totalMaterialCost + totalAdditionsCost;
+
+  const combinedInstallationPrice = totalInstallationPrice + totalAdditionsInstallationPrice;
+  const combinedInstallationCost = totalInstallationCost + totalAdditionsInstallationCost;
+  const totalCombinedCost = totalBaseCost + combinedInstallationCost;
 
   const discountPct = offer.discountPercent || 0;
   const [prevDiscountPct, setPrevDiscountPct] = useState(discountPct);
@@ -465,10 +802,10 @@ export function OfferSummaryTab({
 
   const vatRate = offer.vatRate ?? 23;
 
-  // Rabat naliczany jest od wartości konstrukcji/materiału
-  const discountedMaterialNet = Math.round(totalMaterialPrice * (1 - discountPct / 100));
-  const discountAmount = totalMaterialPrice - discountedMaterialNet;
-  const finalOfferNet = discountedMaterialNet + totalInstallationPrice;
+  // Rabat naliczany jest od wartości bazowej (konstrukcje + dodatki)
+  const discountedBaseNet = Math.round(totalBasePrice * (1 - discountPct / 100));
+  const discountAmount = totalBasePrice - discountedBaseNet;
+  const finalOfferNet = discountedBaseNet + combinedInstallationPrice;
   const vatAmount = Math.round((finalOfferNet * vatRate) / 100);
   const finalOfferGross = finalOfferNet + vatAmount;
   const profitNet = finalOfferNet - totalCombinedCost;
@@ -1158,7 +1495,152 @@ export function OfferSummaryTab({
         )}
       </div>
 
+      {/* ── 3. DODATKI I AKCESORIA DO OFERTY ── */}
+      <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-xs overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#e2e8f0] flex items-center justify-between flex-wrap gap-3 bg-[#f8fafc]">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-md bg-teal-50 text-[#0e7490] border border-teal-200">
+              <PackagePlus size={16} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-xs text-[#0b1220] uppercase tracking-wider">
+                  Dodatki i akcesoria do oferty
+                </h2>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-[#475569] border border-slate-200">
+                  {additionsList.length} {additionsList.length === 1 ? "pozycja" : "pozycji"}
+                </span>
+              </div>
+              <p className="text-[11px] text-[#64748b]">
+                Akcesoria (zamki, piloty, uszczelki) i pozycje ogólne (transport, montaż)
+              </p>
+            </div>
+          </div>
 
+          {!readOnly && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCatalogModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#4ABBC3] hover:bg-[#3ca8b0] text-white shadow-2xs transition-colors cursor-pointer"
+              >
+                <Sparkles size={13} />
+                Wybierz z katalogu
+              </button>
+              <button
+                type="button"
+                onClick={handleAddCustomAddition}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+              >
+                <Plus size={13} />
+                Dodaj własny
+              </button>
+            </div>
+          )}
+        </div>
+
+        {additionsList.length === 0 ? (
+          <div className="p-8 text-center bg-slate-50/50">
+            <PackagePlus size={36} className="mx-auto text-slate-300 mb-2.5" />
+            <h3 className="font-bold text-xs text-slate-700 uppercase tracking-wide">
+              Brak dodatków w tej ofercie
+            </h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 mb-4">
+              Możesz dodać akcesoria przypisane do konkretnej pozycji konstrukcyjnej (np. zamek, uszczelka) lub dodatki ogólne (np. transport, chemia montażowa).
+            </p>
+            {!readOnly && (
+              <div className="flex items-center justify-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsCatalogModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#4ABBC3] hover:bg-[#3ca8b0] text-white shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Sparkles size={13} />
+                  Wybierz z katalogu szablonów
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddCustomAddition}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Plus size={13} />
+                  Dodaj dodatek ręcznie
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-[#f8fafc] text-[#475569] border-b border-[#e2e8f0] font-sans font-semibold text-[11px] uppercase tracking-wider">
+                <tr>
+                  <th className="py-2.5 px-3 text-center w-10">Lp</th>
+                  <th className="py-2.5 px-3">Nazwa dodatku</th>
+                  <th className="py-2.5 px-3 w-52">Dotyczy pozycji</th>
+                  <th className="py-2.5 px-3 text-center w-20">Ilość</th>
+                  <th className="py-2.5 px-3 text-center w-20">J.m.</th>
+                  <th className="py-2.5 px-3 text-right w-28">Cena jedn.</th>
+                  <th className="py-2.5 px-3 text-right w-28">Wartość netto</th>
+                  <th className="py-2.5 px-3 text-right w-28">Montaż</th>
+                  <th className="py-2.5 px-3 text-right w-12"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {additionsList.map((addition) => (
+                  <InlineAdditionRow
+                    key={addition._id}
+                    addition={addition}
+                    items={items}
+                    readOnly={readOnly}
+                    onUpdate={async (id, patch) => {
+                      await updateOfferAddition({
+                        id,
+                        targetConstructionId:
+                          patch.targetConstructionId !== undefined
+                            ? patch.targetConstructionId
+                              ? (patch.targetConstructionId as Id<"offerConstructions">)
+                              : null
+                            : undefined,
+                        name: patch.name,
+                        quantity: patch.quantity,
+                        unit: patch.unit,
+                        priceNet: patch.priceNet,
+                        costNet: patch.costNet,
+                        installationPriceNet: patch.installationPriceNet,
+                        installationCostNet: patch.installationCostNet,
+                        orderIndex: patch.orderIndex,
+                      });
+                    }}
+                    onRemove={async (id) => {
+                      await removeOfferAddition({ id });
+                      toast.success("Usunięto dodatek");
+                    }}
+                  />
+                ))}
+              </tbody>
+              <tfoot className="bg-[#f8fafc] border-t-2 border-[#e2e8f0] font-mono text-xs">
+                <tr>
+                  <td colSpan={3} className="py-2.5 px-3 text-right font-sans font-bold text-[#475569]">
+                    Razem dodatki ({additionsList.length}):
+                  </td>
+                  <td className="py-2.5 px-3 text-center font-bold text-[#0b1220]">
+                    {additionsList.reduce((acc, a) => acc + (a.quantity || 1), 0)}
+                  </td>
+                  <td></td>
+                  <td className="py-2.5 px-3 text-right text-[#64748b]">Dodatki netto:</td>
+                  <td className="py-2.5 px-3 text-right font-extrabold text-xs text-[#0e7490]">
+                    {totalAdditionsPrice.toLocaleString("pl-PL")} zł
+                  </td>
+                  <td className="py-2.5 px-3 text-right text-[11px] text-[#64748b]">
+                    {totalAdditionsInstallationPrice > 0 ? `+ ${totalAdditionsInstallationPrice.toLocaleString("pl-PL")} zł` : "—"}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* ── 4. DOLNA SEKCJA: USTALENIA (LEWA STRONA) + PODSUMOWANIE OFERTY (PRAWA STRONA) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
@@ -1461,66 +1943,166 @@ export function OfferSummaryTab({
             </div>
 
             {/* Linia: Konstrukcje */}
-            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 py-2">
-              <div className="shrink-0">
-                <div className="font-sans font-bold text-sm text-[#0b1220]">
-                  Konstrukcje:
+            {totalAdditionsPrice > 0 ? (
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 py-1.5">
+                  <div className="shrink-0">
+                    <div className="font-sans font-bold text-sm text-[#0b1220]">
+                      Konstrukcje:
+                    </div>
+                    <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5 space-y-0.5">
+                      <div>cena katalogowa: {totalMaterialPrice.toLocaleString("pl-PL")} zł</div>
+                      <div>koszty: {totalMaterialCost.toLocaleString("pl-PL")} zł</div>
+                    </div>
+                  </div>
+                  <div className="font-mono text-sm sm:text-base font-medium text-slate-700 min-w-[85px] text-right">
+                    {totalMaterialPrice.toLocaleString("pl-PL")} zł
+                  </div>
                 </div>
-                <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5 space-y-0.5">
-                  <div>cena katalogowa: {totalMaterialPrice.toLocaleString("pl-PL")} zł</div>
-                  <div>koszty: {totalMaterialCost.toLocaleString("pl-PL")} zł</div>
-                  {discountPct > 0 && (
-                    <div className="text-rose-500 font-medium">upust: -{discountAmount.toLocaleString("pl-PL")} zł</div>
-                  )}
+
+                {/* Linia: Dodatki i akcesoria */}
+                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 py-1.5 border-t border-slate-100/70">
+                  <div className="shrink-0">
+                    <div className="font-sans font-bold text-sm text-[#0b1220] flex items-center gap-1.5">
+                      <PackagePlus size={14} className="text-[#0e7490]" />
+                      Dodatki i akcesoria:
+                    </div>
+                    <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5 space-y-0.5">
+                      <div>
+                        wartość: {totalAdditionsPrice.toLocaleString("pl-PL")} zł ({additionsList.length} {additionsList.length === 1 ? "pozycja" : "pozycji"})
+                      </div>
+                      {totalAdditionsCost > 0 && (
+                        <div>koszty: {totalAdditionsCost.toLocaleString("pl-PL")} zł</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="font-mono text-sm sm:text-base font-medium text-slate-700 min-w-[85px] text-right">
+                    +{totalAdditionsPrice.toLocaleString("pl-PL")} zł
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2 font-mono text-sm sm:text-base text-[#0b1220] whitespace-nowrap shrink-0 justify-end">
-                <span className="font-medium text-slate-700 min-w-[85px] text-right">
-                  {totalMaterialPrice.toLocaleString("pl-PL")} zł
-                </span>
+                {/* Linia: Baza rabatowa (Konstrukcje + Dodatki) */}
+                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 py-2 border-t border-slate-100">
+                  <div className="shrink-0">
+                    <div className="font-sans font-bold text-xs text-slate-600 uppercase tracking-wider">
+                      Podstawa (konstrukcje + dodatki):
+                    </div>
+                    {discountPct > 0 && (
+                      <div className="text-[11px] text-rose-500 font-medium mt-0.5">
+                        upust: -{discountAmount.toLocaleString("pl-PL")} zł
+                      </div>
+                    )}
+                  </div>
 
-                <span className="text-rose-500 font-bold select-none">-</span>
+                  <div className="flex items-center gap-2 font-mono text-sm sm:text-base text-[#0b1220] whitespace-nowrap shrink-0 justify-end">
+                    <span className="font-medium text-slate-700 min-w-[85px] text-right">
+                      {totalBasePrice.toLocaleString("pl-PL")} zł
+                    </span>
 
-                {/* Czyste, jednolite pole rabatu */}
-                <div className="inline-flex items-center gap-1.5 bg-white border border-[#cbd5e1] hover:border-rose-400 focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-500/20 rounded-md px-2 py-1 transition-all shadow-2xs">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.5}
-                    disabled={readOnly}
-                    value={customDiscount}
-                    onChange={(e) => {
-                      const text = e.target.value;
-                      setCustomDiscount(text);
-                      if (text.trim() === "") {
-                        onUpdateOffer({ discountPercent: 0 });
-                        return;
-                      }
-                      const val = parseFloat(text);
-                      if (!isNaN(val) && val >= 0 && val <= 100) {
-                        onUpdateOffer({
-                          discountPercent: Math.round(val * 10) / 10,
-                        });
-                      }
-                    }}
-                    className="w-11 bg-transparent text-[#0b1220] font-mono font-bold text-sm text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    placeholder="0"
-                    title="Wpisz procent rabatu"
-                  />
-                  <span className="text-rose-600 font-sans font-bold text-xs tracking-wide select-none">
-                    % RABAT
+                    <span className="text-rose-500 font-bold select-none">-</span>
+
+                    {/* Pole rabatu */}
+                    <div className="inline-flex items-center gap-1.5 bg-white border border-[#cbd5e1] hover:border-rose-400 focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-500/20 rounded-md px-2 py-1 transition-all shadow-2xs">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        disabled={readOnly}
+                        value={customDiscount}
+                        onChange={(e) => {
+                          const text = e.target.value;
+                          setCustomDiscount(text);
+                          if (text.trim() === "") {
+                            onUpdateOffer({ discountPercent: 0 });
+                            return;
+                          }
+                          const val = parseFloat(text);
+                          if (!isNaN(val) && val >= 0 && val <= 100) {
+                            onUpdateOffer({
+                              discountPercent: Math.round(val * 10) / 10,
+                            });
+                          }
+                        }}
+                        className="w-11 bg-transparent text-[#0b1220] font-mono font-bold text-sm text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        placeholder="0"
+                        title="Wpisz procent rabatu"
+                      />
+                      <span className="text-rose-600 font-sans font-bold text-xs tracking-wide select-none">
+                        % RABAT
+                      </span>
+                    </div>
+
+                    <span className="text-slate-400 font-bold select-none">=</span>
+
+                    <span className="font-extrabold text-[#0e7490] min-w-[100px] text-right">
+                      {discountedBaseNet.toLocaleString("pl-PL")} zł
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 py-2">
+                <div className="shrink-0">
+                  <div className="font-sans font-bold text-sm text-[#0b1220]">
+                    Konstrukcje:
+                  </div>
+                  <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5 space-y-0.5">
+                    <div>cena katalogowa: {totalMaterialPrice.toLocaleString("pl-PL")} zł</div>
+                    <div>koszty: {totalMaterialCost.toLocaleString("pl-PL")} zł</div>
+                    {discountPct > 0 && (
+                      <div className="text-rose-500 font-medium">upust: -{discountAmount.toLocaleString("pl-PL")} zł</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 font-mono text-sm sm:text-base text-[#0b1220] whitespace-nowrap shrink-0 justify-end">
+                  <span className="font-medium text-slate-700 min-w-[85px] text-right">
+                    {totalMaterialPrice.toLocaleString("pl-PL")} zł
+                  </span>
+
+                  <span className="text-rose-500 font-bold select-none">-</span>
+
+                  {/* Czyste, jednolite pole rabatu */}
+                  <div className="inline-flex items-center gap-1.5 bg-white border border-[#cbd5e1] hover:border-rose-400 focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-500/20 rounded-md px-2 py-1 transition-all shadow-2xs">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      disabled={readOnly}
+                      value={customDiscount}
+                      onChange={(e) => {
+                        const text = e.target.value;
+                        setCustomDiscount(text);
+                        if (text.trim() === "") {
+                          onUpdateOffer({ discountPercent: 0 });
+                          return;
+                        }
+                        const val = parseFloat(text);
+                        if (!isNaN(val) && val >= 0 && val <= 100) {
+                          onUpdateOffer({
+                            discountPercent: Math.round(val * 10) / 10,
+                          });
+                        }
+                      }}
+                      className="w-11 bg-transparent text-[#0b1220] font-mono font-bold text-sm text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      placeholder="0"
+                      title="Wpisz procent rabatu"
+                    />
+                    <span className="text-rose-600 font-sans font-bold text-xs tracking-wide select-none">
+                      % RABAT
+                    </span>
+                  </div>
+
+                  <span className="text-slate-400 font-bold select-none">=</span>
+
+                  <span className="font-extrabold text-[#0e7490] min-w-[100px] text-right">
+                    {discountedBaseNet.toLocaleString("pl-PL")} zł
                   </span>
                 </div>
-
-                <span className="text-slate-400 font-bold select-none">=</span>
-
-                <span className="font-extrabold text-[#0e7490] min-w-[100px] text-right">
-                  {discountedMaterialNet.toLocaleString("pl-PL")} zł
-                </span>
               </div>
-            </div>
+            )}
 
             {/* Szybki wybór rabatu */}
             {!readOnly && (
@@ -1552,13 +2134,18 @@ export function OfferSummaryTab({
                 <div className="font-sans font-bold text-sm text-[#0b1220]">
                   Montaż:
                 </div>
-                <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5">
-                  koszt ekipy: {totalInstallationCost.toLocaleString("pl-PL")} zł
+                <div className="text-[11px] text-[#94a3b8] font-sans mt-0.5 space-y-0.5">
+                  <div>koszt ekipy: {combinedInstallationCost.toLocaleString("pl-PL")} zł</div>
+                  {totalAdditionsInstallationPrice > 0 && (
+                    <div className="text-[#0e7490]">
+                      w tym montaż dodatków: {totalAdditionsInstallationPrice.toLocaleString("pl-PL")} zł
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="font-mono text-sm sm:text-base font-bold text-slate-800 text-right min-w-[100px] whitespace-nowrap shrink-0">
-                {totalInstallationPrice.toLocaleString("pl-PL")} zł
+                {combinedInstallationPrice.toLocaleString("pl-PL")} zł
               </div>
             </div>
 
@@ -1620,6 +2207,164 @@ export function OfferSummaryTab({
           </div>
         </div>
       </div>
+
+      {/* ── Modal wyboru dodatków z katalogu szablonów ── */}
+      {isCatalogModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-[#f8fafc]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-teal-50 text-[#0e7490] border border-teal-200">
+                  <PackagePlus size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-[#0b1220]">Wybierz z katalogu dodatków</h3>
+                  <p className="text-xs text-[#64748b]">Wybierz gotowy dodatek i dodaj do oferty</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCatalogModalOpen(false)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Target selector & Search bar */}
+            <div className="p-4 border-b border-slate-100 bg-white space-y-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="flex-1 relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={catalogSearch}
+                    onChange={(e) => setCatalogSearch(e.target.value)}
+                    placeholder="Szukaj dodatku (np. zamek, uszczelka, pilot)..."
+                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-[#4ABBC3] focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">Przypisz do:</span>
+                  <select
+                    value={targetForCatalog}
+                    onChange={(e) => setTargetForCatalog(e.target.value)}
+                    className="text-xs text-[#334155] bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-[#4ABBC3] focus:outline-none cursor-pointer"
+                  >
+                    <option value="">🌐 Cała oferta (ogólny)</option>
+                    {items.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        📍 Poz. {c.positionIndex}: {c.name.slice(0, 24)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Catalog List */}
+            <div className="flex-1 overflow-y-auto p-4 divide-y divide-slate-100">
+              {(() => {
+                const templates = (catalogTemplates || []).filter((t) => {
+                  if (!catalogSearch) return true;
+                  const q = catalogSearch.toLowerCase();
+                  return (
+                    t.name.toLowerCase().includes(q) ||
+                    (t.category && t.category.toLowerCase().includes(q)) ||
+                    (t.description && t.description.toLowerCase().includes(q))
+                  );
+                });
+
+                if (templates.length === 0) {
+                  return (
+                    <div className="text-center py-8">
+                      <p className="text-xs text-slate-500 mb-3">
+                        {catalogTemplates && catalogTemplates.length === 0
+                          ? "Katalog dodatków jest pusty. Możesz załadować domyślne dodatki jednym kliknięciem."
+                          : "Nie znaleziono dodatków spełniających kryteria."}
+                      </p>
+                      {catalogTemplates && catalogTemplates.length === 0 && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await seedDefaultTemplates({});
+                            toast.success("Załadowano domyślne dodatki!");
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#4ABBC3] text-white rounded-lg hover:bg-[#3ca8b0] transition-colors cursor-pointer"
+                        >
+                          <Sparkles size={13} />
+                          Załaduj domyślne pozycje katalogu
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+
+                return templates.map((tpl) => (
+                  <div
+                    key={tpl._id}
+                    className="py-3 flex items-center justify-between gap-3 hover:bg-slate-50/80 rounded-lg px-2 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-xs text-[#0b1220]">{tpl.name}</span>
+                        {tpl.category && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                            {tpl.category}
+                          </span>
+                        )}
+                      </div>
+                      {tpl.description && (
+                        <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{tpl.description}</p>
+                      )}
+                      <div className="flex items-center gap-3 text-[11px] text-slate-600 font-mono mt-1">
+                        <span>
+                          Cena: <strong className="text-[#0e7490]">{tpl.defaultPriceNet.toLocaleString("pl-PL")} zł</strong> / {tpl.unit}
+                        </span>
+                        {tpl.defaultInstallationPriceNet ? (
+                          <span className="text-slate-400">
+                            + montaż: {tpl.defaultInstallationPriceNet.toLocaleString("pl-PL")} zł
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAddFromTemplate(tpl)}
+                      className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-[#4ABBC3] text-[#0e7490] hover:text-white border border-[#4ABBC3]/40 hover:border-[#4ABBC3] transition-all cursor-pointer shadow-2xs"
+                    >
+                      <Plus size={13} />
+                      Dodaj
+                    </button>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 border-t border-slate-200 bg-[#f8fafc] flex items-center justify-between">
+              <Link
+                href="/admin/ustawienia?tab=dodatki"
+                target="_blank"
+                className="text-xs text-[#0e7490] hover:underline inline-flex items-center gap-1"
+              >
+                <ExternalLink size={12} />
+                Zarządzaj katalogiem dodatków w Ustawieniach
+              </Link>
+              <button
+                type="button"
+                onClick={() => setIsCatalogModalOpen(false)}
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-800 transition-colors cursor-pointer"
+              >
+                Zamknij
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1282,6 +1282,44 @@ export default defineSchema({
   })
     .index("by_offer", ["offerId"])
     .index("by_offer_pos", ["offerId", "positionIndex"]),
+
+  // Szablony dodatków i akcesoriów (słownik w Ustawieniach)
+  offerAdditionTemplates: defineTable({
+    name: v.string(),
+    unit: v.string(), // "szt.", "mb", "kpl."
+    defaultPriceNet: v.number(),
+    defaultCostNet: v.optional(v.number()),
+    defaultInstallationPriceNet: v.optional(v.number()),
+    defaultInstallationCostNet: v.optional(v.number()),
+    category: v.optional(v.string()),
+    description: v.optional(v.string()),
+    isActive: v.boolean(),
+    orderIndex: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_active", ["isActive"])
+    .index("by_category", ["category"]),
+
+  // Dodatki i akcesoria przypisane do konkretnej oferty
+  offerAdditions: defineTable({
+    offerId: v.id("offers"),
+    targetConstructionId: v.optional(v.id("offerConstructions")), // null/undefined = ogólne do całej oferty
+    templateId: v.optional(v.id("offerAdditionTemplates")),
+    name: v.string(),
+    quantity: v.number(),
+    unit: v.string(), // "szt.", "mb", "kpl."
+    priceNet: v.number(), // cena sprzedaży netto za jednostkę
+    costNet: v.optional(v.number()), // koszt jednostkowy netto
+    installationPriceNet: v.optional(v.number()), // cena montażu netto za jednostkę
+    installationCostNet: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    orderIndex: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_offer", ["offerId"])
+    .index("by_construction", ["targetConstructionId"]),
 });
 
 

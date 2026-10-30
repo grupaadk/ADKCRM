@@ -68,6 +68,10 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
     () => (offerData?.opportunity as unknown as OpportunityData) || null,
     [offerData?.opportunity]
   );
+  const additions = useMemo(
+    () => (offerData?.additions as any) || [],
+    [offerData?.additions]
+  );
   const templates: ConstructionTemplate[] = useMemo(
     () => (rawTemplates as unknown as ConstructionTemplate[]) || [],
     [rawTemplates]
@@ -465,6 +469,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
           <OfferSummaryTab
             offer={offer}
             items={items}
+            additions={additions}
             opportunity={opportunity}
             onUpdateOffer={handleOfferChange}
             onOpenPositionInCad={(itemId) => setActiveTab(itemId)}

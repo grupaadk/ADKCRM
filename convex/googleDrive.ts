@@ -2774,6 +2774,14 @@ export function buildOfferReplacements(params: {
     heightMm?: number;
     positionIndex?: number;
   }>;
+  additions?: Array<{
+    name: string;
+    quantity: number;
+    unit?: string;
+    priceNet: number;
+    installationPriceNet?: number;
+    targetConstructionId?: string;
+  }>;
   clientFullName?: string;
   clientFirstName?: string;
   clientLastName?: string;
@@ -2793,6 +2801,7 @@ export function buildOfferReplacements(params: {
   const {
     offer,
     items,
+    additions = [],
     clientFullName = "Klient",
     clientFirstName = "",
     clientLastName = "",
@@ -2824,15 +2833,24 @@ export function buildOfferReplacements(params: {
   const vatAmount = Math.max(0, offer.totalPriceGross - offer.totalPriceNet);
   const vatAmountStr = formatPLNCurrency(vatAmount);
 
-  // 1. Z pozycji konstrukcji CAD (suma installationPriceNet * quantity)
-  const cadMontazNet = items.reduce((acc, it) => {
-    const q = it.quantity || 1;
-    const price =
-      it.installationPriceNet !== undefined && it.installationPriceNet !== null
-        ? it.installationPriceNet
-        : 0;
-    return acc + price * q;
-  }, 0);
+  // 1. Z pozycji konstrukcji CAD oraz dodatków (suma installationPriceNet * quantity)
+  const cadMontazNet =
+    items.reduce((acc, it) => {
+      const q = it.quantity || 1;
+      const price =
+        it.installationPriceNet !== undefined && it.installationPriceNet !== null
+          ? it.installationPriceNet
+          : 0;
+      return acc + price * q;
+    }, 0) +
+    additions.reduce((acc, add) => {
+      const q = add.quantity || 1;
+      const price =
+        add.installationPriceNet !== undefined && add.installationPriceNet !== null
+          ? add.installationPriceNet
+          : 0;
+      return acc + price * q;
+    }, 0);
 
   // 2. Fallback dla ofert ze standardową pozycją o nazwie "Montaż"
   const legacyMontazItems = items.filter(
@@ -2876,12 +2894,36 @@ export function buildOfferReplacements(params: {
       ? `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`
       : totalNetStr;
 
+  // Wartość dodatków i akcesoriów
+  const totalAdditionsNet = additions.reduce(
+    (acc, add) => acc + (add.priceNet || 0) * (add.quantity || 1),
+    0
+  );
+  const additionsNetStr = formatPLNCurrency(totalAdditionsNet);
+  const totalAdditionsGross = Math.round(totalAdditionsNet * (1 + vatRate / 100));
+  const additionsGrossStr = formatPLNCurrency(totalAdditionsGross);
+
+  const additionsListStr = additions
+    .map((add, idx) => {
+      const u = add.unit || "szt.";
+      const totalLine = (add.priceNet || 0) * (add.quantity || 1);
+      const inst =
+        (add.installationPriceNet || 0) > 0
+          ? ` (+ montaż: ${formatPLNCurrency((add.installationPriceNet || 0) * (add.quantity || 1))})`
+          : "";
+      return `${idx + 1}. ${add.name} | ${add.quantity} ${u} × ${formatPLNCurrency(add.priceNet)} = ${formatPLNCurrency(totalLine)}${inst}`;
+    })
+    .join("\n");
+
+  const additionsTableStr = additionsListStr || "Brak dodatków";
+
   const razemPodsumowanieLinia = `RAZEM =  ${totalNetStr} netto + ${vatRateStr}VAT = ${totalGrossStr} brutto`;
 
   const podsumowanieFinansowePelne = [
     "RAZEM:",
     "Konstrukcje:",
     `    ${rabatKalkulacja}`,
+    ...(totalAdditionsNet > 0 ? ["Dodatki i akcesoria:", `    ${additionsNetStr}`] : []),
     ...(montazNet > 0 ? ["Montaż:", `${montazNetStr}`] : []),
     "",
     "",
@@ -2967,6 +3009,17 @@ export function buildOfferReplacements(params: {
     { placeholder: "{{rabat_kalkulacja}}", value: rabatKalkulacja },
     { placeholder: "{{razem_podsumowanie}}", value: razemPodsumowanieLinia },
     { placeholder: "{{razem_linia}}", value: razemPodsumowanieLinia },
+
+    // Dedykowane makra dodatków i akcesoriów
+    { placeholder: "{{dodatki_suma_netto}}", value: additionsNetStr },
+    { placeholder: "{{DODATKI_SUMA_NETTO}}", value: additionsNetStr },
+    { placeholder: "{{dodatki_suma_brutto}}", value: additionsGrossStr },
+    { placeholder: "{{DODATKI_SUMA_BRUTTO}}", value: additionsGrossStr },
+    { placeholder: "{{dodatki_tabela}}", value: additionsTableStr },
+    { placeholder: "{{dodatki_lista}}", value: additionsListStr },
+    { placeholder: "{{dodatki}}", value: additionsTableStr },
+    { placeholder: "{{Dodatki}}", value: additionsTableStr },
+    { placeholder: "{{DODATKI}}", value: additionsTableStr },
 
     // 1. Z jednostkami walutowymi i dopiskiem netto (aby nie dublować "zł" w szablonie)
     { placeholder: "{{Montaż}} zł netto", value: `${montazNetStr} netto` },
@@ -3127,7 +3180,7 @@ export const generateOfferPdf = action({
     if (!offerData || !offerData.offer) {
       throw new Error("Oferta nie została znaleziona.");
     }
-    const { offer, items, opportunity, client, service } = offerData;
+    const { offer, items, additions, opportunity, client, service } = offerData;
     if (!opportunity) {
       throw new Error("Szansa sprzedaży powiązana z ofertą nie została znaleziona.");
     }
@@ -3252,6 +3305,7 @@ export const generateOfferPdf = action({
     const slidesFinancials = buildOfferReplacements({
       offer,
       items,
+      additions,
       clientFullName,
       clientFirstName,
       clientLastName,
@@ -3272,6 +3326,7 @@ export const generateOfferPdf = action({
     const docsFinancials = buildOfferReplacements({
       offer,
       items,
+      additions,
       clientFullName,
       clientFirstName,
       clientLastName,
