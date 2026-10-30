@@ -2,17 +2,19 @@
 
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import toast from "react-hot-toast";
 
 import { CadCanvas, CadConstructionItem } from "./CadCanvas";
 import { LeftPropertiesPanel } from "./LeftPropertiesPanel";
 import { VerticalPositionsList } from "./VerticalPositionsList";
 import { BottomTabsBar, ConstructionTemplate } from "./BottomTabsBar";
-import { OfferSummaryTab, OfferData, OpportunityData } from "./OfferSummaryTab";
+import { OfferSummaryTab, OfferData, OpportunityData, OfferAdditionItem } from "./OfferSummaryTab";
 import { AddConstructionModal, SelectedConstructionEntry } from "./AddConstructionModal";
 import { AllConstructionsCadView } from "./AllConstructionsCadView";
+import { uploadCadSnapshotsForOffer } from "./cadSvgRenderer";
 import {
   ArrowLeft,
   Check,
@@ -55,6 +57,48 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const generateOfferPdf = useAction(api.googleDrive.generateOfferPdf);
+  const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
+
+  const handleGeneratePdf = async () => {
+    if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    await new Promise((r) => setTimeout(r, 250));
+
+    setIsGeneratingPdf(true);
+    const toastId = toast.loading("Przygotowywanie szkiców CAD i generowanie oferty PDF...");
+    try {
+      let itemsCadImages: Array<{ positionIndex: number; imageUrl: string }> | undefined;
+      try {
+        if (items.length > 0) {
+          itemsCadImages = await uploadCadSnapshotsForOffer(items, generateUploadUrl);
+        }
+      } catch (cadErr) {
+        console.warn("[handleGeneratePdf] Ostrzeżenie przy generowaniu zrzutów CAD:", cadErr);
+      }
+
+      const result = await generateOfferPdf({
+        offerId,
+        itemsCadImages,
+      });
+      toast.success(
+        "Oferta PDF została wygenerowana i zapisana w folderze 'Oferty - wysłane do Klienta'!",
+        { id: toastId, duration: 6000 }
+      );
+      if (result.pdfUrl) {
+        window.open(result.pdfUrl, "_blank");
+      }
+    } catch (err: unknown) {
+      console.error("[generateOfferPdf] error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Błąd generowania PDF: ${msg}`, { id: toastId, duration: 7000 });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   const items: CadConstructionItem[] = useMemo(
     () => (offerData?.items as unknown as CadConstructionItem[]) || [],
@@ -69,7 +113,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
     [offerData?.opportunity]
   );
   const additions = useMemo(
-    () => (offerData?.additions as any) || [],
+    () => (offerData?.additions as unknown as OfferAdditionItem[]) || [],
     [offerData?.additions]
   );
   const templates: ConstructionTemplate[] = useMemo(
@@ -478,6 +522,8 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
             onDeletePosition={handleDelete}
             onAddNewPosition={() => setIsAddModalOpen(true)}
             onUpdateDimensions={handleUpdatePositionDimensions}
+            onGeneratePdf={handleGeneratePdf}
+            isGeneratingPdf={isGeneratingPdf}
           />
         ) : (
           <div className="flex-1 flex overflow-hidden">
@@ -511,6 +557,8 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
         onSelectTab={(tab) => setActiveTab(tab)}
         onOpenAddModal={() => setIsAddModalOpen(true)}
         onAddConstruction={handleAddConstruction}
+        onGenerateOffer={handleGeneratePdf}
+        isGeneratingOffer={isGeneratingPdf}
       />
 
       {/* Modal wyboru szablonu konstrukcji */}

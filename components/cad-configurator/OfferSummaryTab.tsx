@@ -118,6 +118,8 @@ interface OfferSummaryTabProps {
     itemId: string,
     patch: { widthMm?: number; heightMm?: number }
   ) => void;
+  onGeneratePdf?: () => Promise<void>;
+  isGeneratingPdf?: boolean;
   readOnly?: boolean;
 }
 
@@ -601,12 +603,15 @@ export function OfferSummaryTab({
   onDeletePosition,
   onAddNewPosition,
   onUpdateDimensions,
+  onGeneratePdf,
+  isGeneratingPdf: externalIsGeneratingPdf,
   readOnly = false,
 }: OfferSummaryTabProps) {
   const router = useRouter();
   const [editingTitle, setEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(offer.title);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [internalIsGeneratingPdf, setInternalIsGeneratingPdf] = useState(false);
+  const isGeneratingPdf = externalIsGeneratingPdf ?? internalIsGeneratingPdf;
   const [isDuplicating, setIsDuplicating] = useState(false);
 
   const [notes, setNotes] = useState(offer.notes || "");
@@ -766,13 +771,18 @@ export function OfferSummaryTab({
   };
 
   const handlePrintPdf = async () => {
+    if (onGeneratePdf) {
+      await onGeneratePdf();
+      return;
+    }
+
     if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
     // Krótka chwila na ukończenie ewentualnych mutacji w toku (np. z debounced zapisu dodatków)
     await new Promise((r) => setTimeout(r, 250));
 
-    setIsGeneratingPdf(true);
+    setInternalIsGeneratingPdf(true);
     const toastId = toast.loading("Przygotowywanie szkiców CAD i generowanie oferty PDF...");
     try {
       // 1. Wygeneruj zrzuty PNG ze szkiców CAD konstrukcji (jeśli są)
@@ -802,7 +812,7 @@ export function OfferSummaryTab({
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(`Błąd generowania PDF: ${msg}`, { id: toastId, duration: 7000 });
     } finally {
-      setIsGeneratingPdf(false);
+      setInternalIsGeneratingPdf(false);
     }
   };
 

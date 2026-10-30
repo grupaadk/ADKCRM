@@ -5,7 +5,7 @@ import { CadConstructionItem } from "./CadCanvas";
 import {
   FileText,
   Layers,
-  Plus,
+  Loader2,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -27,19 +27,21 @@ export interface ConstructionTemplate {
 interface BottomTabsBarProps {
   activeTab: "offer" | "all-cad" | string; // 'offer', 'all-cad' lub ID pozycji
   items: CadConstructionItem[];
-  templates: ConstructionTemplate[];
+  templates?: ConstructionTemplate[];
   onSelectTab: (tabId: "offer" | "all-cad" | string) => void;
-  onOpenAddModal: () => void;
+  onOpenAddModal?: () => void;
   onAddConstruction?: (templateId?: string) => void;
+  onGenerateOffer?: () => void;
+  isGeneratingOffer?: boolean;
   readOnly?: boolean;
 }
 
 export function BottomTabsBar({
   activeTab,
   items,
-  templates,
   onSelectTab,
-  onOpenAddModal,
+  onGenerateOffer,
+  isGeneratingOffer = false,
   readOnly = false,
 }: BottomTabsBarProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -203,23 +205,23 @@ export function BottomTabsBar({
         )}
       </div>
 
-      {/* Right side: + Dodaj konstrukcję & Status indicator */}
+      {/* Right side: CTA do generowania oferty & Status indicator */}
       <div className="flex items-center gap-2 shrink-0 pl-2 bg-white border-l border-[#e3e7ee]/60 z-10">
         {!readOnly && (
           <button
             type="button"
-            onClick={onOpenAddModal}
-            title="Wybierz konstrukcję z bazy (dostępne szablony)"
-            className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[#4ABBC3] hover:bg-[#35a3ab] text-white flex items-center gap-1.5 transition-colors shadow-2xs shrink-0 cursor-pointer"
+            disabled={isGeneratingOffer}
+            onClick={onGenerateOffer}
+            title="Wygeneruj ofertę w PDF (szablon Google Docs) i zapisz w folderze 'Oferty - wysłane do Klienta'"
+            className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[#4ABBC3] hover:bg-[#35a3ab] disabled:opacity-60 text-white flex items-center gap-1.5 transition-colors shadow-2xs shrink-0 cursor-pointer"
           >
-            <Plus size={13} strokeWidth={2.5} />
-            <span className="hidden sm:inline">Dodaj konstrukcję</span>
-            <span className="sm:hidden">Dodaj</span>
-            {templates.length > 0 && (
-              <span className="bg-white/20 text-white text-[10px] px-1.5 rounded-full font-mono font-bold">
-                {templates.length}
-              </span>
+            {isGeneratingOffer ? (
+              <Loader2 size={13} className="animate-spin text-white" />
+            ) : (
+              <FileText size={13} strokeWidth={2.2} />
             )}
+            <span className="hidden sm:inline">{isGeneratingOffer ? "Generowanie..." : "Generuj ofertę"}</span>
+            <span className="sm:hidden">{isGeneratingOffer ? "..." : "Generuj"}</span>
           </button>
         )}
 
