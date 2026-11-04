@@ -235,6 +235,28 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
     })
   }, [orders, viewFilter, statusFilter, clientFilter, activeUserFilters, sortField, sortDir, debouncedSearch, financialBalanceByOrder])
 
+  const visibleSummary = useMemo(() => {
+    if (!displayOrders || !financialBalanceByOrder) {
+      return { count: 0, totalBalance: 0, totalNet: 0, overallMargin: null }
+    }
+    let totalBalance = 0
+    let totalNet = 0
+    let totalInvNet = 0
+    for (const order of displayOrders) {
+      const fin = financialBalanceByOrder.get(order._id)
+      totalBalance += fin?.balNet ?? 0
+      totalInvNet += fin?.invNet ?? 0
+      totalNet += order.totalNet ?? 0
+    }
+    const overallMargin = totalInvNet > 0 ? (totalBalance / totalInvNet) * 100 : null
+    return {
+      count: displayOrders.length,
+      totalBalance,
+      totalNet,
+      overallMargin,
+    }
+  }, [displayOrders, financialBalanceByOrder])
+
   const clientFilterLabels: { key: ClientFilter; label: string }[] = [
     { key: "all", label: "Wszyscy" },
     { key: "individual", label: "Indywidualni" },
@@ -429,11 +451,11 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
       )}
 
       {/* Table */}
-      <div className="panel" style={{ overflow: "hidden" }}>
+      <div className="panel" style={{ position: "relative" }}>
         <table className="tbl">
           <thead>
             <tr>
-              <th style={{ width: 110 }}>Zlecenie</th>
+              <th style={{ width: 110, borderTopLeftRadius: 8 }}>Zlecenie</th>
               <th style={{ cursor: "pointer", width: 140 }} onClick={() => handleSort("client")}>
                 Klient <SortIcon field="client" sortField={sortField} sortDir={sortDir} />
               </th>
@@ -451,7 +473,7 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
                 Start <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
               </th>
               <th style={{ width: 95 }}>Koniec</th>
-              <th style={{ cursor: "pointer", width: 110, textAlign: "right" }} onClick={() => handleSort("totalGross")}>
+              <th style={{ cursor: "pointer", width: 110, textAlign: "right", borderTopRightRadius: 8 }} onClick={() => handleSort("totalGross")}>
                 Netto <SortIcon field="totalGross" sortField={sortField} sortDir={sortDir} />
               </th>
             </tr>
@@ -577,6 +599,108 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
               )
             })}
           </tbody>
+          {!isLoading && displayOrders && displayOrders.length > 0 && (
+            <tfoot>
+              <tr>
+                <td
+                  colSpan={5}
+                  style={{
+                    position: "sticky",
+                    bottom: 0,
+                    zIndex: 10,
+                    background: "var(--panel-2)",
+                    borderTop: "2px solid var(--line)",
+                    borderBottomLeftRadius: 8,
+                    boxShadow: "0 -3px 8px rgba(0, 0, 0, 0.05)",
+                    padding: "10px 12px",
+                    fontWeight: 600,
+                    fontSize: 12,
+                    color: "var(--text-strong)",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>Suma dla widocznych zleceń:</span>
+                    <span style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "2px 7px",
+                      borderRadius: 12,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      background: "var(--accent-soft)",
+                      color: "var(--accent)",
+                    }}>
+                      {visibleSummary.count}
+                      {counts.all > visibleSummary.count && (
+                        <span style={{ fontWeight: 400, marginLeft: 3, opacity: 0.8 }}>
+                          z {counts.all}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </td>
+                <td
+                  className="mono tnum"
+                  style={{
+                    position: "sticky",
+                    bottom: 0,
+                    zIndex: 10,
+                    background: "var(--panel-2)",
+                    borderTop: "2px solid var(--line)",
+                    boxShadow: "0 -3px 8px rgba(0, 0, 0, 0.05)",
+                    textAlign: "right",
+                    padding: "10px 12px",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+                    <span style={{
+                      fontWeight: 700,
+                      fontSize: 12.5,
+                      color: visibleSummary.totalBalance >= 0 ? "var(--ok, #16a34a)" : "var(--danger, #dc2626)",
+                    }}>
+                      {visibleSummary.totalBalance.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN
+                    </span>
+                    {visibleSummary.overallMargin !== null && (
+                      <span style={{ fontSize: 9.5, color: "var(--text-mute)" }}>
+                        marża ogólna {visibleSummary.overallMargin.toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td
+                  colSpan={2}
+                  style={{
+                    position: "sticky",
+                    bottom: 0,
+                    zIndex: 10,
+                    background: "var(--panel-2)",
+                    borderTop: "2px solid var(--line)",
+                    boxShadow: "0 -3px 8px rgba(0, 0, 0, 0.05)",
+                    padding: "10px 12px",
+                  }}
+                />
+                <td
+                  className="mono tnum"
+                  style={{
+                    position: "sticky",
+                    bottom: 0,
+                    zIndex: 10,
+                    background: "var(--panel-2)",
+                    borderTop: "2px solid var(--line)",
+                    borderBottomRightRadius: 8,
+                    boxShadow: "0 -3px 8px rgba(0, 0, 0, 0.05)",
+                    textAlign: "right",
+                    padding: "10px 12px",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    color: "var(--text-strong)",
+                  }}
+                >
+                  {visibleSummary.totalNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
