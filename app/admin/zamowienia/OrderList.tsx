@@ -644,11 +644,11 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
                 Usługi <SortIcon field="services" sortField={sortField} sortDir={sortDir} />
               </th>
               <th style={{ width: 100 }}>Dokumenty</th>
-              <th style={{ cursor: "pointer", width: 130, textAlign: "right" }} onClick={() => handleSort("balance")}>
-                Bilans (Zysk) <SortIcon field="balance" sortField={sortField} sortDir={sortDir} />
-              </th>
               <th style={{ cursor: "pointer", width: 110 }} onClick={() => handleSort("rating")}>
                 Rating <SortIcon field="rating" sortField={sortField} sortDir={sortDir} />
+              </th>
+              <th style={{ cursor: "pointer", width: 130, textAlign: "right" }} onClick={() => handleSort("balance")}>
+                Bilans (Zysk) <SortIcon field="balance" sortField={sortField} sortDir={sortDir} />
               </th>
               <th style={{ cursor: "pointer", width: 110, textAlign: "right", borderTopRightRadius: 8 }} onClick={() => handleSort("totalGross")}>
                 Netto <SortIcon field="totalGross" sortField={sortField} sortDir={sortDir} />
@@ -779,6 +779,9 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
                     )}
                   </td>
                   <td><DocumentProgressTiles documents={order.documents} /></td>
+                  <td style={{ verticalAlign: "middle", width: 110 }}>
+                    <OrderRatingProgressBar profit={order.profit} workDays={order.workDays} />
+                  </td>
                   <td className="mono tnum" style={{ textAlign: "right", fontSize: 11.5 }}>
                     {(() => {
                       if (!financialBalanceByOrder) return <span className="mute">—</span>
@@ -798,9 +801,6 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
                         </div>
                       )
                     })()}
-                  </td>
-                  <td style={{ verticalAlign: "middle", width: 110 }}>
-                    <OrderRatingProgressBar profit={order.profit} workDays={order.workDays} />
                   </td>
                   <td className="mono tnum" style={{ textAlign: "right" }}>
                     {order.totalNet != null
@@ -852,6 +852,17 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
                   </div>
                 </td>
                 <td
+                  style={{
+                    position: "sticky",
+                    bottom: 0,
+                    zIndex: 10,
+                    background: "var(--panel-2)",
+                    borderTop: "2px solid var(--line)",
+                    boxShadow: "0 -3px 8px rgba(0, 0, 0, 0.05)",
+                    padding: "10px 12px",
+                  }}
+                />
+                <td
                   className="mono tnum"
                   style={{
                     position: "sticky",
@@ -879,17 +890,6 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
                     )}
                   </div>
                 </td>
-                <td
-                  style={{
-                    position: "sticky",
-                    bottom: 0,
-                    zIndex: 10,
-                    background: "var(--panel-2)",
-                    borderTop: "2px solid var(--line)",
-                    boxShadow: "0 -3px 8px rgba(0, 0, 0, 0.05)",
-                    padding: "10px 12px",
-                  }}
-                />
                 <td
                   className="mono tnum"
                   style={{
