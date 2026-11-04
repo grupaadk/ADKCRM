@@ -15,11 +15,25 @@ export default function ZamowieniaPage() {
 
   const [showModal, setShowModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(() => {
+    if (typeof window === "undefined") return true
+    try {
+      const saved = localStorage.getItem("zamowienia_show_filters")
+      return saved !== null ? saved === "true" : true
+    } catch {
+      return true
+    }
+  })
   const [showReports, setShowReports] = useState(false)
 
   function toggleFilters() {
-    setShowFilters((v) => !v)
+    setShowFilters((v) => {
+      const next = !v
+      try {
+        localStorage.setItem("zamowienia_show_filters", String(next))
+      } catch {}
+      return next
+    })
     setShowReports(false)
   }
 

@@ -111,7 +111,7 @@ function OrderRatingProgressBar({ profit, workDays }: { profit?: number | null; 
 
 
 
-export default function OrderList({ searchTerm = "", showFilters = false, showReports = false }: { searchTerm?: string, showFilters?: boolean, showReports?: boolean }) {
+export default function OrderList({ searchTerm = "", showFilters = true, showReports = false }: { searchTerm?: string, showFilters?: boolean, showReports?: boolean }) {
   const router = useRouter()
   const statusLabels = useStatusLabels()
   const statuses = useStatuses()
@@ -324,34 +324,6 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
     { key: "completed", label: "Zakończone", count: counts.completed },
   ]
 
-  function FilterBtn({ isActive, onClick, children }: { isActive: boolean; onClick: () => void; children: React.ReactNode }) {
-    return (
-      <button
-        onClick={onClick}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          padding: "4px 10px", borderRadius: 4, fontSize: 11.5,
-          background: isActive ? "var(--accent-soft)" : "transparent",
-          color: isActive ? "var(--accent)" : "var(--text-mute)",
-          border: "1px solid", borderColor: isActive ? "var(--accent-line)" : "transparent",
-          fontWeight: isActive ? 600 : 500, cursor: "pointer", fontFamily: "inherit",
-        }}
-      >
-        {children}
-      </button>
-    )
-  }
-
-  function CountBadge({ count, active }: { count: number; active: boolean }) {
-    return (
-      <span style={{
-        fontSize: 10, fontWeight: 600, padding: "0 5px", borderRadius: 999,
-        background: active ? "var(--accent)" : "var(--panel-3)",
-        color: active ? "#fff" : "var(--text-mute)",
-      }}>{count}</span>
-    )
-  }
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Reports Dashboard */}
@@ -361,132 +333,272 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
         </div>
       )}
 
-      {/* Filters Area */}
+      {/* Minimalist Filters Toolbar */}
       {showFilters && (
-        <div className="panel" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Top row: Widok + Status */}
-          <div style={{ display: "flex", gap: 16 }}>
-            {/* Widok */}
-            <div style={{
-              flex: "0 0 auto",
-              background: "var(--panel-2)",
-              borderRadius: 10,
-              padding: "12px 16px",
-              border: "1px solid var(--line)",
-            }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.6 }}>Widok</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {viewTabs.map(({ key, label, count }) => (
-                  <FilterBtn key={key} isActive={viewFilter === key} onClick={() => setViewFilter(key)}>
-                    {label} <CountBadge count={count} active={viewFilter === key} />
-                  </FilterBtn>
-                ))}
+        <div
+          className="panel"
+          style={{
+            padding: "8px 14px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            background: "var(--panel)",
+            border: "1px solid var(--line)",
+            borderRadius: 8,
+          }}
+        >
+          {/* Top row: Widok + Typ klienta + Reset */}
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+              {/* Widok segmented control */}
+              <div style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 2,
+                background: "var(--panel-2)",
+                padding: 2,
+                borderRadius: 7,
+                border: "1px solid var(--line)",
+              }}>
+                {viewTabs.map(({ key, label, count }) => {
+                  const active = viewFilter === key
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setViewFilter(key)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        padding: "3px 9px",
+                        borderRadius: 5,
+                        fontSize: 11.5,
+                        fontWeight: active ? 600 : 500,
+                        background: active ? "var(--panel)" : "transparent",
+                        color: active ? "var(--text-strong)" : "var(--text-mute)",
+                        boxShadow: active ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                        border: "none",
+                        cursor: "pointer",
+                        transition: "all 0.12s ease",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      {label}
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        padding: "0 4px",
+                        borderRadius: 999,
+                        background: active ? "var(--accent)" : "var(--panel-3)",
+                        color: active ? "#fff" : "var(--text-mute)",
+                      }}>
+                        {count}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div style={{ width: 1, height: 16, background: "var(--line)" }} />
+
+              {/* Typ klienta segmented control */}
+              <div style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 2,
+                background: "var(--panel-2)",
+                padding: 2,
+                borderRadius: 7,
+                border: "1px solid var(--line)",
+              }}>
+                {clientFilterLabels.map(({ key, label }) => {
+                  const active = clientFilter === key
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setClientFilter(key)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "3px 9px",
+                        borderRadius: 5,
+                        fontSize: 11.5,
+                        fontWeight: active ? 600 : 500,
+                        background: active ? "var(--panel)" : "transparent",
+                        color: active ? "var(--text-strong)" : "var(--text-mute)",
+                        boxShadow: active ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                        border: "none",
+                        cursor: "pointer",
+                        transition: "all 0.12s ease",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
-            {/* Status */}
-            <div style={{
-              flex: 1,
-              background: "var(--panel-2)",
-              borderRadius: 10,
-              padding: "12px 16px",
-              border: "1px solid var(--line)",
-            }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.6 }}>Status zlecenia</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {statuses.map((st) => st.key).filter((s) => (statusCounts[s] ?? 0) > 0).map((s) => (
-                  <FilterBtn key={s} isActive={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? null : s)}>
-                    {statusLabels[s] ?? s} <CountBadge count={statusCounts[s] ?? 0} active={statusFilter === s} />
-                  </FilterBtn>
-                ))}
-              </div>
-            </div>
+            {/* Clear filters button */}
+            {(statusFilter !== null || clientFilter !== "all" || activeUserFilters.size > 0 || viewFilter !== "active") && (
+              <button
+                onClick={() => {
+                  setStatusFilter(null)
+                  setClientFilter("all")
+                  setActiveUserFilters(new Set())
+                  setViewFilter("active")
+                  if (currentUser?._id) {
+                    localStorage.removeItem(`zamowienia_user_filter_${currentUser._id}`)
+                  }
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "var(--text-mute)",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  fontFamily: "inherit",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-strong)" }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-mute)" }}
+              >
+                ✕ Wyczyść filtry
+              </button>
+            )}
           </div>
 
-          {/* Bottom row: Typ klienta + Przypisany */}
-          <div style={{ display: "flex", gap: 16 }}>
-            {/* Typ klienta */}
-            <div style={{
-              flex: "0 0 auto",
-              background: "var(--panel-2)",
-              borderRadius: 10,
-              padding: "12px 16px",
-              border: "1px solid var(--line)",
-            }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.6 }}>Typ klienta</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {clientFilterLabels.map(({ key, label }) => (
-                  <FilterBtn key={key} isActive={clientFilter === key} onClick={() => setClientFilter(key)}>
-                    {label}
-                  </FilterBtn>
-                ))}
-              </div>
+          {/* Bottom row: Statusy + Opiekunowie */}
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 14, paddingTop: 4, borderTop: "1px solid var(--line)" }}>
+            {/* Statusy */}
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5, marginRight: 2 }}>
+                Status:
+              </span>
+              {statuses.map((st) => st.key).filter((s) => (statusCounts[s] ?? 0) > 0).map((s) => {
+                const active = statusFilter === s
+                const count = statusCounts[s] ?? 0
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(active ? null : s)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "2px 8px",
+                      borderRadius: 14,
+                      fontSize: 11,
+                      fontWeight: active ? 600 : 500,
+                      background: active ? "var(--accent-soft)" : "transparent",
+                      color: active ? "var(--accent)" : "var(--text-dim)",
+                      border: `1px solid ${active ? "var(--accent-line)" : "transparent"}`,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      transition: "all 0.1s ease",
+                    }}
+                  >
+                    <span>{statusLabels[s] ?? s}</span>
+                    <span style={{
+                      fontSize: 9.5,
+                      fontWeight: 600,
+                      padding: "0 4px",
+                      borderRadius: 999,
+                      background: active ? "var(--accent)" : "var(--panel-3)",
+                      color: active ? "#fff" : "var(--text-mute)",
+                    }}>
+                      {count}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
+
+            <div style={{ width: 1, height: 14, background: "var(--line)" }} />
 
             {/* Przypisany */}
             {allUsers && (
-              <div style={{
-                flex: 1,
-                background: "var(--panel-2)",
-                borderRadius: 10,
-                padding: "12px 16px",
-                border: "1px solid var(--line)",
-              }}>
-                <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mute)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.6 }}>Przypisany</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {[...allUsers]
-                    .sort((a, b) => {
-                      if (a._id === currentUser?._id) return -1
-                      if (b._id === currentUser?._id) return 1
-                      return 0
-                    })
-                    .map(user => {
-                      const name = user.displayName ?? user.login ?? "?"
-                      const isMe = user._id === currentUser?._id
-                      const active = activeUserFilters.has(user._id as string)
-                      return (
-                        <button
-                          key={user._id}
-                          onClick={() => toggleUserFilter(user._id as string)}
-                          style={{
-                            display: "inline-flex", alignItems: "center", gap: 5,
-                            padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-                            background: active ? "var(--panel-3)" : "transparent",
-                            color: active ? "var(--text-strong)" : "var(--text-mute)",
-                            border: `1.5px solid ${active ? "var(--text-mute)" : "transparent"}`,
-                            fontWeight: active ? 600 : 500, cursor: "pointer",
-                            transition: "all 0.12s", fontFamily: "inherit",
-                          }}
-                        >
-                          <span style={{
-                            width: 8, height: 8, borderRadius: "50%",
-                            background: user.color ? (active ? user.color : `${user.color}80`) : (active ? "#64748b" : "#64748b40"),
-                            flexShrink: 0,
-                          }} />
-                          {name}{isMe ? " (Ty)" : ""}
-                        </button>
-                      )
-                    })
-                  }
-                  <button
-                    onClick={() => toggleUserFilter("__none__")}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 5,
-                      padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-                      background: activeUserFilters.has("__none__") ? "var(--panel-3)" : "transparent",
-                      color: activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)",
-                      border: `1.5px solid ${activeUserFilters.has("__none__") ? "var(--text-mute)" : "transparent"}`,
-                      fontWeight: activeUserFilters.has("__none__") ? 600 : 500, cursor: "pointer",
-                      transition: "all 0.12s", fontFamily: "inherit",
-                    }}
-                  >
-                    <span style={{
-                      width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-                      border: `1.5px dashed ${activeUserFilters.has("__none__") ? "var(--text-strong)" : "var(--text-mute)"}`,
-                    }} />
-                    Bez przypisania
-                  </button>
-                </div>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: 0.5, marginRight: 2 }}>
+                  Opiekun:
+                </span>
+                {[...allUsers]
+                  .sort((a, b) => {
+                    if (a._id === currentUser?._id) return -1
+                    if (b._id === currentUser?._id) return 1
+                    return 0
+                  })
+                  .map(user => {
+                    const name = user.displayName ?? user.login ?? "?"
+                    const isMe = user._id === currentUser?._id
+                    const active = activeUserFilters.has(user._id as string)
+                    return (
+                      <button
+                        key={user._id}
+                        onClick={() => toggleUserFilter(user._id as string)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          padding: "2px 8px",
+                          borderRadius: 14,
+                          fontSize: 11,
+                          background: active ? "var(--panel-3)" : "transparent",
+                          color: active ? "var(--text-strong)" : "var(--text-dim)",
+                          border: `1px solid ${active ? "var(--line-2)" : "transparent"}`,
+                          fontWeight: active ? 600 : 500,
+                          cursor: "pointer",
+                          transition: "all 0.1s ease",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <span style={{
+                          width: 7, height: 7, borderRadius: "50%",
+                          background: user.color ? (active ? user.color : `${user.color}80`) : (active ? "#64748b" : "#64748b40"),
+                          flexShrink: 0,
+                        }} />
+                        {name}{isMe ? " (Ty)" : ""}
+                      </button>
+                    )
+                  })
+                }
+                {/* Bez przypisania */}
+                {(() => {
+                  const active = activeUserFilters.has("__none__")
+                  return (
+                    <button
+                      onClick={() => toggleUserFilter("__none__")}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        padding: "2px 8px",
+                        borderRadius: 14,
+                        fontSize: 11,
+                        background: active ? "var(--panel-3)" : "transparent",
+                        color: active ? "var(--text-strong)" : "var(--text-dim)",
+                        border: `1px solid ${active ? "var(--line-2)" : "transparent"}`,
+                        fontWeight: active ? 600 : 500,
+                        cursor: "pointer",
+                        transition: "all 0.1s ease",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      <span style={{
+                        width: 7, height: 7, borderRadius: "50%",
+                        border: "1.5px dashed var(--text-mute)",
+                        flexShrink: 0,
+                      }} />
+                      Bez przypisania
+                    </button>
+                  )
+                })()}
               </div>
             )}
           </div>
