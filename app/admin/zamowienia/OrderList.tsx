@@ -8,9 +8,10 @@ import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
 import { CrmEmptyState, fmtDate } from "@/components/crm-ui"
 import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
+import { calculateOrderRating } from "@/lib/rating"
 import OrdersReportDashboard from "./OrdersReportDashboard"
 
-type SortField = "client" | "balance" | "status" | "services" | "createdAt" | "totalGross"
+type SortField = "client" | "balance" | "rating" | "status" | "services" | "createdAt" | "totalGross"
 type SortDirection = "asc" | "desc"
 
 type Order = {
@@ -25,6 +26,7 @@ type Order = {
   investmentStreet?: string
   comment?: string
   profit?: number | null
+  workDays?: number | null
   client: {
     firstName: string
     lastName: string
@@ -59,6 +61,52 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
   return sortDir === "asc"
     ? <ChevronUp className={`${cls} size-3`} style={{ color: "var(--text-strong)" }} />
     : <ChevronDown className={`${cls} size-3`} style={{ color: "var(--text-strong)" }} />
+}
+
+function OrderRatingProgressBar({ profit, workDays }: { profit?: number | null; workDays?: number | null }) {
+  const { dailyProfit, rating, color, label, description, percentage } = calculateOrderRating(profit, workDays)
+
+  return (
+    <div
+      title={`Rating: ${label}${dailyProfit !== null ? ` (${dailyProfit.toLocaleString("pl-PL")} zł/d)` : ""} — ${description}`}
+      style={{ minWidth: 85, maxWidth: 110 }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+        <span style={{ fontSize: 9.5, fontWeight: 600, color: "var(--text-mute)", letterSpacing: "0.02em" }}>
+          Rating
+        </span>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: rating !== null ? color : "var(--text-mute)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {label}
+        </span>
+      </div>
+      <div
+        style={{
+          width: "100%",
+          height: 5,
+          borderRadius: 9999,
+          backgroundColor: "#e2e8f0",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${percentage}%`,
+            height: "100%",
+            borderRadius: 9999,
+            backgroundColor: color,
+            transition: "width 0.3s ease, background-color 0.3s ease",
+          }}
+        />
+      </div>
+    </div>
+  )
 }
 
 
@@ -227,6 +275,12 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
           const aBal = financialBalanceByOrder?.get(a._id)?.balNet ?? 0
           const bBal = financialBalanceByOrder?.get(b._id)?.balNet ?? 0
           cmp = aBal - bBal
+          break
+        }
+        case "rating": {
+          const aDaily = calculateOrderRating(a.profit, a.workDays).dailyProfit ?? -Infinity
+          const bDaily = calculateOrderRating(b.profit, b.workDays).dailyProfit ?? -Infinity
+          cmp = aDaily - bDaily
           break
         }
         case "totalGross": cmp = (a.totalGross ?? 0) - (b.totalGross ?? 0); break
@@ -469,6 +523,9 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
               <th style={{ cursor: "pointer", width: 130, textAlign: "right" }} onClick={() => handleSort("balance")}>
                 Bilans (Zysk) <SortIcon field="balance" sortField={sortField} sortDir={sortDir} />
               </th>
+              <th style={{ cursor: "pointer", width: 110 }} onClick={() => handleSort("rating")}>
+                Rating <SortIcon field="rating" sortField={sortField} sortDir={sortDir} />
+              </th>
               <th style={{ cursor: "pointer", width: 95 }} onClick={() => handleSort("createdAt")}>
                 Start <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
               </th>
@@ -481,7 +538,7 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
           <tbody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
               <tr key={i}>
-                {Array.from({ length: 9 }).map((_, j) => (
+                {Array.from({ length: 10 }).map((_, j) => (
                   <td key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} /></td>
                 ))}
               </tr>
@@ -489,7 +546,7 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
 
             {!isLoading && displayOrders?.length === 0 && (
               <tr>
-                <td colSpan={9}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
+                <td colSpan={10}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
               </tr>
             )}
 
@@ -584,6 +641,9 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
                       )
                     })()}
                   </td>
+                  <td style={{ verticalAlign: "middle", width: 110 }}>
+                    <OrderRatingProgressBar profit={order.profit} workDays={order.workDays} />
+                  </td>
                   <td className="mono" style={{ fontSize: 11 }}>
                     {order.projectStartDate ? fmtDate(order.projectStartDate) : <span className="mute">—</span>}
                   </td>
@@ -667,6 +727,17 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
                     )}
                   </div>
                 </td>
+                <td
+                  style={{
+                    position: "sticky",
+                    bottom: 0,
+                    zIndex: 10,
+                    background: "var(--panel-2)",
+                    borderTop: "2px solid var(--line)",
+                    boxShadow: "0 -3px 8px rgba(0, 0, 0, 0.05)",
+                    padding: "10px 12px",
+                  }}
+                />
                 <td
                   colSpan={2}
                   style={{
