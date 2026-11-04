@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
-import { CrmEmptyState, fmtDate } from "@/components/crm-ui"
+import { CrmEmptyState } from "@/components/crm-ui"
 import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
 import { calculateOrderRating } from "@/lib/rating"
 import OrdersReportDashboard from "./OrdersReportDashboard"
@@ -650,10 +650,6 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
               <th style={{ cursor: "pointer", width: 110 }} onClick={() => handleSort("rating")}>
                 Rating <SortIcon field="rating" sortField={sortField} sortDir={sortDir} />
               </th>
-              <th style={{ cursor: "pointer", width: 95 }} onClick={() => handleSort("createdAt")}>
-                Start <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
-              </th>
-              <th style={{ width: 95 }}>Koniec</th>
               <th style={{ cursor: "pointer", width: 110, textAlign: "right", borderTopRightRadius: 8 }} onClick={() => handleSort("totalGross")}>
                 Netto <SortIcon field="totalGross" sortField={sortField} sortDir={sortDir} />
               </th>
@@ -662,7 +658,7 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
           <tbody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
               <tr key={i}>
-                {Array.from({ length: 10 }).map((_, j) => (
+                {Array.from({ length: 8 }).map((_, j) => (
                   <td key={j}><div style={{ height: 14, borderRadius: 4, background: "var(--panel-3)", animation: "pulse 1.5s ease-in-out infinite" }} /></td>
                 ))}
               </tr>
@@ -670,7 +666,7 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
 
             {!isLoading && displayOrders?.length === 0 && (
               <tr>
-                <td colSpan={10}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
+                <td colSpan={8}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
               </tr>
             )}
 
@@ -806,12 +802,6 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
                   <td style={{ verticalAlign: "middle", width: 110 }}>
                     <OrderRatingProgressBar profit={order.profit} workDays={order.workDays} />
                   </td>
-                  <td className="mono" style={{ fontSize: 11 }}>
-                    {order.projectStartDate ? fmtDate(order.projectStartDate) : <span className="mute">—</span>}
-                  </td>
-                  <td className="mono" style={{ fontSize: 11 }}>
-                    {order.projectEndDate ? fmtDate(order.projectEndDate) : <span className="mute">—</span>}
-                  </td>
                   <td className="mono tnum" style={{ textAlign: "right" }}>
                     {order.totalNet != null
                       ? `${order.totalNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
@@ -890,18 +880,6 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
                   </div>
                 </td>
                 <td
-                  style={{
-                    position: "sticky",
-                    bottom: 0,
-                    zIndex: 10,
-                    background: "var(--panel-2)",
-                    borderTop: "2px solid var(--line)",
-                    boxShadow: "0 -3px 8px rgba(0, 0, 0, 0.05)",
-                    padding: "10px 12px",
-                  }}
-                />
-                <td
-                  colSpan={2}
                   style={{
                     position: "sticky",
                     bottom: 0,

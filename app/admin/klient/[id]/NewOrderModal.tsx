@@ -213,6 +213,10 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
 
   async function handleSubmit() {
     if (!resolvedClientId) { setError("Brak klienta."); return; }
+    if (!customText.trim()) {
+      setError("Pole 'Tekst własny' jest wymagane do utworzenia zlecenia.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -878,17 +882,25 @@ export default function NewOrderModal({ clientId: initialClientId, onClose, onSu
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-                  Tekst własny
+                <label className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                  Tekst własny <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
+                  required
                   value={customText}
-                  onChange={(e) => setCustomText(e.target.value)}
-                  placeholder="np. Kowalski – okna salonu"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                  onChange={(e) => {
+                    setCustomText(e.target.value);
+                    if (error) setError(null);
+                  }}
+                  placeholder="np. Pergola tarasowa / Kowalski"
+                  className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 ${
+                    !customText.trim() && error ? "border-red-400 focus:ring-red-400" : "border-slate-200"
+                  }`}
                 />
-                <p className="text-xs text-slate-400">Dodatkowy identyfikator widoczny obok numeru zlecenia</p>
+                <p className="text-xs text-slate-400">
+                  Wymagany do nazwy folderu Google Drive: <span className="font-mono text-slate-600">YYYY-MM-DD_TekstWłasny</span>
+                </p>
               </div>
 
               <div className="space-y-1.5">

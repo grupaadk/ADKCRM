@@ -1824,8 +1824,8 @@ export default function OrderDetailPage({
         leadSource: val ? val : null,
       });
       setEditingLeadSource(false);
-    } catch (err: any) {
-      alert(err.message || "Błąd zapisu źródła leada");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Błąd zapisu źródła leada");
     }
   };
 
@@ -3201,14 +3201,18 @@ export default function OrderDetailPage({
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           const val = customTextDraft.trim();
-                          setCustomText({ orderId: orderIdTyped, customText: val || null });
+                          if (val) {
+                            setCustomText({ orderId: orderIdTyped, customText: val });
+                          }
                           setEditingCustomText(false);
                         }
                         if (e.key === "Escape") setEditingCustomText(false);
                       }}
                       onBlur={() => {
                         const val = customTextDraft.trim();
-                        setCustomText({ orderId: orderIdTyped, customText: val || null });
+                        if (val) {
+                          setCustomText({ orderId: orderIdTyped, customText: val });
+                        }
                         setEditingCustomText(false);
                       }}
                       placeholder="Tekst własny zlecenia…"
@@ -3233,13 +3237,13 @@ export default function OrderDetailPage({
                       display: "inline-flex",
                       alignItems: "center",
                       gap: 8,
-                      padding: "4px 6px 4px 10px",
+                      padding: "4px 8px 4px 10px",
                       borderRadius: 8,
                       borderLeft: "3px solid var(--accent)",
                       background: "var(--accent-soft)",
                       cursor: "pointer",
                     }}
-                    title="Kliknij, aby edytować"
+                    title="Kliknij, aby edytować tekst własny"
                     onClick={() => { setCustomTextDraft(order.customText ?? ""); setEditingCustomText(true); }}
                   >
                     <span
@@ -3255,23 +3259,6 @@ export default function OrderDetailPage({
                     >
                       {order.customText}
                     </span>
-                    <button
-                      title="Usuń tekst własny"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCustomText({ orderId: orderIdTyped, customText: null });
-                      }}
-                      style={{
-                        display: "inline-flex", alignItems: "center", justifyContent: "center",
-                        background: "transparent", border: "none", cursor: "pointer",
-                        color: "var(--text-mute)", padding: 2, borderRadius: 4,
-                        lineHeight: 1,
-                      }}
-                    >
-                      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
                   </div>
                 ) : (
                   <button
