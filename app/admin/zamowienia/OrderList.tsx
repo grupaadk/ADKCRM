@@ -5,7 +5,7 @@ import { useQuery } from "convex/react"
 import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
-import DocumentProgressTiles from "@/app/admin/klient/[id]/DocumentProgressTiles"
+import DocumentProgressTiles, { DocumentColumnHeader } from "@/app/admin/klient/[id]/DocumentProgressTiles"
 import { CrmEmptyState } from "@/components/crm-ui"
 import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
 import { calculateOrderRating } from "@/lib/rating"
@@ -643,7 +643,9 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
               <th style={{ cursor: "pointer", width: 150 }} onClick={() => handleSort("services")}>
                 Usługi <SortIcon field="services" sortField={sortField} sortDir={sortDir} />
               </th>
-              <th style={{ width: 100 }}>Dokumenty</th>
+              <th style={{ width: 140 }}>
+                <DocumentColumnHeader />
+              </th>
               <th style={{ cursor: "pointer", width: 110 }} onClick={() => handleSort("rating")}>
                 Rating <SortIcon field="rating" sortField={sortField} sortDir={sortDir} />
               </th>

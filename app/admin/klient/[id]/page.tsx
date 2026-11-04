@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/Table";
 import { StatusPill, CrmAvatar, fmtDate, CrmEmptyState } from "@/components/crm-ui";
-import DocumentProgressTiles from "./DocumentProgressTiles";
+import DocumentProgressTiles, { DocumentColumnHeader } from "./DocumentProgressTiles";
 import NewOrderModal from "./NewOrderModal";
 
 type Tab = "zlecenia" | "szanse" | "notatki";
@@ -421,7 +421,9 @@ export default function ClientDetailPage({
                 <TableRow>
                   <TableHeaderCell>Zlecenie</TableHeaderCell>
                   <TableHeaderCell>Status</TableHeaderCell>
-                  <TableHeaderCell>Dokumenty</TableHeaderCell>
+                  <TableHeaderCell style={{ minWidth: 140 }}>
+                    <DocumentColumnHeader />
+                  </TableHeaderCell>
                   <TableHeaderCell>Usługi</TableHeaderCell>
                   <TableHeaderCell>Data</TableHeaderCell>
                   <TableHeaderCell style={{ textAlign: "right" }}>Kwota brutto</TableHeaderCell>
