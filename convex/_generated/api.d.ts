@@ -23,6 +23,7 @@ import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
 import type * as dashboardTasks from "../dashboardTasks.js";
 import type * as debug from "../debug.js";
+import type * as devCalendarTestSeed from "../devCalendarTestSeed.js";
 import type * as documentTemplates from "../documentTemplates.js";
 import type * as emailClassification from "../emailClassification.js";
 import type * as events from "../events.js";
@@ -100,6 +101,7 @@ declare const fullApi: ApiFromModules<{
   dashboard: typeof dashboard;
   dashboardTasks: typeof dashboardTasks;
   debug: typeof debug;
+  devCalendarTestSeed: typeof devCalendarTestSeed;
   documentTemplates: typeof documentTemplates;
   emailClassification: typeof emailClassification;
   events: typeof events;

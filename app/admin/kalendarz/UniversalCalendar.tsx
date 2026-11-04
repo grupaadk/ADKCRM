@@ -327,38 +327,24 @@ export default function UniversalCalendar({
   );
 
   const isMontazActiveForAllTeams = useMemo(() => {
-    if (!montazType || !installationTeams || installationTeams.length === 0) return false;
+    if (!montazType) return false;
     const targetCanon = getCanonicalEventTypeId(montazType._id);
-    const isGlobalActive =
+    return (
       activeEventTypeFilters.has(montazType._id) ||
       activeEventTypeFilters.has("builtin_montaz") ||
-      activeEventTypeFilters.has(targetCanon);
-    if (!isGlobalActive) return false;
-    return installationTeams.every((team) => {
-      return (
-        !disabledTeamEventTypes.has(`${team._id}:${targetCanon}`) &&
-        !disabledTeamEventTypes.has(`${team._id}:${montazType._id}`) &&
-        !disabledTeamEventTypes.has(`${team._id}:builtin_montaz`)
-      );
-    });
-  }, [montazType, installationTeams, activeEventTypeFilters, disabledTeamEventTypes, getCanonicalEventTypeId]);
+      activeEventTypeFilters.has(targetCanon)
+    );
+  }, [montazType, activeEventTypeFilters, getCanonicalEventTypeId]);
 
   const isSerwisActiveForAllTeams = useMemo(() => {
-    if (!serwisType || !installationTeams || installationTeams.length === 0) return false;
+    if (!serwisType) return false;
     const targetCanon = getCanonicalEventTypeId(serwisType._id);
-    const isGlobalActive =
+    return (
       activeEventTypeFilters.has(serwisType._id) ||
       activeEventTypeFilters.has("builtin_serwis") ||
-      activeEventTypeFilters.has(targetCanon);
-    if (!isGlobalActive) return false;
-    return installationTeams.every((team) => {
-      return (
-        !disabledTeamEventTypes.has(`${team._id}:${targetCanon}`) &&
-        !disabledTeamEventTypes.has(`${team._id}:${serwisType._id}`) &&
-        !disabledTeamEventTypes.has(`${team._id}:builtin_serwis`)
-      );
-    });
-  }, [serwisType, installationTeams, activeEventTypeFilters, disabledTeamEventTypes, getCanonicalEventTypeId]);
+      activeEventTypeFilters.has(targetCanon)
+    );
+  }, [serwisType, activeEventTypeFilters, getCanonicalEventTypeId]);
 
   const toggleUserFilter = (id: string) => {
     setActiveUserFilters((prev) => {
@@ -579,12 +565,11 @@ export default function UniversalCalendar({
           (order ? (order as { installationTeamId?: string }).installationTeamId : undefined);
         const supplierId = e.eventType?.linkedSupplierId;
         const orderName = (order as { name?: string | null })?.name ?? undefined;
+        const clientName = (order as { clientName?: string | null })?.clientName ?? undefined;
 
         const assignedUserIds =
           e.assignedUserIds && e.assignedUserIds.length > 0
             ? e.assignedUserIds
-            : e.createdBy
-            ? [e.createdBy]
             : [];
 
         const assignedUserNames: string[] = [];
@@ -615,6 +600,7 @@ export default function UniversalCalendar({
             assignedUserIds,
             title: e.title,
             orderName,
+            clientName,
             customText: e.description,
           })
         ) {
@@ -643,7 +629,7 @@ export default function UniversalCalendar({
             assignedUserColors,
             clientId: e.clientId,
             orderId: e.orderId,
-            labels: (e as any).labels,
+            labels: (e as { labels?: string[] }).labels,
           },
         });
       }
@@ -1900,7 +1886,7 @@ export default function UniversalCalendar({
                 allTypeIds.add("builtin_serwis");
                 if (montazType) allTypeIds.add(montazType._id as string);
                 if (serwisType) allTypeIds.add(serwisType._id as string);
-                setActiveEventTypeFilters(allTypeIds as any);
+                setActiveEventTypeFilters(allTypeIds);
               }
               if (activeSuppliers) setActiveSupplierFilters(new Set(activeSuppliers.map((s) => s._id)));
               if (installationTeams) setActiveTeamFilters(new Set(installationTeams.map((t) => t._id)));
@@ -1933,15 +1919,11 @@ export default function UniversalCalendar({
               onClick={() => {
                 const targetCanon = getCanonicalEventTypeId(montazType._id);
                 if (isMontazActiveForAllTeams) {
-                  setDisabledTeamEventTypes((prev) => {
+                  setActiveEventTypeFilters((prev) => {
                     const next = new Set(prev);
-                    if (installationTeams) {
-                      installationTeams.forEach((team) => {
-                        next.add(`${team._id}:${targetCanon}`);
-                        next.add(`${team._id}:${montazType._id}`);
-                        next.add(`${team._id}:builtin_montaz`);
-                      });
-                    }
+                    next.delete("builtin_montaz");
+                    next.delete(montazType._id);
+                    next.delete(targetCanon);
                     return next;
                   });
                 } else {
@@ -1952,9 +1934,6 @@ export default function UniversalCalendar({
                     next.add(targetCanon);
                     return next;
                   });
-                  if (installationTeams) {
-                    setActiveTeamFilters(new Set(installationTeams.map((t) => t._id as string)));
-                  }
                   setDisabledTeamEventTypes((prev) => {
                     const next = new Set(prev);
                     if (installationTeams) {
@@ -1968,7 +1947,7 @@ export default function UniversalCalendar({
                   });
                 }
               }}
-              title={isMontazActiveForAllTeams ? "Wyłącz Montaże" : "Włącz Montaże dla wszystkich ekip"}
+              title={isMontazActiveForAllTeams ? "Wyłącz Montaże" : "Włącz Montaże"}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 3,
                 padding: "3px 8px", borderRadius: 12, fontSize: 11,
@@ -1990,15 +1969,11 @@ export default function UniversalCalendar({
               onClick={() => {
                 const targetCanon = getCanonicalEventTypeId(serwisType._id);
                 if (isSerwisActiveForAllTeams) {
-                  setDisabledTeamEventTypes((prev) => {
+                  setActiveEventTypeFilters((prev) => {
                     const next = new Set(prev);
-                    if (installationTeams) {
-                      installationTeams.forEach((team) => {
-                        next.add(`${team._id}:${targetCanon}`);
-                        next.add(`${team._id}:${serwisType._id}`);
-                        next.add(`${team._id}:builtin_serwis`);
-                      });
-                    }
+                    next.delete("builtin_serwis");
+                    next.delete(serwisType._id);
+                    next.delete(targetCanon);
                     return next;
                   });
                 } else {
@@ -2009,9 +1984,6 @@ export default function UniversalCalendar({
                     next.add(targetCanon);
                     return next;
                   });
-                  if (installationTeams) {
-                    setActiveTeamFilters(new Set(installationTeams.map((t) => t._id as string)));
-                  }
                   setDisabledTeamEventTypes((prev) => {
                     const next = new Set(prev);
                     if (installationTeams) {
@@ -2025,7 +1997,7 @@ export default function UniversalCalendar({
                   });
                 }
               }}
-              title={isSerwisActiveForAllTeams ? "Wyłącz Serwisy" : "Włącz Serwisy dla wszystkich ekip"}
+              title={isSerwisActiveForAllTeams ? "Wyłącz Serwisy" : "Włącz Serwisy"}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 3,
                 padding: "3px 8px", borderRadius: 12, fontSize: 11,

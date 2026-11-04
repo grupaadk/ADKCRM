@@ -1394,7 +1394,7 @@ export const createOrderFolder = action({
 
       // Krok 3: Utwórz podfolder zlecenia wewnątrz "Zlecenia"
       // Konwencja: YYYY-MM-DD_TekstWłasny
-      const date = order.createdAt ? new Date(order.createdAt) : new Date(order._creationTime || Date.now());
+      const date = new Date(order._creationTime || Date.now());
       const yyyy = date.getFullYear();
       const mm = String(date.getMonth() + 1).padStart(2, "0");
       const dd = String(date.getDate()).padStart(2, "0");

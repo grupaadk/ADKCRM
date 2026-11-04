@@ -496,8 +496,8 @@ export const getLinkedOrderEvents = query({
               installationTeamName: team?.name,
               installationTeamColor: team?.color,
               field,
-              assignedUserId: complaint.assignedTo ? undefined : (order?.assignedUserId ?? order?.assignedUserIds?.[0]),
-              assignedUserIds: complaint.assignedTo ? undefined : (order?.assignedUserIds ?? (order?.assignedUserId ? [order.assignedUserId] : undefined)),
+              assignedUserId: complaint.assignedTo ? complaint.assignedTo : (order?.assignedUserId ?? order?.assignedUserIds?.[0]),
+              assignedUserIds: complaint.assignedTo ? [complaint.assignedTo] : (order?.assignedUserIds ?? (order?.assignedUserId ? [order.assignedUserId] : undefined)),
               // Duration offset so frontend can compute new serviceDateEnd when dragging
               serviceDateOffset:
                 complaint.serviceDate && complaint.serviceDateEnd
