@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import { useQuery } from "convex/react"
 import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
@@ -111,6 +112,222 @@ function OrderRatingProgressBar({ profit, workDays }: { profit?: number | null; 
 }
 
 
+
+function RatingAgendaPopover() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLSpanElement | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const updatePosition = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 6,
+        left: Math.max(12, Math.min(rect.left - 80, window.innerWidth - 285)),
+      });
+    }
+  };
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    updatePosition();
+    setIsOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 150);
+  };
+
+  const handlePopoverMouseEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  };
+
+  const handlePopoverMouseLeave = () => {
+    setIsOpen(false);
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    updatePosition();
+    setIsOpen((prev) => !prev);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleScrollOrOutside = (e: MouseEvent) => {
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener("scroll", handleScrollOrOutside, true);
+    window.addEventListener("click", handleScrollOrOutside);
+    return () => {
+      window.removeEventListener("scroll", handleScrollOrOutside, true);
+      window.removeEventListener("click", handleScrollOrOutside);
+    };
+  }, [isOpen]);
+
+  return (
+    <>
+      <span
+        ref={triggerRef}
+        onClick={handleClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 13,
+          height: 13,
+          borderRadius: "50%",
+          background: isOpen ? "var(--accent, #0ea5e9)" : "var(--panel-3, #f1f5f9)",
+          color: isOpen ? "#ffffff" : "var(--text-mute, #64748b)",
+          fontSize: 9,
+          fontWeight: 700,
+          border: `1px solid ${isOpen ? "var(--accent)" : "var(--line, #e2e8f0)"}`,
+          cursor: "pointer",
+          marginLeft: 4,
+          verticalAlign: "middle",
+          transition: "all 0.15s ease",
+          userSelect: "none",
+        }}
+        title="Agenda ratingu (kliknij lub najedź)"
+      >
+        ?
+      </span>
+
+      {typeof document !== "undefined" && isOpen && createPortal(
+        <div
+          onMouseEnter={handlePopoverMouseEnter}
+          onMouseLeave={handlePopoverMouseLeave}
+          style={{
+            position: "fixed",
+            top: coords.top,
+            left: coords.left,
+            zIndex: 9999,
+            width: 275,
+            background: "var(--panel, #ffffff)",
+            border: "1px solid var(--line, #e2e8f0)",
+            borderRadius: 10,
+            padding: "12px 14px",
+            boxShadow: "0 10px 25px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.05)",
+            fontSize: 12,
+            fontFamily: "inherit",
+            color: "var(--text-strong, #0f172a)",
+            textAlign: "left",
+            animation: "fadeIn 0.12s ease-out",
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingBottom: 6,
+              marginBottom: 8,
+              borderBottom: "1px solid var(--line, #f1f5f9)",
+            }}
+          >
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-strong)" }}>
+              Agenda Ratingu
+            </span>
+            <span
+              style={{
+                fontSize: 9.5,
+                fontWeight: 600,
+                padding: "1px 6px",
+                borderRadius: 999,
+                background: "var(--panel-2, #f8fafc)",
+                color: "var(--text-mute)",
+                border: "1px solid var(--line, #e2e8f0)",
+              }}
+            >
+              Skala 0–5
+            </span>
+          </div>
+
+          {/* Scale Items */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {[
+              { rating: "5/5", color: "#10b981", range: "≥ 5 000 zł/d", desc: "Bardzo wysoki" },
+              { rating: "4/5", color: "#84cc16", range: "4 000 – 4 999 zł/d", desc: "Wysoki" },
+              { rating: "3/5", color: "#3b82f6", range: "3 000 – 3 999 zł/d", desc: "Dobry" },
+              { rating: "2/5", color: "#f97316", range: "2 000 – 2 999 zł/d", desc: "Przeciętny" },
+              { rating: "1/5", color: "#ef4444", range: "1 000 – 1 999 zł/d", desc: "Niski" },
+              { rating: "0/5", color: "#94a3b8", range: "≤ 0 zł/d", desc: "Brak zysku / strata" },
+            ].map((item) => (
+              <div
+                key={item.rating}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  fontSize: 11,
+                  padding: "1.5px 0",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: item.color,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ fontWeight: 700, color: item.color, width: 22 }}>
+                    {item.rating}
+                  </span>
+                  <span style={{ color: "var(--text-strong)", fontWeight: 500 }}>
+                    {item.range}
+                  </span>
+                </div>
+                <span style={{ color: "var(--text-mute)", fontSize: 10 }}>
+                  {item.desc}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Missing data */}
+          <div
+            style={{
+              marginTop: 10,
+              paddingTop: 8,
+              borderTop: "1px solid var(--line, #f1f5f9)",
+              fontSize: 10,
+              color: "var(--text-mute)",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#cbd5e1",
+                flexShrink: 0,
+              }}
+            />
+            <span>
+              <strong style={{ color: "var(--text-dim)" }}>brak</strong> – brak podanego zysku lub dni roboczych
+            </span>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
 
 function toAlphaColor(color: string, alphaHex: string = "18"): string {
   if (color.startsWith("#")) {
@@ -640,14 +857,22 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
               <th style={{ cursor: "pointer", width: 120 }} onClick={() => handleSort("status")}>
                 Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
               </th>
-              <th style={{ cursor: "pointer", width: 150 }} onClick={() => handleSort("services")}>
+              <th style={{ cursor: "pointer", width: 210 }} onClick={() => handleSort("services")}>
                 Usługi <SortIcon field="services" sortField={sortField} sortDir={sortDir} />
               </th>
               <th style={{ width: 140 }}>
                 <DocumentColumnHeader />
               </th>
-              <th style={{ cursor: "pointer", width: 110 }} onClick={() => handleSort("rating")}>
-                Rating <SortIcon field="rating" sortField={sortField} sortDir={sortDir} />
+              <th style={{ width: 120 }}>
+                <div style={{ display: "inline-flex", alignItems: "center" }}>
+                  <span
+                    style={{ cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+                    onClick={() => handleSort("rating")}
+                  >
+                    Rating <SortIcon field="rating" sortField={sortField} sortDir={sortDir} />
+                  </span>
+                  <RatingAgendaPopover />
+                </div>
               </th>
               <th style={{ cursor: "pointer", width: 130, textAlign: "right" }} onClick={() => handleSort("balance")}>
                 Bilans (Zysk) <SortIcon field="balance" sortField={sortField} sortDir={sortDir} />
@@ -753,28 +978,54 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
                   <td style={{ fontSize: 12 }}>{statusLabels[order.status] ?? order.status}</td>
                   <td>
                     {order.services && order.services.length > 0 ? (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                        {order.services.map((svc, i) => (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                        {(order.services.length > 3
+                          ? order.services.slice(0, 3)
+                          : order.services
+                        ).map((svc, i) => (
                           <span
                             key={i}
                             title={svc}
                             style={{
-                              display: "inline-block",
-                              fontSize: 10,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              fontSize: 11,
                               fontWeight: 600,
-                              padding: "2px 7px",
-                              borderRadius: 4,
-                              background: "var(--accent-soft)",
-                              color: "var(--accent)",
+                              padding: "2.5px 8px",
+                              borderRadius: 5,
+                              background: "var(--accent-soft, #e0f2fe)",
+                              color: "var(--accent, #0369a1)",
+                              border: "1px solid rgba(14, 165, 233, 0.22)",
                               whiteSpace: "nowrap",
-                              maxWidth: 90,
+                              maxWidth: 195,
                               overflow: "hidden",
                               textOverflow: "ellipsis",
+                              lineHeight: 1.25,
                             }}
                           >
                             {svc}
                           </span>
                         ))}
+                        {order.services.length > 3 && (
+                          <span
+                            title={`Pozostałe usługi:\n${order.services.slice(3).join("\n")}`}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: "2px 6px",
+                              borderRadius: 5,
+                              background: "var(--panel-3, #f1f5f9)",
+                              color: "var(--text-mute, #64748b)",
+                              border: "1px solid var(--line, #e2e8f0)",
+                              cursor: "help",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            +{order.services.length - 3}
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <span className="mute">—</span>
