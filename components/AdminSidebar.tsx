@@ -25,7 +25,6 @@ import {
   LayoutGrid,
   UserCog,
   Settings,
-  Receipt,
   ScrollText,
   Upload,
   PanelLeftClose,
@@ -39,6 +38,7 @@ import {
   Database,
   Search,
   TrendingUp,
+  ClipboardList,
 } from "lucide-react"
 
 type NavItem = {
@@ -57,6 +57,7 @@ const mainItems: NavItem[] = [
   { href: "/admin/szanse", label: "Szansa sprzedaży", icon: TrendingUp, alsoActiveFor: ["/admin/szanse", "/admin/szansa"] },
   { href: "/admin/oferta", label: "Oferta", icon: Layers, alsoActiveFor: ["/admin/oferta"] },
   { href: "/admin/panel", label: "Zlecenia", icon: LayoutGrid },
+  { href: "/admin/zamowienia", label: "Lista zleceń", icon: ClipboardList },
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, exactMatch: true },
   { href: "/admin/kalendarz", label: "Kalendarz", icon: Calendar },
   { href: "/admin/reklamacje", label: "Reklamacje", icon: AlertCircle },

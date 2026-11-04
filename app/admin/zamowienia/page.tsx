@@ -24,7 +24,7 @@ export default function ZamowieniaPage() {
   return (
     <div>
       <CrmPageHeader
-        title="Zlecenia"
+        title="Lista zleceń"
         sub="Lista wszystkich zleceń w systemie."
         backHref={backHref}
         backLabel="Powrót do Panelu zleceń"
