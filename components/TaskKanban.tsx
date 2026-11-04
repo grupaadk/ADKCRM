@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { formatLocalDateInput, parseLocalDateInput } from "@/lib/dateUtils";
 import TaskDrawer from "@/components/TaskDrawer";
 import CreateOrderTaskDrawer from "@/components/CreateOrderTaskDrawer";
 
@@ -220,7 +221,7 @@ function TaskCard({
     else onUpdate({ clearAssignee: true });
   }
 
-  const dueDateStr = task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : "";
+  const dueDateStr = formatLocalDateInput(task.dueDate);
   
   const taskAssignees = task.assignees ?? (task.assignedUserId ? [{ id: task.assignedUserId }] : []);
   const taskAssigneeIds = taskAssignees.map(a => a.id);
@@ -317,7 +318,7 @@ function TaskCard({
             defaultValue={dueDateStr}
             onBlur={(e) => {
               const v = e.target.value;
-              if (v) onUpdate({ dueDate: new Date(v).getTime() });
+              if (v) onUpdate({ dueDate: parseLocalDateInput(v) });
               else if (task.dueDate) onUpdate({ clearDueDate: true });
               setEditingDate(false);
             }}

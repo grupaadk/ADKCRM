@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { uColor, uInitials } from "@/lib/userColor";
+import { formatLocalDateInput, parseLocalDateInput } from "@/lib/dateUtils";
 import SideDrawer from "@/components/SideDrawer";
 import { Search, Check, X, UserPlus, ChevronDown } from "lucide-react";
 
@@ -22,12 +23,14 @@ export default function AddTaskDrawer({
   onClose,
   initialTargetType = "general",
   initialColumnId = null,
+  initialDueDate = null,
 }: {
   open: boolean;
   onClose: () => void;
   initialTargetType?: "order" | "opportunity" | "general";
   // Kolumna Kanbana, z której otwarto panel — nowe zadanie ląduje w tej kolumnie.
   initialColumnId?: string | null;
+  initialDueDate?: number | null;
 }) {
   const [targetType, setTargetType] = useState<"order" | "opportunity" | "general">(initialTargetType);
 
@@ -62,11 +65,14 @@ export default function AddTaskDrawer({
   useEffect(() => {
     if (open) {
       setTargetType(initialTargetType);
+      if (initialDueDate) {
+        setDue(formatLocalDateInput(initialDueDate));
+      }
       if (me && assigneeId === null) {
         setAssigneeId(me._id);
       }
     }
-  }, [open, initialTargetType, me, assigneeId]);
+  }, [open, initialTargetType, initialDueDate, me, assigneeId]);
 
   const selectedOrder = orders.find((o) => o._id === orderId) ?? null;
   const selectedOpp = opps.find((o) => o._id === opportunityId) ?? null;
@@ -124,7 +130,7 @@ export default function AddTaskDrawer({
         opportunityId: targetType === "opportunity" ? (opportunityId ?? undefined) : undefined,
         title: title.trim(),
         status,
-        dueDate: due ? new Date(due).getTime() : undefined,
+        dueDate: due ? parseLocalDateInput(due) : undefined,
         assignedUserId: assigneeId ?? undefined,
         columnId: initialColumnId ? (initialColumnId as Id<"taskColumns">) : undefined,
       });

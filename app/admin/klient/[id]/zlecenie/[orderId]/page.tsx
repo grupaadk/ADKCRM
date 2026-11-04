@@ -12,6 +12,7 @@ import DocumentCheckboxes from "../../DocumentCheckboxes";
 import OrderLineItems from "../../OrderLineItems";
 import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext";
 import { deriveStatusStyle } from "@/lib/statuses";
+import { formatLocalDateInput, parseLocalDateInput } from "@/lib/dateUtils";
 import ComplaintTab from "./ComplaintTab";
 import OrderDriveBrowser from "./OrderDriveBrowser";
 import OrderDriveFilePicker, { type SelectedFileItem } from "./OrderDriveFilePicker";
@@ -487,9 +488,7 @@ function TodoTaskRow({
     else onUpdate({ clearAssignee: true });
   }
 
-  const dueDateStr = task.dueDate
-    ? new Date(task.dueDate).toISOString().slice(0, 10)
-    : "";
+  const dueDateStr = formatLocalDateInput(task.dueDate);
 
   const toggleDone = () => {
     onUpdate({ status: isDone ? "todo" : "done" });
@@ -634,7 +633,7 @@ function TodoTaskRow({
             defaultValue={dueDateStr}
             onBlur={(e) => {
               const v = e.target.value;
-              if (v) onUpdate({ dueDate: new Date(v).getTime() });
+              if (v) onUpdate({ dueDate: parseLocalDateInput(v) });
               else if (task.dueDate) onUpdate({ clearDueDate: true });
               setEditingDate(false);
             }}

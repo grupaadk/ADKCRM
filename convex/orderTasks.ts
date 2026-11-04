@@ -174,6 +174,38 @@ export const update = mutation({
   },
 });
 
+export const reorder = mutation({
+  args: {
+    updates: v.array(
+      v.object({
+        taskId: v.id("orderTasks"),
+        position: v.number(),
+        dueDate: v.optional(v.number()),
+        clearDueDate: v.optional(v.boolean()),
+        columnId: v.optional(v.id("taskColumns")),
+        clearColumnId: v.optional(v.boolean()),
+      }),
+    ),
+  },
+  handler: async (ctx, { updates }) => {
+    await requireUser(ctx);
+    for (const item of updates) {
+      const patch: Record<string, unknown> = { position: item.position };
+      if (item.dueDate !== undefined) patch.dueDate = item.dueDate;
+      if (item.clearDueDate) patch.dueDate = undefined;
+      if (item.columnId !== undefined) {
+        patch.columnId = item.columnId;
+        patch.columnChangedAt = Date.now();
+      }
+      if (item.clearColumnId) {
+        patch.columnId = undefined;
+        patch.columnChangedAt = undefined;
+      }
+      await ctx.db.patch(item.taskId, patch);
+    }
+  },
+});
+
 export const remove = mutation({
   args: { taskId: v.id("orderTasks") },
   handler: async (ctx, { taskId }) => {

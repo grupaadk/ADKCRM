@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { uColor, uInitials } from "@/lib/userColor";
+import { formatLocalDateInput, parseLocalDateInput } from "@/lib/dateUtils";
 import SideDrawer from "@/components/SideDrawer";
 import { ExternalLink, Trash2, Send, ChevronDown, UserPlus, Check, X, Search, Flame, Tag, Pencil } from "lucide-react";
 
@@ -183,7 +184,7 @@ export default function TaskDrawer({
 
   function setDue(value: string) {
     if (!shownId) return;
-    if (value) void updateTask({ taskId: shownId, dueDate: new Date(value).getTime() });
+    if (value) void updateTask({ taskId: shownId, dueDate: parseLocalDateInput(value) });
     else void updateTask({ taskId: shownId, clearDueDate: true });
   }
 
@@ -207,7 +208,7 @@ export default function TaskDrawer({
     setNewComment("");
   }
 
-  const dueStr = task?.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : "";
+  const dueStr = formatLocalDateInput(task?.dueDate);
   const isOpportunity = task?.source === "opportunity";
   const openHref = task
     ? isOpportunity

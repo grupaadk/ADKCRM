@@ -74,6 +74,7 @@ export default function DashboardClient() {
   const [addOpen, setAddOpen] = useState(false);
   const [addDrawerType, setAddDrawerType] = useState<"order" | "opportunity" | "general">("order");
   const [addDrawerColId, setAddDrawerColId] = useState<string | null>(null);
+  const [addDrawerDueDate, setAddDrawerDueDate] = useState<number | null>(null);
   const [addMenuCol, setAddMenuCol] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
@@ -129,8 +130,29 @@ export default function DashboardClient() {
     isAdmin ? { filter } : {},
   );
   const users = useQuery(api.users.listAllActive);
-  const updateTask = useMutation(api.orderTasks.update);
+  const reorderTasks = useMutation(api.orderTasks.reorder);
   const createTask = useMutation(api.dashboardTasks.adminCreate);
+
+  const getColumnDate = (systemType?: string) => {
+    if (!systemType || systemType === "todo_list") return undefined;
+    const now = new Date();
+    const mondayThisWeek = new Date(now);
+    mondayThisWeek.setHours(0, 0, 0, 0);
+    const day = mondayThisWeek.getDay();
+    const diff = mondayThisWeek.getDate() - day + (day === 0 ? -6 : 1);
+    mondayThisWeek.setDate(diff);
+    const mTs = mondayThisWeek.getTime();
+    const dTs = (days: number) => mTs + days * 24 * 60 * 60 * 1000;
+
+    if (systemType === "monday") return mTs;
+    if (systemType === "tuesday") return dTs(1);
+    if (systemType === "wednesday") return dTs(2);
+    if (systemType === "thursday") return dTs(3);
+    if (systemType === "friday") return dTs(4);
+    if (systemType === "this_week") return dTs(5);
+    if (systemType === "next_week") return dTs(7);
+    return undefined;
+  };
 
   const [inlineAddCol, setInlineAddCol] = useState<string | null>(null);
   const [inlineAddTitle, setInlineAddTitle] = useState("");
@@ -140,11 +162,23 @@ export default function DashboardClient() {
     if (!inlineAddTitle.trim() || inlineSubmitting) return;
     setInlineSubmitting(true);
     try {
+      const targetCol = taskColumns.find((c) => c._id === colId);
+      const systemType = targetCol?.systemType;
+
+      let dueDate: number | undefined = undefined;
+      let columnId: Id<"taskColumns"> | undefined = undefined;
+
+      if (systemType) {
+        dueDate = getColumnDate(systemType);
+      } else {
+        columnId = colId as Id<"taskColumns">;
+      }
+
       await createTask({
         title: inlineAddTitle.trim(),
         status: "todo",
-        dueDate: undefined,
-        columnId: colId as Id<"taskColumns">,
+        dueDate,
+        columnId,
         assignedUserId: me?._id,
       });
 
@@ -302,17 +336,19 @@ export default function DashboardClient() {
       if (a.priority === "high" && b.priority !== "high") return -1;
       if (a.priority !== "high" && b.priority === "high") return 1;
 
-      const now = Date.now();
-      const aOlder = a.columnChangedAt ? (now - a.columnChangedAt > 1000 * 60 * 60 * 24) : false;
-      const bOlder = b.columnChangedAt ? (now - b.columnChangedAt > 1000 * 60 * 60 * 24) : false;
-      if (aOlder && !bOlder) return -1;
-      if (!aOlder && bOlder) return 1;
-
+      // 2. Pozycja manualna (drag & drop) ma pierwszeństwo przed czasem oczekiwania w kolumnie
       if (a.position !== undefined && b.position !== undefined) {
         return a.position - b.position;
       }
       if (a.position !== undefined) return -1;
       if (b.position !== undefined) return 1;
+
+      // 3. Dla zadań bez przypisanej pozycji sprawdzamy czas oczekiwania (>24h)
+      const now = Date.now();
+      const aOlder = a.columnChangedAt ? (now - a.columnChangedAt > 1000 * 60 * 60 * 24) : false;
+      const bOlder = b.columnChangedAt ? (now - b.columnChangedAt > 1000 * 60 * 60 * 24) : false;
+      if (aOlder && !bOlder) return -1;
+      if (!aOlder && bOlder) return 1;
 
       if (a.dueDate == null && b.dueDate == null) return 0;
       if (a.dueDate == null) return 1;
@@ -345,23 +381,7 @@ export default function DashboardClient() {
     const targetCol = taskColumns.find(c => c._id === targetColumnId);
     const systemType = targetCol?.systemType;
 
-    const now = new Date();
-    const mondayThisWeek = new Date(now);
-    mondayThisWeek.setHours(0, 0, 0, 0);
-    const day = mondayThisWeek.getDay();
-    const diff = mondayThisWeek.getDate() - day + (day === 0 ? -6 : 1);
-    mondayThisWeek.setDate(diff);
-    const mTs = mondayThisWeek.getTime();
-    const dTs = (days: number) => mTs + days * 24 * 60 * 60 * 1000;
-
-    let newDate: number | undefined = undefined;
-    if (systemType === "monday") newDate = mTs;
-    else if (systemType === "tuesday") newDate = dTs(1);
-    else if (systemType === "wednesday") newDate = dTs(2);
-    else if (systemType === "thursday") newDate = dTs(3);
-    else if (systemType === "friday") newDate = dTs(4);
-    else if (systemType === "this_week") newDate = dTs(5);
-    else if (systemType === "next_week") newDate = dTs(7);
+    const newDate = getColumnDate(systemType);
 
     // 1. Wyznacz zmiany dla przenoszonego zadania
     let patch: {
@@ -394,22 +414,35 @@ export default function DashboardClient() {
       colTasks.push(task);
     }
 
-    // Zapisz pozycje w bazie danych
+    // Zapisz pozycje w bazie danych w jednej transakcji
+    const updates: Array<{
+      taskId: Id<"orderTasks">;
+      position: number;
+      dueDate?: number;
+      clearDueDate?: boolean;
+      columnId?: Id<"taskColumns">;
+      clearColumnId?: boolean;
+    }> = [];
+
     for (let i = 0; i < colTasks.length; i++) {
       const t = colTasks[i];
       const newPos = i * 1000;
       if (t._id === draggedTaskId) {
-        await updateTask({
+        updates.push({
           taskId: draggedTaskId as Id<"orderTasks">,
-          ...patch,
           position: newPos,
+          ...patch,
         });
       } else if (t.position !== newPos) {
-        await updateTask({
+        updates.push({
           taskId: t._id as Id<"orderTasks">,
           position: newPos,
         });
       }
+    }
+
+    if (updates.length > 0) {
+      await reorderTasks({ updates });
     }
   }
 
@@ -454,6 +487,7 @@ export default function DashboardClient() {
                 onClick={() => {
                   setAddDrawerType("order");
                   setAddDrawerColId(null);
+                  setAddDrawerDueDate(null);
                   setAddOpen(true);
                 }}
                 className="inline-flex items-center gap-1.5 rounded-md bg-gray-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-gray-800"
@@ -704,7 +738,13 @@ export default function DashboardClient() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setAddDrawerType("order");
-                              setAddDrawerColId(col._id);
+                              if (col.systemType) {
+                                setAddDrawerDueDate(getColumnDate(col.systemType) ?? null);
+                                setAddDrawerColId(null);
+                              } else {
+                                setAddDrawerDueDate(null);
+                                setAddDrawerColId(col._id);
+                              }
                               setAddOpen(true);
                               setAddMenuCol(null);
                             }}
@@ -716,7 +756,13 @@ export default function DashboardClient() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setAddDrawerType("opportunity");
-                              setAddDrawerColId(col._id);
+                              if (col.systemType) {
+                                setAddDrawerDueDate(getColumnDate(col.systemType) ?? null);
+                                setAddDrawerColId(null);
+                              } else {
+                                setAddDrawerDueDate(null);
+                                setAddDrawerColId(col._id);
+                              }
                               setAddOpen(true);
                               setAddMenuCol(null);
                             }}
@@ -965,7 +1011,7 @@ export default function DashboardClient() {
       <TaskDrawer taskId={openTaskId} onClose={() => setOpenTaskId(null)} />
 
       {/* ── Panel dodawania zadania (admin) ── */}
-      {canAddTasks && <AddTaskDrawer open={addOpen} onClose={() => setAddOpen(false)} initialTargetType={addDrawerType} initialColumnId={addDrawerColId} />}
+      {canAddTasks && <AddTaskDrawer open={addOpen} onClose={() => setAddOpen(false)} initialTargetType={addDrawerType} initialColumnId={addDrawerColId} initialDueDate={addDrawerDueDate} />}
 
       {/* ── Potwierdzenie usunięcia listy ── */}
       {confirmDeleteColId && (
