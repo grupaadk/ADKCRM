@@ -27,6 +27,7 @@ type Order = {
   comment?: string
   profit?: number | null
   workDays?: number | null
+  assignees?: Array<{ id: string; name: string | null; color?: string }>
   client: {
     firstName: string
     lastName: string
@@ -111,7 +112,15 @@ function OrderRatingProgressBar({ profit, workDays }: { profit?: number | null; 
 
 
 
-export default function OrderList({ searchTerm = "", showFilters = true, showReports = false }: { searchTerm?: string, showFilters?: boolean, showReports?: boolean }) {
+function toAlphaColor(color: string, alphaHex: string = "18"): string {
+  if (color.startsWith("#")) {
+    if (color.length === 7) return `${color}${alphaHex}`
+    if (color.length === 4) return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}${alphaHex}`
+  }
+  return color
+}
+
+export default function OrderList({ searchTerm = "", showReports = false }: { searchTerm?: string, showReports?: boolean, showFilters?: boolean }) {
   const router = useRouter()
   const statusLabels = useStatusLabels()
   const statuses = useStatuses()
@@ -333,12 +342,11 @@ export default function OrderList({ searchTerm = "", showFilters = true, showRep
         </div>
       )}
 
-      {/* Minimalist Filters Toolbar */}
-      {showFilters && (
-        <div
-          className="panel"
-          style={{
-            padding: "8px 14px",
+      {/* Minimalist Filters Toolbar - Always Visible */}
+      <div
+        className="panel"
+        style={{
+          padding: "8px 14px",
             display: "flex",
             flexDirection: "column",
             gap: 8,
@@ -603,10 +611,9 @@ export default function OrderList({ searchTerm = "", showFilters = true, showRep
             )}
           </div>
         </div>
-      )}
 
       {/* Results Count Summary (if searching) */}
-      {!showFilters && debouncedSearch && displayOrders && (
+      {debouncedSearch && displayOrders && (
         <div style={{ display: "flex", alignItems: "center", padding: "0 4px", marginBottom: -4 }}>
           <span style={{
             fontSize: 12, fontWeight: 600, color: "var(--accent)", whiteSpace: "nowrap",
@@ -618,6 +625,11 @@ export default function OrderList({ searchTerm = "", showFilters = true, showRep
 
       {/* Table */}
       <div className="panel" style={{ position: "relative" }}>
+        <style>{`
+          .tbl tr.order-colored-row:hover td {
+            background: transparent !important;
+          }
+        `}</style>
         <table className="tbl">
           <thead>
             <tr>
@@ -669,12 +681,50 @@ export default function OrderList({ searchTerm = "", showFilters = true, showRep
                   ? order.client.companyName
                   : `${order.client.lastName} ${order.client.firstName}`
                 : null
+
+              const assignees = (order.assignees && order.assignees.length > 0)
+                ? order.assignees
+                : (order.assignedUserColor ? [{ color: order.assignedUserColor }] : [])
+              const userColors = assignees
+                .map(a => a.color || (allUsers?.find(u => u._id === a.id)?.color))
+                .filter((c): c is string => Boolean(c))
+
+              let rowBackground: string | undefined = undefined
+              if (userColors.length > 1) {
+                const step = 100 / userColors.length
+                const stops = userColors.map((c, i) => `${toAlphaColor(c, "18")} ${i * step}%, ${toAlphaColor(c, "18")} ${(i + 1) * step}%`)
+                rowBackground = `linear-gradient(to right, ${stops.join(", ")})`
+              } else if (userColors.length === 1) {
+                rowBackground = toAlphaColor(userColors[0], "18")
+              } else if (isCompleted) {
+                rowBackground = "var(--ok-soft)"
+              }
+
               return (
-                <tr key={order._id} style={isCompleted ? { background: "var(--ok-soft)", cursor: "pointer" } : { cursor: "pointer" }} onClick={() => router.push(`/admin/klient/${order.clientId}/zlecenie/${order._id}`)}>
+                <tr
+                  key={order._id}
+                  className={rowBackground ? "order-colored-row" : ""}
+                  style={{
+                    background: rowBackground,
+                    cursor: "pointer",
+                    transition: "filter 0.12s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (rowBackground) {
+                      e.currentTarget.style.filter = "brightness(0.96)"
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (rowBackground) {
+                      e.currentTarget.style.filter = ""
+                    }
+                  }}
+                  onClick={() => router.push(`/admin/klient/${order.clientId}/zlecenie/${order._id}`)}
+                >
                   <td className="mono" style={{
                     fontSize: 11,
                     color: "var(--text-mute)",
-                    borderLeft: order.assignedUserColor ? `4px solid ${order.assignedUserColor}` : undefined,
+                    borderLeft: userColors.length > 0 ? `4px solid ${userColors[0]}` : undefined,
                   }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start" }}>
                       <span style={{ fontWeight: 600, color: "var(--text-strong)" }}>{order.name ?? "—"}</span>

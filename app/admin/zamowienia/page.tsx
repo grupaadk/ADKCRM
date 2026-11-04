@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import OrderList from "./OrderList"
 import { CrmPageHeader } from "@/components/crm-ui"
-import { Plus, SlidersHorizontal, Search, X, BarChart2 } from "lucide-react"
+import { Plus, Search, X, BarChart2 } from "lucide-react"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 
 export default function ZamowieniaPage() {
@@ -15,31 +15,10 @@ export default function ZamowieniaPage() {
 
   const [showModal, setShowModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
-  const [showFilters, setShowFilters] = useState(() => {
-    if (typeof window === "undefined") return true
-    try {
-      const saved = localStorage.getItem("zamowienia_show_filters")
-      return saved !== null ? saved === "true" : true
-    } catch {
-      return true
-    }
-  })
   const [showReports, setShowReports] = useState(false)
-
-  function toggleFilters() {
-    setShowFilters((v) => {
-      const next = !v
-      try {
-        localStorage.setItem("zamowienia_show_filters", String(next))
-      } catch {}
-      return next
-    })
-    setShowReports(false)
-  }
 
   function toggleReports() {
     setShowReports((v) => !v)
-    setShowFilters(false)
   }
 
   return (
@@ -98,13 +77,6 @@ export default function ZamowieniaPage() {
         actions={
           <>
             <button
-              className={`btn ${showFilters ? 'active' : ''}`}
-              onClick={toggleFilters}
-              style={{ background: showFilters ? 'var(--panel-3)' : undefined }}
-            >
-              <SlidersHorizontal size={13} /> Filtry
-            </button>
-            <button
               className={`btn ${showReports ? 'active' : ''}`}
               onClick={toggleReports}
               style={{ background: showReports ? 'var(--panel-3)' : undefined }}
@@ -117,7 +89,7 @@ export default function ZamowieniaPage() {
           </>
         }
       />
-      <OrderList searchTerm={searchTerm} showFilters={showFilters} showReports={showReports} />
+      <OrderList searchTerm={searchTerm} showReports={showReports} />
       {showModal && (
         <NewOrderModal
           onClose={() => setShowModal(false)}
