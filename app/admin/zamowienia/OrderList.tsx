@@ -10,7 +10,7 @@ import { CrmEmptyState, fmtDate } from "@/components/crm-ui"
 import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
 import OrdersReportDashboard from "./OrdersReportDashboard"
 
-type SortField = "client" | "city" | "status" | "services" | "createdAt" | "totalGross"
+type SortField = "client" | "balance" | "status" | "services" | "createdAt" | "totalGross"
 type SortDirection = "asc" | "desc"
 
 type Order = {
@@ -24,6 +24,7 @@ type Order = {
   investmentCity?: string
   investmentStreet?: string
   comment?: string
+  profit?: number | null
   client: {
     firstName: string
     lastName: string
@@ -67,6 +68,8 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
   const statusLabels = useStatusLabels()
   const statuses = useStatuses()
   const orders = useQuery(api.orders.list, {})
+  const allInvoices = useQuery(api.fakturownia.listCachedInvoices)
+  const allExpenses = useQuery(api.fakturownia.listCachedExpenses)
   const currentUser = useQuery(api.users.me)
   const allUsers = useQuery(api.users.listAllActive)
   const isLoading = orders === undefined
@@ -132,6 +135,38 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
     }, {})
   }, [orders])
 
+  const financialBalanceByOrder = useMemo(() => {
+    if (allInvoices === undefined || allExpenses === undefined || !orders) {
+      return null
+    }
+
+    const invMap = new Map<string, number>()
+    for (const inv of allInvoices) {
+      if (!inv.orderId) continue
+      if (inv.kind === "estimate" || inv.kind === "order") continue
+      invMap.set(inv.orderId, (invMap.get(inv.orderId) ?? 0) + (inv.netAmount ?? 0))
+    }
+
+    const expMap = new Map<string, number>()
+    for (const exp of allExpenses) {
+      if (!exp.orderId) continue
+      expMap.set(exp.orderId, (expMap.get(exp.orderId) ?? 0) + (exp.netAmount ?? 0))
+    }
+
+    const result = new Map<string, { balNet: number; marginPct: number | null; invNet: number }>()
+
+    for (const o of orders as Order[]) {
+      const orderId = o._id
+      const invNet = invMap.get(orderId) ?? 0
+      const expNet = expMap.get(orderId) ?? 0
+      const balNet = invNet - expNet
+      const marginPct = invNet > 0 ? (balNet / invNet) * 100 : null
+      result.set(orderId, { balNet, marginPct, invNet })
+    }
+
+    return result
+  }, [orders, allInvoices, allExpenses])
+
   const displayOrders = useMemo(() => {
     if (!orders) return undefined
     let filtered = orders as Order[]
@@ -188,12 +223,17 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
         case "status": cmp = a.status.localeCompare(b.status, "pl"); break
         case "services": cmp = (a.services ?? []).join().localeCompare((b.services ?? []).join(), "pl"); break
         case "createdAt": cmp = (a.projectStartDate ?? a._creationTime) - (b.projectStartDate ?? b._creationTime); break
-        case "city": cmp = (a.investmentCity ?? a.client?.city ?? "").localeCompare(b.investmentCity ?? b.client?.city ?? "", "pl"); break
+        case "balance": {
+          const aBal = financialBalanceByOrder?.get(a._id)?.balNet ?? 0
+          const bBal = financialBalanceByOrder?.get(b._id)?.balNet ?? 0
+          cmp = aBal - bBal
+          break
+        }
         case "totalGross": cmp = (a.totalGross ?? 0) - (b.totalGross ?? 0); break
       }
       return sortDir === "asc" ? cmp : -cmp
     })
-  }, [orders, viewFilter, statusFilter, clientFilter, activeUserFilters, sortField, sortDir, debouncedSearch])
+  }, [orders, viewFilter, statusFilter, clientFilter, activeUserFilters, sortField, sortDir, debouncedSearch, financialBalanceByOrder])
 
   const clientFilterLabels: { key: ClientFilter; label: string }[] = [
     { key: "all", label: "Wszyscy" },
@@ -397,9 +437,6 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
               <th style={{ cursor: "pointer", width: 140 }} onClick={() => handleSort("client")}>
                 Klient <SortIcon field="client" sortField={sortField} sortDir={sortDir} />
               </th>
-              <th style={{ cursor: "pointer", width: 100 }} onClick={() => handleSort("city")}>
-                Miasto <SortIcon field="city" sortField={sortField} sortDir={sortDir} />
-              </th>
               <th style={{ cursor: "pointer", width: 120 }} onClick={() => handleSort("status")}>
                 Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
               </th>
@@ -407,6 +444,9 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
                 Usługi <SortIcon field="services" sortField={sortField} sortDir={sortDir} />
               </th>
               <th style={{ width: 100 }}>Dokumenty</th>
+              <th style={{ cursor: "pointer", width: 130, textAlign: "right" }} onClick={() => handleSort("balance")}>
+                Bilans (Zysk) <SortIcon field="balance" sortField={sortField} sortDir={sortDir} />
+              </th>
               <th style={{ cursor: "pointer", width: 95 }} onClick={() => handleSort("createdAt")}>
                 Start <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
               </th>
@@ -427,7 +467,7 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
 
             {!isLoading && displayOrders?.length === 0 && (
               <tr>
-                <td colSpan={10}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
+                <td colSpan={9}><CrmEmptyState message="Brak zleceń spełniających kryteria." /></td>
               </tr>
             )}
 
@@ -471,9 +511,6 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
                       <span className="mute">—</span>
                     )}
                   </td>
-                  <td style={{ fontSize: 12 }}>
-                    {order.investmentCity ?? order.client?.city ?? <span className="mute">—</span>}
-                  </td>
                   <td style={{ fontSize: 12 }}>{statusLabels[order.status] ?? order.status}</td>
                   <td>
                     {order.services && order.services.length > 0 ? (
@@ -505,6 +542,26 @@ export default function OrderList({ searchTerm = "", showFilters = false, showRe
                     )}
                   </td>
                   <td><DocumentProgressTiles documents={order.documents} /></td>
+                  <td className="mono tnum" style={{ textAlign: "right", fontSize: 11.5 }}>
+                    {(() => {
+                      if (!financialBalanceByOrder) return <span className="mute">—</span>
+                      const fin = financialBalanceByOrder.get(order._id)
+                      const balNet = fin?.balNet ?? 0
+                      const isPositive = balNet >= 0
+                      const color = isPositive ? "var(--ok, #16a34a)" : "var(--danger, #dc2626)"
+                      const formatted = `${balNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+                          <span style={{ fontWeight: 600, color }}>{formatted}</span>
+                          {fin && fin.marginPct !== null && fin.invNet > 0 && (
+                            <span style={{ fontSize: 9.5, color: "var(--text-mute)" }}>
+                              marża {fin.marginPct.toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </td>
                   <td className="mono" style={{ fontSize: 11 }}>
                     {order.projectStartDate ? fmtDate(order.projectStartDate) : <span className="mute">—</span>}
                   </td>
