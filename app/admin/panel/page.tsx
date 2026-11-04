@@ -10,16 +10,7 @@ import { deriveStatusStyle } from "@/lib/statuses"
 import type { KanbanItem } from "@/convex/kanban"
 import { Plus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Archive, ArchiveRestore, Search, X, ClipboardList, Users, AlertTriangle, Package } from "lucide-react"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
-
-type DocState = "gray" | "red" | "green"
-
-const DOC_COLORS: Record<DocState, string> = {
-  gray:  "#d0d4dc",
-  red:   "#ef4444",
-  green: "#22c55e",
-}
-
-const DOC_KEYS = ["pomiar", "umowa", "gwarancja_alco", "odbior_inwestor", "protokol_montaz", "faktura", "reklamacja"]
+import { calculateOrderRating } from "@/lib/rating"
 
 const sortItemsByDuration = (a: KanbanItem, b: KanbanItem) => {
   const now = Date.now()
@@ -77,16 +68,48 @@ function ServiceBadges({ services }: { services: string[] }) {
   )
 }
 
-function DocSquares({ docs }: { docs: Record<string, DocState> }) {
+function OrderRatingProgressBar({ profit, workDays }: { profit?: number; workDays?: number }) {
+  const { dailyProfit, rating, color, label, description, percentage } = calculateOrderRating(profit, workDays)
+
   return (
-    <div style={{ display: "flex", gap: 3, alignItems: "center", marginTop: 8 }}>
-      {DOC_KEYS.map((key) => (
-        <div key={key} title={key.replace(/_/g, " ")} style={{
-          width: 12, height: 12, borderRadius: 3,
-          backgroundColor: DOC_COLORS[(docs[key] ?? "gray") as DocState],
-          flexShrink: 0,
-        }} />
-      ))}
+    <div
+      title={`Rating: ${label}${dailyProfit !== null ? ` (${dailyProfit.toLocaleString("pl-PL")} zł/d)` : ""} — ${description}`}
+      style={{ marginTop: 8 }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+        <span style={{ fontSize: 9.5, fontWeight: 600, color: "var(--text-mute)", letterSpacing: "0.02em" }}>
+          Rating
+        </span>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: rating !== null ? color : "var(--text-mute)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {label}
+        </span>
+      </div>
+      <div
+        style={{
+          width: "100%",
+          height: 5,
+          borderRadius: 9999,
+          backgroundColor: "#e2e8f0",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${percentage}%`,
+            height: "100%",
+            borderRadius: 9999,
+            backgroundColor: color,
+            transition: "width 0.3s ease, background-color 0.3s ease",
+          }}
+        />
+      </div>
     </div>
   )
 }
@@ -360,7 +383,7 @@ function OrderCard({
           <ServiceBadges services={item.services} />
 
           {item.type === "order" && (
-            <DocSquares docs={item.docs} />
+            <OrderRatingProgressBar profit={item.profit} workDays={item.workDays} />
           )}
         </div>
       )}

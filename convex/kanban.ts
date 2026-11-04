@@ -49,6 +49,10 @@ export type KanbanOrderItem = {
   comment?: string;
   clientCity?: string;
   statusChangedAt?: number;
+  cost?: number;
+  price?: number;
+  profit?: number;
+  workDays?: number;
 };
 
 export type KanbanPendingItem = {
@@ -163,6 +167,10 @@ export const list = query({
           investmentStreet: order.investmentStreet,
           comment: order.comment,
           clientCity: client?.city,
+          cost: order.cost,
+          price: order.price,
+          profit: order.profit,
+          workDays: order.workDays,
         };
       }),
     );

@@ -27,36 +27,9 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal";
+import { calculateOrderRating } from "@/lib/rating";
 
 /* ─────────── stałe / typy ─────────── */
-
-type DocState = "gray" | "red" | "green";
-
-const DOC_KEYS = [
-  "pomiar",
-  "umowa",
-  "gwarancja_alco",
-  "odbior_inwestor",
-  "protokol_montaz",
-  "faktura",
-  "reklamacja",
-] as const;
-
-const DOC_NAMES: Record<string, string> = {
-  pomiar: "Pomiar",
-  umowa: "Umowa",
-  gwarancja_alco: "Gwarancja ALCO",
-  odbior_inwestor: "Odbiór inwestor",
-  protokol_montaz: "Protokół montażu",
-  faktura: "Faktura",
-  reklamacja: "Reklamacja",
-};
-
-const DOC_COLORS: Record<DocState, string> = {
-  gray: "#cbd5e1",
-  red: "#ef4444",
-  green: "#22c55e",
-};
 
 const SERVICE_COLORS = [
   { bg: "#ede9fe", text: "#6d28d9" },
@@ -108,21 +81,32 @@ function ServiceBadges({ services }: { services: string[] }) {
   );
 }
 
-function DocSquares({ docs }: { docs: Record<string, DocState> }) {
-  if (!docs) return null;
+function OrderRatingProgressBar({ profit, workDays }: { profit?: number; workDays?: number }) {
+  const { dailyProfit, rating, color, label, description, percentage } = calculateOrderRating(profit, workDays);
+
   return (
-    <div className="flex items-center gap-1 mt-2">
-      {DOC_KEYS.map((key) => {
-        const st = docs[key] ?? "gray";
-        return (
-          <div
-            key={key}
-            title={`${DOC_NAMES[key]}: ${st}`}
-            className="size-2.5 rounded-xs shrink-0 transition-colors"
-            style={{ backgroundColor: DOC_COLORS[st as DocState] }}
-          />
-        );
-      })}
+    <div
+      title={`Rating: ${label}${dailyProfit !== null ? ` (${dailyProfit.toLocaleString("pl-PL")} zł/d)` : ""} — ${description}`}
+      className="mt-2"
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[9.5px] font-semibold text-slate-400">Rating</span>
+        <span
+          className="text-[10px] font-bold tabular-nums"
+          style={{ color: rating !== null ? color : "#94a3b8" }}
+        >
+          {label}
+        </span>
+      </div>
+      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-300"
+          style={{
+            width: `${percentage}%`,
+            backgroundColor: color,
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -259,8 +243,10 @@ function MobileKanbanCard({
         )}
       </div>
 
-      {/* Kwadraty dokumentów */}
-      {item.type === "order" && item.docs && <DocSquares docs={item.docs} />}
+      {/* Pasek postępu ratingu */}
+      {item.type === "order" && (
+        <OrderRatingProgressBar profit={item.profit} workDays={item.workDays} />
+      )}
 
       {/* Przypisani użytkownicy */}
       {assignees.length > 0 && (
