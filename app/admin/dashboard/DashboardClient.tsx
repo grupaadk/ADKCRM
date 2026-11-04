@@ -6,11 +6,12 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { DashboardTask } from "@/convex/dashboardTasks";
 import type { Id } from "@/convex/_generated/dataModel";
-import { ExternalLink, Plus, Clock, CalendarDays, CalendarPlus, ChevronRight, ChevronLeft, Lock, Unlock, Flame, Check, Archive, ArchiveRestore, ShoppingBag, ArrowLeft, Trash2 } from "lucide-react";
+import { ExternalLink, Plus, Clock, CalendarDays, CalendarPlus, ChevronRight, ChevronLeft, Lock, Unlock, Flame, Check, Archive, ArchiveRestore, ShoppingBag, ArrowLeft, Trash2, Tag } from "lucide-react";
 import toast from "react-hot-toast";
 import TaskDrawer from "@/components/TaskDrawer";
 import AddTaskDrawer from "@/components/AddTaskDrawer";
 import ModalPortal from "@/components/ModalPortal";
+import TaskLabelPickerPopover from "@/components/TaskLabelPickerPopover";
 
 
 const DONE_LIMIT = 10;
@@ -986,7 +987,7 @@ export default function DashboardClient() {
                   <p className="mt-1 text-sm text-gray-500">
                     Lista{" "}
                     <span className="font-medium text-gray-700">
-                      „{taskColumns.find((c) => c._id === confirmDeleteColId)?.title ?? ""}"
+                      „{taskColumns.find((c) => c._id === confirmDeleteColId)?.title ?? ""}”
                     </span>{" "}
                     zostanie trwale usunięta. Operacji nie można cofnąć.
                   </p>
@@ -1134,6 +1135,7 @@ function TaskCard({
 
   const [daysInColumnLabel, setDaysInColumnLabel] = useState<string | null>(null);
   const [daysInColumnColor, setDaysInColumnColor] = useState<string>("slate");
+  const [labelsOpen, setLabelsOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1180,6 +1182,7 @@ function TaskCard({
       draggable
       onDragStart={(e) => {
         e.stopPropagation();
+        setLabelsOpen(false);
         e.dataTransfer.effectAllowed = "move";
         onDragStart();
       }}
@@ -1188,13 +1191,15 @@ function TaskCard({
         onDragEnd();
       }}
       onClick={onOpen}
-      className={`relative overflow-hidden group rounded-lg border shadow-sm transition-all duration-150 hover:shadow-md cursor-grab active:cursor-grabbing ${
+      className={`relative group rounded-lg border shadow-sm transition-all duration-150 hover:shadow-md cursor-grab active:cursor-grabbing ${
         dragging ? "rotate-1 scale-[0.97] opacity-50 shadow-md ring-2 ring-[#4abbc3]" : ""
       }`}
       style={{ 
         padding: `10px 10px 10px ${(singleColor || hasMultipleColors) ? 15 : 10}px`,
         backgroundColor: '#ffffff',
-        borderColor: '#4abbc340'
+        borderColor: '#4abbc340',
+        overflow: labelsOpen ? "visible" : "hidden",
+        zIndex: labelsOpen ? 40 : undefined,
       }}
     >
       {(singleColor || hasMultipleColors) && (
@@ -1205,6 +1210,8 @@ function TaskCard({
           bottom: 0,
           width: 5,
           background: hasMultipleColors ? gradientStr : singleColor,
+          borderTopLeftRadius: 7,
+          borderBottomLeftRadius: 7,
           zIndex: 1,
         }} />
       )}
@@ -1273,6 +1280,21 @@ function TaskCard({
           >
             <CalendarPlus className="size-3.5" />
           </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLabelsOpen((v) => !v);
+            }}
+            title="Etykiety"
+            className={`rounded p-1 transition-colors ${
+              labelsOpen || (task.labels && task.labels.length > 0)
+                ? "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
+                : "text-gray-400 opacity-100 hover:bg-indigo-50 hover:text-indigo-600"
+            }`}
+          >
+            <Tag className="size-3.5" />
+          </button>
           {openHref !== "#" && (
             <button
               onClick={(e) => {
@@ -1289,6 +1311,13 @@ function TaskCard({
         </div>
       </div>
 
+      <TaskLabelPickerPopover
+        taskId={task._id as Id<"orderTasks">}
+        currentLabelIds={task.labelIds as Id<"taskLabels">[] | undefined}
+        open={labelsOpen}
+        onClose={() => setLabelsOpen(false)}
+      />
+
       {/* tekst własny zlecenia */}
       {task.customText && (
         <div className="mb-1.5">
@@ -1298,19 +1327,32 @@ function TaskCard({
         </div>
       )}
 
-      {/* tytuł zadania */}
+      {/* etykiety zadania */}
       {task.labels && task.labels.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1 relative z-10">
+        <div
+          className="mb-2 flex flex-wrap items-center gap-1 relative z-10 cursor-pointer group/labels"
+          onClick={(e) => {
+            e.stopPropagation();
+            setLabelsOpen(true);
+          }}
+          title="Zarządzaj etykietami zadania"
+        >
           {task.labels.map((l) => (
             <span
               key={l.id}
-              className="px-1.5 py-0.5 rounded text-[10px] font-semibold text-white tracking-wide shadow-sm"
+              className="px-1.5 py-0.5 rounded text-[10px] font-semibold text-white tracking-wide shadow-sm hover:opacity-90 transition-opacity"
               style={{ backgroundColor: l.color }}
               title={l.title}
             >
               {l.title}
             </span>
           ))}
+          <span
+            className="inline-flex items-center justify-center size-4 rounded bg-gray-100 text-gray-400 group-hover/labels:bg-gray-200 group-hover/labels:text-gray-700 transition-colors"
+            title="Zmień etykiety"
+          >
+            <Plus className="size-2.5" />
+          </span>
         </div>
       )}
 
