@@ -251,21 +251,31 @@ function FilePreviewPanel({
 export default function OrderDriveBrowser({
   orderId,
   rootFolderId,
+  rootFolderName,
+  title,
   previewSide = "right",
   onFolderChange,
   refreshKey,
   hideDropZone = false,
   hideHeaderButtons = false,
   disableSidePreview = false,
+  selectedFolderId,
+  onSelectFolder,
+  onFoldersLoaded,
 }: {
   orderId: Id<"orders">;
   rootFolderId: string | undefined;
+  rootFolderName?: string;
+  title?: string;
   previewSide?: "left" | "right";
   onFolderChange?: (folder: { id: string; name: string }) => void;
   refreshKey?: number;
   hideDropZone?: boolean;
   hideHeaderButtons?: boolean;
   disableSidePreview?: boolean;
+  selectedFolderId?: string;
+  onSelectFolder?: (folder: { id: string; name: string }) => void;
+  onFoldersLoaded?: (folders: DriveItem[]) => void;
 }) {
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadFile = useAction(api.googleDrive.uploadManualOrderFile);
@@ -274,7 +284,7 @@ export default function OrderDriveBrowser({
   const listFolderContents = useAction(api.googleDrive.listOrderFolderContents);
 
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbEntry[]>(
-    rootFolderId ? [{ id: rootFolderId, name: "Folder zlecenia" }] : [],
+    rootFolderId ? [{ id: rootFolderId, name: rootFolderName ?? "Folder zlecenia" }] : [],
   );
   const [items, setItems] = useState<DriveItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -295,7 +305,7 @@ export default function OrderDriveBrowser({
   const folderNameInputRef = useRef<HTMLInputElement>(null);
 
   const currentFolderId = breadcrumb[breadcrumb.length - 1]?.id;
-  const currentFolderName = breadcrumb[breadcrumb.length - 1]?.name ?? "Folder zlecenia";
+  const currentFolderName = breadcrumb[breadcrumb.length - 1]?.name ?? (rootFolderName ?? "Folder zlecenia");
 
   useEffect(() => {
     if (currentFolderId && onFolderChange) {
@@ -305,24 +315,29 @@ export default function OrderDriveBrowser({
 
   useEffect(() => {
     if (rootFolderId) {
-      setBreadcrumb([{ id: rootFolderId, name: "Folder zlecenia" }]);
+      setBreadcrumb([{ id: rootFolderId, name: rootFolderName ?? "Folder zlecenia" }]);
     } else {
       setBreadcrumb([]);
       setItems([]);
     }
-  }, [rootFolderId]);
+  }, [rootFolderId, rootFolderName]);
 
   useEffect(() => {
     if (!currentFolderId || !rootFolderId) return;
     let cancelled = false;
     setLoading(true);
     setFetchError(null);
+    setItems([]);
 
     listFolderContents({ orderId, folderId: currentFolderId })
       .then((result) => {
         if (!cancelled) {
           setItems(result);
           setLoading(false);
+          if (onFoldersLoaded) {
+            const folderItems = result.filter((item) => item.isFolder);
+            onFoldersLoaded(folderItems);
+          }
         }
       })
       .catch((err) => {
@@ -465,7 +480,7 @@ export default function OrderDriveBrowser({
 
   return (
     <>
-      <section className="panel" style={{ overflow: "hidden" }}>
+      <section className="panel" style={{ overflow: "hidden", display: "flex", flexDirection: "column", height: "100%", minHeight: 480 }}>
         {/* Header */}
         <div
           style={{
@@ -476,7 +491,7 @@ export default function OrderDriveBrowser({
             borderBottom: "1px solid var(--line)",
           }}
         >
-          <span className="up mute">Pliki zlecenia</span>
+          <span className="up mute">{title ?? "Pliki zlecenia"}</span>
           {rootFolderId && !hideHeaderButtons && (
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               {!showNewFolderInput && (
@@ -594,7 +609,7 @@ export default function OrderDriveBrowser({
           </p>
         )}
 
-        <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8, flex: 1, minHeight: 0 }}>
           {!rootFolderId && (
             <p
               style={{
@@ -764,7 +779,18 @@ export default function OrderDriveBrowser({
 
               {/* File/folder listing */}
               {!fetchError && (
-                <div style={{ display: "flex", flexDirection: "column", gap: hideDropZone ? 6 : 3 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: hideDropZone ? 6 : 3,
+                    flex: 1,
+                    minHeight: 240,
+                    maxHeight: 440,
+                    overflowY: "auto",
+                    paddingRight: 2,
+                  }}
+                >
                   {/* Delete error toast */}
                   {deleteErrorMsg && (
                     <div
@@ -783,7 +809,7 @@ export default function OrderDriveBrowser({
 
                   {/* Skeleton on initial load */}
                   {loading && items.length === 0 &&
-                    [1, 2, 3].map((i) => (
+                    [1, 2, 3, 4].map((i) => (
                       <div
                         key={i}
                         style={{
@@ -792,67 +818,126 @@ export default function OrderDriveBrowser({
                           background: "var(--panel-2)",
                           border: "1px solid var(--line)",
                           opacity: 0.5,
+                          animation: "pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
                         }}
                       />
                     ))}
 
                   {/* Folders */}
-                  {folders.map((folder) => (
-                    <div
-                      key={folder.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 0,
-                        borderRadius: hideDropZone ? 10 : 6,
-                        border: "1px solid var(--line)",
-                        background: "var(--panel-2)",
-                        fontSize: hideDropZone ? 13 : 12.5,
-                        transition: "border-color 0.1s",
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#fbbf24"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--line)"; }}
-                    >
-                      <button
-                        onClick={() => navigateInto(folder)}
+                  {folders.map((folder) => {
+                    const isSelected = selectedFolderId === folder.id;
+                    return (
+                      <div
+                        key={folder.id}
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: hideDropZone ? 10 : 8,
-                          padding: hideDropZone ? "10px 14px" : "6px 10px",
-                          flex: 1,
-                          color: "var(--text)",
-                          textAlign: "left",
-                          cursor: "pointer",
-                          background: "none",
-                          border: "none",
-                          fontSize: "inherit",
-                          fontFamily: "inherit",
-                          fontWeight: hideDropZone ? 600 : 500,
+                          gap: 0,
+                          borderRadius: hideDropZone ? 10 : 6,
+                          border: `1px solid ${isSelected ? "var(--accent, #4dbdc6)" : "var(--line)"}`,
+                          background: isSelected ? "var(--accent-soft, #ecfeff)" : "var(--panel-2)",
+                          boxShadow: isSelected ? "0 0 0 1px var(--accent, #4dbdc6)" : "none",
+                          fontSize: hideDropZone ? 13 : 12.5,
+                          transition: "border-color 0.15s, background-color 0.15s",
                         }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fefce8"; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) {
+                            (e.currentTarget as HTMLDivElement).style.borderColor = "#fbbf24";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) {
+                            (e.currentTarget as HTMLDivElement).style.borderColor = "var(--line)";
+                          }
+                        }}
                       >
-                        <FolderIcon />
-                        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {folder.name}
-                        </span>
-                        <svg
-                          width={hideDropZone ? 14 : 10}
-                          height={hideDropZone ? 14 : 10}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={hideDropZone ? 2.5 : 2}
-                          style={{ color: hideDropZone ? "#4dbdc6" : "var(--text-mute)", flexShrink: 0 }}
+                        <button
+                          onClick={() => {
+                            if (onSelectFolder) {
+                              onSelectFolder({ id: folder.id, name: folder.name });
+                            } else {
+                              navigateInto(folder);
+                            }
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: hideDropZone ? 10 : 8,
+                            padding: hideDropZone ? "10px 14px" : "6px 10px",
+                            flex: 1,
+                            color: isSelected ? "var(--text-strong)" : "var(--text)",
+                            textAlign: "left",
+                            cursor: "pointer",
+                            background: "none",
+                            border: "none",
+                            fontSize: "inherit",
+                            fontFamily: "inherit",
+                            fontWeight: isSelected ? 700 : (hideDropZone ? 600 : 500),
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) {
+                              (e.currentTarget as HTMLButtonElement).style.background = "#fefce8";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) {
+                              (e.currentTarget as HTMLButtonElement).style.background = "none";
+                            }
+                          }}
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M8.25 4.5l7.5 7.5-7.5 7.5"
-                          />
-                        </svg>
-                      </button>
+                          <FolderIcon />
+                          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {folder.name}
+                          </span>
+                          {isSelected && (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                padding: "2px 6px",
+                                borderRadius: 4,
+                                background: "var(--accent, #4dbdc6)",
+                                color: "#fff",
+                                fontWeight: 700,
+                                marginRight: 4,
+                                flexShrink: 0,
+                              }}
+                            >
+                              Wybrany
+                            </span>
+                          )}
+                          <span
+                            onClick={(e) => {
+                              if (onSelectFolder) {
+                                e.stopPropagation();
+                                navigateInto(folder);
+                              }
+                            }}
+                            title={onSelectFolder ? "Wejdź głębiej po lewej" : undefined}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: "2px 4px",
+                              borderRadius: 4,
+                            }}
+                          >
+                            <svg
+                              width={hideDropZone ? 14 : 10}
+                              height={hideDropZone ? 14 : 10}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={hideDropZone ? 2.5 : 2}
+                              style={{ color: isSelected ? "var(--accent, #4dbdc6)" : (hideDropZone ? "#4dbdc6" : "var(--text-mute)"), flexShrink: 0 }}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M8.25 4.5l7.5 7.5-7.5 7.5"
+                              />
+                            </svg>
+                          </span>
+                        </button>
                       <span
                         style={{
                           width: 1,
@@ -925,7 +1010,8 @@ export default function OrderDriveBrowser({
                         </button>
                       )}
                     </div>
-                  ))}
+                  );
+                })}
 
                   {/* Files */}
                   {files.map((file) => {
@@ -1088,17 +1174,28 @@ export default function OrderDriveBrowser({
 
                   {/* Empty state */}
                   {!loading && isEmpty && (
-                    <p
+                    <div
                       style={{
-                        fontSize: 12,
+                        flex: 1,
+                        minHeight: 180,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
                         color: "var(--text-mute)",
-                        textAlign: "center",
-                        padding: "8px 0",
-                        margin: 0,
+                        fontSize: 12.5,
+                        gap: 8,
                       }}
                     >
-                      Ten folder jest pusty
-                    </p>
+                      <svg
+                        style={{ width: 28, height: 28, opacity: 0.35, color: "#d97706" }}
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                      </svg>
+                      <span>Ten folder jest pusty</span>
+                    </div>
                   )}
                 </div>
               )}
@@ -1239,8 +1336,9 @@ export default function OrderDriveBrowser({
                     borderRadius: 8,
                     border: `2px dashed ${isDragging ? "#60a5fa" : "var(--line)"}`,
                     background: isDragging ? "#eff6ff" : "transparent",
-                    padding: isEmpty ? "24px 16px" : "10px 16px",
+                    padding: "10px 16px",
                     textAlign: "center",
+                    marginTop: "auto",
                     transition: "border-color 0.15s, background 0.15s",
                   }}
                 >

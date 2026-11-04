@@ -1699,6 +1699,7 @@ export default function OrderDetailPage({
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as Tab) ?? "szczegoly";
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+  const [selectedDriveFolder, setSelectedDriveFolder] = useState<{ id: string; name: string } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showClearInstallationConfirm, setShowClearInstallationConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -4120,18 +4121,57 @@ export default function OrderDetailPage({
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
 
-          {/* Pliki zlecenia — dwa gridy side-by-side */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          {/* Pliki zlecenia — dwa gridy side-by-side (master-detail) */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "stretch" }}>
             <OrderDriveBrowser
               orderId={orderIdTyped}
               rootFolderId={order.folderId}
               previewSide="left"
+              title="Foldery zlecenia"
+              selectedFolderId={selectedDriveFolder?.id}
+              onSelectFolder={setSelectedDriveFolder}
+              onFoldersLoaded={(folders) => {
+                if (!selectedDriveFolder && folders.length > 0) {
+                  setSelectedDriveFolder({ id: folders[0].id, name: folders[0].name });
+                }
+              }}
             />
-            <OrderDriveBrowser
-              orderId={orderIdTyped}
-              rootFolderId={order.folderId}
-              previewSide="right"
-            />
+            {selectedDriveFolder ? (
+              <OrderDriveBrowser
+                orderId={orderIdTyped}
+                rootFolderId={selectedDriveFolder.id}
+                rootFolderName={selectedDriveFolder.name}
+                title={`Zawartość: ${selectedDriveFolder.name}`}
+                previewSide="right"
+              />
+            ) : (
+              <section
+                className="panel"
+                style={{
+                  padding: 24,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: 480,
+                  height: "100%",
+                  color: "var(--text-mute)",
+                  textAlign: "center",
+                  gap: 10,
+                }}
+              >
+                <svg
+                  style={{ width: 32, height: 32, color: "#d97706", opacity: 0.6 }}
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                </svg>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>
+                  Wybierz folder z listy po lewej stronie, aby wyświetlić jego zawartość.
+                </span>
+              </section>
+            )}
           </div>
 
 
