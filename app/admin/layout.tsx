@@ -8,7 +8,6 @@ import { AdminSidebar } from "@/components/AdminSidebar"
 import { AdminTopbar } from "@/components/AdminTopbar"
 import { SidebarProvider } from "@/components/ui/Sidebar"
 import { StatusLabelsProvider } from "@/components/StatusLabelsContext"
-import NewLeadAnnouncer from "@/components/NewLeadAnnouncer"
 
 function LoginRedirect() {
   const router = useRouter()
@@ -53,7 +52,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       <Authenticated>
         <AccessGuard>
-          <NewLeadAnnouncer />
           <SidebarProvider defaultOpen={false}>
             <AdminSidebar />
             <div className="flex flex-1 flex-col min-h-svh min-w-0">

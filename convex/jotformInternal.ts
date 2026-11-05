@@ -4,6 +4,7 @@ import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { DEFAULT_DOCUMENTS, nextOrderNumber } from "./orders";
 import { normalizePhoneForDb } from "./lib/phone";
+import { notifyNewOpportunity } from "./notifications";
 
 // Znajdź istniejącego klienta lub utwórz nowego na podstawie danych z Jotform.
 // Wywoływane od razu przy przychodzącej odpowiedzi z formularza.
@@ -133,6 +134,15 @@ export const savePendingSubmission = mutation({
         firstName: args.firstName,
       });
     }
+
+    // Utwórz powiadomienia w systemie o nowej szansie sprzedaży
+    await notifyNewOpportunity(ctx, {
+      opportunityId: pendingId,
+      clientName: `${args.firstName} ${args.lastName}`.trim(),
+      city: args.city,
+      services: args.services,
+      source: "Jotform",
+    });
 
     return pendingId;
   },

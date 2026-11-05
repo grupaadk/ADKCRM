@@ -1,9 +1,9 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import { Bell } from "lucide-react"
 import { SidebarTrigger } from "@/components/ui/Sidebar"
 import { UserMenu } from "@/components/UserMenu"
+import { NotificationBell } from "@/components/NotificationBell"
 
 const ROUTE_LABELS: Record<string, string> = {
   "/admin": "Klienci",
@@ -52,13 +52,7 @@ export function AdminTopbar() {
 
       <div style={{ flex: 1 }} />
 
-      <button
-        className="btn ghost icon"
-        title="Powiadomienia"
-        style={{ position: "relative" }}
-      >
-        <Bell size={15} />
-      </button>
+      <NotificationBell />
 
       <UserMenu />
     </header>

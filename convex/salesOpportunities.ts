@@ -5,6 +5,7 @@ import { Id } from "./_generated/dataModel";
 import { DEFAULT_DOCUMENTS, nextOrderNumber } from "./orders";
 import { requireUser, getCurrentUser } from "./lib/auth";
 import { normalizePhoneForDb } from "./lib/phone";
+import { notifyNewOpportunity } from "./notifications";
 
 // Zapis nowej szansy sprzedaży (z webhooka Jotform lub ręcznie z panelu).
 // Klient NIE jest tworzony — powstaje dopiero przy konwersji do zlecenia.
@@ -54,6 +55,15 @@ export const createSalesOpportunity = mutation({
       api.googleDrive.createClientFolderForOpportunity,
       { opportunityId },
     );
+
+    // Utwórz powiadomienia w systemie o nowej szansie sprzedaży
+    await notifyNewOpportunity(ctx, {
+      opportunityId,
+      clientName: `${args.firstName} ${args.lastName}`.trim(),
+      city: args.city,
+      services: args.services,
+      source: args.leadSource ?? "Formularz",
+    });
 
     return opportunityId;
   },
@@ -186,6 +196,17 @@ export const createManualOpportunity = mutation({
       api.googleDrive.createClientFolderForOpportunity,
       { opportunityId, uploadedFileIds: uploadedFileIds ?? [] },
     );
+
+    // Utwórz powiadomienia w systemie o nowej szansie sprzedaży (z wykluczeniem twórcy)
+    const user = await getCurrentUser(ctx);
+    await notifyNewOpportunity(ctx, {
+      opportunityId,
+      clientName: `${firstName} ${lastName}`.trim(),
+      city: city?.trim() || finalInvestmentCity,
+      services: rest.services,
+      source: rest.leadSource ?? "Ręcznie",
+      creatorUserId: user?._id,
+    });
 
     return opportunityId;
   },

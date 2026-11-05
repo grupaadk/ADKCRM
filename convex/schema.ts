@@ -1320,6 +1320,23 @@ export default defineSchema({
   })
     .index("by_offer", ["offerId"])
     .index("by_construction", ["targetConstructionId"]),
+
+  // Powiadomienia w systemie (in-app notifications)
+  notifications: defineTable({
+    userId: v.id("users"),
+    type: v.string(), // np. "new_opportunity"
+    title: v.string(),
+    message: v.string(),
+    link: v.optional(v.string()),
+    entityType: v.optional(v.string()), // np. "opportunity"
+    entityId: v.optional(v.string()),
+    read: v.boolean(),
+    readAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_read", ["userId", "read"])
+    .index("by_user_created", ["userId", "createdAt"]),
 });
 
 
