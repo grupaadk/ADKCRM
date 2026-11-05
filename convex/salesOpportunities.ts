@@ -197,7 +197,7 @@ export const createManualOpportunity = mutation({
       { opportunityId, uploadedFileIds: uploadedFileIds ?? [] },
     );
 
-    // Utwórz powiadomienia w systemie o nowej szansie sprzedaży (z wykluczeniem twórcy)
+    // Utwórz powiadomienia w systemie o nowej szansie sprzedaży
     const user = await getCurrentUser(ctx);
     await notifyNewOpportunity(ctx, {
       opportunityId,

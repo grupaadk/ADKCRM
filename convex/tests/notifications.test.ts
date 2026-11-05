@@ -42,9 +42,10 @@ describe("In-App Notification System", () => {
 
     expect(oppId).toBeDefined();
 
-    // user1 is the creator, so user1 should NOT receive a notification
+    // user1 is the creator, and user1 should also receive a notification
     const user1Notifications = await user1.asUser.query(api.notifications.list, {});
-    expect(user1Notifications.length).toBe(0);
+    expect(user1Notifications.length).toBe(1);
+    expect(user1Notifications[0].title).toBe("Nowa szansa: Marek Nowak");
 
     // user2 (sales) should receive a notification
     const user2Notifications = await user2.asUser.query(api.notifications.list, {});

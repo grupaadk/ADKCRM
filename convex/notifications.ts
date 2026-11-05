@@ -135,11 +135,10 @@ export async function notifyNewOpportunity(
 ) {
   const allUsers = await ctx.db.query("users").collect();
 
-  // Odbiorcy: aktywni użytkownicy, nie montaż, z wykluczeniem twórcy
+  // Odbiorcy: aktywni użytkownicy z rolami admin i sales (oraz każdy niebędący montażem)
   const recipients = allUsers.filter((u) => {
     if (u.isActive === false) return false;
     if (u.role === "montaz") return false;
-    if (args.creatorUserId && u._id === args.creatorUserId) return false;
     return true;
   });
 
