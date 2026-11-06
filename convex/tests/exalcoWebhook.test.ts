@@ -207,6 +207,7 @@ describe("Exalco Webhook Delivery Date Logic", () => {
               note: "Specjalne szkło hartowane",
               createdAt: Date.now(),
               createdByName: "Admin User",
+              threadId: "q970nb5m0ctpk5xk72z9yy51698ewyyh",
             },
           ],
         },
@@ -219,6 +220,7 @@ describe("Exalco Webhook Delivery Date Logic", () => {
 
     expect(updatedOrder!.serviceDeliveries![0].notesFeed).toHaveLength(1);
     expect(updatedOrder!.serviceDeliveries![0].notesFeed![0].note).toBe("Specjalne szkło hartowane");
+    expect(updatedOrder!.serviceDeliveries![0].notesFeed![0].threadId).toBe("q970nb5m0ctpk5xk72z9yy51698ewyyh");
 
     // Call recordCrmNoteSent
     await asUser.mutation(api.orders.recordCrmNoteSent, {

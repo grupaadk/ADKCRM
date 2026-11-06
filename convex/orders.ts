@@ -445,6 +445,7 @@ export const update = mutation({
         sentToCrm: v.optional(v.boolean()),
         errorSending: v.optional(v.boolean()),
         errorMessage: v.optional(v.string()),
+        threadId: v.optional(v.string()),
         attachments: v.optional(v.array(v.object({
           fileId: v.string(),
           fileName: v.string(),
