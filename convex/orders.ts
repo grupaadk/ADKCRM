@@ -1454,12 +1454,13 @@ export const markAllDeliveryNotesSentToCrm = mutation({
     const target = deliveries[args.deliveryIndex];
     const currentFeed = target.notesFeed ?? [];
 
-    let updatedFeed = currentFeed.map((n) => ({
-      ...n,
-      sentToCrm: true,
-      errorSending: false,
-      errorMessage: undefined,
-    }));
+    let updatedFeed = currentFeed.map((n) => {
+      const { errorSending: _err, errorMessage: _msg, ...rest } = n;
+      return {
+        ...rest,
+        sentToCrm: true,
+      };
+    });
 
     if (updatedFeed.length === 0 && target.notes?.trim()) {
       const userNameStr = user.displayName ?? user.name ?? user.email ?? userId;
