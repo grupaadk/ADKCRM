@@ -59,7 +59,7 @@ export function NotificationBell() {
           const isMessage = item.type === "order_message" || item.entityType === "order";
           toast(
             (t) => (
-              <div className="flex items-start gap-2.5 max-w-sm">
+              <div className="flex items-start gap-3 w-80 max-w-[calc(100vw-32px)]">
                 <div
                   className={`p-1.5 rounded-md shrink-0 mt-0.5 ${
                     isMessage ? "bg-blue-500/10 text-blue-600" : "bg-teal-500/10 text-teal-600"
@@ -68,8 +68,10 @@ export function NotificationBell() {
                   {isMessage ? <MessageSquare size={16} /> : <TrendingUp size={16} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-900">{item.title}</p>
-                  <p className="text-xs text-gray-500 truncate">{item.message}</p>
+                  <p className="text-xs font-semibold text-gray-900 truncate">{item.title}</p>
+                  <p className="text-xs text-gray-600 line-clamp-2 break-words leading-snug mt-0.5">
+                    {item.message}
+                  </p>
                   {item.link && (
                     <button
                       onClick={() => {

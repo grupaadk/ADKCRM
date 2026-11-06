@@ -5521,7 +5521,7 @@ export default function OrderDetailPage({
                                                   </div>
                                                 </div>
                                               ) : (
-                                                <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{nItem.note}</p>
+                                                <p className="text-xs text-slate-700 whitespace-pre-wrap break-words leading-relaxed">{nItem.note}</p>
                                               )}
                                             </div>
                                             <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">

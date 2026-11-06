@@ -203,7 +203,8 @@ export async function notifyNewOrderMessage(
   });
 
   const now = Date.now();
-  const snippet = args.noteText.length > 80 ? `${args.noteText.slice(0, 77)}...` : args.noteText;
+  const cleanText = args.noteText.replace(/\s+/g, " ").trim();
+  const snippet = cleanText.length > 90 ? `${cleanText.slice(0, 87)}...` : cleanText;
 
   const senderPrefix = args.senderType === "exalco" ? "Exalco" : args.senderName;
   const title = `Nowa wiadomość (${senderPrefix}) • ${orderLabel}`;
