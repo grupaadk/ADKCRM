@@ -949,10 +949,38 @@ export default function OrderList({ searchTerm = "", showReports = false }: { se
                     color: "var(--text-mute)",
                     borderLeft: userColors.length > 0 ? `4px solid ${userColors[0]}` : undefined,
                   }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start" }}>
-                      <span style={{ fontWeight: 600, color: "var(--text-strong)" }}>{order.name ?? "—"}</span>
-                      {order.customText && <span className="chip-custom">{order.customText}</span>}
-                    </div>
+                    {(() => {
+                      const unreadNotes = (order.serviceDeliveries ?? []).reduce(
+                        (acc, d) => acc + (d.unreadNotesCount ?? 0),
+                        0,
+                      );
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start" }}>
+                          <span style={{ fontWeight: 600, color: "var(--text-strong)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            {order.name ?? "—"}
+                            {unreadNotes > 0 && (
+                              <span
+                                style={{
+                                  background: "#ef4444",
+                                  color: "#ffffff",
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  padding: "1px 5px",
+                                  borderRadius: 999,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 2,
+                                }}
+                                title={`${unreadNotes} nieprzeczytanych wiadomości w zamówieniach`}
+                              >
+                                💬 {unreadNotes}
+                              </span>
+                            )}
+                          </span>
+                          {order.customText && <span className="chip-custom">{order.customText}</span>}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td>
                     {clientName ? (

@@ -3,6 +3,7 @@ import { query, mutation, action, internalMutation, MutationCtx } from "./_gener
 import { api, internal } from "./_generated/api";
 import { requireUser, requireRole, userIdentifier } from "./lib/auth";
 import { resolveStatuses, type StatusDef } from "../lib/statuses";
+import { notifyNewOrderMessage } from "./notifications";
 
 export async function nextOrderNumber(ctx: MutationCtx): Promise<string> {
   const now = new Date();
@@ -1330,6 +1331,7 @@ export const listSupplierOrders = query({
                 receivedDate: d.receivedDate,
                 externalOrderNumber: d.externalOrderNumber,
                 externalOrderId: d.externalOrderId,
+                unreadNotesCount: d.unreadNotesCount ?? 0,
               };
             }),
           );
@@ -1549,6 +1551,15 @@ export const recordCrmNoteSent = mutation({
     });
 
     await ctx.db.patch(args.orderId, { serviceDeliveries: next });
+
+    await notifyNewOrderMessage(ctx, {
+      orderId: args.orderId,
+      deliveryIndex: args.deliveryIndex,
+      senderName: userNameStr,
+      senderType: "adk",
+      noteText: args.noteText.trim(),
+      excludeUserId: user._id,
+    });
   },
 });
 
@@ -1578,6 +1589,16 @@ export const addInternalSupplierNote = mutation({
     });
     
     await ctx.db.patch(args.orderId, { serviceDeliveries: next });
+
+    await notifyNewOrderMessage(ctx, {
+      orderId: args.orderId,
+      deliveryIndex: args.deliveryIndex,
+      senderName: userNameStr,
+      senderType: "adk",
+      noteText: args.noteText.trim(),
+      excludeUserId: user._id,
+    });
+
     return next[args.deliveryIndex].notesFeed![0];
   }
 });
@@ -1788,6 +1809,14 @@ export const receiveNoteFromExalcoWebhook = mutation({
       performedBy: args.authorName ? `Exalco (${args.authorName})` : "Exalco CRM",
     });
 
+    await notifyNewOrderMessage(ctx, {
+      orderId: targetOrder._id,
+      deliveryIndex: targetDeliveryIndex,
+      senderName: args.authorName ? `Exalco · ${args.authorName}` : "Exalco CRM",
+      senderType: "exalco",
+      noteText: args.noteText.trim(),
+    });
+
     return {
       success: true,
       orderId: targetOrder._id,
@@ -1815,6 +1844,21 @@ export const markSupplierNotesAsRead = mutation({
         unreadNotesCount: 0,
       };
       await ctx.db.patch(args.orderId, { serviceDeliveries: deliveries });
+    }
+
+    // Oznacz również systemowe powiadomienia tego użytkownika dla tego zlecenia jako przeczytane
+    const unreadNotifications = await ctx.db
+      .query("notifications")
+      .withIndex("by_user_read", (q) => q.eq("userId", user._id).eq("read", false))
+      .filter((q) => q.eq(q.field("entityId"), args.orderId))
+      .collect();
+
+    const now = Date.now();
+    for (const notif of unreadNotifications) {
+      await ctx.db.patch(notif._id, {
+        read: true,
+        readAt: now,
+      });
     }
   },
 });

@@ -141,4 +141,122 @@ describe("In-App Notification System", () => {
     const user2Refreshed = await user2.asUser.query(api.notifications.list, {});
     expect(user2Refreshed.length).toBe(1);
   });
+
+  test("generates order_message notification on Exalco webhook note and clears it when supplier notes are marked read", async () => {
+    const t = convexTest(schema);
+
+    const admin = await createTestUser(t, "admin_exalco@example.pl", "admin");
+    const sales = await createTestUser(t, "sales_exalco@example.pl", "sales");
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "Exalco",
+        isActive: true,
+        createdBy: "test",
+      });
+    });
+
+    const clientId = await admin.asUser.mutation(api.clients.create, {
+      firstName: "Kamil",
+      lastName: "Nowicki",
+    });
+
+    const orderId = await admin.asUser.mutation(api.orders.create, { clientId });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(orderId, {
+        serviceDeliveries: [
+          {
+            serviceName: "Okna ALU",
+            supplierId,
+            externalOrderNumber: "EX-NOTIF-001",
+          },
+        ],
+      });
+    });
+
+    // Receive note from Exalco webhook
+    await t.mutation(api.orders.receiveNoteFromExalcoWebhook, {
+      orderIdOrNumber: "EX-NOTIF-001",
+      noteText: "Towar został spakowany i oczekuje na odbiór.",
+      authorName: "Magazyn Exalco",
+    });
+
+    // Check notifications for admin and sales
+    const adminNotifs = await admin.asUser.query(api.notifications.list, {});
+    const salesNotifs = await sales.asUser.query(api.notifications.list, {});
+
+    expect(adminNotifs.length).toBe(1);
+    expect(adminNotifs[0].type).toBe("order_message");
+    expect(adminNotifs[0].title).toContain("Exalco");
+    expect(adminNotifs[0].message).toContain("Towar został spakowany");
+    expect(adminNotifs[0].link).toContain(`/admin/klient/${clientId}/zlecenie/${orderId}?tab=zamowienia&deliveryIndex=0`);
+    expect(adminNotifs[0].read).toBe(false);
+
+    expect(salesNotifs.length).toBe(1);
+    expect(salesNotifs[0].type).toBe("order_message");
+
+    // Admin opens delivery -> marks notes as read
+    await admin.asUser.mutation(api.orders.markSupplierNotesAsRead, {
+      orderId,
+      deliveryIndex: 0,
+    });
+
+    // Admin's notification should be marked as read
+    const adminNotifsAfter = await admin.asUser.query(api.notifications.list, {});
+    expect(adminNotifsAfter[0].read).toBe(true);
+
+    const adminUnread = await admin.asUser.query(api.notifications.getUnreadCount, {});
+    expect(adminUnread).toBe(0);
+  });
+
+  test("notifies other users when ADK user adds an internal note (excludes author)", async () => {
+    const t = convexTest(schema);
+
+    const author = await createTestUser(t, "author@example.pl", "sales");
+    const colleague = await createTestUser(t, "colleague@example.pl", "sales");
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "Aliplast",
+        isActive: true,
+        createdBy: "test",
+      });
+    });
+
+    const clientId = await author.asUser.mutation(api.clients.create, {
+      firstName: "Ewa",
+      lastName: "Dąbrowska",
+    });
+
+    const orderId = await author.asUser.mutation(api.orders.create, { clientId });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(orderId, {
+        serviceDeliveries: [
+          {
+            serviceName: "Konstrukcje",
+            supplierId,
+          },
+        ],
+      });
+    });
+
+    // Author adds note
+    await author.asUser.mutation(api.orders.addInternalSupplierNote, {
+      orderId,
+      deliveryIndex: 0,
+      noteText: "Wysłałem zapytanie o rabat do opiekuna.",
+    });
+
+    // Author should NOT receive a notification (excluded)
+    const authorNotifs = await author.asUser.query(api.notifications.list, {});
+    expect(authorNotifs.length).toBe(0);
+
+    // Colleague SHOULD receive a notification
+    const colleagueNotifs = await colleague.asUser.query(api.notifications.list, {});
+    expect(colleagueNotifs.length).toBe(1);
+    expect(colleagueNotifs[0].type).toBe("order_message");
+    expect(colleagueNotifs[0].message).toContain("Wysłałem zapytanie o rabat");
+  });
 });

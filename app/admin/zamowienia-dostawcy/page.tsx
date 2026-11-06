@@ -38,6 +38,7 @@ type Row = {
   receivedDate?: number
   externalOrderNumber?: string
   externalOrderId?: string
+  unreadNotesCount?: number
 }
 
 function tsToInputValue(ts?: number): string {
@@ -232,6 +233,7 @@ export default function SupplierOrdersPage() {
         receivedDate: d.receivedDate,
         externalOrderNumber: (d as unknown as { externalOrderNumber?: string }).externalOrderNumber,
         externalOrderId: (d as unknown as { externalOrderId?: string }).externalOrderId,
+        unreadNotesCount: (d as unknown as { unreadNotesCount?: number }).unreadNotesCount,
       })),
     )
   }, [orders])
@@ -340,7 +342,7 @@ export default function SupplierOrdersPage() {
   // w interaktywne elementy (pola dat, przyciski odbioru)
   const openOrder = (row: Row, e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("input, button")) return
-    window.open(`/admin/klient/${row.clientId}/zlecenie/${row.orderId}`, "_blank")
+    window.open(`/admin/klient/${row.clientId}/zlecenie/${row.orderId}?tab=zamowienia&deliveryIndex=${row.deliveryIndex}`, "_blank")
   }
 
   const isFiltering = !!search.trim() || supplierFilter.size > 0 || statusFilter.size > 0
@@ -504,7 +506,27 @@ export default function SupplierOrdersPage() {
                 return (
                   <tr key={r.key} onClick={(e) => openOrder(r, e)} style={{ cursor: "pointer", background: rowBg }} title="Otwórz zlecenie w nowej karcie">
                     <td className="mono" style={{ fontSize: 11, color: "var(--text-mute)" }}>
-                      {r.orderName ?? <span style={{ color: "var(--panel-3)" }}>—</span>}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        {r.orderName ?? <span style={{ color: "var(--panel-3)" }}>—</span>}
+                        {Boolean(r.unreadNotesCount && r.unreadNotesCount > 0) && (
+                          <span
+                            style={{
+                              background: "#ef4444",
+                              color: "#ffffff",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: "1px 5px",
+                              borderRadius: 999,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 2,
+                            }}
+                            title={`${r.unreadNotesCount} nieprzeczytanych wiadomości`}
+                          >
+                            💬 {r.unreadNotesCount}
+                          </span>
+                        )}
+                      </span>
                     </td>
                     <td className="strong" style={{ fontWeight: 500 }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>

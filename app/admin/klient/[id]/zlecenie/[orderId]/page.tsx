@@ -1968,6 +1968,22 @@ export default function OrderDetailPage({
     setReplyingToNote(null);
   }
 
+  const openedDeliveryFromUrlRef = useRef(false);
+  useEffect(() => {
+    if (openedDeliveryFromUrlRef.current || !order || !order.serviceDeliveries) return;
+    const tabParam = searchParams.get("tab");
+    const deliveryParam = searchParams.get("deliveryIndex");
+    if (tabParam === "zamowienia" && deliveryParam !== null) {
+      const idx = parseInt(deliveryParam, 10);
+      const delivery = order.serviceDeliveries[idx];
+      if (delivery) {
+        openedDeliveryFromUrlRef.current = true;
+        setActiveTab("zamowienia");
+        startEditDelivery(delivery.serviceName, delivery.supplierId, idx);
+      }
+    }
+  }, [order, searchParams]);
+
   const sendCrmOrder = useAction(api.crmIntegration.sendDeliveryOrderToCrm);
   const sendCrmOrderWithFiles = useAction(api.crmIntegration.sendDeliveryOrderWithFilesToCrm);
   const addCrmNote = useAction(api.crmIntegration.addNoteToCrmOrder);
@@ -4093,39 +4109,65 @@ export default function OrderDetailPage({
         })()}
 
         {/* Tabs */}
-        <div style={{ display: "flex", borderTop: "1px solid var(--line)", gap: 2 }}>
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.key || (tab.key === "finanse" && (activeTab === "faktury" || activeTab === "koszty"));
-            const isComplaintTab = tab.key === "reklamacja";
-            const activeColor = isComplaintTab
-              ? "var(--bad)"
-              : "var(--accent)";
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                style={{
-                  padding: "9px 16px",
-                  fontSize: 12.5,
-                  fontWeight: isActive ? 600 : 500,
-                  color: isActive ? activeColor : "var(--text-mute)",
-                  borderTop: "none",
-                  borderLeft: "none",
-                  borderRight: "none",
-                  borderBottom: isActive
-                    ? `2px solid ${activeColor}`
-                    : "2px solid transparent",
-                  marginBottom: -1,
-                  background: "none",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        {(() => {
+          const unreadDeliveriesCount = (order?.serviceDeliveries ?? []).reduce(
+            (acc, d) => acc + (d.unreadNotesCount ?? 0),
+            0,
+          );
+          return (
+            <div style={{ display: "flex", borderTop: "1px solid var(--line)", gap: 2 }}>
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.key || (tab.key === "finanse" && (activeTab === "faktury" || activeTab === "koszty"));
+                const isComplaintTab = tab.key === "reklamacja";
+                const activeColor = isComplaintTab
+                  ? "var(--bad)"
+                  : "var(--accent)";
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    style={{
+                      padding: "9px 16px",
+                      fontSize: 12.5,
+                      fontWeight: isActive ? 600 : 500,
+                      color: isActive ? activeColor : "var(--text-mute)",
+                      borderTop: "none",
+                      borderLeft: "none",
+                      borderRight: "none",
+                      borderBottom: isActive
+                        ? `2px solid ${activeColor}`
+                        : "2px solid transparent",
+                      marginBottom: -1,
+                      background: "none",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      display: "inline-flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span>{tab.label}</span>
+                    {tab.key === "zamowienia" && unreadDeliveriesCount > 0 && (
+                      <span
+                        style={{
+                          marginLeft: 6,
+                          background: "#ef4444",
+                          color: "#ffffff",
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          padding: "1px 5px",
+                          borderRadius: "9999px",
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {unreadDeliveriesCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Tab: Szczegóły ── */}

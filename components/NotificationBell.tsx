@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Bell, CheckCheck, TrendingUp, X, BellOff, ArrowRight } from "lucide-react";
+import { Bell, CheckCheck, TrendingUp, MessageSquare, X, BellOff, ArrowRight } from "lucide-react";
 import toast from "react-hot-toast";
 import type { Id } from "@/convex/_generated/dataModel";
 
@@ -56,11 +56,16 @@ export function NotificationBell() {
         seenIdsRef.current.add(item._id);
 
         if (!item.read) {
+          const isMessage = item.type === "order_message" || item.entityType === "order";
           toast(
             (t) => (
               <div className="flex items-start gap-2.5 max-w-sm">
-                <div className="p-1.5 rounded-md bg-teal-500/10 text-teal-600 shrink-0 mt-0.5">
-                  <TrendingUp size={16} />
+                <div
+                  className={`p-1.5 rounded-md shrink-0 mt-0.5 ${
+                    isMessage ? "bg-blue-500/10 text-blue-600" : "bg-teal-500/10 text-teal-600"
+                  }`}
+                >
+                  {isMessage ? <MessageSquare size={16} /> : <TrendingUp size={16} />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-gray-900">{item.title}</p>
@@ -71,9 +76,13 @@ export function NotificationBell() {
                         toast.dismiss(t.id);
                         if (item.link) router.push(item.link);
                       }}
-                      className="mt-1.5 text-[11px] font-medium text-teal-600 hover:text-teal-700 flex items-center gap-1"
+                      className={`mt-1.5 text-[11px] font-medium flex items-center gap-1 ${
+                        isMessage
+                          ? "text-blue-600 hover:text-blue-700"
+                          : "text-teal-600 hover:text-teal-700"
+                      }`}
                     >
-                      Zobacz szansę <ArrowRight size={11} />
+                      {isMessage ? "Zobacz wiadomość" : "Zobacz szansę"} <ArrowRight size={11} />
                     </button>
                   )}
                 </div>
@@ -231,22 +240,25 @@ export function NotificationBell() {
             ) : (
               notifications.map((item) => {
                 const isUnread = !item.read;
+                const isMessage = item.type === "order_message" || item.entityType === "order";
                 return (
                   <div
                     key={item._id}
                     onClick={() => handleNotificationClick(item)}
                     className="group relative flex items-start gap-3 p-3 transition-colors cursor-pointer text-left"
                     style={{
-                      background: isUnread ? "rgba(74, 187, 195, 0.05)" : "transparent",
+                      background: isUnread
+                        ? isMessage ? "rgba(59, 130, 246, 0.05)" : "rgba(74, 187, 195, 0.05)"
+                        : "transparent",
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.background = isUnread
-                        ? "rgba(74, 187, 195, 0.09)"
+                        ? isMessage ? "rgba(59, 130, 246, 0.09)" : "rgba(74, 187, 195, 0.09)"
                         : "var(--panel-2)";
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.background = isUnread
-                        ? "rgba(74, 187, 195, 0.05)"
+                        ? isMessage ? "rgba(59, 130, 246, 0.05)" : "rgba(74, 187, 195, 0.05)"
                         : "transparent";
                     }}
                   >
@@ -254,11 +266,15 @@ export function NotificationBell() {
                     <div
                       className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5"
                       style={{
-                        background: isUnread ? "rgba(74, 187, 195, 0.15)" : "var(--panel-3)",
-                        color: isUnread ? "var(--brand-hover)" : "var(--text-mute)",
+                        background: isUnread
+                          ? isMessage ? "rgba(59, 130, 246, 0.15)" : "rgba(74, 187, 195, 0.15)"
+                          : "var(--panel-3)",
+                        color: isUnread
+                          ? isMessage ? "#2563eb" : "var(--brand-hover)"
+                          : "var(--text-mute)",
                       }}
                     >
-                      <TrendingUp size={14} />
+                      {isMessage ? <MessageSquare size={14} /> : <TrendingUp size={14} />}
                     </div>
 
                     {/* Content */}

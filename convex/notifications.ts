@@ -166,6 +166,66 @@ export async function notifyNewOpportunity(
 }
 
 /**
+ * Pomocnicza funkcja wewnętrzna do tworzenia powiadomień o nowych wiadomościach w zamówieniach.
+ * Powiadamia aktywnych użytkowników (admin, sales) z wykluczeniem nadawcy (jeśli to użytkownik ADK).
+ */
+export async function notifyNewOrderMessage(
+  ctx: MutationCtx,
+  args: {
+    orderId: Id<"orders">;
+    deliveryIndex: number;
+    senderName: string;
+    senderType: "adk" | "exalco";
+    noteText: string;
+    excludeUserId?: string;
+  },
+) {
+  const order = await ctx.db.get(args.orderId);
+  if (!order) return;
+
+  const client = order.clientId ? await ctx.db.get(order.clientId) : null;
+  const clientName = client
+    ? client.clientType === "business" && client.companyName
+      ? client.companyName
+      : `${client.firstName} ${client.lastName}`.trim()
+    : "Klient";
+
+  const orderLabel = order.name ?? `Zlecenie`;
+  const delivery = order.serviceDeliveries?.[args.deliveryIndex];
+  const serviceName = delivery?.serviceName ?? "Zamówienie";
+
+  const allUsers = await ctx.db.query("users").collect();
+  const recipients = allUsers.filter((u) => {
+    if (u.isActive === false) return false;
+    if (u.role === "montaz") return false;
+    if (args.excludeUserId && (u._id === args.excludeUserId || u.email === args.excludeUserId)) return false;
+    return true;
+  });
+
+  const now = Date.now();
+  const snippet = args.noteText.length > 80 ? `${args.noteText.slice(0, 77)}...` : args.noteText;
+
+  const senderPrefix = args.senderType === "exalco" ? "Exalco" : args.senderName;
+  const title = `Nowa wiadomość (${senderPrefix}) • ${orderLabel}`;
+  const message = `${clientName} (${serviceName}): ${snippet}`;
+  const link = `/admin/klient/${order.clientId}/zlecenie/${order._id}?tab=zamowienia&deliveryIndex=${args.deliveryIndex}`;
+
+  for (const user of recipients) {
+    await ctx.db.insert("notifications", {
+      userId: user._id,
+      type: "order_message",
+      title,
+      message,
+      link,
+      entityType: "order",
+      entityId: args.orderId,
+      read: false,
+      createdAt: now,
+    });
+  }
+}
+
+/**
  * Wewnętrzna mutacja do wywołania przez scheduler lub inne akcje, jeśli zajdzie taka potrzeba.
  */
 export const internalNotifyNewOpportunity = internalMutation({
