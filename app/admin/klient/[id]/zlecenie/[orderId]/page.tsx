@@ -1881,7 +1881,6 @@ export default function OrderDetailPage({
   const [addingSupplierNote, setAddingSupplierNote] = useState(false);
   const [editingCrmNoteId, setEditingCrmNoteId] = useState<string | null>(null);
   const [editingCrmNoteText, setEditingCrmNoteText] = useState("");
-  const [adkNotesTab, setAdkNotesTab] = useState<"all" | "exalco" | "internal">("all");
   const [replyingToThreadId, setReplyingToThreadId] = useState<string | null>(null);
   const markNotesRead = useMutation(api.orders.markSupplierNotesAsRead);
 
@@ -2106,7 +2105,7 @@ export default function OrderDetailPage({
     if (!newSupplierNoteText.trim() || !draftDeliveryEntry) return;
 
     const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
-    const isExalcoTarget = adkNotesTab === "exalco" || (adkNotesTab === "all" && !!currentSupplier?.isApiEnabled);
+    const isExalcoSupplier = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("EXALCO") || currentSupplier?.name?.toUpperCase().includes("ALCO");
 
     const noteContent = newSupplierNoteText.trim();
     setAddingSupplierNote(true);
@@ -2121,7 +2120,7 @@ export default function OrderDetailPage({
 
     // Wyślij do Exalco API tylko jeśli zamówienie ma już numer w Exalco CRM
     if (
-      isExalcoTarget &&
+      isExalcoSupplier &&
       editingDeliveryIndex !== null &&
       draftDeliveryEntry.externalOrderNumber &&
       currentSupplier?.isApiEnabled
@@ -2141,8 +2140,8 @@ export default function OrderDetailPage({
       }
     }
 
-    // Zapisz notatkę wewnętrzną do bazy od razu (jeśli to czysto wewnętrzna notatka ADK lub wystąpił błąd w Exalco)
-    if ((!isExalcoTarget || errorSending) && editingDeliveryIndex !== null) {
+    // Zapisz notatkę do bazy od razu (jeśli dostawca nie ma API lub wystąpił błąd w Exalco)
+    if ((!isExalcoSupplier || errorSending) && editingDeliveryIndex !== null) {
       try {
         await addInternalSupplierNote({
           orderId: orderIdTyped,
@@ -2151,7 +2150,7 @@ export default function OrderDetailPage({
           threadId: activeThreadId,
         });
       } catch (e) {
-        console.error("Błąd zapisu notatki wewnętrznej:", e);
+        console.error("Błąd zapisu notatki:", e);
       }
     }
 
@@ -2166,7 +2165,7 @@ export default function OrderDetailPage({
       errorSending,
       errorMessage,
       threadId: activeThreadId,
-      targetRecipient: isExalcoTarget ? ("exalco" as const) : ("adk" as const),
+      targetRecipient: isExalcoSupplier ? ("exalco" as const) : undefined,
     };
 
     const currentFeed = draftDeliveryEntry.notesFeed ?? [];
@@ -5236,22 +5235,14 @@ export default function OrderDetailPage({
                       )}
                     </div>
 
-                    {/* Środkowa kolumna (2): Komunikator 2-Way (Czat z dostawcą Exalco) */}
+                    {/* Środkowa kolumna (2): Czat z dostawcą Exalco */}
                     <div className="flex flex-col gap-3 p-4 bg-white border border-slate-200 rounded-xl flex-1 min-h-0 shadow-xs">
                       {(() => {
                         const rawFeed = draftDeliveryEntry.notesFeed ?? [];
-                        const exalcoNotes = rawFeed.filter(
-                          (n) => n.senderType === "exalco" || n.threadId || n.sentToCrm || n.targetRecipient === "exalco"
-                        );
-                        const internalNotes = rawFeed.filter(
-                          (n) => (!n.senderType || n.senderType === "adk") && !n.sentToCrm && !n.threadId && n.targetRecipient !== "exalco"
-                        );
+                        const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+                        const isExalcoSupplier = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("EXALCO") || currentSupplier?.name?.toUpperCase().includes("ALCO");
 
-                        const filteredFeed = adkNotesTab === "exalco"
-                          ? exalcoNotes
-                          : adkNotesTab === "internal"
-                          ? internalNotes
-                          : rawFeed;
+                        const filteredFeed = rawFeed;
 
                         // Grupowanie wątków – bezpieczne dla zewnętrznych wątków (np. z Exalco)
                         type FeedNote = typeof filteredFeed[0];
@@ -5280,62 +5271,28 @@ export default function OrderDetailPage({
                           <>
                             {/* Nagłówek panelu czatu */}
                             <div className="shrink-0 pb-2 border-b border-slate-100">
-                              <div className="flex items-start justify-between gap-2 mb-2">
-                                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                                  <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <div className="flex items-center justify-between gap-2">
+                                <label className={`text-xs font-bold flex items-center gap-1.5 ${isExalcoSupplier ? "text-blue-900" : "text-slate-800"}`}>
+                                  <svg className={`w-4 h-4 ${isExalcoSupplier ? "text-blue-600" : "text-amber-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                   </svg>
-                                  Czat / Notatki z dostawcą
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 ml-1">
+                                  {isExalcoSupplier ? "Czat z Exalco" : "Notatki / Uwagi do zamówienia"}
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 ${isExalcoSupplier ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-slate-100 text-slate-500 border border-slate-200"}`}>
                                     {rawFeed.length}
                                   </span>
                                 </label>
-                                {currentSupplier?.isApiEnabled && (
-                                  <span className="shrink-0 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    Live · Exalco
-                                  </span>
+                                {isExalcoSupplier && (
+                                  draftDeliveryEntry.externalOrderNumber ? (
+                                    <span className="shrink-0 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                      Live · Exalco
+                                    </span>
+                                  ) : (
+                                    <span className="shrink-0 text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
+                                      Przed złożeniem w CRM
+                                    </span>
+                                  )
                                 )}
-                              </div>
-
-                              {/* Przełącznik Segmentowy */}
-                              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-semibold">
-                                <button
-                                  type="button"
-                                  onClick={() => setAdkNotesTab("all")}
-                                  className={`flex-1 py-1 px-1.5 rounded-md transition-all flex items-center justify-center gap-1 ${
-                                    adkNotesTab === "all"
-                                      ? "bg-white text-slate-800 shadow-xs font-bold"
-                                      : "text-slate-500 hover:text-slate-700"
-                                  }`}
-                                >
-                                  Wszystkie
-                                  <span className="text-[9px] px-1 py-0 rounded-full bg-slate-200 text-slate-600">{rawFeed.length}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setAdkNotesTab("exalco")}
-                                  className={`flex-1 py-1 px-1.5 rounded-md transition-all flex items-center justify-center gap-1 ${
-                                    adkNotesTab === "exalco"
-                                      ? "bg-white text-blue-700 shadow-xs font-bold border border-blue-200"
-                                      : "text-slate-500 hover:text-slate-700"
-                                  }`}
-                                >
-                                  💬 Exalco
-                                  <span className="text-[9px] px-1 py-0 rounded-full bg-blue-50 text-blue-600">{exalcoNotes.length}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setAdkNotesTab("internal")}
-                                  className={`flex-1 py-1 px-1.5 rounded-md transition-all flex items-center justify-center gap-1 ${
-                                    adkNotesTab === "internal"
-                                      ? "bg-white text-amber-700 shadow-xs font-bold border border-amber-200"
-                                      : "text-slate-500 hover:text-slate-700"
-                                  }`}
-                                >
-                                  📝 ADK
-                                  <span className="text-[9px] px-1 py-0 rounded-full bg-amber-50 text-amber-600">{internalNotes.length}</span>
-                                </button>
                               </div>
                             </div>
 
@@ -5347,11 +5304,7 @@ export default function OrderDetailPage({
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                   </svg>
                                   <p className="text-xs font-medium">
-                                    {adkNotesTab === "exalco"
-                                      ? "Brak wiadomości wymienionych z Exalco"
-                                      : adkNotesTab === "internal"
-                                      ? "Brak notatek wewnętrznych ADK"
-                                      : "Brak wiadomości w czacie"}
+                                    {isExalcoSupplier ? "Brak wiadomości w czacie z Exalco" : "Brak uwag do tego zamówienia"}
                                   </p>
                                 </div>
                               ) : (
@@ -5397,16 +5350,14 @@ export default function OrderDetailPage({
                                                   <span className="text-[10px] text-slate-400 font-medium">· {formattedDate}</span>
                                                 </div>
                                                 <div className="flex items-center gap-1">
-                                                  {nItem.sentToCrm ? (
-                                                    <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">⚡ Exalco</span>
-                                                  ) : nItem.targetRecipient === "exalco" && !draftDeliveryEntry.externalOrderNumber ? (
-                                                    <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" title="Wiadomość zostanie przesłana do Exalco przy składaniu zamówienia">
-                                                      ⏳ Do wysłania z zamówieniem
-                                                    </span>
-                                                  ) : !isExalco ? (
-                                                    <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
-                                                      📝 ADK
-                                                    </span>
+                                                  {isExalcoSupplier ? (
+                                                    nItem.sentToCrm ? (
+                                                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">⚡ Exalco</span>
+                                                    ) : (
+                                                      <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" title="Wiadomość zostanie przesłana do Exalco przy składaniu zamówienia">
+                                                        ⏳ Do wysłania z zamówieniem
+                                                      </span>
+                                                    )
                                                   ) : null}
                                                   {nItem.errorSending && (
                                                     <span className="text-[9px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded flex items-center gap-1">
@@ -5439,7 +5390,6 @@ export default function OrderDetailPage({
                                                   type="button"
                                                   onClick={() => {
                                                     setReplyingToThreadId(nItem.threadId || nItem.id);
-                                                    if (adkNotesTab === "all") setAdkNotesTab(isExalco ? "exalco" : "internal");
                                                   }}
                                                   className="p-1 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50"
                                                   title="Odpowiedz w wątku"
@@ -5484,7 +5434,7 @@ export default function OrderDetailPage({
                       {/* Formularz dodawania notatki */}
                       <div className="shrink-0 pt-2 border-t border-slate-100 flex flex-col gap-1.5">
                         {/* Kontekst wątku – widoczny gdy odpowiadamy */}
-                        {replyingToThreadId && adkNotesTab !== "all" && (
+                        {replyingToThreadId && (
                           <div className="flex items-center justify-between px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg">
                             <span className="text-[10px] font-semibold text-indigo-700 flex items-center gap-1">
                               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -5509,13 +5459,9 @@ export default function OrderDetailPage({
                           placeholder={
                             replyingToThreadId
                               ? "Napisz odpowiedź w wątku..."
-                              : adkNotesTab === "exalco"
+                              : isExalcoSupplier
                               ? "Napisz wiadomość do Exalco..."
-                              : adkNotesTab === "internal"
-                              ? "Napisz wewnętrzną notatkę ADK..."
-                              : currentSupplier?.isApiEnabled
-                              ? "Napisz wiadomość (do Exalco)..."
-                              : "Napisz notatkę do zamówienia..."
+                              : "Napisz uwagę do zamówienia..."
                           }
                           rows={2}
                           value={newSupplierNoteText}
@@ -5528,8 +5474,10 @@ export default function OrderDetailPage({
                           }}
                           disabled={addingSupplierNote}
                           className={`w-full rounded-lg border p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none resize-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 ${
-                            replyingToThreadId && adkNotesTab !== "all"
+                            replyingToThreadId
                               ? "border-indigo-300 bg-indigo-50/50 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                              : isExalcoSupplier
+                              ? "border-blue-300 bg-blue-50/30 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                               : "border-slate-300 bg-slate-50 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
                           }`}
                         />
@@ -5542,8 +5490,10 @@ export default function OrderDetailPage({
                             disabled={!newSupplierNoteText.trim() || addingSupplierNote}
                             onClick={handleAddSupplierNoteToFeed}
                             className={`shrink-0 text-xs py-1.5 px-3 inline-flex items-center gap-1.5 text-white font-bold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm ${
-                              replyingToThreadId && adkNotesTab !== "all"
+                              replyingToThreadId
                                 ? "bg-indigo-600 hover:bg-indigo-700"
+                                : isExalcoSupplier
+                                ? "bg-blue-600 hover:bg-blue-700"
                                 : "bg-amber-600 hover:bg-amber-700"
                             }`}
                           >
@@ -5552,7 +5502,7 @@ export default function OrderDetailPage({
                                 <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                 Wysyłanie...
                               </>
-                            ) : replyingToThreadId && adkNotesTab !== "all" ? (
+                            ) : replyingToThreadId ? (
                               <>
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
