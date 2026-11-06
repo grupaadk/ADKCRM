@@ -1882,11 +1882,39 @@ export default function OrderDetailPage({
   const [editingCrmNoteId, setEditingCrmNoteId] = useState<string | null>(null);
   const [editingCrmNoteText, setEditingCrmNoteText] = useState("");
   const [replyingToThreadId, setReplyingToThreadId] = useState<string | null>(null);
+  const [replyingToNote, setReplyingToNote] = useState<{
+    id: string;
+    threadId: string;
+    author: string;
+    snippet: string;
+  } | null>(null);
+  const supplierNoteInputRef = useRef<HTMLTextAreaElement | null>(null);
   const markNotesRead = useMutation(api.orders.markSupplierNotesAsRead);
+
+  function handleStartReply(note: { id: string; threadId?: string; note: string }, authorName: string) {
+    const targetThreadId = note.threadId || note.id;
+    setReplyingToThreadId(targetThreadId);
+    setReplyingToNote({
+      id: note.id,
+      threadId: targetThreadId,
+      author: authorName,
+      snippet: note.note.length > 60 ? `${note.note.slice(0, 57)}...` : note.note,
+    });
+    setTimeout(() => {
+      supplierNoteInputRef.current?.focus();
+    }, 50);
+  }
+
+  function handleCancelReply() {
+    setReplyingToThreadId(null);
+    setReplyingToNote(null);
+  }
 
   function startEditDelivery(svcName: string, supplierId?: Id<"suppliers">, index?: number) {
     setEditingDeliverySvc(svcName);
     setNewSupplierNoteText("");
+    setReplyingToThreadId(null);
+    setReplyingToNote(null);
     if (supplierId && index !== undefined) {
       const existing = (order?.serviceDeliveries ?? [])[index];
       if (existing) {
@@ -1936,6 +1964,8 @@ export default function OrderDetailPage({
     setEditingDeliveryIndex(null);
     setDraftDeliveryEntry(null);
     setNewSupplierNoteText("");
+    setReplyingToThreadId(null);
+    setReplyingToNote(null);
   }
 
   const sendCrmOrder = useAction(api.crmIntegration.sendDeliveryOrderToCrm);
@@ -2179,6 +2209,7 @@ export default function OrderDetailPage({
     });
     setNewSupplierNoteText("");
     setReplyingToThreadId(null);
+    setReplyingToNote(null);
     setAddingSupplierNote(false);
   }
 
@@ -5238,34 +5269,88 @@ export default function OrderDetailPage({
                     {/* Środkowa kolumna (2): Czat z dostawcą Exalco */}
                     <div className="flex flex-col gap-3 p-4 bg-white border border-slate-200 rounded-xl flex-1 min-h-0 shadow-xs">
                       {(() => {
-                        const rawFeed = draftDeliveryEntry.notesFeed ?? [];
+                        const dbDelivery = editingDeliveryIndex !== null ? (order?.serviceDeliveries ?? [])[editingDeliveryIndex] : undefined;
+                        const dbNotes = dbDelivery?.notesFeed ?? [];
+                        const draftNotes = draftDeliveryEntry.notesFeed ?? [];
+                        const seenIds = new Set(draftNotes.map((n) => n.id));
+                        const missingFromDraft = dbNotes.filter((n) => !seenIds.has(n.id));
+                        const rawFeed = [...draftNotes, ...missingFromDraft];
+
                         const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
                         const isExalcoSupplier = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("EXALCO") || currentSupplier?.name?.toUpperCase().includes("ALCO");
 
-                        const filteredFeed = rawFeed;
+                        // Deterministyczne grupowanie wątków (obsługa wątków wewnętrznych ADK oraz zewnętrznych Exalco)
+                        type FeedNote = (typeof rawFeed)[number];
+                        interface ThreadGroup {
+                          root: FeedNote;
+                          replies: FeedNote[];
+                          latestTimestamp: number;
+                        }
 
-                        // Grupowanie wątków – bezpieczne dla zewnętrznych wątków (np. z Exalco)
-                        type FeedNote = typeof filteredFeed[0];
-                        const threadRoots: FeedNote[] = [];
-                        const threadReplies = new Map<string, FeedNote[]>();
-                        const threadIdToRootId = new Map<string, string>();
+                        const threadGroups: ThreadGroup[] = (() => {
+                          if (rawFeed.length === 0) return [];
+                          const notesById = new Map<string, FeedNote>();
+                          rawFeed.forEach((n) => notesById.set(n.id, n));
 
-                        filteredFeed.forEach((note) => {
-                          const directParentRoot = note.threadId ? threadRoots.find((r) => r.id === note.threadId) : undefined;
-                          const threadRootId = note.threadId ? threadIdToRootId.get(note.threadId) : undefined;
-                          const parentId = directParentRoot?.id ?? threadRootId;
-
-                          if (parentId && parentId !== note.id) {
-                            const bucket = threadReplies.get(parentId) ?? [];
-                            bucket.push(note);
-                            threadReplies.set(parentId, bucket);
-                          } else {
-                            threadRoots.push(note);
-                            if (note.threadId) {
-                              threadIdToRootId.set(note.threadId, note.id);
+                          const externalThreadOldest = new Map<string, FeedNote>();
+                          rawFeed.forEach((n) => {
+                            if (n.threadId && !notesById.has(n.threadId)) {
+                              const existing = externalThreadOldest.get(n.threadId);
+                              if (!existing || n.createdAt < existing.createdAt) {
+                                externalThreadOldest.set(n.threadId, n);
+                              }
                             }
-                          }
-                        });
+                          });
+
+                          const getRootId = (n: FeedNote): string => {
+                            if (!n.threadId) return n.id;
+                            if (notesById.has(n.threadId)) return n.threadId;
+                            const extRoot = externalThreadOldest.get(n.threadId);
+                            return extRoot ? extRoot.id : n.id;
+                          };
+
+                          const groups = new Map<string, { root: FeedNote; replies: FeedNote[] }>();
+
+                          // 1. Rejestracja korzeni
+                          rawFeed.forEach((n) => {
+                            const rootId = getRootId(n);
+                            if (rootId === n.id && !groups.has(rootId)) {
+                              groups.set(rootId, { root: n, replies: [] });
+                            }
+                          });
+
+                          // 2. Przypisanie odpowiedzi
+                          rawFeed.forEach((n) => {
+                            const rootId = getRootId(n);
+                            if (rootId !== n.id) {
+                              let grp = groups.get(rootId);
+                              if (!grp) {
+                                grp = { root: n, replies: [] };
+                                groups.set(rootId, grp);
+                              } else {
+                                grp.replies.push(n);
+                              }
+                            }
+                          });
+
+                          // 3. Sortowanie chronologiczne odpowiedzi oraz wg ostatniej aktywności wątków
+                          const res: ThreadGroup[] = [];
+                          groups.forEach((grp) => {
+                            grp.replies.sort((a, b) => a.createdAt - b.createdAt);
+                            const latestTimestamp = Math.max(
+                              grp.root.createdAt,
+                              ...grp.replies.map((r) => r.createdAt),
+                            );
+                            res.push({
+                              root: grp.root,
+                              replies: grp.replies,
+                              latestTimestamp,
+                            });
+                          });
+
+                          res.sort((a, b) => b.latestTimestamp - a.latestTimestamp);
+                          return res;
+                        })();
 
                         return (
                           <>
@@ -5297,8 +5382,8 @@ export default function OrderDetailPage({
                             </div>
 
                             {/* Feed z notatkami/czatem (najnowsze na górze) */}
-                            <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
-                              {filteredFeed.length === 0 ? (
+                            <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
+                              {threadGroups.length === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
                                   <svg className="w-8 h-8 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -5308,8 +5393,9 @@ export default function OrderDetailPage({
                                   </p>
                                 </div>
                               ) : (
-                                threadRoots.map((root) => {
-                                  const replies = threadReplies.get(root.id) ?? [];
+                                threadGroups.map((group) => {
+                                  const { root, replies } = group;
+                                  const hasReplies = replies.length > 0;
                                   return (
                                     <div key={root.id} className="flex flex-col gap-1.5">
                                       {[root, ...replies].map((nItem, idx) => {
@@ -5321,14 +5407,16 @@ export default function OrderDetailPage({
                                           day: "2-digit", month: "2-digit", year: "numeric",
                                           hour: "2-digit", minute: "2-digit",
                                         });
+                                        const isCurrentReplyTarget = replyingToNote?.id === nItem.id;
+
                                         return (
                                           <div
                                             key={nItem.id}
-                                            className={`group relative flex items-start gap-2 p-2.5 rounded-lg border transition-all ${
+                                            className={`group relative flex items-start gap-2.5 p-2.5 rounded-lg border transition-all ${
                                               isReply
                                                 ? isExalco
-                                                  ? "bg-blue-50/60 border-blue-200/60 ml-5 border-l-2 border-l-blue-400"
-                                                  : "bg-indigo-50/40 border-indigo-200/60 ml-5 border-l-2 border-l-indigo-400"
+                                                  ? "bg-blue-50/50 border-blue-200/60 ml-6 border-l-2 border-l-blue-400"
+                                                  : "bg-indigo-50/40 border-indigo-200/60 ml-6 border-l-2 border-l-indigo-400"
                                                 : isExalco
                                                 ? "bg-blue-50/40 border-blue-200/80 shadow-2xs"
                                                 : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-2xs"
@@ -5347,9 +5435,19 @@ export default function OrderDetailPage({
                                                   <span className={`text-xs font-bold ${isExalco ? "text-blue-900" : isReply ? "text-indigo-800" : "text-slate-800"}`}>
                                                     {author}
                                                   </span>
+                                                  {isReply && (
+                                                    <span className="text-[9px] font-semibold text-indigo-600 bg-indigo-100/70 px-1 py-0.2 rounded">
+                                                      odpowiedź
+                                                    </span>
+                                                  )}
                                                   <span className="text-[10px] text-slate-400 font-medium">· {formattedDate}</span>
                                                 </div>
                                                 <div className="flex items-center gap-1">
+                                                  {!isReply && hasReplies && (
+                                                    <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                      💬 {replies.length} {replies.length === 1 ? "odpowiedź" : replies.length < 5 ? "odpowiedzi" : "odpowiedzi"}
+                                                    </span>
+                                                  )}
                                                   {isExalcoSupplier ? (
                                                     nItem.sentToCrm ? (
                                                       <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">⚡ Exalco</span>
@@ -5385,20 +5483,20 @@ export default function OrderDetailPage({
                                               )}
                                             </div>
                                             <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
-                                              {!isReply && (
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    setReplyingToThreadId(nItem.threadId || nItem.id);
-                                                  }}
-                                                  className="p-1 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50"
-                                                  title="Odpowiedz w wątku"
-                                                >
-                                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                                  </svg>
-                                                </button>
-                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={() => handleStartReply(nItem, author)}
+                                                className={`p-1 rounded transition-colors ${
+                                                  isCurrentReplyTarget
+                                                    ? "text-indigo-600 bg-indigo-100 ring-1 ring-indigo-400"
+                                                    : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                                                }`}
+                                                title="Odpowiedz w wątku"
+                                              >
+                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                                </svg>
+                                              </button>
                                               {!isExalco && (
                                                 <button
                                                   type="button"
@@ -5434,19 +5532,23 @@ export default function OrderDetailPage({
                       {/* Formularz dodawania notatki */}
                       <div className="shrink-0 pt-2 border-t border-slate-100 flex flex-col gap-1.5">
                         {/* Kontekst wątku – widoczny gdy odpowiadamy */}
-                        {replyingToThreadId && (
-                          <div className="flex items-center justify-between px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg">
-                            <span className="text-[10px] font-semibold text-indigo-700 flex items-center gap-1">
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        {replyingToNote && (
+                          <div className="flex items-center justify-between px-3 py-1.5 bg-indigo-50/90 border border-indigo-200 rounded-lg shadow-2xs">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <svg className="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                               </svg>
-                              Odpowiadasz w wątku
-                              <code className="ml-1 text-indigo-500 font-mono text-[9px] bg-indigo-100 px-1 rounded">{replyingToThreadId.slice(-6)}</code>
-                            </span>
+                              <span className="text-[11px] font-bold text-indigo-900 shrink-0">
+                                Odpowiedź do {replyingToNote.author}:
+                              </span>
+                              <span className="text-[11px] text-indigo-700/80 truncate italic">
+                                &ldquo;{replyingToNote.snippet}&rdquo;
+                              </span>
+                            </div>
                             <button
                               type="button"
-                              onClick={() => setReplyingToThreadId(null)}
-                              className="text-indigo-400 hover:text-indigo-700 transition-colors"
+                              onClick={handleCancelReply}
+                              className="shrink-0 ml-2 text-indigo-400 hover:text-indigo-700 hover:bg-indigo-100 p-1 rounded-full transition-colors"
                               title="Anuluj odpowiedź w wątku"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -5456,9 +5558,10 @@ export default function OrderDetailPage({
                           </div>
                         )}
                         <textarea
+                          ref={supplierNoteInputRef}
                           placeholder={
-                            replyingToThreadId
-                              ? "Napisz odpowiedź w wątku..."
+                            replyingToNote
+                              ? `Napisz odpowiedź do ${replyingToNote.author}...`
                               : isExalcoSupplier
                               ? "Napisz wiadomość do Exalco..."
                               : "Napisz uwagę do zamówienia..."

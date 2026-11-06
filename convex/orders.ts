@@ -1522,7 +1522,12 @@ export const recordCrmNoteSent = mutation({
       const updatedFeed = [...currentFeed];
       const existingIdx = updatedFeed.findIndex((n) => n.note.trim() === args.noteText.trim());
       if (existingIdx >= 0) {
-        updatedFeed[existingIdx] = { ...updatedFeed[existingIdx], sentToCrm: true, threadId: args.threadId ?? updatedFeed[existingIdx].threadId };
+        updatedFeed[existingIdx] = {
+          ...updatedFeed[existingIdx],
+          senderType: updatedFeed[existingIdx].senderType ?? ("adk" as const),
+          sentToCrm: true,
+          threadId: args.threadId ?? updatedFeed[existingIdx].threadId,
+        };
       } else {
         updatedFeed.unshift({
           id: `${now}-${Math.random().toString(36).substring(2, 7)}`,
@@ -1530,6 +1535,7 @@ export const recordCrmNoteSent = mutation({
           createdAt: now,
           createdBy: userId,
           createdByName: userNameStr,
+          senderType: "adk" as const,
           sentToCrm: true,
           threadId: args.threadId,
         });
