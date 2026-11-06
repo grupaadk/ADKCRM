@@ -1867,6 +1867,7 @@ export default function OrderDetailPage({
       errorSending?: boolean;
       errorMessage?: string;
       threadId?: string;
+      targetRecipient?: "exalco" | "adk";
       attachments?: Array<{
         fileId: string;
         fileName: string;
@@ -2104,10 +2105,8 @@ export default function OrderDetailPage({
   async function handleAddSupplierNoteToFeed() {
     if (!newSupplierNoteText.trim() || !draftDeliveryEntry) return;
 
-    if (adkNotesTab === "all") {
-      alert("Proszę wybrać zakładkę 'Exalco' lub 'Notatki ADK', aby zdefiniować typ notatki przed jej wysłaniem.");
-      return;
-    }
+    const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+    const isExalcoTarget = adkNotesTab === "exalco" || (adkNotesTab === "all" && !!currentSupplier?.isApiEnabled);
 
     const noteContent = newSupplierNoteText.trim();
     setAddingSupplierNote(true);
@@ -2120,11 +2119,9 @@ export default function OrderDetailPage({
     let errorSending = false;
     let errorMessage: string | undefined = undefined;
 
-    const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
-    
-    // Wyślij do Exalco API tylko jeśli jesteśmy w zakładce Exalco
+    // Wyślij do Exalco API tylko jeśli zamówienie ma już numer w Exalco CRM
     if (
-      adkNotesTab === "exalco" &&
+      isExalcoTarget &&
       editingDeliveryIndex !== null &&
       draftDeliveryEntry.externalOrderNumber &&
       currentSupplier?.isApiEnabled
@@ -2144,19 +2141,17 @@ export default function OrderDetailPage({
       }
     }
 
-    // Zawsze zapisz notatkę wewnętrzną do bazy od razu (jeśli nie została zapisana przez Exalco API)
-    if (adkNotesTab === "internal" || (adkNotesTab === "exalco" && errorSending)) {
-      if (editingDeliveryIndex !== null) {
-        try {
-          await addInternalSupplierNote({
-            orderId: orderIdTyped,
-            deliveryIndex: editingDeliveryIndex,
-            noteText: noteContent,
-            threadId: activeThreadId,
-          });
-        } catch (e) {
-          console.error("Błąd zapisu notatki wewnętrznej:", e);
-        }
+    // Zapisz notatkę wewnętrzną do bazy od razu (jeśli to czysto wewnętrzna notatka ADK lub wystąpił błąd w Exalco)
+    if ((!isExalcoTarget || errorSending) && editingDeliveryIndex !== null) {
+      try {
+        await addInternalSupplierNote({
+          orderId: orderIdTyped,
+          deliveryIndex: editingDeliveryIndex,
+          noteText: noteContent,
+          threadId: activeThreadId,
+        });
+      } catch (e) {
+        console.error("Błąd zapisu notatki wewnętrznej:", e);
       }
     }
 
@@ -2171,6 +2166,7 @@ export default function OrderDetailPage({
       errorSending,
       errorMessage,
       threadId: activeThreadId,
+      targetRecipient: isExalcoTarget ? ("exalco" as const) : ("adk" as const),
     };
 
     const currentFeed = draftDeliveryEntry.notesFeed ?? [];
@@ -5244,8 +5240,12 @@ export default function OrderDetailPage({
                     <div className="flex flex-col gap-3 p-4 bg-white border border-slate-200 rounded-xl flex-1 min-h-0 shadow-xs">
                       {(() => {
                         const rawFeed = draftDeliveryEntry.notesFeed ?? [];
-                        const exalcoNotes = rawFeed.filter((n) => n.senderType === "exalco" || n.threadId || n.sentToCrm);
-                        const internalNotes = rawFeed.filter((n) => !n.senderType || (n.senderType === "adk" && !n.sentToCrm && !n.threadId));
+                        const exalcoNotes = rawFeed.filter(
+                          (n) => n.senderType === "exalco" || n.threadId || n.sentToCrm || n.targetRecipient === "exalco"
+                        );
+                        const internalNotes = rawFeed.filter(
+                          (n) => (!n.senderType || n.senderType === "adk") && !n.sentToCrm && !n.threadId && n.targetRecipient !== "exalco"
+                        );
 
                         const filteredFeed = adkNotesTab === "exalco"
                           ? exalcoNotes
@@ -5253,17 +5253,26 @@ export default function OrderDetailPage({
                           ? internalNotes
                           : rawFeed;
 
-                        // Grupowanie wątków
+                        // Grupowanie wątków – bezpieczne dla zewnętrznych wątków (np. z Exalco)
                         type FeedNote = typeof filteredFeed[0];
                         const threadRoots: FeedNote[] = [];
                         const threadReplies = new Map<string, FeedNote[]>();
+                        const threadIdToRootId = new Map<string, string>();
+
                         filteredFeed.forEach((note) => {
-                          if (note.threadId && note.threadId !== note.id) {
-                            const bucket = threadReplies.get(note.threadId) ?? [];
+                          const directParentRoot = note.threadId ? threadRoots.find((r) => r.id === note.threadId) : undefined;
+                          const threadRootId = note.threadId ? threadIdToRootId.get(note.threadId) : undefined;
+                          const parentId = directParentRoot?.id ?? threadRootId;
+
+                          if (parentId && parentId !== note.id) {
+                            const bucket = threadReplies.get(parentId) ?? [];
                             bucket.push(note);
-                            threadReplies.set(note.threadId, bucket);
+                            threadReplies.set(parentId, bucket);
                           } else {
                             threadRoots.push(note);
+                            if (note.threadId) {
+                              threadIdToRootId.set(note.threadId, note.id);
+                            }
                           }
                         });
 
@@ -5347,7 +5356,7 @@ export default function OrderDetailPage({
                                 </div>
                               ) : (
                                 threadRoots.map((root) => {
-                                  const replies = threadReplies.get(root.id) ?? threadReplies.get(root.threadId ?? "") ?? [];
+                                  const replies = threadReplies.get(root.id) ?? [];
                                   return (
                                     <div key={root.id} className="flex flex-col gap-1.5">
                                       {[root, ...replies].map((nItem, idx) => {
@@ -5388,9 +5397,17 @@ export default function OrderDetailPage({
                                                   <span className="text-[10px] text-slate-400 font-medium">· {formattedDate}</span>
                                                 </div>
                                                 <div className="flex items-center gap-1">
-                                                  {nItem.sentToCrm && (
+                                                  {nItem.sentToCrm ? (
                                                     <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">⚡ Exalco</span>
-                                                  )}
+                                                  ) : nItem.targetRecipient === "exalco" && !draftDeliveryEntry.externalOrderNumber ? (
+                                                    <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" title="Wiadomość zostanie przesłana do Exalco przy składaniu zamówienia">
+                                                      ⏳ Do wysłania z zamówieniem
+                                                    </span>
+                                                  ) : !isExalco ? (
+                                                    <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                                                      📝 ADK
+                                                    </span>
+                                                  ) : null}
                                                   {nItem.errorSending && (
                                                     <span className="text-[9px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded flex items-center gap-1">
                                                       ⚠️
@@ -5490,11 +5507,15 @@ export default function OrderDetailPage({
                         )}
                         <textarea
                           placeholder={
-                            adkNotesTab === "all"
-                              ? "Wybierz zakładkę Exalco lub Notatki ADK, aby dodać wiadomość..."
-                              : replyingToThreadId
+                            replyingToThreadId
                               ? "Napisz odpowiedź w wątku..."
-                              : "Napisz wiadomość / uwagę do dostawcy..."
+                              : adkNotesTab === "exalco"
+                              ? "Napisz wiadomość do Exalco..."
+                              : adkNotesTab === "internal"
+                              ? "Napisz wewnętrzną notatkę ADK..."
+                              : currentSupplier?.isApiEnabled
+                              ? "Napisz wiadomość (do Exalco)..."
+                              : "Napisz notatkę do zamówienia..."
                           }
                           rows={2}
                           value={newSupplierNoteText}
@@ -5505,7 +5526,7 @@ export default function OrderDetailPage({
                               void handleAddSupplierNoteToFeed();
                             }
                           }}
-                          disabled={adkNotesTab === "all" || addingSupplierNote}
+                          disabled={addingSupplierNote}
                           className={`w-full rounded-lg border p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none resize-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 ${
                             replyingToThreadId && adkNotesTab !== "all"
                               ? "border-indigo-300 bg-indigo-50/50 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
@@ -5518,7 +5539,7 @@ export default function OrderDetailPage({
                           </span>
                           <button
                             type="button"
-                            disabled={adkNotesTab === "all" || !newSupplierNoteText.trim() || addingSupplierNote}
+                            disabled={!newSupplierNoteText.trim() || addingSupplierNote}
                             onClick={handleAddSupplierNoteToFeed}
                             className={`shrink-0 text-xs py-1.5 px-3 inline-flex items-center gap-1.5 text-white font-bold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm ${
                               replyingToThreadId && adkNotesTab !== "all"

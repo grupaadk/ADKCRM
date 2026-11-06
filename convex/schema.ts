@@ -267,6 +267,7 @@ export default defineSchema({
         errorSending: v.optional(v.boolean()),
         errorMessage: v.optional(v.string()),
         threadId: v.optional(v.string()),
+        targetRecipient: v.optional(v.union(v.literal("exalco"), v.literal("adk"))),
         attachments: v.optional(v.array(v.object({
           fileId: v.string(),
           fileName: v.string(),

@@ -236,6 +236,73 @@ describe("Exalco Webhook Delivery Date Logic", () => {
     expect(updatedOrder!.serviceDeliveries![0].notesFeed![0].sentToCrm).toBe(true);
   });
 
+  test("markAllDeliveryNotesSentToCrm marks all existing notes as sentToCrm without duplicating", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "Exalco",
+        isActive: true,
+        createdBy: "test-user",
+      });
+    });
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Marek",
+      lastName: "Nowak",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Okna ALU",
+          supplierId,
+          notes: "Uwaga 1\n---\nUwaga 2",
+          notesFeed: [
+            {
+              id: "note-1",
+              note: "Uwaga 1",
+              createdAt: Date.now() - 1000,
+              createdByName: "Wojtek",
+              senderType: "adk",
+              sentToCrm: false,
+              targetRecipient: "exalco",
+            },
+            {
+              id: "note-2",
+              note: "Uwaga 2",
+              createdAt: Date.now(),
+              createdByName: "Wojtek",
+              senderType: "adk",
+              sentToCrm: false,
+              targetRecipient: "exalco",
+            },
+          ],
+        },
+      ],
+    });
+
+    await asUser.mutation(api.orders.markAllDeliveryNotesSentToCrm, {
+      orderId,
+      deliveryIndex: 0,
+    });
+
+    const updatedOrder = await t.run(async (ctx) => {
+      return await ctx.db.get(orderId);
+    });
+
+    const delivery = updatedOrder!.serviceDeliveries![0];
+    expect(delivery.notesFeed).toHaveLength(2);
+    expect(delivery.notesFeed![0].sentToCrm).toBe(true);
+    expect(delivery.notesFeed![1].sentToCrm).toBe(true);
+    expect(delivery.notesFeed![0].targetRecipient).toBe("exalco");
+    expect(delivery.lastCrmNoteSentAt).toBeDefined();
+  });
+
   test("processes incoming notes from Exalco webhook and updates unread count", async () => {
     const t = convexTest(schema);
     const asUser = await setupAuthContext(t);

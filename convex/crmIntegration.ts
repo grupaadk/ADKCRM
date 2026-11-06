@@ -106,13 +106,11 @@ export const sendDeliveryOrderToCrm = action({
       externalOrderNumber: result.orderNumber,
     });
 
-    if (delivery.notes?.trim()) {
-      await ctx.runMutation(api.orders.recordCrmNoteSent, {
-        orderId: args.orderId,
-        deliveryIndex: args.deliveryIndex,
-        noteText: delivery.notes.trim(),
-      });
-    }
+    // Oznacz wszystkie dotychczasowe notatki z feedu jako wysłane do CRM
+    await ctx.runMutation(api.orders.markAllDeliveryNotesSentToCrm, {
+      orderId: args.orderId,
+      deliveryIndex: args.deliveryIndex,
+    });
 
     return {
       success: true,

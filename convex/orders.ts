@@ -446,6 +446,7 @@ export const update = mutation({
         errorSending: v.optional(v.boolean()),
         errorMessage: v.optional(v.string()),
         threadId: v.optional(v.string()),
+        targetRecipient: v.optional(v.union(v.literal("exalco"), v.literal("adk"))),
         attachments: v.optional(v.array(v.object({
           fileId: v.string(),
           fileName: v.string(),
@@ -1429,6 +1430,66 @@ export const updateExternalOrderInfo = mutation({
       details: { fields: [`serviceDeliveries.${args.deliveryIndex}.externalOrderNumber`] },
       performedBy: userId,
     });
+  },
+});
+
+export const markAllDeliveryNotesSentToCrm = mutation({
+  args: {
+    orderId: v.id("orders"),
+    deliveryIndex: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const userId = userIdentifier(user);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new ConvexError("Zlecenie nie istnieje.");
+
+    const deliveries = order.serviceDeliveries ?? [];
+    if (args.deliveryIndex < 0 || args.deliveryIndex >= deliveries.length) {
+      throw new ConvexError("Nieprawidłowa pozycja dostawy.");
+    }
+
+    const now = Date.now();
+    const target = deliveries[args.deliveryIndex];
+    const currentFeed = target.notesFeed ?? [];
+
+    let updatedFeed = currentFeed.map((n) => ({
+      ...n,
+      sentToCrm: true,
+      errorSending: false,
+      errorMessage: undefined,
+    }));
+
+    if (updatedFeed.length === 0 && target.notes?.trim()) {
+      const userNameStr = user.displayName ?? user.name ?? user.email ?? userId;
+      updatedFeed = [
+        {
+          id: `${now}-${Math.random().toString(36).substring(2, 7)}`,
+          note: target.notes.trim(),
+          createdAt: now,
+          createdBy: userId,
+          createdByName: userNameStr,
+          senderType: "adk" as const,
+          sentToCrm: true,
+        },
+      ];
+    }
+
+    const history = target.crmNotesHistory ?? [];
+    const notesSummary = updatedFeed.map((n) => n.note).join("\n---\n") || (target.notes?.trim() ?? "");
+
+    const next = deliveries.map((d, i) => {
+      if (i !== args.deliveryIndex) return d;
+      return {
+        ...d,
+        lastCrmNoteSentAt: now,
+        crmNotesHistory: notesSummary ? [...history, { note: notesSummary, sentAt: now, sentBy: userId }] : history,
+        notesFeed: updatedFeed,
+      };
+    });
+
+    await ctx.db.patch(args.orderId, { serviceDeliveries: next });
   },
 });
 
