@@ -481,6 +481,64 @@ export const update = mutation({
     }
     if (Object.keys(filtered).length === 0) return;
 
+    // Zabezpieczenie spójności audytowej: zapisane wiadomości pomiędzy ADK i Exalco są niemutowalne
+    if (Array.isArray(filtered.serviceDeliveries) && Array.isArray(order.serviceDeliveries)) {
+      const existingDeliveries = order.serviceDeliveries;
+      const incomingDeliveries = filtered.serviceDeliveries as NonNullable<typeof order.serviceDeliveries>;
+      const sameLength = incomingDeliveries.length === existingDeliveries.length;
+
+      filtered.serviceDeliveries = await Promise.all(
+        incomingDeliveries.map(async (d, idx) => {
+          const existingMatch =
+            (sameLength && existingDeliveries[idx]?.serviceName === d.serviceName && existingDeliveries[idx]?.supplierId === d.supplierId
+              ? existingDeliveries[idx]
+              : undefined) ??
+            existingDeliveries.find(
+              (ex) =>
+                (d.externalOrderId && ex.externalOrderId === d.externalOrderId) ||
+                (d.externalOrderNumber && ex.externalOrderNumber === d.externalOrderNumber) ||
+                (ex.serviceName === d.serviceName && ex.supplierId === d.supplierId),
+            );
+
+          const existingFeed = existingMatch?.notesFeed ?? [];
+          if (existingFeed.length === 0) return d;
+
+          const supplier = await ctx.db.get(d.supplierId);
+          const isExalcoSupplier =
+            !!supplier?.isApiEnabled ||
+            supplier?.name?.toUpperCase().includes("EXALCO") ||
+            supplier?.name?.toUpperCase().includes("ALCO");
+
+          const isProtectedExalcoNote = (n: NonNullable<typeof existingFeed>[number]) =>
+            isExalcoSupplier ||
+            n.senderType === "exalco" ||
+            n.sentToCrm === true ||
+            n.targetRecipient === "exalco";
+
+          const incomingFeed = d.notesFeed ?? [];
+          const existingById = new Map(existingFeed.map((n) => [n.id, n]));
+          const seenIds = new Set<string>();
+
+          const preservedIncoming = incomingFeed.map((n) => {
+            const orig = existingById.get(n.id);
+            if (orig && isProtectedExalcoNote(orig)) {
+              seenIds.add(n.id);
+              return { ...n, note: orig.note };
+            }
+            return n;
+          });
+
+          const missingProtected = existingFeed.filter((n) => isProtectedExalcoNote(n) && !seenIds.has(n.id));
+          const mergedFeed = [...preservedIncoming, ...missingProtected].sort((a, b) => b.createdAt - a.createdAt);
+
+          return {
+            ...d,
+            notesFeed: mergedFeed,
+          };
+        }),
+      );
+    }
+
     await ctx.db.patch(orderId, filtered);
 
     await ctx.db.insert("clientEvents", {

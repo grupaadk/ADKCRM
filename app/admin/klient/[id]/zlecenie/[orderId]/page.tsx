@@ -2196,12 +2196,23 @@ export default function OrderDetailPage({
   function handleSaveEditedCrmNote(noteId: string) {
     if (!draftDeliveryEntry) return;
     const currentFeed = draftDeliveryEntry.notesFeed ?? [];
-    
+    const targetNote = currentFeed.find((n) => n.id === noteId);
+    const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+    const isExalcoSupplier =
+      !!currentSupplier?.isApiEnabled ||
+      currentSupplier?.name?.toUpperCase().includes("EXALCO") ||
+      currentSupplier?.name?.toUpperCase().includes("ALCO");
+    if (isExalcoSupplier || targetNote?.senderType === "exalco" || targetNote?.sentToCrm) {
+      setEditingCrmNoteId(null);
+      setEditingCrmNoteText("");
+      return;
+    }
+
     const updatedFeed = currentFeed.map((n) =>
       n.id === noteId ? { ...n, note: editingCrmNoteText } : n
     );
     const combinedNotes = updatedFeed.map((n) => n.note).join("\n---\n");
-    
+
     setDraftDeliveryEntry({
       ...draftDeliveryEntry,
       notesFeed: updatedFeed,
@@ -2245,12 +2256,13 @@ export default function OrderDetailPage({
     if (!draftDeliveryEntry) return;
     const currentFeed = draftDeliveryEntry.notesFeed ?? [];
     const noteItem = currentFeed.find((n) => n.id === noteId);
-
-    if (noteItem?.sentToCrm) {
-      const confirmDel = confirm(
-        "Ta notatka została już wysłana do systemu Exalco CRM. Usunięcie jej w Grupa ADK nie usunie jej po stronie dostawcy. Czy na pewno chcesz usunąć tę wiadomość z feedu ADK?"
-      );
-      if (!confirmDel) return;
+    const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+    const isExalcoSupplier =
+      !!currentSupplier?.isApiEnabled ||
+      currentSupplier?.name?.toUpperCase().includes("EXALCO") ||
+      currentSupplier?.name?.toUpperCase().includes("ALCO");
+    if (isExalcoSupplier || noteItem?.senderType === "exalco" || noteItem?.sentToCrm) {
+      return;
     }
 
     const updatedFeed = currentFeed.filter((n) => n.id !== noteId);
@@ -5329,6 +5341,7 @@ export default function OrderDetailPage({
                               ) : (
                                 sortedFeed.map((nItem) => {
                                   const isExalco = nItem.senderType === "exalco";
+                                  const isLockedNote = isExalcoSupplier || isExalco || Boolean(nItem.sentToCrm);
                                   const author = nItem.createdByName || (isExalco ? "Exalco CRM" : "Użytkownik");
                                   const initials = isExalco ? "EX" : uInitials(author);
                                   const formattedDate = new Date(nItem.createdAt).toLocaleString("pl-PL", {
@@ -5391,7 +5404,7 @@ export default function OrderDetailPage({
                                             )}
                                           </div>
                                         </div>
-                                        {editingCrmNoteId === nItem.id ? (
+                                        {!isLockedNote && editingCrmNoteId === nItem.id ? (
                                           <div className="mt-2 flex flex-col gap-2">
                                             <textarea
                                               className="w-full rounded-lg border border-slate-300 p-2 text-xs focus:border-amber-500 focus:outline-none resize-none"
@@ -5408,8 +5421,8 @@ export default function OrderDetailPage({
                                           <p className="text-xs text-slate-700 whitespace-pre-wrap break-words leading-relaxed">{nItem.note}</p>
                                         )}
                                       </div>
-                                      <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
-                                        {!isExalco && (
+                                      {!isLockedNote && (
+                                        <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
                                           <button
                                             type="button"
                                             onClick={() => { setEditingCrmNoteId(nItem.id); setEditingCrmNoteText(nItem.note); }}
@@ -5420,18 +5433,18 @@ export default function OrderDetailPage({
                                               <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                             </svg>
                                           </button>
-                                        )}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeleteSupplierNoteFromFeed(nItem.id)}
-                                          className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
-                                          title="Usuń notatkę"
-                                        >
-                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                          </svg>
-                                        </button>
-                                      </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteSupplierNoteFromFeed(nItem.id)}
+                                            className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
+                                            title="Usuń notatkę"
+                                          >
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                          </button>
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })

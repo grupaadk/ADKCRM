@@ -437,5 +437,159 @@ describe("Exalco Webhook Delivery Date Logic", () => {
     expect(feed[0].threadId).toBeUndefined();
     expect(feed[0].sentToCrm).toBe(true);
   });
+
+  test("prevents editing or deleting persisted notesFeed messages via orders.update", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "Exalco",
+        isActive: true,
+        createdBy: "test-user",
+      });
+    });
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Jan",
+      lastName: "Kowalski",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Okna ALU",
+          supplierId,
+          notesFeed: [
+            {
+              id: "msg-1",
+              note: "Oryginalna wiadomość",
+              createdAt: 1000,
+              senderType: "adk",
+              sentToCrm: true,
+            },
+          ],
+        },
+      ],
+    });
+
+    // Próba edycji treści msg-1 oraz usunięcia jej (przekazanie pustego notesFeed)
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Okna ALU",
+          supplierId,
+          notesFeed: [
+            {
+              id: "msg-1",
+              note: "Zmieniona treść",
+              createdAt: 1000,
+              senderType: "adk",
+              sentToCrm: true,
+            },
+          ],
+        },
+      ],
+    });
+
+    let updated = await t.run(async (ctx) => ctx.db.get(orderId));
+    expect(updated!.serviceDeliveries![0].notesFeed).toHaveLength(1);
+    expect(updated!.serviceDeliveries![0].notesFeed![0].note).toBe("Oryginalna wiadomość");
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Okna ALU",
+          supplierId,
+          notesFeed: [],
+        },
+      ],
+    });
+
+    updated = await t.run(async (ctx) => ctx.db.get(orderId));
+    expect(updated!.serviceDeliveries![0].notesFeed).toHaveLength(1);
+    expect(updated!.serviceDeliveries![0].notesFeed![0].note).toBe("Oryginalna wiadomość");
+  });
+
+  test("allows editing and deleting internal notes for non-Exalco suppliers via orders.update", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const internalSupplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "Dostawca Lokalny",
+        isActive: true,
+        isApiEnabled: false,
+        createdBy: "test-user",
+      });
+    });
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Anna",
+      lastName: "Nowak",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Parapety",
+          supplierId: internalSupplierId,
+          notesFeed: [
+            {
+              id: "int-1",
+              note: "Notatka wewnętrzna",
+              createdAt: 1000,
+              senderType: "adk",
+              sentToCrm: false,
+            },
+          ],
+        },
+      ],
+    });
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Parapety",
+          supplierId: internalSupplierId,
+          notesFeed: [
+            {
+              id: "int-1",
+              note: "Zmieniona notatka wewnętrzna",
+              createdAt: 1000,
+              senderType: "adk",
+              sentToCrm: false,
+            },
+          ],
+        },
+      ],
+    });
+
+    let updated = await t.run(async (ctx) => ctx.db.get(orderId));
+    expect(updated!.serviceDeliveries![0].notesFeed![0].note).toBe("Zmieniona notatka wewnętrzna");
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Parapety",
+          supplierId: internalSupplierId,
+          notesFeed: [],
+        },
+      ],
+    });
+
+    updated = await t.run(async (ctx) => ctx.db.get(orderId));
+    expect(updated!.serviceDeliveries![0].notesFeed).toHaveLength(0);
+  });
 });
 
