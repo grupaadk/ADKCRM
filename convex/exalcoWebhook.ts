@@ -136,20 +136,12 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     "",
   ).trim();
 
-  const rawThreadId =
-    dataObj.threadId ||
-    rawNoteObj?.threadId ||
-    body.threadId ||
-    "";
-  const threadId = String(rawThreadId).trim() || undefined;
-
   // Zawsze zapisz nadchodzącą notatkę z Exalco, niezależnie od statusu
   if (incomingNote) {
     await ctx.runMutation(api.orders.receiveNoteFromExalcoWebhook, {
       orderIdOrNumber: String(orderIdOrNumber),
       noteText: incomingNote,
       authorName: authorName || undefined,
-      threadId,
     });
   }
 

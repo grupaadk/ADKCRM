@@ -266,6 +266,7 @@ export default defineSchema({
         sentToCrm: v.optional(v.boolean()),
         errorSending: v.optional(v.boolean()),
         errorMessage: v.optional(v.string()),
+        /** @deprecated Pozostawione dla kompatybilności wstecznej z istniejącymi wpisami w bazie. */
         threadId: v.optional(v.string()),
         targetRecipient: v.optional(v.union(v.literal("exalco"), v.literal("adk"))),
         attachments: v.optional(v.array(v.object({

@@ -446,6 +446,7 @@ export const update = mutation({
         sentToCrm: v.optional(v.boolean()),
         errorSending: v.optional(v.boolean()),
         errorMessage: v.optional(v.string()),
+        /** @deprecated Pozostawione dla kompatybilności wstecznej z istniejącymi wpisami w bazie. */
         threadId: v.optional(v.string()),
         targetRecipient: v.optional(v.union(v.literal("exalco"), v.literal("adk"))),
         attachments: v.optional(v.array(v.object({
@@ -1501,7 +1502,6 @@ export const recordCrmNoteSent = mutation({
     orderId: v.id("orders"),
     deliveryIndex: v.number(),
     noteText: v.string(),
-    threadId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -1528,7 +1528,6 @@ export const recordCrmNoteSent = mutation({
           ...updatedFeed[existingIdx],
           senderType: updatedFeed[existingIdx].senderType ?? ("adk" as const),
           sentToCrm: true,
-          threadId: args.threadId ?? updatedFeed[existingIdx].threadId,
         };
       } else {
         updatedFeed.unshift({
@@ -1539,7 +1538,6 @@ export const recordCrmNoteSent = mutation({
           createdByName: userNameStr,
           senderType: "adk" as const,
           sentToCrm: true,
-          threadId: args.threadId,
         });
       }
       return {
@@ -1568,7 +1566,6 @@ export const addInternalSupplierNote = mutation({
     orderId: v.id("orders"),
     deliveryIndex: v.number(),
     noteText: v.string(),
-    threadId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -1584,7 +1581,7 @@ export const addInternalSupplierNote = mutation({
     const next = deliveries.map((d, i) => {
       if (i !== args.deliveryIndex) return d;
       const currentFeed = d.notesFeed ?? [];
-      const newNote = { id: `${now}-${Math.random().toString(36).substring(2, 7)}`, note: args.noteText.trim(), createdAt: now, createdBy: userId, createdByName: userNameStr, senderType: "adk" as const, sentToCrm: false, threadId: args.threadId };
+      const newNote = { id: `${now}-${Math.random().toString(36).substring(2, 7)}`, note: args.noteText.trim(), createdAt: now, createdBy: userId, createdByName: userNameStr, senderType: "adk" as const, sentToCrm: false };
       return { ...d, notesFeed: [newNote, ...currentFeed] };
     });
     
@@ -1734,7 +1731,6 @@ export const receiveNoteFromExalcoWebhook = mutation({
     orderIdOrNumber: v.string(),
     noteText: v.string(),
     authorName: v.optional(v.string()),
-    threadId: v.optional(v.string()),
     attachments: v.optional(
       v.array(
         v.object({
@@ -1781,7 +1777,6 @@ export const receiveNoteFromExalcoWebhook = mutation({
       senderType: "exalco" as const,
       createdByName: args.authorName ? `Exalco · ${args.authorName}` : "Exalco CRM",
       sentToCrm: true,
-      threadId: args.threadId,
       attachments: args.attachments,
     };
 

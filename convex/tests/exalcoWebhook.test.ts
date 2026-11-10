@@ -207,7 +207,6 @@ describe("Exalco Webhook Delivery Date Logic", () => {
               note: "Specjalne szkło hartowane",
               createdAt: Date.now(),
               createdByName: "Admin User",
-              threadId: "q970nb5m0ctpk5xk72z9yy51698ewyyh",
             },
           ],
         },
@@ -220,7 +219,6 @@ describe("Exalco Webhook Delivery Date Logic", () => {
 
     expect(updatedOrder!.serviceDeliveries![0].notesFeed).toHaveLength(1);
     expect(updatedOrder!.serviceDeliveries![0].notesFeed![0].note).toBe("Specjalne szkło hartowane");
-    expect(updatedOrder!.serviceDeliveries![0].notesFeed![0].threadId).toBe("q970nb5m0ctpk5xk72z9yy51698ewyyh");
 
     // Call recordCrmNoteSent
     await asUser.mutation(api.orders.recordCrmNoteSent, {
@@ -367,56 +365,7 @@ describe("Exalco Webhook Delivery Date Logic", () => {
     expect(updatedOrder!.serviceDeliveries![0].unreadNotesCount).toBe(0);
   });
 
-  test("preserves threadId on incoming note from Exalco webhook", async () => {
-    const t = convexTest(schema);
-    const asUser = await setupAuthContext(t);
-
-    const supplierId = await t.run(async (ctx) => {
-      return await ctx.db.insert("suppliers", {
-        name: "Exalco",
-        isActive: true,
-        createdBy: "test-user",
-      });
-    });
-
-    const clientId = await asUser.mutation(api.clients.create, {
-      firstName: "Marek",
-      lastName: "Nowak",
-    });
-
-    const orderId = await asUser.mutation(api.orders.create, { clientId });
-
-    await t.run(async (ctx) => {
-      await ctx.db.patch(orderId, {
-        serviceDeliveries: [
-          {
-            serviceName: "Okna ALU",
-            supplierId,
-            externalOrderNumber: "EX-THREAD-001",
-          },
-        ],
-      });
-    });
-
-    const res = await t.mutation(api.orders.receiveNoteFromExalcoWebhook, {
-      orderIdOrNumber: "EX-THREAD-001",
-      noteText: "Odpowiedź na pytanie w wątku",
-      authorName: "Krzysztof",
-      threadId: "thread-abc-123",
-    });
-
-    expect(res.success).toBe(true);
-
-    const updatedOrder = await t.run(async (ctx) => {
-      return await ctx.db.get(orderId);
-    });
-
-    const note = updatedOrder!.serviceDeliveries![0].notesFeed![0];
-    expect(note.threadId).toBe("thread-abc-123");
-    expect(note.note).toBe("Odpowiedź na pytanie w wątku");
-  });
-
-  test("correctly records CRM note with threadId and sets senderType adk", async () => {
+  test("records flat bidirectional messages between ADK and Exalco without threads", async () => {
     const t = convexTest(schema);
     const asUser = await setupAuthContext(t);
 
@@ -441,13 +390,13 @@ describe("Exalco Webhook Delivery Date Logic", () => {
           {
             serviceName: "Okna ALU",
             supplierId,
-            externalOrderNumber: "EX-THREAD-002",
+            externalOrderNumber: "EX-FLAT-001",
           },
         ],
       });
     });
 
-    // 1. ADK sends root note
+    // 1. ADK sends message
     await asUser.mutation(api.orders.recordCrmNoteSent, {
       orderId,
       deliveryIndex: 0,
@@ -457,38 +406,35 @@ describe("Exalco Webhook Delivery Date Logic", () => {
     let order = await t.run(async (ctx) => ctx.db.get(orderId));
     let feed = order!.serviceDeliveries![0].notesFeed!;
     expect(feed).toHaveLength(1);
-    const rootNoteId = feed[0].id;
     expect(feed[0].senderType).toBe("adk");
     expect(feed[0].sentToCrm).toBe(true);
     expect(feed[0].threadId).toBeUndefined();
 
-    // 2. Exalco sends reply in thread
+    // 2. Exalco sends message
     await t.mutation(api.orders.receiveNoteFromExalcoWebhook, {
-      orderIdOrNumber: "EX-THREAD-002",
-      noteText: "Odpowiedź od Exalco na wiadomość",
+      orderIdOrNumber: "EX-FLAT-001",
+      noteText: "Wiadomość od Exalco",
       authorName: "Konsultant Exalco",
-      threadId: rootNoteId,
     });
 
     order = await t.run(async (ctx) => ctx.db.get(orderId));
     feed = order!.serviceDeliveries![0].notesFeed!;
     expect(feed).toHaveLength(2);
     expect(feed[0].senderType).toBe("exalco");
-    expect(feed[0].threadId).toBe(rootNoteId);
+    expect(feed[0].threadId).toBeUndefined();
 
-    // 3. ADK replies in that thread
+    // 3. ADK sends follow-up message
     await asUser.mutation(api.orders.recordCrmNoteSent, {
       orderId,
       deliveryIndex: 0,
-      noteText: "Kolejna odpowiedź w wątku od ADK",
-      threadId: rootNoteId,
+      noteText: "Kolejna wiadomość od ADK",
     });
 
     order = await t.run(async (ctx) => ctx.db.get(orderId));
     feed = order!.serviceDeliveries![0].notesFeed!;
     expect(feed).toHaveLength(3);
     expect(feed[0].senderType).toBe("adk");
-    expect(feed[0].threadId).toBe(rootNoteId);
+    expect(feed[0].threadId).toBeUndefined();
     expect(feed[0].sentToCrm).toBe(true);
   });
 });
