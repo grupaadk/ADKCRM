@@ -3396,6 +3396,131 @@ function ServicesRow({
 
 // --- Dostawcy Tab ---
 
+type SupplierProductItem = {
+  id: string;
+  name: string;
+  isActive: boolean;
+};
+
+function SupplierProductsEditor({
+  products,
+  onChange,
+}: {
+  products: SupplierProductItem[];
+  onChange: (next: SupplierProductItem[]) => void;
+}) {
+  const [newProductName, setNewProductName] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  function addProduct() {
+    const trimmed = newProductName.trim();
+    if (!trimmed) return;
+    if (products.some((p) => p.name.trim().toLowerCase() === trimmed.toLowerCase())) {
+      setLocalError(`Produkt "${trimmed}" już istnieje na liście`);
+      return;
+    }
+    setLocalError(null);
+    onChange([
+      ...products,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: trimmed,
+        isActive: true,
+      },
+    ]);
+    setNewProductName("");
+  }
+
+  function renameProduct(id: string, name: string) {
+    setLocalError(null);
+    onChange(products.map((p) => (p.id === id ? { ...p, name } : p)));
+  }
+
+  function toggleProductActive(id: string) {
+    onChange(products.map((p) => (p.id === id ? { ...p, isActive: !p.isActive } : p)));
+  }
+
+  function removeProduct(id: string) {
+    setLocalError(null);
+    onChange(products.filter((p) => p.id !== id));
+  }
+
+  return (
+    <div className="flex flex-col gap-2 pt-2 border-t border-slate-200/80">
+      <div className="flex items-center justify-between">
+        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          Produkty dostawcy ({products.length})
+        </label>
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={newProductName}
+          onChange={(e) => {
+            setNewProductName(e.target.value);
+            if (localError) setLocalError(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addProduct();
+            }
+          }}
+          placeholder="Nazwa produktu, np. Pergola, Aluprof MB-86..."
+          className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800"
+        />
+        <button
+          type="button"
+          onClick={addProduct}
+          disabled={!newProductName.trim()}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        >
+          + Dodaj produkt
+        </button>
+      </div>
+      {localError && <p className="text-[11px] font-medium text-red-600">{localError}</p>}
+      {products.length > 0 && (
+        <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+          {products.map((prod) => (
+            <div
+              key={prod.id}
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+            >
+              <input
+                type="text"
+                value={prod.name}
+                onChange={(e) => renameProduct(prod.id, e.target.value)}
+                className={`flex-1 bg-transparent text-xs font-medium outline-none ${
+                  prod.isActive ? "text-slate-800" : "text-slate-400 line-through"
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => toggleProductActive(prod.id)}
+                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                  prod.isActive
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {prod.isActive ? "Aktywny" : "Nieaktywny"}
+              </button>
+              <button
+                type="button"
+                onClick={() => removeProduct(prod.id)}
+                title="Usuń produkt"
+                className="rounded px-1.5 py-0.5 text-xs font-bold text-slate-400 hover:bg-red-50 hover:text-red-600"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SuppliersTab() {
   const suppliers = useQuery(api.suppliers.list, { includeInactive: true });
   const createSupplier = useMutation(api.suppliers.create);
@@ -3406,6 +3531,7 @@ function SuppliersTab() {
   const [showForm, setShowForm] = useState(false);
   const [formName, setFormName] = useState("");
   const [formLeadTime, setFormLeadTime] = useState("");
+  const [formProducts, setFormProducts] = useState<SupplierProductItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -3417,9 +3543,11 @@ function SuppliersTab() {
       await createSupplier({
         name: formName.trim(),
         estimatedLeadTime: formLeadTime.trim() || undefined,
+        products: formProducts.length > 0 ? formProducts : undefined,
       });
       setFormName("");
       setFormLeadTime("");
+      setFormProducts([]);
       setShowForm(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Błąd zapisu");
@@ -3438,7 +3566,7 @@ function SuppliersTab() {
         <div>
           <h2 className="text-base font-semibold text-slate-900">Dostawcy</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            Zarządzaj dostawcami przypisywanymi do usług i ich przewidywanym czasem realizacji.
+            Zarządzaj dostawcami przypisywanymi do usług, ich produktami oraz przewidywanym czasem realizacji.
           </p>
         </div>
         {!showForm && (
@@ -3452,8 +3580,8 @@ function SuppliersTab() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreate} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-          <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">Nowy dostawca</h3>
+        <form onSubmit={handleCreate} className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Nowy dostawca</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
             <div>
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Nazwa *</label>
@@ -3475,13 +3603,14 @@ function SuppliersTab() {
               />
             </div>
           </div>
-          {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
-          <div className="mt-4 flex gap-2">
+          <SupplierProductsEditor products={formProducts} onChange={setFormProducts} />
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="flex gap-2">
             <button type="submit" disabled={busy || !formName.trim()}
               className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
               Dodaj
             </button>
-            <button type="button" onClick={() => { setShowForm(false); setFormName(""); setFormLeadTime(""); setError(null); }}
+            <button type="button" onClick={() => { setShowForm(false); setFormName(""); setFormLeadTime(""); setFormProducts([]); setError(null); }}
               className="rounded-lg border border-slate-300 px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
               Anuluj
             </button>
@@ -3499,6 +3628,7 @@ function SuppliersTab() {
             <thead>
               <tr className="border-b border-slate-100">
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Dostawca</th>
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Produkty</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Czas realizacji</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
                 <th className="w-32" />
@@ -3536,6 +3666,7 @@ function SupplierRow({
     apiKey?: string;
     isApiEnabled?: boolean;
     estimatedLeadTime?: string;
+    products?: SupplierProductItem[];
   };
   onSave: (
     id: Id<"suppliers">,
@@ -3545,6 +3676,7 @@ function SupplierRow({
       apiKey?: string;
       isApiEnabled?: boolean;
       estimatedLeadTime?: string;
+      products?: SupplierProductItem[];
     }
   ) => Promise<unknown>;
   onToggle: (id: Id<"suppliers">) => Promise<unknown>;
@@ -3556,8 +3688,20 @@ function SupplierRow({
   const [draftEndpoint, setDraftEndpoint] = useState(supplier.apiEndpoint ?? "");
   const [draftKey, setDraftKey] = useState(supplier.apiKey ?? "");
   const [draftEnabled, setDraftEnabled] = useState(supplier.isApiEnabled ?? false);
+  const [draftProducts, setDraftProducts] = useState<SupplierProductItem[]>(supplier.products ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function startEditing() {
+    setDraftName(supplier.name);
+    setDraftLeadTime(supplier.estimatedLeadTime ?? "");
+    setDraftEndpoint(supplier.apiEndpoint ?? "");
+    setDraftKey(supplier.apiKey ?? "");
+    setDraftEnabled(supplier.isApiEnabled ?? false);
+    setDraftProducts(supplier.products ?? []);
+    setError(null);
+    setEditing(true);
+  }
 
   async function save() {
     setBusy(true);
@@ -3569,6 +3713,7 @@ function SupplierRow({
         apiEndpoint: draftEndpoint.trim() || undefined,
         apiKey: draftKey.trim() || undefined,
         isApiEnabled: draftEnabled,
+        products: draftProducts,
       });
       setEditing(false);
     } catch (e) {
@@ -3581,7 +3726,7 @@ function SupplierRow({
   if (editing) {
     return (
       <tr className="bg-blue-50/70 border-b border-blue-100">
-        <td className="px-4 py-4" colSpan={4}>
+        <td className="px-4 py-4" colSpan={5}>
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
               <div>
@@ -3637,6 +3782,8 @@ function SupplierRow({
               </div>
             </div>
 
+            <SupplierProductsEditor products={draftProducts} onChange={setDraftProducts} />
+
             {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
 
             <div className="flex justify-end gap-2 pt-1">
@@ -3662,6 +3809,8 @@ function SupplierRow({
     );
   }
 
+  const activeProducts = (supplier.products ?? []).filter((p) => p.isActive);
+
   return (
     <tr className="border-b border-slate-100 hover:bg-slate-50/50">
       <td className="px-4 py-3 text-sm font-semibold text-slate-800">
@@ -3673,6 +3822,27 @@ function SupplierRow({
             </span>
           )}
         </div>
+      </td>
+      <td className="px-4 py-3 text-xs text-slate-600">
+        {activeProducts.length === 0 ? (
+          <span className="text-slate-300">—</span>
+        ) : (
+          <div className="flex flex-wrap gap-1">
+            {activeProducts.slice(0, 4).map((p) => (
+              <span
+                key={p.id}
+                className="inline-flex items-center rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700"
+              >
+                {p.name}
+              </span>
+            ))}
+            {activeProducts.length > 4 && (
+              <span className="inline-flex items-center rounded-md bg-slate-50 border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+                +{activeProducts.length - 4}
+              </span>
+            )}
+          </div>
+        )}
       </td>
       <td className="px-4 py-3 text-xs text-slate-600 font-medium">
         {supplier.estimatedLeadTime ? (
@@ -3698,7 +3868,7 @@ function SupplierRow({
       <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-2">
           <button
-            onClick={() => setEditing(true)}
+            onClick={startEditing}
             className="text-xs font-semibold text-slate-600 hover:text-slate-900"
           >
             Edytuj

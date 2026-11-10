@@ -276,6 +276,14 @@ export default defineSchema({
         }))),
       }))),
       unreadNotesCount: v.optional(v.number()),
+      selectedProducts: v.optional(
+        v.array(
+          v.object({
+            id: v.string(),
+            name: v.string(),
+          })
+        )
+      ),
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),
@@ -615,6 +623,15 @@ export default defineSchema({
     apiKey: v.optional(v.string()),      // Klucz API partnera (np. pk_live_...)
     isApiEnabled: v.optional(v.boolean()), // Czy automatyczne przesyłanie zamówień przez API jest aktywne
     estimatedLeadTime: v.optional(v.string()), // Przewidywany czas realizacji (np. "14 dni", "3-4 tygodnie")
+    products: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          name: v.string(),
+          isActive: v.boolean(),
+        })
+      )
+    ),
   })
     .index("by_active", ["isActive"]),
 

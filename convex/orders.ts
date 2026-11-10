@@ -456,6 +456,14 @@ export const update = mutation({
         }))),
       }))),
       unreadNotesCount: v.optional(v.number()),
+      selectedProducts: v.optional(
+        v.array(
+          v.object({
+            id: v.string(),
+            name: v.string(),
+          })
+        )
+      ),
     }))),
     serviceFinances: v.optional(v.array(v.object({
       serviceName: v.string(),

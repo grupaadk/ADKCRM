@@ -1875,6 +1875,10 @@ export default function OrderDetailPage({
       }>;
     }>;
     unreadNotesCount?: number;
+    selectedProducts?: Array<{
+      id: string;
+      name: string;
+    }>;
   } | null>(null);
 
   const [newSupplierNoteText, setNewSupplierNoteText] = useState("");
@@ -1927,6 +1931,7 @@ export default function OrderDetailPage({
       netAmount: undefined,
       notes: undefined,
       notesFeed: [],
+      selectedProducts: [],
     });
   }
 
@@ -4837,6 +4842,18 @@ export default function OrderDetailPage({
                                             {d.externalOrderNumber}
                                           </span>
                                         )}
+                                        {d.selectedProducts && d.selectedProducts.length > 0 && (
+                                          <div className="flex flex-wrap gap-1 mt-0.5">
+                                            {d.selectedProducts.map((prod) => (
+                                              <span
+                                                key={prod.id}
+                                                className="inline-flex items-center rounded-md bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700"
+                                              >
+                                                {prod.name}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-sm font-bold text-slate-900 whitespace-nowrap tabular-nums" style={{ padding: "14px 16px" }}>
@@ -5044,7 +5061,12 @@ export default function OrderDetailPage({
                           </label>
                           <select
                             value={draftDeliveryEntry.supplierId}
-                            onChange={(e) => updateDraftSingleField("supplierId", e.target.value as Id<"suppliers">)}
+                            onChange={(e) => {
+                              const nextSupplierId = e.target.value as Id<"suppliers">;
+                              setDraftDeliveryEntry((prev) =>
+                                prev ? { ...prev, supplierId: nextSupplierId, selectedProducts: [] } : prev
+                              );
+                            }}
                             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs h-[38px]"
                           >
                             {(availableSuppliers.length > 0 ? availableSuppliers : allSuppliers).map((s) => (
@@ -5073,6 +5095,82 @@ export default function OrderDetailPage({
                           />
                         </div>
                       </div>
+
+                      {/* Wybór produktów przypisanych do dostawcy */}
+                      {(() => {
+                        const activeSupplierProducts = (currentSupplier?.products ?? []).filter((p) => p.isActive);
+                        const selectedList = draftDeliveryEntry.selectedProducts ?? [];
+                        const activeIds = new Set(activeSupplierProducts.map((p) => p.id));
+                        const legacySelected = selectedList.filter((p) => !activeIds.has(p.id));
+                        const allOptions = [
+                          ...activeSupplierProducts.map((p) => ({ id: p.id, name: p.name, isArchived: false })),
+                          ...legacySelected.map((p) => ({ id: p.id, name: p.name, isArchived: true })),
+                        ];
+
+                        const toggleProduct = (prod: { id: string; name: string }) => {
+                          setDraftDeliveryEntry((prev) => {
+                            if (!prev) return prev;
+                            const curr = prev.selectedProducts ?? [];
+                            const exists = curr.some((item) => item.id === prod.id);
+                            const next = exists
+                              ? curr.filter((item) => item.id !== prod.id)
+                              : [...curr, { id: prod.id, name: prod.name }];
+                            return { ...prev, selectedProducts: next };
+                          });
+                        };
+
+                        return (
+                          <div className="flex flex-col gap-2 pt-3 border-t border-slate-200">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-bold text-slate-700">
+                                Produkty u dostawcy
+                              </label>
+                              {selectedList.length > 0 && (
+                                <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                  Wybrano: {selectedList.length}
+                                </span>
+                              )}
+                            </div>
+                            {allOptions.length === 0 ? (
+                              <p className="text-xs text-slate-400 bg-white border border-dashed border-slate-200 rounded-lg px-3 py-2">
+                                Ten dostawca nie ma przypisanych produktów. Możesz je dodać w Ustawienia → Dostawcy.
+                              </p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl border border-slate-200 bg-white">
+                                {allOptions.map((prod) => {
+                                  const checked = selectedList.some((s) => s.id === prod.id);
+                                  return (
+                                    <button
+                                      key={prod.id}
+                                      type="button"
+                                      onClick={() => toggleProduct({ id: prod.id, name: prod.name })}
+                                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all ${
+                                        checked
+                                          ? "border-amber-500 bg-amber-50 text-amber-900 shadow-2xs"
+                                          : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100"
+                                      }`}
+                                    >
+                                      <span
+                                        className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded border text-[9px] font-bold ${
+                                          checked
+                                            ? "border-amber-600 bg-amber-600 text-white"
+                                            : "border-slate-300 bg-white text-transparent"
+                                        }`}
+                                      >
+                                        ✓
+                                      </span>
+                                      <span>{prod.name}</span>
+                                      {prod.isArchived && (
+                                        <span className="text-[9px] font-medium text-slate-400">(nieaktywny)</span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Daty etapów zamówienia w formie eleganckiej tabeli */}
                       <div className="flex flex-col gap-3 pt-3 border-t border-slate-200">

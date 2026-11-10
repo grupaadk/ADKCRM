@@ -27,10 +27,43 @@ export const listActive = query({
   },
 });
 
+const supplierProductValidator = v.object({
+  id: v.string(),
+  name: v.string(),
+  isActive: v.boolean(),
+});
+
+type SupplierProductInput = {
+  id: string;
+  name: string;
+  isActive: boolean;
+};
+
+function normalizeSupplierProducts(products: SupplierProductInput[]): SupplierProductInput[] {
+  const seenNames = new Set<string>();
+  return products.map((product) => {
+    const trimmedName = product.name.trim();
+    if (!trimmedName) {
+      throw new Error("Nazwa produktu nie może być pusta");
+    }
+    const lowerKey = trimmedName.toLowerCase();
+    if (seenNames.has(lowerKey)) {
+      throw new Error(`Produkt "${trimmedName}" jest już przypisany do tego dostawcy`);
+    }
+    seenNames.add(lowerKey);
+    return {
+      id: product.id.trim() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: trimmedName,
+      isActive: product.isActive,
+    };
+  });
+}
+
 export const create = mutation({
   args: {
     name: v.string(),
     estimatedLeadTime: v.optional(v.string()),
+    products: v.optional(v.array(supplierProductValidator)),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -41,11 +74,14 @@ export const create = mutation({
       .first();
     if (existing) throw new Error("Dostawca o tej nazwie już istnieje");
 
+    const normalizedProducts = args.products ? normalizeSupplierProducts(args.products) : undefined;
+
     const supplierId = await ctx.db.insert("suppliers", {
       name: args.name,
       isActive: true,
       createdBy: userIdentifier(user),
       estimatedLeadTime: args.estimatedLeadTime?.trim() || undefined,
+      products: normalizedProducts,
     });
 
     await ctx.db.insert("calendarEventTypes", {
@@ -90,15 +126,20 @@ export const update = mutation({
     apiKey: v.optional(v.string()),
     isApiEnabled: v.optional(v.boolean()),
     estimatedLeadTime: v.optional(v.string()),
+    products: v.optional(v.array(supplierProductValidator)),
   },
   handler: async (ctx, args) => {
-    const { id, ...fields } = args;
+    await requireUser(ctx);
+    const { id, products, ...fields } = args;
     const existing = await ctx.db.get(id);
     if (!existing) throw new Error("Nie znaleziono dostawcy");
 
     const updates: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(fields)) {
       if (value !== undefined) updates[key] = value;
+    }
+    if (products !== undefined) {
+      updates.products = normalizeSupplierProducts(products);
     }
     await ctx.db.patch(id, updates);
   },
