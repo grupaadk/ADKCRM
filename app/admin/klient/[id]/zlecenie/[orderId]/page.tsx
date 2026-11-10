@@ -1885,12 +1885,16 @@ export default function OrderDetailPage({
   const [addingSupplierNote, setAddingSupplierNote] = useState(false);
   const [editingCrmNoteId, setEditingCrmNoteId] = useState<string | null>(null);
   const [editingCrmNoteText, setEditingCrmNoteText] = useState("");
+  const [crmNoteExpandOverrides, setCrmNoteExpandOverrides] = useState<Record<string, boolean>>({});
   const supplierNoteInputRef = useRef<HTMLTextAreaElement | null>(null);
   const markNotesRead = useMutation(api.orders.markSupplierNotesAsRead);
 
   function startEditDelivery(svcName: string, supplierId?: Id<"suppliers">, index?: number) {
     setEditingDeliverySvc(svcName);
     setNewSupplierNoteText("");
+    setEditingCrmNoteId(null);
+    setEditingCrmNoteText("");
+    setCrmNoteExpandOverrides({});
     if (supplierId && index !== undefined) {
       const existing = (order?.serviceDeliveries ?? [])[index];
       if (existing) {
@@ -1941,6 +1945,9 @@ export default function OrderDetailPage({
     setEditingDeliveryIndex(null);
     setDraftDeliveryEntry(null);
     setNewSupplierNoteText("");
+    setEditingCrmNoteId(null);
+    setEditingCrmNoteText("");
+    setCrmNoteExpandOverrides({});
   }
 
   const openedDeliveryFromUrlRef = useRef(false);
@@ -2195,6 +2202,9 @@ export default function OrderDetailPage({
       notes: combinedNotes,
     });
     setNewSupplierNoteText("");
+    if (supplierNoteInputRef.current) {
+      supplierNoteInputRef.current.style.height = "auto";
+    }
     setAddingSupplierNote(false);
   }
 
@@ -5382,7 +5392,7 @@ export default function OrderDetailPage({
                       )}
                     </div>
 
-                    {/* Środkowa kolumna (2): Czat z dostawcą Exalco */}
+                    {/* Środkowa kolumna (2): Wątek wiadomości / uwag w stylu Gmaila */}
                     <div className="flex flex-col gap-3 p-4 bg-white border border-slate-200 rounded-xl flex-1 min-h-0 shadow-xs">
                       {(() => {
                         const dbDelivery = editingDeliveryIndex !== null ? (order?.serviceDeliveries ?? [])[editingDeliveryIndex] : undefined;
@@ -5396,9 +5406,28 @@ export default function OrderDetailPage({
                         const isExalcoSupplier = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("EXALCO") || currentSupplier?.name?.toUpperCase().includes("ALCO");
                         const sortedFeed = [...rawFeed].sort((a, b) => b.createdAt - a.createdAt);
 
+                        const isItemExpanded = (item: (typeof sortedFeed)[number], idx: number) =>
+                          Boolean(crmNoteExpandOverrides[item.id] ?? (idx === 0)) ||
+                          Boolean(item.errorSending) ||
+                          editingCrmNoteId === item.id;
+
+                        const allExpanded = sortedFeed.length > 1 && sortedFeed.every((item, idx) => isItemExpanded(item, idx));
+
+                        const toggleExpandAll = () => {
+                          if (allExpanded) {
+                            setCrmNoteExpandOverrides({});
+                            return;
+                          }
+                          const nextOverrides: Record<string, boolean> = {};
+                          for (const item of sortedFeed) {
+                            nextOverrides[item.id] = true;
+                          }
+                          setCrmNoteExpandOverrides(nextOverrides);
+                        };
+
                         return (
                           <>
-                            {/* Nagłówek panelu czatu */}
+                            {/* Nagłówek wątku */}
                             <div className="shrink-0 pb-2 border-b border-slate-100">
                               <div className="flex items-center justify-between gap-2">
                                 <label className={`text-xs font-bold flex items-center gap-1.5 ${isExalcoSupplier ? "text-blue-900" : "text-slate-800"}`}>
@@ -5410,179 +5439,101 @@ export default function OrderDetailPage({
                                     {rawFeed.length}
                                   </span>
                                 </label>
-                                {isExalcoSupplier && (
-                                  draftDeliveryEntry.externalOrderNumber ? (
-                                    <span className="shrink-0 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                      Live · Exalco
-                                    </span>
-                                  ) : (
-                                    <span className="shrink-0 text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
-                                      Przed złożeniem w CRM
-                                    </span>
-                                  )
-                                )}
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {sortedFeed.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={toggleExpandAll}
+                                      className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md transition-colors"
+                                    >
+                                      {allExpanded ? "Zwiń starsze" : "Rozwiń wszystkie"}
+                                    </button>
+                                  )}
+                                  {isExalcoSupplier && (
+                                    draftDeliveryEntry.externalOrderNumber ? (
+                                      <span className="shrink-0 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        Live · Exalco
+                                      </span>
+                                    ) : (
+                                      <span className="shrink-0 text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
+                                        Przed złożeniem w CRM
+                                      </span>
+                                    )
+                                  )}
+                                </div>
                               </div>
                             </div>
 
-                            {/* Feed z notatkami/czatem (najnowsze na górze) */}
-                            <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
-                              {sortedFeed.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
-                                  <svg className="w-8 h-8 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            {/* Karta odpowiedzi w stylu Gmaila (na górze wątku) */}
+                            <div
+                              className={`shrink-0 rounded-xl border bg-white shadow-xs transition-all overflow-hidden ${
+                                isExalcoSupplier
+                                  ? "border-blue-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/15"
+                                  : "border-slate-200 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/15"
+                              }`}
+                            >
+                              {/* Pasek odbiorcy */}
+                              <div className="px-3 py-1.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                                   </svg>
-                                  <p className="text-xs font-medium">
-                                    {isExalcoSupplier ? "Brak wiadomości w czacie z Exalco" : "Brak uwag do tego zamówienia"}
-                                  </p>
-                                </div>
-                              ) : (
-                                sortedFeed.map((nItem) => {
-                                  const isExalco = nItem.senderType === "exalco";
-                                  const isLockedNote = isExalcoSupplier || isExalco || Boolean(nItem.sentToCrm);
-                                  const author = nItem.createdByName || (isExalco ? "Exalco CRM" : "Użytkownik");
-                                  const initials = isExalco ? "EX" : uInitials(author);
-                                  const formattedDate = new Date(nItem.createdAt).toLocaleString("pl-PL", {
-                                    day: "2-digit", month: "2-digit", year: "numeric",
-                                    hour: "2-digit", minute: "2-digit",
-                                  });
-
-                                  return (
-                                    <div
-                                      key={nItem.id}
-                                      className={`group relative flex items-start gap-2.5 p-2.5 rounded-lg border transition-all ${
-                                        isExalco
-                                          ? "bg-blue-50/40 border-blue-200/80 shadow-2xs"
-                                          : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-2xs"
-                                      }`}
-                                    >
-                                      <span
-                                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-extrabold text-white mt-0.5 ${
-                                          isExalco ? "bg-blue-600" : "bg-amber-500"
-                                        }`}
-                                      >
-                                        {initials}
+                                  {isExalcoSupplier ? (
+                                    <>
+                                      <span className="text-[11px] font-medium text-slate-500">Do:</span>
+                                      <span className="text-[11px] font-bold text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full truncate">
+                                        Exalco
                                       </span>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between gap-2 mb-1">
-                                          <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className={`text-xs font-bold ${isExalco ? "text-blue-900" : "text-slate-800"}`}>
-                                              {author}
-                                            </span>
-                                            <span className="text-[10px] text-slate-400 font-medium">· {formattedDate}</span>
-                                          </div>
-                                          <div className="flex items-center gap-1">
-                                            {isExalco ? (
-                                              <span className="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
-                                                Od Exalco
-                                              </span>
-                                            ) : (
-                                              <>
-                                                <span
-                                                  className="text-[9px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded"
-                                                  title={isExalcoSupplier && nItem.sentToCrm ? "Wiadomość wysłana do Exalco" : undefined}
-                                                >
-                                                  Od ADK
-                                                </span>
-                                                {isExalcoSupplier && !nItem.sentToCrm && (
-                                                  <span
-                                                    className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded"
-                                                    title="Wiadomość zostanie przesłana do Exalco przy składaniu zamówienia"
-                                                  >
-                                                    ⏳ Do wysłania z zamówieniem
-                                                  </span>
-                                                )}
-                                              </>
-                                            )}
-                                            {nItem.errorSending && (
-                                              <span className="text-[9px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded flex items-center gap-1">
-                                                ⚠️
-                                                <button type="button" onClick={() => handleRetrySendCrmNote(nItem.id)} className="underline font-extrabold">Ponów</button>
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                        {!isLockedNote && editingCrmNoteId === nItem.id ? (
-                                          <div className="mt-2 flex flex-col gap-2">
-                                            <textarea
-                                              className="w-full rounded-lg border border-slate-300 p-2 text-xs focus:border-amber-500 focus:outline-none resize-none"
-                                              rows={3}
-                                              value={editingCrmNoteText}
-                                              onChange={(e) => setEditingCrmNoteText(e.target.value)}
-                                            />
-                                            <div className="flex gap-2 justify-end">
-                                              <button type="button" onClick={() => setEditingCrmNoteId(null)} className="px-2 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 rounded">Anuluj</button>
-                                              <button type="button" onClick={() => handleSaveEditedCrmNote(nItem.id)} className="px-2 py-1 text-[10px] font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded">Zapisz</button>
-                                            </div>
-                                          </div>
-                                        ) : (
-                                          <p className="text-xs text-slate-700 whitespace-pre-wrap break-words leading-relaxed">{nItem.note}</p>
-                                        )}
-                                      </div>
-                                      {!isLockedNote && (
-                                        <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
-                                          <button
-                                            type="button"
-                                            onClick={() => { setEditingCrmNoteId(nItem.id); setEditingCrmNoteText(nItem.note); }}
-                                            className="p-1 text-slate-400 hover:text-amber-600 rounded hover:bg-amber-50"
-                                            title="Edytuj notatkę"
-                                          >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                            </svg>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleDeleteSupplierNoteFromFeed(nItem.id)}
-                                            className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
-                                            title="Usuń notatkę"
-                                          >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })
-                              )}
-                            </div>
+                                    </>
+                                  ) : (
+                                    <span className="text-[11px] font-semibold text-slate-600 truncate">
+                                      Nowa uwaga do zamówienia ({currentSupplier?.name ?? "Dostawca"})
+                                    </span>
+                                  )}
+                                </div>
+                                {isExalcoSupplier && (
+                                  <span className="text-[10px] text-slate-400 shrink-0">
+                                    {draftDeliveryEntry.externalOrderNumber ? "Wysyłka do CRM" : "Z zamówieniem"}
+                                  </span>
+                                )}
+                              </div>
 
-                            {/* Formularz dodawania notatki */}
-                            <div className="shrink-0 pt-2 border-t border-slate-100 flex flex-col gap-1.5">
+                              {/* Pole treści wiadomości */}
                               <textarea
                                 ref={supplierNoteInputRef}
                                 placeholder={
                                   isExalcoSupplier
-                                    ? "Napisz wiadomość do Exalco..."
-                                    : "Napisz uwagę do zamówienia..."
+                                    ? "Napisz wiadomość do Exalco...\nEnter = nowy akapit"
+                                    : "Napisz uwagę do zamówienia...\nEnter = nowy akapit"
                                 }
-                                rows={2}
+                                rows={4}
                                 value={newSupplierNoteText}
-                                onChange={(e) => setNewSupplierNoteText(e.target.value)}
+                                onChange={(e) => {
+                                  setNewSupplierNoteText(e.target.value);
+                                  e.target.style.height = "auto";
+                                  e.target.style.height = `${Math.min(220, Math.max(88, e.target.scrollHeight))}px`;
+                                }}
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter" && !e.shiftKey) {
+                                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                                     e.preventDefault();
                                     void handleAddSupplierNoteToFeed();
                                   }
                                 }}
                                 disabled={addingSupplierNote}
-                                className={`w-full rounded-lg border p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none resize-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 ${
-                                  isExalcoSupplier
-                                    ? "border-blue-300 bg-blue-50/30 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                                    : "border-slate-300 bg-slate-50 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-                                }`}
+                                className="w-full px-3 py-2.5 text-xs text-slate-800 placeholder:text-slate-400 bg-white focus:outline-none min-h-[88px] max-h-[220px] resize-y leading-relaxed disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-50"
                               />
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-[10px] text-slate-400 shrink-0">
-                                  Enter = Wyślij · Shift+Enter = Nowa linia
+
+                              {/* Stopka karty odpowiedzi */}
+                              <div className="px-3 py-2 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-2">
+                                <span className="text-[10px] text-slate-400 truncate">
+                                  Enter = nowy akapit · Ctrl/Cmd+Enter = wyślij
                                 </span>
                                 <button
                                   type="button"
                                   disabled={!newSupplierNoteText.trim() || addingSupplierNote}
                                   onClick={handleAddSupplierNoteToFeed}
-                                  className={`shrink-0 text-xs py-1.5 px-3 inline-flex items-center gap-1.5 text-white font-bold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm ${
+                                  className={`shrink-0 text-xs py-1.5 px-3.5 inline-flex items-center gap-1.5 text-white font-bold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm ${
                                     isExalcoSupplier
                                       ? "bg-blue-600 hover:bg-blue-700"
                                       : "bg-amber-600 hover:bg-amber-700"
@@ -5603,6 +5554,234 @@ export default function OrderDetailPage({
                                   )}
                                 </button>
                               </div>
+                            </div>
+
+                            {/* Wątek wiadomości (najnowsza rozwinięta na górze, starsze zwinięte jak w Gmailu) */}
+                            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+                              {sortedFeed.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+                                  <svg className="w-8 h-8 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                  </svg>
+                                  <p className="text-xs font-medium">
+                                    {isExalcoSupplier ? "Brak wiadomości w czacie z Exalco" : "Brak uwag do tego zamówienia"}
+                                  </p>
+                                </div>
+                              ) : (
+                                sortedFeed.map((nItem, idx) => {
+                                  const isExalco = nItem.senderType === "exalco";
+                                  const isLockedNote = isExalcoSupplier || isExalco || Boolean(nItem.sentToCrm);
+                                  const author = nItem.createdByName || (isExalco ? "Exalco CRM" : "Użytkownik");
+                                  const initials = isExalco ? "EX" : uInitials(author);
+                                  const formattedDate = new Date(nItem.createdAt).toLocaleString("pl-PL", {
+                                    day: "2-digit", month: "2-digit", year: "numeric",
+                                    hour: "2-digit", minute: "2-digit",
+                                  });
+                                  const shortDate = new Date(nItem.createdAt).toLocaleString("pl-PL", {
+                                    day: "2-digit", month: "2-digit",
+                                    hour: "2-digit", minute: "2-digit",
+                                  });
+                                  const isExpanded = isItemExpanded(nItem, idx);
+                                  const canToggleCollapse = !nItem.errorSending && editingCrmNoteId !== nItem.id;
+                                  const singleLineSnippet = nItem.note.replace(/\s+/g, " ").trim();
+
+                                  if (!isExpanded) {
+                                    return (
+                                      <button
+                                        key={nItem.id}
+                                        type="button"
+                                        onClick={() =>
+                                          setCrmNoteExpandOverrides((prev) => ({ ...prev, [nItem.id]: true }))
+                                        }
+                                        className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+                                          isExalco
+                                            ? "bg-blue-50/30 border-blue-200/70 hover:bg-blue-50/60"
+                                            : "bg-slate-50/60 border-slate-200 hover:bg-slate-100/70"
+                                        }`}
+                                      >
+                                        <span
+                                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-extrabold text-white ${
+                                            isExalco ? "bg-blue-600" : "bg-amber-500"
+                                          }`}
+                                        >
+                                          {initials}
+                                        </span>
+                                        <span className={`text-xs font-bold shrink-0 max-w-[110px] truncate ${isExalco ? "text-blue-900" : "text-slate-800"}`}>
+                                          {author}
+                                        </span>
+                                        <span className="text-xs text-slate-500 truncate flex-1 min-w-0">
+                                          {singleLineSnippet}
+                                        </span>
+                                        <span
+                                          className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                                            isExalco
+                                              ? "text-blue-700 bg-blue-50 border-blue-200"
+                                              : "text-slate-600 bg-white border-slate-200"
+                                          }`}
+                                        >
+                                          {isExalco ? "Od Exalco" : "Od ADK"}
+                                        </span>
+                                        <span className="shrink-0 text-[10px] text-slate-400 font-medium">
+                                          {shortDate}
+                                        </span>
+                                        <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                      </button>
+                                    );
+                                  }
+
+                                  return (
+                                    <div
+                                      key={nItem.id}
+                                      className={`group relative rounded-xl border transition-all overflow-hidden ${
+                                        isExalco
+                                          ? "bg-blue-50/40 border-blue-200/90 shadow-2xs"
+                                          : "bg-white border-slate-200 hover:border-slate-300 shadow-2xs"
+                                      }`}
+                                    >
+                                      {/* Nagłówek karty wiadomości (kliknięcie zwija) */}
+                                      <div
+                                        onClick={
+                                          canToggleCollapse
+                                            ? () =>
+                                                setCrmNoteExpandOverrides((prev) => ({
+                                                  ...prev,
+                                                  [nItem.id]: false,
+                                                }))
+                                            : undefined
+                                        }
+                                        className={`flex items-start justify-between gap-2 px-3 pt-2.5 pb-1.5 ${
+                                          canToggleCollapse ? "cursor-pointer select-none" : ""
+                                        }`}
+                                      >
+                                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                          <span
+                                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-extrabold text-white mt-0.5 ${
+                                              isExalco ? "bg-blue-600" : "bg-amber-500"
+                                            }`}
+                                          >
+                                            {initials}
+                                          </span>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className={`text-xs font-bold ${isExalco ? "text-blue-900" : "text-slate-800"}`}>
+                                                {author}
+                                              </span>
+                                              <span className="text-[10px] text-slate-400 font-medium">· {formattedDate}</span>
+                                            </div>
+                                            <div className="text-[10px] text-slate-400 leading-tight">
+                                              {isExalco
+                                                ? "do ADK"
+                                                : isExalcoSupplier
+                                                ? "do Exalco"
+                                                : "notatka do zamówienia"}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          {isExalco ? (
+                                            <span className="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                                              Od Exalco
+                                            </span>
+                                          ) : (
+                                            <>
+                                              <span
+                                                className="text-[9px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded"
+                                                title={isExalcoSupplier && nItem.sentToCrm ? "Wiadomość wysłana do Exalco" : undefined}
+                                              >
+                                                Od ADK
+                                              </span>
+                                              {isExalcoSupplier && !nItem.sentToCrm && (
+                                                <span
+                                                  className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded"
+                                                  title="Wiadomość zostanie przesłana do Exalco przy składaniu zamówienia"
+                                                >
+                                                  ⏳ Do wysłania z zamówieniem
+                                                </span>
+                                              )}
+                                            </>
+                                          )}
+                                          {nItem.errorSending && (
+                                            <span
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="text-[9px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded flex items-center gap-1"
+                                            >
+                                              ⚠️
+                                              <button type="button" onClick={() => handleRetrySendCrmNote(nItem.id)} className="underline font-extrabold">Ponów</button>
+                                            </span>
+                                          )}
+                                          {!isLockedNote && (
+                                            <div
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity gap-0.5 ml-0.5"
+                                            >
+                                              <button
+                                                type="button"
+                                                onClick={() => { setEditingCrmNoteId(nItem.id); setEditingCrmNoteText(nItem.note); }}
+                                                className="p-1 text-slate-400 hover:text-amber-600 rounded hover:bg-amber-50"
+                                                title="Edytuj notatkę"
+                                              >
+                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteSupplierNoteFromFeed(nItem.id)}
+                                                className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
+                                                title="Usuń notatkę"
+                                              >
+                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                              </button>
+                                            </div>
+                                          )}
+                                          {canToggleCollapse && (
+                                            <svg className="w-3.5 h-3.5 text-slate-400 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                                            </svg>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Treść wiadomości */}
+                                      <div className="px-3 pb-3 pt-1 pl-[46px]">
+                                        {!isLockedNote && editingCrmNoteId === nItem.id ? (
+                                          <div className="flex flex-col gap-2">
+                                            <textarea
+                                              className="w-full rounded-lg border border-slate-300 p-2 text-xs focus:border-amber-500 focus:outline-none resize-y min-h-[72px]"
+                                              rows={3}
+                                              value={editingCrmNoteText}
+                                              onChange={(e) => setEditingCrmNoteText(e.target.value)}
+                                              onKeyDown={(e) => {
+                                                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                                                  e.preventDefault();
+                                                  handleSaveEditedCrmNote(nItem.id);
+                                                }
+                                                if (e.key === "Escape") {
+                                                  setEditingCrmNoteId(null);
+                                                }
+                                              }}
+                                            />
+                                            <div className="flex items-center gap-2 justify-between">
+                                              <span className="text-[10px] text-slate-400">Enter = nowy akapit · Ctrl/Cmd+Enter = zapisz</span>
+                                              <div className="flex gap-2">
+                                                <button type="button" onClick={() => setEditingCrmNoteId(null)} className="px-2 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 rounded">Anuluj</button>
+                                                <button type="button" onClick={() => handleSaveEditedCrmNote(nItem.id)} className="px-2 py-1 text-[10px] font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded">Zapisz</button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <p className="text-xs text-slate-700 whitespace-pre-wrap break-words leading-relaxed">{nItem.note}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
                             </div>
                           </>
                         );
