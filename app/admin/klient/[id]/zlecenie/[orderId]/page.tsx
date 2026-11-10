@@ -5361,15 +5361,28 @@ export default function OrderDetailPage({
                                             <span className="text-[10px] text-slate-400 font-medium">· {formattedDate}</span>
                                           </div>
                                           <div className="flex items-center gap-1">
-                                            {isExalcoSupplier ? (
-                                              nItem.sentToCrm ? (
-                                                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">⚡ Exalco</span>
-                                              ) : (
-                                                <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" title="Wiadomość zostanie przesłana do Exalco przy składaniu zamówienia">
-                                                  ⏳ Do wysłania z zamówieniem
+                                            {isExalco ? (
+                                              <span className="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                                                Od Exalco
+                                              </span>
+                                            ) : (
+                                              <>
+                                                <span
+                                                  className="text-[9px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded"
+                                                  title={isExalcoSupplier && nItem.sentToCrm ? "Wiadomość wysłana do Exalco" : undefined}
+                                                >
+                                                  Od ADK
                                                 </span>
-                                              )
-                                            ) : null}
+                                                {isExalcoSupplier && !nItem.sentToCrm && (
+                                                  <span
+                                                    className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded"
+                                                    title="Wiadomość zostanie przesłana do Exalco przy składaniu zamówienia"
+                                                  >
+                                                    ⏳ Do wysłania z zamówieniem
+                                                  </span>
+                                                )}
+                                              </>
+                                            )}
                                             {nItem.errorSending && (
                                               <span className="text-[9px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded flex items-center gap-1">
                                                 ⚠️
