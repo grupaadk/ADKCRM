@@ -6956,15 +6956,22 @@ export default function OrderDetailPage({
                         {threadSection === "products" && (
                           <div className="flex-1 min-h-0 overflow-y-auto pr-1">
                             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5">
+                              {isSentOrder && (
+                                <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50/80 px-3.5 py-2.5 text-xs font-medium text-amber-900">
+                                  🔒 Zamówienie zostało wysłane do dostawcy — wybrane produkty i odpowiedzi na pytania są zablokowane do edycji.
+                                </div>
+                              )}
                               <ProductQuestionsForm
                                 supplierProducts={currentSupplier?.products ?? []}
                                 selectedProducts={draftDeliveryEntry.selectedProducts ?? []}
-                                onChange={(next) =>
+                                onChange={(next) => {
+                                  if (isSentOrder) return;
                                   setDraftDeliveryEntry((prev) =>
                                     prev ? applyProductQaToEntry({ ...prev, selectedProducts: next }) : prev
-                                  )
-                                }
+                                  );
+                                }}
                                 showValidation={false}
+                                readOnly={isSentOrder}
                               />
                             </div>
                           </div>

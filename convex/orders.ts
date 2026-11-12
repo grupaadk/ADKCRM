@@ -624,7 +624,12 @@ export const update = mutation({
             mergedFeed = [...preservedIncoming, ...missingProtected].sort((a, b) => b.createdAt - a.createdAt);
           }
 
-          const qaMessage = formatProductQuestionsMessage(d.selectedProducts);
+          const effectiveSelectedProducts =
+            hasExternalRef && existingMatch?.selectedProducts !== undefined
+              ? existingMatch.selectedProducts
+              : d.selectedProducts;
+
+          const qaMessage = formatProductQuestionsMessage(effectiveSelectedProducts);
           if (qaMessage) {
             const alreadyHasExact = mergedFeed.some((n) => n.note.trim() === qaMessage.trim());
             if (!alreadyHasExact) {
@@ -653,12 +658,15 @@ export const update = mutation({
             }
           }
 
-          return d.notesFeed !== undefined || mergedFeed.length > 0
-            ? {
-                ...d,
-                notesFeed: mergedFeed,
-              }
-            : d;
+          return {
+            ...d,
+            ...(effectiveSelectedProducts !== undefined
+              ? { selectedProducts: effectiveSelectedProducts }
+              : {}),
+            ...(d.notesFeed !== undefined || mergedFeed.length > 0
+              ? { notesFeed: mergedFeed }
+              : {}),
+          };
         }),
       );
     }

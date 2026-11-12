@@ -945,5 +945,81 @@ describe("Exalco Webhook Delivery Date Logic", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  test("orders.update preserves selectedProducts once delivery has externalOrderNumber", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const supplierId = await asUser.mutation(api.suppliers.create, {
+      name: "ALCO",
+      products: [
+        {
+          id: "prod-okna",
+          name: "Okna",
+          isActive: true,
+          questions: [{ id: "q-1", question: "Profil" }],
+        },
+      ],
+    });
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Anna",
+      lastName: "Blokada",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
+
+    const initialProducts = [
+      {
+        id: "prod-okna",
+        name: "Okna",
+        answers: [{ questionId: "q-1", question: "Profil", answer: "PE52" }],
+      },
+    ];
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Okna ALU",
+          supplierId,
+          netAmount: 10000,
+          selectedProducts: initialProducts,
+        },
+      ],
+    });
+
+    await asUser.mutation(api.orders.updateExternalOrderInfo, {
+      orderId,
+      deliveryIndex: 0,
+      externalOrderId: "ext-lock-1",
+      externalOrderNumber: "ST-261100001",
+    });
+
+    // Próba nadpisania selectedProducts po wysłaniu zamówienia
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Okna ALU",
+          supplierId,
+          netAmount: 12000,
+          externalOrderId: "ext-lock-1",
+          externalOrderNumber: "ST-261100001",
+          selectedProducts: [
+            {
+              id: "prod-okna",
+              name: "Okna",
+              answers: [{ questionId: "q-1", question: "Profil", answer: "PE78" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const updatedOrder = await asUser.query(api.orders.getById, { orderId });
+    expect(updatedOrder?.serviceDeliveries?.[0]?.netAmount).toBe(12000);
+    expect(updatedOrder?.serviceDeliveries?.[0]?.selectedProducts).toEqual(initialProducts);
+  });
 });
 
