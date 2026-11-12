@@ -50,7 +50,13 @@ export function getSupplierOrderIssues(input: SupplierOrderValidationInput): Sup
     const questions = definition?.questions ?? [];
     const answers = selected.answers ?? [];
     for (const q of questions) {
-      const answer = answers.find((a) => a.questionId === q.id || a.question === q.question);
+      const answer =
+        answers.find((a) => a.questionId === q.id) ??
+        answers.find(
+          (a) =>
+            !questions.some((other) => other.id === a.questionId) &&
+            a.question === q.question,
+        );
       if (!answer || answer.answer.trim().length === 0) {
         issues.push({
           step: "products",

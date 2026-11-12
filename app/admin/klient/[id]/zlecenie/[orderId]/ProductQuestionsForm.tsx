@@ -135,9 +135,13 @@ export default function ProductQuestionsForm({
       const seenQIds = new Set<string>();
       for (const sq of supQuestions) {
         seenQIds.add(sq.id);
-        const foundAns = existingAnswers.find(
-          (a) => a.questionId === sq.id || a.question === sq.question,
-        );
+        const foundAns =
+          existingAnswers.find((a) => a.questionId === sq.id) ??
+          existingAnswers.find(
+            (a) =>
+              !supQuestions.some((other) => other.id === a.questionId) &&
+              a.question === sq.question,
+          );
         questionsList.push({
           questionId: sq.id,
           question: sq.question,

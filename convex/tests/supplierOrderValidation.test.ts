@@ -105,4 +105,34 @@ describe("getSupplierOrderIssues", () => {
     });
     expect(issues).toEqual([]);
   });
+
+  test("validates each question by questionId even when multiple questions share the same label", () => {
+    const issues = getSupplierOrderIssues({
+      netAmount: 1000,
+      selectedProducts: [
+        {
+          id: "prod-dup",
+          name: "Okna",
+          answers: [
+            { questionId: "q-a", question: "test", answer: "odpowiedz 1" },
+            { questionId: "q-b", question: "test", answer: "" },
+          ],
+        },
+      ],
+      supplierProducts: [
+        {
+          id: "prod-dup",
+          name: "Okna",
+          isActive: true,
+          questions: [
+            { id: "q-a", question: "test" },
+            { id: "q-b", question: "test" },
+          ],
+        },
+      ],
+    });
+    expect(issues).toEqual([
+      { step: "products", message: "Okna: brak odpowiedzi na „test”" },
+    ]);
+  });
 });
