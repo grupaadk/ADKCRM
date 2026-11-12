@@ -262,7 +262,7 @@ export default function SupplierNotesWysiwyg({
           suppressContentEditableWarning
           onInput={syncFromDom}
           onBlur={syncFromDom}
-          className="min-h-[160px] max-h-[320px] overflow-y-auto px-3.5 py-3 text-xs text-slate-900 leading-relaxed focus:outline-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+          className="min-h-[280px] max-h-[520px] overflow-y-auto px-3.5 py-3 text-xs text-slate-900 leading-relaxed focus:outline-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
         />
       </div>
     </div>

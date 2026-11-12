@@ -1902,6 +1902,7 @@ export default function OrderDetailPage({
   const [composeMaximized, setComposeMaximized] = useState(false);
   const [wizardStep, setWizardStep] = useState<SupplierOrderStep>("supplier");
   const [showValidation, setShowValidation] = useState(false);
+  const [driveAttachmentsModalOpen, setDriveAttachmentsModalOpen] = useState(false);
   const supplierNoteInputRef = useRef<HTMLTextAreaElement | null>(null);
   const supplierThreadEndRef = useRef<HTMLDivElement | null>(null);
   const markNotesRead = useMutation(api.orders.markSupplierNotesAsRead);
@@ -1924,6 +1925,7 @@ export default function OrderDetailPage({
     setEditingCrmNoteText("");
     setCrmNoteExpandOverrides({});
     setDrivePickerOpen(false);
+    setDriveAttachmentsModalOpen(false);
     setComposeMinimized(false);
     setComposeMaximized(false);
     setShowValidation(false);
@@ -2009,6 +2011,7 @@ export default function OrderDetailPage({
     setEditingCrmNoteText("");
     setCrmNoteExpandOverrides({});
     setDrivePickerOpen(false);
+    setDriveAttachmentsModalOpen(false);
     setComposeOpen(false);
     setComposeMinimized(false);
     setComposeMaximized(false);
@@ -5349,7 +5352,7 @@ export default function OrderDetailPage({
                               prev ? { ...prev, supplierId: nextSupplierId, selectedProducts: [] } : prev
                             );
                           }}
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs h-[38px] disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                          className="w-full h-[38px] border px-2.5 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           {(availableSuppliers.length > 0 ? availableSuppliers : allSuppliers).map((s) => (
                             <option key={s._id} value={s._id}>
@@ -5807,8 +5810,8 @@ export default function OrderDetailPage({
                           {wizardStep === "attachments" && (
                             <div className="flex flex-col gap-4">
                               {currentSupplier?.isApiEnabled && (
-                                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 flex flex-col gap-3">
-                                  <div className="flex items-center justify-between gap-2">
+                                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 flex flex-col gap-3">
+                                  <div className="flex items-center justify-between gap-3 flex-wrap">
                                     <div>
                                       <h3 className="text-sm font-bold text-slate-900 m-0">
                                         Załączniki z Google Drive
@@ -5817,20 +5820,97 @@ export default function OrderDetailPage({
                                         Zaznaczone pliki zostaną wysłane razem z zamówieniem do ALCO CRM.
                                       </p>
                                     </div>
-                                    {selectedDriveList.length > 0 && (
-                                      <span className="text-[11px] font-bold text-[#1c646a] bg-[var(--accent-soft)] border border-[var(--accent-line)] px-2.5 py-0.5 rounded-full">
-                                        Wybrano: {selectedDriveList.length}
+                                    <button
+                                      type="button"
+                                      onClick={() => setDriveAttachmentsModalOpen(true)}
+                                      className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-brand hover:bg-brand-hover rounded-xl shadow-xs transition-colors cursor-pointer shrink-0"
+                                    >
+                                      <span>📎</span>
+                                      <span>
+                                        {selectedDriveList.length > 0
+                                          ? `Dołącz pliki (${selectedDriveList.length})`
+                                          : "Dołącz pliki"}
                                       </span>
-                                    )}
+                                    </button>
                                   </div>
-                                  <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-3">
-                                    <OrderDriveFilePicker
-                                      orderId={orderIdTyped}
-                                      rootFolderId={order?.folderId}
-                                      selectedFiles={selectedDriveFiles}
-                                      onSelectionChange={setSelectedDriveFiles}
-                                    />
-                                  </div>
+
+                                  {selectedDriveList.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
+                                      {selectedDriveList.map((file) => (
+                                        <span
+                                          key={file.id}
+                                          className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-soft)] border border-[var(--accent-line)] px-2.5 py-1 text-xs font-semibold text-[#1c646a]"
+                                        >
+                                          <span className="truncate max-w-[240px]">{file.name}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedDriveFiles((prev) => {
+                                                const next = { ...prev };
+                                                delete next[file.id];
+                                                return next;
+                                              });
+                                            }}
+                                            className="text-[#1c646a] hover:text-rose-600 font-bold bg-transparent border-0 p-0 cursor-pointer leading-none"
+                                            title="Usuń załącznik"
+                                          >
+                                            ✕
+                                          </button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {driveAttachmentsModalOpen && (
+                                    <div
+                                      onClick={() => setDriveAttachmentsModalOpen(false)}
+                                      className="fixed inset-0 z-[130] bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-4"
+                                    >
+                                      <div
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[82vh] flex flex-col overflow-hidden"
+                                      >
+                                        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
+                                          <div>
+                                            <h4 className="text-sm font-bold text-slate-900 m-0">
+                                              Załączniki z Google Drive
+                                            </h4>
+                                            <p className="text-xs text-slate-500 m-0 mt-0.5">
+                                              Wybierz pliki ze zlecenia, które mają trafić do zamówienia.
+                                            </p>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => setDriveAttachmentsModalOpen(false)}
+                                            className="p-1.5 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
+                                            title="Zamknij"
+                                          >
+                                            ✕
+                                          </button>
+                                        </div>
+                                        <div className="p-4 overflow-y-auto flex-1 bg-slate-50/40">
+                                          <OrderDriveFilePicker
+                                            orderId={orderIdTyped}
+                                            rootFolderId={order?.folderId}
+                                            selectedFiles={selectedDriveFiles}
+                                            onSelectionChange={setSelectedDriveFiles}
+                                          />
+                                        </div>
+                                        <div className="px-5 py-3 border-t border-slate-100 bg-white flex items-center justify-between gap-3">
+                                          <span className="text-xs font-medium text-slate-500">
+                                            Wybrano plików: {selectedDriveList.length}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => setDriveAttachmentsModalOpen(false)}
+                                            className="px-4 py-2 text-xs font-bold text-white bg-brand hover:bg-brand-hover rounded-xl shadow-xs transition-colors cursor-pointer"
+                                          >
+                                            Gotowe ✓
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
 
