@@ -732,5 +732,79 @@ describe("Exalco Webhook Delivery Date Logic", () => {
       "- Kolor profilu: RAL 7016 Antracyt",
     );
   });
+
+  test("sendDeliveryOrderToCrm rejects order with missing product answers before calling fetch", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "ALCO",
+        isActive: true,
+        isApiEnabled: true,
+        apiEndpoint: "https://example.invalid",
+        apiKey: "secret-key",
+        products: [
+          {
+            id: "prod-okna",
+            name: "Okna",
+            isActive: true,
+            questions: [
+              { id: "q-1", question: "Kolor profilu" },
+              { id: "q-2", question: "Pakiet szybowy" },
+            ],
+          },
+        ],
+        createdBy: "test-user",
+      });
+    });
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Jan",
+      lastName: "Walidacja",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Okna ALU",
+          supplierId,
+          netAmount: 15000,
+          selectedProducts: [
+            {
+              id: "prod-okna",
+              name: "Okna",
+              answers: [
+                { questionId: "q-1", question: "Kolor profilu", answer: "RAL 7016" },
+                { questionId: "q-2", question: "Pakiet szybowy", answer: "" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const originalFetch = globalThis.fetch;
+    let fetchCalled = false;
+    globalThis.fetch = (async () => {
+      fetchCalled = true;
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      await expect(
+        asUser.action(api.crmIntegration.sendDeliveryOrderToCrm, {
+          orderId,
+          deliveryIndex: 0,
+        }),
+      ).rejects.toThrow("Okna: brak odpowiedzi na „Pakiet szybowy”");
+      expect(fetchCalled).toBe(false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 

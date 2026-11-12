@@ -2,6 +2,7 @@ import { action } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { formatProductQuestionsMessage } from "./orders";
+import { getSupplierOrderIssues } from "./lib/supplierOrderValidation";
 
 export const sendDeliveryOrderToCrm = action({
   args: {
@@ -59,10 +60,13 @@ export const sendDeliveryOrderToCrm = action({
     const siteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL || "https://fearless-firefly-85.eu-west-1.convex.site";
     const webhookUrl = `${siteUrl.replace(/\/+$/, "")}/api/webhooks/exalco`;
 
-    if (!delivery.netAmount || delivery.netAmount <= 0) {
-      throw new ConvexError(
-        "Przed wysłaniem zamówienia do ALCO uzupełnij pole 'Kwota netto' w sekcji realizacji – musi być większa od 0."
-      );
+    const validationIssues = getSupplierOrderIssues({
+      netAmount: delivery.netAmount,
+      selectedProducts: delivery.selectedProducts,
+      supplierProducts: supplier.products,
+    });
+    if (validationIssues.length > 0) {
+      throw new ConvexError(validationIssues.map((issue) => issue.message).join(" "));
     }
 
     const payload = {

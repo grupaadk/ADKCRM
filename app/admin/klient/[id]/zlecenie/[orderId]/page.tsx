@@ -16,6 +16,10 @@ import { formatLocalDateInput, parseLocalDateInput } from "@/lib/dateUtils";
 import ComplaintTab from "./ComplaintTab";
 import OrderDriveBrowser from "./OrderDriveBrowser";
 import OrderDriveFilePicker, { type SelectedFileItem } from "./OrderDriveFilePicker";
+import SupplierOrderStepper from "./SupplierOrderStepper";
+import ProductQuestionsForm from "./ProductQuestionsForm";
+import SupplierOrderSummary from "./SupplierOrderSummary";
+import { getSupplierOrderIssues, type SupplierOrderStep } from "@/convex/lib/supplierOrderValidation";
 import TaskDrawer from "@/components/TaskDrawer";
 import SideDrawer from "@/components/SideDrawer";
 import CreateOrderTaskDrawer from "@/components/CreateOrderTaskDrawer";
@@ -1895,6 +1899,8 @@ export default function OrderDetailPage({
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMinimized, setComposeMinimized] = useState(false);
   const [composeMaximized, setComposeMaximized] = useState(false);
+  const [wizardStep, setWizardStep] = useState<SupplierOrderStep>("supplier");
+  const [showValidation, setShowValidation] = useState(false);
   const supplierNoteInputRef = useRef<HTMLTextAreaElement | null>(null);
   const supplierThreadEndRef = useRef<HTMLDivElement | null>(null);
   const markNotesRead = useMutation(api.orders.markSupplierNotesAsRead);
@@ -1919,6 +1925,7 @@ export default function OrderDetailPage({
     setDrivePickerOpen(false);
     setComposeMinimized(false);
     setComposeMaximized(false);
+    setShowValidation(false);
     if (supplierId && index !== undefined && index >= 0) {
       const allDeliveries = order?.serviceDeliveries ?? [];
       const existing = allDeliveries[index];
@@ -1953,6 +1960,13 @@ export default function OrderDetailPage({
           : [];
         setDraftDeliveryEntry({ ...existing, notesFeed: initialFeed });
         setComposeOpen(false);
+        const sup = allSuppliers.find((s) => s._id === supplierId);
+        const existingIssues = getSupplierOrderIssues({
+          netAmount: existing.netAmount,
+          selectedProducts: existing.selectedProducts,
+          supplierProducts: sup?.products,
+        });
+        setWizardStep(existingIssues[0]?.step ?? "summary");
         if (orderIdTyped && existing.unreadNotesCount && existing.unreadNotesCount > 0) {
           void markNotesRead({ orderId: orderIdTyped, deliveryIndex: index });
         }
@@ -1969,6 +1983,7 @@ export default function OrderDetailPage({
     setEditingSupplierId(firstSupplierId);
     setEditingDeliveryIndex(null);
     setComposeOpen(false);
+    setWizardStep("supplier");
     setDraftDeliveryEntry({
       serviceName: svcName,
       supplierId: firstSupplierId,
@@ -1996,6 +2011,8 @@ export default function OrderDetailPage({
     setComposeOpen(false);
     setComposeMinimized(false);
     setComposeMaximized(false);
+    setWizardStep("supplier");
+    setShowValidation(false);
     if (searchParams.get("deliveryIndex") !== null) {
       const params = new URLSearchParams(searchParams.toString());
       params.delete("deliveryIndex");
@@ -2058,7 +2075,6 @@ export default function OrderDetailPage({
     message: string;
     orderNumber?: string;
   } | null>(null);
-  const [confirmAlcoModalOpen, setConfirmAlcoModalOpen] = useState(false);
 
   useEffect(() => {
     if (!editingDeliverySvc || !draftDeliveryEntry) {
@@ -2203,6 +2219,17 @@ export default function OrderDetailPage({
 
   async function sendDeliveryOrderToAlcoCrm() {
     if (!draftDeliveryEntry || savingDelivery || sendingCrm) return;
+    const targetSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+    const issues = getSupplierOrderIssues({
+      netAmount: draftDeliveryEntry.netAmount,
+      selectedProducts: draftDeliveryEntry.selectedProducts,
+      supplierProducts: targetSupplier?.products,
+    });
+    if (issues.length > 0) {
+      setShowValidation(true);
+      setWizardStep(issues[0].step);
+      return;
+    }
     try {
       setSendingCrm(true);
       // 1. Zapisz dane zamówienia (wraz z wiadomością z odpowiedzi na pytania produktowe) w bazie Convex Grupa ADK
@@ -5220,7 +5247,12 @@ export default function OrderDetailPage({
                         <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         Zapisywanie...
                       </span>
-                    ) : "Zapisz zamówienie"}
+                    ) : (() => {
+                      const sup = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+                      return sup?.isApiEnabled && !draftDeliveryEntry.externalOrderNumber
+                        ? "Zapisz szkic"
+                        : "Zapisz zamówienie";
+                    })()}
                   </button>
                   {(() => {
                     const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
@@ -5230,7 +5262,19 @@ export default function OrderDetailPage({
                       return (
                         <button
                           type="button"
-                          onClick={() => setConfirmAlcoModalOpen(true)}
+                          onClick={() => {
+                            const currentIssues = getSupplierOrderIssues({
+                              netAmount: draftDeliveryEntry.netAmount,
+                              selectedProducts: draftDeliveryEntry.selectedProducts,
+                              supplierProducts: currentSupplier?.products,
+                            });
+                            if (currentIssues.length > 0) {
+                              setShowValidation(true);
+                              setWizardStep(currentIssues[0].step);
+                              return;
+                            }
+                            void sendDeliveryOrderToAlcoCrm();
+                          }}
                           className="btn"
                           style={{
                             backgroundColor: "#7c3aed",
@@ -5277,99 +5321,86 @@ export default function OrderDetailPage({
                   const svc = servicesList.find((s) => s.name === editingDeliverySvc);
                   const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
                   const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
-                  const isExalcoSupplierSidebar = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("EXALCO") || currentSupplier?.name?.toUpperCase().includes("ALCO");
+                  const isSentOrder = Boolean(draftDeliveryEntry.externalOrderId || draftDeliveryEntry.externalOrderNumber);
+                  const isSavedNonApiOrder = !currentSupplier?.isApiEnabled && editingDeliveryIndex !== null;
+                  const modalMode: "wizard" | "thread" = isSentOrder || isSavedNonApiOrder ? "thread" : "wizard";
+                  const validationIssues = getSupplierOrderIssues({
+                    netAmount: draftDeliveryEntry.netAmount,
+                    selectedProducts: draftDeliveryEntry.selectedProducts,
+                    supplierProducts: currentSupplier?.products,
+                  });
+                  const qaPreviewText = formatSelectedProductsQaMessage(draftDeliveryEntry.selectedProducts) ?? "";
+                  const draftCustomNotes = (draftDeliveryEntry.notesFeed ?? []).filter((n) => !n.id.startsWith("product-qa-"));
+                  const missingNetAmount = showValidation && (!draftDeliveryEntry.netAmount || draftDeliveryEntry.netAmount <= 0);
 
-                  return (
-                    <>
-                      {/* Lewy pasek boczny Gmaila: przycisk "Utwórz / Napisz wiadomość" + parametry zamówienia */}
-                      <div className="w-[420px] shrink-0 flex flex-col gap-3.5 overflow-y-auto min-h-0 pr-1">
-                        {/* Spójny pasek głównych przycisków akcji na górze */}
-                        <div className="flex items-stretch gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => openGmailCompose(false)}
-                            className="flex-1 h-12 inline-flex items-center justify-center gap-2.5 bg-[#c2e7ff] hover:bg-[#b3dffc] text-[#001d35] font-semibold text-sm px-4 rounded-xl shadow-xs hover:shadow-sm transition-all cursor-pointer"
-                          >
-                            <svg className="w-4 h-4 text-[#001d35] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                            <span className="truncate">{isExalcoSupplierSidebar ? "Napisz wiadomość" : "Dodaj uwagę"}</span>
-                          </button>
-                          {currentSupplier?.isApiEnabled && (
-                            <button
-                              type="button"
-                              onClick={() => openGmailCompose(true)}
-                              className="h-12 shrink-0 inline-flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 font-semibold text-xs px-3.5 rounded-xl shadow-2xs transition-colors cursor-pointer"
-                              title="Załącz pliki z Google Drive"
-                            >
-                              <svg className="w-4 h-4 text-[#0b57d0] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                              </svg>
-                              <span>Załącz z Drive</span>
-                              {Object.keys(selectedDriveFiles).length > 0 && (
-                                <span className="bg-[#0b57d0] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                                  {Object.keys(selectedDriveFiles).length}
-                                </span>
-                              )}
-                            </button>
-                          )}
-                        </div>
+                  const supplierAndAmountFieldsJsx = (
+                    <div className="grid grid-cols-12 gap-3">
+                      <div className="col-span-7 flex flex-col gap-1.5 min-w-0">
+                        <label className="text-xs font-bold text-slate-700 truncate">
+                          Dostawca zamówienia
+                        </label>
+                        <select
+                          value={draftDeliveryEntry.supplierId}
+                          disabled={isSentOrder}
+                          onChange={(e) => {
+                            const nextSupplierId = e.target.value as Id<"suppliers">;
+                            setDraftDeliveryEntry((prev) =>
+                              prev ? { ...prev, supplierId: nextSupplierId, selectedProducts: [] } : prev
+                            );
+                          }}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs h-[38px] disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                        >
+                          {(availableSuppliers.length > 0 ? availableSuppliers : allSuppliers).map((s) => (
+                            <option key={s._id} value={s._id}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                        <div className="flex flex-col gap-4 p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
-                          {/* Dostawca i Kwota netto w czytelnym układzie bez łamania etykiet */}
-                          <div className="grid grid-cols-12 gap-3">
-                            <div className="col-span-7 flex flex-col gap-1.5 min-w-0">
-                              <label className="text-xs font-bold text-slate-700 truncate">
-                                Dostawca zamówienia
-                              </label>
-                              <select
-                                value={draftDeliveryEntry.supplierId}
-                                onChange={(e) => {
-                                  const nextSupplierId = e.target.value as Id<"suppliers">;
-                                  setDraftDeliveryEntry((prev) =>
-                                    prev ? { ...prev, supplierId: nextSupplierId, selectedProducts: [] } : prev
-                                  );
-                                }}
-                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs h-[38px]"
-                              >
-                                {(availableSuppliers.length > 0 ? availableSuppliers : allSuppliers).map((s) => (
-                                  <option key={s._id} value={s._id}>
-                                    {s.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
+                      <div className="col-span-5 flex flex-col gap-1.5 min-w-0">
+                        <label className="text-xs font-bold text-slate-700 truncate">
+                          Kwota netto (PLN)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          readOnly={isSentOrder}
+                          value={draftDeliveryEntry.netAmount ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                            updateDraftSingleField("netAmount", val);
+                          }}
+                          className={`w-full rounded-lg border px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 shadow-xs h-[38px] ${
+                            isSentOrder
+                              ? "border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed"
+                              : missingNetAmount
+                              ? "border-red-400 bg-red-50/40 text-slate-900 focus:border-red-500 focus:ring-red-500/20"
+                              : "border-slate-300 bg-white text-slate-900 focus:border-amber-500 focus:ring-amber-500/20"
+                          }`}
+                        />
+                        {missingNetAmount && !isSentOrder && (
+                          <span className="text-[11px] font-medium text-red-600">
+                            Podaj kwotę &gt; 0
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
 
-                            <div className="col-span-5 flex flex-col gap-1.5 min-w-0">
-                              <label className="text-xs font-bold text-slate-700 truncate">
-                                Kwota netto (PLN)
-                              </label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0.00"
-                                value={draftDeliveryEntry.netAmount ?? ""}
-                                onChange={(e) => {
-                                  const val = e.target.value ? parseFloat(e.target.value) : undefined;
-                                  updateDraftSingleField("netAmount", val);
-                                }}
-                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs h-[38px]"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Etapy i terminy realizacji — czytelna lista wierszy bez ucinania kolumn */}
-                          <div className="flex flex-col gap-2 pt-3 border-t border-slate-100">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-slate-700">
-                                Etapy i terminy realizacji
-                              </span>
-                              <span className="text-[10px] font-medium text-slate-400">
-                                Data realizacji
-                              </span>
-                            </div>
-                            <div className="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden">
+                  const milestonesCardJsx = (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700">
+                          Etapy i terminy realizacji
+                        </span>
+                        <span className="text-[10px] font-medium text-slate-400">
+                          Data realizacji
+                        </span>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden">
                               {DELIVERY_MILESTONES.map((m) => {
                                 const val = draftDeliveryEntry[m.key];
                                 const isSet = val != null;
@@ -5431,9 +5462,10 @@ export default function OrderDetailPage({
                               })}
                             </div>
                           </div>
+                  );
 
-                          {/* Lista plików wysłanych po API */}
-                          {draftDeliveryEntry.sentApiFiles && draftDeliveryEntry.sentApiFiles.length > 0 && (
+                  const sentApiFilesCardJsx =
+                    draftDeliveryEntry.sentApiFiles && draftDeliveryEntry.sentApiFiles.length > 0 ? (
                             <div className="flex flex-col gap-2 pt-3 border-t border-slate-100">
                               <div className="flex items-center justify-between gap-2">
                                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
@@ -5570,271 +5602,261 @@ export default function OrderDetailPage({
                                 })}
                               </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
+                    ) : null;
 
-                      {/* Prawa kolumna: u góry Produkty i pytania na pełną szerokość, pod spodem kompaktowy wątek wiadomości */}
-                      <div className="flex-1 min-w-0 flex flex-col gap-3.5 overflow-hidden">
-                        {/* Górna karta: Produkty u dostawcy + pytania per produkt */}
-                        {(() => {
-                          const allSupplierProducts = currentSupplier?.products ?? [];
-                          const activeSupplierProducts = allSupplierProducts.filter((p) => p.isActive);
-                          const selectedList = draftDeliveryEntry.selectedProducts ?? [];
-                          const activeIds = new Set(activeSupplierProducts.map((p) => p.id));
-                          const legacySelected = selectedList.filter((p) => !activeIds.has(p.id));
-                          const allOptions = [
-                            ...activeSupplierProducts.map((p) => ({
-                              id: p.id,
-                              name: p.name,
-                              isArchived: false,
-                              questions: p.questions ?? [],
-                            })),
-                            ...legacySelected.map((p) => {
-                              const def = allSupplierProducts.find((sp) => sp.id === p.id);
-                              return {
-                                id: p.id,
-                                name: p.name,
-                                isArchived: true,
-                                questions: def?.questions ?? [],
-                              };
-                            }),
-                          ];
+                  if (modalMode === "wizard") {
+                    const selectedDriveList = Object.values(selectedDriveFiles).map((f) => ({
+                      id: f.id,
+                      name: f.name,
+                    }));
 
-                          const toggleProduct = (prod: {
-                            id: string;
-                            name: string;
-                            questions: Array<{ id: string; question: string }>;
-                          }) => {
-                            setDraftDeliveryEntry((prev) => {
-                              if (!prev) return prev;
-                              const curr = prev.selectedProducts ?? [];
-                              const exists = curr.some((item) => item.id === prod.id);
-                              const next = exists
-                                ? curr.filter((item) => item.id !== prod.id)
-                                : [
-                                    ...curr,
-                                    {
-                                      id: prod.id,
-                                      name: prod.name,
-                                      answers: prod.questions.map((q) => ({
-                                        questionId: q.id,
-                                        question: q.question,
-                                        answer: "",
-                                      })),
-                                    },
-                                  ];
-                              return applyProductQaToEntry({ ...prev, selectedProducts: next });
-                            });
-                          };
+                    return (
+                      <>
+                        <SupplierOrderStepper
+                          currentStep={wizardStep}
+                          onStepChange={setWizardStep}
+                          issues={validationIssues}
+                          showValidation={showValidation}
+                          summaryData={{
+                            supplierName: currentSupplier?.name,
+                            netAmount: draftDeliveryEntry.netAmount,
+                            selectedProductsCount: (draftDeliveryEntry.selectedProducts ?? []).length,
+                            attachmentsCount: selectedDriveList.length,
+                            notesCount: draftCustomNotes.length,
+                            isApiEnabled: Boolean(currentSupplier?.isApiEnabled),
+                          }}
+                        />
 
-                          const updateProductQuestionAnswer = (
-                            productId: string,
-                            productName: string,
-                            questionId: string,
-                            questionText: string,
-                            answerText: string,
-                            supplierQuestions: Array<{ id: string; question: string }>,
-                          ) => {
-                            setDraftDeliveryEntry((prev) => {
-                              if (!prev) return prev;
-                              const curr = prev.selectedProducts ?? [];
-                              const next = curr.map((item) => {
-                                if (item.id !== productId) return item;
-                                const existingAnswers = item.answers ?? [];
-                                const mergedQuestionIds = new Set([
-                                  ...supplierQuestions.map((q) => q.id),
-                                  ...existingAnswers.map((a) => a.questionId),
-                                ]);
-                                const updatedAnswers: Array<{
-                                  questionId: string;
-                                  question: string;
-                                  answer: string;
-                                }> = [];
-                                for (const qId of mergedQuestionIds) {
-                                  const supQ = supplierQuestions.find((q) => q.id === qId);
-                                  const exA = existingAnswers.find((a) => a.questionId === qId);
-                                  const qLabel = supQ?.question ?? exA?.question ?? "";
-                                  if (!qLabel) continue;
-                                  updatedAnswers.push({
-                                    questionId: qId,
-                                    question: qLabel,
-                                    answer: qId === questionId ? answerText : (exA?.answer ?? ""),
-                                  });
-                                }
-                                return {
-                                  ...item,
-                                  name: productName,
-                                  answers: updatedAnswers,
-                                };
-                              });
-                              return applyProductQaToEntry({ ...prev, selectedProducts: next });
-                            });
-                          };
-
-                          const selectedProductsWithQuestions = selectedList
-                            .map((sel) => {
-                              const supProd = allSupplierProducts.find((p) => p.id === sel.id);
-                              const supQuestions = supProd?.questions ?? [];
-                              const existingAnswers = sel.answers ?? [];
-                              const questionsList: Array<{
-                                questionId: string;
-                                question: string;
-                                answer: string;
-                              }> = [];
-                              const seenQIds = new Set<string>();
-                              for (const sq of supQuestions) {
-                                seenQIds.add(sq.id);
-                                const foundAns = existingAnswers.find(
-                                  (a) => a.questionId === sq.id || a.question === sq.question,
-                                );
-                                questionsList.push({
-                                  questionId: sq.id,
-                                  question: sq.question,
-                                  answer: foundAns?.answer ?? "",
-                                });
-                              }
-                              for (const ea of existingAnswers) {
-                                if (!seenQIds.has(ea.questionId)) {
-                                  questionsList.push(ea);
-                                }
-                              }
-                              return {
-                                id: sel.id,
-                                name: sel.name,
-                                supplierQuestions: supQuestions,
-                                questionsList,
-                              };
-                            })
-                            .filter((p) => p.questionsList.length > 0);
-
-                          return (
-                            <div className="shrink-0 max-h-[56%] overflow-y-auto bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 flex flex-col gap-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                                    Produkty u dostawcy i pytania do zamówienia
-                                  </span>
-                                  {selectedList.length > 0 && (
-                                    <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                                      Wybrano produktów: {selectedList.length}
-                                    </span>
-                                  )}
+                        <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto pr-1">
+                          {wizardStep === "supplier" && (
+                            <div className="flex flex-col gap-4">
+                              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 flex flex-col gap-4">
+                                <div>
+                                  <h3 className="text-sm font-bold text-slate-900 m-0">
+                                    Krok 1: Dostawca i kwota netto
+                                  </h3>
+                                  <p className="text-xs text-slate-500 m-0 mt-0.5">
+                                    Wybierz dostawcę i wpisz kwotę netto zamówienia przed przejściem do produktów.
+                                  </p>
                                 </div>
-                                {selectedProductsWithQuestions.length > 0 && (
-                                  <span className="text-[11px] font-semibold text-amber-700 bg-amber-50/80 border border-amber-200/80 px-2.5 py-0.5 rounded-full">
-                                    📋 Odpowiedzi są automatycznie dodawane do wiadomości poniżej
-                                  </span>
+                                {supplierAndAmountFieldsJsx}
+                                <div className="pt-3 border-t border-slate-100">
+                                  {milestonesCardJsx}
+                                </div>
+                              </div>
+
+                              <div className="flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => setWizardStep("products")}
+                                  className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                                >
+                                  Dalej: Produkty i pytania →
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {wizardStep === "products" && (
+                            <div className="flex flex-col gap-4">
+                              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5">
+                                <ProductQuestionsForm
+                                  supplierProducts={currentSupplier?.products ?? []}
+                                  selectedProducts={draftDeliveryEntry.selectedProducts ?? []}
+                                  onChange={(next) =>
+                                    setDraftDeliveryEntry((prev) =>
+                                      prev ? applyProductQaToEntry({ ...prev, selectedProducts: next }) : prev
+                                    )
+                                  }
+                                  showValidation={showValidation}
+                                />
+                              </div>
+
+                              <div className="flex items-center justify-between gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setWizardStep("supplier")}
+                                  className="px-4 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
+                                >
+                                  ← Wstecz
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setWizardStep("attachments")}
+                                  className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                                >
+                                  Dalej: Załączniki i uwagi →
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {wizardStep === "attachments" && (
+                            <div className="flex flex-col gap-4">
+                              {currentSupplier?.isApiEnabled && (
+                                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 flex flex-col gap-3">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div>
+                                      <h3 className="text-sm font-bold text-slate-900 m-0">
+                                        Załączniki z Google Drive
+                                      </h3>
+                                      <p className="text-xs text-slate-500 m-0 mt-0.5">
+                                        Zaznaczone pliki zostaną wysłane razem z zamówieniem do ALCO CRM.
+                                      </p>
+                                    </div>
+                                    {selectedDriveList.length > 0 && (
+                                      <span className="text-[11px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                                        Wybrano: {selectedDriveList.length}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-3">
+                                    <OrderDriveFilePicker
+                                      orderId={orderIdTyped}
+                                      rootFolderId={order?.folderId}
+                                      selectedFiles={selectedDriveFiles}
+                                      onSelectionChange={setSelectedDriveFiles}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 flex flex-col gap-3">
+                                <div>
+                                  <h3 className="text-sm font-bold text-slate-900 m-0">
+                                    Uwagi i wiadomości początkowe
+                                  </h3>
+                                  <p className="text-xs text-slate-500 m-0 mt-0.5">
+                                    Opcjonalne dodatkowe uwagi, które trafią do zamówienia.
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                  <textarea
+                                    rows={3}
+                                    value={newSupplierNoteText}
+                                    onChange={(e) => setNewSupplierNoteText(e.target.value)}
+                                    placeholder="Wpisz treść uwagi lub wiadomości..."
+                                    className="w-full rounded-xl border border-slate-300 bg-white p-3 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-y"
+                                  />
+                                  <div className="flex justify-end">
+                                    <button
+                                      type="button"
+                                      disabled={!newSupplierNoteText.trim() || addingSupplierNote}
+                                      onClick={() => void handleAddSupplierNoteToFeed()}
+                                      className="px-4 py-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 rounded-lg disabled:opacity-40 cursor-pointer"
+                                    >
+                                      {addingSupplierNote ? "Dodawanie..." : "+ Dodaj uwagę do szkicu"}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {draftCustomNotes.length > 0 && (
+                                  <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
+                                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                                      Dodane uwagi ({draftCustomNotes.length})
+                                    </div>
+                                    {draftCustomNotes.map((noteItem) => (
+                                      <div
+                                        key={noteItem.id}
+                                        className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 flex items-start justify-between gap-3 text-xs"
+                                      >
+                                        <p className="m-0 whitespace-pre-wrap text-slate-800 flex-1">
+                                          {noteItem.note}
+                                        </p>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setDraftDeliveryEntry((prev) => {
+                                              if (!prev) return prev;
+                                              const nextFeed = (prev.notesFeed ?? []).filter((n) => n.id !== noteItem.id);
+                                              return {
+                                                ...prev,
+                                                notesFeed: nextFeed,
+                                                notes: nextFeed.map((n) => n.note).join("\n---\n"),
+                                              };
+                                            });
+                                          }}
+                                          className="text-rose-600 hover:text-rose-800 font-bold text-xs shrink-0 bg-transparent border-0 cursor-pointer"
+                                          title="Usuń uwagę"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
                                 )}
                               </div>
 
-                              {allOptions.length === 0 ? (
-                                <p className="text-xs text-slate-400 bg-slate-50/60 border border-dashed border-slate-200 rounded-lg px-3 py-2">
-                                  Ten dostawca nie ma przypisanych produktów. Możesz je dodać w Ustawienia → Dostawcy.
-                                </p>
-                              ) : (
-                                <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl border border-slate-200 bg-slate-50/40">
-                                  {allOptions.map((prod) => {
-                                    const checked = selectedList.some((s) => s.id === prod.id);
-                                    return (
-                                      <button
-                                        key={prod.id}
-                                        type="button"
-                                        onClick={() =>
-                                          toggleProduct({
-                                            id: prod.id,
-                                            name: prod.name,
-                                            questions: prod.questions,
-                                          })
-                                        }
-                                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                                          checked
-                                            ? "border-amber-500 bg-amber-50 text-amber-900 shadow-2xs"
-                                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                                        }`}
-                                      >
-                                        <span
-                                          className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded border text-[9px] font-bold ${
-                                            checked
-                                              ? "border-amber-600 bg-amber-600 text-white"
-                                              : "border-slate-300 bg-white text-transparent"
-                                          }`}
-                                        >
-                                          ✓
-                                        </span>
-                                        <span>{prod.name}</span>
-                                        {prod.questions.length > 0 && (
-                                          <span
-                                            className={`rounded px-1.5 py-0.2 text-[10px] font-bold ${
-                                              checked
-                                                ? "bg-amber-200/80 text-amber-900"
-                                                : "bg-slate-100 text-slate-500"
-                                            }`}
-                                          >
-                                            {prod.questions.length} pyt.
-                                          </span>
-                                        )}
-                                        {prod.isArchived && (
-                                          <span className="text-[9px] font-medium text-slate-400">(nieaktywny)</span>
-                                        )}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
-
-                              {/* Pytania do wybranych produktów na pełnej szerokości */}
-                              {selectedProductsWithQuestions.length > 0 && (
-                                <div className="flex flex-col gap-3">
-                                  {selectedProductsWithQuestions.map((prodItem) => (
-                                    <div
-                                      key={prodItem.id}
-                                      className="flex flex-col gap-2.5 rounded-xl border border-amber-200/90 bg-amber-50/35 p-3.5"
-                                    >
-                                      <div className="flex items-center justify-between gap-2 border-b border-amber-200/60 pb-1.5">
-                                        <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                                          <span>📋</span>
-                                          <span>Pytania do produktu: {prodItem.name}</span>
-                                        </span>
-                                        <span className="text-[11px] font-medium text-amber-800">
-                                          {prodItem.questionsList.filter((q) => q.answer.trim().length > 0).length} / {prodItem.questionsList.length} uzupełniono
-                                        </span>
-                                      </div>
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {prodItem.questionsList.map((qItem, qIdx) => (
-                                          <div key={qItem.questionId} className="flex flex-col gap-1">
-                                            <label className="text-xs font-semibold text-slate-800">
-                                              {qIdx + 1}. {qItem.question}
-                                            </label>
-                                            <input
-                                              type="text"
-                                              value={qItem.answer}
-                                              onChange={(e) =>
-                                                updateProductQuestionAnswer(
-                                                  prodItem.id,
-                                                  prodItem.name,
-                                                  qItem.questionId,
-                                                  qItem.question,
-                                                  e.target.value,
-                                                  prodItem.supplierQuestions,
-                                                )
-                                              }
-                                              placeholder="Wpisz odpowiedź..."
-                                              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-2xs"
-                                            />
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                              <div className="flex items-center justify-between gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setWizardStep("products")}
+                                  className="px-4 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
+                                >
+                                  ← Wstecz
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowValidation(true);
+                                    setWizardStep("summary");
+                                  }}
+                                  className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                                >
+                                  Dalej: Podsumowanie →
+                                </button>
+                              </div>
                             </div>
-                          );
-                        })()}
+                          )}
 
-                        {/* Dolna karta: kompaktowy obszar wątku wiadomości */}
-                        <div className="flex-1 min-h-[190px] bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col overflow-hidden">
+                          {wizardStep === "summary" && (
+                            <div className="flex flex-col gap-4">
+                              <SupplierOrderSummary
+                                serviceName={editingDeliverySvc ?? ""}
+                                supplierName={currentSupplier?.name ?? "Dostawca"}
+                                isApiEnabled={Boolean(currentSupplier?.isApiEnabled)}
+                                netAmount={draftDeliveryEntry.netAmount}
+                                selectedProducts={(draftDeliveryEntry.selectedProducts ?? []).map((p) => ({
+                                  id: p.id,
+                                  name: p.name,
+                                }))}
+                                driveFiles={selectedDriveList}
+                                notesCount={draftCustomNotes.length}
+                                qaPreviewText={qaPreviewText}
+                                issues={validationIssues}
+                                onGoToStep={(step) => {
+                                  setShowValidation(true);
+                                  setWizardStep(step);
+                                }}
+                                onSaveDraft={() => void saveDelivery()}
+                                onSendToAlco={() => void sendDeliveryOrderToAlcoCrm()}
+                                saving={savingDelivery}
+                                sendingToAlco={sendingCrm}
+                              />
+
+                              <div className="flex justify-start">
+                                <button
+                                  type="button"
+                                  onClick={() => setWizardStep("attachments")}
+                                  className="px-4 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
+                                >
+                                  ← Wstecz
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  }
+
+                  return (
+                    <>
+                      {/* Tryb wątku: szeroki wątek wiadomości w centrum + panel szczegółów po prawej */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-3.5 overflow-hidden">
+                        {/* Główna karta: wątek wiadomości */}
+                        <div className="flex-1 min-h-0 bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col overflow-hidden">
                         {(() => {
                           const dbDelivery = editingDeliveryIndex !== null ? (order?.serviceDeliveries ?? [])[editingDeliveryIndex] : undefined;
                           const hasExternalOrderRef = Boolean(draftDeliveryEntry.externalOrderId || draftDeliveryEntry.externalOrderNumber);
@@ -6189,6 +6211,28 @@ export default function OrderDetailPage({
                                       </span>
                                     )
                                   )}
+                                  {currentSupplier?.isApiEnabled && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openGmailCompose(true)}
+                                      className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 font-semibold text-xs px-3 py-1 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                                      title="Załącz pliki z Google Drive"
+                                    >
+                                      <span>Załącz z Drive</span>
+                                      {selectedFilesList.length > 0 && (
+                                        <span className="bg-[#0b57d0] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                                          {selectedFilesList.length}
+                                        </span>
+                                      )}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => openGmailCompose(false)}
+                                    className="inline-flex items-center gap-1.5 bg-[#c2e7ff] hover:bg-[#b3dffc] text-[#001d35] font-semibold text-xs px-3 py-1 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                                  >
+                                    <span>{isExalcoSupplier ? "Napisz wiadomość" : "Dodaj uwagę"}</span>
+                                  </button>
                                 </div>
                               </div>
 
@@ -6503,6 +6547,31 @@ export default function OrderDetailPage({
                             </>
                           );
                         })()}
+                        </div>
+                      </div>
+
+                      {/* Prawy panel szczegółów w trybie wątku */}
+                      <div className="w-[360px] shrink-0 flex flex-col gap-3.5 overflow-y-auto min-h-0 pl-1">
+                        <div className="flex flex-col gap-4 p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
+                          {supplierAndAmountFieldsJsx}
+                          <div className="pt-3 border-t border-slate-100">
+                            {milestonesCardJsx}
+                          </div>
+                          {sentApiFilesCardJsx}
+                        </div>
+
+                        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4">
+                          <ProductQuestionsForm
+                            compact
+                            supplierProducts={currentSupplier?.products ?? []}
+                            selectedProducts={draftDeliveryEntry.selectedProducts ?? []}
+                            onChange={(next) =>
+                              setDraftDeliveryEntry((prev) =>
+                                prev ? applyProductQaToEntry({ ...prev, selectedProducts: next }) : prev
+                              )
+                            }
+                            showValidation={false}
+                          />
                         </div>
                       </div>
                     </>
@@ -8372,133 +8441,6 @@ export default function OrderDetailPage({
                 }}
               >
                 Tak, usuń terminy
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Potwierdzenia Wysyłki do ALCO ("Potykacz") */}
-      {confirmAlcoModalOpen && draftDeliveryEntry && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 200,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            padding: 16,
-          }}
-          onClick={() => setConfirmAlcoModalOpen(false)}
-        >
-          <div
-            className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 flex flex-col gap-4 text-left"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-              <div className="w-10 h-10 rounded-xl bg-purple-100 border border-purple-200 text-purple-700 flex items-center justify-center text-xl shrink-0 font-bold">
-                🚀
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900 m-0">
-                  Potwierdzenie wysyłki do ALCO CRM
-                </h3>
-                <p className="text-xs text-slate-500 m-0 font-medium">
-                  Sprawdź poprawność danych przed utworzeniem zlecenia:
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
-              <div className="flex justify-between items-center py-1 border-b border-slate-200/60">
-                <span className="font-semibold text-slate-500">Usługa / Kategoria:</span>
-                <span className="font-bold text-slate-900">{editingDeliverySvc ?? "—"}</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-200/60">
-                <span className="font-semibold text-slate-500">Dostawca:</span>
-                <span className="font-bold text-slate-900">
-                  {allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId)?.name ?? "Exalco"}
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-200/60">
-                <span className="font-semibold text-slate-500">Kwota netto:</span>
-                <span className="font-bold text-slate-900">
-                  {draftDeliveryEntry.netAmount != null
-                    ? `${draftDeliveryEntry.netAmount.toLocaleString("pl-PL", { minimumFractionDigits: 2 })} PLN`
-                    : "— nie podano"}
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-200/60">
-                <span className="font-semibold text-slate-500">Załączniki z Google Drive:</span>
-                <span className="font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
-                  {Object.keys(selectedDriveFiles).length > 0
-                    ? `${Object.keys(selectedDriveFiles).length} ${Object.keys(selectedDriveFiles).length === 1 ? "plik" : "plików"}`
-                    : "Brak załączników"}
-                </span>
-              </div>
-              {draftDeliveryEntry.selectedProducts && draftDeliveryEntry.selectedProducts.length > 0 && (
-                <div className="flex flex-col gap-1 py-1 border-b border-slate-200/60">
-                  <span className="font-semibold text-slate-500">Wybrane produkty:</span>
-                  <div className="flex flex-wrap gap-1">
-                    {draftDeliveryEntry.selectedProducts.map((p) => (
-                      <span
-                        key={p.id}
-                        className="rounded-md bg-amber-100 border border-amber-300 px-2 py-0.5 text-[11px] font-bold text-amber-900"
-                      >
-                        {p.name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {draftDeliveryEntry.notes?.trim() && (
-                <div className="flex flex-col gap-1 pt-1">
-                  <span className="font-semibold text-slate-500">Wiadomości / Specyfikacja:</span>
-                  <div className="bg-white p-2 rounded border border-slate-200 text-[11px] text-slate-700 whitespace-pre-wrap max-h-32 overflow-y-auto">
-                    {draftDeliveryEntry.notes.trim()}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-xl text-xs flex items-start gap-2">
-              <span className="text-amber-600 font-bold shrink-0 text-sm">⚠️</span>
-              <span>
-                Czy na pewno chcesz wysłać to zamówienie do systemu ALCO CRM po API? Zlecenie zostanie zarejestrowane po stronie dostawcy.
-              </span>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setConfirmAlcoModalOpen(false)}
-                className="btn text-xs px-4 py-2 font-semibold text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
-                disabled={sendingCrm}
-              >
-                Anuluj
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  setConfirmAlcoModalOpen(false);
-                  await sendDeliveryOrderToAlcoCrm();
-                }}
-                disabled={sendingCrm}
-                className="btn text-xs px-4 py-2 font-bold text-white bg-purple-700 hover:bg-purple-800 rounded-lg flex items-center gap-2 shadow-sm"
-              >
-                {sendingCrm ? (
-                  <>
-                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Wysyłanie...
-                  </>
-                ) : (
-                  <>
-                    🚀 Potwierdzam i wysyłam do ALCO
-                  </>
-                )}
               </button>
             </div>
           </div>
