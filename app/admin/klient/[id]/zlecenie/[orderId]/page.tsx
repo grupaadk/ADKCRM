@@ -6596,7 +6596,7 @@ export default function OrderDetailPage({
                                   {currentSupplier?.isApiEnabled && (
                                     <button
                                       type="button"
-                                      onClick={() => openGmailCompose(true)}
+                                      onClick={() => setThreadSection("files")}
                                       className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 font-semibold text-xs px-3 py-1 rounded-lg shadow-2xs transition-colors cursor-pointer"
                                       title="Załącz pliki z Google Drive"
                                     >
@@ -6610,7 +6610,7 @@ export default function OrderDetailPage({
                                   )}
                                   <button
                                     type="button"
-                                    onClick={() => openGmailCompose(false)}
+                                    onClick={() => supplierNoteInputRef.current?.focus()}
                                     className="inline-flex items-center gap-1.5 bg-[#c2e7ff] hover:bg-[#b3dffc] text-[#001d35] font-semibold text-xs px-3 py-1 rounded-lg shadow-2xs transition-colors cursor-pointer"
                                   >
                                     <span>{isExalcoSupplier ? "Napisz wiadomość" : "Dodaj uwagę"}</span>
@@ -6633,7 +6633,7 @@ export default function OrderDetailPage({
                                     </p>
                                     <button
                                       type="button"
-                                      onClick={() => openGmailCompose(false)}
+                                      onClick={() => supplierNoteInputRef.current?.focus()}
                                       className="inline-flex items-center gap-1.5 bg-[#0b57d0] hover:bg-[#0842a0] text-white font-semibold text-xs px-4 py-1.5 rounded-full shadow-xs transition-all"
                                     >
                                       ✏️ Napisz pierwszą wiadomość
@@ -6727,9 +6727,6 @@ export default function OrderDetailPage({
                                                   <span className="text-xs font-bold text-[#1f1f1f]">
                                                     {author}
                                                   </span>
-                                                  <span className="text-[11px] text-[#5f6368]">
-                                                    {isExalco ? "<crm@exalco.pl>" : "<zamowienia@adk.pl>"}
-                                                  </span>
                                                 </div>
                                                 <div className="text-[11px] text-[#5f6368] leading-snug">
                                                   do {isExalco ? "ADK" : isExalcoSupplier ? "Exalco" : "wewnętrzne"} ▾
@@ -6772,7 +6769,7 @@ export default function OrderDetailPage({
                                                 type="button"
                                                 onClick={(e) => {
                                                   e.stopPropagation();
-                                                  openGmailCompose(false);
+                                                  supplierNoteInputRef.current?.focus();
                                                 }}
                                                 className="p-1 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
                                                 title="Odpowiedz"
@@ -6848,84 +6845,48 @@ export default function OrderDetailPage({
                                       );
                                     })}
 
-                                    {/* Dolny pasek przycisków "Odpowiedz" */}
-                                    <div className="px-5 py-3 pl-[56px] bg-white flex items-center gap-2.5">
-                                      <button
-                                        type="button"
-                                        onClick={() => openGmailCompose(false)}
-                                        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#747775] text-xs font-medium text-[#444746] hover:bg-slate-100/80 transition-colors cursor-pointer"
-                                      >
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                        </svg>
-                                        {isExalcoSupplier ? "Odpowiedz" : "Dodaj kolejną uwagę"}
-                                      </button>
-                                      {currentSupplier?.isApiEnabled && (
-                                        <button
-                                          type="button"
-                                          onClick={() => openGmailCompose(true)}
-                                          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#747775] text-xs font-medium text-[#444746] hover:bg-slate-100/80 transition-colors cursor-pointer"
-                                        >
-                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                          </svg>
-                                          Załącz pliki z Google Drive
-                                        </button>
-                                      )}
                                       <div ref={supplierThreadEndRef} />
-                                    </div>
                                   </>
                                 )}
                               </div>
 
-                              {/* Okno pisania "Nowa wiadomość" w stylu Gmaila (zminimalizowane / dokowane / pełnoekranowe) */}
-                              {composeOpen && (
-                                composeMinimized ? (
-                                  <div
-                                    onClick={() => setComposeMinimized(false)}
-                                    className="fixed bottom-0 right-8 z-[110] w-[320px] bg-[#404040] text-white rounded-t-xl shadow-2xl px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-[#303030] transition-colors"
+                              {/* Proste pole odpowiedzi przypięte na dole wątku (czat-style) */}
+                              <div className="border-t border-slate-200/80 bg-slate-50/60 px-5 py-3.5 shrink-0 flex flex-col gap-2">
+                                <textarea
+                                  ref={supplierNoteInputRef}
+                                  rows={2}
+                                  value={newSupplierNoteText}
+                                  onChange={(e) => setNewSupplierNoteText(e.target.value)}
+                                  placeholder={
+                                    isExalcoSupplier
+                                      ? "Napisz wiadomość do Exalco..."
+                                      : `Wpisz uwagę dla ${currentSupplier?.name ?? "dostawcy"}...`
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                                      e.preventDefault();
+                                      if (newSupplierNoteText.trim() && !isSendingCompose) {
+                                        void handleSendGmailCompose();
+                                      }
+                                    }
+                                  }}
+                                  disabled={isSendingCompose}
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 resize-none leading-relaxed disabled:opacity-60"
+                                />
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-[11px] text-slate-400">
+                                    Enter = nowy akapit · Ctrl/Cmd+Enter = wyślij
+                                  </span>
+                                  <button
+                                    type="button"
+                                    disabled={!newSupplierNoteText.trim() || isSendingCompose}
+                                    onClick={() => void handleSendGmailCompose()}
+                                    className="px-4 py-1.5 rounded-xl bg-brand hover:bg-brand-hover text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                                   >
-                                    <span className="text-xs font-bold truncate">
-                                      {isExalcoSupplier ? "Nowa wiadomość — Exalco" : "Nowa uwaga"}
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setComposeMinimized(false);
-                                          setComposeMaximized(true);
-                                        }}
-                                        className="p-1 hover:bg-white/10 rounded text-xs"
-                                        title="Pełny ekran"
-                                      >
-                                        ⤢
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setComposeOpen(false);
-                                          setComposeMinimized(false);
-                                        }}
-                                        className="p-1 hover:bg-white/10 rounded text-xs"
-                                        title="Zamknij"
-                                      >
-                                        ✕
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : composeMaximized ? (
-                                  <div
-                                    onClick={() => setComposeMaximized(false)}
-                                    className="fixed inset-0 z-[110] bg-black/45 flex items-center justify-center p-6"
-                                  >
-                                    {composeBoxJsx}
-                                  </div>
-                                ) : (
-                                  composeBoxJsx
-                                )
-                              )}
+                                    {isSendingCompose ? "Wysyłanie..." : "Wyślij odpowiedź"}
+                                  </button>
+                                </div>
+                              </div>
                             </>
                           );
                         })()}
