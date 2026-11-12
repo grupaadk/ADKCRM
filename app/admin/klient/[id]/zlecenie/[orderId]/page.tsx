@@ -1887,9 +1887,23 @@ export default function OrderDetailPage({
   const [editingCrmNoteText, setEditingCrmNoteText] = useState("");
   const [crmNoteExpandOverrides, setCrmNoteExpandOverrides] = useState<Record<string, boolean>>({});
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeMinimized, setComposeMinimized] = useState(false);
   const [composeMaximized, setComposeMaximized] = useState(false);
   const supplierNoteInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const supplierThreadEndRef = useRef<HTMLDivElement | null>(null);
   const markNotesRead = useMutation(api.orders.markSupplierNotesAsRead);
+
+  function openGmailCompose(withDrivePicker = false) {
+    setComposeOpen(true);
+    setComposeMinimized(false);
+    if (withDrivePicker) {
+      setDrivePickerOpen(true);
+    }
+    setTimeout(() => {
+      supplierNoteInputRef.current?.focus();
+    }, 50);
+  }
 
   function startEditDelivery(svcName: string, supplierId?: Id<"suppliers">, index?: number) {
     setEditingDeliverySvc(svcName);
@@ -1898,6 +1912,7 @@ export default function OrderDetailPage({
     setEditingCrmNoteText("");
     setCrmNoteExpandOverrides({});
     setDrivePickerOpen(false);
+    setComposeMinimized(false);
     setComposeMaximized(false);
     if (supplierId && index !== undefined) {
       const existing = (order?.serviceDeliveries ?? [])[index];
@@ -1917,9 +1932,13 @@ export default function OrderDetailPage({
             }]
           : [];
         setDraftDeliveryEntry({ ...existing, notesFeed: initialFeed });
+        setComposeOpen(initialFeed.length === 0);
         if (orderIdTyped && existing.unreadNotesCount && existing.unreadNotesCount > 0) {
           void markNotesRead({ orderId: orderIdTyped, deliveryIndex: index });
         }
+        setTimeout(() => {
+          supplierThreadEndRef.current?.scrollIntoView({ behavior: "auto" });
+        }, 80);
         return;
       }
     }
@@ -1929,6 +1948,7 @@ export default function OrderDetailPage({
     const firstSupplierId = availableSuppliers[0]?._id ?? (allSuppliers[0]?._id as Id<"suppliers">);
     setEditingSupplierId(firstSupplierId);
     setEditingDeliveryIndex(null);
+    setComposeOpen(true);
     setDraftDeliveryEntry({
       serviceName: svcName,
       supplierId: firstSupplierId,
@@ -1953,6 +1973,8 @@ export default function OrderDetailPage({
     setEditingCrmNoteText("");
     setCrmNoteExpandOverrides({});
     setDrivePickerOpen(false);
+    setComposeOpen(false);
+    setComposeMinimized(false);
     setComposeMaximized(false);
   }
 
@@ -2212,6 +2234,12 @@ export default function OrderDetailPage({
       supplierNoteInputRef.current.style.height = "auto";
     }
     setAddingSupplierNote(false);
+    setComposeOpen(false);
+    setComposeMinimized(false);
+    setComposeMaximized(false);
+    setTimeout(() => {
+      supplierThreadEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 60);
   }
 
   function handleSaveEditedCrmNote(noteId: string) {
@@ -4971,33 +4999,53 @@ export default function OrderDetailPage({
             </div>
           </SectionCard>
 
-          {/* Drawer szczegółów / edycji pojedynczego zamówienia u dostawcy */}
-          <SideDrawer
-            open={!!editingDeliverySvc && !!draftDeliveryEntry}
-            onClose={cancelEditDelivery}
-            bodyClassName="flex flex-col min-h-0 overflow-hidden bg-slate-50/50"
-            title={
-              <div className="flex items-center gap-2">
-                <ServiceIcon name={editingDeliverySvc ?? ""} size={18} />
-                <span>
-                  {editingDeliveryIndex !== null ? "Szczegóły zamówienia u dostawcy" : "Nowe zamówienie u dostawcy"} ({editingDeliverySvc})
-                </span>
-              </div>
-            }
-            width={1420}
-            footer={
-              <div className="flex items-center justify-between gap-3 w-full">
-                {editingDeliveryIndex !== null ? (
+          {/* Fullscreen Modal w stylu Gmaila — szczegóły / edycja zamówienia u dostawcy */}
+          {!!editingDeliverySvc && !!draftDeliveryEntry && (
+            <div
+              className="fixed inset-0 z-[100] flex flex-col bg-[#f6f8fc]"
+              role="dialog"
+              aria-modal="true"
+            >
+              {/* Górny pasek aplikacji w stylu Gmaila */}
+              <div className="h-14 shrink-0 px-5 bg-[#f6f8fc] border-b border-slate-200/80 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
                   <button
                     type="button"
-                    onClick={() => deleteDeliveryEntry(editingDeliveryIndex)}
-                    className="btn btn-xs"
-                    style={{ color: "var(--bad)", border: "1px solid var(--bad-line)" }}
+                    onClick={cancelEditDelivery}
+                    className="p-2 rounded-full text-slate-600 hover:bg-slate-200/70 transition-colors"
+                    title="Zamknij widok zamówienia"
                   >
-                    Usuń zamówienie
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
                   </button>
-                ) : <div />}
-                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 shadow-2xs flex items-center justify-center shrink-0">
+                      <ServiceIcon name={editingDeliverySvc ?? ""} size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-slate-900 truncate">
+                        {editingDeliveryIndex !== null ? "Szczegóły zamówienia u dostawcy" : "Nowe zamówienie u dostawcy"} · {editingDeliverySvc}
+                      </div>
+                      <div className="text-[11px] text-slate-500 truncate">
+                        Zlecenie {order?.orderNumber ?? ""} {client ? `· ${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() : ""}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Przyciski zapisu / akcji zamówienia */}
+                <div className="flex items-center gap-2.5 shrink-0">
+                  {editingDeliveryIndex !== null && (
+                    <button
+                      type="button"
+                      onClick={() => deleteDeliveryEntry(editingDeliveryIndex)}
+                      className="btn btn-xs"
+                      style={{ color: "var(--bad)", border: "1px solid var(--bad-line)" }}
+                    >
+                      Usuń zamówienie
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={cancelEditDelivery}
@@ -5019,7 +5067,7 @@ export default function OrderDetailPage({
                       </span>
                     ) : "Zapisz zamówienie"}
                   </button>
-                  {draftDeliveryEntry && (() => {
+                  {(() => {
                     const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
                     if (!currentSupplier?.isApiEnabled) return null;
 
@@ -5055,20 +5103,64 @@ export default function OrderDetailPage({
 
                     return null;
                   })()}
+                  <button
+                    type="button"
+                    onClick={cancelEditDelivery}
+                    className="ml-1 p-2 rounded-full text-slate-500 hover:bg-slate-200/70 hover:text-slate-800 transition-colors"
+                    title="Zamknij"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
               </div>
-            }
-          >
-            <div className="p-4 flex-1 min-h-0 flex flex-col overflow-x-auto overflow-y-hidden">
-              {draftDeliveryEntry && (() => {
-                const svc = servicesList.find((s) => s.name === editingDeliverySvc);
-                const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
-                const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
 
-                return (
-                  <div className="grid grid-cols-12 gap-6 items-stretch min-w-[1050px] flex-1 min-h-0">
-                    {/* Lewa kolumna (~30%): Parametry zamówienia i etapy realizacji */}
-                    <div className="col-span-4 flex flex-col gap-5 overflow-y-auto min-h-0 pr-1">
+              {/* Główny obszar roboczy w układzie Gmaila */}
+              <div className="flex-1 min-h-0 flex gap-4 p-4 overflow-hidden relative">
+                {(() => {
+                  const svc = servicesList.find((s) => s.name === editingDeliverySvc);
+                  const availableSuppliers = allSuppliers.filter((s) => svc?.supplierIds?.some((sid) => sid === s._id));
+                  const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
+                  const isExalcoSupplierSidebar = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("EXALCO") || currentSupplier?.name?.toUpperCase().includes("ALCO");
+
+                  return (
+                    <>
+                      {/* Lewy pasek boczny Gmaila: przycisk "Utwórz / Napisz wiadomość" + parametry zamówienia */}
+                      <div className="w-[370px] shrink-0 flex flex-col gap-4 overflow-y-auto min-h-0 pr-1">
+                        {/* Charakterystyczny przycisk "Utwórz" z Gmaila */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openGmailCompose(false)}
+                            className="inline-flex items-center gap-3 bg-[#c2e7ff] hover:bg-[#b3dffc] text-[#001d35] font-semibold text-sm px-6 py-3.5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer"
+                          >
+                            <svg className="w-5 h-5 text-[#001d35]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                            {isExalcoSupplierSidebar ? "Napisz wiadomość" : "Dodaj uwagę"}
+                          </button>
+                          {currentSupplier?.isApiEnabled && (
+                            <button
+                              type="button"
+                              onClick={() => openGmailCompose(true)}
+                              className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold text-xs px-3.5 py-3.5 rounded-2xl shadow-2xs transition-colors"
+                              title="Załącz pliki z Google Drive"
+                            >
+                              <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                              </svg>
+                              Załącz z Drive
+                              {Object.keys(selectedDriveFiles).length > 0 && (
+                                <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                                  {Object.keys(selectedDriveFiles).length}
+                                </span>
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col gap-4 p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
                       {/* Wybór dostawcy i Kwota netto w 2 równych kolumnach z wyrównaniem */}
                       <div className="grid grid-cols-2 gap-3">
                         <div className="flex flex-col justify-between">
@@ -5396,144 +5488,136 @@ export default function OrderDetailPage({
                           </div>
                         </div>
                       )}
-                    </div>
+                        </div>
+                      </div>
 
-                    {/* Prawa kolumna (~70%): Szeroki panel w stylu Gmaila (duże okno pisania + załączniki z Drive + wątek) */}
-                    <div className="col-span-8 flex flex-col gap-3 p-4 bg-white border border-slate-200 rounded-xl flex-1 min-h-0 shadow-xs">
-                      {(() => {
-                        const dbDelivery = editingDeliveryIndex !== null ? (order?.serviceDeliveries ?? [])[editingDeliveryIndex] : undefined;
-                        const dbNotes = dbDelivery?.notesFeed ?? [];
-                        const draftNotes = draftDeliveryEntry.notesFeed ?? [];
-                        const seenIds = new Set(draftNotes.map((n) => n.id));
-                        const missingFromDraft = dbNotes.filter((n) => !seenIds.has(n.id));
-                        const rawFeed = [...draftNotes, ...missingFromDraft];
+                      {/* Główny biały obszar wątku 1:1 w stylu Gmaila */}
+                      <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col overflow-hidden">
+                        {(() => {
+                          const dbDelivery = editingDeliveryIndex !== null ? (order?.serviceDeliveries ?? [])[editingDeliveryIndex] : undefined;
+                          const dbNotes = dbDelivery?.notesFeed ?? [];
+                          const draftNotes = draftDeliveryEntry.notesFeed ?? [];
+                          const seenIds = new Set(draftNotes.map((n) => n.id));
+                          const missingFromDraft = dbNotes.filter((n) => !seenIds.has(n.id));
+                          const rawFeed = [...draftNotes, ...missingFromDraft];
 
-                        const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
-                        const isExalcoSupplier = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("EXALCO") || currentSupplier?.name?.toUpperCase().includes("ALCO");
-                        const sortedFeed = [...rawFeed].sort((a, b) => b.createdAt - a.createdAt);
-                        const selectedFilesList = Object.values(selectedDriveFiles);
-                        const canSendFilesDirectly = Boolean(draftDeliveryEntry.externalOrderNumber && currentSupplier?.isApiEnabled && selectedFilesList.length > 0);
-                        const canSubmitCompose = Boolean(newSupplierNoteText.trim()) || canSendFilesDirectly;
-                        const isSendingCompose = addingSupplierNote || sendingFilesCrm;
+                          const isExalcoSupplier = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("EXALCO") || currentSupplier?.name?.toUpperCase().includes("ALCO");
+                          // Chronologicznie jak w Gmailu: najstarsza wiadomość na górze, najnowsza na samym dole
+                          const sortedFeed = [...rawFeed].sort((a, b) => a.createdAt - b.createdAt);
+                          const lastIndex = sortedFeed.length - 1;
+                          const selectedFilesList = Object.values(selectedDriveFiles);
+                          const canSendFilesDirectly = Boolean(draftDeliveryEntry.externalOrderNumber && currentSupplier?.isApiEnabled && selectedFilesList.length > 0);
+                          const canSubmitCompose = Boolean(newSupplierNoteText.trim()) || canSendFilesDirectly;
+                          const isSendingCompose = addingSupplierNote || sendingFilesCrm;
 
-                        const handleSendGmailCompose = async () => {
-                          if (isSendingCompose) return;
-                          const hasText = Boolean(newSupplierNoteText.trim());
-                          if (hasText) {
-                            await handleAddSupplierNoteToFeed();
-                          }
-                          if (canSendFilesDirectly) {
-                            await sendSelectedFilesToExistingOrder();
-                            setDrivePickerOpen(false);
-                          }
-                        };
+                          const handleSendGmailCompose = async () => {
+                            if (isSendingCompose) return;
+                            const hasText = Boolean(newSupplierNoteText.trim());
+                            if (hasText) {
+                              await handleAddSupplierNoteToFeed();
+                            }
+                            if (canSendFilesDirectly) {
+                              await sendSelectedFilesToExistingOrder();
+                              setDrivePickerOpen(false);
+                              setComposeOpen(false);
+                            }
+                          };
 
-                        const removeSelectedDriveFile = (fileId: string) => {
-                          setSelectedDriveFiles((prev) => {
-                            const next = { ...prev };
-                            delete next[fileId];
-                            return next;
-                          });
-                        };
+                          const removeSelectedDriveFile = (fileId: string) => {
+                            setSelectedDriveFiles((prev) => {
+                              const next = { ...prev };
+                              delete next[fileId];
+                              return next;
+                            });
+                          };
 
-                        const isItemExpanded = (item: (typeof sortedFeed)[number], idx: number) =>
-                          Boolean(crmNoteExpandOverrides[item.id] ?? (idx === 0)) ||
-                          Boolean(item.errorSending) ||
-                          editingCrmNoteId === item.id;
+                          const isItemExpanded = (item: (typeof sortedFeed)[number], idx: number) =>
+                            Boolean(crmNoteExpandOverrides[item.id] ?? (idx === lastIndex)) ||
+                            Boolean(item.errorSending) ||
+                            editingCrmNoteId === item.id;
 
-                        const allExpanded = sortedFeed.length > 1 && sortedFeed.every((item, idx) => isItemExpanded(item, idx));
+                          const allExpanded = sortedFeed.length > 1 && sortedFeed.every((item, idx) => isItemExpanded(item, idx));
 
-                        const toggleExpandAll = () => {
-                          if (allExpanded) {
-                            setCrmNoteExpandOverrides({});
-                            return;
-                          }
-                          const nextOverrides: Record<string, boolean> = {};
-                          for (const item of sortedFeed) {
-                            nextOverrides[item.id] = true;
-                          }
-                          setCrmNoteExpandOverrides(nextOverrides);
-                        };
+                          const toggleExpandAll = () => {
+                            if (allExpanded) {
+                              setCrmNoteExpandOverrides({});
+                              return;
+                            }
+                            const nextOverrides: Record<string, boolean> = {};
+                            for (const item of sortedFeed) {
+                              nextOverrides[item.id] = true;
+                            }
+                            setCrmNoteExpandOverrides(nextOverrides);
+                          };
 
-                        return (
-                          <>
-                            {/* Górny pasek wątku w stylu Gmaila */}
-                            <div className="shrink-0 pb-2.5 border-b border-slate-100">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <svg className={`w-4 h-4 shrink-0 ${isExalcoSupplier ? "text-blue-600" : "text-amber-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                  </svg>
-                                  <span className={`text-sm font-bold truncate ${isExalcoSupplier ? "text-slate-900" : "text-slate-800"}`}>
-                                    {isExalcoSupplier ? "Czat z Exalco" : "Notatki / Uwagi do zamówienia"}
-                                  </span>
-                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${isExalcoSupplier ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-slate-100 text-slate-600 border border-slate-200"}`}>
-                                    {rawFeed.length} {rawFeed.length === 1 ? "wiadomość" : "wiadomości"}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  {sortedFeed.length > 1 && (
-                                    <button
-                                      type="button"
-                                      onClick={toggleExpandAll}
-                                      className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md transition-colors"
-                                    >
-                                      {allExpanded ? "Zwiń starsze" : "Rozwiń wszystkie"}
-                                    </button>
-                                  )}
-                                  {isExalcoSupplier && (
-                                    draftDeliveryEntry.externalOrderNumber ? (
-                                      <span className="shrink-0 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1.5">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                        Live · Exalco
-                                      </span>
-                                    ) : (
-                                      <span className="shrink-0 text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
-                                        Przed złożeniem w CRM
-                                      </span>
-                                    )
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Duże okno pisania wiadomości w stylu Gmaila */}
+                          const composeBoxJsx = (
                             <div
-                              className={`shrink-0 rounded-xl border bg-white shadow-sm transition-all overflow-hidden flex flex-col ${
-                                isExalcoSupplier
-                                  ? "border-slate-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/15"
-                                  : "border-slate-300 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/15"
-                              }`}
+                              onClick={(e) => e.stopPropagation()}
+                              className={
+                                composeMaximized
+                                  ? "w-[92vw] max-w-[1220px] h-[86vh] bg-white rounded-2xl shadow-2xl border border-slate-300 flex flex-col overflow-hidden"
+                                  : "fixed bottom-0 right-8 z-[110] w-[780px] max-w-[92vw] h-[580px] max-h-[82vh] bg-white rounded-t-2xl shadow-2xl border border-slate-300 flex flex-col overflow-hidden"
+                              }
                             >
-                              {/* Ciemny nagłówek okna "Nowa wiadomość" jak w Gmailu */}
-                              <div className="px-4 py-2 bg-slate-800 text-white flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-xs font-bold tracking-wide truncate">
-                                    {isExalcoSupplier ? "Nowa wiadomość do Exalco" : `Nowa uwaga do zamówienia (${currentSupplier?.name ?? "Dostawca"})`}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
+                              {/* Pasek tytułowy okna "Nowa wiadomość" 1:1 jak w Gmailu */}
+                              <div className="px-4 py-2.5 bg-[#f2f6fc] border-b border-slate-200 flex items-center justify-between gap-2 select-none">
+                                <span className="text-xs font-bold text-[#1f1f1f] truncate">
+                                  {isExalcoSupplier
+                                    ? "Nowa wiadomość — Exalco"
+                                    : `Nowa uwaga — ${currentSupplier?.name ?? "Dostawca"}`}
+                                </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setComposeMaximized(false);
+                                      setComposeMinimized(true);
+                                    }}
+                                    className="p-1.5 rounded hover:bg-slate-200/80 text-slate-600 hover:text-slate-900 transition-colors"
+                                    title="Minimalizuj"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
+                                    </svg>
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => setComposeMaximized((prev) => !prev)}
-                                    className="text-[11px] font-medium text-slate-300 hover:text-white hover:bg-slate-700 px-2 py-0.5 rounded transition-colors flex items-center gap-1"
-                                    title={composeMaximized ? "Zmniejsz pole pisania" : "Powiększ pole pisania"}
+                                    className="px-2 py-1 rounded hover:bg-slate-200/80 text-slate-600 hover:text-slate-900 text-[11px] font-semibold transition-colors inline-flex items-center gap-1"
+                                    title={composeMaximized ? "Zmniejsz z pełnego ekranu" : "Pełny ekran"}
                                   >
-                                    {composeMaximized ? "⤡ Normalny rozmiar" : "⤢ Powiększ pole"}
+                                    {composeMaximized ? "⤡ Zmniejsz" : "⤢ Pełny ekran"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setComposeOpen(false);
+                                      setComposeMinimized(false);
+                                      setComposeMaximized(false);
+                                    }}
+                                    className="p-1.5 rounded hover:bg-slate-200/80 text-slate-600 hover:text-slate-900 transition-colors"
+                                    title="Zamknij okno wiadomości"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
                                   </button>
                                 </div>
                               </div>
 
-                              {/* Pasek odbiorcy "Do:" */}
-                              <div className="px-4 py-2 bg-white border-b border-slate-100 flex items-center justify-between gap-2">
+                              {/* Wiersz "Do:" jak w Gmailu */}
+                              <div className="px-5 py-2.5 bg-white border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-xs font-medium text-slate-400">Do:</span>
+                                  <span className="text-xs font-medium text-slate-500">Do</span>
                                   {isExalcoSupplier ? (
-                                    <span className="text-xs font-bold text-blue-900 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full truncate">
+                                    <span className="text-xs font-semibold text-[#1f1f1f] bg-white border border-slate-300 px-3 py-0.5 rounded-full inline-flex items-center gap-1.5">
+                                      <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold inline-flex items-center justify-center">
+                                        EX
+                                      </span>
                                       Exalco ({currentSupplier?.name ?? "ALCO"})
                                     </span>
                                   ) : (
-                                    <span className="text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full truncate">
+                                    <span className="text-xs font-semibold text-[#1f1f1f] bg-slate-100 border border-slate-200 px-3 py-0.5 rounded-full">
                                       {currentSupplier?.name ?? "Dostawca"} (notatka wewnętrzna)
                                     </span>
                                   )}
@@ -5547,22 +5631,26 @@ export default function OrderDetailPage({
                                 )}
                               </div>
 
-                              {/* Duże pole treści wiadomości */}
+                              {/* Wiersz tematu jak w Gmailu */}
+                              <div className="px-5 py-2 bg-white border-b border-slate-100 flex items-center justify-between text-xs text-slate-600 shrink-0">
+                                <span className="truncate">
+                                  <span className="text-slate-400 mr-2">Temat:</span>
+                                  <span className="font-medium text-slate-800">
+                                    Zamówienie {editingDeliverySvc} · {order?.orderNumber ?? ""} {client ? `(${client.firstName ?? ""} ${client.lastName ?? ""})`.trim() : ""}
+                                  </span>
+                                </span>
+                              </div>
+
+                              {/* Duża przestrzeń edytora wiadomości (wypełnia całe okno) */}
                               <textarea
                                 ref={supplierNoteInputRef}
                                 placeholder={
                                   isExalcoSupplier
-                                    ? "Napisz wiadomość do Exalco... (Enter tworzy nowy akapit)"
-                                    : "Napisz uwagę do zamówienia... (Enter tworzy nowy akapit)"
+                                    ? "Napisz wiadomość do Exalco...\n\n(Klawisz Enter tworzy nowy akapit)"
+                                    : "Napisz uwagę do zamówienia...\n\n(Klawisz Enter tworzy nowy akapit)"
                                 }
-                                rows={composeMaximized ? 11 : 6}
                                 value={newSupplierNoteText}
-                                onChange={(e) => {
-                                  setNewSupplierNoteText(e.target.value);
-                                  e.target.style.height = "auto";
-                                  const minH = composeMaximized ? 260 : 148;
-                                  e.target.style.height = `${Math.min(420, Math.max(minH, e.target.scrollHeight))}px`;
-                                }}
+                                onChange={(e) => setNewSupplierNoteText(e.target.value)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                                     e.preventDefault();
@@ -5570,20 +5658,15 @@ export default function OrderDetailPage({
                                   }
                                 }}
                                 disabled={isSendingCompose}
-                                className={`w-full px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 bg-white focus:outline-none resize-y leading-relaxed disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-50 ${
-                                  composeMaximized ? "min-h-[260px] max-h-[420px]" : "min-h-[148px] max-h-[340px]"
-                                }`}
+                                className="flex-1 min-h-[220px] w-full px-5 py-4 text-[15px] text-[#1f1f1f] placeholder:text-slate-400 bg-white focus:outline-none resize-none leading-relaxed overflow-y-auto disabled:opacity-60"
                               />
 
-                              {/* Chip'y załączonych plików z Google Drive (jak załączniki w Gmailu) */}
+                              {/* Załączniki z Google Drive w stylu Gmaila */}
                               {selectedFilesList.length > 0 && (
-                                <div className="px-4 py-2 bg-slate-50/60 border-t border-slate-100 flex flex-col gap-1.5">
+                                <div className="px-5 py-2.5 bg-slate-50/70 border-t border-slate-100 flex flex-col gap-1.5 shrink-0 max-h-[120px] overflow-y-auto">
                                   <div className="flex items-center justify-between">
-                                    <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                                      <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                      </svg>
-                                      Załączniki z Google Drive ({selectedFilesList.length})
+                                    <span className="text-[11px] font-bold text-slate-600">
+                                      Załączone pliki z Google Drive ({selectedFilesList.length})
                                     </span>
                                     <span className="text-[10px] text-slate-400">
                                       {draftDeliveryEntry.externalOrderNumber
@@ -5597,21 +5680,18 @@ export default function OrderDetailPage({
                                       return (
                                         <div
                                           key={file.id}
-                                          className="inline-flex items-center gap-1.5 bg-white border border-blue-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 shadow-2xs"
+                                          className="inline-flex items-center gap-2 bg-[#f5f5f5] hover:bg-slate-200/70 border border-slate-200 rounded-md px-3 py-1.5 text-xs text-[#1f1f1f]"
                                         >
-                                          <svg className="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                          </svg>
-                                          <span className="font-semibold truncate max-w-[220px]" title={file.name}>
+                                          <span className="font-bold text-[#0b57d0] truncate max-w-[260px]" title={file.name}>
                                             {file.name}
                                           </span>
-                                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                                            {fType}
+                                          <span className="text-[10px] font-semibold text-slate-500">
+                                            ({fType})
                                           </span>
                                           <button
                                             type="button"
                                             onClick={() => removeSelectedDriveFile(file.id)}
-                                            className="text-slate-400 hover:text-rose-600 font-bold ml-0.5 px-1 rounded"
+                                            className="text-slate-500 hover:text-slate-900 font-bold ml-1"
                                             title="Usuń załącznik"
                                           >
                                             ✕
@@ -5623,9 +5703,9 @@ export default function OrderDetailPage({
                                 </div>
                               )}
 
-                              {/* Rozwijany panel wyboru plików z Google Drive (pod spinaczem) */}
+                              {/* Rozwijany wybór plików z Google Drive wewnątrz okna pisania */}
                               {drivePickerOpen && currentSupplier?.isApiEnabled && (
-                                <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col gap-2 max-h-[260px] overflow-y-auto">
+                                <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col gap-2 shrink-0 max-h-[240px] overflow-y-auto">
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs font-bold text-slate-700">
                                       Wybierz pliki z Google Drive do załączenia
@@ -5633,12 +5713,12 @@ export default function OrderDetailPage({
                                     <button
                                       type="button"
                                       onClick={() => setDrivePickerOpen(false)}
-                                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-2 py-0.5 rounded hover:bg-blue-50 transition-colors"
+                                      className="text-xs font-semibold text-[#0b57d0] hover:underline px-2 py-0.5"
                                     >
                                       Gotowe ✓
                                     </button>
                                   </div>
-                                  <div className="bg-white rounded-lg border border-slate-200 p-2.5">
+                                  <div className="bg-white rounded-xl border border-slate-200 p-2.5">
                                     <OrderDriveFilePicker
                                       orderId={orderIdTyped}
                                       rootFolderId={order?.folderId}
@@ -5649,35 +5729,26 @@ export default function OrderDetailPage({
                                 </div>
                               )}
 
-                              {/* Dolny pasek narzędzi w stylu Gmaila */}
-                              <div className="px-4 py-2.5 bg-slate-50/90 border-t border-slate-200 flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2">
+                              {/* Dolny pasek narzędzi okna Gmaila */}
+                              <div className="px-5 py-3 bg-white border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+                                <div className="flex items-center gap-2.5">
                                   <button
                                     type="button"
                                     disabled={!canSubmitCompose || isSendingCompose}
                                     onClick={() => void handleSendGmailCompose()}
-                                    className={`shrink-0 text-xs py-2 px-5 inline-flex items-center gap-2 text-white font-bold rounded-full disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm ${
-                                      isExalcoSupplier
-                                        ? "bg-blue-600 hover:bg-blue-700"
-                                        : "bg-amber-600 hover:bg-amber-700"
-                                    }`}
+                                    className="bg-[#0b57d0] hover:bg-[#0842a0] text-white font-semibold text-sm px-6 py-2 rounded-full inline-flex items-center gap-2 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                   >
                                     {isSendingCompose ? (
                                       <>
                                         <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                         Wysyłanie...
                                       </>
+                                    ) : canSendFilesDirectly && !newSupplierNoteText.trim() ? (
+                                      `Wyślij załączniki (${selectedFilesList.length})`
+                                    ) : canSendFilesDirectly ? (
+                                      `Wyślij (+${selectedFilesList.length} zał.)`
                                     ) : (
-                                      <>
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                        </svg>
-                                        {canSendFilesDirectly && !newSupplierNoteText.trim()
-                                          ? `Wyślij załączniki (${selectedFilesList.length})`
-                                          : canSendFilesDirectly
-                                          ? `Wyślij (+${selectedFilesList.length} zał.)`
-                                          : "Wyślij"}
-                                      </>
+                                      "Wyślij"
                                     )}
                                   </button>
 
@@ -5685,19 +5756,19 @@ export default function OrderDetailPage({
                                     <button
                                       type="button"
                                       onClick={() => setDrivePickerOpen((prev) => !prev)}
-                                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                                      className={`p-2 rounded-full transition-colors inline-flex items-center gap-1.5 text-xs font-medium ${
                                         drivePickerOpen || selectedFilesList.length > 0
-                                          ? "bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100"
-                                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                                          ? "bg-blue-50 text-[#0b57d0]"
+                                          : "text-slate-600 hover:bg-slate-100"
                                       }`}
                                       title="Załącz pliki z Google Drive"
                                     >
-                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                                       </svg>
-                                      Załącz z Drive
+                                      <span>Załącz z Drive</span>
                                       {selectedFilesList.length > 0 && (
-                                        <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                                        <span className="bg-[#0b57d0] text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
                                           {selectedFilesList.length}
                                         </span>
                                       )}
@@ -5706,267 +5777,396 @@ export default function OrderDetailPage({
                                 </div>
 
                                 <div className="flex items-center gap-3">
-                                  <span className="text-[11px] text-slate-400 hidden sm:inline">
+                                  <span className="text-xs text-slate-400">
                                     Enter = nowy akapit · Ctrl/Cmd+Enter = wyślij
                                   </span>
-                                  {(newSupplierNoteText.trim() || selectedFilesList.length > 0) && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setNewSupplierNoteText("");
-                                        setSelectedDriveFiles({});
-                                        if (supplierNoteInputRef.current) {
-                                          supplierNoteInputRef.current.style.height = "auto";
-                                        }
-                                      }}
-                                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors"
-                                      title="Wyczyść wpis i załączniki"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                      </svg>
-                                    </button>
-                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setNewSupplierNoteText("");
+                                      setSelectedDriveFiles({});
+                                      setDrivePickerOpen(false);
+                                      setComposeOpen(false);
+                                      setComposeMaximized(false);
+                                    }}
+                                    className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors"
+                                    title="Odrzuć wersję roboczą"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
                                 </div>
                               </div>
                             </div>
+                          );
 
-                            {/* Wątek wiadomości w stylu Gmaila (pełna szerokość prawego panelu) */}
-                            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
-                              {sortedFeed.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
-                                  <svg className="w-8 h-8 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                  </svg>
-                                  <p className="text-xs font-medium">
-                                    {isExalcoSupplier ? "Brak wiadomości w wątku z Exalco" : "Brak uwag do tego zamówienia"}
-                                  </p>
-                                </div>
-                              ) : (
-                                sortedFeed.map((nItem, idx) => {
-                                  const isExalco = nItem.senderType === "exalco";
-                                  const isLockedNote = isExalcoSupplier || isExalco || Boolean(nItem.sentToCrm);
-                                  const author = nItem.createdByName || (isExalco ? "Exalco CRM" : "Użytkownik");
-                                  const initials = isExalco ? "EX" : uInitials(author);
-                                  const formattedDate = new Date(nItem.createdAt).toLocaleString("pl-PL", {
-                                    day: "2-digit", month: "2-digit", year: "numeric",
-                                    hour: "2-digit", minute: "2-digit",
-                                  });
-                                  const shortDate = new Date(nItem.createdAt).toLocaleString("pl-PL", {
-                                    day: "2-digit", month: "2-digit",
-                                    hour: "2-digit", minute: "2-digit",
-                                  });
-                                  const isExpanded = isItemExpanded(nItem, idx);
-                                  const canToggleCollapse = !nItem.errorSending && editingCrmNoteId !== nItem.id;
-                                  const singleLineSnippet = nItem.note.replace(/\s+/g, " ").trim();
-
-                                  if (!isExpanded) {
-                                    return (
-                                      <button
-                                        key={nItem.id}
-                                        type="button"
-                                        onClick={() =>
-                                          setCrmNoteExpandOverrides((prev) => ({ ...prev, [nItem.id]: true }))
-                                        }
-                                        className={`w-full text-left flex items-center gap-3 px-3.5 py-2.5 rounded-lg border transition-colors ${
-                                          isExalco
-                                            ? "bg-blue-50/30 border-blue-200/70 hover:bg-blue-50/60"
-                                            : "bg-slate-50/60 border-slate-200 hover:bg-slate-100/70"
-                                        }`}
-                                      >
-                                        <span
-                                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-extrabold text-white ${
-                                            isExalco ? "bg-blue-600" : "bg-amber-500"
-                                          }`}
-                                        >
-                                          {initials}
-                                        </span>
-                                        <span className={`text-xs font-bold shrink-0 w-[140px] truncate ${isExalco ? "text-blue-900" : "text-slate-800"}`}>
-                                          {author}
-                                        </span>
-                                        <span className="text-xs text-slate-600 truncate flex-1 min-w-0">
-                                          {singleLineSnippet}
-                                        </span>
-                                        <span
-                                          className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded border ${
-                                            isExalco
-                                              ? "text-blue-700 bg-blue-50 border-blue-200"
-                                              : "text-slate-600 bg-white border-slate-200"
-                                          }`}
-                                        >
-                                          {isExalco ? "Od Exalco" : "Od ADK"}
-                                        </span>
-                                        <span className="shrink-0 text-[11px] text-slate-400 font-medium">
-                                          {shortDate}
-                                        </span>
-                                        <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                      </button>
-                                    );
-                                  }
-
-                                  return (
-                                    <div
-                                      key={nItem.id}
-                                      className={`group relative rounded-xl border transition-all overflow-hidden ${
-                                        isExalco
-                                          ? "bg-blue-50/35 border-blue-200/90 shadow-2xs"
-                                          : "bg-white border-slate-200 hover:border-slate-300 shadow-2xs"
-                                      }`}
+                          return (
+                            <>
+                              {/* Górny pasek akcji wątku Gmaila */}
+                              <div className="h-12 px-6 border-b border-slate-100 flex items-center justify-between gap-4 shrink-0">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs font-medium text-[#5f6368]">
+                                    {rawFeed.length} {rawFeed.length === 1 ? "wiadomość w wątku" : "wiadomości w wątku"}
+                                  </span>
+                                  {sortedFeed.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={toggleExpandAll}
+                                      className="text-xs font-semibold text-[#0b57d0] hover:bg-blue-50 px-2.5 py-1 rounded-md transition-colors"
                                     >
-                                      {/* Nagłówek karty wiadomości (kliknięcie zwija) */}
-                                      <div
-                                        onClick={
-                                          canToggleCollapse
-                                            ? () =>
-                                                setCrmNoteExpandOverrides((prev) => ({
-                                                  ...prev,
-                                                  [nItem.id]: false,
-                                                }))
-                                            : undefined
-                                        }
-                                        className={`flex items-start justify-between gap-2 px-4 pt-3 pb-1.5 ${
-                                          canToggleCollapse ? "cursor-pointer select-none" : ""
-                                        }`}
-                                      >
-                                        <div className="flex items-start gap-3 min-w-0 flex-1">
-                                          <span
-                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold text-white mt-0.5 ${
-                                              isExalco ? "bg-blue-600" : "bg-amber-500"
+                                      {allExpanded ? "Zwiń starsze" : "Rozwiń wszystkie"}
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2.5">
+                                  {isExalcoSupplier && (
+                                    draftDeliveryEntry.externalOrderNumber ? (
+                                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        Live · Exalco #{draftDeliveryEntry.externalOrderNumber}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                                        Przed złożeniem w CRM
+                                      </span>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Nagłówek tematu wątku jak w Gmailu */}
+                              <div className="px-8 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between gap-4 shrink-0">
+                                <div className="flex items-center gap-3 flex-wrap min-w-0">
+                                  <h2 className="text-[21px] font-normal text-[#1f1f1f] truncate">
+                                    {isExalcoSupplier
+                                      ? `Korespondencja z Exalco — ${editingDeliverySvc}`
+                                      : `Notatki do zamówienia — ${editingDeliverySvc} (${currentSupplier?.name ?? "Dostawca"})`}
+                                  </h2>
+                                  <span className="text-xs font-medium bg-[#e8eaed] text-[#3c4043] px-2.5 py-0.5 rounded-md">
+                                    {isExalcoSupplier ? "Exalco CRM" : "Wewnętrzne"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Chronologiczny wątek wiadomości 1:1 jak w Gmailu */}
+                              <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-200/80">
+                                {sortedFeed.length === 0 ? (
+                                  <div className="h-full flex flex-col items-center justify-center p-12 text-center text-slate-400">
+                                    <svg className="w-12 h-12 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.3}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                    <p className="text-sm font-medium text-slate-600 mb-1">
+                                      {isExalcoSupplier ? "Brak wiadomości w tym wątku z Exalco" : "Brak uwag do tego zamówienia"}
+                                    </p>
+                                    <p className="text-xs text-slate-400 mb-4">
+                                      Kliknij „Napisz wiadomość”, aby rozpocząć wątek.
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={() => openGmailCompose(false)}
+                                      className="inline-flex items-center gap-2 bg-[#0b57d0] hover:bg-[#0842a0] text-white font-semibold text-sm px-6 py-2.5 rounded-full shadow-xs transition-all"
+                                    >
+                                      ✏️ Napisz pierwszą wiadomość
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    {sortedFeed.map((nItem, idx) => {
+                                      const isExalco = nItem.senderType === "exalco";
+                                      const isLockedNote = isExalcoSupplier || isExalco || Boolean(nItem.sentToCrm);
+                                      const author = nItem.createdByName || (isExalco ? "Exalco CRM" : "Użytkownik");
+                                      const initials = isExalco ? "EX" : uInitials(author);
+                                      const formattedDate = new Date(nItem.createdAt).toLocaleString("pl-PL", {
+                                        day: "2-digit", month: "2-digit", year: "numeric",
+                                        hour: "2-digit", minute: "2-digit",
+                                      });
+                                      const shortDate = new Date(nItem.createdAt).toLocaleString("pl-PL", {
+                                        day: "2-digit", month: "short",
+                                        hour: "2-digit", minute: "2-digit",
+                                      });
+                                      const isExpanded = isItemExpanded(nItem, idx);
+                                      const canToggleCollapse = !nItem.errorSending && editingCrmNoteId !== nItem.id;
+                                      const singleLineSnippet = nItem.note.replace(/\s+/g, " ").trim();
+
+                                      if (!isExpanded) {
+                                        return (
+                                          <button
+                                            key={nItem.id}
+                                            type="button"
+                                            onClick={() =>
+                                              setCrmNoteExpandOverrides((prev) => ({ ...prev, [nItem.id]: true }))
+                                            }
+                                            className="w-full text-left flex items-center gap-4 px-8 py-3.5 bg-white hover:bg-slate-50/90 transition-colors cursor-pointer"
+                                          >
+                                            <span
+                                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${
+                                                isExalco ? "bg-[#0b57d0]" : "bg-amber-500"
+                                              }`}
+                                            >
+                                              {initials}
+                                            </span>
+                                            <span className="text-sm font-semibold text-[#1f1f1f] shrink-0 w-48 truncate">
+                                              {author}
+                                            </span>
+                                            <span className="text-sm text-[#5f6368] truncate flex-1 min-w-0">
+                                              {singleLineSnippet}
+                                            </span>
+                                            <span
+                                              className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded ${
+                                                isExalco
+                                                  ? "text-blue-700 bg-blue-50"
+                                                  : "text-slate-600 bg-slate-100"
+                                              }`}
+                                            >
+                                              {isExalco ? "Od Exalco" : "Od ADK"}
+                                            </span>
+                                            <span className="shrink-0 text-xs text-[#5f6368] w-28 text-right">
+                                              {shortDate}
+                                            </span>
+                                          </button>
+                                        );
+                                      }
+
+                                      return (
+                                        <div key={nItem.id} className="bg-white group">
+                                          {/* Nagłówek rozwiniętej wiadomości w stylu Gmaila */}
+                                          <div
+                                            onClick={
+                                              canToggleCollapse
+                                                ? () =>
+                                                    setCrmNoteExpandOverrides((prev) => ({
+                                                      ...prev,
+                                                      [nItem.id]: false,
+                                                    }))
+                                                : undefined
+                                            }
+                                            className={`flex items-start justify-between gap-4 px-8 pt-5 pb-2 ${
+                                              canToggleCollapse ? "cursor-pointer select-none" : ""
                                             }`}
                                           >
-                                            {initials}
-                                          </span>
-                                          <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                              <span className={`text-xs font-bold ${isExalco ? "text-blue-900" : "text-slate-800"}`}>
-                                                {author}
-                                              </span>
-                                              <span className="text-[11px] text-slate-400 font-medium">· {formattedDate}</span>
-                                            </div>
-                                            <div className="text-[11px] text-slate-400 leading-tight">
-                                              {isExalco
-                                                ? "do ADK"
-                                                : isExalcoSupplier
-                                                ? "do Exalco"
-                                                : "notatka do zamówienia"}
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                          {isExalco ? (
-                                            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
-                                              Od Exalco
-                                            </span>
-                                          ) : (
-                                            <>
+                                            <div className="flex items-start gap-4 min-w-0 flex-1">
                                               <span
-                                                className="text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded"
-                                                title={isExalcoSupplier && nItem.sentToCrm ? "Wiadomość wysłana do Exalco" : undefined}
+                                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white mt-0.5 ${
+                                                  isExalco ? "bg-[#0b57d0]" : "bg-amber-500"
+                                                }`}
                                               >
-                                                Od ADK
+                                                {initials}
                                               </span>
-                                              {isExalcoSupplier && !nItem.sentToCrm && (
-                                                <span
-                                                  className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded"
-                                                  title="Wiadomość zostanie przesłana do Exalco przy składaniu zamówienia"
-                                                >
-                                                  ⏳ Do wysłania z zamówieniem
-                                                </span>
-                                              )}
-                                            </>
-                                          )}
-                                          {nItem.errorSending && (
-                                            <span
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded flex items-center gap-1"
-                                            >
-                                              ⚠️
-                                              <button type="button" onClick={() => handleRetrySendCrmNote(nItem.id)} className="underline font-extrabold">Ponów</button>
-                                            </span>
-                                          )}
-                                          {!isLockedNote && (
-                                            <div
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity gap-0.5 ml-0.5"
-                                            >
-                                              <button
-                                                type="button"
-                                                onClick={() => { setEditingCrmNoteId(nItem.id); setEditingCrmNoteText(nItem.note); }}
-                                                className="p-1 text-slate-400 hover:text-amber-600 rounded hover:bg-amber-50"
-                                                title="Edytuj notatkę"
-                                              >
-                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                </svg>
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => handleDeleteSupplierNoteFromFeed(nItem.id)}
-                                                className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
-                                                title="Usuń notatkę"
-                                              >
-                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                              </button>
-                                            </div>
-                                          )}
-                                          {canToggleCollapse && (
-                                            <svg className="w-3.5 h-3.5 text-slate-400 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                                            </svg>
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      {/* Treść wiadomości */}
-                                      <div className="px-4 pb-3.5 pt-1 pl-[56px]">
-                                        {!isLockedNote && editingCrmNoteId === nItem.id ? (
-                                          <div className="flex flex-col gap-2">
-                                            <textarea
-                                              className="w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-amber-500 focus:outline-none resize-y min-h-[84px]"
-                                              rows={3}
-                                              value={editingCrmNoteText}
-                                              onChange={(e) => setEditingCrmNoteText(e.target.value)}
-                                              onKeyDown={(e) => {
-                                                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                                                  e.preventDefault();
-                                                  handleSaveEditedCrmNote(nItem.id);
-                                                }
-                                                if (e.key === "Escape") {
-                                                  setEditingCrmNoteId(null);
-                                                }
-                                              }}
-                                            />
-                                            <div className="flex items-center gap-2 justify-between">
-                                              <span className="text-[11px] text-slate-400">Enter = nowy akapit · Ctrl/Cmd+Enter = zapisz</span>
-                                              <div className="flex gap-2">
-                                                <button type="button" onClick={() => setEditingCrmNoteId(null)} className="px-2.5 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded">Anuluj</button>
-                                                <button type="button" onClick={() => handleSaveEditedCrmNote(nItem.id)} className="px-2.5 py-1 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded">Zapisz</button>
+                                              <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                  <span className="text-sm font-bold text-[#1f1f1f]">
+                                                    {author}
+                                                  </span>
+                                                  <span className="text-xs text-[#5f6368]">
+                                                    {isExalco ? "<crm@exalco.pl>" : "<zamowienia@adk.pl>"}
+                                                  </span>
+                                                </div>
+                                                <div className="text-xs text-[#5f6368] leading-snug">
+                                                  do {isExalco ? "ADK" : isExalcoSupplier ? "Exalco" : "wewnętrzne"} ▾
+                                                </div>
                                               </div>
                                             </div>
+
+                                            <div className="flex items-center gap-2 shrink-0">
+                                              <span className="text-xs text-[#5f6368]">
+                                                {formattedDate}
+                                              </span>
+                                              {isExalco ? (
+                                                <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                                                  Od Exalco
+                                                </span>
+                                              ) : (
+                                                <>
+                                                  <span className="text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                                                    Od ADK
+                                                  </span>
+                                                  {isExalcoSupplier && !nItem.sentToCrm && (
+                                                    <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                                                      ⏳ Do wysłania z zamówieniem
+                                                    </span>
+                                                  )}
+                                                </>
+                                              )}
+                                              {nItem.errorSending && (
+                                                <span
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded flex items-center gap-1"
+                                                >
+                                                  ⚠️
+                                                  <button type="button" onClick={() => handleRetrySendCrmNote(nItem.id)} className="underline font-extrabold">
+                                                    Ponów
+                                                  </button>
+                                                </span>
+                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  openGmailCompose(false);
+                                                }}
+                                                className="p-1.5 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+                                                title="Odpowiedz"
+                                              >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                                </svg>
+                                              </button>
+                                              {!isLockedNote && (
+                                                <div
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  className="flex items-center gap-1"
+                                                >
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => { setEditingCrmNoteId(nItem.id); setEditingCrmNoteText(nItem.note); }}
+                                                    className="p-1.5 text-slate-400 hover:text-amber-600 rounded-full hover:bg-amber-50"
+                                                    title="Edytuj notatkę"
+                                                  >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    </svg>
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteSupplierNoteFromFeed(nItem.id)}
+                                                    className="p-1.5 text-slate-400 hover:text-red-600 rounded-full hover:bg-red-50"
+                                                    title="Usuń notatkę"
+                                                  >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                  </button>
+                                                </div>
+                                              )}
+                                            </div>
                                           </div>
-                                        ) : (
-                                          <p className="text-sm text-slate-800 whitespace-pre-wrap break-words leading-relaxed">{nItem.note}</p>
-                                        )}
-                                      </div>
+
+                                          {/* Treść rozwiniętej wiadomości */}
+                                          <div className="px-8 pb-6 pt-2 pl-[88px]">
+                                            {!isLockedNote && editingCrmNoteId === nItem.id ? (
+                                              <div className="flex flex-col gap-2 max-w-3xl">
+                                                <textarea
+                                                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:border-amber-500 focus:outline-none resize-y min-h-[110px]"
+                                                  rows={4}
+                                                  value={editingCrmNoteText}
+                                                  onChange={(e) => setEditingCrmNoteText(e.target.value)}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                                                      e.preventDefault();
+                                                      handleSaveEditedCrmNote(nItem.id);
+                                                    }
+                                                    if (e.key === "Escape") {
+                                                      setEditingCrmNoteId(null);
+                                                    }
+                                                  }}
+                                                />
+                                                <div className="flex items-center gap-2 justify-between">
+                                                  <span className="text-xs text-slate-400">Enter = nowy akapit · Ctrl/Cmd+Enter = zapisz</span>
+                                                  <div className="flex gap-2">
+                                                    <button type="button" onClick={() => setEditingCrmNoteId(null)} className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Anuluj</button>
+                                                    <button type="button" onClick={() => handleSaveEditedCrmNote(nItem.id)} className="px-3 py-1.5 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-lg">Zapisz</button>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <p className="text-[14.5px] text-[#1f1f1f] whitespace-pre-wrap break-words leading-relaxed max-w-4xl">
+                                                {nItem.note}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+
+                                    {/* Dolny pasek przycisków "Odpowiedz" 1:1 jak pod mailem w Gmailu */}
+                                    <div className="px-8 py-6 pl-[88px] bg-white flex items-center gap-3">
+                                      <button
+                                        type="button"
+                                        onClick={() => openGmailCompose(false)}
+                                        className="inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full border border-[#747775] text-sm font-medium text-[#444746] hover:bg-slate-100/80 transition-colors cursor-pointer"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                        </svg>
+                                        {isExalcoSupplier ? "Odpowiedz" : "Dodaj kolejną uwagę"}
+                                      </button>
+                                      {currentSupplier?.isApiEnabled && (
+                                        <button
+                                          type="button"
+                                          onClick={() => openGmailCompose(true)}
+                                          className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full border border-[#747775] text-sm font-medium text-[#444746] hover:bg-slate-100/80 transition-colors cursor-pointer"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                          </svg>
+                                          Załącz pliki z Google Drive
+                                        </button>
+                                      )}
+                                      <div ref={supplierThreadEndRef} />
                                     </div>
-                                  );
-                                })
+                                  </>
+                                )}
+                              </div>
+
+                              {/* Okno pisania "Nowa wiadomość" w stylu Gmaila (zminimalizowane / dokowane / pełnoekranowe) */}
+                              {composeOpen && (
+                                composeMinimized ? (
+                                  <div
+                                    onClick={() => setComposeMinimized(false)}
+                                    className="fixed bottom-0 right-8 z-[110] w-[320px] bg-[#404040] text-white rounded-t-xl shadow-2xl px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-[#303030] transition-colors"
+                                  >
+                                    <span className="text-xs font-bold truncate">
+                                      {isExalcoSupplier ? "Nowa wiadomość — Exalco" : "Nowa uwaga"}
+                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setComposeMinimized(false);
+                                          setComposeMaximized(true);
+                                        }}
+                                        className="p-1 hover:bg-white/10 rounded text-xs"
+                                        title="Pełny ekran"
+                                      >
+                                        ⤢
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setComposeOpen(false);
+                                          setComposeMinimized(false);
+                                        }}
+                                        className="p-1 hover:bg-white/10 rounded text-xs"
+                                        title="Zamknij"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : composeMaximized ? (
+                                  <div
+                                    onClick={() => setComposeMaximized(false)}
+                                    className="fixed inset-0 z-[110] bg-black/45 flex items-center justify-center p-6"
+                                  >
+                                    {composeBoxJsx}
+                                  </div>
+                                ) : (
+                                  composeBoxJsx
+                                )
                               )}
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                );
-              })()}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
             </div>
-          </SideDrawer>
+          )}
         </div>
       )}
 
