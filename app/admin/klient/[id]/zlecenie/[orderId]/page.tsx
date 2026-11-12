@@ -17,6 +17,9 @@ import ComplaintTab from "./ComplaintTab";
 import OrderDriveBrowser from "./OrderDriveBrowser";
 import OrderDriveFilePicker, { type SelectedFileItem } from "./OrderDriveFilePicker";
 import SupplierOrderStepper from "./SupplierOrderStepper";
+import SupplierOrderDetailsSidebar, {
+  type SupplierOrderThreadSection,
+} from "./SupplierOrderDetailsSidebar";
 import ProductQuestionsForm from "./ProductQuestionsForm";
 import SupplierOrderSummary from "./SupplierOrderSummary";
 import SupplierNotesWysiwyg from "./SupplierNotesWysiwyg";
@@ -1901,6 +1904,7 @@ export default function OrderDetailPage({
   const [composeMinimized, setComposeMinimized] = useState(false);
   const [composeMaximized, setComposeMaximized] = useState(false);
   const [wizardStep, setWizardStep] = useState<SupplierOrderStep>("supplier");
+  const [threadSection, setThreadSection] = useState<SupplierOrderThreadSection>("correspondence");
   const [showValidation, setShowValidation] = useState(false);
   const [driveAttachmentsModalOpen, setDriveAttachmentsModalOpen] = useState(false);
   const supplierNoteInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -1970,6 +1974,7 @@ export default function OrderDetailPage({
           supplierProducts: sup?.products,
         });
         setWizardStep(existingIssues[0]?.step ?? "summary");
+        setThreadSection("correspondence");
         if (orderIdTyped && existing.unreadNotesCount && existing.unreadNotesCount > 0) {
           void markNotesRead({ orderId: orderIdTyped, deliveryIndex: index });
         }
@@ -2016,6 +2021,7 @@ export default function OrderDetailPage({
     setComposeMinimized(false);
     setComposeMaximized(false);
     setWizardStep("supplier");
+    setThreadSection("correspondence");
     setShowValidation(false);
     if (searchParams.get("deliveryIndex") !== null) {
       const params = new URLSearchParams(searchParams.toString());
@@ -6200,11 +6206,31 @@ export default function OrderDetailPage({
                     );
                   }
 
+                  const isExalcoDetails =
+                    Boolean(currentSupplier?.isApiEnabled) ||
+                    Boolean(currentSupplier?.name?.toUpperCase().includes("EXALCO")) ||
+                    Boolean(currentSupplier?.name?.toUpperCase().includes("ALCO"));
+
                   return (
                     <>
-                      {/* Tryb wątku: szeroki wątek wiadomości w centrum + panel szczegółów po prawej */}
+                      <SupplierOrderDetailsSidebar
+                        activeSection={threadSection}
+                        onSectionChange={setThreadSection}
+                        summaryData={{
+                          supplierName: currentSupplier?.name,
+                          netAmount: draftDeliveryEntry.netAmount,
+                          selectedProductsCount: (draftDeliveryEntry.selectedProducts ?? []).length,
+                          sentFilesCount: (draftDeliveryEntry.sentApiFiles ?? []).length,
+                          messagesCount: (draftDeliveryEntry.notesFeed ?? []).length,
+                          externalOrderNumber: draftDeliveryEntry.externalOrderNumber,
+                          isExalcoSupplier: isExalcoDetails,
+                        }}
+                      />
+
+                      {/* Główny obszar treści w trybie szczegółów zamówienia */}
                       <div className="flex-1 min-w-0 flex flex-col gap-3.5 overflow-hidden">
-                        {/* Główna karta: wątek wiadomości */}
+                        {/* Zakładka 4: Korespondencja */}
+                        {threadSection === "correspondence" && (
                         <div className="flex-1 min-h-0 bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col overflow-hidden">
                         {(() => {
                           const dbDelivery = editingDeliveryIndex !== null ? (order?.serviceDeliveries ?? [])[editingDeliveryIndex] : undefined;
@@ -6897,31 +6923,96 @@ export default function OrderDetailPage({
                           );
                         })()}
                         </div>
-                      </div>
+                        )}
 
-                      {/* Prawy panel szczegółów w trybie wątku */}
-                      <div className="w-[360px] shrink-0 flex flex-col gap-3.5 overflow-y-auto min-h-0 pl-1">
-                        <div className="flex flex-col gap-4 p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
-                          {supplierAndAmountFieldsJsx}
-                          <div className="pt-3 border-t border-slate-100">
-                            {renderMilestonesSection("list")}
+                        {/* Zakładka 1: Dostawca i terminy */}
+                        {threadSection === "supplier" && (
+                          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 flex flex-col gap-4">
+                              <div>
+                                <h3 className="text-sm font-bold text-slate-900 m-0">
+                                  Dostawca, kwota netto i terminy realizacji
+                                </h3>
+                                <p className="text-xs text-slate-500 m-0 mt-0.5">
+                                  Zarządzaj kwotą zamówienia oraz datami poszczególnych etapów realizacji.
+                                </p>
+                              </div>
+                              {supplierAndAmountFieldsJsx}
+                              <div className="pt-3 border-t border-slate-100">
+                                {renderMilestonesSection("grid")}
+                              </div>
+                            </div>
                           </div>
-                          {sentApiFilesCardJsx}
-                        </div>
+                        )}
 
-                        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4">
-                          <ProductQuestionsForm
-                            compact
-                            supplierProducts={currentSupplier?.products ?? []}
-                            selectedProducts={draftDeliveryEntry.selectedProducts ?? []}
-                            onChange={(next) =>
-                              setDraftDeliveryEntry((prev) =>
-                                prev ? applyProductQaToEntry({ ...prev, selectedProducts: next }) : prev
-                              )
-                            }
-                            showValidation={false}
-                          />
-                        </div>
+                        {/* Zakładka 2: Produkty i pytania */}
+                        {threadSection === "products" && (
+                          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5">
+                              <ProductQuestionsForm
+                                supplierProducts={currentSupplier?.products ?? []}
+                                selectedProducts={draftDeliveryEntry.selectedProducts ?? []}
+                                onChange={(next) =>
+                                  setDraftDeliveryEntry((prev) =>
+                                    prev ? applyProductQaToEntry({ ...prev, selectedProducts: next }) : prev
+                                  )
+                                }
+                                showValidation={false}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Zakładka 3: Pliki i załączniki */}
+                        {threadSection === "files" && (
+                          <div className="flex-1 min-h-0 overflow-y-auto pr-1 flex flex-col gap-4">
+                            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 flex flex-col gap-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <h3 className="text-sm font-bold text-slate-900 m-0">
+                                    Pliki i załączniki zamówienia
+                                  </h3>
+                                  <p className="text-xs text-slate-500 m-0 mt-0.5">
+                                    Przeglądaj pliki wysłane do dostawcy oraz dołączaj dokumenty z Google Drive.
+                                  </p>
+                                </div>
+                                {Boolean(draftDeliveryEntry.externalOrderNumber && currentSupplier?.isApiEnabled) &&
+                                  Object.keys(selectedDriveFiles).length > 0 && (
+                                    <button
+                                      type="button"
+                                      disabled={sendingFilesCrm}
+                                      onClick={() => void sendSelectedFilesToExistingOrder()}
+                                      className="px-4 py-2 text-xs font-bold text-white bg-brand hover:bg-brand-hover rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                                    >
+                                      {sendingFilesCrm
+                                        ? "Wysyłanie plików..."
+                                        : `Wyślij do Exalco (${Object.keys(selectedDriveFiles).length})`}
+                                    </button>
+                                  )}
+                              </div>
+
+                              {sentApiFilesCardJsx ?? (
+                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs text-slate-500">
+                                  Brak plików wysłanych do dostawcy dla tego zamówienia.
+                                </div>
+                              )}
+
+                              {Boolean(draftDeliveryEntry.externalOrderNumber && currentSupplier?.isApiEnabled) && (
+                                <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
+                                  <div className="text-xs font-bold text-slate-700">
+                                    Dołącz i wyślij dodatkowe pliki z Google Drive
+                                  </div>
+                                  <OrderDriveFilePicker
+                                    orderId={orderIdTyped}
+                                    rootFolderId={order?.folderId}
+                                    selectedFiles={selectedDriveFiles}
+                                    onSelectionChange={setSelectedDriveFiles}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </>
                   );
