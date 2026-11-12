@@ -1914,14 +1914,29 @@ export default function OrderDetailPage({
     setDrivePickerOpen(false);
     setComposeMinimized(false);
     setComposeMaximized(false);
-    if (supplierId && index !== undefined) {
-      const existing = (order?.serviceDeliveries ?? [])[index];
+    if (supplierId && index !== undefined && index >= 0) {
+      const allDeliveries = order?.serviceDeliveries ?? [];
+      const existing = allDeliveries[index];
       if (existing) {
         setEditingSupplierId(supplierId);
         setEditingDeliveryIndex(index);
+        const hasExternalRef = Boolean(existing.externalOrderId || existing.externalOrderNumber);
+        const otherDeliveryNoteIds = new Set(
+          allDeliveries
+            .filter((_, i) => i !== index)
+            .flatMap((d) => (d.notesFeed ?? []).map((n) => n.id)),
+        );
+        const cleanedExistingFeed = (existing.notesFeed ?? []).filter((n) => {
+          if (!hasExternalRef && (n.sentToCrm === true || n.senderType === "exalco" || otherDeliveryNoteIds.has(n.id))) {
+            return false;
+          }
+          return true;
+        });
         const existingNotes = existing.notes?.trim();
-        const initialFeed = existing.notesFeed && existing.notesFeed.length > 0
-          ? existing.notesFeed
+        const initialFeed = cleanedExistingFeed.length > 0
+          ? cleanedExistingFeed
+          : !hasExternalRef && existing.notesFeed && existing.notesFeed.length > 0
+          ? []
           : existingNotes
           ? [{
               id: `legacy-${Date.now()}`,
@@ -1932,7 +1947,7 @@ export default function OrderDetailPage({
             }]
           : [];
         setDraftDeliveryEntry({ ...existing, notesFeed: initialFeed });
-        setComposeOpen(initialFeed.length === 0);
+        setComposeOpen(false);
         if (orderIdTyped && existing.unreadNotesCount && existing.unreadNotesCount > 0) {
           void markNotesRead({ orderId: orderIdTyped, deliveryIndex: index });
         }
@@ -1948,7 +1963,7 @@ export default function OrderDetailPage({
     const firstSupplierId = availableSuppliers[0]?._id ?? (allSuppliers[0]?._id as Id<"suppliers">);
     setEditingSupplierId(firstSupplierId);
     setEditingDeliveryIndex(null);
-    setComposeOpen(true);
+    setComposeOpen(false);
     setDraftDeliveryEntry({
       serviceName: svcName,
       supplierId: firstSupplierId,
@@ -4809,7 +4824,9 @@ export default function OrderDetailPage({
                       </TableHead>
                       <TableBody>
                         {(order.services ?? []).map((svcName) => {
-                          const assigned = (order.serviceDeliveries ?? []).filter((x) => x.serviceName === svcName);
+                          const assigned = (order.serviceDeliveries ?? [])
+                            .map((d, deliveryIndex) => ({ d, deliveryIndex }))
+                            .filter(({ d }) => d.serviceName === svcName);
 
                           if (assigned.length === 0) {
                             return (
@@ -4842,14 +4859,13 @@ export default function OrderDetailPage({
 
                           return (
                             <Fragment key={svcName}>
-                              {assigned.map((d, i) => {
+                              {assigned.map(({ d, deliveryIndex }, i) => {
                                 const supplier = allSuppliers.find((s) => s._id === d.supplierId);
                                 const isWebhookSupplier = !!supplier?.isApiEnabled || supplier?.name?.toUpperCase().includes("ALCO") || supplier?.name?.toUpperCase().includes("EXALCO");
                                 const status = deliveryStatusBadge(d);
-                                const deliveryIndex = (order.serviceDeliveries ?? []).findIndex((x) => x === d);
 
                                 return (
-                                  <TableRow key={`${svcName}:${d.supplierId}:${i}`} className="hover:bg-slate-50/50 transition-colors border-b border-gray-100">
+                                  <TableRow key={`${svcName}:${d.supplierId}:${deliveryIndex}`} className="hover:bg-slate-50/50 transition-colors border-b border-gray-100">
                                     {i === 0 ? (
                                       <TableCell className="font-semibold text-sm text-slate-900 align-top" rowSpan={assigned.length} style={{ padding: "16px", borderRight: "1px solid var(--line)" }}>
                                         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 2 }}>
@@ -5499,8 +5515,16 @@ export default function OrderDetailPage({
                       <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col overflow-hidden">
                         {(() => {
                           const dbDelivery = editingDeliveryIndex !== null ? (order?.serviceDeliveries ?? [])[editingDeliveryIndex] : undefined;
-                          const dbNotes = dbDelivery?.notesFeed ?? [];
-                          const draftNotes = draftDeliveryEntry.notesFeed ?? [];
+                          const hasExternalOrderRef = Boolean(draftDeliveryEntry.externalOrderId || draftDeliveryEntry.externalOrderNumber);
+                          const otherDeliveriesNoteIds = new Set(
+                            (order?.serviceDeliveries ?? [])
+                              .filter((_, idx) => idx !== editingDeliveryIndex)
+                              .flatMap((d) => (d.notesFeed ?? []).map((n) => n.id)),
+                          );
+                          const filterValidDeliveryNote = (n: NonNullable<typeof draftDeliveryEntry.notesFeed>[number]) =>
+                            hasExternalOrderRef || (n.sentToCrm !== true && n.senderType !== "exalco" && !otherDeliveriesNoteIds.has(n.id));
+                          const dbNotes = (dbDelivery?.notesFeed ?? []).filter(filterValidDeliveryNote);
+                          const draftNotes = (draftDeliveryEntry.notesFeed ?? []).filter(filterValidDeliveryNote);
                           const seenIds = new Set(draftNotes.map((n) => n.id));
                           const missingFromDraft = dbNotes.filter((n) => !seenIds.has(n.id));
                           const rawFeed = [...draftNotes, ...missingFromDraft];

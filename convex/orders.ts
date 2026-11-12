@@ -493,23 +493,51 @@ export const update = mutation({
     if (Array.isArray(filtered.serviceDeliveries) && Array.isArray(order.serviceDeliveries)) {
       const existingDeliveries = order.serviceDeliveries;
       const incomingDeliveries = filtered.serviceDeliveries as NonNullable<typeof order.serviceDeliveries>;
-      const sameLength = incomingDeliveries.length === existingDeliveries.length;
 
       filtered.serviceDeliveries = await Promise.all(
         incomingDeliveries.map(async (d, idx) => {
-          const existingMatch =
-            (sameLength && existingDeliveries[idx]?.serviceName === d.serviceName && existingDeliveries[idx]?.supplierId === d.supplierId
-              ? existingDeliveries[idx]
-              : undefined) ??
-            existingDeliveries.find(
-              (ex) =>
-                (d.externalOrderId && ex.externalOrderId === d.externalOrderId) ||
-                (d.externalOrderNumber && ex.externalOrderNumber === d.externalOrderNumber) ||
-                (ex.serviceName === d.serviceName && ex.supplierId === d.supplierId),
-            );
+          const hasExternalRef = Boolean(d.externalOrderId || d.externalOrderNumber);
+          const sameIndexCandidate = existingDeliveries[idx];
 
-          const existingFeed = existingMatch?.notesFeed ?? [];
-          if (existingFeed.length === 0) return d;
+          // Dopasowujemy wyłącznie tę samą pozycję zamówienia (lub po unikalnym numerze Exalco),
+          // nigdy nie kopiując historii czatu z innego zamówienia tego samego dostawcy.
+          const existingMatch = hasExternalRef
+            ? (sameIndexCandidate &&
+              ((d.externalOrderId && sameIndexCandidate.externalOrderId === d.externalOrderId) ||
+                (d.externalOrderNumber && sameIndexCandidate.externalOrderNumber === d.externalOrderNumber))
+                ? sameIndexCandidate
+                : undefined) ??
+              existingDeliveries.find(
+                (ex) =>
+                  Boolean(d.externalOrderId && ex.externalOrderId === d.externalOrderId) ||
+                  Boolean(d.externalOrderNumber && ex.externalOrderNumber === d.externalOrderNumber),
+              )
+            : sameIndexCandidate &&
+                !sameIndexCandidate.externalOrderId &&
+                !sameIndexCandidate.externalOrderNumber &&
+                sameIndexCandidate.serviceName === d.serviceName &&
+                sameIndexCandidate.supplierId === d.supplierId
+              ? sameIndexCandidate
+              : undefined;
+
+          // Usuń ewentualne zduplikowane wiadomości skopiowane wcześniej z innego zamówienia
+          const otherNoteIds = new Set(
+            existingDeliveries
+              .filter((_, otherIdx) => otherIdx !== idx)
+              .flatMap((ex) => (ex.notesFeed ?? []).map((n) => n.id)),
+          );
+          const sanitizedIncomingFeed = !hasExternalRef
+            ? (d.notesFeed ?? []).filter((n) => !otherNoteIds.has(n.id))
+            : (d.notesFeed ?? []);
+
+          const existingFeed = (existingMatch?.notesFeed ?? []).filter(
+            (n) => hasExternalRef || !otherNoteIds.has(n.id),
+          );
+          if (existingFeed.length === 0) {
+            return d.notesFeed !== undefined
+              ? { ...d, notesFeed: sanitizedIncomingFeed }
+              : d;
+          }
 
           const supplier = await ctx.db.get(d.supplierId);
           const isExalcoSupplier =
@@ -523,7 +551,7 @@ export const update = mutation({
             n.sentToCrm === true ||
             n.targetRecipient === "exalco";
 
-          const incomingFeed = d.notesFeed ?? [];
+          const incomingFeed = sanitizedIncomingFeed;
           const existingById = new Map(existingFeed.map((n) => [n.id, n]));
           const seenIds = new Set<string>();
 

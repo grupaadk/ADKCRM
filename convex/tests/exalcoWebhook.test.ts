@@ -591,5 +591,65 @@ describe("Exalco Webhook Delivery Date Logic", () => {
     updated = await t.run(async (ctx) => ctx.db.get(orderId));
     expect(updated!.serviceDeliveries![0].notesFeed).toHaveLength(0);
   });
+
+  test("does not copy notesFeed from first sent delivery when adding a second delivery for the same service and supplier", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "ALCO",
+        isActive: true,
+        isApiEnabled: true,
+        createdBy: "test-user",
+      });
+    });
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Piotr",
+      lastName: "Zieliński",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
+
+    const firstDelivery = {
+      serviceName: "Okna ALU",
+      supplierId,
+      externalOrderNumber: "ST-261119806",
+      netAmount: 1111111,
+      notesFeed: [
+        {
+          id: "sent-msg-1",
+          note: "Wiadomość z pierwszego zamówienia",
+          createdAt: 1000,
+          senderType: "adk" as const,
+          sentToCrm: true,
+        },
+      ],
+    };
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [firstDelivery],
+    });
+
+    // Dodanie drugiego zamówienia dla tej samej usługi i dostawcy
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        firstDelivery,
+        {
+          serviceName: "Okna ALU",
+          supplierId,
+          notesFeed: [],
+        },
+      ],
+    });
+
+    const updated = await t.run(async (ctx) => ctx.db.get(orderId));
+    expect(updated!.serviceDeliveries).toHaveLength(2);
+    expect(updated!.serviceDeliveries![0].notesFeed).toHaveLength(1);
+    expect(updated!.serviceDeliveries![1].notesFeed).toHaveLength(0);
+  });
 });
 
