@@ -5399,7 +5399,7 @@ export default function OrderDetailPage({
 
                     if (layout === "grid") {
                       return (
-                        <div className="flex flex-col gap-2.5">
+                        <div className="flex flex-col gap-3">
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs font-bold text-slate-700">
                               Etapy i terminy realizacji
@@ -5410,67 +5410,93 @@ export default function OrderDetailPage({
                               </span>
                             )}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                            {DELIVERY_MILESTONES.map((m, idx) => {
-                              const val = draftDeliveryEntry[m.key];
-                              const isSet = val != null;
-                              const isLockedByWebhook =
-                                isWebhookSupplier && (m.key === "confirmedDate" || m.key === "deliveryDate");
+                          <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                              {DELIVERY_MILESTONES.map((m, idx) => {
+                                const val = draftDeliveryEntry[m.key];
+                                const isSet = val != null;
+                                const isLockedByWebhook =
+                                  isWebhookSupplier && (m.key === "confirmedDate" || m.key === "deliveryDate");
+                                const isFirst = idx === 0;
+                                const isLast = idx === DELIVERY_MILESTONES.length - 1;
 
-                              return (
-                                <div
-                                  key={m.key}
-                                  className={`rounded-xl border p-3 flex flex-col gap-2 transition-colors ${
-                                    isLockedByWebhook
-                                      ? "border-slate-200/80 bg-slate-50/70"
-                                      : isSet
-                                      ? "border-[var(--accent-line)] bg-[var(--accent-soft)]"
-                                      : "border-slate-200 bg-white"
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between gap-1.5">
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                      <span
-                                        className="rounded-full shrink-0"
-                                        style={{ backgroundColor: m.tone, width: 8, height: 8 }}
+                                return (
+                                  <div key={m.key} className="flex flex-col items-center text-center gap-2.5">
+                                    {/* Pasek postępu z numerowanym krokiem */}
+                                    <div className="w-full flex items-center">
+                                      <div
+                                        className={`hidden md:block flex-1 h-[2px] ${
+                                          isFirst ? "bg-transparent" : isSet ? "bg-brand" : "bg-slate-200"
+                                        }`}
                                       />
+                                      <div
+                                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 border-2 transition-colors"
+                                        style={
+                                          isSet
+                                            ? {
+                                                backgroundColor: m.tone,
+                                                borderColor: m.tone,
+                                                color: "#ffffff",
+                                              }
+                                            : {
+                                                backgroundColor: "#ffffff",
+                                                borderColor: isLockedByWebhook ? "#e2e8f0" : m.tone,
+                                                color: isLockedByWebhook ? "#94a3b8" : m.tone,
+                                              }
+                                        }
+                                      >
+                                        {isSet ? "✓" : idx + 1}
+                                      </div>
+                                      <div
+                                        className={`hidden md:block flex-1 h-[2px] ${
+                                          isLast ? "bg-transparent" : isSet ? "bg-brand" : "bg-slate-200"
+                                        }`}
+                                      />
+                                    </div>
+
+                                    {/* Etykieta etapu */}
+                                    <div className="flex items-center justify-center gap-1.5 min-h-[20px]">
                                       <span
-                                        className="text-xs font-bold truncate"
+                                        className="text-xs font-bold"
                                         style={{ color: isSet ? m.tone : "#1e293b" }}
                                       >
-                                        {idx + 1}. {m.label}
+                                        {m.label}
                                       </span>
+                                      {isLockedByWebhook && (
+                                        <span
+                                          className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded"
+                                          title="Data pobierana automatycznie z webhooka (ALCO)"
+                                        >
+                                          Auto
+                                        </span>
+                                      )}
                                     </div>
-                                    {isLockedByWebhook ? (
-                                      <span
-                                        className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded shrink-0"
-                                        title="Data pobierana automatycznie z webhooka (ALCO)"
-                                      >
-                                        Auto
-                                      </span>
-                                    ) : isSet ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => updateDraftSingleField(m.key, undefined)}
-                                        className="w-5 h-5 inline-flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 font-bold rounded text-[11px] transition-colors cursor-pointer"
-                                        title={`Wyczyść datę dla ${m.label}`}
-                                      >
-                                        ✕
-                                      </button>
-                                    ) : null}
-                                  </div>
 
-                                  <input
-                                    type="date"
-                                    value={tsToDateStr(val)}
-                                    disabled={isLockedByWebhook}
-                                    title={isLockedByWebhook ? "Data pobierana automatycznie z webhooka (ALCO)" : undefined}
-                                    onChange={(e) => updateDraftSingleField(m.key, dateStrToTs(e.target.value))}
-                                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:border-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-                                  />
-                                </div>
-                              );
-                            })}
+                                    {/* Pole daty + czyszczenie */}
+                                    <div className="w-full flex items-center gap-1">
+                                      <input
+                                        type="date"
+                                        value={tsToDateStr(val)}
+                                        disabled={isLockedByWebhook}
+                                        title={isLockedByWebhook ? "Data pobierana automatycznie z webhooka (ALCO)" : undefined}
+                                        onChange={(e) => updateDraftSingleField(m.key, dateStrToTs(e.target.value))}
+                                        className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:border-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                      />
+                                      {isSet && !isLockedByWebhook && (
+                                        <button
+                                          type="button"
+                                          onClick={() => updateDraftSingleField(m.key, undefined)}
+                                          className="w-7 h-7 shrink-0 inline-flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                                          title={`Wyczyść datę dla ${m.label}`}
+                                        >
+                                          ✕
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       );
