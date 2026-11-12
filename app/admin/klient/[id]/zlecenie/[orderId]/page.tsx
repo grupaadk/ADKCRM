@@ -5359,255 +5359,6 @@ export default function OrderDetailPage({
                             </div>
                           </div>
 
-                          {/* Wybór produktów przypisanych do dostawcy + pytania per produkt */}
-                          {(() => {
-                            const allSupplierProducts = currentSupplier?.products ?? [];
-                            const activeSupplierProducts = allSupplierProducts.filter((p) => p.isActive);
-                            const selectedList = draftDeliveryEntry.selectedProducts ?? [];
-                            const activeIds = new Set(activeSupplierProducts.map((p) => p.id));
-                            const legacySelected = selectedList.filter((p) => !activeIds.has(p.id));
-                            const allOptions = [
-                              ...activeSupplierProducts.map((p) => ({
-                                id: p.id,
-                                name: p.name,
-                                isArchived: false,
-                                questions: p.questions ?? [],
-                              })),
-                              ...legacySelected.map((p) => {
-                                const def = allSupplierProducts.find((sp) => sp.id === p.id);
-                                return {
-                                  id: p.id,
-                                  name: p.name,
-                                  isArchived: true,
-                                  questions: def?.questions ?? [],
-                                };
-                              }),
-                            ];
-
-                            const toggleProduct = (prod: {
-                              id: string;
-                              name: string;
-                              questions: Array<{ id: string; question: string }>;
-                            }) => {
-                              setDraftDeliveryEntry((prev) => {
-                                if (!prev) return prev;
-                                const curr = prev.selectedProducts ?? [];
-                                const exists = curr.some((item) => item.id === prod.id);
-                                const next = exists
-                                  ? curr.filter((item) => item.id !== prod.id)
-                                  : [
-                                      ...curr,
-                                      {
-                                        id: prod.id,
-                                        name: prod.name,
-                                        answers: prod.questions.map((q) => ({
-                                          questionId: q.id,
-                                          question: q.question,
-                                          answer: "",
-                                        })),
-                                      },
-                                    ];
-                                return applyProductQaToEntry({ ...prev, selectedProducts: next });
-                              });
-                            };
-
-                            const updateProductQuestionAnswer = (
-                              productId: string,
-                              productName: string,
-                              questionId: string,
-                              questionText: string,
-                              answerText: string,
-                              supplierQuestions: Array<{ id: string; question: string }>,
-                            ) => {
-                              setDraftDeliveryEntry((prev) => {
-                                if (!prev) return prev;
-                                const curr = prev.selectedProducts ?? [];
-                                const next = curr.map((item) => {
-                                  if (item.id !== productId) return item;
-                                  const existingAnswers = item.answers ?? [];
-                                  const mergedQuestionIds = new Set([
-                                    ...supplierQuestions.map((q) => q.id),
-                                    ...existingAnswers.map((a) => a.questionId),
-                                  ]);
-                                  const updatedAnswers: Array<{
-                                    questionId: string;
-                                    question: string;
-                                    answer: string;
-                                  }> = [];
-                                  for (const qId of mergedQuestionIds) {
-                                    const supQ = supplierQuestions.find((q) => q.id === qId);
-                                    const exA = existingAnswers.find((a) => a.questionId === qId);
-                                    const qLabel = supQ?.question ?? exA?.question ?? "";
-                                    if (!qLabel) continue;
-                                    updatedAnswers.push({
-                                      questionId: qId,
-                                      question: qLabel,
-                                      answer: qId === questionId ? answerText : (exA?.answer ?? ""),
-                                    });
-                                  }
-                                  return {
-                                    ...item,
-                                    name: productName,
-                                    answers: updatedAnswers,
-                                  };
-                                });
-                                return applyProductQaToEntry({ ...prev, selectedProducts: next });
-                              });
-                            };
-
-                            const selectedProductsWithQuestions = selectedList
-                              .map((sel) => {
-                                const supProd = allSupplierProducts.find((p) => p.id === sel.id);
-                                const supQuestions = supProd?.questions ?? [];
-                                const existingAnswers = sel.answers ?? [];
-                                const questionsList: Array<{
-                                  questionId: string;
-                                  question: string;
-                                  answer: string;
-                                }> = [];
-                                const seenQIds = new Set<string>();
-                                for (const sq of supQuestions) {
-                                  seenQIds.add(sq.id);
-                                  const foundAns = existingAnswers.find(
-                                    (a) => a.questionId === sq.id || a.question === sq.question,
-                                  );
-                                  questionsList.push({
-                                    questionId: sq.id,
-                                    question: sq.question,
-                                    answer: foundAns?.answer ?? "",
-                                  });
-                                }
-                                for (const ea of existingAnswers) {
-                                  if (!seenQIds.has(ea.questionId)) {
-                                    questionsList.push(ea);
-                                  }
-                                }
-                                return {
-                                  id: sel.id,
-                                  name: sel.name,
-                                  supplierQuestions: supQuestions,
-                                  questionsList,
-                                };
-                              })
-                              .filter((p) => p.questionsList.length > 0);
-
-                            return (
-                              <div className="flex flex-col gap-2.5 pt-3 border-t border-slate-100">
-                                <div className="flex items-center justify-between">
-                                  <label className="text-xs font-bold text-slate-700">
-                                    Produkty u dostawcy
-                                  </label>
-                                  {selectedList.length > 0 && (
-                                    <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                                      Wybrano: {selectedList.length}
-                                    </span>
-                                  )}
-                                </div>
-                                {allOptions.length === 0 ? (
-                                  <p className="text-xs text-slate-400 bg-slate-50/60 border border-dashed border-slate-200 rounded-lg px-3 py-2">
-                                    Ten dostawca nie ma przypisanych produktów. Możesz je dodać w Ustawienia → Dostawcy.
-                                  </p>
-                                ) : (
-                                  <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl border border-slate-200 bg-slate-50/40">
-                                    {allOptions.map((prod) => {
-                                      const checked = selectedList.some((s) => s.id === prod.id);
-                                      return (
-                                        <button
-                                          key={prod.id}
-                                          type="button"
-                                          onClick={() =>
-                                            toggleProduct({
-                                              id: prod.id,
-                                              name: prod.name,
-                                              questions: prod.questions,
-                                            })
-                                          }
-                                          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                                            checked
-                                              ? "border-amber-500 bg-amber-50 text-amber-900 shadow-2xs"
-                                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                                          }`}
-                                        >
-                                          <span
-                                            className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded border text-[9px] font-bold ${
-                                              checked
-                                                ? "border-amber-600 bg-amber-600 text-white"
-                                                : "border-slate-300 bg-white text-transparent"
-                                            }`}
-                                          >
-                                            ✓
-                                          </span>
-                                          <span>{prod.name}</span>
-                                          {prod.questions.length > 0 && (
-                                            <span
-                                              className={`rounded px-1 py-0.2 text-[9px] font-bold ${
-                                                checked
-                                                  ? "bg-amber-200/70 text-amber-900"
-                                                  : "bg-slate-100 text-slate-500"
-                                              }`}
-                                            >
-                                              {prod.questions.length} pyt.
-                                            </span>
-                                          )}
-                                          {prod.isArchived && (
-                                            <span className="text-[9px] font-medium text-slate-400">(nieaktywny)</span>
-                                          )}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-
-                                {/* Pytania do wybranych produktów */}
-                                {selectedProductsWithQuestions.length > 0 && (
-                                  <div className="flex flex-col gap-2.5 pt-1">
-                                    {selectedProductsWithQuestions.map((prodItem) => (
-                                      <div
-                                        key={prodItem.id}
-                                        className="flex flex-col gap-2 rounded-xl border border-amber-200/90 bg-amber-50/40 p-3"
-                                      >
-                                        <div className="flex items-center justify-between gap-2">
-                                          <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                                            <span>📋</span>
-                                            <span>Pytania: {prodItem.name}</span>
-                                          </span>
-                                          <span className="text-[10px] font-semibold text-amber-700">
-                                            Odpowiedzi trafią do wiadomości
-                                          </span>
-                                        </div>
-                                        <div className="flex flex-col gap-2">
-                                          {prodItem.questionsList.map((qItem, qIdx) => (
-                                            <div key={qItem.questionId} className="flex flex-col gap-1">
-                                              <label className="text-[11px] font-semibold text-slate-700">
-                                                {qIdx + 1}. {qItem.question}
-                                              </label>
-                                              <input
-                                                type="text"
-                                                value={qItem.answer}
-                                                onChange={(e) =>
-                                                  updateProductQuestionAnswer(
-                                                    prodItem.id,
-                                                    prodItem.name,
-                                                    qItem.questionId,
-                                                    qItem.question,
-                                                    e.target.value,
-                                                    prodItem.supplierQuestions,
-                                                  )
-                                                }
-                                                placeholder="Wpisz odpowiedź..."
-                                                className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                                              />
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-
                           {/* Etapy i terminy realizacji — czytelna lista wierszy bez ucinania kolumn */}
                           <div className="flex flex-col gap-2 pt-3 border-t border-slate-100">
                             <div className="flex items-center justify-between">
@@ -5823,8 +5574,267 @@ export default function OrderDetailPage({
                         </div>
                       </div>
 
-                      {/* Główny biały obszar wątku 1:1 w stylu Gmaila */}
-                      <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col overflow-hidden">
+                      {/* Prawa kolumna: u góry Produkty i pytania na pełną szerokość, pod spodem kompaktowy wątek wiadomości */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-3.5 overflow-hidden">
+                        {/* Górna karta: Produkty u dostawcy + pytania per produkt */}
+                        {(() => {
+                          const allSupplierProducts = currentSupplier?.products ?? [];
+                          const activeSupplierProducts = allSupplierProducts.filter((p) => p.isActive);
+                          const selectedList = draftDeliveryEntry.selectedProducts ?? [];
+                          const activeIds = new Set(activeSupplierProducts.map((p) => p.id));
+                          const legacySelected = selectedList.filter((p) => !activeIds.has(p.id));
+                          const allOptions = [
+                            ...activeSupplierProducts.map((p) => ({
+                              id: p.id,
+                              name: p.name,
+                              isArchived: false,
+                              questions: p.questions ?? [],
+                            })),
+                            ...legacySelected.map((p) => {
+                              const def = allSupplierProducts.find((sp) => sp.id === p.id);
+                              return {
+                                id: p.id,
+                                name: p.name,
+                                isArchived: true,
+                                questions: def?.questions ?? [],
+                              };
+                            }),
+                          ];
+
+                          const toggleProduct = (prod: {
+                            id: string;
+                            name: string;
+                            questions: Array<{ id: string; question: string }>;
+                          }) => {
+                            setDraftDeliveryEntry((prev) => {
+                              if (!prev) return prev;
+                              const curr = prev.selectedProducts ?? [];
+                              const exists = curr.some((item) => item.id === prod.id);
+                              const next = exists
+                                ? curr.filter((item) => item.id !== prod.id)
+                                : [
+                                    ...curr,
+                                    {
+                                      id: prod.id,
+                                      name: prod.name,
+                                      answers: prod.questions.map((q) => ({
+                                        questionId: q.id,
+                                        question: q.question,
+                                        answer: "",
+                                      })),
+                                    },
+                                  ];
+                              return applyProductQaToEntry({ ...prev, selectedProducts: next });
+                            });
+                          };
+
+                          const updateProductQuestionAnswer = (
+                            productId: string,
+                            productName: string,
+                            questionId: string,
+                            questionText: string,
+                            answerText: string,
+                            supplierQuestions: Array<{ id: string; question: string }>,
+                          ) => {
+                            setDraftDeliveryEntry((prev) => {
+                              if (!prev) return prev;
+                              const curr = prev.selectedProducts ?? [];
+                              const next = curr.map((item) => {
+                                if (item.id !== productId) return item;
+                                const existingAnswers = item.answers ?? [];
+                                const mergedQuestionIds = new Set([
+                                  ...supplierQuestions.map((q) => q.id),
+                                  ...existingAnswers.map((a) => a.questionId),
+                                ]);
+                                const updatedAnswers: Array<{
+                                  questionId: string;
+                                  question: string;
+                                  answer: string;
+                                }> = [];
+                                for (const qId of mergedQuestionIds) {
+                                  const supQ = supplierQuestions.find((q) => q.id === qId);
+                                  const exA = existingAnswers.find((a) => a.questionId === qId);
+                                  const qLabel = supQ?.question ?? exA?.question ?? "";
+                                  if (!qLabel) continue;
+                                  updatedAnswers.push({
+                                    questionId: qId,
+                                    question: qLabel,
+                                    answer: qId === questionId ? answerText : (exA?.answer ?? ""),
+                                  });
+                                }
+                                return {
+                                  ...item,
+                                  name: productName,
+                                  answers: updatedAnswers,
+                                };
+                              });
+                              return applyProductQaToEntry({ ...prev, selectedProducts: next });
+                            });
+                          };
+
+                          const selectedProductsWithQuestions = selectedList
+                            .map((sel) => {
+                              const supProd = allSupplierProducts.find((p) => p.id === sel.id);
+                              const supQuestions = supProd?.questions ?? [];
+                              const existingAnswers = sel.answers ?? [];
+                              const questionsList: Array<{
+                                questionId: string;
+                                question: string;
+                                answer: string;
+                              }> = [];
+                              const seenQIds = new Set<string>();
+                              for (const sq of supQuestions) {
+                                seenQIds.add(sq.id);
+                                const foundAns = existingAnswers.find(
+                                  (a) => a.questionId === sq.id || a.question === sq.question,
+                                );
+                                questionsList.push({
+                                  questionId: sq.id,
+                                  question: sq.question,
+                                  answer: foundAns?.answer ?? "",
+                                });
+                              }
+                              for (const ea of existingAnswers) {
+                                if (!seenQIds.has(ea.questionId)) {
+                                  questionsList.push(ea);
+                                }
+                              }
+                              return {
+                                id: sel.id,
+                                name: sel.name,
+                                supplierQuestions: supQuestions,
+                                questionsList,
+                              };
+                            })
+                            .filter((p) => p.questionsList.length > 0);
+
+                          return (
+                            <div className="shrink-0 max-h-[56%] overflow-y-auto bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 flex flex-col gap-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                                    Produkty u dostawcy i pytania do zamówienia
+                                  </span>
+                                  {selectedList.length > 0 && (
+                                    <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                      Wybrano produktów: {selectedList.length}
+                                    </span>
+                                  )}
+                                </div>
+                                {selectedProductsWithQuestions.length > 0 && (
+                                  <span className="text-[11px] font-semibold text-amber-700 bg-amber-50/80 border border-amber-200/80 px-2.5 py-0.5 rounded-full">
+                                    📋 Odpowiedzi są automatycznie dodawane do wiadomości poniżej
+                                  </span>
+                                )}
+                              </div>
+
+                              {allOptions.length === 0 ? (
+                                <p className="text-xs text-slate-400 bg-slate-50/60 border border-dashed border-slate-200 rounded-lg px-3 py-2">
+                                  Ten dostawca nie ma przypisanych produktów. Możesz je dodać w Ustawienia → Dostawcy.
+                                </p>
+                              ) : (
+                                <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl border border-slate-200 bg-slate-50/40">
+                                  {allOptions.map((prod) => {
+                                    const checked = selectedList.some((s) => s.id === prod.id);
+                                    return (
+                                      <button
+                                        key={prod.id}
+                                        type="button"
+                                        onClick={() =>
+                                          toggleProduct({
+                                            id: prod.id,
+                                            name: prod.name,
+                                            questions: prod.questions,
+                                          })
+                                        }
+                                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                                          checked
+                                            ? "border-amber-500 bg-amber-50 text-amber-900 shadow-2xs"
+                                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                                        }`}
+                                      >
+                                        <span
+                                          className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded border text-[9px] font-bold ${
+                                            checked
+                                              ? "border-amber-600 bg-amber-600 text-white"
+                                              : "border-slate-300 bg-white text-transparent"
+                                          }`}
+                                        >
+                                          ✓
+                                        </span>
+                                        <span>{prod.name}</span>
+                                        {prod.questions.length > 0 && (
+                                          <span
+                                            className={`rounded px-1.5 py-0.2 text-[10px] font-bold ${
+                                              checked
+                                                ? "bg-amber-200/80 text-amber-900"
+                                                : "bg-slate-100 text-slate-500"
+                                            }`}
+                                          >
+                                            {prod.questions.length} pyt.
+                                          </span>
+                                        )}
+                                        {prod.isArchived && (
+                                          <span className="text-[9px] font-medium text-slate-400">(nieaktywny)</span>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Pytania do wybranych produktów na pełnej szerokości */}
+                              {selectedProductsWithQuestions.length > 0 && (
+                                <div className="flex flex-col gap-3">
+                                  {selectedProductsWithQuestions.map((prodItem) => (
+                                    <div
+                                      key={prodItem.id}
+                                      className="flex flex-col gap-2.5 rounded-xl border border-amber-200/90 bg-amber-50/35 p-3.5"
+                                    >
+                                      <div className="flex items-center justify-between gap-2 border-b border-amber-200/60 pb-1.5">
+                                        <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                                          <span>📋</span>
+                                          <span>Pytania do produktu: {prodItem.name}</span>
+                                        </span>
+                                        <span className="text-[11px] font-medium text-amber-800">
+                                          {prodItem.questionsList.filter((q) => q.answer.trim().length > 0).length} / {prodItem.questionsList.length} uzupełniono
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {prodItem.questionsList.map((qItem, qIdx) => (
+                                          <div key={qItem.questionId} className="flex flex-col gap-1">
+                                            <label className="text-xs font-semibold text-slate-800">
+                                              {qIdx + 1}. {qItem.question}
+                                            </label>
+                                            <input
+                                              type="text"
+                                              value={qItem.answer}
+                                              onChange={(e) =>
+                                                updateProductQuestionAnswer(
+                                                  prodItem.id,
+                                                  prodItem.name,
+                                                  qItem.questionId,
+                                                  qItem.question,
+                                                  e.target.value,
+                                                  prodItem.supplierQuestions,
+                                                )
+                                              }
+                                              placeholder="Wpisz odpowiedź..."
+                                              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-2xs"
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* Dolna karta: kompaktowy obszar wątku wiadomości */}
+                        <div className="flex-1 min-h-[190px] bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col overflow-hidden">
                         {(() => {
                           const dbDelivery = editingDeliveryIndex !== null ? (order?.serviceDeliveries ?? [])[editingDeliveryIndex] : undefined;
                           const hasExternalOrderRef = Boolean(draftDeliveryEntry.externalOrderId || draftDeliveryEntry.externalOrderNumber);
@@ -6143,31 +6153,38 @@ export default function OrderDetailPage({
 
                           return (
                             <>
-                              {/* Górny pasek akcji wątku Gmaila */}
-                              <div className="h-12 px-6 border-b border-slate-100 flex items-center justify-between gap-4 shrink-0">
-                                <div className="flex items-center gap-3">
-                                  <span className="text-xs font-medium text-[#5f6368]">
-                                    {rawFeed.length} {rawFeed.length === 1 ? "wiadomość w wątku" : "wiadomości w wątku"}
+                              {/* Kompaktowy pojedynczy nagłówek wątku wiadomości */}
+                              <div className="h-11 px-5 border-b border-slate-100 flex items-center justify-between gap-3 shrink-0 bg-slate-50/40">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <h2 className="text-sm font-bold text-[#1f1f1f] truncate">
+                                    {isExalcoSupplier
+                                      ? draftDeliveryEntry.externalOrderNumber
+                                        ? `Korespondencja z Exalco (${draftDeliveryEntry.externalOrderNumber}) — ${editingDeliverySvc}`
+                                        : `Korespondencja z Exalco (Zamówienie #${editingDeliveryIndex !== null ? editingDeliveryIndex + 1 : "nowe"}) — ${editingDeliverySvc}`
+                                      : `Notatki do zamówienia — ${editingDeliverySvc} (${currentSupplier?.name ?? "Dostawca"})`}
+                                  </h2>
+                                  <span className="text-[11px] font-semibold bg-slate-200/70 text-slate-700 px-2 py-0.5 rounded-full shrink-0">
+                                    {rawFeed.length} {rawFeed.length === 1 ? "wiadomość" : "wiadomości"}
                                   </span>
                                   {sortedFeed.length > 1 && (
                                     <button
                                       type="button"
                                       onClick={toggleExpandAll}
-                                      className="text-xs font-semibold text-[#0b57d0] hover:bg-blue-50 px-2.5 py-1 rounded-md transition-colors"
+                                      className="text-[11px] font-semibold text-[#0b57d0] hover:bg-blue-50 px-2 py-0.5 rounded-md transition-colors shrink-0"
                                     >
                                       {allExpanded ? "Zwiń starsze" : "Rozwiń wszystkie"}
                                     </button>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-2.5">
+                                <div className="flex items-center gap-2 shrink-0">
                                   {isExalcoSupplier && (
                                     draftDeliveryEntry.externalOrderNumber ? (
-                                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full flex items-center gap-1.5">
+                                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                         Live · Exalco #{draftDeliveryEntry.externalOrderNumber}
                                       </span>
                                     ) : (
-                                      <span className="text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                                      <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
                                         Przed złożeniem w CRM
                                       </span>
                                     )
@@ -6175,39 +6192,23 @@ export default function OrderDetailPage({
                                 </div>
                               </div>
 
-                              {/* Nagłówek tematu wątku jak w Gmailu */}
-                              <div className="px-8 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between gap-4 shrink-0">
-                                <div className="flex items-center gap-3 flex-wrap min-w-0">
-                                  <h2 className="text-[21px] font-normal text-[#1f1f1f] truncate">
-                                    {isExalcoSupplier
-                                      ? draftDeliveryEntry.externalOrderNumber
-                                        ? `Korespondencja z Exalco (${draftDeliveryEntry.externalOrderNumber}) — ${editingDeliverySvc}`
-                                        : `Korespondencja z Exalco (Zamówienie #${editingDeliveryIndex !== null ? editingDeliveryIndex + 1 : "nowe"}) — ${editingDeliverySvc}`
-                                      : `Notatki do zamówienia — ${editingDeliverySvc} (${currentSupplier?.name ?? "Dostawca"})`}
-                                  </h2>
-                                  <span className="text-xs font-medium bg-[#e8eaed] text-[#3c4043] px-2.5 py-0.5 rounded-md">
-                                    {isExalcoSupplier ? "Exalco CRM" : "Wewnętrzne"}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Chronologiczny wątek wiadomości 1:1 jak w Gmailu */}
+                              {/* Chronologiczny, kompaktowy wątek wiadomości */}
                               <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-200/80">
                                 {sortedFeed.length === 0 ? (
-                                  <div className="h-full flex flex-col items-center justify-center p-12 text-center text-slate-400">
-                                    <svg className="w-12 h-12 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.3}>
+                                  <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400">
+                                    <svg className="w-8 h-8 text-slate-300 mb-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                     </svg>
-                                    <p className="text-sm font-medium text-slate-600 mb-1">
+                                    <p className="text-xs font-medium text-slate-600 mb-0.5">
                                       {isExalcoSupplier ? "Brak wiadomości w tym wątku z Exalco" : "Brak uwag do tego zamówienia"}
                                     </p>
-                                    <p className="text-xs text-slate-400 mb-4">
-                                      Kliknij „Napisz wiadomość”, aby rozpocząć wątek.
+                                    <p className="text-[11px] text-slate-400 mb-2.5">
+                                      Uzupełnij pytania do produktów powyżej lub kliknij „Napisz wiadomość”.
                                     </p>
                                     <button
                                       type="button"
                                       onClick={() => openGmailCompose(false)}
-                                      className="inline-flex items-center gap-2 bg-[#0b57d0] hover:bg-[#0842a0] text-white font-semibold text-sm px-6 py-2.5 rounded-full shadow-xs transition-all"
+                                      className="inline-flex items-center gap-1.5 bg-[#0b57d0] hover:bg-[#0842a0] text-white font-semibold text-xs px-4 py-1.5 rounded-full shadow-xs transition-all"
                                     >
                                       ✏️ Napisz pierwszą wiadomość
                                     </button>
@@ -6239,23 +6240,23 @@ export default function OrderDetailPage({
                                             onClick={() =>
                                               setCrmNoteExpandOverrides((prev) => ({ ...prev, [nItem.id]: true }))
                                             }
-                                            className="w-full text-left flex items-center gap-4 px-8 py-3.5 bg-white hover:bg-slate-50/90 transition-colors cursor-pointer"
+                                            className="w-full text-left flex items-center gap-3 px-5 py-2.5 bg-white hover:bg-slate-50/90 transition-colors cursor-pointer"
                                           >
                                             <span
-                                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${
+                                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${
                                                 isExalco ? "bg-[#0b57d0]" : "bg-amber-500"
                                               }`}
                                             >
                                               {initials}
                                             </span>
-                                            <span className="text-sm font-semibold text-[#1f1f1f] shrink-0 w-48 truncate">
+                                            <span className="text-xs font-semibold text-[#1f1f1f] shrink-0 w-36 truncate">
                                               {author}
                                             </span>
-                                            <span className="text-sm text-[#5f6368] truncate flex-1 min-w-0">
+                                            <span className="text-xs text-[#5f6368] truncate flex-1 min-w-0">
                                               {singleLineSnippet}
                                             </span>
                                             <span
-                                              className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded ${
+                                              className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded ${
                                                 isExalco
                                                   ? "text-blue-700 bg-blue-50"
                                                   : "text-slate-600 bg-slate-100"
@@ -6263,7 +6264,7 @@ export default function OrderDetailPage({
                                             >
                                               {isExalco ? "Od Exalco" : "Od ADK"}
                                             </span>
-                                            <span className="shrink-0 text-xs text-[#5f6368] w-28 text-right">
+                                            <span className="shrink-0 text-[11px] text-[#5f6368] w-24 text-right">
                                               {shortDate}
                                             </span>
                                           </button>
@@ -6272,7 +6273,7 @@ export default function OrderDetailPage({
 
                                       return (
                                         <div key={nItem.id} className="bg-white group">
-                                          {/* Nagłówek rozwiniętej wiadomości w stylu Gmaila */}
+                                          {/* Nagłówek rozwiniętej wiadomości w kompaktowym stylu */}
                                           <div
                                             onClick={
                                               canToggleCollapse
@@ -6283,13 +6284,13 @@ export default function OrderDetailPage({
                                                     }))
                                                 : undefined
                                             }
-                                            className={`flex items-start justify-between gap-4 px-8 pt-5 pb-2 ${
+                                            className={`flex items-start justify-between gap-3 px-5 pt-3 pb-1 ${
                                               canToggleCollapse ? "cursor-pointer select-none" : ""
                                             }`}
                                           >
-                                            <div className="flex items-start gap-4 min-w-0 flex-1">
+                                            <div className="flex items-start gap-3 min-w-0 flex-1">
                                               <span
-                                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white mt-0.5 ${
+                                                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white mt-0.5 ${
                                                   isExalco ? "bg-[#0b57d0]" : "bg-amber-500"
                                                 }`}
                                               >
@@ -6297,34 +6298,34 @@ export default function OrderDetailPage({
                                               </span>
                                               <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                  <span className="text-sm font-bold text-[#1f1f1f]">
+                                                  <span className="text-xs font-bold text-[#1f1f1f]">
                                                     {author}
                                                   </span>
-                                                  <span className="text-xs text-[#5f6368]">
+                                                  <span className="text-[11px] text-[#5f6368]">
                                                     {isExalco ? "<crm@exalco.pl>" : "<zamowienia@adk.pl>"}
                                                   </span>
                                                 </div>
-                                                <div className="text-xs text-[#5f6368] leading-snug">
+                                                <div className="text-[11px] text-[#5f6368] leading-snug">
                                                   do {isExalco ? "ADK" : isExalcoSupplier ? "Exalco" : "wewnętrzne"} ▾
                                                 </div>
                                               </div>
                                             </div>
 
-                                            <div className="flex items-center gap-2 shrink-0">
-                                              <span className="text-xs text-[#5f6368]">
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                              <span className="text-[11px] text-[#5f6368]">
                                                 {formattedDate}
                                               </span>
                                               {isExalco ? (
-                                                <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                                                <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
                                                   Od Exalco
                                                 </span>
                                               ) : (
                                                 <>
-                                                  <span className="text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                                                  <span className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
                                                     Od ADK
                                                   </span>
                                                   {isExalcoSupplier && !nItem.sentToCrm && (
-                                                    <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                                                    <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
                                                       ⏳ Do wysłania z zamówieniem
                                                     </span>
                                                   )}
@@ -6333,7 +6334,7 @@ export default function OrderDetailPage({
                                               {nItem.errorSending && (
                                                 <span
                                                   onClick={(e) => e.stopPropagation()}
-                                                  className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded flex items-center gap-1"
+                                                  className="text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded flex items-center gap-1"
                                                 >
                                                   ⚠️
                                                   <button type="button" onClick={() => handleRetrySendCrmNote(nItem.id)} className="underline font-extrabold">
@@ -6347,35 +6348,35 @@ export default function OrderDetailPage({
                                                   e.stopPropagation();
                                                   openGmailCompose(false);
                                                 }}
-                                                className="p-1.5 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+                                                className="p-1 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
                                                 title="Odpowiedz"
                                               >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                                                 </svg>
                                               </button>
                                               {!isLockedNote && (
                                                 <div
                                                   onClick={(e) => e.stopPropagation()}
-                                                  className="flex items-center gap-1"
+                                                  className="flex items-center gap-0.5"
                                                 >
                                                   <button
                                                     type="button"
                                                     onClick={() => { setEditingCrmNoteId(nItem.id); setEditingCrmNoteText(nItem.note); }}
-                                                    className="p-1.5 text-slate-400 hover:text-amber-600 rounded-full hover:bg-amber-50"
+                                                    className="p-1 text-slate-400 hover:text-amber-600 rounded-full hover:bg-amber-50"
                                                     title="Edytuj notatkę"
                                                   >
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                       <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                     </svg>
                                                   </button>
                                                   <button
                                                     type="button"
                                                     onClick={() => handleDeleteSupplierNoteFromFeed(nItem.id)}
-                                                    className="p-1.5 text-slate-400 hover:text-red-600 rounded-full hover:bg-red-50"
+                                                    className="p-1 text-slate-400 hover:text-red-600 rounded-full hover:bg-red-50"
                                                     title="Usuń notatkę"
                                                   >
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                                                     </svg>
                                                   </button>
@@ -6385,12 +6386,12 @@ export default function OrderDetailPage({
                                           </div>
 
                                           {/* Treść rozwiniętej wiadomości */}
-                                          <div className="px-8 pb-6 pt-2 pl-[88px]">
+                                          <div className="px-5 pb-3 pt-1 pl-[56px]">
                                             {!isLockedNote && editingCrmNoteId === nItem.id ? (
                                               <div className="flex flex-col gap-2 max-w-3xl">
                                                 <textarea
-                                                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:border-amber-500 focus:outline-none resize-y min-h-[110px]"
-                                                  rows={4}
+                                                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs focus:border-amber-500 focus:outline-none resize-y min-h-[90px]"
+                                                  rows={3}
                                                   value={editingCrmNoteText}
                                                   onChange={(e) => setEditingCrmNoteText(e.target.value)}
                                                   onKeyDown={(e) => {
@@ -6404,15 +6405,15 @@ export default function OrderDetailPage({
                                                   }}
                                                 />
                                                 <div className="flex items-center gap-2 justify-between">
-                                                  <span className="text-xs text-slate-400">Enter = nowy akapit · Ctrl/Cmd+Enter = zapisz</span>
+                                                  <span className="text-[11px] text-slate-400">Enter = nowy akapit · Ctrl/Cmd+Enter = zapisz</span>
                                                   <div className="flex gap-2">
-                                                    <button type="button" onClick={() => setEditingCrmNoteId(null)} className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Anuluj</button>
-                                                    <button type="button" onClick={() => handleSaveEditedCrmNote(nItem.id)} className="px-3 py-1.5 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-lg">Zapisz</button>
+                                                    <button type="button" onClick={() => setEditingCrmNoteId(null)} className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Anuluj</button>
+                                                    <button type="button" onClick={() => handleSaveEditedCrmNote(nItem.id)} className="px-2.5 py-1 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-lg">Zapisz</button>
                                                   </div>
                                                 </div>
                                               </div>
                                             ) : (
-                                              <p className="text-[14.5px] text-[#1f1f1f] whitespace-pre-wrap break-words leading-relaxed max-w-4xl">
+                                              <p className="text-[13px] text-[#1f1f1f] whitespace-pre-wrap break-words leading-snug max-w-4xl">
                                                 {nItem.note}
                                               </p>
                                             )}
@@ -6421,14 +6422,14 @@ export default function OrderDetailPage({
                                       );
                                     })}
 
-                                    {/* Dolny pasek przycisków "Odpowiedz" 1:1 jak pod mailem w Gmailu */}
-                                    <div className="px-8 py-6 pl-[88px] bg-white flex items-center gap-3">
+                                    {/* Dolny pasek przycisków "Odpowiedz" */}
+                                    <div className="px-5 py-3 pl-[56px] bg-white flex items-center gap-2.5">
                                       <button
                                         type="button"
                                         onClick={() => openGmailCompose(false)}
-                                        className="inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full border border-[#747775] text-sm font-medium text-[#444746] hover:bg-slate-100/80 transition-colors cursor-pointer"
+                                        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#747775] text-xs font-medium text-[#444746] hover:bg-slate-100/80 transition-colors cursor-pointer"
                                       >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                           <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                                         </svg>
                                         {isExalcoSupplier ? "Odpowiedz" : "Dodaj kolejną uwagę"}
@@ -6437,9 +6438,9 @@ export default function OrderDetailPage({
                                         <button
                                           type="button"
                                           onClick={() => openGmailCompose(true)}
-                                          className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full border border-[#747775] text-sm font-medium text-[#444746] hover:bg-slate-100/80 transition-colors cursor-pointer"
+                                          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#747775] text-xs font-medium text-[#444746] hover:bg-slate-100/80 transition-colors cursor-pointer"
                                         >
-                                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                                           </svg>
                                           Załącz pliki z Google Drive
@@ -6502,6 +6503,7 @@ export default function OrderDetailPage({
                             </>
                           );
                         })()}
+                        </div>
                       </div>
                     </>
                   );
