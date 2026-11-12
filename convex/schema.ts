@@ -281,6 +281,15 @@ export default defineSchema({
           v.object({
             id: v.string(),
             name: v.string(),
+            answers: v.optional(
+              v.array(
+                v.object({
+                  questionId: v.string(),
+                  question: v.string(),
+                  answer: v.string(),
+                })
+              )
+            ),
           })
         )
       ),
@@ -629,6 +638,14 @@ export default defineSchema({
           id: v.string(),
           name: v.string(),
           isActive: v.boolean(),
+          questions: v.optional(
+            v.array(
+              v.object({
+                id: v.string(),
+                question: v.string(),
+              })
+            )
+          ),
         })
       )
     ),

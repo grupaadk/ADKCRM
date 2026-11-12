@@ -651,5 +651,86 @@ describe("Exalco Webhook Delivery Date Logic", () => {
     expect(updated!.serviceDeliveries![0].notesFeed).toHaveLength(1);
     expect(updated!.serviceDeliveries![1].notesFeed).toHaveLength(0);
   });
+
+  test("saves product questions on supplier and creates ADK/CRM message from product answers", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const supplierId = await asUser.mutation(api.suppliers.create, {
+      name: "ALCO-QA",
+      products: [
+        {
+          id: "prod-okna",
+          name: "Okna",
+          isActive: true,
+          questions: [
+            { id: "q-1", question: "Kolor profilu" },
+            { id: "q-2", question: "Pakiet szybowy" },
+          ],
+        },
+      ],
+    });
+
+    const supplier = await t.run(async (ctx) => ctx.db.get(supplierId));
+    expect(supplier?.products?.[0]?.questions).toHaveLength(2);
+    expect(supplier?.products?.[0]?.questions?.[0]?.question).toBe("Kolor profilu");
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Marek",
+      lastName: "Testowy",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Okna ALU",
+          supplierId,
+          netAmount: 25000,
+          selectedProducts: [
+            {
+              id: "prod-okna",
+              name: "Okna",
+              answers: [
+                { questionId: "q-1", question: "Kolor profilu", answer: "RAL 7016 Antracyt" },
+                { questionId: "q-2", question: "Pakiet szybowy", answer: "3-szybowy ciepły" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const orderAfterSave = await asUser.query(api.orders.getById, { orderId });
+    const feedAfterSave = orderAfterSave?.serviceDeliveries?.[0]?.notesFeed ?? [];
+    expect(feedAfterSave).toHaveLength(1);
+    expect(feedAfterSave[0].note).toContain("📋 Specyfikacja produktów:");
+    expect(feedAfterSave[0].note).toContain("• Okna:");
+    expect(feedAfterSave[0].note).toContain("- Kolor profilu: RAL 7016 Antracyt");
+    expect(feedAfterSave[0].note).toContain("- Pakiet szybowy: 3-szybowy ciepły");
+    expect(feedAfterSave[0].sentToCrm).toBe(false);
+
+    // Symulacja wysyłki zamówienia do CRM (zapis numeru zamówienia + oznaczenie wiadomości jako wysłanej)
+    await asUser.mutation(api.orders.updateExternalOrderInfo, {
+      orderId,
+      deliveryIndex: 0,
+      externalOrderId: "ext-qa-1",
+      externalOrderNumber: "ST-261199999",
+    });
+    await asUser.mutation(api.orders.markAllDeliveryNotesSentToCrm, {
+      orderId,
+      deliveryIndex: 0,
+    });
+
+    const orderAfterSend = await asUser.query(api.orders.getById, { orderId });
+    const feedAfterSend = orderAfterSend?.serviceDeliveries?.[0]?.notesFeed ?? [];
+    expect(feedAfterSend).toHaveLength(1);
+    expect(feedAfterSend[0].sentToCrm).toBe(true);
+    expect(orderAfterSend?.serviceDeliveries?.[0]?.crmNotesHistory?.[0]?.note).toContain(
+      "- Kolor profilu: RAL 7016 Antracyt",
+    );
+  });
 });
 

@@ -31,12 +31,24 @@ const supplierProductValidator = v.object({
   id: v.string(),
   name: v.string(),
   isActive: v.boolean(),
+  questions: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        question: v.string(),
+      })
+    )
+  ),
 });
 
 type SupplierProductInput = {
   id: string;
   name: string;
   isActive: boolean;
+  questions?: Array<{
+    id: string;
+    question: string;
+  }>;
 };
 
 function normalizeSupplierProducts(products: SupplierProductInput[]): SupplierProductInput[] {
@@ -51,10 +63,17 @@ function normalizeSupplierProducts(products: SupplierProductInput[]): SupplierPr
       throw new Error(`Produkt "${trimmedName}" jest już przypisany do tego dostawcy`);
     }
     seenNames.add(lowerKey);
+    const normalizedQuestions = (product.questions ?? [])
+      .map((q) => ({
+        id: q.id?.trim() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        question: q.question.trim(),
+      }))
+      .filter((q) => q.question.length > 0);
     return {
       id: product.id.trim() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       name: trimmedName,
       isActive: product.isActive,
+      ...(normalizedQuestions.length > 0 ? { questions: normalizedQuestions } : {}),
     };
   });
 }

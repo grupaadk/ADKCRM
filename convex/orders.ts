@@ -403,6 +403,29 @@ export const create = mutation({
   },
 });
 
+export function formatProductQuestionsMessage(
+  selectedProducts?: Array<{
+    id: string;
+    name: string;
+    answers?: Array<{
+      questionId: string;
+      question: string;
+      answer: string;
+    }>;
+  }>,
+): string | null {
+  if (!selectedProducts || selectedProducts.length === 0) return null;
+  const sections: string[] = [];
+  for (const prod of selectedProducts) {
+    const validAnswers = (prod.answers ?? []).filter((a) => a.answer.trim().length > 0);
+    if (validAnswers.length === 0) continue;
+    const lines = validAnswers.map((a) => `  - ${a.question.trim()}: ${a.answer.trim()}`);
+    sections.push(`• ${prod.name.trim()}:\n${lines.join("\n")}`);
+  }
+  if (sections.length === 0) return null;
+  return `📋 Specyfikacja produktów:\n\n${sections.join("\n\n")}`;
+}
+
 export const update = mutation({
   args: {
     orderId: v.id("orders"),
@@ -480,6 +503,15 @@ export const update = mutation({
           v.object({
             id: v.string(),
             name: v.string(),
+            answers: v.optional(
+              v.array(
+                v.object({
+                  questionId: v.string(),
+                  question: v.string(),
+                  answer: v.string(),
+                })
+              )
+            ),
           })
         )
       ),
@@ -509,9 +541,10 @@ export const update = mutation({
     if (Object.keys(filtered).length === 0) return;
 
     // Zabezpieczenie spójności audytowej: zapisane wiadomości pomiędzy ADK i Exalco są niemutowalne
-    if (Array.isArray(filtered.serviceDeliveries) && Array.isArray(order.serviceDeliveries)) {
-      const existingDeliveries = order.serviceDeliveries;
+    if (Array.isArray(filtered.serviceDeliveries)) {
+      const existingDeliveries = order.serviceDeliveries ?? [];
       const incomingDeliveries = filtered.serviceDeliveries as NonNullable<typeof order.serviceDeliveries>;
+      const userNameStr = user.displayName ?? user.name ?? user.email ?? userId;
 
       filtered.serviceDeliveries = await Promise.all(
         incomingDeliveries.map(async (d, idx) => {
@@ -552,11 +585,6 @@ export const update = mutation({
           const existingFeed = (existingMatch?.notesFeed ?? []).filter(
             (n) => hasExternalRef || !otherNoteIds.has(n.id),
           );
-          if (existingFeed.length === 0) {
-            return d.notesFeed !== undefined
-              ? { ...d, notesFeed: sanitizedIncomingFeed }
-              : d;
-          }
 
           const supplier = await ctx.db.get(d.supplierId);
           const isExalcoSupplier =
@@ -564,32 +592,73 @@ export const update = mutation({
             supplier?.name?.toUpperCase().includes("EXALCO") ||
             supplier?.name?.toUpperCase().includes("ALCO");
 
-          const isProtectedExalcoNote = (n: NonNullable<typeof existingFeed>[number]) =>
-            isExalcoSupplier ||
-            n.senderType === "exalco" ||
-            n.sentToCrm === true ||
-            n.targetRecipient === "exalco";
+          let mergedFeed: NonNullable<typeof d.notesFeed>;
+          if (existingFeed.length === 0) {
+            mergedFeed = d.notesFeed !== undefined ? sanitizedIncomingFeed : [];
+          } else {
+            const isProtectedExalcoNote = (n: NonNullable<typeof existingFeed>[number]) => {
+              const isUnsentProductQa = n.id.startsWith("product-qa-") && !n.sentToCrm && !hasExternalRef;
+              if (isUnsentProductQa) return false;
+              return (
+                isExalcoSupplier ||
+                n.senderType === "exalco" ||
+                n.sentToCrm === true ||
+                n.targetRecipient === "exalco"
+              );
+            };
 
-          const incomingFeed = sanitizedIncomingFeed;
-          const existingById = new Map(existingFeed.map((n) => [n.id, n]));
-          const seenIds = new Set<string>();
+            const incomingFeed = sanitizedIncomingFeed;
+            const existingById = new Map(existingFeed.map((n) => [n.id, n]));
+            const seenIds = new Set<string>();
 
-          const preservedIncoming = incomingFeed.map((n) => {
-            const orig = existingById.get(n.id);
-            if (orig && isProtectedExalcoNote(orig)) {
-              seenIds.add(n.id);
-              return { ...n, note: orig.note };
+            const preservedIncoming = incomingFeed.map((n) => {
+              const orig = existingById.get(n.id);
+              if (orig && isProtectedExalcoNote(orig)) {
+                seenIds.add(n.id);
+                return { ...n, note: orig.note };
+              }
+              return n;
+            });
+
+            const missingProtected = existingFeed.filter((n) => isProtectedExalcoNote(n) && !seenIds.has(n.id));
+            mergedFeed = [...preservedIncoming, ...missingProtected].sort((a, b) => b.createdAt - a.createdAt);
+          }
+
+          const qaMessage = formatProductQuestionsMessage(d.selectedProducts);
+          if (qaMessage) {
+            const alreadyHasExact = mergedFeed.some((n) => n.note.trim() === qaMessage.trim());
+            if (!alreadyHasExact) {
+              const draftQaIdx = mergedFeed.findIndex(
+                (n) => n.id.startsWith("product-qa-") && !n.sentToCrm && !hasExternalRef,
+              );
+              if (draftQaIdx >= 0) {
+                mergedFeed = mergedFeed.map((n, i) =>
+                  i === draftQaIdx ? { ...n, note: qaMessage, createdAt: Date.now() } : n,
+                );
+              } else {
+                mergedFeed = [
+                  {
+                    id: `product-qa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                    note: qaMessage,
+                    createdAt: Date.now(),
+                    createdBy: userId,
+                    createdByName: userNameStr,
+                    senderType: "adk" as const,
+                    sentToCrm: false,
+                    ...(isExalcoSupplier ? { targetRecipient: "exalco" as const } : {}),
+                  },
+                  ...mergedFeed,
+                ];
+              }
             }
-            return n;
-          });
+          }
 
-          const missingProtected = existingFeed.filter((n) => isProtectedExalcoNote(n) && !seenIds.has(n.id));
-          const mergedFeed = [...preservedIncoming, ...missingProtected].sort((a, b) => b.createdAt - a.createdAt);
-
-          return {
-            ...d,
-            notesFeed: mergedFeed,
-          };
+          return d.notesFeed !== undefined || mergedFeed.length > 0
+            ? {
+                ...d,
+                notesFeed: mergedFeed,
+              }
+            : d;
         }),
       );
     }
@@ -1590,6 +1659,23 @@ export const markAllDeliveryNotesSentToCrm = mutation({
           senderType: "adk" as const,
           sentToCrm: true,
         },
+      ];
+    }
+
+    const qaMessage = formatProductQuestionsMessage(target.selectedProducts);
+    if (qaMessage && !updatedFeed.some((n) => n.note.trim() === qaMessage.trim())) {
+      const userNameStr = user.displayName ?? user.name ?? user.email ?? userId;
+      updatedFeed = [
+        {
+          id: `product-qa-${now}-${Math.random().toString(36).slice(2, 7)}`,
+          note: qaMessage,
+          createdAt: now,
+          createdBy: userId,
+          createdByName: userNameStr,
+          senderType: "adk" as const,
+          sentToCrm: true,
+        },
+        ...updatedFeed,
       ];
     }
 

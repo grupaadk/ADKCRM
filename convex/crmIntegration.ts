@@ -1,6 +1,7 @@
 import { action } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { api, internal } from "./_generated/api";
+import { formatProductQuestionsMessage } from "./orders";
 
 export const sendDeliveryOrderToCrm = action({
   args: {
@@ -38,7 +39,14 @@ export const sendDeliveryOrderToCrm = action({
     const investmentParts = [order.investmentStreet, order.investmentBuildingNumber, order.investmentCity].filter(Boolean);
     const investmentAddress = investmentParts.length > 0 ? ` | Inwestycja: ${investmentParts.join(" ")}` : "";
 
-    const feedNotesText = (delivery.notesFeed ?? []).map((n: { note?: string }) => n.note).filter(Boolean).join("\n---\n");
+    const feedNotesList = (delivery.notesFeed ?? [])
+      .map((n: { note?: string }) => n.note?.trim())
+      .filter((n): n is string => Boolean(n));
+    const qaMessage = formatProductQuestionsMessage(delivery.selectedProducts);
+    if (qaMessage && !feedNotesList.some((n) => n === qaMessage.trim())) {
+      feedNotesList.unshift(qaMessage);
+    }
+    const feedNotesText = feedNotesList.join("\n---\n");
     const notesTextToUse = feedNotesText || delivery.notes || "";
 
     const notesCombined = [

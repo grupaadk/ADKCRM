@@ -3396,10 +3396,16 @@ function ServicesRow({
 
 // --- Dostawcy Tab ---
 
+type SupplierProductQuestionItem = {
+  id: string;
+  question: string;
+};
+
 type SupplierProductItem = {
   id: string;
   name: string;
   isActive: boolean;
+  questions?: SupplierProductQuestionItem[];
 };
 
 function SupplierProductsEditor({
@@ -3411,6 +3417,8 @@ function SupplierProductsEditor({
 }) {
   const [newProductName, setNewProductName] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+  const [newQuestionDrafts, setNewQuestionDrafts] = useState<Record<string, string>>({});
 
   function addProduct() {
     const trimmed = newProductName.trim();
@@ -3426,6 +3434,7 @@ function SupplierProductsEditor({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name: trimmed,
         isActive: true,
+        questions: [],
       },
     ]);
     setNewProductName("");
@@ -3442,7 +3451,56 @@ function SupplierProductsEditor({
 
   function removeProduct(id: string) {
     setLocalError(null);
+    if (expandedProductId === id) setExpandedProductId(null);
     onChange(products.filter((p) => p.id !== id));
+  }
+
+  function addQuestionToProduct(productId: string) {
+    const raw = (newQuestionDrafts[productId] ?? "").trim();
+    if (!raw) return;
+    onChange(
+      products.map((p) => {
+        if (p.id !== productId) return p;
+        const currentQuestions = p.questions ?? [];
+        return {
+          ...p,
+          questions: [
+            ...currentQuestions,
+            {
+              id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              question: raw,
+            },
+          ],
+        };
+      })
+    );
+    setNewQuestionDrafts((prev) => ({ ...prev, [productId]: "" }));
+  }
+
+  function updateQuestionText(productId: string, questionId: string, text: string) {
+    onChange(
+      products.map((p) => {
+        if (p.id !== productId) return p;
+        return {
+          ...p,
+          questions: (p.questions ?? []).map((q) =>
+            q.id === questionId ? { ...q, question: text } : q
+          ),
+        };
+      })
+    );
+  }
+
+  function removeQuestionFromProduct(productId: string, questionId: string) {
+    onChange(
+      products.map((p) => {
+        if (p.id !== productId) return p;
+        return {
+          ...p,
+          questions: (p.questions ?? []).filter((q) => q.id !== questionId),
+        };
+      })
+    );
   }
 
   return (
@@ -3480,41 +3538,129 @@ function SupplierProductsEditor({
       </div>
       {localError && <p className="text-[11px] font-medium text-red-600">{localError}</p>}
       {products.length > 0 && (
-        <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
-          {products.map((prod) => (
-            <div
-              key={prod.id}
-              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
-            >
-              <input
-                type="text"
-                value={prod.name}
-                onChange={(e) => renameProduct(prod.id, e.target.value)}
-                className={`flex-1 bg-transparent text-xs font-medium outline-none ${
-                  prod.isActive ? "text-slate-800" : "text-slate-400 line-through"
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => toggleProductActive(prod.id)}
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                  prod.isActive
-                    ? "bg-emerald-100 text-emerald-800"
-                    : "bg-slate-100 text-slate-500"
-                }`}
+        <div className="flex flex-col gap-1.5 max-h-80 overflow-y-auto pr-1">
+          {products.map((prod) => {
+            const questions = prod.questions ?? [];
+            const isExpanded = expandedProductId === prod.id;
+            const draftQ = newQuestionDrafts[prod.id] ?? "";
+            return (
+              <div
+                key={prod.id}
+                className="flex flex-col rounded-lg border border-slate-200 bg-white overflow-hidden"
               >
-                {prod.isActive ? "Aktywny" : "Nieaktywny"}
-              </button>
-              <button
-                type="button"
-                onClick={() => removeProduct(prod.id)}
-                title="Usuń produkt"
-                className="rounded px-1.5 py-0.5 text-xs font-bold text-slate-400 hover:bg-red-50 hover:text-red-600"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+                <div className="flex items-center gap-2 px-2.5 py-1.5">
+                  <input
+                    type="text"
+                    value={prod.name}
+                    onChange={(e) => renameProduct(prod.id, e.target.value)}
+                    className={`flex-1 bg-transparent text-xs font-medium outline-none ${
+                      prod.isActive ? "text-slate-800" : "text-slate-400 line-through"
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setExpandedProductId(isExpanded ? null : prod.id)}
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold transition-colors ${
+                      isExpanded || questions.length > 0
+                        ? "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                    title="Ustaw pytania zadawane podczas składania zamówienia dla tego produktu"
+                  >
+                    ❓ Pytania ({questions.length}) {isExpanded ? "▲" : "▼"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleProductActive(prod.id)}
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                      prod.isActive
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {prod.isActive ? "Aktywny" : "Nieaktywny"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeProduct(prod.id)}
+                    title="Usuń produkt"
+                    className="rounded px-1.5 py-0.5 text-xs font-bold text-slate-400 hover:bg-red-50 hover:text-red-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {isExpanded && (
+                  <div className="border-t border-slate-100 bg-slate-50/80 px-3 py-2.5 flex flex-col gap-2">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Pytania do zamówienia dla produktu „{prod.name}”
+                    </div>
+                    {questions.length === 0 ? (
+                      <p className="text-[11px] text-slate-400 italic">
+                        Brak pytań dla tego produktu. Dodaj pytanie poniżej.
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-1.5">
+                        {questions.map((q, qIdx) => (
+                          <div
+                            key={q.id}
+                            className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1"
+                          >
+                            <span className="text-[10px] font-bold text-slate-400 select-none">
+                              {qIdx + 1}.
+                            </span>
+                            <input
+                              type="text"
+                              value={q.question}
+                              onChange={(e) => updateQuestionText(prod.id, q.id, e.target.value)}
+                              placeholder="Treść pytania..."
+                              className="flex-1 bg-transparent text-xs text-slate-800 outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeQuestionFromProduct(prod.id, q.id)}
+                              title="Usuń pytanie"
+                              className="rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-400 hover:bg-red-50 hover:text-red-600"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-1.5 pt-0.5">
+                      <input
+                        type="text"
+                        value={draftQ}
+                        onChange={(e) =>
+                          setNewQuestionDrafts((prev) => ({
+                            ...prev,
+                            [prod.id]: e.target.value,
+                          }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addQuestionToProduct(prod.id);
+                          }
+                        }}
+                        placeholder="Wpisz pytanie, np. Jaki kolor profilu?, Jaki pakiet szybowy?..."
+                        className="flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-800"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => addQuestionToProduct(prod.id)}
+                        disabled={!draftQ.trim()}
+                        className="rounded-md bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-40"
+                      >
+                        + Dodaj pytanie
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -3831,9 +3977,14 @@ function SupplierRow({
             {activeProducts.slice(0, 4).map((p) => (
               <span
                 key={p.id}
-                className="inline-flex items-center rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                className="inline-flex items-center gap-1 rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700"
               >
-                {p.name}
+                <span>{p.name}</span>
+                {p.questions && p.questions.length > 0 && (
+                  <span className="rounded bg-blue-100 px-1 py-0.2 text-[9px] font-bold text-blue-700">
+                    {p.questions.length} pyt.
+                  </span>
+                )}
               </span>
             ))}
             {activeProducts.length > 4 && (

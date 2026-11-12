@@ -1878,6 +1878,11 @@ export default function OrderDetailPage({
     selectedProducts?: Array<{
       id: string;
       name: string;
+      answers?: Array<{
+        questionId: string;
+        question: string;
+        answer: string;
+      }>;
     }>;
   } | null>(null);
 
@@ -2061,19 +2066,132 @@ export default function OrderDetailPage({
     }
   }, [editingDeliverySvc, draftDeliveryEntry?.supplierId]);
 
+  function formatSelectedProductsQaMessage(
+    selectedProducts?: Array<{
+      id: string;
+      name: string;
+      answers?: Array<{
+        questionId: string;
+        question: string;
+        answer: string;
+      }>;
+    }>,
+  ): string | null {
+    if (!selectedProducts || selectedProducts.length === 0) return null;
+    const sections: string[] = [];
+    for (const prod of selectedProducts) {
+      const validAnswers = (prod.answers ?? []).filter((a) => a.answer.trim().length > 0);
+      if (validAnswers.length === 0) continue;
+      const lines = validAnswers.map((a) => `  - ${a.question.trim()}: ${a.answer.trim()}`);
+      sections.push(`• ${prod.name.trim()}:\n${lines.join("\n")}`);
+    }
+    if (sections.length === 0) return null;
+    return `📋 Specyfikacja produktów:\n\n${sections.join("\n\n")}`;
+  }
+
+  function applyProductQaToEntry(
+    entry: NonNullable<typeof draftDeliveryEntry>,
+  ): NonNullable<typeof draftDeliveryEntry> {
+    const qaMessage = formatSelectedProductsQaMessage(entry.selectedProducts);
+    const hasExternalRef = Boolean(entry.externalOrderId || entry.externalOrderNumber);
+    const currentFeed = entry.notesFeed ?? [];
+    const currentSupplier = allSuppliers.find((s) => s._id === entry.supplierId);
+    const isExalcoSupplier =
+      !!currentSupplier?.isApiEnabled ||
+      currentSupplier?.name?.toUpperCase().includes("EXALCO") ||
+      currentSupplier?.name?.toUpperCase().includes("ALCO");
+    const authorName = me?.displayName ?? me?.login ?? "Ja";
+
+    if (!qaMessage) {
+      if (!hasExternalRef) {
+        const filteredFeed = currentFeed.filter(
+          (n) => !(n.id.startsWith("product-qa-") && !n.sentToCrm),
+        );
+        const combined = filteredFeed.map((n) => n.note).join("\n---\n");
+        return {
+          ...entry,
+          notesFeed: filteredFeed,
+          notes: combined || undefined,
+        };
+      }
+      return entry;
+    }
+
+    if (currentFeed.some((n) => n.note.trim() === qaMessage.trim())) {
+      return entry;
+    }
+
+    const draftQaIdx = currentFeed.findIndex(
+      (n) => n.id.startsWith("product-qa-") && !n.sentToCrm && !hasExternalRef,
+    );
+    let updatedFeed: typeof currentFeed;
+    if (draftQaIdx >= 0) {
+      updatedFeed = currentFeed.map((n, i) =>
+        i === draftQaIdx ? { ...n, note: qaMessage, createdAt: Date.now() } : n,
+      );
+    } else {
+      updatedFeed = [
+        {
+          id: `product-qa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          note: qaMessage,
+          createdAt: Date.now(),
+          createdBy: me?._id,
+          createdByName: authorName,
+          senderType: "adk" as const,
+          sentToCrm: false,
+          targetRecipient: isExalcoSupplier ? ("exalco" as const) : undefined,
+        },
+        ...currentFeed,
+      ];
+    }
+    const combinedNotes = updatedFeed.map((n) => n.note).join("\n---\n");
+    return {
+      ...entry,
+      notesFeed: updatedFeed,
+      notes: combinedNotes,
+    };
+  }
+
   async function saveDelivery() {
     if (!draftDeliveryEntry || savingDelivery || sendingCrm) return;
     try {
       setSavingDelivery(true);
+      const entryToSave = applyProductQaToEntry(draftDeliveryEntry);
       const currentDeliveries = [...(order?.serviceDeliveries ?? [])];
       let targetIndex = editingDeliveryIndex;
+      const previousSavedQa =
+        targetIndex !== null && targetIndex >= 0
+          ? formatSelectedProductsQaMessage(currentDeliveries[targetIndex]?.selectedProducts)
+          : null;
+      const newQa = formatSelectedProductsQaMessage(entryToSave.selectedProducts);
+
       if (targetIndex !== null && targetIndex >= 0) {
-        currentDeliveries[targetIndex] = draftDeliveryEntry;
+        currentDeliveries[targetIndex] = entryToSave;
       } else {
         targetIndex = currentDeliveries.length;
-        currentDeliveries.push(draftDeliveryEntry);
+        currentDeliveries.push(entryToSave);
       }
       await updateOrder({ orderId: orderIdTyped, serviceDeliveries: currentDeliveries });
+
+      const currentSupplier = allSuppliers.find((s) => s._id === entryToSave.supplierId);
+      if (
+        entryToSave.externalOrderNumber &&
+        currentSupplier?.isApiEnabled &&
+        newQa &&
+        newQa !== previousSavedQa
+      ) {
+        try {
+          const authorName = me?.displayName ?? me?.login ?? "Ja";
+          await addCrmNote({
+            orderId: orderIdTyped,
+            deliveryIndex: targetIndex,
+            noteText: `[${authorName}]: ${newQa}`,
+          });
+        } catch (crmErr) {
+          console.error("Nie udało się przesłać zaktualizowanych odpowiedzi do CRM:", crmErr);
+        }
+      }
+
       cancelEditDelivery();
     } catch (err) {
       console.error("Błąd podczas zapisywania zamówienia:", err);
@@ -2087,14 +2205,15 @@ export default function OrderDetailPage({
     if (!draftDeliveryEntry || savingDelivery || sendingCrm) return;
     try {
       setSendingCrm(true);
-      // 1. Zapisz dane zamówienia lokalnie w bazie Convex Grupa ADK
+      // 1. Zapisz dane zamówienia (wraz z wiadomością z odpowiedzi na pytania produktowe) w bazie Convex Grupa ADK
+      const entryToSave = applyProductQaToEntry(draftDeliveryEntry);
       const currentDeliveries = [...(order?.serviceDeliveries ?? [])];
       let targetIndex = editingDeliveryIndex;
       if (targetIndex !== null && targetIndex >= 0) {
-        currentDeliveries[targetIndex] = draftDeliveryEntry;
+        currentDeliveries[targetIndex] = entryToSave;
       } else {
         targetIndex = currentDeliveries.length;
-        currentDeliveries.push(draftDeliveryEntry);
+        currentDeliveries.push(entryToSave);
       }
       await updateOrder({ orderId: orderIdTyped, serviceDeliveries: currentDeliveries });
 
@@ -5240,31 +5359,140 @@ export default function OrderDetailPage({
                             </div>
                           </div>
 
-                          {/* Wybór produktów przypisanych do dostawcy */}
+                          {/* Wybór produktów przypisanych do dostawcy + pytania per produkt */}
                           {(() => {
-                            const activeSupplierProducts = (currentSupplier?.products ?? []).filter((p) => p.isActive);
+                            const allSupplierProducts = currentSupplier?.products ?? [];
+                            const activeSupplierProducts = allSupplierProducts.filter((p) => p.isActive);
                             const selectedList = draftDeliveryEntry.selectedProducts ?? [];
                             const activeIds = new Set(activeSupplierProducts.map((p) => p.id));
                             const legacySelected = selectedList.filter((p) => !activeIds.has(p.id));
                             const allOptions = [
-                              ...activeSupplierProducts.map((p) => ({ id: p.id, name: p.name, isArchived: false })),
-                              ...legacySelected.map((p) => ({ id: p.id, name: p.name, isArchived: true })),
+                              ...activeSupplierProducts.map((p) => ({
+                                id: p.id,
+                                name: p.name,
+                                isArchived: false,
+                                questions: p.questions ?? [],
+                              })),
+                              ...legacySelected.map((p) => {
+                                const def = allSupplierProducts.find((sp) => sp.id === p.id);
+                                return {
+                                  id: p.id,
+                                  name: p.name,
+                                  isArchived: true,
+                                  questions: def?.questions ?? [],
+                                };
+                              }),
                             ];
 
-                            const toggleProduct = (prod: { id: string; name: string }) => {
+                            const toggleProduct = (prod: {
+                              id: string;
+                              name: string;
+                              questions: Array<{ id: string; question: string }>;
+                            }) => {
                               setDraftDeliveryEntry((prev) => {
                                 if (!prev) return prev;
                                 const curr = prev.selectedProducts ?? [];
                                 const exists = curr.some((item) => item.id === prod.id);
                                 const next = exists
                                   ? curr.filter((item) => item.id !== prod.id)
-                                  : [...curr, { id: prod.id, name: prod.name }];
-                                return { ...prev, selectedProducts: next };
+                                  : [
+                                      ...curr,
+                                      {
+                                        id: prod.id,
+                                        name: prod.name,
+                                        answers: prod.questions.map((q) => ({
+                                          questionId: q.id,
+                                          question: q.question,
+                                          answer: "",
+                                        })),
+                                      },
+                                    ];
+                                return applyProductQaToEntry({ ...prev, selectedProducts: next });
                               });
                             };
 
+                            const updateProductQuestionAnswer = (
+                              productId: string,
+                              productName: string,
+                              questionId: string,
+                              questionText: string,
+                              answerText: string,
+                              supplierQuestions: Array<{ id: string; question: string }>,
+                            ) => {
+                              setDraftDeliveryEntry((prev) => {
+                                if (!prev) return prev;
+                                const curr = prev.selectedProducts ?? [];
+                                const next = curr.map((item) => {
+                                  if (item.id !== productId) return item;
+                                  const existingAnswers = item.answers ?? [];
+                                  const mergedQuestionIds = new Set([
+                                    ...supplierQuestions.map((q) => q.id),
+                                    ...existingAnswers.map((a) => a.questionId),
+                                  ]);
+                                  const updatedAnswers: Array<{
+                                    questionId: string;
+                                    question: string;
+                                    answer: string;
+                                  }> = [];
+                                  for (const qId of mergedQuestionIds) {
+                                    const supQ = supplierQuestions.find((q) => q.id === qId);
+                                    const exA = existingAnswers.find((a) => a.questionId === qId);
+                                    const qLabel = supQ?.question ?? exA?.question ?? "";
+                                    if (!qLabel) continue;
+                                    updatedAnswers.push({
+                                      questionId: qId,
+                                      question: qLabel,
+                                      answer: qId === questionId ? answerText : (exA?.answer ?? ""),
+                                    });
+                                  }
+                                  return {
+                                    ...item,
+                                    name: productName,
+                                    answers: updatedAnswers,
+                                  };
+                                });
+                                return applyProductQaToEntry({ ...prev, selectedProducts: next });
+                              });
+                            };
+
+                            const selectedProductsWithQuestions = selectedList
+                              .map((sel) => {
+                                const supProd = allSupplierProducts.find((p) => p.id === sel.id);
+                                const supQuestions = supProd?.questions ?? [];
+                                const existingAnswers = sel.answers ?? [];
+                                const questionsList: Array<{
+                                  questionId: string;
+                                  question: string;
+                                  answer: string;
+                                }> = [];
+                                const seenQIds = new Set<string>();
+                                for (const sq of supQuestions) {
+                                  seenQIds.add(sq.id);
+                                  const foundAns = existingAnswers.find(
+                                    (a) => a.questionId === sq.id || a.question === sq.question,
+                                  );
+                                  questionsList.push({
+                                    questionId: sq.id,
+                                    question: sq.question,
+                                    answer: foundAns?.answer ?? "",
+                                  });
+                                }
+                                for (const ea of existingAnswers) {
+                                  if (!seenQIds.has(ea.questionId)) {
+                                    questionsList.push(ea);
+                                  }
+                                }
+                                return {
+                                  id: sel.id,
+                                  name: sel.name,
+                                  supplierQuestions: supQuestions,
+                                  questionsList,
+                                };
+                              })
+                              .filter((p) => p.questionsList.length > 0);
+
                             return (
-                              <div className="flex flex-col gap-2 pt-3 border-t border-slate-100">
+                              <div className="flex flex-col gap-2.5 pt-3 border-t border-slate-100">
                                 <div className="flex items-center justify-between">
                                   <label className="text-xs font-bold text-slate-700">
                                     Produkty u dostawcy
@@ -5287,7 +5515,13 @@ export default function OrderDetailPage({
                                         <button
                                           key={prod.id}
                                           type="button"
-                                          onClick={() => toggleProduct({ id: prod.id, name: prod.name })}
+                                          onClick={() =>
+                                            toggleProduct({
+                                              id: prod.id,
+                                              name: prod.name,
+                                              questions: prod.questions,
+                                            })
+                                          }
                                           className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                                             checked
                                               ? "border-amber-500 bg-amber-50 text-amber-900 shadow-2xs"
@@ -5304,12 +5538,70 @@ export default function OrderDetailPage({
                                             ✓
                                           </span>
                                           <span>{prod.name}</span>
+                                          {prod.questions.length > 0 && (
+                                            <span
+                                              className={`rounded px-1 py-0.2 text-[9px] font-bold ${
+                                                checked
+                                                  ? "bg-amber-200/70 text-amber-900"
+                                                  : "bg-slate-100 text-slate-500"
+                                              }`}
+                                            >
+                                              {prod.questions.length} pyt.
+                                            </span>
+                                          )}
                                           {prod.isArchived && (
                                             <span className="text-[9px] font-medium text-slate-400">(nieaktywny)</span>
                                           )}
                                         </button>
                                       );
                                     })}
+                                  </div>
+                                )}
+
+                                {/* Pytania do wybranych produktów */}
+                                {selectedProductsWithQuestions.length > 0 && (
+                                  <div className="flex flex-col gap-2.5 pt-1">
+                                    {selectedProductsWithQuestions.map((prodItem) => (
+                                      <div
+                                        key={prodItem.id}
+                                        className="flex flex-col gap-2 rounded-xl border border-amber-200/90 bg-amber-50/40 p-3"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                                            <span>📋</span>
+                                            <span>Pytania: {prodItem.name}</span>
+                                          </span>
+                                          <span className="text-[10px] font-semibold text-amber-700">
+                                            Odpowiedzi trafią do wiadomości
+                                          </span>
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                          {prodItem.questionsList.map((qItem, qIdx) => (
+                                            <div key={qItem.questionId} className="flex flex-col gap-1">
+                                              <label className="text-[11px] font-semibold text-slate-700">
+                                                {qIdx + 1}. {qItem.question}
+                                              </label>
+                                              <input
+                                                type="text"
+                                                value={qItem.answer}
+                                                onChange={(e) =>
+                                                  updateProductQuestionAnswer(
+                                                    prodItem.id,
+                                                    prodItem.name,
+                                                    qItem.questionId,
+                                                    qItem.question,
+                                                    e.target.value,
+                                                    prodItem.supplierQuestions,
+                                                  )
+                                                }
+                                                placeholder="Wpisz odpowiedź..."
+                                                className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                                              />
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
                               </div>
@@ -8145,10 +8437,25 @@ export default function OrderDetailPage({
                     : "Brak załączników"}
                 </span>
               </div>
+              {draftDeliveryEntry.selectedProducts && draftDeliveryEntry.selectedProducts.length > 0 && (
+                <div className="flex flex-col gap-1 py-1 border-b border-slate-200/60">
+                  <span className="font-semibold text-slate-500">Wybrane produkty:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {draftDeliveryEntry.selectedProducts.map((p) => (
+                      <span
+                        key={p.id}
+                        className="rounded-md bg-amber-100 border border-amber-300 px-2 py-0.5 text-[11px] font-bold text-amber-900"
+                      >
+                        {p.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {draftDeliveryEntry.notes?.trim() && (
                 <div className="flex flex-col gap-1 pt-1">
-                  <span className="font-semibold text-slate-500">Uwagi / Notatki:</span>
-                  <div className="bg-white p-2 rounded border border-slate-200 text-[11px] text-slate-700 italic max-h-24 overflow-y-auto">
+                  <span className="font-semibold text-slate-500">Wiadomości / Specyfikacja:</span>
+                  <div className="bg-white p-2 rounded border border-slate-200 text-[11px] text-slate-700 whitespace-pre-wrap max-h-32 overflow-y-auto">
                     {draftDeliveryEntry.notes.trim()}
                   </div>
                 </div>
