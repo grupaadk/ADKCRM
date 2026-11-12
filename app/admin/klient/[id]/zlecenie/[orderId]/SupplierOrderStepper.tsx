@@ -103,7 +103,7 @@ export default function SupplierOrderStepper({
                 onClick={() => onStepChange(step.key)}
                 className={`w-full text-left rounded-xl px-3 py-2.5 border transition-all flex items-start gap-2.5 cursor-pointer ${
                   isActive
-                    ? "bg-blue-50/90 border-blue-300 shadow-2xs"
+                    ? "bg-[var(--accent-soft)] border-[var(--accent-line)] shadow-2xs"
                     : hasVisibleError
                     ? "bg-red-50/50 border-red-200 hover:bg-red-50"
                     : "bg-white border-transparent hover:bg-slate-50 hover:border-slate-200"
@@ -114,7 +114,7 @@ export default function SupplierOrderStepper({
                     hasVisibleError
                       ? "bg-red-100 text-red-700 border-red-300"
                       : isActive
-                      ? "bg-blue-600 text-white border-blue-600"
+                      ? "bg-brand text-white border-brand"
                       : completed
                       ? "bg-emerald-100 text-emerald-700 border-emerald-300"
                       : "bg-slate-100 text-slate-600 border-slate-200"
@@ -128,7 +128,7 @@ export default function SupplierOrderStepper({
                       hasVisibleError
                         ? "text-red-800"
                         : isActive
-                        ? "text-blue-900"
+                        ? "text-[#1c646a]"
                         : "text-slate-800"
                     }`}
                   >

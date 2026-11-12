@@ -172,7 +172,7 @@ export default function SupplierOrderSummary({
             className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer disabled:opacity-50 ${
               isApiEnabled
                 ? "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                : "bg-teal-600 text-white border-teal-600 hover:bg-teal-700 shadow-xs"
+                : "bg-brand text-white border-brand hover:bg-brand-hover shadow-xs"
             }`}
           >
             {saving ? "Zapisywanie..." : isApiEnabled ? "Zapisz szkic" : "Zapisz zamówienie"}

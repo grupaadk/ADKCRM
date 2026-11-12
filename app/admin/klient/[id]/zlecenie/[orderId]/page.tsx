@@ -19,6 +19,7 @@ import OrderDriveFilePicker, { type SelectedFileItem } from "./OrderDriveFilePic
 import SupplierOrderStepper from "./SupplierOrderStepper";
 import ProductQuestionsForm from "./ProductQuestionsForm";
 import SupplierOrderSummary from "./SupplierOrderSummary";
+import SupplierNotesWysiwyg from "./SupplierNotesWysiwyg";
 import { getSupplierOrderIssues, type SupplierOrderStep } from "@/convex/lib/supplierOrderValidation";
 import TaskDrawer from "@/components/TaskDrawer";
 import SideDrawer from "@/components/SideDrawer";
@@ -5390,29 +5391,45 @@ export default function OrderDetailPage({
                     </div>
                   );
 
-                  const milestonesCardJsx = (
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-700">
-                          Etapy i terminy realizacji
-                        </span>
-                        <span className="text-[10px] font-medium text-slate-400">
-                          Data realizacji
-                        </span>
-                      </div>
-                      <div className="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden">
-                              {DELIVERY_MILESTONES.map((m) => {
-                                const val = draftDeliveryEntry[m.key];
-                                const isSet = val != null;
-                                const isWebhookSupplier = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("ALCO") || currentSupplier?.name?.toUpperCase().includes("EXALCO");
-                                const isLockedByWebhook = isWebhookSupplier && (m.key === "confirmedDate" || m.key === "deliveryDate");
+                  const renderMilestonesSection = (layout: "grid" | "list") => {
+                    const isWebhookSupplier =
+                      Boolean(currentSupplier?.isApiEnabled) ||
+                      Boolean(currentSupplier?.name?.toUpperCase().includes("ALCO")) ||
+                      Boolean(currentSupplier?.name?.toUpperCase().includes("EXALCO"));
 
-                                return (
-                                  <div
-                                    key={m.key}
-                                    className="flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-slate-50/60 transition-colors"
-                                  >
-                                    <div className="flex items-center gap-2 min-w-0">
+                    if (layout === "grid") {
+                      return (
+                        <div className="flex flex-col gap-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-slate-700">
+                              Etapy i terminy realizacji
+                            </span>
+                            {isWebhookSupplier && (
+                              <span className="text-[11px] font-medium text-slate-400">
+                                Potwierdzenie i dostawa pobierają się automatycznie z ALCO
+                              </span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            {DELIVERY_MILESTONES.map((m, idx) => {
+                              const val = draftDeliveryEntry[m.key];
+                              const isSet = val != null;
+                              const isLockedByWebhook =
+                                isWebhookSupplier && (m.key === "confirmedDate" || m.key === "deliveryDate");
+
+                              return (
+                                <div
+                                  key={m.key}
+                                  className={`rounded-xl border p-3 flex flex-col gap-2 transition-colors ${
+                                    isLockedByWebhook
+                                      ? "border-slate-200/80 bg-slate-50/70"
+                                      : isSet
+                                      ? "border-[var(--accent-line)] bg-[var(--accent-soft)]"
+                                      : "border-slate-200 bg-white"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-1.5">
+                                    <div className="flex items-center gap-1.5 min-w-0">
                                       <span
                                         className="rounded-full shrink-0"
                                         style={{ backgroundColor: m.tone, width: 8, height: 8 }}
@@ -5421,48 +5438,118 @@ export default function OrderDetailPage({
                                         className="text-xs font-bold truncate"
                                         style={{ color: isSet ? m.tone : "#1e293b" }}
                                       >
-                                        {m.label}
+                                        {idx + 1}. {m.label}
                                       </span>
-                                      {isLockedByWebhook && (
-                                        <span
-                                          className="text-[9px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0"
-                                          title="Data pobierana automatycznie z webhooka (ALCO)"
-                                        >
-                                          Auto
-                                        </span>
-                                      )}
                                     </div>
-
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                      <input
-                                        type="date"
-                                        value={tsToDateStr(val)}
-                                        disabled={isLockedByWebhook}
-                                        title={isLockedByWebhook ? "Data pobierana automatycznie z webhooka (ALCO)" : undefined}
-                                        onChange={(e) => updateDraftSingleField(m.key, dateStrToTs(e.target.value))}
-                                        className="w-[144px] rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-                                      />
-                                      <div className="w-6 flex items-center justify-center shrink-0">
-                                        {isSet && !isLockedByWebhook ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => updateDraftSingleField(m.key, undefined)}
-                                            className="w-6 h-6 inline-flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 font-bold rounded-md text-xs transition-colors"
-                                            title={`Wyczyść datę dla ${m.label}`}
-                                          >
-                                            ✕
-                                          </button>
-                                        ) : (
-                                          <span className="text-slate-300 text-xs select-none">—</span>
-                                        )}
-                                      </div>
-                                    </div>
+                                    {isLockedByWebhook ? (
+                                      <span
+                                        className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded shrink-0"
+                                        title="Data pobierana automatycznie z webhooka (ALCO)"
+                                      >
+                                        Auto
+                                      </span>
+                                    ) : isSet ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => updateDraftSingleField(m.key, undefined)}
+                                        className="w-5 h-5 inline-flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 font-bold rounded text-[11px] transition-colors cursor-pointer"
+                                        title={`Wyczyść datę dla ${m.label}`}
+                                      >
+                                        ✕
+                                      </button>
+                                    ) : null}
                                   </div>
-                                );
-                              })}
-                            </div>
+
+                                  <input
+                                    type="date"
+                                    value={tsToDateStr(val)}
+                                    disabled={isLockedByWebhook}
+                                    title={isLockedByWebhook ? "Data pobierana automatycznie z webhooka (ALCO)" : undefined}
+                                    onChange={(e) => updateDraftSingleField(m.key, dateStrToTs(e.target.value))}
+                                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:border-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                  />
+                                </div>
+                              );
+                            })}
                           </div>
-                  );
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-700">
+                            Etapy i terminy realizacji
+                          </span>
+                          <span className="text-[10px] font-medium text-slate-400">
+                            Data realizacji
+                          </span>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden">
+                          {DELIVERY_MILESTONES.map((m) => {
+                            const val = draftDeliveryEntry[m.key];
+                            const isSet = val != null;
+                            const isLockedByWebhook =
+                              isWebhookSupplier && (m.key === "confirmedDate" || m.key === "deliveryDate");
+
+                            return (
+                              <div
+                                key={m.key}
+                                className="flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-slate-50/60 transition-colors"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span
+                                    className="rounded-full shrink-0"
+                                    style={{ backgroundColor: m.tone, width: 8, height: 8 }}
+                                  />
+                                  <span
+                                    className="text-xs font-bold truncate"
+                                    style={{ color: isSet ? m.tone : "#1e293b" }}
+                                  >
+                                    {m.label}
+                                  </span>
+                                  {isLockedByWebhook && (
+                                    <span
+                                      className="text-[9px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0"
+                                      title="Data pobierana automatycznie z webhooka (ALCO)"
+                                    >
+                                      Auto
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <input
+                                    type="date"
+                                    value={tsToDateStr(val)}
+                                    disabled={isLockedByWebhook}
+                                    title={isLockedByWebhook ? "Data pobierana automatycznie z webhooka (ALCO)" : undefined}
+                                    onChange={(e) => updateDraftSingleField(m.key, dateStrToTs(e.target.value))}
+                                    className="w-[144px] rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                  />
+                                  <div className="w-6 flex items-center justify-center shrink-0">
+                                    {isSet && !isLockedByWebhook ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => updateDraftSingleField(m.key, undefined)}
+                                        className="w-6 h-6 inline-flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 font-bold rounded-md text-xs transition-colors"
+                                        title={`Wyczyść datę dla ${m.label}`}
+                                      >
+                                        ✕
+                                      </button>
+                                    ) : (
+                                      <span className="text-slate-300 text-xs select-none">—</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  };
 
                   const sentApiFilesCardJsx =
                     draftDeliveryEntry.sentApiFiles && draftDeliveryEntry.sentApiFiles.length > 0 ? (
@@ -5641,7 +5728,7 @@ export default function OrderDetailPage({
                                 </div>
                                 {supplierAndAmountFieldsJsx}
                                 <div className="pt-3 border-t border-slate-100">
-                                  {milestonesCardJsx}
+                                  {renderMilestonesSection("grid")}
                                 </div>
                               </div>
 
@@ -5649,7 +5736,7 @@ export default function OrderDetailPage({
                                 <button
                                   type="button"
                                   onClick={() => setWizardStep("products")}
-                                  className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                                  className="px-5 py-2.5 text-xs font-bold text-white bg-brand hover:bg-brand-hover rounded-xl shadow-xs transition-colors cursor-pointer"
                                 >
                                   Dalej: Produkty i pytania →
                                 </button>
@@ -5683,7 +5770,7 @@ export default function OrderDetailPage({
                                 <button
                                   type="button"
                                   onClick={() => setWizardStep("attachments")}
-                                  className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                                  className="px-5 py-2.5 text-xs font-bold text-white bg-brand hover:bg-brand-hover rounded-xl shadow-xs transition-colors cursor-pointer"
                                 >
                                   Dalej: Załączniki i uwagi →
                                 </button>
@@ -5705,7 +5792,7 @@ export default function OrderDetailPage({
                                       </p>
                                     </div>
                                     {selectedDriveList.length > 0 && (
-                                      <span className="text-[11px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                                      <span className="text-[11px] font-bold text-[#1c646a] bg-[var(--accent-soft)] border border-[var(--accent-line)] px-2.5 py-0.5 rounded-full">
                                         Wybrano: {selectedDriveList.length}
                                       </span>
                                     )}
@@ -5731,61 +5818,100 @@ export default function OrderDetailPage({
                                   </p>
                                 </div>
 
-                                <div className="flex flex-col gap-2">
-                                  <textarea
-                                    rows={3}
-                                    value={newSupplierNoteText}
-                                    onChange={(e) => setNewSupplierNoteText(e.target.value)}
-                                    placeholder="Wpisz treść uwagi lub wiadomości..."
-                                    className="w-full rounded-xl border border-slate-300 bg-white p-3 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-y"
-                                  />
-                                  <div className="flex justify-end">
-                                    <button
-                                      type="button"
-                                      disabled={!newSupplierNoteText.trim() || addingSupplierNote}
-                                      onClick={() => void handleAddSupplierNoteToFeed()}
-                                      className="px-4 py-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 rounded-lg disabled:opacity-40 cursor-pointer"
-                                    >
-                                      {addingSupplierNote ? "Dodawanie..." : "+ Dodaj uwagę do szkicu"}
-                                    </button>
-                                  </div>
-                                </div>
+                                {(() => {
+                                  const initialNoteEntry =
+                                    draftCustomNotes.find((n) => n.id.startsWith("initial-note-")) ??
+                                    draftCustomNotes[0];
+                                  const extraCustomNotes = draftCustomNotes.filter(
+                                    (n) => n.id !== initialNoteEntry?.id,
+                                  );
 
-                                {draftCustomNotes.length > 0 && (
-                                  <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
-                                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                                      Dodane uwagi ({draftCustomNotes.length})
-                                    </div>
-                                    {draftCustomNotes.map((noteItem) => (
-                                      <div
-                                        key={noteItem.id}
-                                        className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 flex items-start justify-between gap-3 text-xs"
-                                      >
-                                        <p className="m-0 whitespace-pre-wrap text-slate-800 flex-1">
-                                          {noteItem.note}
-                                        </p>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setDraftDeliveryEntry((prev) => {
-                                              if (!prev) return prev;
-                                              const nextFeed = (prev.notesFeed ?? []).filter((n) => n.id !== noteItem.id);
-                                              return {
-                                                ...prev,
-                                                notesFeed: nextFeed,
-                                                notes: nextFeed.map((n) => n.note).join("\n---\n"),
-                                              };
-                                            });
-                                          }}
-                                          className="text-rose-600 hover:text-rose-800 font-bold text-xs shrink-0 bg-transparent border-0 cursor-pointer"
-                                          title="Usuń uwagę"
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
+                                  const handleWysiwygChange = (nextText: string) => {
+                                    setDraftDeliveryEntry((prev) => {
+                                      if (!prev) return prev;
+                                      const currentFeed = prev.notesFeed ?? [];
+                                      const trimmed = nextText.trim();
+                                      const targetId =
+                                        initialNoteEntry?.id ?? `initial-note-${Date.now()}`;
+                                      let nextFeed: NonNullable<typeof prev.notesFeed>;
+
+                                      if (!trimmed) {
+                                        nextFeed = currentFeed.filter((n) => n.id !== targetId);
+                                      } else if (currentFeed.some((n) => n.id === targetId)) {
+                                        nextFeed = currentFeed.map((n) =>
+                                          n.id === targetId ? { ...n, note: nextText } : n,
+                                        );
+                                      } else {
+                                        nextFeed = [
+                                          ...currentFeed,
+                                          {
+                                            id: targetId,
+                                            note: nextText,
+                                            createdAt: Date.now(),
+                                            createdBy: me?._id,
+                                            createdByName: me?.displayName ?? me?.login ?? "Ja",
+                                            senderType: "adk" as const,
+                                            sentToCrm: false,
+                                          },
+                                        ];
+                                      }
+
+                                      return {
+                                        ...prev,
+                                        notesFeed: nextFeed,
+                                        notes: nextFeed.map((n) => n.note).join("\n---\n"),
+                                      };
+                                    });
+                                  };
+
+                                  return (
+                                    <>
+                                      <SupplierNotesWysiwyg
+                                        value={initialNoteEntry?.note ?? ""}
+                                        onChange={handleWysiwygChange}
+                                        placeholder="Wpisz treść uwagi lub wiadomości początkowej..."
+                                      />
+
+                                      {extraCustomNotes.length > 0 && (
+                                        <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
+                                          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                                            Pozostałe uwagi ({extraCustomNotes.length})
+                                          </div>
+                                          {extraCustomNotes.map((noteItem) => (
+                                            <div
+                                              key={noteItem.id}
+                                              className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 flex items-start justify-between gap-3 text-xs"
+                                            >
+                                              <p className="m-0 whitespace-pre-wrap text-slate-800 flex-1">
+                                                {noteItem.note}
+                                              </p>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setDraftDeliveryEntry((prev) => {
+                                                    if (!prev) return prev;
+                                                    const nextFeed = (prev.notesFeed ?? []).filter(
+                                                      (n) => n.id !== noteItem.id,
+                                                    );
+                                                    return {
+                                                      ...prev,
+                                                      notesFeed: nextFeed,
+                                                      notes: nextFeed.map((n) => n.note).join("\n---\n"),
+                                                    };
+                                                  });
+                                                }}
+                                                className="text-rose-600 hover:text-rose-800 font-bold text-xs shrink-0 bg-transparent border-0 cursor-pointer"
+                                                title="Usuń uwagę"
+                                              >
+                                                ✕
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </div>
 
                               <div className="flex items-center justify-between gap-3">
@@ -5802,7 +5928,7 @@ export default function OrderDetailPage({
                                     setShowValidation(true);
                                     setWizardStep("summary");
                                   }}
-                                  className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                                  className="px-5 py-2.5 text-xs font-bold text-white bg-brand hover:bg-brand-hover rounded-xl shadow-xs transition-colors cursor-pointer"
                                 >
                                   Dalej: Podsumowanie →
                                 </button>
@@ -6555,7 +6681,7 @@ export default function OrderDetailPage({
                         <div className="flex flex-col gap-4 p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
                           {supplierAndAmountFieldsJsx}
                           <div className="pt-3 border-t border-slate-100">
-                            {milestonesCardJsx}
+                            {renderMilestonesSection("list")}
                           </div>
                           {sentApiFilesCardJsx}
                         </div>
