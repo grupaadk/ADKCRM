@@ -1991,6 +1991,12 @@ export default function OrderDetailPage({
     setComposeOpen(false);
     setComposeMinimized(false);
     setComposeMaximized(false);
+    if (searchParams.get("deliveryIndex") !== null) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("deliveryIndex");
+      const qs = params.toString();
+      router.replace(`/admin/klient/${id}/zlecenie/${orderId}${qs ? `?${qs}` : ""}`);
+    }
   }
 
   const openedDeliveryFromUrlRef = useRef(false);
@@ -5040,11 +5046,25 @@ export default function OrderDetailPage({
                       <ServiceIcon name={editingDeliverySvc ?? ""} size={18} />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-bold text-slate-900 truncate">
-                        {editingDeliveryIndex !== null ? "Szczegóły zamówienia u dostawcy" : "Nowe zamówienie u dostawcy"} · {editingDeliverySvc}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-bold text-slate-900 truncate">
+                          {editingDeliveryIndex !== null
+                            ? `Szczegóły zamówienia #${editingDeliveryIndex + 1}`
+                            : "Nowe zamówienie u dostawcy"}{" "}
+                          · {editingDeliverySvc}
+                        </span>
+                        {draftDeliveryEntry.externalOrderNumber ? (
+                          <span className="inline-flex items-center text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md shrink-0">
+                            {draftDeliveryEntry.externalOrderNumber}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md shrink-0">
+                            Oczekuje (niewysłane)
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] text-slate-500 truncate">
-                        Zlecenie {order?.orderNumber ?? ""} {client ? `· ${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() : ""}
+                        Zlecenie {order?.name ?? ""} {client ? `· ${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() : ""}
                       </div>
                     </div>
                   </div>
@@ -5659,12 +5679,12 @@ export default function OrderDetailPage({
                                 )}
                               </div>
 
-                              {/* Wiersz tematu jak w Gmailu */}
+                                {/* Wiersz tematu jak w Gmailu */}
                               <div className="px-5 py-2 bg-white border-b border-slate-100 flex items-center justify-between text-xs text-slate-600 shrink-0">
                                 <span className="truncate">
                                   <span className="text-slate-400 mr-2">Temat:</span>
                                   <span className="font-medium text-slate-800">
-                                    Zamówienie {editingDeliverySvc} · {order?.orderNumber ?? ""} {client ? `(${client.firstName ?? ""} ${client.lastName ?? ""})`.trim() : ""}
+                                    Zamówienie {editingDeliverySvc} · {order?.name ?? ""} {client ? `(${client.firstName ?? ""} ${client.lastName ?? ""})`.trim() : ""}
                                   </span>
                                 </span>
                               </div>
@@ -5868,7 +5888,9 @@ export default function OrderDetailPage({
                                 <div className="flex items-center gap-3 flex-wrap min-w-0">
                                   <h2 className="text-[21px] font-normal text-[#1f1f1f] truncate">
                                     {isExalcoSupplier
-                                      ? `Korespondencja z Exalco — ${editingDeliverySvc}`
+                                      ? draftDeliveryEntry.externalOrderNumber
+                                        ? `Korespondencja z Exalco (${draftDeliveryEntry.externalOrderNumber}) — ${editingDeliverySvc}`
+                                        : `Korespondencja z Exalco (Zamówienie #${editingDeliveryIndex !== null ? editingDeliveryIndex + 1 : "nowe"}) — ${editingDeliverySvc}`
                                       : `Notatki do zamówienia — ${editingDeliverySvc} (${currentSupplier?.name ?? "Dostawca"})`}
                                   </h2>
                                   <span className="text-xs font-medium bg-[#e8eaed] text-[#3c4043] px-2.5 py-0.5 rounded-md">

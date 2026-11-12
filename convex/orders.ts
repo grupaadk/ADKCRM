@@ -163,11 +163,30 @@ export const getById = query({
     if (!order) return null;
 
     if (order.serviceDeliveries && order.serviceDeliveries.length > 0) {
-      const sanitizedDeliveries = order.serviceDeliveries.map((d) => {
+      const deliveriesArr = order.serviceDeliveries;
+      const sanitizedDeliveries = deliveriesArr.map((d, idx) => {
+        const hasExternalRef = Boolean(d.externalOrderId || d.externalOrderNumber);
+        const otherNoteIds = new Set(
+          deliveriesArr
+            .filter((_, otherIdx) => otherIdx !== idx)
+            .flatMap((other) => (other.notesFeed ?? []).map((n) => n.id)),
+        );
+        const cleanedNotesFeed =
+          !hasExternalRef && d.notesFeed
+            ? d.notesFeed.filter(
+                (n) => n.sentToCrm !== true && n.senderType !== "exalco" && !otherNoteIds.has(n.id),
+              )
+            : d.notesFeed;
+
         const baseOrderDate = d.orderDate ?? order._creationTime;
-        if (d.deliveryDate && baseOrderDate && Math.abs(d.deliveryDate - baseOrderDate) < 86400000) {
-          const copy = { ...d };
-          delete copy.deliveryDate;
+        const shouldStripDeliveryDate =
+          Boolean(d.deliveryDate && baseOrderDate && Math.abs(d.deliveryDate - baseOrderDate) < 86400000);
+
+        if (shouldStripDeliveryDate || cleanedNotesFeed !== d.notesFeed) {
+          const copy = { ...d, notesFeed: cleanedNotesFeed };
+          if (shouldStripDeliveryDate) {
+            delete copy.deliveryDate;
+          }
           return copy;
         }
         return d;
