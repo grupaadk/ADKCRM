@@ -5374,8 +5374,15 @@ export default function OrderDetailPage({
                     selectedProducts: draftDeliveryEntry.selectedProducts,
                     supplierProducts: currentSupplier?.products,
                   });
-                  const qaPreviewText = formatSelectedProductsQaMessage(draftDeliveryEntry.selectedProducts) ?? "";
                   const draftCustomNotes = (draftDeliveryEntry.notesFeed ?? []).filter((n) => !n.id.startsWith("product-qa-"));
+                  const rawQaPreview = formatSelectedProductsQaMessage(draftDeliveryEntry.selectedProducts) ?? "";
+                  const cleanQaPreview = rawQaPreview.replace(/^📋 Specyfikacja produktów:\s*/i, "").trim();
+                  const customNotesPreview = draftCustomNotes
+                    .map((n) => n.note.trim())
+                    .filter(Boolean);
+                  const qaPreviewText = [cleanQaPreview, ...customNotesPreview]
+                    .filter(Boolean)
+                    .join("\n---\n");
                   const missingNetAmount = showValidation && (!draftDeliveryEntry.netAmount || draftDeliveryEntry.netAmount <= 0);
 
                   const supplierAndAmountFieldsJsx = (
