@@ -3651,7 +3651,7 @@ function SupplierProductsEditor({
       </div>
       {localError && <p className="text-[11px] font-medium text-red-600">{localError}</p>}
       {products.length > 0 && (
-        <div className="flex flex-col gap-1.5 max-h-80 overflow-y-auto pr-1">
+        <div className="flex flex-col gap-1.5">
           {products.map((prod) => {
             const questions = prod.questions ?? [];
             const isExpanded = expandedProductId === prod.id;
@@ -3659,7 +3659,7 @@ function SupplierProductsEditor({
             return (
               <div
                 key={prod.id}
-                className="flex flex-col rounded-lg border border-slate-200 bg-white overflow-hidden"
+                className="flex shrink-0 flex-col rounded-lg border border-slate-200 bg-white overflow-hidden"
               >
                 <div className="flex items-center gap-2 px-2.5 py-1.5">
                   <input
