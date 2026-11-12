@@ -5127,32 +5127,32 @@ export default function OrderDetailPage({
                   return (
                     <>
                       {/* Lewy pasek boczny Gmaila: przycisk "Utwórz / Napisz wiadomość" + parametry zamówienia */}
-                      <div className="w-[370px] shrink-0 flex flex-col gap-4 overflow-y-auto min-h-0 pr-1">
-                        {/* Charakterystyczny przycisk "Utwórz" z Gmaila */}
-                        <div className="flex items-center gap-2">
+                      <div className="w-[420px] shrink-0 flex flex-col gap-3.5 overflow-y-auto min-h-0 pr-1">
+                        {/* Spójny pasek głównych przycisków akcji na górze */}
+                        <div className="flex items-stretch gap-2 shrink-0">
                           <button
                             type="button"
                             onClick={() => openGmailCompose(false)}
-                            className="inline-flex items-center gap-3 bg-[#c2e7ff] hover:bg-[#b3dffc] text-[#001d35] font-semibold text-sm px-6 py-3.5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer"
+                            className="flex-1 h-12 inline-flex items-center justify-center gap-2.5 bg-[#c2e7ff] hover:bg-[#b3dffc] text-[#001d35] font-semibold text-sm px-4 rounded-xl shadow-xs hover:shadow-sm transition-all cursor-pointer"
                           >
-                            <svg className="w-5 h-5 text-[#001d35]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <svg className="w-4 h-4 text-[#001d35] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                             </svg>
-                            {isExalcoSupplierSidebar ? "Napisz wiadomość" : "Dodaj uwagę"}
+                            <span className="truncate">{isExalcoSupplierSidebar ? "Napisz wiadomość" : "Dodaj uwagę"}</span>
                           </button>
                           {currentSupplier?.isApiEnabled && (
                             <button
                               type="button"
                               onClick={() => openGmailCompose(true)}
-                              className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold text-xs px-3.5 py-3.5 rounded-2xl shadow-2xs transition-colors"
+                              className="h-12 shrink-0 inline-flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 font-semibold text-xs px-3.5 rounded-xl shadow-2xs transition-colors cursor-pointer"
                               title="Załącz pliki z Google Drive"
                             >
-                              <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <svg className="w-4 h-4 text-[#0b57d0] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                               </svg>
-                              Załącz z Drive
+                              <span>Załącz z Drive</span>
                               {Object.keys(selectedDriveFiles).length > 0 && (
-                                <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                                <span className="bg-[#0b57d0] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
                                   {Object.keys(selectedDriveFiles).length}
                                 </span>
                               )}
@@ -5161,333 +5161,337 @@ export default function OrderDetailPage({
                         </div>
 
                         <div className="flex flex-col gap-4 p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
-                      {/* Wybór dostawcy i Kwota netto w 2 równych kolumnach z wyrównaniem */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="flex flex-col justify-between">
-                          <label className="text-xs font-bold text-slate-700 min-h-[32px] flex items-end pb-1">
-                            Dostawca realizujący zamówienie
-                          </label>
-                          <select
-                            value={draftDeliveryEntry.supplierId}
-                            onChange={(e) => {
-                              const nextSupplierId = e.target.value as Id<"suppliers">;
-                              setDraftDeliveryEntry((prev) =>
-                                prev ? { ...prev, supplierId: nextSupplierId, selectedProducts: [] } : prev
-                              );
-                            }}
-                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs h-[38px]"
-                          >
-                            {(availableSuppliers.length > 0 ? availableSuppliers : allSuppliers).map((s) => (
-                              <option key={s._id} value={s._id}>
-                                {s.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="flex flex-col justify-between">
-                          <label className="text-xs font-bold text-slate-700 min-h-[32px] flex items-end pb-1">
-                            Kwota netto (PLN)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0.00"
-                            value={draftDeliveryEntry.netAmount ?? ""}
-                            onChange={(e) => {
-                              const val = e.target.value ? parseFloat(e.target.value) : undefined;
-                              updateDraftSingleField("netAmount", val);
-                            }}
-                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs h-[38px]"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Wybór produktów przypisanych do dostawcy */}
-                      {(() => {
-                        const activeSupplierProducts = (currentSupplier?.products ?? []).filter((p) => p.isActive);
-                        const selectedList = draftDeliveryEntry.selectedProducts ?? [];
-                        const activeIds = new Set(activeSupplierProducts.map((p) => p.id));
-                        const legacySelected = selectedList.filter((p) => !activeIds.has(p.id));
-                        const allOptions = [
-                          ...activeSupplierProducts.map((p) => ({ id: p.id, name: p.name, isArchived: false })),
-                          ...legacySelected.map((p) => ({ id: p.id, name: p.name, isArchived: true })),
-                        ];
-
-                        const toggleProduct = (prod: { id: string; name: string }) => {
-                          setDraftDeliveryEntry((prev) => {
-                            if (!prev) return prev;
-                            const curr = prev.selectedProducts ?? [];
-                            const exists = curr.some((item) => item.id === prod.id);
-                            const next = exists
-                              ? curr.filter((item) => item.id !== prod.id)
-                              : [...curr, { id: prod.id, name: prod.name }];
-                            return { ...prev, selectedProducts: next };
-                          });
-                        };
-
-                        return (
-                          <div className="flex flex-col gap-2 pt-3 border-t border-slate-200">
-                            <div className="flex items-center justify-between">
-                              <label className="text-xs font-bold text-slate-700">
-                                Produkty u dostawcy
+                          {/* Dostawca i Kwota netto w czytelnym układzie bez łamania etykiet */}
+                          <div className="grid grid-cols-12 gap-3">
+                            <div className="col-span-7 flex flex-col gap-1.5 min-w-0">
+                              <label className="text-xs font-bold text-slate-700 truncate">
+                                Dostawca zamówienia
                               </label>
-                              {selectedList.length > 0 && (
-                                <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                                  Wybrano: {selectedList.length}
-                                </span>
-                              )}
-                            </div>
-                            {allOptions.length === 0 ? (
-                              <p className="text-xs text-slate-400 bg-white border border-dashed border-slate-200 rounded-lg px-3 py-2">
-                                Ten dostawca nie ma przypisanych produktów. Możesz je dodać w Ustawienia → Dostawcy.
-                              </p>
-                            ) : (
-                              <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl border border-slate-200 bg-white">
-                                {allOptions.map((prod) => {
-                                  const checked = selectedList.some((s) => s.id === prod.id);
-                                  return (
-                                    <button
-                                      key={prod.id}
-                                      type="button"
-                                      onClick={() => toggleProduct({ id: prod.id, name: prod.name })}
-                                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all ${
-                                        checked
-                                          ? "border-amber-500 bg-amber-50 text-amber-900 shadow-2xs"
-                                          : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100"
-                                      }`}
-                                    >
-                                      <span
-                                        className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded border text-[9px] font-bold ${
-                                          checked
-                                            ? "border-amber-600 bg-amber-600 text-white"
-                                            : "border-slate-300 bg-white text-transparent"
-                                        }`}
-                                      >
-                                        ✓
-                                      </span>
-                                      <span>{prod.name}</span>
-                                      {prod.isArchived && (
-                                        <span className="text-[9px] font-medium text-slate-400">(nieaktywny)</span>
-                                      )}
-                                    </button>
+                              <select
+                                value={draftDeliveryEntry.supplierId}
+                                onChange={(e) => {
+                                  const nextSupplierId = e.target.value as Id<"suppliers">;
+                                  setDraftDeliveryEntry((prev) =>
+                                    prev ? { ...prev, supplierId: nextSupplierId, selectedProducts: [] } : prev
                                   );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
+                                }}
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs h-[38px]"
+                              >
+                                {(availableSuppliers.length > 0 ? availableSuppliers : allSuppliers).map((s) => (
+                                  <option key={s._id} value={s._id}>
+                                    {s.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
 
-                      {/* Daty etapów zamówienia w formie eleganckiej tabeli */}
-                      <div className="flex flex-col gap-3 pt-3 border-t border-slate-200">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Etapy i terminy realizacji</span>
-                        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-                          <table className="w-full border-collapse text-left text-xs">
-                            <thead>
-                              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
-                                <th className="py-2.5 px-3.5 w-1/3">Etap</th>
-                                <th className="py-2.5 px-3.5 w-1/2">Data</th>
-                                <th className="py-2.5 px-3.5 text-right w-1/6">Akcje</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <div className="col-span-5 flex flex-col gap-1.5 min-w-0">
+                              <label className="text-xs font-bold text-slate-700 truncate">
+                                Kwota netto (PLN)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                value={draftDeliveryEntry.netAmount ?? ""}
+                                onChange={(e) => {
+                                  const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                                  updateDraftSingleField("netAmount", val);
+                                }}
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-xs h-[38px]"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Wybór produktów przypisanych do dostawcy */}
+                          {(() => {
+                            const activeSupplierProducts = (currentSupplier?.products ?? []).filter((p) => p.isActive);
+                            const selectedList = draftDeliveryEntry.selectedProducts ?? [];
+                            const activeIds = new Set(activeSupplierProducts.map((p) => p.id));
+                            const legacySelected = selectedList.filter((p) => !activeIds.has(p.id));
+                            const allOptions = [
+                              ...activeSupplierProducts.map((p) => ({ id: p.id, name: p.name, isArchived: false })),
+                              ...legacySelected.map((p) => ({ id: p.id, name: p.name, isArchived: true })),
+                            ];
+
+                            const toggleProduct = (prod: { id: string; name: string }) => {
+                              setDraftDeliveryEntry((prev) => {
+                                if (!prev) return prev;
+                                const curr = prev.selectedProducts ?? [];
+                                const exists = curr.some((item) => item.id === prod.id);
+                                const next = exists
+                                  ? curr.filter((item) => item.id !== prod.id)
+                                  : [...curr, { id: prod.id, name: prod.name }];
+                                return { ...prev, selectedProducts: next };
+                              });
+                            };
+
+                            return (
+                              <div className="flex flex-col gap-2 pt-3 border-t border-slate-100">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-xs font-bold text-slate-700">
+                                    Produkty u dostawcy
+                                  </label>
+                                  {selectedList.length > 0 && (
+                                    <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                      Wybrano: {selectedList.length}
+                                    </span>
+                                  )}
+                                </div>
+                                {allOptions.length === 0 ? (
+                                  <p className="text-xs text-slate-400 bg-slate-50/60 border border-dashed border-slate-200 rounded-lg px-3 py-2">
+                                    Ten dostawca nie ma przypisanych produktów. Możesz je dodać w Ustawienia → Dostawcy.
+                                  </p>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl border border-slate-200 bg-slate-50/40">
+                                    {allOptions.map((prod) => {
+                                      const checked = selectedList.some((s) => s.id === prod.id);
+                                      return (
+                                        <button
+                                          key={prod.id}
+                                          type="button"
+                                          onClick={() => toggleProduct({ id: prod.id, name: prod.name })}
+                                          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                                            checked
+                                              ? "border-amber-500 bg-amber-50 text-amber-900 shadow-2xs"
+                                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                                          }`}
+                                        >
+                                          <span
+                                            className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded border text-[9px] font-bold ${
+                                              checked
+                                                ? "border-amber-600 bg-amber-600 text-white"
+                                                : "border-slate-300 bg-white text-transparent"
+                                            }`}
+                                          >
+                                            ✓
+                                          </span>
+                                          <span>{prod.name}</span>
+                                          {prod.isArchived && (
+                                            <span className="text-[9px] font-medium text-slate-400">(nieaktywny)</span>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* Etapy i terminy realizacji — czytelna lista wierszy bez ucinania kolumn */}
+                          <div className="flex flex-col gap-2 pt-3 border-t border-slate-100">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-700">
+                                Etapy i terminy realizacji
+                              </span>
+                              <span className="text-[10px] font-medium text-slate-400">
+                                Data realizacji
+                              </span>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden">
                               {DELIVERY_MILESTONES.map((m) => {
                                 const val = draftDeliveryEntry[m.key];
                                 const isSet = val != null;
-                                const currentSupplier = allSuppliers.find((s) => s._id === draftDeliveryEntry.supplierId);
                                 const isWebhookSupplier = !!currentSupplier?.isApiEnabled || currentSupplier?.name?.toUpperCase().includes("ALCO") || currentSupplier?.name?.toUpperCase().includes("EXALCO");
                                 const isLockedByWebhook = isWebhookSupplier && (m.key === "confirmedDate" || m.key === "deliveryDate");
 
                                 return (
-                                  <tr key={m.key} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="py-2.5 px-3.5 font-bold align-middle">
-                                      <div className="flex items-center gap-2">
-                                        <span className="w-2 height-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.tone, width: 8, height: 8 }} />
-                                        <span style={{ color: isSet ? m.tone : "var(--text-strong)" }}>{m.label}</span>
-                                      </div>
-                                    </td>
-                                    <td className="py-2.5 px-3.5 align-middle">
+                                  <div
+                                    key={m.key}
+                                    className="flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-slate-50/60 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span
+                                        className="rounded-full shrink-0"
+                                        style={{ backgroundColor: m.tone, width: 8, height: 8 }}
+                                      />
+                                      <span
+                                        className="text-xs font-bold truncate"
+                                        style={{ color: isSet ? m.tone : "#1e293b" }}
+                                      >
+                                        {m.label}
+                                      </span>
+                                      {isLockedByWebhook && (
+                                        <span
+                                          className="text-[9px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0"
+                                          title="Data pobierana automatycznie z webhooka (ALCO)"
+                                        >
+                                          Auto
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 shrink-0">
                                       <input
                                         type="date"
                                         value={tsToDateStr(val)}
                                         disabled={isLockedByWebhook}
                                         title={isLockedByWebhook ? "Data pobierana automatycznie z webhooka (ALCO)" : undefined}
                                         onChange={(e) => updateDraftSingleField(m.key, dateStrToTs(e.target.value))}
-                                        className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                        className="w-[144px] rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                                       />
-                                    </td>
-                                    <td className="py-2.5 px-3.5 text-right align-middle">
-                                      {isSet && !isLockedByWebhook ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => updateDraftSingleField(m.key, undefined)}
-                                          className="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded text-xs transition-colors"
-                                          title={`Wyczyść datę dla ${m.label}`}
-                                        >
-                                          ✕
-                                        </button>
-                                      ) : (
-                                        <span className="text-slate-300 text-xs">—</span>
-                                      )}
-                                    </td>
-                                  </tr>
+                                      <div className="w-6 flex items-center justify-center shrink-0">
+                                        {isSet && !isLockedByWebhook ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => updateDraftSingleField(m.key, undefined)}
+                                            className="w-6 h-6 inline-flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 font-bold rounded-md text-xs transition-colors"
+                                            title={`Wyczyść datę dla ${m.label}`}
+                                          >
+                                            ✕
+                                          </button>
+                                        ) : (
+                                          <span className="text-slate-300 text-xs select-none">—</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
                                 );
                               })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* Lista plików wysłanych po API */}
-                      {draftDeliveryEntry.sentApiFiles && draftDeliveryEntry.sentApiFiles.length > 0 && (
-                        <div className="flex flex-col gap-2 pt-3 border-t border-slate-200">
-                          <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                              <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              Pliki wysłane do Exalco po API ({draftDeliveryEntry.sentApiFiles.length})
-                            </label>
-                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
-                              ✓ Potwierdzono w Exalco
-                            </span>
+                            </div>
                           </div>
-                          <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto p-2 bg-emerald-50/40 border border-emerald-200 rounded-lg">
-                            {draftDeliveryEntry.sentApiFiles.map((file: { fileId?: string; fileName: string; fileType: string; sentAt: number }, fIdx: number) => {
-                              const fileIdClean = file.fileId?.trim() ?? "";
-                              const fileNameClean = file.fileName?.trim().toLowerCase() ?? "";
-                              const fileNameBase = fileNameClean.replace(/\.[a-z0-9]+$/i, "");
 
-                              const allDriveFiles = [
-                                ...(order?.driveProjectFiles ?? []),
-                                ...fetchedDriveFiles,
-                              ];
+                          {/* Lista plików wysłanych po API */}
+                          {draftDeliveryEntry.sentApiFiles && draftDeliveryEntry.sentApiFiles.length > 0 && (
+                            <div className="flex flex-col gap-2 pt-3 border-t border-slate-100">
+                              <div className="flex items-center justify-between gap-2">
+                                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                  <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <span>Wysłane pliki ({draftDeliveryEntry.sentApiFiles.length})</span>
+                                </label>
+                                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                                  ✓ W Exalco
+                                </span>
+                              </div>
+                              <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto p-2 bg-emerald-50/30 border border-emerald-200/80 rounded-xl">
+                                {draftDeliveryEntry.sentApiFiles.map((file: { fileId?: string; fileName: string; fileType: string; sentAt: number }, fIdx: number) => {
+                                  const fileIdClean = file.fileId?.trim() ?? "";
+                                  const fileNameClean = file.fileName?.trim().toLowerCase() ?? "";
+                                  const fileNameBase = fileNameClean.replace(/\.[a-z0-9]+$/i, "");
 
-                              const matchedDriveFile = allDriveFiles.find((df) => {
-                                const dfId = ("id" in df ? df.id : df.fileId)?.trim();
-                                const dfName = df.name?.trim().toLowerCase();
-                                const dfNameBase = dfName?.replace(/\.[a-z0-9]+$/i, "");
+                                  const allDriveFiles = [
+                                    ...(order?.driveProjectFiles ?? []),
+                                    ...fetchedDriveFiles,
+                                  ];
 
-                                if (fileIdClean && dfId === fileIdClean) return true;
-                                if (dfName && fileNameClean && (dfName === fileNameClean || dfName.includes(fileNameClean) || fileNameClean.includes(dfName))) return true;
-                                if (dfNameBase && fileNameBase && (dfNameBase === fileNameBase || dfNameBase.includes(fileNameBase) || fileNameBase.includes(dfNameBase))) return true;
-                                return false;
-                              });
+                                  const matchedDriveFile = allDriveFiles.find((df) => {
+                                    const dfId = ("id" in df ? df.id : df.fileId)?.trim();
+                                    const dfName = df.name?.trim().toLowerCase();
+                                    const dfNameBase = dfName?.replace(/\.[a-z0-9]+$/i, "");
 
-                              let fileOpenUrl: string | null = null;
-
-                              if (matchedDriveFile?.url) {
-                                fileOpenUrl = matchedDriveFile.url;
-                              } else if (matchedDriveFile && ("id" in matchedDriveFile || "fileId" in matchedDriveFile)) {
-                                const targetId = "id" in matchedDriveFile ? matchedDriveFile.id : matchedDriveFile.fileId;
-                                fileOpenUrl = `https://drive.google.com/file/d/${targetId}/view`;
-                              } else if (fileIdClean && !fileIdClean.includes(".") && !fileIdClean.includes("/")) {
-                                fileOpenUrl = `https://drive.google.com/file/d/${fileIdClean}/view`;
-                              } else if (fileIdClean && (fileIdClean.startsWith("http://") || fileIdClean.startsWith("https://"))) {
-                                fileOpenUrl = fileIdClean;
-                              } else {
-                                const projectLinks = getProjectFileLinks(order?.projectFiles);
-                                if (projectLinks.length > 0) {
-                                  const matchedProjectFileUrl = projectLinks.find((pfUrl: string) => {
-                                    const lowerUrl = pfUrl.toLowerCase();
-                                    const baseName = lowerUrl.split("/").pop()?.split("?")[0]?.toLowerCase() ?? "";
-                                    const baseNameWithoutExt = baseName.replace(/\.[a-z0-9]+$/i, "");
-                                    return (
-                                      lowerUrl.includes(fileNameClean) ||
-                                      (baseName && fileNameClean.includes(baseName)) ||
-                                      (baseNameWithoutExt && fileNameBase && (fileNameBase.includes(baseNameWithoutExt) || baseNameWithoutExt.includes(fileNameBase)))
-                                    );
+                                    if (fileIdClean && dfId === fileIdClean) return true;
+                                    if (dfName && fileNameClean && (dfName === fileNameClean || dfName.includes(fileNameClean) || fileNameClean.includes(dfName))) return true;
+                                    if (dfNameBase && fileNameBase && (dfNameBase === fileNameBase || dfNameBase.includes(fileNameBase) || fileNameBase.includes(dfNameBase))) return true;
+                                    return false;
                                   });
 
-                                  if (matchedProjectFileUrl) {
-                                    if (matchedProjectFileUrl.startsWith("http://") || matchedProjectFileUrl.startsWith("https://")) {
-                                      fileOpenUrl = `${process.env.NEXT_PUBLIC_CONVEX_URL}/api/jotform/file?url=${encodeURIComponent(matchedProjectFileUrl)}`;
-                                    } else {
-                                      fileOpenUrl = matchedProjectFileUrl;
+                                  let fileOpenUrl: string | null = null;
+
+                                  if (matchedDriveFile?.url) {
+                                    fileOpenUrl = matchedDriveFile.url;
+                                  } else if (matchedDriveFile && ("id" in matchedDriveFile || "fileId" in matchedDriveFile)) {
+                                    const targetId = "id" in matchedDriveFile ? matchedDriveFile.id : matchedDriveFile.fileId;
+                                    fileOpenUrl = `https://drive.google.com/file/d/${targetId}/view`;
+                                  } else if (fileIdClean && !fileIdClean.includes(".") && !fileIdClean.includes("/")) {
+                                    fileOpenUrl = `https://drive.google.com/file/d/${fileIdClean}/view`;
+                                  } else if (fileIdClean && (fileIdClean.startsWith("http://") || fileIdClean.startsWith("https://"))) {
+                                    fileOpenUrl = fileIdClean;
+                                  } else {
+                                    const projectLinks = getProjectFileLinks(order?.projectFiles);
+                                    if (projectLinks.length > 0) {
+                                      const matchedProjectFileUrl = projectLinks.find((pfUrl: string) => {
+                                        const lowerUrl = pfUrl.toLowerCase();
+                                        const baseName = lowerUrl.split("/").pop()?.split("?")[0]?.toLowerCase() ?? "";
+                                        const baseNameWithoutExt = baseName.replace(/\.[a-z0-9]+$/i, "");
+                                        return (
+                                          lowerUrl.includes(fileNameClean) ||
+                                          (baseName && fileNameClean.includes(baseName)) ||
+                                          (baseNameWithoutExt && fileNameBase && (fileNameBase.includes(baseNameWithoutExt) || baseNameWithoutExt.includes(fileNameBase)))
+                                        );
+                                      });
+
+                                      if (matchedProjectFileUrl) {
+                                        if (matchedProjectFileUrl.startsWith("http://") || matchedProjectFileUrl.startsWith("https://")) {
+                                          fileOpenUrl = `${process.env.NEXT_PUBLIC_CONVEX_URL}/api/jotform/file?url=${encodeURIComponent(matchedProjectFileUrl)}`;
+                                        } else {
+                                          fileOpenUrl = matchedProjectFileUrl;
+                                        }
+                                      }
                                     }
                                   }
-                                }
-                              }
 
-                              // Direct file link fallback from allDriveFiles before search fallback
-                              if (!fileOpenUrl && allDriveFiles.length > 0) {
-                                const indexedDriveFile = allDriveFiles[fIdx] || allDriveFiles[0];
-                                if (indexedDriveFile?.url) {
-                                  fileOpenUrl = indexedDriveFile.url;
-                                } else {
-                                  const targetId = "id" in indexedDriveFile ? indexedDriveFile.id : indexedDriveFile.fileId;
-                                  if (targetId) {
-                                    fileOpenUrl = `https://drive.google.com/file/d/${targetId}/view`;
+                                  if (!fileOpenUrl && allDriveFiles.length > 0) {
+                                    const indexedDriveFile = allDriveFiles[fIdx] || allDriveFiles[0];
+                                    if (indexedDriveFile?.url) {
+                                      fileOpenUrl = indexedDriveFile.url;
+                                    } else {
+                                      const targetId = "id" in indexedDriveFile ? indexedDriveFile.id : indexedDriveFile.fileId;
+                                      if (targetId) {
+                                        fileOpenUrl = `https://drive.google.com/file/d/${targetId}/view`;
+                                      }
+                                    }
                                   }
-                                }
-                              }
 
-                              // Search fallback directly for exact filename (never fallback to folder overview)
-                              if (!fileOpenUrl && file.fileName) {
-                                fileOpenUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent('"' + file.fileName + '"')}`;
-                              }
+                                  if (!fileOpenUrl && file.fileName) {
+                                    fileOpenUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent('"' + file.fileName + '"')}`;
+                                  }
 
-                              return (
-                                <div key={fIdx} className="flex items-center justify-between p-2 bg-white rounded border border-emerald-200 text-xs shadow-xs hover:border-emerald-300 transition-colors">
-                                  <div className="flex items-center gap-2 truncate min-w-0 flex-1">
-                                    <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                    </svg>
-                                    {fileOpenUrl ? (
-                                      <a
-                                        href={fileOpenUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="truncate font-semibold text-slate-800 hover:text-emerald-700 hover:underline transition-colors"
-                                        title={`Otwórz plik: ${file.fileName}`}
-                                      >
-                                        {file.fileName}
-                                      </a>
-                                    ) : (
-                                      <span className="truncate font-semibold text-slate-800" title={file.fileName}>{file.fileName}</span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
-                                      {file.fileType}
-                                    </span>
-                                    <span className="text-[11px] text-slate-500 font-medium">
-                                      {new Date(file.sentAt).toLocaleString("pl-PL", {
-                                        day: "2-digit",
-                                        month: "2-digit",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
-                                    </span>
+                                  return (
+                                    <div key={fIdx} className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-emerald-200/80 text-xs shadow-2xs hover:border-emerald-300 transition-colors">
+                                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                        </svg>
+                                        <div className="min-w-0 flex-1">
+                                          {fileOpenUrl ? (
+                                            <a
+                                              href={fileOpenUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="block truncate font-semibold text-slate-800 hover:text-emerald-700 hover:underline transition-colors"
+                                              title={`Otwórz plik: ${file.fileName}`}
+                                            >
+                                              {file.fileName}
+                                            </a>
+                                          ) : (
+                                            <span className="block truncate font-semibold text-slate-800" title={file.fileName}>{file.fileName}</span>
+                                          )}
+                                          <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                            <span className="font-semibold text-slate-600">{file.fileType}</span>
+                                            <span>·</span>
+                                            <span>
+                                              {new Date(file.sentAt).toLocaleString("pl-PL", {
+                                                day: "2-digit",
+                                                month: "2-digit",
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                              })}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
 
-                                    {/* Akcja: Otwórz plik */}
-                                    <div className="flex items-center border-l border-slate-200 pl-2 ml-1">
-                                      {fileOpenUrl ? (
+                                      {fileOpenUrl && (
                                         <a
                                           href={fileOpenUrl}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded transition-colors"
+                                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-colors"
                                           title="Otwórz plik w nowej karcie"
                                         >
-                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                          </svg>
-                                          Otwórz plik
+                                          Otwórz ↗
                                         </a>
-                                      ) : (
-                                        <span className="text-[11px] text-slate-400 italic">Brak linku</span>
                                       )}
                                     </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
