@@ -643,6 +643,17 @@ export default defineSchema({
               v.object({
                 id: v.string(),
                 question: v.string(),
+                answerType: v.optional(
+                  v.union(
+                    v.literal("text"),
+                    v.literal("textarea"),
+                    v.literal("number"),
+                    v.literal("date"),
+                    v.literal("select"),
+                    v.literal("boolean"),
+                  ),
+                ),
+                options: v.optional(v.array(v.string())),
               })
             )
           ),

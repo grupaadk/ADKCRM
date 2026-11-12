@@ -1,5 +1,7 @@
 "use client";
 
+import type { ProductQuestionAnswerType } from "@/convex/lib/supplierOrderValidation";
+
 export type SupplierProductDefinition = {
   id: string;
   name: string;
@@ -7,6 +9,8 @@ export type SupplierProductDefinition = {
   questions?: Array<{
     id: string;
     question: string;
+    answerType?: ProductQuestionAnswerType;
+    options?: string[];
   }>;
 };
 
@@ -131,6 +135,8 @@ export default function ProductQuestionsForm({
         questionId: string;
         question: string;
         answer: string;
+        answerType: ProductQuestionAnswerType;
+        options: string[];
       }> = [];
       const seenQIds = new Set<string>();
       for (const sq of supQuestions) {
@@ -146,11 +152,17 @@ export default function ProductQuestionsForm({
           questionId: sq.id,
           question: sq.question,
           answer: foundAns?.answer ?? "",
+          answerType: sq.answerType ?? "text",
+          options: sq.options ?? [],
         });
       }
       for (const ea of existingAnswers) {
         if (!seenQIds.has(ea.questionId)) {
-          questionsList.push(ea);
+          questionsList.push({
+            ...ea,
+            answerType: "text",
+            options: [],
+          });
         }
       }
       return {
@@ -275,34 +287,119 @@ export default function ProductQuestionsForm({
               <div className={`grid gap-2.5 ${compact ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"}`}>
                 {prodItem.questionsList.map((qItem, qIdx) => {
                   const isMissingAnswer = showValidation && qItem.answer.trim().length === 0;
+                  const isInvalidNumber =
+                    showValidation &&
+                    qItem.answerType === "number" &&
+                    qItem.answer.trim().length > 0 &&
+                    Number.isNaN(Number(qItem.answer.trim()));
+                  const hasError = isMissingAnswer || isInvalidNumber;
+                  const inputClasses = `w-full rounded-lg border bg-white px-3 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 shadow-2xs ${
+                    hasError
+                      ? "border-red-400 focus:border-red-500 focus:ring-red-500/20"
+                      : "border-slate-300 focus:border-amber-500 focus:ring-amber-500/20"
+                  } ${readOnly ? "bg-slate-50 text-slate-600" : ""}`;
+
+                  const handleChangeAnswer = (nextValue: string) =>
+                    updateProductQuestionAnswer(
+                      prodItem.id,
+                      prodItem.name,
+                      qItem.questionId,
+                      nextValue,
+                      prodItem.supplierQuestions,
+                    );
+
+                  const selectOptions =
+                    qItem.answer && !qItem.options.includes(qItem.answer)
+                      ? [...qItem.options, qItem.answer]
+                      : qItem.options;
+
                   return (
-                    <div key={qItem.questionId} className="flex flex-col gap-1">
+                    <div
+                      key={qItem.questionId}
+                      className={`flex flex-col gap-1 ${
+                        !compact && qItem.answerType === "textarea" ? "md:col-span-2" : ""
+                      }`}
+                    >
                       <label className="text-xs font-semibold text-slate-800">
                         {qIdx + 1}. {qItem.question}
                       </label>
-                      <input
-                        type="text"
-                        readOnly={readOnly}
-                        value={qItem.answer}
-                        onChange={(e) =>
-                          updateProductQuestionAnswer(
-                            prodItem.id,
-                            prodItem.name,
-                            qItem.questionId,
-                            e.target.value,
-                            prodItem.supplierQuestions,
-                          )
-                        }
-                        placeholder="Wpisz odpowiedź..."
-                        className={`w-full rounded-lg border bg-white px-3 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 shadow-2xs ${
-                          isMissingAnswer
-                            ? "border-red-400 focus:border-red-500 focus:ring-red-500/20"
-                            : "border-slate-300 focus:border-amber-500 focus:ring-amber-500/20"
-                        } ${readOnly ? "bg-slate-50 text-slate-600" : ""}`}
-                      />
+
+                      {qItem.answerType === "textarea" ? (
+                        <textarea
+                          rows={3}
+                          readOnly={readOnly}
+                          value={qItem.answer}
+                          onChange={(e) => handleChangeAnswer(e.target.value)}
+                          placeholder="Wpisz opis..."
+                          className={`${inputClasses} resize-y`}
+                        />
+                      ) : qItem.answerType === "select" ? (
+                        <select
+                          disabled={readOnly}
+                          value={qItem.answer}
+                          onChange={(e) => handleChangeAnswer(e.target.value)}
+                          className={`w-full h-[38px] border px-2.5 font-medium ${
+                            hasError ? "border-red-400" : ""
+                          } disabled:opacity-70 disabled:cursor-not-allowed`}
+                        >
+                          <option value="">— Wybierz —</option>
+                          {selectOptions.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      ) : qItem.answerType === "boolean" ? (
+                        <div className="flex items-center gap-2">
+                          {(["Tak", "Nie"] as const).map((boolVal) => {
+                            const isSelected = qItem.answer === boolVal;
+                            return (
+                              <button
+                                key={boolVal}
+                                type="button"
+                                disabled={readOnly}
+                                onClick={() => handleChangeAnswer(boolVal)}
+                                className={`px-4 py-1.5 rounded-lg border text-xs font-bold transition-colors ${
+                                  readOnly ? "cursor-default opacity-80" : "cursor-pointer"
+                                } ${
+                                  isSelected
+                                    ? "bg-brand text-white border-brand shadow-2xs"
+                                    : hasError
+                                    ? "bg-white text-slate-700 border-red-300 hover:bg-red-50/40"
+                                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                                }`}
+                              >
+                                {boolVal}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <input
+                          type={
+                            qItem.answerType === "number"
+                              ? "number"
+                              : qItem.answerType === "date"
+                              ? "date"
+                              : "text"
+                          }
+                          step={qItem.answerType === "number" ? "any" : undefined}
+                          readOnly={readOnly}
+                          value={qItem.answer}
+                          onChange={(e) => handleChangeAnswer(e.target.value)}
+                          placeholder={qItem.answerType === "number" ? "Wpisz liczbę..." : "Wpisz odpowiedź..."}
+                          className={inputClasses}
+                        />
+                      )}
+
                       {isMissingAnswer && (
                         <span className="text-[11px] font-medium text-red-600">
                           Uzupełnij odpowiedź
+                        </span>
+                      )}
+                      {isInvalidNumber && (
+                        <span className="text-[11px] font-medium text-red-600">
+                          Wpisz poprawną liczbę
                         </span>
                       )}
                     </div>

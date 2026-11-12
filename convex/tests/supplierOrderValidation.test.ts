@@ -135,4 +135,64 @@ describe("getSupplierOrderIssues", () => {
       { step: "products", message: "Okna: brak odpowiedzi na „test”" },
     ]);
   });
+
+  test("validates number answerType and accepts select/boolean string values", () => {
+    const invalidNumberIssues = getSupplierOrderIssues({
+      netAmount: 1000,
+      selectedProducts: [
+        {
+          id: "prod-typed",
+          name: "Okna",
+          answers: [
+            { questionId: "q-num", question: "Szerokość", answer: "abc" },
+            { questionId: "q-sel", question: "Kolor", answer: "RAL 7016" },
+            { questionId: "q-bool", question: "Montaż", answer: "Tak" },
+          ],
+        },
+      ],
+      supplierProducts: [
+        {
+          id: "prod-typed",
+          name: "Okna",
+          isActive: true,
+          questions: [
+            { id: "q-num", question: "Szerokość", answerType: "number" },
+            { id: "q-sel", question: "Kolor", answerType: "select", options: ["RAL 7016", "Biały"] },
+            { id: "q-bool", question: "Montaż", answerType: "boolean" },
+          ],
+        },
+      ],
+    });
+    expect(invalidNumberIssues).toEqual([
+      { step: "products", message: "Okna: odpowiedź na „Szerokość” musi być liczbą" },
+    ]);
+
+    const validIssues = getSupplierOrderIssues({
+      netAmount: 1000,
+      selectedProducts: [
+        {
+          id: "prod-typed",
+          name: "Okna",
+          answers: [
+            { questionId: "q-num", question: "Szerokość", answer: "120.5" },
+            { questionId: "q-sel", question: "Kolor", answer: "RAL 7016" },
+            { questionId: "q-bool", question: "Montaż", answer: "Tak" },
+          ],
+        },
+      ],
+      supplierProducts: [
+        {
+          id: "prod-typed",
+          name: "Okna",
+          isActive: true,
+          questions: [
+            { id: "q-num", question: "Szerokość", answerType: "number" },
+            { id: "q-sel", question: "Kolor", answerType: "select", options: ["RAL 7016", "Biały"] },
+            { id: "q-bool", question: "Montaż", answerType: "boolean" },
+          ],
+        },
+      ],
+    });
+    expect(validIssues).toEqual([]);
+  });
 });

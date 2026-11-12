@@ -3396,9 +3396,31 @@ function ServicesRow({
 
 // --- Dostawcy Tab ---
 
+type ProductQuestionAnswerType =
+  | "text"
+  | "textarea"
+  | "number"
+  | "date"
+  | "select"
+  | "boolean";
+
+const PRODUCT_QUESTION_ANSWER_TYPES: Array<{
+  value: ProductQuestionAnswerType;
+  label: string;
+}> = [
+  { value: "text", label: "Krótki tekst" },
+  { value: "textarea", label: "Dłuższy tekst" },
+  { value: "number", label: "Liczba" },
+  { value: "date", label: "Data" },
+  { value: "select", label: "Lista wyboru (dropdown)" },
+  { value: "boolean", label: "Tak / Nie" },
+];
+
 type SupplierProductQuestionItem = {
   id: string;
   question: string;
+  answerType?: ProductQuestionAnswerType;
+  options?: string[];
 };
 
 type SupplierProductItem = {
@@ -3419,6 +3441,10 @@ function SupplierProductsEditor({
   const [localError, setLocalError] = useState<string | null>(null);
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [newQuestionDrafts, setNewQuestionDrafts] = useState<Record<string, string>>({});
+  const [newQuestionTypes, setNewQuestionTypes] = useState<Record<string, ProductQuestionAnswerType>>({});
+  const [newQuestionOptions, setNewQuestionOptions] = useState<Record<string, string[]>>({});
+  const [newQuestionOptionDrafts, setNewQuestionOptionDrafts] = useState<Record<string, string>>({});
+  const [newOptionDrafts, setNewOptionDrafts] = useState<Record<string, string>>({});
 
   function addProduct() {
     const trimmed = newProductName.trim();
@@ -3455,9 +3481,29 @@ function SupplierProductsEditor({
     onChange(products.filter((p) => p.id !== id));
   }
 
+  function addDraftOptionForNewQuestion(productId: string) {
+    const raw = (newQuestionOptionDrafts[productId] ?? "").trim();
+    if (!raw) return;
+    setNewQuestionOptions((prev) => {
+      const curr = prev[productId] ?? [];
+      if (curr.some((o) => o.toLowerCase() === raw.toLowerCase())) return prev;
+      return { ...prev, [productId]: [...curr, raw] };
+    });
+    setNewQuestionOptionDrafts((prev) => ({ ...prev, [productId]: "" }));
+  }
+
+  function removeDraftOptionForNewQuestion(productId: string, optIndex: number) {
+    setNewQuestionOptions((prev) => ({
+      ...prev,
+      [productId]: (prev[productId] ?? []).filter((_, idx) => idx !== optIndex),
+    }));
+  }
+
   function addQuestionToProduct(productId: string) {
     const raw = (newQuestionDrafts[productId] ?? "").trim();
     if (!raw) return;
+    const answerType = newQuestionTypes[productId] ?? "text";
+    const draftOpts = newQuestionOptions[productId] ?? [];
     onChange(
       products.map((p) => {
         if (p.id !== productId) return p;
@@ -3469,12 +3515,16 @@ function SupplierProductsEditor({
             {
               id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               question: raw,
+              answerType,
+              ...(answerType === "select" ? { options: draftOpts } : {}),
             },
           ],
         };
       })
     );
     setNewQuestionDrafts((prev) => ({ ...prev, [productId]: "" }));
+    setNewQuestionOptions((prev) => ({ ...prev, [productId]: [] }));
+    setNewQuestionOptionDrafts((prev) => ({ ...prev, [productId]: "" }));
   }
 
   function updateQuestionText(productId: string, questionId: string, text: string) {
@@ -3488,6 +3538,69 @@ function SupplierProductsEditor({
           ),
         };
       })
+    );
+  }
+
+  function updateQuestionAnswerType(
+    productId: string,
+    questionId: string,
+    answerType: ProductQuestionAnswerType,
+  ) {
+    onChange(
+      products.map((p) => {
+        if (p.id !== productId) return p;
+        return {
+          ...p,
+          questions: (p.questions ?? []).map((q) =>
+            q.id === questionId
+              ? {
+                  ...q,
+                  answerType,
+                  options: answerType === "select" ? (q.options ?? []) : undefined,
+                }
+              : q,
+          ),
+        };
+      }),
+    );
+  }
+
+  function addOptionToQuestion(productId: string, questionId: string) {
+    const key = `${productId}:${questionId}`;
+    const rawOpt = (newOptionDrafts[key] ?? "").trim();
+    if (!rawOpt) return;
+    onChange(
+      products.map((p) => {
+        if (p.id !== productId) return p;
+        return {
+          ...p,
+          questions: (p.questions ?? []).map((q) => {
+            if (q.id !== questionId) return q;
+            const currentOpts = q.options ?? [];
+            if (currentOpts.some((o) => o.toLowerCase() === rawOpt.toLowerCase())) {
+              return q;
+            }
+            return { ...q, options: [...currentOpts, rawOpt] };
+          }),
+        };
+      }),
+    );
+    setNewOptionDrafts((prev) => ({ ...prev, [key]: "" }));
+  }
+
+  function removeOptionFromQuestion(productId: string, questionId: string, optIndex: number) {
+    onChange(
+      products.map((p) => {
+        if (p.id !== productId) return p;
+        return {
+          ...p,
+          questions: (p.questions ?? []).map((q) =>
+            q.id === questionId
+              ? { ...q, options: (q.options ?? []).filter((_, idx) => idx !== optIndex) }
+              : q,
+          ),
+        };
+      }),
     );
   }
 
@@ -3601,31 +3714,118 @@ function SupplierProductsEditor({
                       </p>
                     ) : (
                       <div className="flex flex-col gap-1.5">
-                        {questions.map((q, qIdx) => (
-                          <div
-                            key={q.id}
-                            className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1"
-                          >
-                            <span className="text-[10px] font-bold text-slate-400 select-none">
-                              {qIdx + 1}.
-                            </span>
-                            <input
-                              type="text"
-                              value={q.question}
-                              onChange={(e) => updateQuestionText(prod.id, q.id, e.target.value)}
-                              placeholder="Treść pytania..."
-                              className="flex-1 bg-transparent text-xs text-slate-800 outline-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeQuestionFromProduct(prod.id, q.id)}
-                              title="Usuń pytanie"
-                              className="rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        {questions.map((q, qIdx) => {
+                          const qType = q.answerType ?? "text";
+                          const optKey = `${prod.id}:${q.id}`;
+                          const optDraft = newOptionDrafts[optKey] ?? "";
+                          return (
+                            <div
+                              key={q.id}
+                              className="flex flex-col gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5"
                             >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-slate-400 select-none">
+                                  {qIdx + 1}.
+                                </span>
+                                <input
+                                  type="text"
+                                  value={q.question}
+                                  onChange={(e) => updateQuestionText(prod.id, q.id, e.target.value)}
+                                  placeholder="Treść pytania..."
+                                  className="flex-1 bg-transparent text-xs text-slate-800 outline-none"
+                                />
+                                <select
+                                  value={qType}
+                                  onChange={(e) =>
+                                    updateQuestionAnswerType(
+                                      prod.id,
+                                      q.id,
+                                      e.target.value as ProductQuestionAnswerType,
+                                    )
+                                  }
+                                  className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                                  title="Typ odpowiedzi"
+                                >
+                                  {PRODUCT_QUESTION_ANSWER_TYPES.map((t) => (
+                                    <option key={t.value} value={t.value}>
+                                      {t.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => removeQuestionFromProduct(prod.id, q.id)}
+                                  title="Usuń pytanie"
+                                  className="rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+
+                              {qType === "select" && (
+                                <div className="pl-5 pt-1 border-t border-slate-100 flex flex-col gap-1.5">
+                                  <div className="text-[10px] font-semibold text-slate-500">
+                                    Zdefiniowane odpowiedzi ({(q.options ?? []).length}):
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    {(q.options ?? []).length === 0 ? (
+                                      <span className="text-[10px] text-amber-700 font-medium">
+                                        Dodaj przynajmniej jedną opcję do wyboru:
+                                      </span>
+                                    ) : (
+                                      (q.options ?? []).map((opt, optIdx) => (
+                                        <span
+                                          key={`${opt}-${optIdx}`}
+                                          className="inline-flex items-center gap-1 rounded bg-slate-100 border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                                        >
+                                          <span>{opt}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              removeOptionFromQuestion(prod.id, q.id, optIdx)
+                                            }
+                                            className="text-slate-400 hover:text-red-600 font-bold leading-none"
+                                            title="Usuń opcję"
+                                          >
+                                            ✕
+                                          </button>
+                                        </span>
+                                      ))
+                                    )}
+                                  </div>
+                                  <div className="flex gap-1.5">
+                                    <input
+                                      type="text"
+                                      value={optDraft}
+                                      onChange={(e) =>
+                                        setNewOptionDrafts((prev) => ({
+                                          ...prev,
+                                          [optKey]: e.target.value,
+                                        }))
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          addOptionToQuestion(prod.id, q.id);
+                                        }
+                                      }}
+                                      placeholder="Wpisz opcję (np. RAL 7016)..."
+                                      className="flex-1 rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-800"
+                                    />
+                                    <button
+                                      type="button"
+                                      disabled={!optDraft.trim()}
+                                      onClick={() => addOptionToQuestion(prod.id, q.id)}
+                                      className="rounded bg-slate-700 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+                                    >
+                                      + Opcja
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     <div className="flex gap-1.5 pt-0.5">
@@ -3647,6 +3847,23 @@ function SupplierProductsEditor({
                         placeholder="Wpisz pytanie, np. Jaki kolor profilu?, Jaki pakiet szybowy?..."
                         className="flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-800"
                       />
+                      <select
+                        value={newQuestionTypes[prod.id] ?? "text"}
+                        onChange={(e) =>
+                          setNewQuestionTypes((prev) => ({
+                            ...prev,
+                            [prod.id]: e.target.value as ProductQuestionAnswerType,
+                          }))
+                        }
+                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                        title="Typ odpowiedzi dla nowego pytania"
+                      >
+                        {PRODUCT_QUESTION_ANSWER_TYPES.map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
                       <button
                         type="button"
                         onClick={() => addQuestionToProduct(prod.id)}
@@ -3656,6 +3873,61 @@ function SupplierProductsEditor({
                         + Dodaj pytanie
                       </button>
                     </div>
+                    {(newQuestionTypes[prod.id] ?? "text") === "select" && (
+                      <div className="rounded-md border border-slate-200 bg-white p-2 flex flex-col gap-1.5">
+                        <div className="text-[10px] font-semibold text-slate-500">
+                          Zdefiniuj odpowiedzi do wyboru ({(newQuestionOptions[prod.id] ?? []).length}):
+                        </div>
+                        {(newQuestionOptions[prod.id] ?? []).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {(newQuestionOptions[prod.id] ?? []).map((opt, optIdx) => (
+                              <span
+                                key={`${opt}-${optIdx}`}
+                                className="inline-flex items-center gap-1 rounded bg-slate-100 border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                              >
+                                <span>{opt}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeDraftOptionForNewQuestion(prod.id, optIdx)}
+                                  className="text-slate-400 hover:text-red-600 font-bold leading-none"
+                                  title="Usuń odpowiedź"
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={newQuestionOptionDrafts[prod.id] ?? ""}
+                            onChange={(e) =>
+                              setNewQuestionOptionDrafts((prev) => ({
+                                ...prev,
+                                [prod.id]: e.target.value,
+                              }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                addDraftOptionForNewQuestion(prod.id);
+                              }
+                            }}
+                            placeholder="Wpisz odpowiedź (np. RAL 7016) i naciśnij Enter..."
+                            className="flex-1 rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-800"
+                          />
+                          <button
+                            type="button"
+                            disabled={!(newQuestionOptionDrafts[prod.id] ?? "").trim()}
+                            onClick={() => addDraftOptionForNewQuestion(prod.id)}
+                            className="rounded bg-slate-700 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+                          >
+                            + Odpowiedź
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

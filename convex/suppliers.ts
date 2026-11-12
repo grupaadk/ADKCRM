@@ -27,6 +27,15 @@ export const listActive = query({
   },
 });
 
+const questionAnswerTypeValidator = v.union(
+  v.literal("text"),
+  v.literal("textarea"),
+  v.literal("number"),
+  v.literal("date"),
+  v.literal("select"),
+  v.literal("boolean"),
+);
+
 const supplierProductValidator = v.object({
   id: v.string(),
   name: v.string(),
@@ -36,10 +45,14 @@ const supplierProductValidator = v.object({
       v.object({
         id: v.string(),
         question: v.string(),
+        answerType: v.optional(questionAnswerTypeValidator),
+        options: v.optional(v.array(v.string())),
       })
     )
   ),
 });
+
+type QuestionAnswerType = "text" | "textarea" | "number" | "date" | "select" | "boolean";
 
 type SupplierProductInput = {
   id: string;
@@ -48,6 +61,8 @@ type SupplierProductInput = {
   questions?: Array<{
     id: string;
     question: string;
+    answerType?: QuestionAnswerType;
+    options?: string[];
   }>;
 };
 
@@ -64,10 +79,24 @@ function normalizeSupplierProducts(products: SupplierProductInput[]): SupplierPr
     }
     seenNames.add(lowerKey);
     const normalizedQuestions = (product.questions ?? [])
-      .map((q) => ({
-        id: q.id?.trim() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        question: q.question.trim(),
-      }))
+      .map((q) => {
+        const trimmedQuestion = q.question.trim();
+        const answerType = q.answerType;
+        const normalizedOptions = (q.options ?? [])
+          .map((opt) => opt.trim())
+          .filter((opt) => opt.length > 0);
+        if (trimmedQuestion && answerType === "select" && normalizedOptions.length === 0) {
+          throw new Error(
+            `Pytanie "${trimmedQuestion}" (${trimmedName}) typu Lista wyboru musi mieć co najmniej jedną opcję`,
+          );
+        }
+        return {
+          id: q.id?.trim() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          question: trimmedQuestion,
+          ...(answerType ? { answerType } : {}),
+          ...(answerType === "select" ? { options: normalizedOptions } : {}),
+        };
+      })
       .filter((q) => q.question.length > 0);
     return {
       id: product.id.trim() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,

@@ -806,5 +806,49 @@ describe("Exalco Webhook Delivery Date Logic", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  test("saves product question answerType and options on supplier and rejects select without options", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    await expect(
+      asUser.mutation(api.suppliers.create, {
+        name: "ALCO-INVALID-SELECT",
+        products: [
+          {
+            id: "prod-1",
+            name: "Okna",
+            isActive: true,
+            questions: [
+              { id: "q-1", question: "Kolor", answerType: "select", options: [] },
+            ],
+          },
+        ],
+      }),
+    ).rejects.toThrow("musi mieć co najmniej jedną opcję");
+
+    const supplierId = await asUser.mutation(api.suppliers.create, {
+      name: "ALCO-TYPED-QA",
+      products: [
+        {
+          id: "prod-1",
+          name: "Okna",
+          isActive: true,
+          questions: [
+            { id: "q-1", question: "Kolor", answerType: "select", options: ["RAL 7016", "Biały"] },
+            { id: "q-2", question: "Ilość", answerType: "number" },
+            { id: "q-3", question: "Montaż", answerType: "boolean" },
+          ],
+        },
+      ],
+    });
+
+    const supplier = await t.run(async (ctx) => ctx.db.get(supplierId));
+    expect(supplier?.products?.[0]?.questions).toEqual([
+      { id: "q-1", question: "Kolor", answerType: "select", options: ["RAL 7016", "Biały"] },
+      { id: "q-2", question: "Ilość", answerType: "number" },
+      { id: "q-3", question: "Montaż", answerType: "boolean" },
+    ]);
+  });
 });
 

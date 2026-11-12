@@ -3,6 +3,14 @@
 
 export type SupplierOrderStep = "supplier" | "products" | "attachments" | "summary";
 
+export type ProductQuestionAnswerType =
+  | "text"
+  | "textarea"
+  | "number"
+  | "date"
+  | "select"
+  | "boolean";
+
 export type SupplierOrderIssue = {
   step: SupplierOrderStep;
   message: string;
@@ -26,6 +34,8 @@ export type SupplierOrderValidationInput = {
     questions?: Array<{
       id: string;
       question: string;
+      answerType?: ProductQuestionAnswerType;
+      options?: string[];
     }>;
   }>;
 };
@@ -61,6 +71,11 @@ export function getSupplierOrderIssues(input: SupplierOrderValidationInput): Sup
         issues.push({
           step: "products",
           message: `${selected.name}: brak odpowiedzi na „${q.question}”`,
+        });
+      } else if (q.answerType === "number" && Number.isNaN(Number(answer.answer.trim()))) {
+        issues.push({
+          step: "products",
+          message: `${selected.name}: odpowiedź na „${q.question}” musi być liczbą`,
         });
       }
     }
