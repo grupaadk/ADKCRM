@@ -850,5 +850,100 @@ describe("Exalco Webhook Delivery Date Logic", () => {
       { id: "q-3", question: "Montaż", answerType: "boolean" },
     ]);
   });
+
+  test("sendDeliveryOrderToCrm sends only product answers and manual notes without headers or client block", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "ALCO",
+        isActive: true,
+        isApiEnabled: true,
+        apiEndpoint: "https://crm.example.com",
+        apiKey: "secret-key",
+        products: [
+          {
+            id: "prod-okna",
+            name: "Okna",
+            isActive: true,
+            questions: [{ id: "q-1", question: "Profil", answerType: "select", options: ["PE52"] }],
+          },
+        ],
+        createdBy: "test-user",
+      });
+    });
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Wojtek",
+      lastName: "Test",
+      phone: "123-456-789",
+      email: "za@zap.pl",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, {
+      clientId,
+      name: "1/09/2026",
+      investmentStreet: "Siennicka",
+      investmentBuildingNumber: "47",
+      investmentCity: "Mińsk Mazowiecki",
+    });
+
+    await asUser.mutation(api.orders.update, {
+      orderId,
+      serviceDeliveries: [
+        {
+          serviceName: "Okna ALU",
+          supplierId,
+          netAmount: 15000,
+          notesFeed: [
+            {
+              id: "note-manual-1",
+              note: "Dodatkowa uwaga ręczna",
+              createdAt: 1000,
+              createdByName: "Jan",
+              sentToCrm: false,
+            },
+          ],
+          selectedProducts: [
+            {
+              id: "prod-okna",
+              name: "Okna",
+              answers: [{ questionId: "q-1", question: "Profil", answer: "PE52" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const originalFetch = globalThis.fetch;
+    let capturedPayload: { notes?: string } | null = null;
+    globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+      capturedPayload = JSON.parse(String(init?.body ?? "{}")) as { notes?: string };
+      return new Response(
+        JSON.stringify({ success: true, orderId: "ext-1", orderNumber: "AL-1" }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    try {
+      await asUser.action(api.crmIntegration.sendDeliveryOrderToCrm, {
+        orderId,
+        deliveryIndex: 0,
+      });
+
+      expect(capturedPayload?.notes).toBeDefined();
+      expect(capturedPayload?.notes).toContain("• Okna:");
+      expect(capturedPayload?.notes).toContain("- Profil: PE52");
+      expect(capturedPayload?.notes).toContain("Dodatkowa uwaga ręczna");
+      expect(capturedPayload?.notes).not.toContain("Zlecenie ADK:");
+      expect(capturedPayload?.notes).not.toContain("Usługa:");
+      expect(capturedPayload?.notes).not.toContain("Klient:");
+      expect(capturedPayload?.notes).not.toContain("Uwagi do zamówienia:");
+      expect(capturedPayload?.notes).not.toContain("📋 Specyfikacja produktów:");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 

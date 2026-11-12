@@ -32,30 +32,26 @@ export const sendDeliveryOrderToCrm = action({
       throw new ConvexError(`Dostawca ${supplier.name} nie ma aktywnej integracji API lub brak skonfigurowanych parametrów.`);
     }
 
-    // 3. Pobierz klienta zlecenia do stworzenia wyczerpującej notatki
-    const client = await ctx.runQuery(api.clients.getById, { clientId: order.clientId });
-    const clientName = client ? (client.companyName ? `${client.companyName} (${client.firstName} ${client.lastName})` : `${client.firstName} ${client.lastName}`) : "Brak danych klienta";
-    const clientPhone = client?.phone ? ` | Tel: ${client.phone}` : "";
-    const clientEmail = client?.email ? ` | Email: ${client.email}` : "";
-    const investmentParts = [order.investmentStreet, order.investmentBuildingNumber, order.investmentCity].filter(Boolean);
-    const investmentAddress = investmentParts.length > 0 ? ` | Inwestycja: ${investmentParts.join(" ")}` : "";
+    // 3. Przygotuj notatkę do CRM (bez nagłówków i bloku Zlecenie/Usługa/Klient)
+    const stripSpecHeader = (text: string) =>
+      text.replace(/^📋 Specyfikacja produktów:\s*/i, "").trim();
 
-    const feedNotesList = (delivery.notesFeed ?? [])
+    const rawFeedNotes = (delivery.notesFeed ?? [])
       .map((n: { note?: string }) => n.note?.trim())
       .filter((n): n is string => Boolean(n));
-    const qaMessage = formatProductQuestionsMessage(delivery.selectedProducts);
-    if (qaMessage && !feedNotesList.some((n) => n === qaMessage.trim())) {
-      feedNotesList.unshift(qaMessage);
-    }
-    const feedNotesText = feedNotesList.join("\n---\n");
-    const notesTextToUse = feedNotesText || delivery.notes || "";
 
-    const notesCombined = [
-      `Zlecenie ADK: ${order.name || order.customText || order._id}`,
-      `Usługa: ${delivery.serviceName}`,
-      `Klient: ${clientName}${clientPhone}${clientEmail}${investmentAddress}`,
-      notesTextToUse ? `\nUwagi do zamówienia:\n${notesTextToUse}` : "",
-    ].filter(Boolean).join("\n");
+    const qaMessage = formatProductQuestionsMessage(delivery.selectedProducts);
+    if (qaMessage && !rawFeedNotes.some((n) => n === qaMessage.trim())) {
+      rawFeedNotes.unshift(qaMessage);
+    }
+
+    const feedNotesList = rawFeedNotes
+      .map(stripSpecHeader)
+      .filter((n): n is string => Boolean(n));
+
+    const feedNotesText = feedNotesList.join("\n---\n");
+    const notesCombined =
+      feedNotesText || (delivery.notes ? stripSpecHeader(delivery.notes) : "");
 
     const siteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL || "https://fearless-firefly-85.eu-west-1.convex.site";
     const webhookUrl = `${siteUrl.replace(/\/+$/, "")}/api/webhooks/exalco`;
