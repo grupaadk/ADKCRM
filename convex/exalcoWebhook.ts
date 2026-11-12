@@ -1,5 +1,5 @@
 import { httpAction } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 export const exalcoWebhook = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
@@ -17,6 +17,17 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
+  }
+
+  try {
+    await ctx.runMutation(internal.systemLogs.insert, {
+      level: "info",
+      source: "exalcoWebhook",
+      message: "Otrzymano webhook z Exalco",
+      data: body,
+    });
+  } catch (err) {
+    console.warn("[exalcoWebhook] Nie udało się zapisać logu webhooka:", err);
   }
 
   const dataObj = ((body.data || body.order || body) ?? {}) as Record<string, unknown>;
