@@ -2086,6 +2086,41 @@ export default function OrderDetailPage({
     }
   }, [editingDeliverySvc, draftDeliveryEntry?.supplierId]);
 
+  const INITIAL_ORDER_QUESTIONS = [
+    { key: "profileColor", label: "Kolor profilu", type: "text" as const, placeholder: "np. Antracyt RAL 7016" },
+    { key: "hardwareColor", label: "Kolor okuć/osłonek", type: "text" as const, placeholder: "np. Tytan / Srebrny" },
+    { key: "joineryCount", label: "Ilość stolarki", type: "number" as const, placeholder: "np. 12" },
+  ] as const;
+
+  type InitialOrderQuestionKey = (typeof INITIAL_ORDER_QUESTIONS)[number]["key"];
+
+  function parseInitialQuestionsNote(noteText?: string): Record<InitialOrderQuestionKey, string> {
+    const result: Record<InitialOrderQuestionKey, string> = {
+      profileColor: "",
+      hardwareColor: "",
+      joineryCount: "",
+    };
+    if (!noteText) return result;
+    for (const line of noteText.split("\n")) {
+      const trimmedLine = line.trim();
+      for (const q of INITIAL_ORDER_QUESTIONS) {
+        const prefix = `- ${q.label}:`;
+        if (trimmedLine.startsWith(prefix)) {
+          result[q.key] = trimmedLine.slice(prefix.length).trim();
+        }
+      }
+    }
+    return result;
+  }
+
+  function formatInitialQuestionsNote(values: Record<InitialOrderQuestionKey, string>): string | null {
+    const lines = INITIAL_ORDER_QUESTIONS.map((q) => {
+      const val = values[q.key]?.trim() ?? "";
+      return val ? `- ${q.label}: ${val}` : null;
+    }).filter((line): line is string => Boolean(line));
+    return lines.length > 0 ? lines.join("\n") : null;
+  }
+
   function formatSelectedProductsQaMessage(
     selectedProducts?: Array<{
       id: string;
@@ -5925,12 +5960,73 @@ export default function OrderDetailPage({
                                 </div>
 
                                 {(() => {
+                                  const initialQaEntry = draftCustomNotes.find((n) =>
+                                    n.id.startsWith("initial-qa-"),
+                                  );
+                                  const initialQaValues = parseInitialQuestionsNote(
+                                    initialQaEntry?.note,
+                                  );
                                   const initialNoteEntry =
                                     draftCustomNotes.find((n) => n.id.startsWith("initial-note-")) ??
-                                    draftCustomNotes[0];
+                                    draftCustomNotes.find((n) => !n.id.startsWith("initial-qa-"));
                                   const extraCustomNotes = draftCustomNotes.filter(
-                                    (n) => n.id !== initialNoteEntry?.id,
+                                    (n) =>
+                                      n.id !== initialNoteEntry?.id &&
+                                      n.id !== initialQaEntry?.id,
                                   );
+
+                                  const handleInitialQaChange = (
+                                    key: InitialOrderQuestionKey,
+                                    nextValue: string,
+                                  ) => {
+                                    setDraftDeliveryEntry((prev) => {
+                                      if (!prev) return prev;
+                                      const currentFeed = prev.notesFeed ?? [];
+                                      const existingEntry = currentFeed.find((n) =>
+                                        n.id.startsWith("initial-qa-"),
+                                      );
+                                      const currentValues = parseInitialQuestionsNote(
+                                        existingEntry?.note,
+                                      );
+                                      const updatedValues = {
+                                        ...currentValues,
+                                        [key]: nextValue,
+                                      };
+                                      const formatted =
+                                        formatInitialQuestionsNote(updatedValues);
+                                      const targetId =
+                                        existingEntry?.id ?? `initial-qa-${Date.now()}`;
+                                      let nextFeed: NonNullable<typeof prev.notesFeed>;
+
+                                      if (!formatted) {
+                                        nextFeed = currentFeed.filter((n) => n.id !== targetId);
+                                      } else if (existingEntry) {
+                                        nextFeed = currentFeed.map((n) =>
+                                          n.id === targetId ? { ...n, note: formatted } : n,
+                                        );
+                                      } else {
+                                        nextFeed = [
+                                          {
+                                            id: targetId,
+                                            note: formatted,
+                                            createdAt: Date.now(),
+                                            createdBy: me?._id,
+                                            createdByName:
+                                              me?.displayName ?? me?.login ?? "Ja",
+                                            senderType: "adk" as const,
+                                            sentToCrm: false,
+                                          },
+                                          ...currentFeed,
+                                        ];
+                                      }
+
+                                      return {
+                                        ...prev,
+                                        notesFeed: nextFeed,
+                                        notes: nextFeed.map((n) => n.note).join("\n---\n"),
+                                      };
+                                    });
+                                  };
 
                                   const handleWysiwygChange = (nextText: string) => {
                                     setDraftDeliveryEntry((prev) => {
@@ -5972,6 +6068,27 @@ export default function OrderDetailPage({
 
                                   return (
                                     <>
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        {INITIAL_ORDER_QUESTIONS.map((q) => (
+                                          <div key={q.key} className="flex flex-col gap-1">
+                                            <label className="text-[11px] font-semibold text-slate-600">
+                                              {q.label}
+                                            </label>
+                                            <input
+                                              type={q.type}
+                                              min={q.type === "number" ? 0 : undefined}
+                                              step={q.type === "number" ? "1" : undefined}
+                                              value={initialQaValues[q.key]}
+                                              onChange={(e) =>
+                                                handleInitialQaChange(q.key, e.target.value)
+                                              }
+                                              placeholder={q.placeholder}
+                                              className="w-full h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+
                                       <SupplierNotesWysiwyg
                                         value={initialNoteEntry?.note ?? ""}
                                         onChange={handleWysiwygChange}
