@@ -3872,6 +3872,20 @@ export const generateOfferPdf = action({
             }
           };
           scanContent(doc.body?.content ?? []);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (doc.headers && typeof doc.headers === "object") {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const h of Object.values(doc.headers as Record<string, any>)) {
+              scanContent(h.content ?? []);
+            }
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (doc.footers && typeof doc.footers === "object") {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const f of Object.values(doc.footers as Record<string, any>)) {
+              scanContent(f.content ?? []);
+            }
+          }
           return results;
         };
 
@@ -4500,6 +4514,64 @@ export const generateOfferPdf = action({
           }
         } catch (notesErr) {
           console.warn("[generateOfferPdf] Error formatting rich notes in Docs:", notesErr);
+        }
+
+        // KROK 7d: Formatowanie rabatu na czerwono i pogrubienie (gdy w ofercie naliczono rabat > 0%)
+        if (offer.discountPercent && offer.discountPercent > 0) {
+          try {
+            const finalDocRes = await fetch(`${DOCS_API_BASE}/documents/${copyDocId}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (finalDocRes.ok) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const finalDoc = (await finalDocRes.json()) as any;
+              const discountPatterns = [
+                `${offer.discountPercent}% RABAT`,
+                `${offer.discountPercent}%RABAT`,
+                `${offer.discountPercent}% rabat`,
+                `${offer.discountPercent}%rabat`,
+              ];
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const discountStyleRequests: any[] = [];
+              for (const pattern of discountPatterns) {
+                const ranges = findAllTextRangesInDoc(finalDoc, pattern);
+                for (const r of ranges) {
+                  discountStyleRequests.push({
+                    updateTextStyle: {
+                      range: { startIndex: r.startIndex, endIndex: r.endIndex },
+                      textStyle: {
+                        foregroundColor: {
+                          color: {
+                            rgbColor: {
+                              red: 1.0,
+                              green: 0.0,
+                              blue: 0.0,
+                            },
+                          },
+                        },
+                        bold: true,
+                      },
+                      fields: "foregroundColor,bold",
+                    },
+                  });
+                }
+              }
+
+              if (discountStyleRequests.length > 0) {
+                await fetch(`${DOCS_API_BASE}/documents/${copyDocId}:batchUpdate`, {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ requests: discountStyleRequests }),
+                });
+              }
+            }
+          } catch (styleErr) {
+            console.warn("[generateOfferPdf] Discount red styling warning:", styleErr);
+          }
         }
       } catch (docErr) {
         console.warn("[generateOfferPdf] Docs batchUpdate warning:", docErr);
