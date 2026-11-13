@@ -1,6 +1,7 @@
 import { v, ConvexError } from "convex/values";
 import { query, mutation, action, internalMutation, MutationCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
 import { requireUser, requireRole, userIdentifier } from "./lib/auth";
 import { resolveStatuses, type StatusDef } from "../lib/statuses";
 import { notifyNewOrderMessage } from "./notifications";
