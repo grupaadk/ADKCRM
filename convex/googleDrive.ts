@@ -2895,9 +2895,21 @@ export function buildOfferReplacements(params: {
   const discountedBaseNet = Math.round(totalBaseNet * (1 - discountPct / 100));
   const netBeforeDiscountStr = formatPLNCurrency(totalBaseNet);
 
+  const totalOfferBeforeDiscountNet = totalBaseNet + montazNet;
+  const totalOfferBeforeDiscountStr = formatPLNCurrency(totalOfferBeforeDiscountNet);
+
+  // Dedykowane makro podsumowania rabatu dla całej oferty:
+  // Gdy rabat > 0%: "12 000,00 zł - 5% RABAT = 11 500,00 zł"
+  // Gdy brak rabatu: "12 000,00 zł" (ukrywa człon "- 0% RABAT =")
+  const kalkulacjaRabatuCalaOferta =
+    discountPct > 0
+      ? `${totalOfferBeforeDiscountStr} - ${discountPctStr} RABAT = ${totalNetStr}`
+      : totalNetStr;
+
+  // Wariant dla samej bazy konstrukcji (bez montażu):
   const rabatKalkulacja =
     discountPct > 0
-      ? `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${formatPLNCurrency(discountedBaseNet)}`
+      ? `${netBeforeDiscountStr} - ${discountPctStr} RABAT = ${formatPLNCurrency(discountedBaseNet)}`
       : formatPLNCurrency(totalBaseNet);
 
   const additionsListStr = additions
@@ -3021,7 +3033,18 @@ export function buildOfferReplacements(params: {
     // Dedykowane makra podsumowania finansowego
     { placeholder: "{{podsumowanie_finansowe}}", value: podsumowanieFinansowePelne },
     { placeholder: "{{rozliczenie}}", value: podsumowanieFinansowePelne },
-    { placeholder: "{{rabat_kalkulacja}}", value: rabatKalkulacja },
+    { placeholder: "{{rabat_kalkulacja}}", value: kalkulacjaRabatuCalaOferta },
+    { placeholder: "{{kalkulacja_rabatu}}", value: kalkulacjaRabatuCalaOferta },
+    { placeholder: "{{KALKULACJA_RABATU}}", value: kalkulacjaRabatuCalaOferta },
+    { placeholder: "{{kalkulacja_ceny}}", value: kalkulacjaRabatuCalaOferta },
+    { placeholder: "{{kalkulacja_netto}}", value: kalkulacjaRabatuCalaOferta },
+    { placeholder: "{{wartosc_z_rabatem}}", value: kalkulacjaRabatuCalaOferta },
+    { placeholder: "{{rozliczenie_rabatu}}", value: kalkulacjaRabatuCalaOferta },
+    { placeholder: "{{wartosc_netto_kalkulacja}}", value: kalkulacjaRabatuCalaOferta },
+    { placeholder: "{{rabat_linia}}", value: kalkulacjaRabatuCalaOferta },
+    { placeholder: "{{podsumowanie_rabatu}}", value: kalkulacjaRabatuCalaOferta },
+    { placeholder: "{{kalkulacja_rabatu_konstrukcje}}", value: rabatKalkulacja },
+    { placeholder: "{{kalkulacja_rabatu_baza}}", value: rabatKalkulacja },
     { placeholder: "{{razem_podsumowanie}}", value: razemPodsumowanieLinia },
     { placeholder: "{{razem_linia}}", value: razemPodsumowanieLinia },
 

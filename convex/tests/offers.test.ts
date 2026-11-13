@@ -1154,4 +1154,84 @@ describe("CAD Offers and Constructions Module", () => {
     // Totals remain consistent after conversion
     expect(offerData?.offer.totalPriceNet).toBe(25000 + 6742);
   });
+
+  test("resolves custom {{kalkulacja_rabatu}} macro dynamically showing discount calculation when rabat > 0 and hiding it when rabat = 0", async () => {
+    const { buildOfferReplacements } = await import("../googleDrive");
+    const t = convexTest(schema);
+
+    const oppId = await t.run(async (ctx) => {
+      return await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-DISCOUNT-MACRO",
+        firstName: "Robert",
+        lastName: "Kowalski",
+        processed: false,
+        stage: "lead",
+      });
+    });
+
+    const offerId = await t.mutation(api.offers.getOrCreateForOpportunity, {
+      opportunityId: oppId,
+    });
+
+    // Pozycja z montażem: materiał 10 000 zł, montaż 2 000 zł
+    await t.mutation(api.offers.addConstructionPosition, {
+      offerId,
+      name: "Pergola 4x3",
+      widthMm: 4000,
+      heightMm: 2500,
+      materialPriceNet: 10000,
+      installationPriceNet: 2000,
+      priceNet: 12000,
+      costNet: 8000,
+    });
+
+    // 1. Sprawdzenie BEZ RABATU (0%)
+    let data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data?.offer.discountPercent).toBe(0);
+    expect(data?.offer.totalPriceNet).toBe(12000);
+
+    let reps = buildOfferReplacements({
+      offer: data!.offer,
+      items: data!.items,
+      additions: data!.additions,
+      clientFullName: "Robert Kowalski",
+    });
+
+    const repNoDiscount = reps.replacements.find((r) => r.placeholder === "{{kalkulacja_rabatu}}");
+    expect(repNoDiscount).toBeDefined();
+    // Bez rabatu ma pokazać samą kwotę netto, np. "12 000,00 zł", bez "- 0% RABAT"
+    expect(repNoDiscount?.value).toContain("12 000,00 zł");
+    expect(repNoDiscount?.value).not.toContain("RABAT");
+    expect(repNoDiscount?.value).not.toContain("=");
+
+    // 2. Sprawdzenie Z RABATEM (10% od materiału = 1 000 zł rabatu; nowa cena = 9 000 + 2 000 = 11 000 zł)
+    await t.mutation(api.offers.updateOffer, {
+      offerId,
+      discountPercent: 10,
+    });
+
+    data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data?.offer.discountPercent).toBe(10);
+    expect(data?.offer.totalPriceNet).toBe(11000);
+
+    reps = buildOfferReplacements({
+      offer: data!.offer,
+      items: data!.items,
+      additions: data!.additions,
+      clientFullName: "Robert Kowalski",
+    });
+
+    const repWithDiscount = reps.replacements.find((r) => r.placeholder === "{{kalkulacja_rabatu}}");
+    expect(repWithDiscount).toBeDefined();
+    // Z rabatem ma pokazać "12 000,00 zł - 10% RABAT = 11 000,00 zł"
+    expect(repWithDiscount?.value).toContain("12 000,00 zł - 10% RABAT = 11 000,00 zł");
+
+    // Sprawdzenie aliasów
+    const repAlias = reps.replacements.find((r) => r.placeholder === "{{wartosc_z_rabatem}}");
+    expect(repAlias?.value).toBe(repWithDiscount?.value);
+
+    // Sprawdzenie makra dla samych konstrukcji (bez montażu: 10 000 zł - 10% RABAT = 9 000 zł)
+    const repKonstrukcje = reps.replacements.find((r) => r.placeholder === "{{kalkulacja_rabatu_konstrukcje}}");
+    expect(repKonstrukcje?.value).toContain("10 000,00 zł - 10% RABAT = 9 000,00 zł");
+  });
 });
