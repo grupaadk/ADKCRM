@@ -166,6 +166,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
         warning: patch.warning,
         color: patch.color,
         systemName: patch.systemName,
+        hardware: patch.hardware,
         quantity: patch.quantity,
         widthMm: patch.widthMm,
         heightMm: patch.heightMm,
@@ -173,6 +174,16 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
         fillType: patch.fillType,
         priceNet: patch.priceNet,
         costNet: patch.costNet,
+        materialCostNet: patch.materialCostNet,
+        brushesCostNet: patch.brushesCostNet,
+        handlesCostNet: patch.handlesCostNet,
+        materialPriceNet: patch.materialPriceNet,
+        installationCostNet: patch.installationCostNet,
+        installationPriceNet: patch.installationPriceNet,
+        isCustomPricing: patch.isCustomPricing,
+        isStandard: patch.isStandard,
+        pricingTier: patch.pricingTier,
+        standardWidthCm: patch.standardWidthCm,
       });
       setSaveStatus("saved");
     } catch (err) {

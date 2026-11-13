@@ -121,6 +121,7 @@ export const getOfferWithItems = query({
           : null;
 
         const isGlassStale =
+          !item.isCustomPricing &&
           isGlass &&
           typeof item.widthMm === "number" &&
           typeof item.heightMm === "number" &&
@@ -863,6 +864,7 @@ export const updateConstructionPosition = mutation({
     materialPriceNet: v.optional(v.number()),
     installationCostNet: v.optional(v.number()),
     installationPriceNet: v.optional(v.number()),
+    isCustomPricing: v.optional(v.boolean()),
     isStandard: v.optional(v.boolean()),
     pricingTier: v.optional(v.string()),
     standardWidthCm: v.optional(v.number()),
@@ -882,6 +884,22 @@ export const updateConstructionPosition = mutation({
       } else if (val !== undefined) {
         patch[key] = val;
       }
+    }
+
+    const hasExplicitPricing =
+      fields.installationCostNet !== undefined ||
+      fields.installationPriceNet !== undefined ||
+      fields.materialCostNet !== undefined ||
+      fields.materialPriceNet !== undefined ||
+      fields.priceNet !== undefined ||
+      fields.costNet !== undefined;
+
+    if (fields.isCustomPricing !== undefined) {
+      patch.isCustomPricing = fields.isCustomPricing;
+    } else if (hasExplicitPricing && fields.widthMm === undefined && fields.heightMm === undefined) {
+      patch.isCustomPricing = true;
+    } else if (fields.widthMm !== undefined || fields.heightMm !== undefined) {
+      patch.isCustomPricing = false;
     }
 
     // Jeśli zmieniły się wymiary lub ilość skrzydeł, przelicz segmenty CAD
@@ -927,7 +945,7 @@ export const updateConstructionPosition = mutation({
       patch.standardWidthCm = fields.standardWidthCm ?? calc.standardWidthCm;
 
       // Jeśli wymiary uległy zmianie i nie podano jawnie nowej ceny ręcznej, przelicz dynamicznie koszty i ceny wg Excela
-      if (fields.materialPriceNet === undefined && fields.priceNet === undefined) {
+      if (fields.materialPriceNet === undefined && fields.priceNet === undefined && fields.installationPriceNet === undefined && fields.installationCostNet === undefined) {
         patch.materialCostNet = calc.materialCostNet;
         patch.brushesCostNet = calc.brushesCostNet;
         patch.handlesCostNet = calc.handlesCostNet;
@@ -1450,6 +1468,7 @@ async function recalculateOffer(ctx: MutationCtx, offerId: Id<"offers">) {
         : null;
 
     const isGlassNeedsRecalc =
+      !it.isCustomPricing &&
       isGlass &&
       typeof it.widthMm === "number" &&
       typeof it.heightMm === "number" &&

@@ -38,6 +38,7 @@ export interface CadConstructionItem {
   materialPriceNet?: number;
   installationCostNet?: number;
   installationPriceNet?: number;
+  isCustomPricing?: boolean;
   isStandard?: boolean;
   pricingTier?: "STANDARD" | "NIESTANDARD" | string;
   standardWidthCm?: number;

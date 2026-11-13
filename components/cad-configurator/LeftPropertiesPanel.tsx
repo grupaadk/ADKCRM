@@ -50,6 +50,84 @@ export function LeftPropertiesPanel({
   const profit = price - cost;
   const marginPct = price > 0 ? Math.round((profit / price) * 100) : 0;
 
+  const [instCostInput, setInstCostInput] = React.useState<string>(instCost ? instCost.toString() : "");
+  const [instPriceInput, setInstPriceInput] = React.useState<string>(instPrice ? instPrice.toString() : "");
+  const [matCostInput, setMatCostInput] = React.useState<string>(matCost ? matCost.toString() : "");
+  const [matPriceInput, setMatPriceInput] = React.useState<string>(matPrice ? matPrice.toString() : "");
+  const [focusedField, setFocusedField] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (focusedField !== "instCost") setInstCostInput(instCost ? instCost.toString() : "");
+  }, [instCost, focusedField]);
+
+  React.useEffect(() => {
+    if (focusedField !== "instPrice") setInstPriceInput(instPrice ? instPrice.toString() : "");
+  }, [instPrice, focusedField]);
+
+  React.useEffect(() => {
+    if (focusedField !== "matCost") setMatCostInput(matCost ? matCost.toString() : "");
+  }, [matCost, focusedField]);
+
+  React.useEffect(() => {
+    if (focusedField !== "matPrice") setMatPriceInput(matPrice ? matPrice.toString() : "");
+  }, [matPrice, focusedField]);
+
+  const commitInstCost = () => {
+    const val = parseFloat(instCostInput);
+    const newInstCost = isNaN(val) ? 0 : Math.max(0, val);
+    setInstCostInput(newInstCost ? newInstCost.toString() : "");
+    if (newInstCost !== instCost) {
+      onChange({
+        installationCostNet: newInstCost,
+        materialCostNet: matCost,
+        costNet: matCost + newInstCost,
+        isCustomPricing: true,
+      });
+    }
+  };
+
+  const commitInstPrice = () => {
+    const val = parseFloat(instPriceInput);
+    const newInstPrice = isNaN(val) ? 0 : Math.max(0, val);
+    setInstPriceInput(newInstPrice ? newInstPrice.toString() : "");
+    if (newInstPrice !== instPrice) {
+      onChange({
+        installationPriceNet: newInstPrice,
+        materialPriceNet: matPrice,
+        priceNet: matPrice + newInstPrice,
+        isCustomPricing: true,
+      });
+    }
+  };
+
+  const commitMatCost = () => {
+    const val = parseFloat(matCostInput);
+    const newMatCost = isNaN(val) ? 0 : Math.max(0, val);
+    setMatCostInput(newMatCost ? newMatCost.toString() : "");
+    if (newMatCost !== matCost) {
+      onChange({
+        materialCostNet: newMatCost,
+        installationCostNet: instCost,
+        costNet: newMatCost + instCost,
+        isCustomPricing: true,
+      });
+    }
+  };
+
+  const commitMatPrice = () => {
+    const val = parseFloat(matPriceInput);
+    const newMatPrice = isNaN(val) ? 0 : Math.max(0, val);
+    setMatPriceInput(newMatPrice ? newMatPrice.toString() : "");
+    if (newMatPrice !== matPrice) {
+      onChange({
+        materialPriceNet: newMatPrice,
+        installationPriceNet: instPrice,
+        priceNet: newMatPrice + instPrice,
+        isCustomPricing: true,
+      });
+    }
+  };
+
   const template = useQuery(
     api.constructions.get,
     item.constructionId ? { id: item.constructionId as Id<"constructions"> } : "skip"
@@ -445,8 +523,66 @@ export function LeftPropertiesPanel({
 
         {/* Sekcja: Finanse pozycji */}
         <div className="bg-[#f8fafc] p-3 rounded-lg border border-[#e3e7ee] space-y-3">
-          <div className="flex items-center gap-1.5 text-[#0e7490] font-bold text-[11px] uppercase tracking-wide">
-            <DollarSign size={13} className="text-[#4ABBC3]" /> Finanse pozycji
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[#0e7490] font-bold text-[11px] uppercase tracking-wide">
+              <DollarSign size={13} className="text-[#4ABBC3]" /> Finanse pozycji
+            </div>
+            {item.isCustomPricing && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isGlass) {
+                    const calc = calculateGlassSystemPricing(item.widthMm || 2880, item.heightMm || 2300);
+                    onChange({
+                      isCustomPricing: false,
+                      materialCostNet: calc.materialCostNet,
+                      brushesCostNet: calc.brushesCostNet,
+                      handlesCostNet: calc.handlesCostNet,
+                      materialPriceNet: calc.materialPriceNet,
+                      installationCostNet: calc.installationCostNet,
+                      installationPriceNet: calc.installationPriceNet,
+                      priceNet: calc.priceNet,
+                      costNet: calc.costNet,
+                      isStandard: calc.isStandard,
+                      pricingTier: calc.pricingTier,
+                      standardWidthCm: calc.standardWidthCm,
+                    });
+                  } else if (matchedRange) {
+                    const mCost = matchedRange.costNet ?? matchedRange.priceNet;
+                    const mPrice =
+                      matchedRange.priceNet && matchedRange.priceNet !== matchedRange.costNet
+                        ? matchedRange.priceNet
+                        : (template?.materialMarkupType === "percent"
+                            ? Math.round(mCost * (1 + (template.materialMarkupValue || 0) / 100))
+                            : mCost + (template?.materialMarkupValue || 0));
+                    let curInstPrice = template?.installationPriceNet ?? 0;
+                    let curInstCost = template?.installationCostNet ?? 0;
+                    if (template?.installationUnit === "mb") {
+                      const rateCost = template.installationUnitRate ?? 200;
+                      const rateClient =
+                        template.installationMarkupType === "percent"
+                          ? Math.round(rateCost * (1 + (template.installationMarkupValue || 0) / 100))
+                          : rateCost + (template.installationMarkupValue || 50);
+                      curInstCost = Math.round(((item.widthMm || 3000) / 1000) * rateCost);
+                      curInstPrice = Math.round(((item.widthMm || 3000) / 1000) * rateClient);
+                    }
+                    onChange({
+                      isCustomPricing: false,
+                      materialPriceNet: mPrice,
+                      materialCostNet: mCost,
+                      installationCostNet: curInstCost,
+                      installationPriceNet: curInstPrice,
+                      priceNet: mPrice + curInstPrice,
+                      costNet: mCost + curInstCost,
+                    });
+                  }
+                }}
+                className="text-[10px] text-[#0e7490] hover:underline font-semibold cursor-pointer"
+                title="Przywraca kalkulację z cennika standardowego"
+              >
+                Przywróć cennik
+              </button>
+            )}
           </div>
 
           {/* Filar 1: Materiał */}
@@ -464,14 +600,20 @@ export function LeftPropertiesPanel({
                   step={50}
                   min={0}
                   disabled={readOnly}
-                  value={matCost}
-                  onChange={(e) => {
-                    const newMatCost = Math.max(0, parseFloat(e.target.value) || 0);
-                    onChange({
-                      materialCostNet: newMatCost,
-                      costNet: newMatCost + instCost,
-                    });
+                  value={focusedField === "matCost" ? matCostInput : (matCost ? matCost.toString() : "")}
+                  onFocus={() => setFocusedField("matCost")}
+                  onChange={(e) => setMatCostInput(e.target.value)}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    commitMatCost();
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      commitMatCost();
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  placeholder="0"
                   className="w-full bg-white border border-[#d4dae3] rounded px-2 py-1 text-xs text-[#0b1220] font-mono focus:border-[#4ABBC3] focus:outline-none"
                 />
               </div>
@@ -484,14 +626,20 @@ export function LeftPropertiesPanel({
                   step={50}
                   min={0}
                   disabled={readOnly}
-                  value={matPrice}
-                  onChange={(e) => {
-                    const newMatPrice = Math.max(0, parseFloat(e.target.value) || 0);
-                    onChange({
-                      materialPriceNet: newMatPrice,
-                      priceNet: newMatPrice + instPrice,
-                    });
+                  value={focusedField === "matPrice" ? matPriceInput : (matPrice ? matPrice.toString() : "")}
+                  onFocus={() => setFocusedField("matPrice")}
+                  onChange={(e) => setMatPriceInput(e.target.value)}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    commitMatPrice();
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      commitMatPrice();
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  placeholder="0"
                   className="w-full bg-white border border-[#d4dae3] rounded px-2 py-1 text-xs text-[#0e7490] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none"
                 />
               </div>
@@ -518,6 +666,7 @@ export function LeftPropertiesPanel({
                       brushesCostNet: newBrushes,
                       materialCostNet: newMatCost,
                       costNet: newMatCost + instCost,
+                      isCustomPricing: true,
                     });
                   }}
                   placeholder="0"
@@ -543,6 +692,7 @@ export function LeftPropertiesPanel({
                       handlesCostNet: newHandles,
                       materialCostNet: newMatCost,
                       costNet: newMatCost + instCost,
+                      isCustomPricing: true,
                     });
                   }}
                   placeholder="0"
@@ -554,9 +704,16 @@ export function LeftPropertiesPanel({
 
           {/* Filar 2: Montaż */}
           <div className="bg-white p-2.5 rounded-md border border-[#e3e7ee] space-y-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 block">
-              2. Montaż
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 block">
+                2. Montaż
+              </span>
+              {item.isCustomPricing && (
+                <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.2 font-medium">
+                  Ręczny
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[9px] font-medium text-[#7c8597] mb-0.5">
@@ -567,14 +724,20 @@ export function LeftPropertiesPanel({
                   step={50}
                   min={0}
                   disabled={readOnly}
-                  value={instCost}
-                  onChange={(e) => {
-                    const newInstCost = Math.max(0, parseFloat(e.target.value) || 0);
-                    onChange({
-                      installationCostNet: newInstCost,
-                      costNet: matCost + newInstCost,
-                    });
+                  value={focusedField === "instCost" ? instCostInput : (instCost ? instCost.toString() : "")}
+                  onFocus={() => setFocusedField("instCost")}
+                  onChange={(e) => setInstCostInput(e.target.value)}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    commitInstCost();
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      commitInstCost();
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  placeholder="0"
                   className="w-full bg-white border border-[#d4dae3] rounded px-2 py-1 text-xs text-[#0b1220] font-mono focus:border-[#4ABBC3] focus:outline-none"
                 />
               </div>
@@ -587,14 +750,20 @@ export function LeftPropertiesPanel({
                   step={50}
                   min={0}
                   disabled={readOnly}
-                  value={instPrice}
-                  onChange={(e) => {
-                    const newInstPrice = Math.max(0, parseFloat(e.target.value) || 0);
-                    onChange({
-                      installationPriceNet: newInstPrice,
-                      priceNet: matPrice + newInstPrice,
-                    });
+                  value={focusedField === "instPrice" ? instPriceInput : (instPrice ? instPrice.toString() : "")}
+                  onFocus={() => setFocusedField("instPrice")}
+                  onChange={(e) => setInstPriceInput(e.target.value)}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    commitInstPrice();
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      commitInstPrice();
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  placeholder="0"
                   className="w-full bg-white border border-[#d4dae3] rounded px-2 py-1 text-xs text-[#0e7490] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none"
                 />
               </div>
@@ -618,6 +787,7 @@ export function LeftPropertiesPanel({
                   onChange({
                     priceNet: newPrice,
                     materialPriceNet: Math.max(0, newPrice - instPrice),
+                    isCustomPricing: true,
                   });
                 }}
                 className="w-full bg-[#f1f5f9] border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-extrabold focus:border-[#4ABBC3] focus:outline-none"
@@ -639,6 +809,7 @@ export function LeftPropertiesPanel({
                   onChange({
                     costNet: newCost,
                     materialCostNet: Math.max(0, newCost - instCost),
+                    isCustomPricing: true,
                   });
                 }}
                 className="w-full bg-[#f1f5f9] border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono focus:border-[#4ABBC3] focus:outline-none"

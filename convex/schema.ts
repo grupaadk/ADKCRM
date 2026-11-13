@@ -1304,6 +1304,7 @@ export default defineSchema({
     materialPriceNet: v.optional(v.number()),
     installationCostNet: v.optional(v.number()),
     installationPriceNet: v.optional(v.number()),
+    isCustomPricing: v.optional(v.boolean()),
     isStandard: v.optional(v.boolean()),
     pricingTier: v.optional(v.string()), // "STANDARD" | "NIESTANDARD"
     standardWidthCm: v.optional(v.number()),

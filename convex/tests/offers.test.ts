@@ -1003,4 +1003,83 @@ describe("CAD Offers and Constructions Module", () => {
     expect(dodatkiNettoRep).toBeDefined();
     expect(dodatkiNettoRep?.value).toContain("1 350"); // 3 * 450 = 1350 zł
   });
+
+  test("allows custom manual installation cost and price override without being overwritten by automatic glass calculator", async () => {
+    const t = convexTest(schema);
+
+    // 1. Setup sample opportunity
+    const oppId = await t.run(async (ctx) => {
+      return await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-MANUAL-MONTAGE",
+        firstName: "Tomasz",
+        lastName: "Testowy",
+        email: "tomasz@example.com",
+        phone: "+48 500 600 700",
+        city: "Wrocław",
+        processed: false,
+        stage: "lead",
+      });
+    });
+
+    const offerId = await t.mutation(api.offers.getOrCreateForOpportunity, {
+      opportunityId: oppId,
+    });
+
+    // 2. Add glass construction with default calculated prices (1083 / 1299 zł)
+    const posId = await t.mutation(api.offers.addConstructionPosition, {
+      offerId,
+      name: "Ścianka szklana przesuwna 5400×2300",
+      systemName: "SZKŁO",
+      fillType: "HART 10",
+      widthMm: 5400,
+      heightMm: 2300,
+      panesCount: 5,
+      materialCostNet: 5000,
+      materialPriceNet: 7500,
+      installationCostNet: 1083,
+      installationPriceNet: 1299,
+      priceNet: 8799,
+      costNet: 6083,
+    });
+
+    // Verify initial query has calculated prices
+    let data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data?.items[0].installationCostNet).toBe(1083);
+    expect(data?.items[0].installationPriceNet).toBe(1299);
+
+    // 3. User manually overrides installation cost and price
+    await t.mutation(api.offers.updateConstructionPosition, {
+      itemId: posId,
+      installationCostNet: 1800,
+      installationPriceNet: 2500,
+      costNet: (data!.items[0].materialCostNet || 0) + 1800,
+      priceNet: (data!.items[0].materialPriceNet || 0) + 2500,
+    });
+
+    // 4. Verify getOfferWithItems preserves the custom values and does NOT overwrite them
+    data = await t.query(api.offers.getOfferWithItems, { offerId });
+    const item = data?.items[0];
+    expect(item?.isCustomPricing).toBe(true);
+    expect(item?.installationCostNet).toBe(1800);
+    expect(item?.installationPriceNet).toBe(2500);
+
+    // 5. Verify offer totals reflect the custom installation
+    const expectedMatPrice = item!.materialPriceNet!;
+    expect(data?.offer.totalPriceNet).toBe(expectedMatPrice + 2500);
+
+    // 6. Test reset back to standard pricing
+    await t.mutation(api.offers.updateConstructionPosition, {
+      itemId: posId,
+      isCustomPricing: false,
+      installationCostNet: 1083,
+      installationPriceNet: 1299,
+      priceNet: expectedMatPrice + 1299,
+      costNet: (item!.materialCostNet || 0) + 1083,
+    });
+
+    data = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(data?.items[0].isCustomPricing).toBe(false);
+    expect(data?.items[0].installationCostNet).toBe(1083);
+    expect(data?.items[0].installationPriceNet).toBe(1299);
+  });
 });
