@@ -30,14 +30,20 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     console.warn("[exalcoWebhook] Nie udało się zapisać logu webhooka:", err);
   }
 
-  const dataObj = ((body.data || body.order || body) ?? {}) as Record<string, unknown>;
+  const rawDataObj = body.data || body.order || body;
+  const dataObj = (typeof rawDataObj === "object" && rawDataObj !== null ? rawDataObj : body) as Record<string, unknown>;
 
-  // Identyfikacja zlecenia z ładunku Exalco (wsparcie płaścich i zagnieżdżonych struktur)
+  // Identyfikacja zlecenia z ładunku Exalco (wsparcie płaskich i zagnieżdżonych struktur)
   const orderIdOrNumber =
+    (typeof body.order === "string" || typeof body.order === "number" ? String(body.order) : "") ||
+    (typeof body.orderIdOrNumber === "string" || typeof body.orderIdOrNumber === "number" ? String(body.orderIdOrNumber) : "") ||
+    (typeof dataObj.orderIdOrNumber === "string" || typeof dataObj.orderIdOrNumber === "number" ? String(dataObj.orderIdOrNumber) : "") ||
     dataObj.orderNumber ||
     dataObj.orderId ||
     dataObj.externalOrderNumber ||
     dataObj.externalOrderId ||
+    dataObj.adkOrderId ||
+    dataObj.clientOrderId ||
     dataObj.number ||
     dataObj.id ||
     dataObj.order_number ||
@@ -46,6 +52,8 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     body.orderId ||
     body.externalOrderNumber ||
     body.externalOrderId ||
+    body.adkOrderId ||
+    body.clientOrderId ||
     body.number ||
     body.id;
 
@@ -119,50 +127,102 @@ export const exalcoWebhook = httpAction(async (ctx, request) => {
     statusLower.includes("potwierdz");
 
   // Odczyt nadchodzącej notatki / wiadomości z Exalco
-  const rawNoteObj = (dataObj.note || body.note) as Record<string, unknown> | undefined;
+  const rawNoteObj = (dataObj.note || body.note || dataObj.message || body.message) as Record<string, unknown> | undefined;
+  const isRawNoteObj = typeof rawNoteObj === "object" && rawNoteObj !== null;
+
   const incomingNote = String(
-    (typeof dataObj.note === "string" ? dataObj.note : rawNoteObj?.content || rawNoteObj?.text) ||
-    dataObj.message ||
+    (typeof dataObj.note === "string" ? dataObj.note : "") ||
+    (typeof body.note === "string" ? body.note : "") ||
+    (typeof dataObj.notes === "string" ? dataObj.notes : "") ||
+    (typeof body.notes === "string" ? body.notes : "") ||
+    (typeof dataObj.message === "string" ? dataObj.message : "") ||
+    (typeof body.message === "string" ? body.message : "") ||
+    (isRawNoteObj ? rawNoteObj.note || rawNoteObj.text || rawNoteObj.content || rawNoteObj.message || rawNoteObj.body || "" : "") ||
     dataObj.comment ||
     dataObj.noteText ||
     dataObj.text ||
-    body.message ||
+    dataObj.body ||
     body.comment ||
     body.noteText ||
     body.text ||
+    body.body ||
     "",
   ).trim();
 
-  const authorName = String(
-    dataObj.authorName ||
-    dataObj.author ||
-    dataObj.userName ||
-    dataObj.sender ||
-    rawNoteObj?.createdByName ||
-    rawNoteObj?.authorName ||
-    body.authorName ||
-    body.author ||
-    body.userName ||
-    body.sender ||
-    "",
-  ).trim();
+  const extractName = (val: unknown): string => {
+    if (!val) return "";
+    if (typeof val === "string") return val.trim();
+    if (typeof val === "object") {
+      const obj = val as Record<string, unknown>;
+      return String(obj.name || obj.displayName || obj.userName || obj.authorName || obj.email || "").trim();
+    }
+    return String(val).trim();
+  };
+
+  const authorName =
+    extractName(dataObj.authorName) ||
+    extractName(dataObj.author) ||
+    extractName(dataObj.userName) ||
+    extractName(dataObj.sender) ||
+    extractName(dataObj.senderName) ||
+    (isRawNoteObj ? extractName(rawNoteObj.authorName) || extractName(rawNoteObj.author) || extractName(rawNoteObj.createdByName) || extractName(rawNoteObj.sender) || extractName(rawNoteObj.userName) : "") ||
+    extractName(body.authorName) ||
+    extractName(body.author) ||
+    extractName(body.userName) ||
+    extractName(body.sender) ||
+    extractName(body.senderName) ||
+    "";
 
   // Zawsze zapisz nadchodzącą notatkę z Exalco, niezależnie od statusu
+  let noteSaved = false;
+  let noteError: string | undefined;
+
   if (incomingNote) {
-    await ctx.runMutation(api.orders.receiveNoteFromExalcoWebhook, {
+    const noteResult = await ctx.runMutation(api.orders.receiveNoteFromExalcoWebhook, {
       orderIdOrNumber: String(orderIdOrNumber),
       noteText: incomingNote,
       authorName: authorName || undefined,
     });
+
+    if (noteResult.success) {
+      noteSaved = true;
+    } else {
+      noteError = noteResult.reason;
+      try {
+        await ctx.runMutation(internal.systemLogs.insert, {
+          level: "warn",
+          source: "exalcoWebhook",
+          message: `Nie udało się przypisać notatki z Exalco: ${noteResult.reason}`,
+          data: {
+            orderIdOrNumber: String(orderIdOrNumber),
+            incomingNote,
+            authorName,
+            payload: body,
+          },
+        });
+      } catch (err) {
+        console.warn("[exalcoWebhook] Nie udało się zapisać błędu notatki do logów:", err);
+      }
+    }
   }
 
-  // Jeśli brak statusu akceptacji i brak daty dostawy — odpowiedz sukcesem (notatka już zapisana)
+  // Jeśli brak statusu akceptacji i brak daty dostawy — odpowiedz sukcesem lub błędem przypisania notatki
   if (!isAcceptance && !deliveryDateTs) {
+    if (noteError) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: noteError,
+          message: `Failed to save note: ${noteError}`,
+        }),
+        { status: 404, headers: { "Content-Type": "application/json" } },
+      );
+    }
     return new Response(
       JSON.stringify({
         success: true,
-        noted: !!incomingNote,
-        message: `Status '${rawStatus}' does not trigger status update. ${incomingNote ? "Note saved." : "No note to save."}`,
+        noted: noteSaved,
+        message: `Status '${rawStatus}' does not trigger status update. ${noteSaved ? "Note saved." : "No note to save."}`,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );

@@ -1807,6 +1807,68 @@ export const addInternalSupplierNote = mutation({
   }
 });
 
+function findOrderAndDeliveryByExalcoIdentifier(
+  allOrders: Array<Doc<"orders">>,
+  rawIdentifier: string
+): { targetOrder: Doc<"orders">; targetDeliveryIndex: number } | null {
+  const queryClean = rawIdentifier.trim().toLowerCase();
+  if (!queryClean) return null;
+
+  const queryDigits = queryClean.replace(/\D/g, "");
+
+  // 1. Sprawdź bezpośrednie dopasowanie w serviceDeliveries
+  for (const order of allOrders) {
+    if (!order.serviceDeliveries) continue;
+    const idx = order.serviceDeliveries.findIndex((d) => {
+      const extNum = (d.externalOrderNumber ?? "").trim().toLowerCase();
+      const extId = (d.externalOrderId ?? "").trim().toLowerCase();
+      const ordId = String(order._id).trim().toLowerCase();
+      const ordName = (order.name ?? "").trim().toLowerCase();
+      const ordCustom = (order.customText ?? "").trim().toLowerCase();
+
+      const extNumDigits = extNum.replace(/\D/g, "");
+      const digitsMatch =
+        queryDigits.length >= 2 &&
+        extNumDigits.length >= 2 &&
+        (queryDigits === extNumDigits ||
+          queryDigits.includes(extNumDigits) ||
+          extNumDigits.includes(queryDigits));
+
+      return (
+        (extNum && (extNum === queryClean || queryClean.includes(extNum) || extNum.includes(queryClean))) ||
+        (extId && (extId === queryClean || queryClean.includes(extId) || extId.includes(queryClean))) ||
+        (ordId && ordId === queryClean) ||
+        (ordName && (ordName === queryClean || queryClean.includes(ordName))) ||
+        (ordCustom && (ordCustom === queryClean || queryClean.includes(ordCustom))) ||
+        Boolean(digitsMatch)
+      );
+    });
+    if (idx !== -1) {
+      return { targetOrder: order, targetDeliveryIndex: idx };
+    }
+  }
+
+  // 2. Jeśli nie dopasowano konkretnej pozycji, ale dopasowano zlecenie jako całość
+  for (const order of allOrders) {
+    const ordId = String(order._id).trim().toLowerCase();
+    const ordName = (order.name ?? "").trim().toLowerCase();
+    const ordCustom = (order.customText ?? "").trim().toLowerCase();
+
+    if (
+      (ordId && ordId === queryClean) ||
+      (ordName && (ordName === queryClean || queryClean.includes(ordName) || ordName.includes(queryClean))) ||
+      (ordCustom && (ordCustom === queryClean || queryClean.includes(ordCustom) || ordCustom.includes(queryClean)))
+    ) {
+      const deliveries = order.serviceDeliveries ?? [];
+      const exalcoIdx = deliveries.findIndex((d) => d.externalOrderNumber || d.externalOrderId);
+      const deliveryIndex = exalcoIdx !== -1 ? exalcoIdx : 0;
+      return { targetOrder: order, targetDeliveryIndex: deliveryIndex };
+    }
+  }
+
+  return null;
+}
+
 export const confirmDeliveryByExalcoWebhook = mutation({
   args: {
     orderIdOrNumber: v.string(),
@@ -1815,39 +1877,13 @@ export const confirmDeliveryByExalcoWebhook = mutation({
   },
   handler: async (ctx, args) => {
     const allOrders = await ctx.db.query("orders").collect();
-    let targetOrder = null;
-    let targetDeliveryIndex = -1;
+    const match = findOrderAndDeliveryByExalcoIdentifier(allOrders, args.orderIdOrNumber);
 
-    const queryClean = args.orderIdOrNumber.trim().toLowerCase();
-
-    for (const order of allOrders) {
-      if (!order.serviceDeliveries) continue;
-      const idx = order.serviceDeliveries.findIndex((d) => {
-        const extNum = (d.externalOrderNumber ?? "").trim().toLowerCase();
-        const extId = (d.externalOrderId ?? "").trim().toLowerCase();
-        const ordId = String(order._id).trim().toLowerCase();
-        const ordName = (order.name ?? "").trim().toLowerCase();
-        const ordCustom = (order.customText ?? "").trim().toLowerCase();
-
-        return (
-          (extNum && (extNum === queryClean || queryClean.includes(extNum) || extNum.includes(queryClean))) ||
-          (extId && (extId === queryClean || queryClean.includes(extId) || extId.includes(queryClean))) ||
-          (ordId && ordId === queryClean) ||
-          (ordName && (ordName === queryClean || queryClean.includes(ordName))) ||
-          (ordCustom && (ordCustom === queryClean || queryClean.includes(ordCustom)))
-        );
-      });
-      if (idx !== -1) {
-        targetOrder = order;
-        targetDeliveryIndex = idx;
-        break;
-      }
-    }
-
-    if (!targetOrder || targetDeliveryIndex === -1) {
+    if (!match) {
       return { success: false, reason: `Nie znaleziono zlecenia z numerem/ID Exalco: ${args.orderIdOrNumber}` };
     }
 
+    const { targetOrder, targetDeliveryIndex } = match;
     const now = Date.now();
     const deliveries = [...(targetOrder.serviceDeliveries ?? [])];
     const delivery = deliveries[targetDeliveryIndex];
@@ -1950,27 +1986,13 @@ export const receiveNoteFromExalcoWebhook = mutation({
   },
   handler: async (ctx, args) => {
     const allOrders = await ctx.db.query("orders").collect();
-    let targetOrder = null;
-    let targetDeliveryIndex = -1;
+    const match = findOrderAndDeliveryByExalcoIdentifier(allOrders, args.orderIdOrNumber);
 
-    for (const order of allOrders) {
-      if (!order.serviceDeliveries) continue;
-      const idx = order.serviceDeliveries.findIndex((d) => {
-        if (!d.externalOrderNumber && !d.externalOrderId) return false;
-        const numMatch = d.externalOrderNumber?.trim().toLowerCase() === args.orderIdOrNumber.trim().toLowerCase();
-        const idMatch = d.externalOrderId?.trim().toLowerCase() === args.orderIdOrNumber.trim().toLowerCase();
-        return numMatch || idMatch;
-      });
-      if (idx !== -1) {
-        targetOrder = order;
-        targetDeliveryIndex = idx;
-        break;
-      }
-    }
-
-    if (!targetOrder || targetDeliveryIndex === -1) {
+    if (!match) {
       return { success: false, reason: `Nie znaleziono zlecenia z numerem/ID Exalco: ${args.orderIdOrNumber}` };
     }
+
+    const { targetOrder, targetDeliveryIndex } = match;
 
     const deliveries = [...(targetOrder.serviceDeliveries ?? [])];
     const targetDelivery = deliveries[targetDeliveryIndex];

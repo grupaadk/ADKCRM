@@ -53,8 +53,14 @@ export const sendDeliveryOrderToCrm = action({
     const notesCombined =
       feedNotesText || (delivery.notes ? stripSpecHeader(delivery.notes) : "");
 
-    const siteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL || "https://fearless-firefly-85.eu-west-1.convex.site";
-    const webhookUrl = `${siteUrl.replace(/\/+$/, "")}/api/webhooks/exalco`;
+    let rawSiteUrl =
+      process.env.CONVEX_SITE_URL ||
+      process.env.NEXT_PUBLIC_CONVEX_SITE_URL ||
+      "https://fearless-firefly-85.eu-west-1.convex.site";
+    if (!rawSiteUrl.startsWith("http://") && !rawSiteUrl.startsWith("https://")) {
+      rawSiteUrl = `https://${rawSiteUrl}`;
+    }
+    const webhookUrl = `${rawSiteUrl.replace(/\/+$/, "")}/api/webhooks/exalco`;
 
     const validationIssues = getSupplierOrderIssues({
       netAmount: delivery.netAmount,
@@ -66,6 +72,9 @@ export const sendDeliveryOrderToCrm = action({
     }
 
     const payload = {
+      orderId: String(order._id),
+      orderNumber: order.name || order.customText || String(order._id),
+      adkOrderId: String(order._id),
       valueNetto: delivery.netAmount,
       notes: notesCombined,
       webhookUrl,

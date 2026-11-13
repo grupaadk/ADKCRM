@@ -1021,5 +1021,70 @@ describe("Exalco Webhook Delivery Date Logic", () => {
     expect(updatedOrder?.serviceDeliveries?.[0]?.netAmount).toBe(12000);
     expect(updatedOrder?.serviceDeliveries?.[0]?.selectedProducts).toEqual(initialProducts);
   });
+
+  test("receives note from Exalco webhook with prefix or number variations and triggers notifications", async () => {
+    const t = convexTest(schema);
+    const asUser = await setupAuthContext(t);
+
+    const supplierId = await t.run(async (ctx) => {
+      return await ctx.db.insert("suppliers", {
+        name: "Exalco",
+        isActive: true,
+        createdBy: "test-user",
+        isApiEnabled: true,
+      });
+    });
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Marek",
+      lastName: "Nowak",
+    });
+
+    const orderId = await asUser.mutation(api.orders.create, { clientId });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(orderId, {
+        name: "ZL/2026/05",
+        serviceDeliveries: [
+          {
+            serviceName: "Okna ALU",
+            supplierId,
+            externalOrderNumber: "5544",
+          },
+        ],
+      });
+    });
+
+    // Match by prefix "EX-5544"
+    const res1 = await t.mutation(api.orders.receiveNoteFromExalcoWebhook, {
+      orderIdOrNumber: "EX-5544",
+      noteText: "Wiadomość z prefiksem EX",
+      authorName: "Super Admin",
+    });
+    expect(res1.success).toBe(true);
+
+    let order = await t.run(async (ctx) => ctx.db.get(orderId));
+    expect(order!.serviceDeliveries![0].notesFeed).toHaveLength(1);
+    expect(order!.serviceDeliveries![0].notesFeed![0].note).toBe("Wiadomość z prefiksem EX");
+    expect(order!.serviceDeliveries![0].unreadNotesCount).toBe(1);
+
+    // Match by order name "ZL/2026/05"
+    const res2 = await t.mutation(api.orders.receiveNoteFromExalcoWebhook, {
+      orderIdOrNumber: "ZL/2026/05",
+      noteText: "Wiadomość po nazwie zlecenia",
+      authorName: "Konsultant",
+    });
+    expect(res2.success).toBe(true);
+
+    order = await t.run(async (ctx) => ctx.db.get(orderId));
+    expect(order!.serviceDeliveries![0].notesFeed).toHaveLength(2);
+    expect(order!.serviceDeliveries![0].unreadNotesCount).toBe(2);
+
+    // Verify notification was created
+    const notifs = await asUser.query(api.notifications.list, {});
+    expect(notifs.length).toBeGreaterThanOrEqual(2);
+    expect(notifs[0].type).toBe("order_message");
+    expect(notifs[0].title).toContain("Exalco");
+  });
 });
 
