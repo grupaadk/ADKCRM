@@ -42,6 +42,7 @@ import {
   PackagePlus,
   Sparkles,
   Search,
+  ArrowUpRight,
 } from "lucide-react";
 
 const PRESET_DISCOUNTS = [0, 3, 5, 7, 10, 15, 20];
@@ -267,6 +268,7 @@ interface InlineAdditionRowProps {
   readOnly?: boolean;
   onUpdate: (id: Id<"offerAdditions">, patch: Partial<OfferAdditionItem>) => Promise<void>;
   onRemove: (id: Id<"offerAdditions">) => Promise<void>;
+  onConvertToPosition?: (id: Id<"offerAdditions">) => Promise<void>;
 }
 
 function InlineAdditionRow({
@@ -274,6 +276,7 @@ function InlineAdditionRow({
   readOnly,
   onUpdate,
   onRemove,
+  onConvertToPosition,
 }: InlineAdditionRowProps) {
   const [name, setName] = useState(addition.name);
   const [qtyStr, setQtyStr] = useState(String(addition.quantity));
@@ -576,14 +579,27 @@ function InlineAdditionRow({
             </span>
           )}
           {!readOnly && (
-            <button
-              type="button"
-              onClick={() => onRemove(addition._id as Id<"offerAdditions">)}
-              title="Usuń dodatek z oferty"
-              className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-            >
-              <Trash2 size={13} />
-            </button>
+            <>
+              {onConvertToPosition && (
+                <button
+                  type="button"
+                  onClick={() => onConvertToPosition(addition._id as Id<"offerAdditions">)}
+                  title="Przekształć w główną pozycję oferty (np. Pozycja 2 zamiast dodatku)"
+                  className="px-2 py-1 rounded text-slate-500 hover:text-[#0e7490] hover:bg-[#e0f9fe] transition-colors cursor-pointer inline-flex items-center gap-1 text-[11px] font-semibold border border-transparent hover:border-[#a5f3fc]"
+                >
+                  <ArrowUpRight size={13} />
+                  <span className="hidden md:inline">Zrób pozycję</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onRemove(addition._id as Id<"offerAdditions">)}
+                title="Usuń dodatek z oferty"
+                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              >
+                <Trash2 size={13} />
+              </button>
+            </>
           )}
         </div>
       </td>
@@ -727,6 +743,7 @@ export function OfferSummaryTab({
   const addOfferAddition = useMutation(api.offers.addOfferAddition);
   const updateOfferAddition = useMutation(api.offers.updateOfferAddition);
   const removeOfferAddition = useMutation(api.offers.removeOfferAddition);
+  const convertAdditionToConstruction = useMutation(api.offers.convertAdditionToConstruction);
   const catalogTemplates = useQuery(api.offerAdditionTemplates.list, { activeOnly: true });
   const seedDefaultTemplates = useMutation(api.offerAdditionTemplates.seedDefaultsIfEmpty);
 
@@ -1705,6 +1722,18 @@ export function OfferSummaryTab({
                     onRemove={async (id) => {
                       await removeOfferAddition({ id });
                       toast.success("Usunięto dodatek");
+                    }}
+                    onConvertToPosition={async (id) => {
+                      try {
+                        const res = await convertAdditionToConstruction({ additionId: id });
+                        toast.success("Przekształcono dodatek w kolejną pozycję oferty");
+                        if (res?.itemId && onOpenPositionInCad) {
+                          onOpenPositionInCad(res.itemId);
+                        }
+                      } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        toast.error(`Błąd: ${msg}`);
+                      }
                     }}
                   />
                 ))}

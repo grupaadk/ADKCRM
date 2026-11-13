@@ -998,7 +998,7 @@ describe("CAD Offers and Constructions Module", () => {
       clientFullName: "Jan Kowalski",
     });
     expect(replacementsData.lineItemsSummary).toContain("Zamek boczny z kluczykiem");
-    expect(replacementsData.lineItemsSummary).toContain("Dodatki i akcesoria do oferty");
+    expect(replacementsData.lineItemsSummary).toContain("2. Zamek boczny z kluczykiem");
     const dodatkiNettoRep = replacementsData.replacements.find((r) => r.placeholder === "{{dodatki_netto}}");
     expect(dodatkiNettoRep).toBeDefined();
     expect(dodatkiNettoRep?.value).toContain("1 350"); // 3 * 450 = 1350 zł
@@ -1081,5 +1081,77 @@ describe("CAD Offers and Constructions Module", () => {
     expect(data?.items[0].isCustomPricing).toBe(false);
     expect(data?.items[0].installationCostNet).toBe(1083);
     expect(data?.items[0].installationPriceNet).toBe(1299);
+  });
+
+  test("converts offer addition into a regular construction position with continuous positionIndex and recalculated totals", async () => {
+    const t = convexTest(schema);
+
+    // 1. Setup sample opportunity & offer
+    const oppId = await t.run(async (ctx) => {
+      return await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-CONVERT-ADDITION",
+        firstName: "Andrii",
+        lastName: "Pilipienko",
+        email: "andrii@example.com",
+        city: "Wrocław",
+        processed: false,
+        stage: "lead",
+      });
+    });
+
+    const offerId = await t.mutation(api.offers.getOrCreateForOpportunity, {
+      opportunityId: oppId,
+    });
+
+    // 2. Add first construction item (Pozycja 1)
+    const pos1Id = await t.mutation(api.offers.addConstructionPosition, {
+      offerId,
+      name: "Pergola aluminiowa 6000x3000",
+      widthMm: 6000,
+      heightMm: 3000,
+      priceNet: 25000,
+      costNet: 17000,
+    });
+    expect(pos1Id).toBeDefined();
+
+    // 3. Add an addition (e.g. "Przeszklenie w kolorze grafitowym")
+    const additionId = await t.mutation(api.offers.addOfferAddition, {
+      offerId,
+      name: "Przeszklenie w kolorze grafitowym",
+      quantity: 1,
+      unit: "kpl.",
+      priceNet: 6742,
+      costNet: 4500,
+      notes: "Szkło hartowane grafit",
+    });
+
+    let offerData = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(offerData?.items.length).toBe(1);
+    expect(offerData?.additions.length).toBe(1);
+    expect(offerData?.offer.totalPriceNet).toBe(25000 + 6742);
+
+    // 4. Convert the addition into a full construction position (Pozycja 2)
+    const res = await t.mutation(api.offers.convertAdditionToConstruction, {
+      additionId,
+    });
+
+    expect(res.positionIndex).toBe(2);
+    expect(res.itemId).toBeDefined();
+
+    // 5. Query offer items to verify conversion
+    offerData = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(offerData?.items.length).toBe(2);
+    expect(offerData?.additions.length).toBe(0);
+
+    const pos2 = offerData?.items[1];
+    expect(pos2?.positionIndex).toBe(2);
+    expect(pos2?.name).toBe("Przeszklenie w kolorze grafitowym");
+    expect(pos2?.priceNet).toBe(6742);
+    expect(pos2?.costNet).toBe(4500);
+    expect(pos2?.isCustomPricing).toBe(true);
+    expect(pos2?.notes).toBe("Szkło hartowane grafit");
+
+    // Totals remain consistent after conversion
+    expect(offerData?.offer.totalPriceNet).toBe(25000 + 6742);
   });
 });

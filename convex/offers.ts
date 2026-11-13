@@ -823,6 +823,7 @@ export const addConstructionPosition = mutation({
       materialPriceNet: baseMaterialPrice,
       installationCostNet: baseInstCost,
       installationPriceNet: baseInstPrice,
+      isCustomPricing: args.priceNet !== undefined || args.costNet !== undefined || args.installationPriceNet !== undefined || args.installationCostNet !== undefined ? true : undefined,
       pricingTier: matchedRange ? (matchedRange.label || `${matchedRange.minWidthMm}-${matchedRange.maxWidthMm} mm`) : undefined,
       segments,
       createdAt: now,
@@ -1179,6 +1180,55 @@ export const removeOfferAddition = mutation({
     await ctx.db.delete(args.id);
     await recalculateOffer(ctx, addition.offerId);
     return true;
+  },
+});
+
+/**
+ * Przekształca dodatek w pełnoprawną kolejną pozycję oferty (np. Pozycja 2 zamiast Dodatek 1)
+ */
+export const convertAdditionToConstruction = mutation({
+  args: {
+    additionId: v.id("offerAdditions"),
+  },
+  handler: async (ctx, args) => {
+    const addition = await ctx.db.get(args.additionId);
+    if (!addition) throw new Error("Dodatek nie został znaleziony");
+
+    const offerId = addition.offerId;
+    const existingItems = await ctx.db
+      .query("offerConstructions")
+      .withIndex("by_offer", (q) => q.eq("offerId", offerId))
+      .collect();
+
+    const positionIndex = existingItems.length + 1;
+    const now = Date.now();
+
+    const itemId = await ctx.db.insert("offerConstructions", {
+      offerId,
+      positionIndex,
+      name: addition.name,
+      shortName: addition.name,
+      description: addition.notes || undefined,
+      notes: addition.notes || undefined,
+      quantity: addition.quantity > 0 ? addition.quantity : 1,
+      widthMm: 0,
+      heightMm: 0,
+      panesCount: 1,
+      priceNet: addition.priceNet,
+      costNet: addition.costNet || 0,
+      materialPriceNet: addition.priceNet,
+      materialCostNet: addition.costNet || 0,
+      installationPriceNet: addition.installationPriceNet || 0,
+      installationCostNet: addition.installationCostNet || 0,
+      isCustomPricing: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await ctx.db.delete(args.additionId);
+    await recalculateOffer(ctx, offerId);
+
+    return { itemId, offerId, positionIndex };
   },
 });
 

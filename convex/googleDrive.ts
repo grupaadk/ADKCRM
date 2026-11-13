@@ -2943,7 +2943,7 @@ export function buildOfferReplacements(params: {
 
   const additionsSummaryText =
     additions.length > 0
-      ? `\n\nDodatki i akcesoria do oferty:\n` +
+      ? (items.length > 0 ? "\n\n" : "") +
         additions
           .map((add, idx) => {
             const u = add.unit || "szt.";
@@ -2952,7 +2952,7 @@ export function buildOfferReplacements(params: {
               (add.installationPriceNet || 0) > 0
                 ? ` (+ montaż: ${formatPLNCurrency((add.installationPriceNet || 0) * (add.quantity || 1))})`
                 : "";
-            return `${idx + 1}. ${add.name}\nIlość: ${add.quantity} ${u} | Cena netto: ${formatPLNCurrency(add.priceNet)} | Wartość netto: ${formatPLNCurrency(totalLine)}${inst}`;
+            return `${items.length + idx + 1}. ${add.name}\nIlość: ${add.quantity} ${u} | Cena netto: ${formatPLNCurrency(add.priceNet)} | Wartość netto: ${formatPLNCurrency(totalLine)}${inst}`;
           })
           .join("\n\n")
       : "";
@@ -4126,12 +4126,15 @@ export const generateOfferPdf = action({
                               },
                             });
                           } else {
-                            cellRequests.push({
-                              insertText: {
-                                location: { index: c1Start },
-                                text: "[Szkic CAD konstrukcji]",
-                              },
-                            });
+                            const hasDimensions = Boolean(it.widthMm && it.heightMm);
+                            if (hasDimensions) {
+                              cellRequests.push({
+                                insertText: {
+                                  location: { index: c1Start },
+                                  text: "[Szkic CAD konstrukcji]",
+                                },
+                              });
+                            }
                           }
                         }
 
@@ -4152,7 +4155,7 @@ export const generateOfferPdf = action({
                           });
                         }
                       } else {
-                        // Wiersz dodatku / akcesorium do oferty
+                        // Wiersz dodatku / akcesorium do oferty (prezentowany jednolicie jako kolejna pozycja)
                         const addIdx = rIdx - items.length;
                         const add = additions[addIdx];
                         if (!add) continue;
@@ -4173,23 +4176,25 @@ export const generateOfferPdf = action({
                           });
                         }
 
-                        // 2. Środkowa kolumna: Rodzaj pozycji i ew. montaż
+                        // 2. Środkowa kolumna: Montaż (jeśli podano) lub uwagi
                         if (typeof c1Start === "number") {
                           const midText = instPrice > 0
-                            ? `Dodatek / Akcesorium\nMontaż: ${formatPLN(instPrice)}`
-                            : "Dodatek / Akcesorium";
-                          cellRequests.push({
-                            insertText: {
-                              location: { index: c1Start },
-                              text: midText,
-                            },
-                          });
+                            ? `Montaż: ${formatPLN(instPrice)}`
+                            : (add.notes || "");
+                          if (midText) {
+                            cellRequests.push({
+                              insertText: {
+                                location: { index: c1Start },
+                                text: midText,
+                              },
+                            });
+                          }
                         }
 
-                        // 3. Lewa kolumna: Nazwa, Ilość, Jednostka
+                        // 3. Lewa kolumna: Numer pozycji, Nazwa, Ilość, Jednostka
                         if (typeof c0Start === "number") {
                           const u = add.unit || "szt.";
-                          const leftText = `Dodatek ${addIdx + 1}\n\nNazwa:\n${add.name}\n\nIlość: ${addQty} ${u}`;
+                          const leftText = `${rIdx + 1}\n\nNazwa:\n${add.name}\n\nIlość: ${addQty} ${u}`;
                           cellRequests.push({
                             insertText: {
                               location: { index: c0Start },
@@ -4260,8 +4265,7 @@ export const generateOfferPdf = action({
                                   const itm = items[rowIdx];
                                   numStr = String(itm?.positionIndex || rowIdx + 1);
                                 } else {
-                                  const addIdx = rowIdx - items.length;
-                                  numStr = `Dodatek ${addIdx + 1}`;
+                                  numStr = String(rowIdx + 1);
                                 }
                                 const c0Start = rowEl.tableCells?.[0]?.content?.[0]?.paragraph?.elements?.[0]?.startIndex;
                                 if (typeof c0Start === "number" && numStr) {
