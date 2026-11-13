@@ -1903,6 +1903,7 @@ export default function OrderDetailPage({
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMinimized, setComposeMinimized] = useState(false);
   const [composeMaximized, setComposeMaximized] = useState(false);
+  const [chatInputExpanded, setChatInputExpanded] = useState(false);
   const [wizardStep, setWizardStep] = useState<SupplierOrderStep>("supplier");
   const [threadSection, setThreadSection] = useState<SupplierOrderThreadSection>("correspondence");
   const [showValidation, setShowValidation] = useState(false);
@@ -6837,31 +6838,55 @@ export default function OrderDetailPage({
 
                               {/* Proste pole odpowiedzi przypięte na dole wątku (czat-style) */}
                               <div className="border-t border-slate-200/80 bg-slate-50/60 px-5 py-3.5 shrink-0 flex flex-col gap-2">
-                                <textarea
-                                  ref={supplierNoteInputRef}
-                                  rows={2}
-                                  value={newSupplierNoteText}
-                                  onChange={(e) => setNewSupplierNoteText(e.target.value)}
-                                  placeholder={
-                                    isExalcoSupplier
-                                      ? "Napisz wiadomość do Exalco..."
-                                      : `Wpisz uwagę dla ${currentSupplier?.name ?? "dostawcy"}...`
-                                  }
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                                      e.preventDefault();
-                                      if (newSupplierNoteText.trim() && !isSendingCompose) {
-                                        void handleSendGmailCompose();
-                                      }
+                                <div className="relative">
+                                  <textarea
+                                    ref={supplierNoteInputRef}
+                                    rows={chatInputExpanded ? 8 : 2}
+                                    value={newSupplierNoteText}
+                                    onChange={(e) => setNewSupplierNoteText(e.target.value)}
+                                    placeholder={
+                                      isExalcoSupplier
+                                        ? "Napisz wiadomość do Exalco..."
+                                        : `Wpisz uwagę dla ${currentSupplier?.name ?? "dostawcy"}...`
                                     }
-                                  }}
-                                  disabled={isSendingCompose}
-                                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 resize-none leading-relaxed disabled:opacity-60"
-                                />
-                                <div className="flex items-center justify-between gap-3">
-                                  <span className="text-[11px] text-slate-400">
-                                    Enter = nowy akapit · Ctrl/Cmd+Enter = wyślij
-                                  </span>
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                                        e.preventDefault();
+                                        if (newSupplierNoteText.trim() && !isSendingCompose) {
+                                          void handleSendGmailCompose();
+                                        }
+                                      }
+                                    }}
+                                    disabled={isSendingCompose}
+                                    className={`w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 pr-9 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 resize-y transition-[min-height] duration-150 leading-relaxed disabled:opacity-60 ${
+                                      chatInputExpanded ? "min-h-[190px]" : "min-h-[58px]"
+                                    }`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setChatInputExpanded((prev) => !prev)}
+                                    className="absolute top-2 right-2 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                                    title={chatInputExpanded ? "Zwiń pole tekstowe" : "Rozwiń pole tekstowe"}
+                                  >
+                                    <span className="text-xs font-semibold leading-none">{chatInputExpanded ? "⤡" : "⤢"}</span>
+                                  </button>
+                                </div>
+                                <div className="flex items-center justify-between gap-3 flex-wrap">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] text-slate-400">
+                                      Enter = nowy akapit · Ctrl/Cmd+Enter = wyślij
+                                    </span>
+                                    <span className="text-slate-300">•</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setChatInputExpanded((prev) => !prev)}
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold text-slate-500 hover:text-brand hover:bg-slate-100 transition-colors cursor-pointer"
+                                      title={chatInputExpanded ? "Zwiń pole tekstowe" : "Rozwiń pole tekstowe"}
+                                    >
+                                      <span>{chatInputExpanded ? "⤡" : "⤢"}</span>
+                                      <span>{chatInputExpanded ? "Zwiń pole" : "Rozwiń pole"}</span>
+                                    </button>
+                                  </div>
                                   <button
                                     type="button"
                                     disabled={!newSupplierNoteText.trim() || isSendingCompose}
