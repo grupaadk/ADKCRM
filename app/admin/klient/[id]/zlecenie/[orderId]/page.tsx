@@ -6593,21 +6593,6 @@ export default function OrderDetailPage({
                                       </span>
                                     )
                                   )}
-                                  {currentSupplier?.isApiEnabled && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setThreadSection("files")}
-                                      className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 font-semibold text-xs px-3 py-1 rounded-lg shadow-2xs transition-colors cursor-pointer"
-                                      title="Załącz pliki z Google Drive"
-                                    >
-                                      <span>Załącz z Drive</span>
-                                      {selectedFilesList.length > 0 && (
-                                        <span className="bg-[#0b57d0] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                                          {selectedFilesList.length}
-                                        </span>
-                                      )}
-                                    </button>
-                                  )}
                                   <button
                                     type="button"
                                     onClick={() => supplierNoteInputRef.current?.focus()}
@@ -6945,44 +6930,17 @@ export default function OrderDetailPage({
                               <div className="flex items-center justify-between gap-3">
                                 <div>
                                   <h3 className="text-sm font-bold text-slate-900 m-0">
-                                    Pliki i załączniki zamówienia
+                                    Wysłane pliki do dostawcy
                                   </h3>
                                   <p className="text-xs text-slate-500 m-0 mt-0.5">
-                                    Przeglądaj pliki wysłane do dostawcy oraz dołączaj dokumenty z Google Drive.
+                                    Lista plików przekazanych do dostawcy w ramach tego zamówienia.
                                   </p>
                                 </div>
-                                {Boolean(draftDeliveryEntry.externalOrderNumber && currentSupplier?.isApiEnabled) &&
-                                  Object.keys(selectedDriveFiles).length > 0 && (
-                                    <button
-                                      type="button"
-                                      disabled={sendingFilesCrm}
-                                      onClick={() => void sendSelectedFilesToExistingOrder()}
-                                      className="px-4 py-2 text-xs font-bold text-white bg-brand hover:bg-brand-hover rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
-                                    >
-                                      {sendingFilesCrm
-                                        ? "Wysyłanie plików..."
-                                        : `Wyślij do Exalco (${Object.keys(selectedDriveFiles).length})`}
-                                    </button>
-                                  )}
                               </div>
 
                               {sentApiFilesCardJsx ?? (
                                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs text-slate-500">
                                   Brak plików wysłanych do dostawcy dla tego zamówienia.
-                                </div>
-                              )}
-
-                              {Boolean(draftDeliveryEntry.externalOrderNumber && currentSupplier?.isApiEnabled) && (
-                                <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
-                                  <div className="text-xs font-bold text-slate-700">
-                                    Dołącz i wyślij dodatkowe pliki z Google Drive
-                                  </div>
-                                  <OrderDriveFilePicker
-                                    orderId={orderIdTyped}
-                                    rootFolderId={order?.folderId}
-                                    selectedFiles={selectedDriveFiles}
-                                    onSelectionChange={setSelectedDriveFiles}
-                                  />
                                 </div>
                               )}
                             </div>
