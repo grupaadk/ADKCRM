@@ -33,6 +33,7 @@ interface TvCalendarEventItem {
   investmentCity?: string;
   assignedUserNames?: string[];
   serviceName?: string;
+  customText?: string;
   description?: string;
   eventTypeName?: string;
 }
@@ -241,6 +242,8 @@ export default function QuarterlyTvCalendar() {
           clientId: e.clientId ?? (linkedOrder as { clientId?: string } | undefined)?.clientId,
           orderId: e.orderId,
           assignedUserNames: assignedUserNames.length > 0 ? assignedUserNames : undefined,
+          customText:
+            (linkedOrder as { customText?: string | null } | undefined)?.customText ?? undefined,
           description: e.description,
           eventTypeName: e.eventType?.name,
         });
@@ -291,7 +294,8 @@ export default function QuarterlyTvCalendar() {
           investmentCity: (le as { investmentCity?: string }).investmentCity,
           assignedUserNames: assignedUserNames.length > 0 ? assignedUserNames : undefined,
           serviceName: le.serviceName,
-          description: le.customText || le.serviceName,
+          customText: le.customText,
+          description: le.serviceName,
           eventTypeName: le.eventTypeName,
         });
       }
@@ -707,6 +711,18 @@ export default function QuarterlyTvCalendar() {
                         {ev.subtitle}
                       </div>
                     )}
+                    {ev.customText && (
+                      <div
+                        className="my-0.5 rounded-md px-2 py-1 text-xs font-semibold"
+                        style={{
+                          background: "color-mix(in srgb, var(--accent) 12%, var(--panel))",
+                          borderLeft: "3px solid var(--accent)",
+                          color: "var(--text-strong)",
+                        }}
+                      >
+                        {ev.customText}
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
                       {ev.eventTypeName && <span>Typ: {ev.eventTypeName}</span>}
                       {ev.investmentCity && <span>📍 {ev.investmentCity}</span>}
@@ -801,6 +817,19 @@ export default function QuarterlyTvCalendar() {
                 {ev.orderName && ev.orderName !== ev.title && (
                   <div className="text-xs font-medium mt-0.5" style={{ color: "var(--text-strong)" }}>
                     Zlecenie: {ev.orderName}
+                  </div>
+                )}
+
+                {ev.customText && (
+                  <div
+                    className="mt-1.5 rounded-md px-2 py-1 text-xs font-semibold leading-snug"
+                    style={{
+                      background: "color-mix(in srgb, var(--accent) 12%, var(--panel-2))",
+                      borderLeft: "3px solid var(--accent)",
+                      color: "var(--text-strong)",
+                    }}
+                  >
+                    {ev.customText}
                   </div>
                 )}
 
