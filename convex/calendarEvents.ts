@@ -419,6 +419,7 @@ export const getLinkedOrderEvents = query({
         c.companyName || `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim() || "Klient",
       ]),
     );
+    const clientCityMap = new Map(clients.map((c) => [c._id, c.city]));
 
     const results: Array<{
       id: string;
@@ -428,6 +429,7 @@ export const getLinkedOrderEvents = query({
       clientName: string;
       orderName?: string;
       customText?: string;
+      investmentCity?: string;
       eventTypeId: string;
       eventTypeName: string;
       color: string;
@@ -486,6 +488,9 @@ export const getLinkedOrderEvents = query({
               clientName,
               orderName: order?.name ?? "Reklamacja",
               customText: complaint.clientDescription || complaint.description,
+              investmentCity:
+                order?.investmentCity ??
+                (complaint.clientId ? clientCityMap.get(complaint.clientId) : undefined),
               eventTypeId: type._id,
               eventTypeName: type.name,
               color: type.color,
@@ -514,6 +519,7 @@ export const getLinkedOrderEvents = query({
           continue;
         }
         const clientName = clientMap.get(order.clientId) ?? "Klient";
+        const investmentCity = order.investmentCity ?? clientCityMap.get(order.clientId);
         const team = order.installationTeamId ? teamMap.get(order.installationTeamId) : undefined;
 
         if (field === "projectStartDate" && order.projectStartDate) {
@@ -536,6 +542,7 @@ export const getLinkedOrderEvents = query({
               clientName,
               orderName: order.name,
               customText: order.customText,
+              investmentCity,
               eventTypeId: type._id,
               eventTypeName: type.name,
               color: type.color,
@@ -574,6 +581,7 @@ export const getLinkedOrderEvents = query({
                   clientName,
                   orderName: order.name,
                   customText: inst.note ? `${order.customText ? order.customText + " - " : ""}${inst.note}` : order.customText,
+                  investmentCity,
                   eventTypeId: type._id,
                   eventTypeName: type.name,
                   color: type.color,
@@ -608,6 +616,7 @@ export const getLinkedOrderEvents = query({
               clientName,
               orderName: order.name,
               customText: order.customText,
+              investmentCity,
               eventTypeId: type._id,
               eventTypeName: type.name,
               color: type.color,
@@ -653,6 +662,7 @@ export const getLinkedOrderEvents = query({
                   clientName,
                   orderName: order.name,
                   customText: order.customText,
+                  investmentCity,
                   eventTypeId: type._id,
                   eventTypeName: type.name,
                   color: type.color,

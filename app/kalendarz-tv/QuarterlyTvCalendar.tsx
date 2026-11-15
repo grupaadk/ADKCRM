@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -27,6 +28,11 @@ interface TvCalendarEventItem {
   supplierName?: string;
   orderName?: string;
   clientName?: string;
+  clientId?: string;
+  orderId?: string;
+  investmentCity?: string;
+  assignedUserNames?: string[];
+  serviceName?: string;
   description?: string;
   eventTypeName?: string;
 }
@@ -45,6 +51,34 @@ const CATEGORY_CONFIG: Array<{
 const STORAGE_KEY = "adkcrm_tv_calendar_categories_v1";
 const DEFAULT_CATEGORIES: TvEventCategory[] = ["montaz", "serwis", "dostawa"];
 const MAX_VISIBLE_PILLS_PER_DAY = 3;
+
+function formatDateSpan(startMs: number, endMs?: number, isAllDay?: boolean): string {
+  const startDate = new Date(startMs).toLocaleDateString("pl-PL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  if (endMs && endMs > startMs) {
+    const endAdjusted = new Date(endMs);
+    if (
+      isAllDay &&
+      endAdjusted.getHours() === 0 &&
+      endAdjusted.getMinutes() === 0 &&
+      endAdjusted.getSeconds() === 0
+    ) {
+      endAdjusted.setDate(endAdjusted.getDate() - 1);
+    }
+    const endDate = endAdjusted.toLocaleDateString("pl-PL", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    if (endDate !== startDate) {
+      return `${startDate} – ${endDate}`;
+    }
+  }
+  return startDate;
+}
 
 function formatTimeRange(startMs: number, endMs?: number, isAllDay?: boolean): string {
   if (isAllDay) return "Cały dzień";
@@ -84,6 +118,13 @@ export default function QuarterlyTvCalendar() {
     dateKey: string;
     label: string;
     events: TvCalendarEventItem[];
+    focusedEventId?: string;
+  } | null>(null);
+
+  const [tooltip, setTooltip] = useState<{
+    event: TvCalendarEventItem;
+    x: number;
+    y: number;
   } | null>(null);
 
   // Zegar na żywo + automatyczne wykrycie zmiany dnia po północy (TV 24/7)
@@ -131,6 +172,9 @@ export default function QuarterlyTvCalendar() {
 
   const eventsByDateKey = useMemo(() => {
     const map = new Map<string, TvCalendarEventItem[]>();
+    const userMap = new Map(
+      (allUsers ?? []).map((u) => [u._id, u.displayName ?? u.login ?? "Użytkownik"]),
+    );
     const userColorMap = new Map(
       (allUsers ?? [])
         .filter((u) => Boolean(u.color))
@@ -168,11 +212,13 @@ export default function QuarterlyTvCalendar() {
         });
 
         let assignedColor: string | undefined;
+        const assignedUserNames: string[] = [];
         for (const uid of e.assignedUserIds ?? []) {
+          const uname = userMap.get(uid);
+          if (uname) assignedUserNames.push(uname);
           const col = userColorMap.get(uid);
-          if (col) {
+          if (!assignedColor && col) {
             assignedColor = col;
-            break;
           }
         }
 
@@ -192,6 +238,9 @@ export default function QuarterlyTvCalendar() {
           teamName: team?.name,
           orderName,
           clientName,
+          clientId: e.clientId ?? (linkedOrder as { clientId?: string } | undefined)?.clientId,
+          orderId: e.orderId,
+          assignedUserNames: assignedUserNames.length > 0 ? assignedUserNames : undefined,
           description: e.description,
           eventTypeName: e.eventType?.name,
         });
@@ -209,11 +258,14 @@ export default function QuarterlyTvCalendar() {
 
         const assignedUserIds = le.assignedUserIds ?? (le.assignedUserId ? [le.assignedUserId] : []);
         let assignedColor: string | undefined;
+        const assignedUserNames: string[] = [];
         for (const uid of assignedUserIds) {
-          const col = userColorMap.get(uid as NonNullable<typeof allUsers>[number]["_id"]);
-          if (col) {
+          const typedUid = uid as NonNullable<typeof allUsers>[number]["_id"];
+          const uname = userMap.get(typedUid);
+          if (uname) assignedUserNames.push(uname);
+          const col = userColorMap.get(typedUid);
+          if (!assignedColor && col) {
             assignedColor = col;
-            break;
           }
         }
 
@@ -234,6 +286,11 @@ export default function QuarterlyTvCalendar() {
           supplierName: le.supplierName,
           orderName: le.orderName,
           clientName: le.clientName,
+          clientId: le.clientId,
+          orderId: le.orderId,
+          investmentCity: (le as { investmentCity?: string }).investmentCity,
+          assignedUserNames: assignedUserNames.length > 0 ? assignedUserNames : undefined,
+          serviceName: le.serviceName,
           description: le.customText || le.serviceName,
           eventTypeName: le.eventTypeName,
         });
@@ -553,8 +610,31 @@ export default function QuarterlyTvCalendar() {
                         {visibleEvents.map((ev) => (
                           <div
                             key={`${cell.dateKey}-${ev.id}`}
-                            title={`${ev.title}${ev.subtitle ? ` (${ev.subtitle})` : ""}`}
-                            className="truncate rounded px-1 py-[1px] text-[10.5px] font-semibold leading-tight"
+                            onMouseEnter={(e) =>
+                              setTooltip({ event: ev, x: e.clientX, y: e.clientY })
+                            }
+                            onMouseMove={(e) =>
+                              setTooltip((prev) =>
+                                prev ? { ...prev, x: e.clientX, y: e.clientY } : null,
+                              )
+                            }
+                            onMouseLeave={() => setTooltip(null)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTooltip(null);
+                              setSelectedDayModal({
+                                dateKey: cell.dateKey,
+                                label: cell.date.toLocaleDateString("pl-PL", {
+                                  weekday: "long",
+                                  day: "numeric",
+                                  month: "long",
+                                  year: "numeric",
+                                }),
+                                events: dayEvents,
+                                focusedEventId: ev.id,
+                              });
+                            }}
+                            className="truncate rounded px-1 py-[1px] text-[10.5px] font-semibold leading-tight cursor-pointer hover:brightness-95"
                             style={{
                               background: `${ev.color}22`,
                               borderLeft: `3px solid ${ev.color}`,
@@ -599,45 +679,183 @@ export default function QuarterlyTvCalendar() {
               </button>
             </div>
             <div className="flex flex-col gap-2 overflow-y-auto pr-1">
-              {selectedDayModal.events.map((ev) => (
-                <div
-                  key={ev.id}
-                  className="rounded-lg border p-2.5 flex flex-col gap-1"
-                  style={{
-                    background: "var(--panel-2)",
-                    borderColor: "var(--line)",
-                    borderLeft: `4px solid ${ev.color}`,
-                  }}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-bold" style={{ color: "var(--text-strong)" }}>
-                      {ev.title}
-                    </span>
-                    <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
-                      {formatTimeRange(ev.startDate, ev.endDate, ev.isAllDay)}
-                    </span>
-                  </div>
-                  {ev.subtitle && (
-                    <div className="text-xs font-medium" style={{ color: "var(--text-strong)" }}>
-                      {ev.subtitle}
+              {selectedDayModal.events.map((ev) => {
+                const isFocused = selectedDayModal.focusedEventId === ev.id;
+                const dateSpan = formatDateSpan(ev.startDate, ev.endDate, ev.isAllDay);
+                return (
+                  <div
+                    key={ev.id}
+                    className="rounded-lg border p-2.5 flex flex-col gap-1"
+                    style={{
+                      background: isFocused
+                        ? `color-mix(in srgb, ${ev.color} 10%, var(--panel-2))`
+                        : "var(--panel-2)",
+                      borderColor: isFocused ? ev.color : "var(--line)",
+                      borderLeft: `4px solid ${ev.color}`,
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-bold" style={{ color: "var(--text-strong)" }}>
+                        {ev.title}
+                      </span>
+                      <span className="text-[11px] font-semibold shrink-0" style={{ color: "var(--text-muted)" }}>
+                        {dateSpan} · {formatTimeRange(ev.startDate, ev.endDate, ev.isAllDay)}
+                      </span>
                     </div>
-                  )}
-                  <div className="flex flex-wrap gap-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
-                    {ev.eventTypeName && <span>Typ: {ev.eventTypeName}</span>}
-                    {ev.teamName && <span>Ekipa: {ev.teamName}</span>}
-                    {ev.supplierName && <span>Dostawca: {ev.supplierName}</span>}
-                  </div>
-                  {ev.description && (
-                    <div className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                      {ev.description}
+                    {ev.subtitle && (
+                      <div className="text-xs font-medium" style={{ color: "var(--text-strong)" }}>
+                        {ev.subtitle}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                      {ev.eventTypeName && <span>Typ: {ev.eventTypeName}</span>}
+                      {ev.investmentCity && <span>📍 {ev.investmentCity}</span>}
+                      {ev.teamName && <span>🛠️ {ev.teamName}</span>}
+                      {ev.supplierName && <span>🚚 {ev.supplierName}</span>}
+                      {ev.assignedUserNames && ev.assignedUserNames.length > 0 && (
+                        <span>👤 {ev.assignedUserNames.join(", ")}</span>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
+                    {ev.description && (
+                      <div className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                        {ev.description}
+                      </div>
+                    )}
+                    {ev.clientId && ev.orderId && (
+                      <div className="mt-1">
+                        <Link
+                          href={`/admin/klient/${ev.clientId}/zlecenie/${ev.orderId}`}
+                          className="text-xs font-semibold hover:underline"
+                          style={{ color: "var(--accent)" }}
+                        >
+                          Otwórz zlecenie →
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
       )}
+
+      {/* Rozbudowany tooltip po najechaniu na wydarzenie */}
+      {tooltip &&
+        typeof document !== "undefined" &&
+        createPortal(
+          (() => {
+            const ev = tooltip.event;
+            const tooltipWidth = 320;
+            const tooltipEstimatedHeight = 230;
+            const winW = typeof window !== "undefined" ? window.innerWidth : 1920;
+            const winH = typeof window !== "undefined" ? window.innerHeight : 1080;
+            const left =
+              tooltip.x + 14 + tooltipWidth > winW
+                ? Math.max(8, tooltip.x - tooltipWidth - 12)
+                : tooltip.x + 14;
+            const top =
+              tooltip.y + 14 + tooltipEstimatedHeight > winH
+                ? Math.max(8, tooltip.y - tooltipEstimatedHeight - 12)
+                : tooltip.y + 14;
+            const dateSpan = formatDateSpan(ev.startDate, ev.endDate, ev.isAllDay);
+            const timeRange = formatTimeRange(ev.startDate, ev.endDate, ev.isAllDay);
+
+            return (
+              <div
+                style={{
+                  position: "fixed",
+                  left,
+                  top,
+                  width: tooltipWidth,
+                  zIndex: 100,
+                  pointerEvents: "none",
+                  background: "var(--panel)",
+                  border: "1px solid var(--line)",
+                  borderTop: `4px solid ${ev.color}`,
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  boxShadow: "0 12px 32px rgba(0, 0, 0, 0.22)",
+                  color: "var(--text-strong)",
+                }}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span
+                    className="text-[11px] font-bold uppercase tracking-wide"
+                    style={{ color: ev.color }}
+                  >
+                    {ev.eventTypeName || "Wydarzenie"}
+                  </span>
+                  <span
+                    className="text-[11px] font-semibold"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {timeRange}
+                  </span>
+                </div>
+
+                <div className="text-sm font-bold leading-snug" style={{ color: "var(--text-strong)" }}>
+                  {ev.title}
+                </div>
+
+                {ev.orderName && ev.orderName !== ev.title && (
+                  <div className="text-xs font-medium mt-0.5" style={{ color: "var(--text-strong)" }}>
+                    Zlecenie: {ev.orderName}
+                  </div>
+                )}
+
+                <div className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+                  📅 {dateSpan}
+                </div>
+
+                <div className="mt-2 flex flex-col gap-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  {ev.investmentCity && (
+                    <div>
+                      <span className="font-semibold" style={{ color: "var(--text-strong)" }}>
+                        📍 Lokalizacja:
+                      </span>{" "}
+                      {ev.investmentCity}
+                    </div>
+                  )}
+                  {ev.teamName && (
+                    <div>
+                      <span className="font-semibold" style={{ color: "var(--text-strong)" }}>
+                        🛠️ Ekipa:
+                      </span>{" "}
+                      {ev.teamName}
+                    </div>
+                  )}
+                  {ev.supplierName && (
+                    <div>
+                      <span className="font-semibold" style={{ color: "var(--text-strong)" }}>
+                        🚚 Dostawca:
+                      </span>{" "}
+                      {ev.supplierName}
+                    </div>
+                  )}
+                  {ev.assignedUserNames && ev.assignedUserNames.length > 0 && (
+                    <div>
+                      <span className="font-semibold" style={{ color: "var(--text-strong)" }}>
+                        👤 Przypisani:
+                      </span>{" "}
+                      {ev.assignedUserNames.join(", ")}
+                    </div>
+                  )}
+                </div>
+
+                {ev.description && (
+                  <div
+                    className="mt-2 pt-1.5 border-t text-[11px] line-clamp-3"
+                    style={{ borderColor: "var(--line)", color: "var(--text-muted)" }}
+                  >
+                    {ev.description}
+                  </div>
+                )}
+              </div>
+            );
+          })(),
+          document.body,
+        )}
     </div>
   );
 }
