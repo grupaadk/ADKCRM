@@ -169,3 +169,40 @@ export function classifyTvEventCategory(params: {
   }
   return "inne";
 }
+
+/**
+ * Przesuwa wydarzenie na nowy dzień (targetDateKey: YYYY-MM-DD),
+ * zachowując oryginalną godzinę startu oraz całkowity czas trwania.
+ */
+export function shiftEventDatesToDay(
+  startMs: number,
+  endMs: number | undefined,
+  targetDateKey: string,
+): { newStart: number; newEnd?: number } {
+  const [yStr, mStr, dStr] = targetDateKey.split("-");
+  const targetYear = Number(yStr);
+  const targetMonth = Number(mStr) - 1;
+  const targetDay = Number(dStr);
+
+  const origStart = new Date(startMs);
+  const shiftedStart = new Date(
+    targetYear,
+    targetMonth,
+    targetDay,
+    origStart.getHours(),
+    origStart.getMinutes(),
+    origStart.getSeconds(),
+    origStart.getMilliseconds(),
+  );
+  const newStart = shiftedStart.getTime();
+
+  if (endMs === undefined) {
+    return { newStart };
+  }
+
+  const duration = endMs - startMs;
+  return {
+    newStart,
+    newEnd: newStart + duration,
+  };
+}

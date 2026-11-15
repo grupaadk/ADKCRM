@@ -4,6 +4,7 @@ import {
   expandEventToDateKeys,
   getMonthGridDays,
   getQuarterMonths,
+  shiftEventDatesToDay,
 } from "../../lib/tvCalendar";
 
 describe("TV Quarterly Calendar helpers (lib/tvCalendar)", () => {
@@ -58,5 +59,24 @@ describe("TV Quarterly Calendar helpers (lib/tvCalendar)", () => {
     expect(classifyTvEventCategory({ field: "deliveryDate" })).toBe("dostawa");
     expect(classifyTvEventCategory({ supplierId: "sup1" })).toBe("dostawa");
     expect(classifyTvEventCategory({ eventTypeName: "Spotkanie biurowe" })).toBe("inne");
+  });
+
+  test("shiftEventDatesToDay moves event to target day preserving time and duration", () => {
+    const start = new Date(2026, 10, 11, 8, 30, 0, 0).getTime();
+    const end = new Date(2026, 10, 12, 16, 0, 0, 0).getTime();
+
+    const shifted = shiftEventDatesToDay(start, end, "2026-11-20");
+    const newStartDate = new Date(shifted.newStart);
+    expect(newStartDate.getFullYear()).toBe(2026);
+    expect(newStartDate.getMonth()).toBe(10);
+    expect(newStartDate.getDate()).toBe(20);
+    expect(newStartDate.getHours()).toBe(8);
+    expect(newStartDate.getMinutes()).toBe(30);
+    expect(shifted.newEnd! - shifted.newStart).toBe(end - start);
+
+    const single = shiftEventDatesToDay(start, undefined, "2026-12-03");
+    expect(new Date(single.newStart).getMonth()).toBe(11);
+    expect(new Date(single.newStart).getDate()).toBe(3);
+    expect(single.newEnd).toBeUndefined();
   });
 });

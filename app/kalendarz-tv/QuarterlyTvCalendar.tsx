@@ -3,20 +3,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   classifyTvEventCategory,
   expandEventToDateKeys,
   formatDateKey,
   getMonthGridDays,
   getQuarterMonths,
+  shiftEventDatesToDay,
   TV_WEEKDAYS,
   type TvEventCategory,
 } from "@/lib/tvCalendar";
 
 interface TvCalendarEventItem {
   id: string;
+  sourceType: "calendar" | "order-linked";
+  calendarEventId?: Id<"calendarEvents">;
+  complaintId?: string;
+  field?: string;
+  deliveryIndex?: number;
+  installationIndex?: number;
+  serviceDateOffset?: number;
   title: string;
   subtitle?: string;
   category: TvEventCategory;
@@ -171,6 +180,69 @@ export default function QuarterlyTvCalendar() {
   const installationTeamsRaw = useQuery(api.installationTeams.listActive);
   const installationTeams = useMemo(() => installationTeamsRaw ?? [], [installationTeamsRaw]);
 
+  const updateLinkedOrderDate = useMutation(api.calendarEvents.updateLinkedOrderDate);
+  const updateCalendarEvent = useMutation(api.calendarEvents.updateEvent);
+
+  const [draggedEvent, setDraggedEvent] = useState<{
+    event: TvCalendarEventItem;
+    sourceDateKey: string;
+  } | null>(null);
+  const [dragOverDateKey, setDragOverDateKey] = useState<string | null>(null);
+  const [dropFeedback, setDropFeedback] = useState<{
+    type: "ok" | "err";
+    text: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!dropFeedback) return;
+    const t = setTimeout(() => setDropFeedback(null), 3200);
+    return () => clearTimeout(t);
+  }, [dropFeedback]);
+
+  async function handleDropOnDay(targetDateKey: string) {
+    const activeDrag = draggedEvent;
+    setDraggedEvent(null);
+    setDragOverDateKey(null);
+    if (!activeDrag) return;
+    if (activeDrag.sourceDateKey === targetDateKey) return;
+
+    const ev = activeDrag.event;
+    const { newStart, newEnd } = shiftEventDatesToDay(ev.startDate, ev.endDate, targetDateKey);
+
+    try {
+      if (ev.sourceType === "order-linked" && (ev.orderId || ev.complaintId) && ev.field) {
+        const newServiceDateEnd =
+          ev.field === "complaintServiceDate" && ev.serviceDateOffset !== undefined
+            ? newStart + ev.serviceDateOffset
+            : undefined;
+        await updateLinkedOrderDate({
+          orderId: ev.orderId ? (ev.orderId as Id<"orders">) : undefined,
+          complaintId: ev.complaintId ? (ev.complaintId as Id<"complaints">) : undefined,
+          field: ev.field,
+          deliveryIndex: ev.deliveryIndex,
+          installationIndex: ev.installationIndex,
+          newDate: newStart,
+          endDate: newEnd,
+          serviceDateEnd: newServiceDateEnd,
+        });
+      } else if (ev.sourceType === "calendar" && ev.calendarEventId) {
+        await updateCalendarEvent({
+          id: ev.calendarEventId,
+          startDate: newStart,
+          endDate: newEnd ?? null,
+          isAllDay: ev.isAllDay,
+        });
+      }
+      setDropFeedback({
+        type: "ok",
+        text: `Przeniesiono „${ev.title}” na ${targetDateKey}`,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Nie udało się przenieść wydarzenia.";
+      setDropFeedback({ type: "err", text: msg });
+    }
+  }
+
   const eventsByDateKey = useMemo(() => {
     const map = new Map<string, TvCalendarEventItem[]>();
     const userMap = new Map(
@@ -229,6 +301,8 @@ export default function QuarterlyTvCalendar() {
 
         pushToDays({
           id: e._id,
+          sourceType: "calendar",
+          calendarEventId: e._id,
           title: clientName || e.title,
           subtitle: orderName && clientName ? orderName : e.title !== clientName ? e.title : undefined,
           category,
@@ -278,6 +352,12 @@ export default function QuarterlyTvCalendar() {
 
         pushToDays({
           id: le.id,
+          sourceType: "order-linked",
+          complaintId: (le as { complaintId?: string }).complaintId,
+          field: le.field,
+          deliveryIndex: le.deliveryIndex,
+          installationIndex: (le as { installationIndex?: number }).installationIndex,
+          serviceDateOffset: (le as { serviceDateOffset?: number }).serviceDateOffset,
           title: displayTitle,
           subtitle: subParts.length > 0 ? subParts.join(" · ") : undefined,
           category,
@@ -549,12 +629,31 @@ export default function QuarterlyTvCalendar() {
                 {days.map((cell) => {
                   const dayEvents = cell.inMonth ? eventsByDateKey.get(cell.dateKey) ?? [] : [];
                   const isToday = cell.dateKey === todayKey;
+                  const isDragOver = cell.inMonth && dragOverDateKey === cell.dateKey;
                   const visibleEvents = dayEvents.slice(0, MAX_VISIBLE_PILLS_PER_DAY);
                   const hiddenCount = Math.max(0, dayEvents.length - MAX_VISIBLE_PILLS_PER_DAY);
 
                   return (
                     <div
                       key={cell.dateKey}
+                      onDragOver={(e) => {
+                        if (!cell.inMonth || !draggedEvent) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        if (dragOverDateKey !== cell.dateKey) {
+                          setDragOverDateKey(cell.dateKey);
+                        }
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverDateKey === cell.dateKey) {
+                          setDragOverDateKey(null);
+                        }
+                      }}
+                      onDrop={(e) => {
+                        if (!cell.inMonth) return;
+                        e.preventDefault();
+                        void handleDropOnDay(cell.dateKey);
+                      }}
                       onClick={() => {
                         if (!cell.inMonth || dayEvents.length === 0) return;
                         setSelectedDayModal({
@@ -568,20 +667,26 @@ export default function QuarterlyTvCalendar() {
                           events: dayEvents,
                         });
                       }}
-                      className={`border-r border-b p-1 flex flex-col gap-0.5 min-h-0 overflow-hidden ${
+                      className={`border-r border-b p-1 flex flex-col gap-0.5 min-h-0 overflow-hidden transition-colors ${
                         dayEvents.length > 0 && cell.inMonth ? "cursor-pointer hover:brightness-95" : ""
                       }`}
                       style={{
                         borderColor: "var(--line)",
                         background: !cell.inMonth
                           ? "var(--background)"
+                          : isDragOver
+                          ? "color-mix(in srgb, var(--accent) 18%, var(--panel))"
                           : isToday
                           ? "color-mix(in srgb, var(--accent) 10%, var(--panel))"
                           : cell.isWeekend
                           ? "var(--panel-2)"
                           : "var(--panel)",
                         opacity: cell.inMonth ? 1 : 0.35,
-                        boxShadow: isToday ? "inset 0 0 0 2px var(--accent)" : undefined,
+                        boxShadow: isDragOver
+                          ? "inset 0 0 0 2px var(--accent)"
+                          : isToday
+                          ? "inset 0 0 0 2px var(--accent)"
+                          : undefined,
                       }}
                     >
                       <div className="flex items-center justify-between shrink-0">
@@ -614,14 +719,27 @@ export default function QuarterlyTvCalendar() {
                         {visibleEvents.map((ev) => (
                           <div
                             key={`${cell.dateKey}-${ev.id}`}
-                            onMouseEnter={(e) =>
-                              setTooltip({ event: ev, x: e.clientX, y: e.clientY })
-                            }
-                            onMouseMove={(e) =>
+                            draggable
+                            onDragStart={(e) => {
+                              setTooltip(null);
+                              setDraggedEvent({ event: ev, sourceDateKey: cell.dateKey });
+                              e.dataTransfer.effectAllowed = "move";
+                              e.dataTransfer.setData("text/plain", ev.id);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedEvent(null);
+                              setDragOverDateKey(null);
+                            }}
+                            onMouseEnter={(e) => {
+                              if (draggedEvent) return;
+                              setTooltip({ event: ev, x: e.clientX, y: e.clientY });
+                            }}
+                            onMouseMove={(e) => {
+                              if (draggedEvent) return;
                               setTooltip((prev) =>
                                 prev ? { ...prev, x: e.clientX, y: e.clientY } : null,
-                              )
-                            }
+                              );
+                            }}
                             onMouseLeave={() => setTooltip(null)}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -638,11 +756,12 @@ export default function QuarterlyTvCalendar() {
                                 focusedEventId: ev.id,
                               });
                             }}
-                            className="truncate rounded px-1 py-[1px] text-[10.5px] font-semibold leading-tight cursor-pointer hover:brightness-95"
+                            className="truncate rounded px-1 py-[1px] text-[10.5px] font-semibold leading-tight cursor-grab active:cursor-grabbing hover:brightness-95"
                             style={{
                               background: `${ev.color}22`,
                               borderLeft: `3px solid ${ev.color}`,
                               color: "var(--text-strong)",
+                              opacity: draggedEvent?.event.id === ev.id ? 0.5 : 1,
                             }}
                           >
                             {ev.title}
@@ -885,6 +1004,20 @@ export default function QuarterlyTvCalendar() {
           })(),
           document.body,
         )}
+
+      {/* Komunikat po przeniesieniu wydarzenia */}
+      {dropFeedback && (
+        <div
+          className="fixed bottom-4 right-4 z-50 rounded-lg border px-3.5 py-2 text-xs font-semibold shadow-lg"
+          style={{
+            background: dropFeedback.type === "ok" ? "#ecfdf5" : "#fef2f2",
+            borderColor: dropFeedback.type === "ok" ? "#10b981" : "#ef4444",
+            color: dropFeedback.type === "ok" ? "#065f46" : "#991b1b",
+          }}
+        >
+          {dropFeedback.text}
+        </div>
+      )}
     </div>
   );
 }
