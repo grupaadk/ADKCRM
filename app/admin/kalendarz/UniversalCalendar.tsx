@@ -1770,6 +1770,24 @@ export default function UniversalCalendar({
           <button onClick={() => calendarRef.current?.getApi().today()} className="btn btn-xs" style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6 }}>
             Dzisiaj
           </button>
+          <a
+            href="/kalendarz-tv"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-xs"
+            style={{
+              fontSize: 12,
+              padding: "6px 12px",
+              borderRadius: 6,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+            title="Otwórz pełnoekranowy widok kwartalny 2x2 na telewizor"
+          >
+            📺 Widok TV
+          </a>
 
           {!initialTeamId && (
             <>
