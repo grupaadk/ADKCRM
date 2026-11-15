@@ -242,6 +242,24 @@ describe("UniversalCalendar Filtering Logic (/admin/kalendarz)", () => {
     expect(t10.map((e) => e.title)).not.toContain("[DEV-TEST] Notatka prywatna zarządu");
     expect(t10.length).toBe(5);
 
+    // ─── T11: Kliknięcie Serwisy po Wyczyść (auto-aktywacja wszystkich ekip) ──────
+    const t11 = filterTestEvents({
+      showPrivate: true,
+      activeEventTypeFilters: new Set([serwisTypeId]),
+      activeTeamFilters: new Set(allTeamIds), // auto-aktywowane przez przycisk Serwisy
+    });
+    expect(t11.map((e) => e.title)).toContain("[DEV-TEST] Serwis reklamacyjny");
+    expect(t11.map((e) => e.title)).not.toContain("[DEV-TEST] Montaż u Piotra");
+
+    // ─── T12: Kliknięcie pojedynczej Ekipy po Wyczyść (auto-aktywacja Montaże+Serwisy) ───
+    const t12 = filterTestEvents({
+      showPrivate: true,
+      activeEventTypeFilters: new Set([montazTypeId, serwisTypeId]),
+      activeTeamFilters: new Set([teamAlfaId]),
+    });
+    expect(t12.map((e) => e.title)).toContain("[DEV-TEST] Montaż u Piotra");
+    expect(t12.map((e) => e.title)).not.toContain("[DEV-TEST] Serwis reklamacyjny");
+
     // ─── Czyszczenie bazy (cleanup) ─────────────────────────────────────────────
     const cleanupResult = await t.mutation(api.devCalendarTestSeed.cleanupDevCalendarData, {});
     expect(cleanupResult.status).toBe("cleaned");

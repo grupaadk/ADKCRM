@@ -410,21 +410,46 @@ export default function UniversalCalendar({
   }, [eventTypes]);
 
   const toggleSupplierFilter = (supplierId: string) => {
+    const isCurrentlyActive = activeSupplierFilters.has(supplierId);
     setActiveSupplierFilters((prev) => {
       const next = new Set(prev);
-      if (next.has(supplierId)) next.delete(supplierId);
+      if (isCurrentlyActive) next.delete(supplierId);
       else next.add(supplierId);
       return next;
     });
+
+    // Jeśli włączamy dostawcę przy pustych typach wydarzeń (np. po "Wyczyść"), automatycznie włącz jego typy
+    if (!isCurrentlyActive && activeEventTypeFilters.size === 0) {
+      const linkedIds = eventTypes
+        .filter((t) => t.linkedSupplierId === supplierId)
+        .map((t) => t._id as string);
+      if (linkedIds.length > 0) {
+        setActiveEventTypeFilters((prev) => new Set([...prev, ...linkedIds]));
+      }
+    }
   };
 
   const toggleTeamFilter = (teamId: string) => {
+    const isCurrentlyActive = activeTeamFilters.has(teamId);
     setActiveTeamFilters((prev) => {
       const next = new Set(prev);
-      if (next.has(teamId)) next.delete(teamId);
+      if (isCurrentlyActive) next.delete(teamId);
       else next.add(teamId);
       return next;
     });
+
+    // Jeśli włączamy ekipę przy pustych typach wydarzeń (np. po "Wyczyść"), automatycznie włącz Montaże, Serwisy i typy tej ekipy
+    if (!isCurrentlyActive && activeEventTypeFilters.size === 0) {
+      const nextTypes = new Set<string>(["builtin_montaz", "builtin_serwis"]);
+      if (montazType) nextTypes.add(montazType._id as string);
+      if (serwisType) nextTypes.add(serwisType._id as string);
+      eventTypes.forEach((t) => {
+        if (t.linkedInstallationTeamId === teamId) {
+          nextTypes.add(t._id as string);
+        }
+      });
+      setActiveEventTypeFilters(nextTypes);
+    }
   };
 
   // ─── Build unified events ───────────────────────────────────────────────────
@@ -1846,213 +1871,230 @@ export default function UniversalCalendar({
 
       {/* Filters bar */}
       {!initialTeamId && (
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 20px", borderBottom: "1px solid var(--line)", background: "var(--card)" }}>
-          {/* CTA Clear All Filters Button */}
-          <button
-            type="button"
-            onClick={() => {
-              setActiveEventTypeFilters(new Set());
-              setActiveSupplierFilters(new Set());
-              setActiveTeamFilters(new Set());
-              setActiveUserFilters(new Set());
-              setDisabledTeamEventTypes(new Set());
-            }}
-            title="Wyczyść wszystkie filtry"
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 3,
-              padding: "3px 8px", borderRadius: 12, fontSize: 11,
-              background: "#fef2f2", color: "#ef4444",
-              border: "1px solid #fecaca", fontWeight: 700,
-              cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#fee2e2";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#fef2f2";
-            }}
-          >
-            <FilterX style={{ width: 12, height: 12 }} />
-            <span>Wyczyść</span>
-          </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 20px", borderBottom: "1px solid var(--line)", background: "var(--card)" }}>
+          {/* Row 1: Co wyświetlać (Typy wydarzeń) */}
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: 2 }}>
+              Typy:
+            </span>
 
-          {/* CTA Select All Filters Button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (eventTypes) {
-                const allTypeIds = new Set<string>(eventTypes.map((t) => t._id as string));
-                allTypeIds.add("builtin_montaz");
-                allTypeIds.add("builtin_serwis");
-                if (montazType) allTypeIds.add(montazType._id as string);
-                if (serwisType) allTypeIds.add(serwisType._id as string);
-                setActiveEventTypeFilters(allTypeIds);
-              }
-              if (activeSuppliers) setActiveSupplierFilters(new Set(activeSuppliers.map((s) => s._id)));
-              if (installationTeams) setActiveTeamFilters(new Set(installationTeams.map((t) => t._id)));
-              setActiveUserFilters(new Set());
-              setDisabledTeamEventTypes(new Set());
-            }}
-            title="Zaznacz wszystkie filtry"
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 3,
-              padding: "3px 8px", borderRadius: 12, fontSize: 11,
-              background: "#ecfdf5", color: "#047857",
-              border: "1px solid #a7f3d0", fontWeight: 700,
-              cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#d1fae5";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#ecfdf5";
-            }}
-          >
-            <CheckCheck style={{ width: 12, height: 12 }} />
-            <span>Wszystkie</span>
-          </button>
-
-          {/* CTA Montaże */}
-          {montazType && (
+            {/* CTA Clear All Filters Button */}
             <button
               type="button"
               onClick={() => {
-                const targetCanon = getCanonicalEventTypeId(montazType._id);
-                if (isMontazActiveForAllTeams) {
-                  setActiveEventTypeFilters((prev) => {
-                    const next = new Set(prev);
-                    next.delete("builtin_montaz");
-                    next.delete(montazType._id);
-                    next.delete(targetCanon);
-                    return next;
-                  });
-                } else {
-                  setActiveEventTypeFilters((prev) => {
-                    const next = new Set(prev);
-                    next.add("builtin_montaz");
-                    next.add(montazType._id);
-                    next.add(targetCanon);
-                    return next;
-                  });
-                  setDisabledTeamEventTypes((prev) => {
-                    const next = new Set(prev);
-                    if (installationTeams) {
-                      installationTeams.forEach((team) => {
-                        next.delete(`${team._id}:${targetCanon}`);
-                        next.delete(`${team._id}:${montazType._id}`);
-                        next.delete(`${team._id}:builtin_montaz`);
-                      });
-                    }
-                    return next;
-                  });
-                }
+                setActiveEventTypeFilters(new Set());
+                setActiveSupplierFilters(new Set());
+                setActiveTeamFilters(new Set());
+                setActiveUserFilters(new Set());
+                setDisabledTeamEventTypes(new Set());
               }}
-              title={isMontazActiveForAllTeams ? "Wyłącz Montaże" : "Włącz Montaże"}
+              title="Wyczyść wszystkie filtry"
               style={{
                 display: "inline-flex", alignItems: "center", gap: 3,
                 padding: "3px 8px", borderRadius: 12, fontSize: 11,
-                background: isMontazActiveForAllTeams ? "#dbeafe" : "#f1f5f9",
-                color: isMontazActiveForAllTeams ? "#1e40af" : "#64748b",
-                border: `1px solid ${isMontazActiveForAllTeams ? "#3b82f6" : "#cbd5e1"}`,
-                fontWeight: isMontazActiveForAllTeams ? 800 : 500,
+                background: "#fef2f2", color: "#ef4444",
+                border: "1px solid #fecaca", fontWeight: 700,
                 cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
               }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#fee2e2";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#fef2f2";
+              }}
             >
-              <span>🛠️ Montaże</span>
+              <FilterX style={{ width: 12, height: 12 }} />
+              <span>Wyczyść</span>
             </button>
-          )}
 
-          {/* CTA Serwisy */}
-          {serwisType && (
+            {/* CTA Select All Filters Button */}
             <button
               type="button"
               onClick={() => {
-                const targetCanon = getCanonicalEventTypeId(serwisType._id);
-                if (isSerwisActiveForAllTeams) {
-                  setActiveEventTypeFilters((prev) => {
-                    const next = new Set(prev);
-                    next.delete("builtin_serwis");
-                    next.delete(serwisType._id);
-                    next.delete(targetCanon);
-                    return next;
-                  });
-                } else {
-                  setActiveEventTypeFilters((prev) => {
-                    const next = new Set(prev);
-                    next.add("builtin_serwis");
-                    next.add(serwisType._id);
-                    next.add(targetCanon);
-                    return next;
-                  });
-                  setDisabledTeamEventTypes((prev) => {
-                    const next = new Set(prev);
-                    if (installationTeams) {
-                      installationTeams.forEach((team) => {
-                        next.delete(`${team._id}:${targetCanon}`);
-                        next.delete(`${team._id}:${serwisType._id}`);
-                        next.delete(`${team._id}:builtin_serwis`);
-                      });
-                    }
-                    return next;
-                  });
+                if (eventTypes) {
+                  const allTypeIds = new Set<string>(eventTypes.map((t) => t._id as string));
+                  allTypeIds.add("builtin_montaz");
+                  allTypeIds.add("builtin_serwis");
+                  if (montazType) allTypeIds.add(montazType._id as string);
+                  if (serwisType) allTypeIds.add(serwisType._id as string);
+                  setActiveEventTypeFilters(allTypeIds);
                 }
+                if (activeSuppliers) setActiveSupplierFilters(new Set(activeSuppliers.map((s) => s._id)));
+                if (installationTeams) setActiveTeamFilters(new Set(installationTeams.map((t) => t._id)));
+                setActiveUserFilters(new Set());
+                setDisabledTeamEventTypes(new Set());
               }}
-              title={isSerwisActiveForAllTeams ? "Wyłącz Serwisy" : "Włącz Serwisy"}
+              title="Zaznacz wszystkie filtry"
               style={{
                 display: "inline-flex", alignItems: "center", gap: 3,
                 padding: "3px 8px", borderRadius: 12, fontSize: 11,
-                background: isSerwisActiveForAllTeams ? "#fef3c7" : "#f1f5f9",
-                color: isSerwisActiveForAllTeams ? "#92400e" : "#64748b",
-                border: `1px solid ${isSerwisActiveForAllTeams ? "#f59e0b" : "#cbd5e1"}`,
-                fontWeight: isSerwisActiveForAllTeams ? 800 : 500,
+                background: "#ecfdf5", color: "#047857",
+                border: "1px solid #a7f3d0", fontWeight: 700,
                 cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
               }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#d1fae5";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#ecfdf5";
+              }}
             >
-              <span>⚠️ Serwisy</span>
+              <CheckCheck style={{ width: 12, height: 12 }} />
+              <span>Wszystkie</span>
             </button>
-          )}
 
-          <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
+            <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 2px" }} />
 
-          {/* General Event type filters (unlinked) */}
-          {eventTypes.filter(t => {
-            const n = t.name.toLowerCase();
-            return !t.linkedSupplierId && 
-                   !t.linkedInstallationTeamId && 
-                   n !== "administracja" &&
-                   n !== "własne" && n !== "wlasne" &&
-                   n !== "montaż" && n !== "montaz" &&
-                   n !== "serwis";
-          }).map((type) => {
-            const active = activeEventTypeFilters.has(type._id);
-            return (
+            {/* CTA Montaże */}
+            {montazType && (
               <button
-                key={type._id}
-                onClick={() => toggleEventTypeFilter(type._id)}
+                type="button"
+                onClick={() => {
+                  const targetCanon = getCanonicalEventTypeId(montazType._id);
+                  if (isMontazActiveForAllTeams) {
+                    setActiveEventTypeFilters((prev) => {
+                      const next = new Set(prev);
+                      next.delete("builtin_montaz");
+                      next.delete(montazType._id);
+                      next.delete(targetCanon);
+                      return next;
+                    });
+                  } else {
+                    setActiveEventTypeFilters((prev) => {
+                      const next = new Set(prev);
+                      next.add("builtin_montaz");
+                      next.add(montazType._id);
+                      next.add(targetCanon);
+                      return next;
+                    });
+                    setDisabledTeamEventTypes((prev) => {
+                      const next = new Set(prev);
+                      if (installationTeams) {
+                        installationTeams.forEach((team) => {
+                          next.delete(`${team._id}:${targetCanon}`);
+                          next.delete(`${team._id}:${montazType._id}`);
+                          next.delete(`${team._id}:builtin_montaz`);
+                        });
+                      }
+                      return next;
+                    });
+                    // Jeśli żadna ekipa nie jest zaznaczona, automatycznie aktywuj wszystkie ekipy
+                    if (activeTeamFilters.size === 0 && installationTeams && installationTeams.length > 0) {
+                      setActiveTeamFilters(new Set(installationTeams.map((t) => t._id as string)));
+                    }
+                  }
+                }}
+                title={isMontazActiveForAllTeams ? "Wyłącz Montaże" : "Włącz Montaże"}
                 style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
-                  background: active ? `${type.color}22` : "var(--panel)",
-                  color: active ? type.color : "var(--text-mute)",
-                  border: `1.5px solid ${active ? type.color : "var(--line)"}`,
-                  fontWeight: active ? 600 : 500,
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                  padding: "3px 8px", borderRadius: 12, fontSize: 11,
+                  background: isMontazActiveForAllTeams ? "#dbeafe" : "#f1f5f9",
+                  color: isMontazActiveForAllTeams ? "#1e40af" : "#64748b",
+                  border: `1px solid ${isMontazActiveForAllTeams ? "#3b82f6" : "#cbd5e1"}`,
+                  fontWeight: isMontazActiveForAllTeams ? 800 : 500,
                   cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
                 }}
               >
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
-                {type.name}
+                <span>🛠️ Montaże</span>
               </button>
-            );
-          })}
+            )}
 
-          {/* Dynamic Suppliers Filter (Filtrowanie po Dostawcach) */}
-          {activeSuppliers.length > 0 && (
-            <>
-              <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                Dostawcy:
-              </span>
-              {activeSuppliers.slice(0, 3).map((supplier) => {
+            {/* CTA Serwisy */}
+            {serwisType && (
+              <button
+                type="button"
+                onClick={() => {
+                  const targetCanon = getCanonicalEventTypeId(serwisType._id);
+                  if (isSerwisActiveForAllTeams) {
+                    setActiveEventTypeFilters((prev) => {
+                      const next = new Set(prev);
+                      next.delete("builtin_serwis");
+                      next.delete(serwisType._id);
+                      next.delete(targetCanon);
+                      return next;
+                    });
+                  } else {
+                    setActiveEventTypeFilters((prev) => {
+                      const next = new Set(prev);
+                      next.add("builtin_serwis");
+                      next.add(serwisType._id);
+                      next.add(targetCanon);
+                      return next;
+                    });
+                    setDisabledTeamEventTypes((prev) => {
+                      const next = new Set(prev);
+                      if (installationTeams) {
+                        installationTeams.forEach((team) => {
+                          next.delete(`${team._id}:${targetCanon}`);
+                          next.delete(`${team._id}:${serwisType._id}`);
+                          next.delete(`${team._id}:builtin_serwis`);
+                        });
+                      }
+                      return next;
+                    });
+                    // Jeśli żadna ekipa nie jest zaznaczona, automatycznie aktywuj wszystkie ekipy
+                    if (activeTeamFilters.size === 0 && installationTeams && installationTeams.length > 0) {
+                      setActiveTeamFilters(new Set(installationTeams.map((t) => t._id as string)));
+                    }
+                  }
+                }}
+                title={isSerwisActiveForAllTeams ? "Wyłącz Serwisy" : "Włącz Serwisy"}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                  padding: "3px 8px", borderRadius: 12, fontSize: 11,
+                  background: isSerwisActiveForAllTeams ? "#fef3c7" : "#f1f5f9",
+                  color: isSerwisActiveForAllTeams ? "#92400e" : "#64748b",
+                  border: `1px solid ${isSerwisActiveForAllTeams ? "#f59e0b" : "#cbd5e1"}`,
+                  fontWeight: isSerwisActiveForAllTeams ? 800 : 500,
+                  cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                }}
+              >
+                <span>⚠️ Serwisy</span>
+              </button>
+            )}
+
+            {/* General Event type filters (unlinked) */}
+            {eventTypes.filter(t => {
+              const n = t.name.toLowerCase();
+              return !t.linkedSupplierId && 
+                     !t.linkedInstallationTeamId && 
+                     n !== "administracja" &&
+                     n !== "własne" && n !== "wlasne" &&
+                     n !== "montaż" && n !== "montaz" &&
+                     n !== "serwis";
+            }).map((type) => {
+              const active = activeEventTypeFilters.has(type._id);
+              return (
+                <button
+                  key={type._id}
+                  onClick={() => toggleEventTypeFilter(type._id)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                    background: active ? `${type.color}22` : "var(--panel)",
+                    color: active ? type.color : "var(--text-mute)",
+                    border: `1.5px solid ${active ? type.color : "var(--line)"}`,
+                    fontWeight: active ? 600 : 500,
+                    cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                  }}
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: type.color, flexShrink: 0 }} />
+                  {type.name}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Row 2: Zasoby (Dostawcy i Ekipy) */}
+          {(activeSuppliers.length > 0 || installationTeams.length > 0) && (
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, paddingTop: 6, borderTop: "1px dashed var(--line)" }}>
+              {/* Dynamic Suppliers Filter (Filtrowanie po Dostawcach) */}
+              {activeSuppliers.length > 0 && (
+                <>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Dostawcy:
+                  </span>
+                  {activeSuppliers.slice(0, 3).map((supplier) => {
                 const active = activeSupplierFilters.has(supplier._id);
                 const linkedTypes = eventTypes.filter(t => t.linkedSupplierId === supplier._id);
                 const hasLinkedTypes = linkedTypes.length > 0;
@@ -2276,10 +2318,44 @@ export default function UniversalCalendar({
           {/* Ekipy Filter */}
           {installationTeams.length > 0 && (
             <>
-              <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
+              {activeSuppliers.length > 0 && (
+                <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
+              )}
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                 Ekipy:
               </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const allSelected = installationTeams.every((t) => activeTeamFilters.has(t._id as string));
+                  if (allSelected) {
+                    setActiveTeamFilters(new Set());
+                  } else {
+                    setActiveTeamFilters(new Set(installationTeams.map((t) => t._id as string)));
+                    if (activeEventTypeFilters.size === 0) {
+                      const nextTypes = new Set<string>(["builtin_montaz", "builtin_serwis"]);
+                      if (montazType) nextTypes.add(montazType._id as string);
+                      if (serwisType) nextTypes.add(serwisType._id as string);
+                      setActiveEventTypeFilters(nextTypes);
+                    }
+                  }
+                }}
+                title="Zaznacz lub odznacz wszystkie ekipy montażowe"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                  padding: "3px 8px", borderRadius: 12, fontSize: 11,
+                  background: activeTeamFilters.size === installationTeams.length ? "#e0f2fe" : "var(--panel)",
+                  color: activeTeamFilters.size === installationTeams.length ? "#0369a1" : "var(--text-mute)",
+                  border: `1px solid ${activeTeamFilters.size === installationTeams.length ? "#7dd3fc" : "var(--line)"}`,
+                  fontWeight: 700, cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                }}
+              >
+                <span>
+                  {activeTeamFilters.size === installationTeams.length
+                    ? `Wszystkie (${installationTeams.length})`
+                    : `Wszystkie (${activeTeamFilters.size}/${installationTeams.length})`}
+                </span>
+              </button>
               {installationTeams.slice(0, 3).map((team, index) => {
                 const active = activeTeamFilters.has(team._id as string);
                 const teamTypes = getTeamEventTypes(team._id as string);
@@ -2693,6 +2769,8 @@ export default function UniversalCalendar({
               </div>
               )}
             </>
+          )}
+            </div>
           )}
 
         </div>
