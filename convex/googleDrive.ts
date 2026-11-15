@@ -2794,6 +2794,10 @@ export function buildOfferReplacements(params: {
   investmentLoc?: string;
   todayStr?: string;
   offerNotesFormatted?: string;
+  authorFirstName?: string;
+  authorLastName?: string;
+  authorFullName?: string;
+  authorPhone?: string;
   isDocsTemplate?: boolean;
 }) {
   const {
@@ -2814,8 +2818,16 @@ export function buildOfferReplacements(params: {
     investmentLoc = "",
     todayStr = "",
     offerNotesFormatted = "",
+    authorFirstName = "",
+    authorLastName = "",
+    authorFullName = "",
+    authorPhone = "",
     isDocsTemplate = false,
   } = params;
+
+  const resolvedAuthorFullName =
+    authorFullName.trim() || [authorFirstName.trim(), authorLastName.trim()].filter(Boolean).join(" ");
+  const resolvedAuthorBlock = [resolvedAuthorFullName, authorPhone.trim()].filter(Boolean).join("\n");
 
   const totalNetStr = formatPLNCurrency(offer.totalPriceNet);
   const totalGrossStr = formatPLNCurrency(offer.totalPriceGross);
@@ -3030,6 +3042,21 @@ export function buildOfferReplacements(params: {
     { placeholder: "{{lineItemsList}}", value: lineItemsSummary },
     { placeholder: "{{pozycje}}", value: lineItemsSummary },
 
+    // Makra autora oferty (użytkownika, który utworzył ofertę)
+    { placeholder: "{{autor_imie}}", value: authorFirstName.trim() },
+    { placeholder: "{{autor_nazwisko}}", value: authorLastName.trim() },
+    { placeholder: "{{autor_imie_nazwisko}}", value: resolvedAuthorFullName },
+    { placeholder: "{{autor_telefon}}", value: authorPhone.trim() },
+    { placeholder: "{{autor_tel}}", value: authorPhone.trim() },
+    { placeholder: "{{sporzadzil_imie}}", value: authorFirstName.trim() },
+    { placeholder: "{{sporzadzil_nazwisko}}", value: authorLastName.trim() },
+    { placeholder: "{{sporzadzil_imie_nazwisko}}", value: resolvedAuthorFullName },
+    { placeholder: "{{sporzadzil_telefon}}", value: authorPhone.trim() },
+    { placeholder: "{{sporzadzil}}", value: resolvedAuthorBlock },
+    { placeholder: "{{Sporządził}}", value: resolvedAuthorBlock },
+    { placeholder: "{{autor}}", value: resolvedAuthorBlock },
+    { placeholder: "{{autor_oferty}}", value: resolvedAuthorBlock },
+
     // Dedykowane makra podsumowania finansowego
     { placeholder: "{{podsumowanie_finansowe}}", value: podsumowanieFinansowePelne },
     { placeholder: "{{rozliczenie}}", value: podsumowanieFinansowePelne },
@@ -3223,10 +3250,19 @@ export const generateOfferPdf = action({
     if (!offerData || !offerData.offer) {
       throw new Error("Oferta nie została znaleziona.");
     }
-    const { offer, items, additions, opportunity, client, service } = offerData;
+    const { offer, items, additions, opportunity, client, service, creator } = offerData;
     if (!opportunity) {
       throw new Error("Szansa sprzedaży powiązana z ofertą nie została znaleziona.");
     }
+
+    const creatorUser = creator ?? (await ctx.runQuery(api.users.me));
+    const authorFirstName = creatorUser?.firstName?.trim() || "";
+    const authorLastName = creatorUser?.lastName?.trim() || "";
+    const authorFullName =
+      [authorFirstName, authorLastName].filter(Boolean).join(" ") ||
+      creatorUser?.displayName?.trim() ||
+      "";
+    const authorPhone = creatorUser?.phone?.trim() || "";
 
     // Dynamiczne ustalenie szablonu:
     // 1. Jawnie przekazany w akcji (args.templateFileId)
@@ -3363,6 +3399,10 @@ export const generateOfferPdf = action({
       investmentLoc,
       todayStr,
       offerNotesFormatted,
+      authorFirstName,
+      authorLastName,
+      authorFullName,
+      authorPhone,
       isDocsTemplate: false,
     });
 
@@ -3384,6 +3424,10 @@ export const generateOfferPdf = action({
       investmentLoc,
       todayStr,
       offerNotesFormatted,
+      authorFirstName,
+      authorLastName,
+      authorFullName,
+      authorPhone,
       isDocsTemplate: true,
     });
 

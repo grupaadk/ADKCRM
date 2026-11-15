@@ -1274,6 +1274,7 @@ export default defineSchema({
     installationItems: v.optional(v.any()),
     installationTeamName: v.optional(v.string()),
     pricingTier: v.optional(v.string()),
+    createdByUserId: v.optional(v.id("users")),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

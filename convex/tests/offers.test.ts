@@ -1234,4 +1234,83 @@ describe("CAD Offers and Constructions Module", () => {
     const repKonstrukcje = reps.replacements.find((r) => r.placeholder === "{{kalkulacja_rabatu_konstrukcje}}");
     expect(repKonstrukcje?.value).toContain("10 000,00 zł - 10% RABAT = 9 000,00 zł");
   });
+
+  test("buildOfferReplacements resolves offer author macros (firstName, lastName, phone, and sporzadzil)", async () => {
+    const { buildOfferReplacements } = await import("../googleDrive");
+    const baseOffer = {
+      offerNumber: "OF-2026/010",
+      title: "Oferta Testowa",
+      totalPriceNet: 10000,
+      totalPriceGross: 12300,
+    };
+
+    const withPhone = buildOfferReplacements({
+      offer: baseOffer,
+      items: [],
+      authorFirstName: "Arek",
+      authorLastName: "Marchewka",
+      authorPhone: "+48 600 123 456",
+    });
+
+    const getVal = (p: string) => withPhone.replacements.find((r) => r.placeholder === p)?.value;
+    expect(getVal("{{autor_imie}}")).toBe("Arek");
+    expect(getVal("{{autor_nazwisko}}")).toBe("Marchewka");
+    expect(getVal("{{autor_imie_nazwisko}}")).toBe("Arek Marchewka");
+    expect(getVal("{{autor_telefon}}")).toBe("+48 600 123 456");
+    expect(getVal("{{sporzadzil_imie}}")).toBe("Arek");
+    expect(getVal("{{sporzadzil_nazwisko}}")).toBe("Marchewka");
+    expect(getVal("{{sporzadzil_telefon}}")).toBe("+48 600 123 456");
+    expect(getVal("{{sporzadzil}}")).toBe("Arek Marchewka\n+48 600 123 456");
+    expect(getVal("{{autor_oferty}}")).toBe("Arek Marchewka\n+48 600 123 456");
+
+    const withoutPhone = buildOfferReplacements({
+      offer: baseOffer,
+      items: [],
+      authorFirstName: "Arek",
+      authorLastName: "Marchewka",
+      authorPhone: "",
+    });
+    expect(
+      withoutPhone.replacements.find((r) => r.placeholder === "{{sporzadzil}}")?.value
+    ).toBe("Arek Marchewka");
+  });
+
+  test("createOfferForOpportunity records createdByUserId and getOfferWithItems returns creator", async () => {
+    const t = convexTest(schema);
+    const { userId, opportunityId } = await t.run(async (ctx) => {
+      const uid = await ctx.db.insert("users", {
+        email: "arek",
+        role: "sales",
+        isActive: true,
+        firstName: "Arek",
+        lastName: "Marchewka",
+        phone: "+48 600 123 456",
+        displayName: "Arek Marchewka",
+      });
+      const oppId = await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-AUTHOR-1",
+        firstName: "Jan",
+        lastName: "Testowy",
+        email: "jan@test.pl",
+        processed: false,
+        stage: "lead",
+      });
+      return { userId: uid, opportunityId: oppId };
+    });
+
+    const asUser = t.withIdentity({ subject: userId });
+    const offerId = await asUser.mutation(api.offers.createOfferForOpportunity, {
+      opportunityId,
+    });
+
+    const offerData = await t.query(api.offers.getOfferWithItems, { offerId });
+    expect(offerData?.offer.createdByUserId).toBe(userId);
+    expect(offerData?.creator).toMatchObject({
+      _id: userId,
+      firstName: "Arek",
+      lastName: "Marchewka",
+      phone: "+48 600 123 456",
+      displayName: "Arek Marchewka",
+    });
+  });
 });

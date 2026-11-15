@@ -7,6 +7,7 @@ import {
   isGlassSystemConstruction,
 } from "../lib/glassPricing";
 import { matchPricingRange } from "../lib/pricingRanges";
+import { getCurrentUser } from "./lib/auth";
 
 /**
  * Usuwa słowo "Przedstawiciel" z tytułów ofert i nazw klientów w całym systemie
@@ -355,6 +356,19 @@ export const getOfferWithItems = query({
     const dynamicNet = discountedBase + computedInstallationNet;
     const dynamicGross = Math.round(dynamicNet * (1 + vatRate / 100));
 
+    const creatorDoc = offer.createdByUserId
+      ? await ctx.db.get(offer.createdByUserId)
+      : null;
+    const creator = creatorDoc
+      ? {
+          _id: creatorDoc._id,
+          firstName: creatorDoc.firstName,
+          lastName: creatorDoc.lastName,
+          phone: creatorDoc.phone,
+          displayName: creatorDoc.displayName,
+        }
+      : null;
+
     return {
       offer: {
         ...offer,
@@ -368,6 +382,7 @@ export const getOfferWithItems = query({
       opportunity,
       client,
       service,
+      creator,
     };
   },
 });
@@ -424,6 +439,8 @@ export const getOrCreateForOpportunity = mutation({
       }
     }
 
+    const currentUser = await getCurrentUser(ctx);
+
     const offerId = await ctx.db.insert("offers", {
       opportunityId: args.opportunityId,
       offerNumber,
@@ -437,6 +454,7 @@ export const getOrCreateForOpportunity = mutation({
       serviceId: initialServiceId,
       serviceName: initialServiceName,
       notes: opp.comment || undefined,
+      createdByUserId: currentUser?._id,
       createdAt: now,
       updatedAt: now,
     });
@@ -492,6 +510,8 @@ export const createOfferForOpportunity = mutation({
       }
     }
 
+    const currentUser = await getCurrentUser(ctx);
+
     const offerId = await ctx.db.insert("offers", {
       opportunityId: args.opportunityId,
       offerNumber,
@@ -505,6 +525,7 @@ export const createOfferForOpportunity = mutation({
       serviceId: initialServiceId,
       serviceName: initialServiceName,
       notes: opp.comment || undefined,
+      createdByUserId: currentUser?._id,
       createdAt: now,
       updatedAt: now,
     });
@@ -541,6 +562,8 @@ export const duplicateOffer = mutation({
     const defaultTitle = `${sourceOffer.title} (Wariant ${existingInOpp.length + 1})`;
     const title = args.title || defaultTitle;
 
+    const currentUser = await getCurrentUser(ctx);
+
     const newOfferId = await ctx.db.insert("offers", {
       opportunityId: sourceOffer.opportunityId,
       offerNumber,
@@ -556,6 +579,7 @@ export const duplicateOffer = mutation({
       templateFileId: sourceOffer.templateFileId,
       notes: sourceOffer.notes,
       terms: sourceOffer.terms,
+      createdByUserId: currentUser?._id ?? sourceOffer.createdByUserId,
       createdAt: now,
       updatedAt: now,
     });
