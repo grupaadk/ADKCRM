@@ -197,7 +197,7 @@ export default function UsersAdminPage() {
   }
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-gray-900">Użytkownicy</h1>
         <button
@@ -310,7 +310,7 @@ export default function UsersAdminPage() {
         </div>
       )}
 
-      <div className="rounded-md border border-gray-200 bg-white overflow-hidden">
+      <div className="rounded-md border border-gray-200 bg-white overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-[12px] uppercase tracking-wide text-gray-500">
             <tr>
@@ -504,7 +504,7 @@ export default function UsersAdminPage() {
                       {u.isActive ? "aktywny" : "nieaktywny"}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
