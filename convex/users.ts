@@ -64,6 +64,9 @@ export const me = query({
     return {
       _id: user._id,
       login: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
       displayName: user.displayName,
       role: user.role,
       isActive: user.isActive,
@@ -85,6 +88,9 @@ export const list = query({
         _id: u._id,
         _creationTime: u._creationTime,
         login: u.email,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        phone: u.phone,
         displayName: u.displayName,
         role: u.role,
         isActive: u.isActive ?? false,
@@ -105,12 +111,18 @@ export const _internalUpdateUserFields = internalMutation({
     userId: v.id("users"),
     role: v.optional(userRoleValidator),
     isActive: v.optional(v.boolean()),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    phone: v.optional(v.string()),
     displayName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const patch: Partial<Doc<"users">> = {};
     if (args.role !== undefined) patch.role = args.role;
     if (args.isActive !== undefined) patch.isActive = args.isActive;
+    if (args.firstName !== undefined) patch.firstName = args.firstName;
+    if (args.lastName !== undefined) patch.lastName = args.lastName;
+    if (args.phone !== undefined) patch.phone = args.phone;
     if (args.displayName !== undefined) patch.displayName = args.displayName;
     await ctx.db.patch(args.userId, patch);
   },
@@ -128,6 +140,9 @@ export const create = action({
     login: v.string(),
     password: v.string(),
     role: userRoleValidator,
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    phone: v.optional(v.string()),
     displayName: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ userId: Id<"users">; login: string }> => {
@@ -167,11 +182,19 @@ export const create = action({
       shouldLinkViaPhone: false,
     });
 
+    const trimmedFirst = args.firstName?.trim() || undefined;
+    const trimmedLast = args.lastName?.trim() || undefined;
+    const fullName = [trimmedFirst, trimmedLast].filter(Boolean).join(" ").trim() || undefined;
+    const resolvedDisplayName = args.displayName?.trim() || fullName;
+
     await ctx.runMutation(internal.users._internalUpdateUserFields, {
       userId: created.user._id,
       role: args.role,
       isActive: true,
-      displayName: args.displayName,
+      firstName: trimmedFirst,
+      lastName: trimmedLast,
+      phone: args.phone?.trim() || undefined,
+      displayName: resolvedDisplayName,
     });
 
     return { userId: created.user._id, login };
@@ -248,18 +271,49 @@ export const setActive = action({
 });
 
 /**
- * Admin edytuje displayName.
+ * Admin edytuje profil usera (displayName, firstName, lastName, phone).
  */
 export const updateProfile = mutation({
   args: {
     userId: v.id("users"),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    phone: v.optional(v.string()),
     displayName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireRole(ctx, "admin");
     const target = await ctx.db.get(args.userId);
     if (!target) throw new ConvexError("Użytkownik nie istnieje.");
-    await ctx.db.patch(args.userId, { displayName: args.displayName });
+    const patch: Partial<Doc<"users">> = {};
+    if (args.firstName !== undefined) patch.firstName = args.firstName.trim() || undefined;
+    if (args.lastName !== undefined) patch.lastName = args.lastName.trim() || undefined;
+    if (args.phone !== undefined) patch.phone = args.phone.trim() || undefined;
+    if (args.displayName !== undefined) patch.displayName = args.displayName.trim() || undefined;
+    await ctx.db.patch(args.userId, patch);
+  },
+});
+
+/**
+ * Zalogowany user edytuje swoje własne dane kontaktowe (imię, nazwisko, telefon).
+ */
+export const updateOwnProfile = mutation({
+  args: {
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    phone: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await requireUser(ctx);
+    const trimmedFirst = args.firstName?.trim() || undefined;
+    const trimmedLast = args.lastName?.trim() || undefined;
+    const fullName = [trimmedFirst, trimmedLast].filter(Boolean).join(" ").trim() || undefined;
+    await ctx.db.patch(currentUser._id, {
+      firstName: trimmedFirst,
+      lastName: trimmedLast,
+      phone: args.phone?.trim() || undefined,
+      ...(!currentUser.displayName && fullName ? { displayName: fullName } : {}),
+    });
   },
 });
 
@@ -270,6 +324,9 @@ export const edit = mutation({
   args: {
     userId: v.id("users"),
     login: v.string(),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    phone: v.optional(v.string()),
     displayName: v.optional(v.string()),
     role: userRoleValidator,
   },
@@ -284,9 +341,17 @@ export const edit = mutation({
       throw new ConvexError("Login jest już zajęty.");
     }
 
+    const trimmedFirst = args.firstName?.trim() || undefined;
+    const trimmedLast = args.lastName?.trim() || undefined;
+    const fullName = [trimmedFirst, trimmedLast].filter(Boolean).join(" ").trim() || undefined;
+    const resolvedDisplayName = args.displayName?.trim() || fullName;
+
     await ctx.db.patch(args.userId, {
       email: login,
-      displayName: args.displayName,
+      firstName: trimmedFirst,
+      lastName: trimmedLast,
+      phone: args.phone?.trim() || undefined,
+      displayName: resolvedDisplayName,
       role: args.role,
     });
     

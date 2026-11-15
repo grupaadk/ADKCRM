@@ -39,12 +39,18 @@ export default function UsersAdminPage() {
   const [newLogin, setNewLogin] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<Role>("sales");
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [editingUserId, setEditingUserId] = useState<Id<"users"> | null>(null);
   const [editLogin, setEditLogin] = useState("");
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editRole, setEditRole] = useState<Role>("sales");
   const [editError, setEditError] = useState<string | null>(null);
@@ -76,10 +82,16 @@ export default function UsersAdminPage() {
         login: newLogin.trim(),
         password: newPassword,
         role: newRole,
+        firstName: newFirstName.trim() || undefined,
+        lastName: newLastName.trim() || undefined,
+        phone: newPhone.trim() || undefined,
         displayName: newDisplayName.trim() || undefined,
       });
       setNewLogin("");
       setNewPassword("");
+      setNewFirstName("");
+      setNewLastName("");
+      setNewPhone("");
       setNewDisplayName("");
       setNewRole("sales");
       setShowAdd(false);
@@ -135,9 +147,12 @@ export default function UsersAdminPage() {
     }
   }
 
-  function startEdit(u: any) {
+  function startEdit(u: NonNullable<typeof users>[number]) {
     setEditingUserId(u._id);
     setEditLogin(u.login ?? "");
+    setEditFirstName(u.firstName ?? "");
+    setEditLastName(u.lastName ?? "");
+    setEditPhone(u.phone ?? "");
     setEditDisplayName(u.displayName ?? "");
     setEditRole((u.role as Role) ?? "sales");
     setEditError(null);
@@ -151,7 +166,15 @@ export default function UsersAdminPage() {
     }
     setBusy(true);
     try {
-      await editUser({ userId, login: editLogin.trim(), displayName: editDisplayName.trim() || undefined, role: editRole });
+      await editUser({
+        userId,
+        login: editLogin.trim(),
+        firstName: editFirstName.trim() || undefined,
+        lastName: editLastName.trim() || undefined,
+        phone: editPhone.trim() || undefined,
+        displayName: editDisplayName.trim() || undefined,
+        role: editRole,
+      });
       setEditingUserId(null);
     } catch (e) {
       setEditError(convexErrorMessage(e, "Błąd zapisu."));
@@ -210,6 +233,36 @@ export default function UsersAdminPage() {
               />
             </label>
             <label className="text-sm">
+              Imię
+              <input
+                type="text"
+                value={newFirstName}
+                onChange={(e) => setNewFirstName(e.target.value)}
+                className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+                placeholder="np. Wojtek"
+              />
+            </label>
+            <label className="text-sm">
+              Nazwisko
+              <input
+                type="text"
+                value={newLastName}
+                onChange={(e) => setNewLastName(e.target.value)}
+                className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+                placeholder="np. Zapora"
+              />
+            </label>
+            <label className="text-sm">
+              Numer telefonu
+              <input
+                type="tel"
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+                placeholder="np. +48 600 000 000"
+              />
+            </label>
+            <label className="text-sm">
               Rola
               <select
                 value={newRole}
@@ -221,14 +274,14 @@ export default function UsersAdminPage() {
                 <option value="montaz">Montaż</option>
               </select>
             </label>
-            <label className="text-sm">
+            <label className="text-sm col-span-2">
               Nazwa wyświetlana (opcjonalna)
               <input
                 type="text"
                 value={newDisplayName}
                 onChange={(e) => setNewDisplayName(e.target.value)}
                 className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
-                placeholder="np. Wojtek Zapora"
+                placeholder="np. Wojtek Zapora (domyślnie Imię i Nazwisko)"
               />
             </label>
           </div>
@@ -265,6 +318,8 @@ export default function UsersAdminPage() {
                 Filtry
               </th>
               <th className="px-3 py-2">Login</th>
+              <th className="px-3 py-2">Imię i nazwisko</th>
+              <th className="px-3 py-2">Telefon</th>
               <th className="px-3 py-2">Nazwa</th>
               <th className="px-3 py-2">Rola</th>
               <th className="px-3 py-2">Kolor</th>
@@ -275,14 +330,14 @@ export default function UsersAdminPage() {
           <tbody>
             {users === undefined && (
               <tr>
-                <td colSpan={7} className="px-3 py-4 text-gray-400">
+                <td colSpan={9} className="px-3 py-4 text-gray-400">
                   Ładowanie…
                 </td>
               </tr>
             )}
             {users?.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-4 text-gray-400">
+                <td colSpan={9} className="px-3 py-4 text-gray-400">
                   Brak użytkowników.
                 </td>
               </tr>
@@ -294,20 +349,41 @@ export default function UsersAdminPage() {
               if (editingUserId === u._id) {
                 return (
                   <tr key={u._id} className="border-t border-gray-100 bg-gray-50">
-                    <td className="px-3 py-2 text-center" colSpan={7}>
-                      <div className="flex items-center gap-4 py-2">
+                    <td className="px-3 py-2 text-center" colSpan={9}>
+                      <div className="flex flex-wrap items-center gap-3 py-2">
                         <input
                           type="text"
                           value={editLogin}
                           onChange={e => setEditLogin(e.target.value)}
-                          className="rounded border px-2 py-1 text-sm w-32"
+                          className="rounded border px-2 py-1 text-sm w-28"
                           placeholder="Login"
+                        />
+                        <input
+                          type="text"
+                          value={editFirstName}
+                          onChange={e => setEditFirstName(e.target.value)}
+                          className="rounded border px-2 py-1 text-sm w-32"
+                          placeholder="Imię"
+                        />
+                        <input
+                          type="text"
+                          value={editLastName}
+                          onChange={e => setEditLastName(e.target.value)}
+                          className="rounded border px-2 py-1 text-sm w-36"
+                          placeholder="Nazwisko"
+                        />
+                        <input
+                          type="tel"
+                          value={editPhone}
+                          onChange={e => setEditPhone(e.target.value)}
+                          className="rounded border px-2 py-1 text-sm w-36"
+                          placeholder="Telefon"
                         />
                         <input
                           type="text"
                           value={editDisplayName}
                           onChange={e => setEditDisplayName(e.target.value)}
-                          className="rounded border px-2 py-1 text-sm w-48"
+                          className="rounded border px-2 py-1 text-sm w-40"
                           placeholder="Nazwa"
                         />
                         <select
@@ -346,6 +422,14 @@ export default function UsersAdminPage() {
                         ty
                       </span>
                     )}
+                  </td>
+                  <td className="px-3 py-2 text-gray-700">
+                    {[u.firstName, u.lastName].filter(Boolean).join(" ") || (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
+                    {u.phone || <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-3 py-2 text-gray-700">
                     <button

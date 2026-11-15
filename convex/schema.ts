@@ -134,6 +134,8 @@ export default defineSchema({
     // Pola wewnętrzne:
     role: v.optional(userRole),
     isActive: v.optional(v.boolean()),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
     displayName: v.optional(v.string()),
     color: v.optional(v.string()),
     showInPickers: v.optional(v.boolean()),

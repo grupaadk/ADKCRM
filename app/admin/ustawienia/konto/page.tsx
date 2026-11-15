@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { useAction, useQuery } from "convex/react";
+import { FormEvent, useEffect, useState } from "react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 
@@ -15,12 +15,48 @@ function convexErrorMessage(e: unknown, fallback: string): string {
 export default function MyAccountPage() {
   const me = useQuery(api.users.me);
   const changeOwnPassword = useAction(api.users.changeOwnPassword);
+  const updateOwnProfile = useMutation(api.users.updateOwnProfile);
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  useEffect(() => {
+    if (me) {
+      setFirstName(me.firstName ?? "");
+      setLastName(me.lastName ?? "");
+      setPhone(me.phone ?? "");
+    }
+  }, [me]);
+
+  async function handleProfileSubmit(e: FormEvent) {
+    e.preventDefault();
+    setProfileMessage(null);
+    setProfileBusy(true);
+    try {
+      await updateOwnProfile({
+        firstName: firstName.trim() || undefined,
+        lastName: lastName.trim() || undefined,
+        phone: phone.trim() || undefined,
+      });
+      setProfileMessage({ type: "ok", text: "Dane zostały zapisane." });
+    } catch (e) {
+      setProfileMessage({
+        type: "err",
+        text: convexErrorMessage(e, "Błąd zapisu danych."),
+      });
+    } finally {
+      setProfileBusy(false);
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -75,6 +111,66 @@ export default function MyAccountPage() {
           {me.role === "admin" ? "Administrator" : me.role === "sales" ? "Sprzedaż" : me.role === "montaz" ? "Montaż" : "—"}
         </div>
       </div>
+
+      <form onSubmit={handleProfileSubmit} className="rounded-md border border-gray-200 bg-white p-4 mb-6 flex flex-col gap-3">
+        <h2 className="text-base font-semibold text-gray-900">Dane osobowe i kontaktowe</h2>
+
+        <label className="text-sm">
+          Imię
+          <input
+            type="text"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            disabled={profileBusy}
+            placeholder="np. Wojtek"
+            className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+          />
+        </label>
+
+        <label className="text-sm">
+          Nazwisko
+          <input
+            type="text"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            disabled={profileBusy}
+            placeholder="np. Zapora"
+            className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+          />
+        </label>
+
+        <label className="text-sm">
+          Numer telefonu
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            disabled={profileBusy}
+            placeholder="np. +48 600 000 000"
+            className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+          />
+        </label>
+
+        {profileMessage && (
+          <div
+            className={
+              profileMessage.type === "ok"
+                ? "rounded bg-green-50 px-3 py-2 text-sm text-green-700"
+                : "rounded bg-red-50 px-3 py-2 text-sm text-red-700"
+            }
+          >
+            {profileMessage.text}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={profileBusy}
+          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+        >
+          {profileBusy ? "Zapisywanie…" : "Zapisz dane"}
+        </button>
+      </form>
 
       <form onSubmit={handleSubmit} className="rounded-md border border-gray-200 bg-white p-4 flex flex-col gap-3">
         <h2 className="text-base font-semibold text-gray-900">Zmiana hasła</h2>
