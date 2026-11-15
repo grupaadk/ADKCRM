@@ -347,15 +347,34 @@ export default function UniversalCalendar({
   }, [serwisType, activeEventTypeFilters, getCanonicalEventTypeId]);
 
   const toggleUserFilter = (id: string) => {
+    const isCurrentlyActive = activeUserFilters.has(id);
     setActiveUserFilters((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
+      if (isCurrentlyActive) next.delete(id);
       else next.add(id);
       if (currentUser?._id) {
         localStorage.setItem(`montaz_user_filter_${currentUser._id}`, JSON.stringify([...next]));
       }
       return next;
     });
+
+    // Jeśli włączamy pracownika przy pustych typach wydarzeń (np. po "Wyczyść"), automatycznie włącz typy, ekipy i dostawców
+    if (!isCurrentlyActive && activeEventTypeFilters.size === 0) {
+      if (eventTypes && eventTypes.length > 0) {
+        const allTypeIds = new Set<string>(eventTypes.map((t) => t._id as string));
+        allTypeIds.add("builtin_montaz");
+        allTypeIds.add("builtin_serwis");
+        if (montazType) allTypeIds.add(montazType._id as string);
+        if (serwisType) allTypeIds.add(serwisType._id as string);
+        setActiveEventTypeFilters(allTypeIds);
+      }
+      if (activeTeamFilters.size === 0 && installationTeams && installationTeams.length > 0) {
+        setActiveTeamFilters(new Set(installationTeams.map((t) => t._id as string)));
+      }
+      if (activeSupplierFilters.size === 0 && activeSuppliers && activeSuppliers.length > 0) {
+        setActiveSupplierFilters(new Set(activeSuppliers.map((s) => s._id as string)));
+      }
+    }
   };
 
   const toggleEventTypeFilter = (id: string) => {
@@ -458,18 +477,10 @@ export default function UniversalCalendar({
     const result: object[] = [];
 
     const hasActiveEventTypeFilters = activeEventTypeFilters.size > 0;
-    const hasActiveSupplierFilters = activeSupplierFilters.size > 0;
-    const hasActiveTeamFilters = activeTeamFilters.size > 0;
     const hasActiveUserFilters = activeUserFilters.size > 0;
 
-    // Jeśli żaden filtr nie jest zaznaczony, kalendarz jest pusty
-    const isAnyFilterActive =
-      hasActiveEventTypeFilters ||
-      hasActiveSupplierFilters ||
-      hasActiveTeamFilters ||
-      hasActiveUserFilters;
-
-    if (!isAnyFilterActive) {
+    // Jeśli żaden typ wydarzenia nie jest zaznaczony, kalendarz jest pusty
+    if (!hasActiveEventTypeFilters) {
       return result;
     }
 

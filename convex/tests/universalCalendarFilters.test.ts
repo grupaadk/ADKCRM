@@ -260,6 +260,14 @@ describe("UniversalCalendar Filtering Logic (/admin/kalendarz)", () => {
     expect(t12.map((e) => e.title)).toContain("[DEV-TEST] Montaż u Piotra");
     expect(t12.map((e) => e.title)).not.toContain("[DEV-TEST] Serwis reklamacyjny");
 
+    // ─── T13: Odznaczenie jedynego typu (Montaże) mimo zaznaczonych ekip -> 0 wydarzeń ───
+    const t13 = filterTestEvents({
+      showPrivate: true,
+      activeEventTypeFilters: new Set(),
+      activeTeamFilters: new Set(allTeamIds),
+    });
+    expect(t13.length).toBe(0);
+
     // ─── Czyszczenie bazy (cleanup) ─────────────────────────────────────────────
     const cleanupResult = await t.mutation(api.devCalendarTestSeed.cleanupDevCalendarData, {});
     expect(cleanupResult.status).toBe("cleaned");
