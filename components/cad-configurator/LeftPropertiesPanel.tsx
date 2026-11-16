@@ -137,6 +137,13 @@ export function LeftPropertiesPanel({
     item.name.toLowerCase().includes("trójką") ||
     Boolean(item.shortName && item.shortName.toLowerCase().includes("trójką"));
 
+  const isPergola =
+    !isTriangle &&
+    (item.name.toLowerCase().includes("pergol") ||
+      Boolean(item.shortName && item.shortName.toLowerCase().includes("pergol")) ||
+      Boolean(item.systemName && item.systemName.toLowerCase().includes("pergol")) ||
+      Boolean(item.fillType && item.fillType.toLowerCase().includes("lamel")));
+
   const effectivePricingRanges =
     template?.pricingRanges && template.pricingRanges.length > 0
       ? template.pricingRanges
@@ -309,19 +316,19 @@ export function LeftPropertiesPanel({
 
             <div>
               <label className="block text-[10px] font-medium text-[#7c8597] mb-1">
-                Wysokość H (mm)
+                {isPergola ? "Wysięg / Głębokość D (mm)" : "Wysokość H (mm)"}
               </label>
               <input
                 type="number"
                 step={10}
                 min={300}
-                max={6000}
+                max={8000}
                 disabled={readOnly}
                 value={item.heightMm || 2300}
                 onChange={(e) => {
                   const val = parseInt(e.target.value);
                   if (!Number.isNaN(val) && val >= 300) {
-                    const nextH = Math.min(6000, val);
+                    const nextH = Math.min(8000, val);
                     if (isGlass) {
                       const calc = calculateGlassSystemPricing(item.widthMm || 2880, nextH);
                       onChange({
@@ -360,6 +367,37 @@ export function LeftPropertiesPanel({
                 <span className="text-[10px] font-sans text-[#64748b] bg-white px-1.5 py-0.5 rounded border border-[#e2e8f0]">
                   Bez torów
                 </span>
+              </div>
+            </div>
+          ) : isPergola ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-medium text-[#7c8597]">
+                  Moduły lameli dachowych
+                </label>
+                <span className="text-[10px] font-sans text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-semibold">
+                  4 słupy narożne
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1">
+                {[1, 2, 3, 4].map((modCount) => {
+                  const active = (item.panesCount || 1) === modCount;
+                  return (
+                    <button
+                      key={modCount}
+                      type="button"
+                      disabled={readOnly}
+                      onClick={() => onChange({ panesCount: modCount })}
+                      className={`py-1 rounded text-xs font-mono font-bold border transition-colors cursor-pointer ${
+                        active
+                          ? "bg-[#0e7490] text-white border-[#0e7490]"
+                          : "bg-white text-[#0b1220] border-[#d4dae3] hover:border-[#4ABBC3]"
+                      }`}
+                    >
+                      {modCount} mod.
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : (

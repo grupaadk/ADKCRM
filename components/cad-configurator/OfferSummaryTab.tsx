@@ -1274,6 +1274,13 @@ export function OfferSummaryTab({
                           it.shortName.toLowerCase().includes("praw")
                       ));
 
+                  const isPergola =
+                    !isTriangle &&
+                    (it.name.toLowerCase().includes("pergol") ||
+                      Boolean(it.shortName && it.shortName.toLowerCase().includes("pergol")) ||
+                      Boolean(it.systemName && it.systemName.toLowerCase().includes("pergol")) ||
+                      Boolean(it.fillType && it.fillType.toLowerCase().includes("lamel")));
+
                   return (
                     <tr
                       key={it._id}
@@ -1368,6 +1375,19 @@ export function OfferSummaryTab({
                                       >
                                         {it.fillType || "HART 10"}
                                       </text>
+                                    </g>
+                                  ) : isPergola ? (
+                                    <g>
+                                      <rect x="2" y="2" width="136" height="66" fill="none" stroke="#dc2626" strokeWidth="1" />
+                                      <rect x="3" y="3" width="134" height="64" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
+                                      <rect x="10" y="10" width="120" height="50" fill="#f8fafc" stroke="#1e242b" strokeWidth="0.8" />
+                                      {[15, 23, 31, 39, 47].map((ly) => (
+                                        <rect key={ly} x="13" y={ly} width="114" height="5" rx="1" fill="#e2e8f0" stroke="#64748b" strokeWidth="0.6" />
+                                      ))}
+                                      <rect x="3" y="3" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
+                                      <rect x="127" y="3" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
+                                      <rect x="3" y="57" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
+                                      <rect x="127" y="57" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
                                     </g>
                                   ) : (
                                     <>

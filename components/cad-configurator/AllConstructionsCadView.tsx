@@ -2948,6 +2948,13 @@ export function AllConstructionsCadView({
                 (item.name.toLowerCase().includes("praw") ||
                   Boolean(item.shortName && item.shortName.toLowerCase().includes("praw")));
 
+              const isPergola =
+                !isTriangle &&
+                (item.name.toLowerCase().includes("pergol") ||
+                  Boolean(item.shortName && item.shortName.toLowerCase().includes("pergol")) ||
+                  Boolean(item.systemName && item.systemName.toLowerCase().includes("pergol")) ||
+                  Boolean(item.fillType && item.fillType.toLowerCase().includes("lamel")));
+
               const padLeft = 120;
               const padRight = 180;
               const padTop = 200;
@@ -3028,7 +3035,13 @@ export function AllConstructionsCadView({
                             {width} × {height} mm
                           </button>
                           <span>·</span>
-                          <span>{isTriangle ? "Trójkąt dachowy" : `${panes}-torowy`}</span>
+                          <span>
+                            {isTriangle
+                              ? "Trójkąt dachowy"
+                              : isPergola
+                              ? `Pergola 4-słupowa (${panes} mod.)`
+                              : `${panes}-torowy`}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -3227,6 +3240,88 @@ export function AllConstructionsCadView({
                             </g>
                           )}
                         </g>
+                      ) : isPergola ? (
+                        (() => {
+                          const beamThick = Math.min(130, Math.max(85, Math.round(Math.min(width, height) * 0.042)));
+                          const postSize = Math.min(180, Math.max(120, Math.round(beamThick * 1.35)));
+                          const innerW = width - beamThick * 2;
+                          const innerH = height - beamThick * 2;
+                          const slatsCount = Math.max(6, Math.min(20, Math.round(innerH / 200)));
+                          const slatPitch = innerH / slatsCount;
+
+                          return (
+                            <g>
+                              <rect
+                                x={padLeft - 2}
+                                y={padTop - 2}
+                                width={width + 4}
+                                height={height + 4}
+                                fill="none"
+                                stroke="#dc2626"
+                                strokeWidth="2"
+                              />
+                              <rect
+                                x={padLeft}
+                                y={padTop}
+                                width={width}
+                                height={height}
+                                fill="#29323d"
+                                stroke="#1e242b"
+                                strokeWidth="1.5"
+                              />
+                              <rect
+                                x={padLeft + beamThick}
+                                y={padTop + beamThick}
+                                width={innerW}
+                                height={innerH}
+                                fill="#f8fafc"
+                                stroke="#1e242b"
+                                strokeWidth="1.5"
+                              />
+                              {Array.from({ length: slatsCount }).map((__, sIdx) => (
+                                <rect
+                                  key={sIdx}
+                                  x={padLeft + beamThick + 12}
+                                  y={padTop + beamThick + sIdx * slatPitch + 8}
+                                  width={innerW - 24}
+                                  height={Math.max(20, slatPitch - 16)}
+                                  rx="4"
+                                  fill={sIdx % 2 === 0 ? "#e2e8f0" : "#eef2f6"}
+                                  stroke="#64748b"
+                                  strokeWidth="1.5"
+                                />
+                              ))}
+                              {[
+                                { id: "S1", x: padLeft, y: padTop },
+                                { id: "S2", x: padLeft + width - postSize, y: padTop },
+                                { id: "S3", x: padLeft, y: padTop + height - postSize },
+                                { id: "S4", x: padLeft + width - postSize, y: padTop + height - postSize },
+                              ].map((post) => (
+                                <g key={post.id}>
+                                  <rect
+                                    x={post.x}
+                                    y={post.y}
+                                    width={postSize}
+                                    height={postSize}
+                                    fill="#0f172a"
+                                    stroke="#4ABBC3"
+                                    strokeWidth="3"
+                                  />
+                                  <text
+                                    x={post.x + postSize / 2}
+                                    y={post.y + postSize / 2 + 8}
+                                    fill="#ffffff"
+                                    fontSize="26"
+                                    fontWeight="900"
+                                    textAnchor="middle"
+                                  >
+                                    {post.id}
+                                  </text>
+                                </g>
+                              ))}
+                            </g>
+                          );
+                        })()
                       ) : (
                         <g>
                           <rect

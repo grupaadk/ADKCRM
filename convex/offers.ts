@@ -761,18 +761,39 @@ export const addConstructionPosition = mutation({
       (args.name || construction?.name || "").toLowerCase().includes("trójką") ||
       (construction?.code || "").toLowerCase().includes("trojkat");
 
-    const width = args.widthMm || construction?.defaultWidthMm || (isTriangle ? 3000 : 2880);
-    const height = args.heightMm || construction?.defaultHeightMm || (isTriangle ? 600 : 2300);
-    const panes = args.panesCount || construction?.defaultPanesCount || (isTriangle ? 1 : 3);
+    const isPergola =
+      (args.name || construction?.name || "").toLowerCase().includes("pergol") ||
+      (construction?.code || "").toLowerCase().includes("perg");
+
+    const width =
+      args.widthMm ||
+      construction?.defaultWidthMm ||
+      (isTriangle ? 3000 : isPergola ? 4000 : 2880);
+    const height =
+      args.heightMm ||
+      construction?.defaultHeightMm ||
+      (isTriangle ? 600 : isPergola ? 3000 : 2300);
+    const panes =
+      args.panesCount ||
+      construction?.defaultPanesCount ||
+      (isTriangle || isPergola ? 1 : 3);
     const paneWidth = Math.round(width / panes);
-    const system = args.systemName || construction?.defaultSystem || undefined;
+    const system =
+      args.systemName ||
+      construction?.defaultSystem ||
+      (isPergola ? "PERGOLA BIOKLIMATYCZNA" : undefined);
     const color = args.color || construction?.defaultColor || "RAL 7016MAT";
-    const fill = args.fillType || construction?.defaultFillType || "HART 10";
+    const fill =
+      args.fillType ||
+      construction?.defaultFillType ||
+      (isPergola ? "LAMELE ALUMINIOWE" : "HART 10");
     const name =
       args.name ||
       construction?.name ||
       (isTriangle
         ? `Trójkąt podkrokwiowy (B=${width.toLocaleString("pl-PL")}, H=${height.toLocaleString("pl-PL")})`
+        : isPergola
+        ? `Pergola bioklimatyczna (B=${width.toLocaleString("pl-PL")}, D=${height.toLocaleString("pl-PL")})`
         : `System całoszklany ${panes}-torowy (B=${width.toLocaleString("pl-PL")}, H=${height.toLocaleString("pl-PL")})`);
     const shortName = construction?.name || `Konstrukcja ${positionIndex}`;
 

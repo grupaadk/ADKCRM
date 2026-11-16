@@ -29,6 +29,13 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
     ((item.name || "").toLowerCase().includes("praw") ||
       Boolean(item.shortName && item.shortName.toLowerCase().includes("praw")));
 
+  const isPergola =
+    !isTriangle &&
+    ((item.name || "").toLowerCase().includes("pergol") ||
+      Boolean(item.shortName && item.shortName.toLowerCase().includes("pergol")) ||
+      Boolean(item.systemName && item.systemName.toLowerCase().includes("pergol")) ||
+      Boolean(item.fillType && item.fillType.toLowerCase().includes("lamel")));
+
   const paneWidth = Math.round(width / panes);
   const segments: CadSegment[] =
     item.segments && item.segments.length === panes
@@ -115,6 +122,87 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
       <!-- Szkło -->
       <polygon points="${isTriangleRight ? `${xGlassRight},${yGlassTop} ${xGlassRight},${yGlassBot} ${xGlassLeft},${yGlassBot}` : `${xGlassLeft},${yGlassTop} ${xGlassRight},${yGlassBot} ${xGlassLeft},${yGlassBot}`}" fill="#ffffff" stroke="#38bdf8" stroke-width="2" />
       <text x="${originX + width * (isTriangleRight ? 0.65 : 0.35)}" y="${yGlassBot - 35}" fill="#0b1220" font-size="38" font-weight="900" text-anchor="middle">${fill}</text>
+    `;
+  } else if (isPergola) {
+    const beamThick = Math.min(130, Math.max(85, Math.round(Math.min(width, height) * 0.042)));
+    const postSize = Math.min(180, Math.max(120, Math.round(beamThick * 1.35)));
+    const innerW = width - beamThick * 2;
+    const innerH = height - beamThick * 2;
+    const modW = innerW / panes;
+    const slatsCount = Math.max(6, Math.min(24, Math.round(innerH / 185)));
+    const slatPitch = innerH / slatsCount;
+
+    let modulesSvg = "";
+    for (let mIdx = 0; mIdx < panes; mIdx++) {
+      const modX = originX + beamThick + mIdx * modW;
+      const modY = originY + beamThick;
+      const midBeamW = panes > 1 ? Math.round(beamThick * 0.65) : 0;
+      const effModX = mIdx === 0 ? modX : modX + midBeamW / 2;
+      const effModW =
+        panes === 1
+          ? modW
+          : mIdx === 0 || mIdx === panes - 1
+          ? modW - midBeamW / 2
+          : modW - midBeamW;
+      const centerX = effModX + effModW / 2;
+
+      if (mIdx > 0) {
+        modulesSvg += `<rect x="${modX - midBeamW / 2}" y="${originY + beamThick}" width="${midBeamW}" height="${innerH}" fill="#29323d" stroke="#1e242b" stroke-width="1.5" />`;
+      }
+
+      for (let sIdx = 0; sIdx < slatsCount; sIdx++) {
+        const sy = modY + sIdx * slatPitch;
+        const slatH = Math.max(24, slatPitch - 14);
+        const cy = sy + slatPitch / 2;
+        modulesSvg += `
+          <rect x="${effModX + 10}" y="${sy + 7}" width="${effModW - 20}" height="${slatH}" rx="4" fill="${sIdx % 2 === 0 ? "#e2e8f0" : "#eef2f6"}" stroke="#64748b" stroke-width="1.5" />
+          <line x1="${effModX + 20}" y1="${cy}" x2="${effModX + effModW - 20}" y2="${cy}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="8 6" />
+          <circle cx="${effModX + 18}" cy="${cy}" r="4.5" fill="#0e7490" />
+          <circle cx="${effModX + effModW - 18}" cy="${cy}" r="4.5" fill="#0e7490" />
+        `;
+      }
+
+      const boxW = Math.min(720, effModW * 0.84);
+      modulesSvg += `
+        <rect x="${centerX - boxW / 2}" y="${modY + innerH / 2 - 92}" width="${boxW}" height="184" rx="14" fill="#ffffff" fill-opacity="0.94" stroke="#0e7490" stroke-width="2.5" />
+        <text x="${centerX}" y="${modY + innerH / 2 - 36}" fill="#0e7490" font-size="${Math.min(34, Math.max(22, Math.round(effModW / 18)))}" font-weight="900" text-anchor="middle">${panes > 1 ? `MODUŁ #${mIdx + 1} · ` : "RZUT Z GÓRY · "}${slatsCount} LAMELI (0°–135°)</text>
+        <text x="${centerX}" y="${modY + innerH / 2 + 12}" fill="#0b1220" font-size="${Math.min(40, Math.max(24, Math.round(effModW / 16)))}" font-weight="900" text-anchor="middle">${Math.round(effModW)} × ${Math.round(innerH)} mm</text>
+        <text x="${centerX}" y="${modY + innerH / 2 + 58}" fill="#475569" font-size="${Math.min(30, Math.max(18, Math.round(effModW / 22)))}" font-weight="800" text-anchor="middle">${fill} · ${color}</text>
+      `;
+    }
+
+    const posts = [
+      { id: "S1", x: originX, y: originY, drain: false },
+      { id: "S2", x: originX + width - postSize, y: originY, drain: false },
+      { id: "S3", x: originX, y: originY + height - postSize, drain: true },
+      { id: "S4", x: originX + width - postSize, y: originY + height - postSize, drain: true },
+    ];
+    const postsSvg = posts
+      .map(
+        (post) => `
+          <rect x="${post.x}" y="${post.y}" width="${postSize}" height="${postSize}" fill="#0f172a" stroke="#4ABBC3" stroke-width="3" />
+          <line x1="${post.x}" y1="${post.y}" x2="${post.x + postSize}" y2="${post.y + postSize}" stroke="#334155" stroke-width="2" />
+          <line x1="${post.x + postSize}" y1="${post.y}" x2="${post.x}" y2="${post.y + postSize}" stroke="#334155" stroke-width="2" />
+          ${post.drain ? `<circle cx="${post.x + postSize / 2}" cy="${post.y + postSize / 2}" r="${Math.round(postSize * 0.22)}" fill="#0284c7" stroke="#bae6fd" stroke-width="2" />` : ""}
+          <text x="${post.x + postSize / 2}" y="${post.y + postSize / 2 + 8}" fill="#ffffff" font-size="26" font-weight="900" text-anchor="middle">${post.id}</text>
+        `
+      )
+      .join("");
+
+    innerDrawing = `
+      <!-- Czerwona linia obrysu zewnętrznego -->
+      <rect x="${originX - 2}" y="${originY - 2}" width="${width + 4}" height="${height + 4}" fill="none" stroke="#dc2626" stroke-width="2.5" />
+      <!-- Wieniec obwodowy -->
+      <rect x="${originX}" y="${originY}" width="${width}" height="${height}" fill="#29323d" stroke="#1e242b" stroke-width="2" />
+      <!-- Światło dachu -->
+      <rect x="${originX + beamThick}" y="${originY + beamThick}" width="${innerW}" height="${innerH}" fill="#f8fafc" stroke="#1e242b" stroke-width="2" />
+      <!-- Rynna obwodowa -->
+      <rect x="${originX + beamThick * 0.5}" y="${originY + beamThick * 0.5}" width="${width - beamThick}" height="${height - beamThick}" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="10 8" />
+      ${modulesSvg}
+      <!-- Pasek przekroju A-A -->
+      <rect x="${originX + postSize + 24}" y="${originY + height - beamThick + 8}" width="${Math.max(240, width - (postSize + 24) * 2)}" height="${beamThick - 16}" rx="8" fill="#1e293b" stroke="#4ABBC3" stroke-width="1.5" />
+      <text x="${originX + width / 2}" y="${originY + height - beamThick / 2 + 10}" fill="#ffffff" font-size="26" font-weight="900" text-anchor="middle" letter-spacing="2px">PRZEKRÓJ A-A: WIENIEC NOŚNY + RYNNY + LAMELE OBROTOWE</text>
+      ${postsSvg}
     `;
   } else {
     const openingW = width - frameThickness * 2;
@@ -211,7 +299,7 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
       <line x1="${originX - 60}" y1="${originY}" x2="${originX - 60}" y2="${originY + height}" stroke="#0b1220" stroke-width="3" marker-start="url(#cadArrowStart)" marker-end="url(#cadArrowEnd)" />
       <g transform="translate(${originX - 96}, ${originY + height / 2}) rotate(-90)">
         <rect x="-140" y="-36" width="280" height="52" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-        <text x="0" y="4" fill="#0b1220" font-size="38" font-weight="900" text-anchor="middle">H = ${height}</text>
+        <text x="0" y="4" fill="#0b1220" font-size="38" font-weight="900" text-anchor="middle">${isPergola ? "D" : "H"} = ${height}</text>
       </g>
     `;
   }

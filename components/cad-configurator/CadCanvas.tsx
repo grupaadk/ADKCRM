@@ -233,6 +233,13 @@ export function CadCanvas({
     (item.name.toLowerCase().includes("praw") ||
       Boolean(item.shortName && item.shortName.toLowerCase().includes("praw")));
 
+  const isPergola =
+    !isTriangle &&
+    (item.name.toLowerCase().includes("pergol") ||
+      Boolean(item.shortName && item.shortName.toLowerCase().includes("pergol")) ||
+      Boolean(item.systemName && item.systemName.toLowerCase().includes("pergol")) ||
+      Boolean(item.fillType && item.fillType.toLowerCase().includes("lamel")));
+
   // Obliczenia wymiarów kwater
   const paneWidth = Math.round(width / panes);
   const segments: CadSegment[] =
@@ -377,7 +384,13 @@ export function CadCanvas({
           <Layers size={15} className="text-[#4ABBC3]" />
           <span>Rysunek CAD</span>
           <span className="text-[#7c8597] font-normal hidden sm:inline">
-            · {width} × {height} mm ({panes} {panes === 1 ? "tor" : panes < 5 ? "tory" : "torów"})
+            · {width} × {height} mm (
+            {isTriangle
+              ? "Trójkąt dachowy"
+              : isPergola
+              ? `Pergola 4-słupowa · ${panes} ${panes === 1 ? "moduł" : "moduły"}`
+              : `${panes} ${panes === 1 ? "tor" : panes < 5 ? "tory" : "torów"}`}
+            )
           </span>
         </div>
 
@@ -625,6 +638,262 @@ export function CadCanvas({
                     {fill}
                   </text>
                 </>
+              ) : isPergola ? (
+                (() => {
+                  const beamThick = Math.min(130, Math.max(85, Math.round(Math.min(width, height) * 0.042)));
+                  const postSize = Math.min(180, Math.max(120, Math.round(beamThick * 1.35)));
+                  const innerW = width - beamThick * 2;
+                  const innerH = height - beamThick * 2;
+                  const modW = innerW / panes;
+                  const slatsCount = Math.max(6, Math.min(24, Math.round(innerH / 185)));
+                  const slatPitch = innerH / slatsCount;
+
+                  return (
+                    <>
+                      {/* Czerwony obrys zewnętrzny CAD */}
+                      <rect
+                        x={originX - 2}
+                        y={originY - 2}
+                        width={width + 4}
+                        height={height + 4}
+                        fill="none"
+                        stroke="#dc2626"
+                        strokeWidth="2.5"
+                      />
+
+                      {/* Wieniec obwodowy (rama nośna pergoli) */}
+                      <rect
+                        x={originX}
+                        y={originY}
+                        width={width}
+                        height={height}
+                        fill="#29323d"
+                        stroke="#1e242b"
+                        strokeWidth="2"
+                      />
+
+                      {/* Światło dachu wewnątrz wieńca */}
+                      <rect
+                        x={originX + beamThick}
+                        y={originY + beamThick}
+                        width={innerW}
+                        height={innerH}
+                        fill="#f8fafc"
+                        stroke="#1e242b"
+                        strokeWidth="2"
+                      />
+
+                      {/* Rynna obwodowa (przerywana linia odprowadzenia wody w wieńcu) */}
+                      <rect
+                        x={originX + beamThick * 0.5}
+                        y={originY + beamThick * 0.5}
+                        width={width - beamThick}
+                        height={height - beamThick}
+                        fill="none"
+                        stroke="#38bdf8"
+                        strokeWidth="2"
+                        strokeDasharray="10 8"
+                      />
+
+                      {/* Moduły dachowe i układ obracanych lameli bioklimatycznych */}
+                      {Array.from({ length: panes }).map((_, mIdx) => {
+                        const modX = originX + beamThick + mIdx * modW;
+                        const modY = originY + beamThick;
+                        const midBeamW = panes > 1 ? Math.round(beamThick * 0.65) : 0;
+                        const effModX = mIdx === 0 ? modX : modX + midBeamW / 2;
+                        const effModW =
+                          panes === 1
+                            ? modW
+                            : mIdx === 0 || mIdx === panes - 1
+                            ? modW - midBeamW / 2
+                            : modW - midBeamW;
+                        const centerX = effModX + effModW / 2;
+
+                        return (
+                          <g key={`perg-mod-${mIdx}`}>
+                            {/* Belka pośrednia między modułami */}
+                            {mIdx > 0 && (
+                              <rect
+                                x={modX - midBeamW / 2}
+                                y={originY + beamThick}
+                                width={midBeamW}
+                                height={innerH}
+                                fill="#29323d"
+                                stroke="#1e242b"
+                                strokeWidth="1.5"
+                              />
+                            )}
+
+                            {/* Pióra lameli aluminiowych */}
+                            {Array.from({ length: slatsCount }).map((__, sIdx) => {
+                              const sy = modY + sIdx * slatPitch;
+                              const slatH = Math.max(24, slatPitch - 14);
+                              const cy = sy + slatPitch / 2;
+                              return (
+                                <g key={`slat-${mIdx}-${sIdx}`}>
+                                  <rect
+                                    x={effModX + 10}
+                                    y={sy + 7}
+                                    width={effModW - 20}
+                                    height={slatH}
+                                    rx="4"
+                                    fill={sIdx % 2 === 0 ? "#e2e8f0" : "#eef2f6"}
+                                    stroke="#64748b"
+                                    strokeWidth="1.5"
+                                  />
+                                  {/* Oś obrotu lameli */}
+                                  <line
+                                    x1={effModX + 20}
+                                    y1={cy}
+                                    x2={effModX + effModW - 20}
+                                    y2={cy}
+                                    stroke="#94a3b8"
+                                    strokeWidth="1"
+                                    strokeDasharray="8 6"
+                                  />
+                                  {/* Czopy obrotu lameli przy belce */}
+                                  <circle cx={effModX + 18} cy={cy} r="4.5" fill="#0e7490" />
+                                  <circle cx={effModX + effModW - 18} cy={cy} r="4.5" fill="#0e7490" />
+                                </g>
+                              );
+                            })}
+
+                            {/* Tabliczka znamionowa modułu (centralnie na rzucie) */}
+                            <g
+                              className={canEditDimensions ? "cursor-pointer" : ""}
+                              onClick={(e) => openDimEditor(e, "segment", mIdx)}
+                            >
+                              <rect
+                                x={centerX - Math.min(360, effModW * 0.42)}
+                                y={modY + innerH / 2 - 92}
+                                width={Math.min(720, effModW * 0.84)}
+                                height={184}
+                                rx="14"
+                                fill="#ffffff"
+                                fillOpacity="0.94"
+                                stroke="#0e7490"
+                                strokeWidth="2.5"
+                              />
+                              <text
+                                x={centerX}
+                                y={modY + innerH / 2 - 36}
+                                fill="#0e7490"
+                                fontSize={Math.min(34, Math.max(22, Math.round(effModW / 18)))}
+                                fontWeight="900"
+                                textAnchor="middle"
+                              >
+                                {panes > 1 ? `MODUŁ #${mIdx + 1} · ` : "RZUT Z GÓRY · "}
+                                {slatsCount} LAMELI (0°–135°)
+                              </text>
+                              <text
+                                x={centerX}
+                                y={modY + innerH / 2 + 12}
+                                fill="#0b1220"
+                                fontSize={Math.min(40, Math.max(24, Math.round(effModW / 16)))}
+                                fontWeight="900"
+                                textAnchor="middle"
+                              >
+                                {Math.round(effModW)} × {Math.round(innerH)} mm
+                              </text>
+                              <text
+                                x={centerX}
+                                y={modY + innerH / 2 + 58}
+                                fill="#475569"
+                                fontSize={Math.min(30, Math.max(18, Math.round(effModW / 22)))}
+                                fontWeight="800"
+                                textAnchor="middle"
+                              >
+                                {fill} · {color}
+                              </text>
+                            </g>
+                          </g>
+                        );
+                      })}
+
+                      {/* Pasek przekroju poprzecznego A-A (wieniec + obrót lameli) */}
+                      <g>
+                        <rect
+                          x={originX + postSize + 24}
+                          y={originY + height - beamThick + 8}
+                          width={Math.max(240, width - (postSize + 24) * 2)}
+                          height={beamThick - 16}
+                          rx="8"
+                          fill="#1e293b"
+                          stroke="#4ABBC3"
+                          strokeWidth="1.5"
+                        />
+                        <text
+                          x={originX + width / 2}
+                          y={originY + height - beamThick / 2 + 10}
+                          fill="#ffffff"
+                          fontSize="26"
+                          fontWeight="900"
+                          textAnchor="middle"
+                          letterSpacing="2px"
+                        >
+                          PRZEKRÓJ A-A: WIENIEC NOŚNY + RYNNY + LAMELE OBROTOWE
+                        </text>
+                      </g>
+
+                      {/* 4 Słupy narożne 150×150 mm (S1, S2, S3, S4) */}
+                      {[
+                        { id: "S1", x: originX, y: originY, drain: false },
+                        { id: "S2", x: originX + width - postSize, y: originY, drain: false },
+                        { id: "S3", x: originX, y: originY + height - postSize, drain: true },
+                        { id: "S4", x: originX + width - postSize, y: originY + height - postSize, drain: true },
+                      ].map((post) => (
+                        <g key={post.id}>
+                          <rect
+                            x={post.x}
+                            y={post.y}
+                            width={postSize}
+                            height={postSize}
+                            fill="#0f172a"
+                            stroke="#4ABBC3"
+                            strokeWidth="3"
+                          />
+                          {/* Przekątne oznaczenia przekroju słupa CAD */}
+                          <line
+                            x1={post.x}
+                            y1={post.y}
+                            x2={post.x + postSize}
+                            y2={post.y + postSize}
+                            stroke="#334155"
+                            strokeWidth="2"
+                          />
+                          <line
+                            x1={post.x + postSize}
+                            y1={post.y}
+                            x2={post.x}
+                            y2={post.y + postSize}
+                            stroke="#334155"
+                            strokeWidth="2"
+                          />
+                          {post.drain && (
+                            <circle
+                              cx={post.x + postSize / 2}
+                              cy={post.y + postSize / 2}
+                              r={Math.round(postSize * 0.22)}
+                              fill="#0284c7"
+                              stroke="#bae6fd"
+                              strokeWidth="2"
+                            />
+                          )}
+                          <text
+                            x={post.x + postSize / 2}
+                            y={post.y + postSize / 2 + 8}
+                            fill="#ffffff"
+                            fontSize="26"
+                            fontWeight="900"
+                            textAnchor="middle"
+                          >
+                            {post.id}
+                          </text>
+                        </g>
+                      ))}
+                    </>
+                  );
+                })()
               ) : (
                 <>
                   {/* Cienka czerwona linia obrysu zewnętrznego (charakterystyczna dla CAD/Prokal) */}
@@ -1041,9 +1310,9 @@ export function CadCanvas({
                         />
                         {canEditDimensions && (
                           <rect
-                            x={originX + width / 2 - 110}
+                            x={originX + width / 2 - (isPergola ? 145 : 110)}
                             y={originY - 196}
-                            width="220"
+                            width={isPergola ? "290" : "220"}
                             height="54"
                             rx="12"
                             fill={hoveredDim === "width" ? "#ecfeff" : "#ffffff"}
@@ -1059,11 +1328,11 @@ export function CadCanvas({
                           fontWeight="900"
                           textAnchor="middle"
                         >
-                          {width}
+                          {isPergola ? `B = ${width}` : width}
                         </text>
                       </g>
 
-                      {/* PRAWO: Całkowity wymiar wysokości (np. 2300) */}
+                      {/* PRAWO: Całkowity wymiar wysokości / wysięgu (np. 2300 / D = 3000) */}
                       <g
                         className={canEditDimensions ? "cursor-pointer" : ""}
                         onMouseEnter={() => setHoveredDim("height")}
@@ -1072,7 +1341,9 @@ export function CadCanvas({
                       >
                         <title>
                           {canEditDimensions
-                            ? "Kliknij, aby zmienić wysokość całkowitą (mm)"
+                            ? isPergola
+                              ? "Kliknij, aby zmienić wysięg / głębokość D (mm)"
+                              : "Kliknij, aby zmienić wysokość całkowitą (mm)"
                             : undefined}
                         </title>
                         <line
@@ -1108,9 +1379,9 @@ export function CadCanvas({
                         >
                           {canEditDimensions && (
                             <rect
-                              x="-110"
+                              x={isPergola ? "-145" : "-110"}
                               y="-38"
-                              width="220"
+                              width={isPergola ? "290" : "220"}
                               height="54"
                               rx="12"
                               fill={hoveredDim === "height" ? "#ecfeff" : "#ffffff"}
@@ -1126,7 +1397,7 @@ export function CadCanvas({
                             fontWeight="900"
                             textAnchor="middle"
                           >
-                            {height}
+                            {isPergola ? `D = ${height}` : height}
                           </text>
                         </g>
                       </g>

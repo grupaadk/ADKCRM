@@ -376,6 +376,33 @@ export const seedDefault = mutation({
         createdAt: now,
         updatedAt: now,
       },
+      {
+        name: "Pergola bioklimatyczna wolnostojąca (4 słupy)",
+        code: "PERG-BIO-4S",
+        category: "Pergole i zadaszenia",
+        description: "Wolnostojąca pergola aluminiowa na 4 słupach narożnych (150×150 mm) z obracanymi lamelami dachowymi i zintegrowanym odprowadzeniem wody",
+        defaultSystem: "PERGOLA BIOKLIMATYCZNA",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 4000,
+        defaultHeightMm: 3000,
+        defaultPanesCount: 1,
+        defaultFillType: "LAMELE ALUMINIOWE",
+        defaultPriceNet: 23175,
+        materialCostNet: 14500,
+        materialMarkupType: "percent" as const,
+        materialMarkupValue: 35,
+        materialPriceNet: 19575,
+        installationUnit: "m2" as const,
+        installationUnitRate: 250,
+        installationMarkupType: "percent" as const,
+        installationMarkupValue: 20,
+        installationCostNet: 3000,
+        installationPriceNet: 3600,
+        isActive: true,
+        sortOrder: 5,
+        createdAt: now,
+        updatedAt: now,
+      },
     ];
 
     for (const d of defaults) {
@@ -600,6 +627,102 @@ export const ensureTriangleConstruction = mutation({
       leftId: leftConstruction._id,
       createdRight,
       rightId: rightConstruction._id,
+    };
+  },
+});
+
+/**
+ * Zapewnia istnienie kategorii "Pergole i zadaszenia" oraz szablonu konstrukcji Pergoli bioklimatycznej (4 słupy)
+ */
+export const ensurePergolaConstruction = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // 1. Sprawdź lub utwórz kategorię "Pergole i zadaszenia"
+    const existingCategories = await ctx.db.query("constructionCategories").collect();
+    let pergolaCategory = existingCategories.find(
+      (cat) =>
+        cat.name.toLowerCase().includes("pergol") ||
+        (cat.code && cat.code.toUpperCase() === "PERG")
+    );
+
+    if (!pergolaCategory) {
+      const nextCatOrder =
+        existingCategories.length > 0
+          ? Math.max(...existingCategories.map((c) => c.sortOrder)) + 1
+          : 0;
+      const catId = await ctx.db.insert("constructionCategories", {
+        name: "Pergole i zadaszenia",
+        code: "PERG",
+        description: "Bioklimatyczne pergole lamelowe i zadaszenia tarasowe",
+        color: "emerald",
+        isActive: true,
+        sortOrder: nextCatOrder,
+        createdAt: now,
+        updatedAt: now,
+      });
+      pergolaCategory = (await ctx.db.get(catId))!;
+    }
+
+    // 2. Sprawdź lub utwórz szablon Pergoli bioklimatycznej wolnostojącej (4 słupy)
+    const existingConstructions = await ctx.db.query("constructions").collect();
+    let pergolaConstruction = existingConstructions.find(
+      (c) =>
+        c.code === "PERG-BIO-4S" ||
+        c.name.toLowerCase().includes("pergol") ||
+        (c.category && c.category.toLowerCase().includes("pergol"))
+    );
+
+    let created = false;
+    if (!pergolaConstruction) {
+      const nextConstrOrder =
+        existingConstructions.length > 0
+          ? Math.max(...existingConstructions.map((c) => c.sortOrder)) + 1
+          : 0;
+      const constrId = await ctx.db.insert("constructions", {
+        name: "Pergola bioklimatyczna wolnostojąca (4 słupy)",
+        code: "PERG-BIO-4S",
+        categoryId: pergolaCategory._id,
+        category: pergolaCategory.name,
+        description:
+          "Wolnostojąca pergola aluminiowa na 4 słupach narożnych (150×150 mm) z obracanymi lamelami dachowymi i zintegrowanym odprowadzeniem wody",
+        defaultSystem: "PERGOLA BIOKLIMATYCZNA",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 4000,
+        defaultHeightMm: 3000,
+        defaultPanesCount: 1,
+        defaultFillType: "LAMELE ALUMINIOWE",
+        defaultPriceNet: 23175,
+        materialCostNet: 14500,
+        materialMarkupType: "percent",
+        materialMarkupValue: 35,
+        materialPriceNet: 19575,
+        installationUnit: "m2",
+        installationUnitRate: 250,
+        installationMarkupType: "percent",
+        installationMarkupValue: 20,
+        installationCostNet: 3000,
+        installationPriceNet: 3600,
+        isActive: true,
+        sortOrder: nextConstrOrder,
+        createdAt: now,
+        updatedAt: now,
+      });
+      pergolaConstruction = (await ctx.db.get(constrId))!;
+      created = true;
+    } else if (!pergolaConstruction.categoryId) {
+      await ctx.db.patch(pergolaConstruction._id, {
+        categoryId: pergolaCategory._id,
+        category: pergolaCategory.name,
+        updatedAt: now,
+      });
+    }
+
+    return {
+      categoryId: pergolaCategory._id,
+      created,
+      pergolaId: pergolaConstruction._id,
     };
   },
 });

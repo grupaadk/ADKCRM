@@ -63,14 +63,16 @@ export function ConstructionsTab() {
   const reorderCategory = useMutation(api.constructionCategories.reorder);
   const seedCategories = useMutation(api.constructionCategories.seedDefault);
   const ensureTriangle = useMutation(api.constructions.ensureTriangleConstruction);
+  const ensurePergola = useMutation(api.constructions.ensurePergolaConstruction);
 
-  // Auto-seed categories if empty & ensure triangle category exists
+  // Auto-seed categories if empty & ensure triangle + pergola categories/templates exist
   useEffect(() => {
     if (categories !== undefined && categories.length === 0) {
       seedCategories().catch(() => {});
     }
     ensureTriangle().catch(() => {});
-  }, [categories, seedCategories, ensureTriangle]);
+    ensurePergola().catch(() => {});
+  }, [categories, seedCategories, ensureTriangle, ensurePergola]);
 
   // View state: 'constructions' | 'categories' | 'editor'
   const [activeView, setActiveView] = useState<"constructions" | "categories" | "editor">("constructions");
@@ -563,6 +565,14 @@ export function ConstructionsTab() {
                         (c.name.toLowerCase().includes("praw") ||
                           Boolean(c.code && c.code.toLowerCase().includes("praw")));
 
+                      const isPergola =
+                        !isTriangle &&
+                        (c.code.toLowerCase().includes("perg") ||
+                          c.name.toLowerCase().includes("pergol") ||
+                          Boolean(c.category && c.category.toLowerCase().includes("pergol")) ||
+                          Boolean(c.defaultSystem && c.defaultSystem.toLowerCase().includes("pergol")) ||
+                          Boolean(c.defaultFillType && c.defaultFillType.toLowerCase().includes("lamel")));
+
                       return (
                         <tr
                           key={c._id}
@@ -659,6 +669,20 @@ export function ConstructionsTab() {
                                       >
                                         {c.defaultFillType || "HART 10"}
                                       </text>
+                                    </g>
+                                  ) : isPergola ? (
+                                    <g>
+                                      <rect x="2" y="2" width="156" height="86" fill="none" stroke="#dc2626" strokeWidth="1.5" />
+                                      <rect x="4" y="4" width="152" height="82" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
+                                      <rect x="12" y="12" width="136" height="66" fill="#f8fafc" stroke="#1e242b" strokeWidth="0.8" />
+                                      {[18, 28, 38, 48, 58, 68].map((ly) => (
+                                        <rect key={ly} x="15" y={ly} width="130" height="6" rx="1" fill="#e2e8f0" stroke="#64748b" strokeWidth="0.7" />
+                                      ))}
+                                      {/* 4 słupy narożne */}
+                                      <rect x="4" y="4" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
+                                      <rect x="144" y="4" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
+                                      <rect x="4" y="74" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
+                                      <rect x="144" y="74" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
                                     </g>
                                   ) : (
                                     <>

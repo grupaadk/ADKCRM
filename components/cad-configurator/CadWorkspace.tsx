@@ -45,11 +45,13 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
   const removePosition = useMutation(api.offers.removeConstructionPosition);
   const duplicatePosition = useMutation(api.offers.duplicateConstructionPosition);
   const ensureTriangle = useMutation(api.constructions.ensureTriangleConstruction);
+  const ensurePergola = useMutation(api.constructions.ensurePergolaConstruction);
 
-  // Zapewnij istnienie kategorii i konstrukcji trójkąta
+  // Zapewnij istnienie kategorii i konstrukcji trójkąta oraz pergoli
   React.useEffect(() => {
     ensureTriangle().catch(() => {});
-  }, [ensureTriangle]);
+    ensurePergola().catch(() => {});
+  }, [ensureTriangle, ensurePergola]);
 
   // Aktywna zakładka: 'offer', 'all-cad' lub ID pozycji
   const [activeTab, setActiveTab] = useState<"offer" | "all-cad" | string>("offer");
