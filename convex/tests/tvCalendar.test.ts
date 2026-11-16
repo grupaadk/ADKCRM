@@ -22,16 +22,18 @@ describe("TV Quarterly Calendar helpers (lib/tvCalendar)", () => {
     expect(months[0].startMs).toBeLessThan(months[0].endMs);
   });
 
-  test("getMonthGridDays builds Monday-first grid with 35 or 42 cells", () => {
-    const days = getMonthGridDays(2026, 10); // Listopad 2026 (1.11.2026 to niedziela -> offset 6)
-    expect(days.length === 35 || days.length === 42).toBe(true);
+  test("getMonthGridDays builds Monday-to-Saturday grid without Sundays", () => {
+    const days = getMonthGridDays(2026, 10); // Listopad 2026 (1.11.2026 to niedziela -> pomijana)
+    expect(days.length % 6).toBe(0);
+    expect(days.every((d) => d.date.getDay() !== 0)).toBe(true);
     expect(days[0].date.getDay()).toBe(1); // Poniedziałek
-    expect(days[days.length - 1].date.getDay()).toBe(0); // Niedziela
+    expect(days[days.length - 1].date.getDay()).toBe(6); // Sobota
 
     const inMonthDays = days.filter((d) => d.inMonth);
-    expect(inMonthDays).toHaveLength(30);
-    expect(inMonthDays[0].dateKey).toBe("2026-11-01");
-    expect(inMonthDays[0].isWeekend).toBe(true);
+    expect(inMonthDays).toHaveLength(25); // 30 dni listopada minus 5 niedziel
+    expect(inMonthDays[0].dateKey).toBe("2026-11-02");
+    expect(inMonthDays[0].isWeekend).toBe(false);
+    expect(inMonthDays.find((d) => d.dateKey === "2026-11-07")?.isWeekend).toBe(true);
   });
 
   test("expandEventToDateKeys expands multi-day events and handles midnight exclusive end", () => {

@@ -31,7 +31,7 @@ export const TV_MONTH_NAMES = [
   "Grudzień",
 ] as const;
 
-export const TV_WEEKDAYS = ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"] as const;
+export const TV_WEEKDAYS = ["Pn", "Wt", "Śr", "Cz", "Pt", "So"] as const;
 
 export function formatDateKey(date: Date): string {
   const y = date.getFullYear();
@@ -63,29 +63,38 @@ export function getQuarterMonths(baseYear: number, baseMonth: number): TvMonthDe
 }
 
 /**
- * Zwraca siatkę dni miesiąca od poniedziałku do niedzieli (35 lub 42 komórki).
+ * Zwraca siatkę dni miesiąca od poniedziałku do soboty (bez niedziel, po 6 dni w wierszu).
  */
 export function getMonthGridDays(year: number, month: number): TvDayCell[] {
   const firstOfMonth = new Date(year, month, 1);
   const lastOfMonth = new Date(year, month + 1, 0);
 
-  // JS getDay(): 0 = Nd, 1 = Pn ... 6 = So -> przesuwamy na 0 = Pn ... 6 = Nd
-  const startOffset = (firstOfMonth.getDay() + 6) % 7;
-  const totalDays = lastOfMonth.getDate();
-  const totalCells = startOffset + totalDays > 35 ? 42 : 35;
+  // Jeśli 1. dzień miesiąca to niedziela (ukryta), pierwszy widoczny dzień to 2. (poniedziałek)
+  const firstVisibleDayNum = firstOfMonth.getDay() === 0 ? 2 : 1;
+  const firstVisibleDate = new Date(year, month, firstVisibleDayNum);
+
+  const lastVisibleDayNum =
+    lastOfMonth.getDay() === 0 ? lastOfMonth.getDate() - 1 : lastOfMonth.getDate();
+
+  // Przesunięcie od poniedziałku (0 = Pn ... 5 = So)
+  const startOffset = (firstVisibleDate.getDay() + 6) % 7;
+  const firstMondayDayNum = firstVisibleDayNum - startOffset;
+  const calendarSpanDays = startOffset + (lastVisibleDayNum - firstVisibleDayNum + 1);
+  const weeksCount = Math.ceil(calendarSpanDays / 7);
 
   const cells: TvDayCell[] = [];
-  for (let i = 0; i < totalCells; i++) {
-    const dayOffset = i - startOffset;
-    const date = new Date(year, month, 1 + dayOffset);
-    const weekday = date.getDay();
-    cells.push({
-      date,
-      dateKey: formatDateKey(date),
-      dayNumber: date.getDate(),
-      inMonth: date.getMonth() === month,
-      isWeekend: weekday === 0 || weekday === 6,
-    });
+  for (let week = 0; week < weeksCount; week++) {
+    for (let dayOfWeek = 0; dayOfWeek < 6; dayOfWeek++) {
+      const date = new Date(year, month, firstMondayDayNum + week * 7 + dayOfWeek);
+      const weekday = date.getDay();
+      cells.push({
+        date,
+        dateKey: formatDateKey(date),
+        dayNumber: date.getDate(),
+        inMonth: date.getMonth() === month,
+        isWeekend: weekday === 6,
+      });
+    }
   }
   return cells;
 }

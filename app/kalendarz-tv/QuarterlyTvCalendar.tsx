@@ -573,7 +573,7 @@ export default function QuarterlyTvCalendar() {
       <main className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-2 gap-3 flex-1 min-h-0">
         {months.map((m) => {
           const days = getMonthGridDays(m.year, m.month);
-          const weeksCount = days.length / 7;
+          const weeksCount = days.length / TV_WEEKDAYS.length;
           let monthEventsCount = 0;
           for (const d of days) {
             if (d.inMonth) {
@@ -605,7 +605,7 @@ export default function QuarterlyTvCalendar() {
 
               {/* Dni tygodnia */}
               <div
-                className="grid grid-cols-7 border-b shrink-0"
+                className="grid grid-cols-6 border-b shrink-0"
                 style={{ borderColor: "var(--line)", background: "var(--panel-2)" }}
               >
                 {TV_WEEKDAYS.map((wd, idx) => (
@@ -623,7 +623,7 @@ export default function QuarterlyTvCalendar() {
 
               {/* Siatka dni */}
               <div
-                className="grid grid-cols-7 flex-1 min-h-0"
+                className="grid grid-cols-6 flex-1 min-h-0"
                 style={{ gridTemplateRows: `repeat(${weeksCount}, minmax(0, 1fr))` }}
               >
                 {days.map((cell) => {
@@ -667,7 +667,7 @@ export default function QuarterlyTvCalendar() {
                           events: dayEvents,
                         });
                       }}
-                      className={`border-r border-b p-1 flex flex-col gap-0.5 min-h-0 overflow-hidden transition-colors ${
+                      className={`border-r border-b p-1.5 flex flex-col gap-1 min-h-0 overflow-hidden transition-colors ${
                         dayEvents.length > 0 && cell.inMonth ? "cursor-pointer hover:brightness-95" : ""
                       }`}
                       style={{
@@ -756,7 +756,7 @@ export default function QuarterlyTvCalendar() {
                                 focusedEventId: ev.id,
                               });
                             }}
-                            className="truncate rounded px-1 py-[1px] text-[10.5px] font-semibold leading-tight cursor-grab active:cursor-grabbing hover:brightness-95"
+                            className="truncate rounded px-1.5 py-0.5 text-[11px] font-semibold leading-tight cursor-grab active:cursor-grabbing hover:brightness-95"
                             style={{
                               background: `${ev.color}22`,
                               borderLeft: `3px solid ${ev.color}`,
