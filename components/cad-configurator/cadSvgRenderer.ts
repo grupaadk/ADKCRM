@@ -36,6 +36,11 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
       Boolean(item.systemName && item.systemName.toLowerCase().includes("pergol")) ||
       Boolean(item.fillType && item.fillType.toLowerCase().includes("lamel")));
 
+  const isPergola6Posts =
+    isPergola &&
+    ((item.name || "").toLowerCase().includes("6") ||
+      Boolean(item.shortName && item.shortName.toLowerCase().includes("6")));
+
   const paneWidth = Math.round(width / panes);
   const segments: CadSegment[] =
     item.segments && item.segments.length === panes
@@ -171,12 +176,26 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
       `;
     }
 
-    const posts = [
-      { id: "S1", x: originX, y: originY, drain: false },
-      { id: "S2", x: originX + width - postSize, y: originY, drain: false },
-      { id: "S3", x: originX, y: originY + height - postSize, drain: true },
-      { id: "S4", x: originX + width - postSize, y: originY + height - postSize, drain: true },
-    ];
+    const centerBeamSvg =
+      isPergola6Posts && panes === 1
+        ? `<rect x="${originX + width / 2 - Math.round(beamThick * 0.35)}" y="${originY + beamThick}" width="${Math.round(beamThick * 0.7)}" height="${innerH}" fill="#29323d" stroke="#1e242b" stroke-width="1.5" opacity="0.88" />`
+        : "";
+
+    const posts = isPergola6Posts
+      ? [
+          { id: "S1", x: originX, y: originY, drain: false },
+          { id: "S2", x: originX + Math.round((width - postSize) / 2), y: originY, drain: false },
+          { id: "S3", x: originX + width - postSize, y: originY, drain: false },
+          { id: "S4", x: originX, y: originY + height - postSize, drain: true },
+          { id: "S5", x: originX + Math.round((width - postSize) / 2), y: originY + height - postSize, drain: true },
+          { id: "S6", x: originX + width - postSize, y: originY + height - postSize, drain: true },
+        ]
+      : [
+          { id: "S1", x: originX, y: originY, drain: false },
+          { id: "S2", x: originX + width - postSize, y: originY, drain: false },
+          { id: "S3", x: originX, y: originY + height - postSize, drain: true },
+          { id: "S4", x: originX + width - postSize, y: originY + height - postSize, drain: true },
+        ];
     const postsSvg = posts
       .map(
         (post) => `
@@ -199,6 +218,7 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
       <!-- Rynna obwodowa -->
       <rect x="${originX + beamThick * 0.5}" y="${originY + beamThick * 0.5}" width="${width - beamThick}" height="${height - beamThick}" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="10 8" />
       ${modulesSvg}
+      ${centerBeamSvg}
       <!-- Pasek przekroju A-A -->
       <rect x="${originX + postSize + 24}" y="${originY + height - beamThick + 8}" width="${Math.max(240, width - (postSize + 24) * 2)}" height="${beamThick - 16}" rx="8" fill="#1e293b" stroke="#4ABBC3" stroke-width="1.5" />
       <text x="${originX + width / 2}" y="${originY + height - beamThick / 2 + 10}" fill="#ffffff" font-size="26" font-weight="900" text-anchor="middle" letter-spacing="2px">PRZEKRÓJ A-A: WIENIEC NOŚNY + RYNNY + LAMELE OBROTOWE</text>

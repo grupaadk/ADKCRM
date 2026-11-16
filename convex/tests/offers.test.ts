@@ -137,11 +137,11 @@ describe("CAD Offers and Constructions Module", () => {
 
     // Seed defaults
     const seedResult = await t.mutation(api.constructions.seedDefault, {});
-    expect(seedResult.created).toBe(6);
+    expect(seedResult.created).toBe(7);
 
     // List templates
     const list = await t.query(api.constructions.list, {});
-    expect(list.length).toBe(6);
+    expect(list.length).toBe(7);
     expect(list[0].code).toBe("SZKLO-3T");
     const triangleLeft = list.find((c) => c.code === "TROJKAT-TARAS-L");
     expect(triangleLeft).toBeDefined();
@@ -157,6 +157,11 @@ describe("CAD Offers and Constructions Module", () => {
     expect(pergolaDefault).toBeDefined();
     expect(pergolaDefault?.defaultSystem).toBe("PERGOLA BIOKLIMATYCZNA");
 
+    const pergola6Default = list.find((c) => c.code === "PERG-BIO-6S");
+    expect(pergola6Default).toBeDefined();
+    expect(pergola6Default?.defaultWidthMm).toBe(6000);
+    expect(pergola6Default?.defaultPanesCount).toBe(2);
+
     // Create custom construction template
     const newId = await t.mutation(api.constructions.create, {
       name: "Pergola aluminiowa bioklimatyczna",
@@ -170,7 +175,7 @@ describe("CAD Offers and Constructions Module", () => {
     expect(newId).toBeDefined();
 
     const updatedList = await t.query(api.constructions.list, {});
-    expect(updatedList.length).toBe(7);
+    expect(updatedList.length).toBe(8);
 
     // Update description then clear it
     await t.mutation(api.constructions.update, {
@@ -311,10 +316,15 @@ describe("CAD Offers and Constructions Module", () => {
 
     const ensurePergolaRes = await t.mutation(api.constructions.ensurePergolaConstruction, {});
     expect(ensurePergolaRes.pergolaId).toBeDefined();
+    expect(ensurePergolaRes.pergola6Id).toBeDefined();
     const pergolaDoc = await t.query(api.constructions.get, { id: ensurePergolaRes.pergolaId });
     expect(pergolaDoc?.code).toBe("PERG-BIO-4S");
     expect(pergolaDoc?.defaultWidthMm).toBe(4000);
     expect(pergolaDoc?.defaultHeightMm).toBe(3000);
+    const pergola6Doc = await t.query(api.constructions.get, { id: ensurePergolaRes.pergola6Id });
+    expect(pergola6Doc?.code).toBe("PERG-BIO-6S");
+    expect(pergola6Doc?.defaultWidthMm).toBe(6000);
+    expect(pergola6Doc?.defaultPanesCount).toBe(2);
   });
 
   test("manages spatial CAD placement (placedAboveItemId, rowIndex)", async () => {
@@ -501,6 +511,24 @@ describe("CAD Offers and Constructions Module", () => {
     expect(pergolaSvg).toContain("LAMELE ALUMINIOWE");
     expect(pergolaSvg).toContain("S1");
     expect(pergolaSvg).toContain("S4");
+
+    const pergola6Svg = renderCadConstructionSvg({
+      _id: "test_perg_6",
+      positionIndex: 3,
+      name: "Pergola bioklimatyczna wolnostojąca (6 słupów)",
+      systemName: "PERGOLA BIOKLIMATYCZNA",
+      widthMm: 6000,
+      heightMm: 3000,
+      panesCount: 2,
+      fillType: "LAMELE ALUMINIOWE",
+      color: "RAL 7016MAT",
+      quantity: 1,
+    });
+    expect(pergola6Svg).toContain("B = 6000");
+    expect(pergola6Svg).toContain("D = 3000");
+    expect(pergola6Svg).toContain("S2");
+    expect(pergola6Svg).toContain("S5");
+    expect(pergola6Svg).toContain("S6");
   });
 
   test("assigns Google Docs template to service and resolves it in offer", async () => {

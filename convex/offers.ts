@@ -765,10 +765,15 @@ export const addConstructionPosition = mutation({
       (args.name || construction?.name || "").toLowerCase().includes("pergol") ||
       (construction?.code || "").toLowerCase().includes("perg");
 
+    const isPergola6Posts =
+      isPergola &&
+      ((args.name || construction?.name || "").toLowerCase().includes("6") ||
+        (construction?.code || "").toLowerCase().includes("6s"));
+
     const width =
       args.widthMm ||
       construction?.defaultWidthMm ||
-      (isTriangle ? 3000 : isPergola ? 4000 : 2880);
+      (isTriangle ? 3000 : isPergola6Posts ? 6000 : isPergola ? 4000 : 2880);
     const height =
       args.heightMm ||
       construction?.defaultHeightMm ||
@@ -776,7 +781,7 @@ export const addConstructionPosition = mutation({
     const panes =
       args.panesCount ||
       construction?.defaultPanesCount ||
-      (isTriangle || isPergola ? 1 : 3);
+      (isTriangle ? 1 : isPergola6Posts ? 2 : isPergola ? 1 : 3);
     const paneWidth = Math.round(width / panes);
     const system =
       args.systemName ||

@@ -1281,6 +1281,11 @@ export function OfferSummaryTab({
                       Boolean(it.systemName && it.systemName.toLowerCase().includes("pergol")) ||
                       Boolean(it.fillType && it.fillType.toLowerCase().includes("lamel")));
 
+                  const isPergola6Posts =
+                    isPergola &&
+                    (it.name.toLowerCase().includes("6") ||
+                      Boolean(it.shortName && it.shortName.toLowerCase().includes("6")));
+
                   return (
                     <tr
                       key={it._id}
@@ -1384,10 +1389,19 @@ export function OfferSummaryTab({
                                       {[15, 23, 31, 39, 47].map((ly) => (
                                         <rect key={ly} x="13" y={ly} width="114" height="5" rx="1" fill="#e2e8f0" stroke="#64748b" strokeWidth="0.6" />
                                       ))}
+                                      {isPergola6Posts && (
+                                        <rect x="67.5" y="10" width="5" height="50" fill="#29323d" stroke="#1e242b" strokeWidth="0.7" />
+                                      )}
                                       <rect x="3" y="3" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
                                       <rect x="127" y="3" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
                                       <rect x="3" y="57" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
                                       <rect x="127" y="57" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
+                                      {isPergola6Posts && (
+                                        <>
+                                          <rect x="65" y="3" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
+                                          <rect x="65" y="57" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
+                                        </>
+                                      )}
                                     </g>
                                   ) : (
                                     <>

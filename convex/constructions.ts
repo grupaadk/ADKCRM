@@ -403,6 +403,33 @@ export const seedDefault = mutation({
         createdAt: now,
         updatedAt: now,
       },
+      {
+        name: "Pergola bioklimatyczna wolnostojąca (6 słupów)",
+        code: "PERG-BIO-6S",
+        category: "Pergole i zadaszenia",
+        description: "Wolnostojąca pergola aluminiowa 2-modułowa na 6 słupach (4 narożne + 2 środkowe na osi szerokości B) z obracanymi lamelami dachowymi",
+        defaultSystem: "PERGOLA BIOKLIMATYCZNA",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 6000,
+        defaultHeightMm: 3000,
+        defaultPanesCount: 2,
+        defaultFillType: "LAMELE ALUMINIOWE",
+        defaultPriceNet: 34425,
+        materialCostNet: 21500,
+        materialMarkupType: "percent" as const,
+        materialMarkupValue: 35,
+        materialPriceNet: 29025,
+        installationUnit: "m2" as const,
+        installationUnitRate: 250,
+        installationMarkupType: "percent" as const,
+        installationMarkupValue: 20,
+        installationCostNet: 4500,
+        installationPriceNet: 5400,
+        isActive: true,
+        sortOrder: 6,
+        createdAt: now,
+        updatedAt: now,
+      },
     ];
 
     for (const d of defaults) {
@@ -670,8 +697,7 @@ export const ensurePergolaConstruction = mutation({
     let pergolaConstruction = existingConstructions.find(
       (c) =>
         c.code === "PERG-BIO-4S" ||
-        c.name.toLowerCase().includes("pergol") ||
-        (c.category && c.category.toLowerCase().includes("pergol"))
+        (c.name.toLowerCase().includes("pergol") && c.name.toLowerCase().includes("4"))
     );
 
     let created = false;
@@ -719,10 +745,65 @@ export const ensurePergolaConstruction = mutation({
       });
     }
 
+    // 3. Sprawdź lub utwórz szablon Pergoli bioklimatycznej wolnostojącej (6 słupów)
+    const allAfter4 = await ctx.db.query("constructions").collect();
+    let pergola6Construction = allAfter4.find(
+      (c) =>
+        c.code === "PERG-BIO-6S" ||
+        (c.name.toLowerCase().includes("pergol") && c.name.toLowerCase().includes("6"))
+    );
+
+    let created6 = false;
+    if (!pergola6Construction) {
+      const nextConstrOrder =
+        allAfter4.length > 0
+          ? Math.max(...allAfter4.map((c) => c.sortOrder)) + 1
+          : 0;
+      const constr6Id = await ctx.db.insert("constructions", {
+        name: "Pergola bioklimatyczna wolnostojąca (6 słupów)",
+        code: "PERG-BIO-6S",
+        categoryId: pergolaCategory._id,
+        category: pergolaCategory.name,
+        description:
+          "Wolnostojąca pergola aluminiowa 2-modułowa na 6 słupach (4 narożne + 2 środkowe na osi szerokości B) z obracanymi lamelami dachowymi",
+        defaultSystem: "PERGOLA BIOKLIMATYCZNA",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 6000,
+        defaultHeightMm: 3000,
+        defaultPanesCount: 2,
+        defaultFillType: "LAMELE ALUMINIOWE",
+        defaultPriceNet: 34425,
+        materialCostNet: 21500,
+        materialMarkupType: "percent",
+        materialMarkupValue: 35,
+        materialPriceNet: 29025,
+        installationUnit: "m2",
+        installationUnitRate: 250,
+        installationMarkupType: "percent",
+        installationMarkupValue: 20,
+        installationCostNet: 4500,
+        installationPriceNet: 5400,
+        isActive: true,
+        sortOrder: nextConstrOrder,
+        createdAt: now,
+        updatedAt: now,
+      });
+      pergola6Construction = (await ctx.db.get(constr6Id))!;
+      created6 = true;
+    } else if (!pergola6Construction.categoryId) {
+      await ctx.db.patch(pergola6Construction._id, {
+        categoryId: pergolaCategory._id,
+        category: pergolaCategory.name,
+        updatedAt: now,
+      });
+    }
+
     return {
       categoryId: pergolaCategory._id,
       created,
       pergolaId: pergolaConstruction._id,
+      created6,
+      pergola6Id: pergola6Construction._id,
     };
   },
 });

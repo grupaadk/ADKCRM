@@ -144,6 +144,11 @@ export function LeftPropertiesPanel({
       Boolean(item.systemName && item.systemName.toLowerCase().includes("pergol")) ||
       Boolean(item.fillType && item.fillType.toLowerCase().includes("lamel")));
 
+  const isPergola6Posts =
+    isPergola &&
+    (item.name.toLowerCase().includes("6") ||
+      Boolean(item.shortName && item.shortName.toLowerCase().includes("6")));
+
   const effectivePricingRanges =
     template?.pricingRanges && template.pricingRanges.length > 0
       ? template.pricingRanges
@@ -376,7 +381,7 @@ export function LeftPropertiesPanel({
                   Moduły lameli dachowych
                 </label>
                 <span className="text-[10px] font-sans text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-semibold">
-                  4 słupy narożne
+                  {isPergola6Posts ? "6 słupów (ze środkowymi)" : "4 słupy narożne"}
                 </span>
               </div>
               <div className="grid grid-cols-4 gap-1">

@@ -80,6 +80,11 @@ export function VerticalPositionsList({
                 Boolean(it.systemName && it.systemName.toLowerCase().includes("pergol")) ||
                 Boolean(it.fillType && it.fillType.toLowerCase().includes("lamel")));
 
+            const isPergola6Posts =
+              isPergola &&
+              (it.name.toLowerCase().includes("6") ||
+                Boolean(it.shortName && it.shortName.toLowerCase().includes("6")));
+
             return (
               <div
                 key={it._id}
@@ -197,10 +202,19 @@ export function VerticalPositionsList({
                         {[13, 21, 29, 37, 45].map((ly) => (
                           <rect key={ly} x="11" y={ly} width="98" height="4.5" rx="1" fill="#e2e8f0" stroke="#64748b" strokeWidth="0.5" />
                         ))}
+                        {isPergola6Posts && (
+                          <rect x="58" y="9" width="4" height="44" fill="#29323d" stroke="#1e242b" strokeWidth="0.6" />
+                        )}
                         <rect x="3" y="3" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
                         <rect x="108" y="3" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
                         <rect x="3" y="50" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
                         <rect x="108" y="50" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
+                        {isPergola6Posts && (
+                          <>
+                            <rect x="55.5" y="3" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
+                            <rect x="55.5" y="50" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
+                          </>
+                        )}
                       </g>
                     ) : (
                       <>

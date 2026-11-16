@@ -2955,6 +2955,11 @@ export function AllConstructionsCadView({
                   Boolean(item.systemName && item.systemName.toLowerCase().includes("pergol")) ||
                   Boolean(item.fillType && item.fillType.toLowerCase().includes("lamel")));
 
+              const isPergola6Posts =
+                isPergola &&
+                (item.name.toLowerCase().includes("6") ||
+                  Boolean(item.shortName && item.shortName.toLowerCase().includes("6")));
+
               const padLeft = 120;
               const padRight = 180;
               const padTop = 200;
@@ -3039,7 +3044,7 @@ export function AllConstructionsCadView({
                             {isTriangle
                               ? "Trójkąt dachowy"
                               : isPergola
-                              ? `Pergola 4-słupowa (${panes} mod.)`
+                              ? `Pergola ${isPergola6Posts ? "6-słupowa" : "4-słupowa"} (${panes} mod.)`
                               : `${panes}-torowy`}
                           </span>
                         </div>
@@ -3291,12 +3296,33 @@ export function AllConstructionsCadView({
                                   strokeWidth="1.5"
                                 />
                               ))}
-                              {[
-                                { id: "S1", x: padLeft, y: padTop },
-                                { id: "S2", x: padLeft + width - postSize, y: padTop },
-                                { id: "S3", x: padLeft, y: padTop + height - postSize },
-                                { id: "S4", x: padLeft + width - postSize, y: padTop + height - postSize },
-                              ].map((post) => (
+                              {isPergola6Posts && (
+                                <rect
+                                  x={padLeft + width / 2 - Math.round(beamThick * 0.35)}
+                                  y={padTop + beamThick}
+                                  width={Math.round(beamThick * 0.7)}
+                                  height={innerH}
+                                  fill="#29323d"
+                                  stroke="#1e242b"
+                                  strokeWidth="1.5"
+                                />
+                              )}
+                              {(isPergola6Posts
+                                ? [
+                                    { id: "S1", x: padLeft, y: padTop },
+                                    { id: "S2", x: padLeft + Math.round((width - postSize) / 2), y: padTop },
+                                    { id: "S3", x: padLeft + width - postSize, y: padTop },
+                                    { id: "S4", x: padLeft, y: padTop + height - postSize },
+                                    { id: "S5", x: padLeft + Math.round((width - postSize) / 2), y: padTop + height - postSize },
+                                    { id: "S6", x: padLeft + width - postSize, y: padTop + height - postSize },
+                                  ]
+                                : [
+                                    { id: "S1", x: padLeft, y: padTop },
+                                    { id: "S2", x: padLeft + width - postSize, y: padTop },
+                                    { id: "S3", x: padLeft, y: padTop + height - postSize },
+                                    { id: "S4", x: padLeft + width - postSize, y: padTop + height - postSize },
+                                  ]
+                              ).map((post) => (
                                 <g key={post.id}>
                                   <rect
                                     x={post.x}

@@ -240,6 +240,11 @@ export function CadCanvas({
       Boolean(item.systemName && item.systemName.toLowerCase().includes("pergol")) ||
       Boolean(item.fillType && item.fillType.toLowerCase().includes("lamel")));
 
+  const isPergola6Posts =
+    isPergola &&
+    (item.name.toLowerCase().includes("6") ||
+      Boolean(item.shortName && item.shortName.toLowerCase().includes("6")));
+
   // Obliczenia wymiarów kwater
   const paneWidth = Math.round(width / panes);
   const segments: CadSegment[] =
@@ -388,7 +393,7 @@ export function CadCanvas({
             {isTriangle
               ? "Trójkąt dachowy"
               : isPergola
-              ? `Pergola 4-słupowa · ${panes} ${panes === 1 ? "moduł" : "moduły"}`
+              ? `Pergola ${isPergola6Posts ? "6-słupowa" : "4-słupowa"} · ${panes} ${panes === 1 ? "moduł" : "moduły"}`
               : `${panes} ${panes === 1 ? "tor" : panes < 5 ? "tory" : "torów"}`}
             )
           </span>
@@ -810,6 +815,20 @@ export function CadCanvas({
                         );
                       })}
 
+                      {/* Belka środkowa dla wariantu 6-słupowego (gdy 1 moduł, rysujemy belkę podpierającą między S2 i S5) */}
+                      {isPergola6Posts && panes === 1 && (
+                        <rect
+                          x={originX + width / 2 - Math.round(beamThick * 0.35)}
+                          y={originY + beamThick}
+                          width={Math.round(beamThick * 0.7)}
+                          height={innerH}
+                          fill="#29323d"
+                          stroke="#1e242b"
+                          strokeWidth="1.5"
+                          opacity="0.88"
+                        />
+                      )}
+
                       {/* Pasek przekroju poprzecznego A-A (wieniec + obrót lameli) */}
                       <g>
                         <rect
@@ -835,13 +854,23 @@ export function CadCanvas({
                         </text>
                       </g>
 
-                      {/* 4 Słupy narożne 150×150 mm (S1, S2, S3, S4) */}
-                      {[
-                        { id: "S1", x: originX, y: originY, drain: false },
-                        { id: "S2", x: originX + width - postSize, y: originY, drain: false },
-                        { id: "S3", x: originX, y: originY + height - postSize, drain: true },
-                        { id: "S4", x: originX + width - postSize, y: originY + height - postSize, drain: true },
-                      ].map((post) => (
+                      {/* Słupy konstrukcyjne 150×150 mm (4 narożne lub 6 słupów ze środkowymi na osi B) */}
+                      {(isPergola6Posts
+                        ? [
+                            { id: "S1", x: originX, y: originY, drain: false },
+                            { id: "S2", x: originX + Math.round((width - postSize) / 2), y: originY, drain: false },
+                            { id: "S3", x: originX + width - postSize, y: originY, drain: false },
+                            { id: "S4", x: originX, y: originY + height - postSize, drain: true },
+                            { id: "S5", x: originX + Math.round((width - postSize) / 2), y: originY + height - postSize, drain: true },
+                            { id: "S6", x: originX + width - postSize, y: originY + height - postSize, drain: true },
+                          ]
+                        : [
+                            { id: "S1", x: originX, y: originY, drain: false },
+                            { id: "S2", x: originX + width - postSize, y: originY, drain: false },
+                            { id: "S3", x: originX, y: originY + height - postSize, drain: true },
+                            { id: "S4", x: originX + width - postSize, y: originY + height - postSize, drain: true },
+                          ]
+                      ).map((post) => (
                         <g key={post.id}>
                           <rect
                             x={post.x}

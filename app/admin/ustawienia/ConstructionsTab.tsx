@@ -573,6 +573,11 @@ export function ConstructionsTab() {
                           Boolean(c.defaultSystem && c.defaultSystem.toLowerCase().includes("pergol")) ||
                           Boolean(c.defaultFillType && c.defaultFillType.toLowerCase().includes("lamel")));
 
+                      const isPergola6Posts =
+                        isPergola &&
+                        (c.code.toLowerCase().includes("6s") ||
+                          c.name.toLowerCase().includes("6"));
+
                       return (
                         <tr
                           key={c._id}
@@ -678,11 +683,20 @@ export function ConstructionsTab() {
                                       {[18, 28, 38, 48, 58, 68].map((ly) => (
                                         <rect key={ly} x="15" y={ly} width="130" height="6" rx="1" fill="#e2e8f0" stroke="#64748b" strokeWidth="0.7" />
                                       ))}
-                                      {/* 4 słupy narożne */}
+                                      {/* 4 słupy narożne (+ 2 środkowe dla 6-słupowej) */}
+                                      {isPergola6Posts && (
+                                        <rect x="77" y="12" width="6" height="66" fill="#29323d" stroke="#1e242b" strokeWidth="0.8" />
+                                      )}
                                       <rect x="4" y="4" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
                                       <rect x="144" y="4" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
                                       <rect x="4" y="74" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
                                       <rect x="144" y="74" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
+                                      {isPergola6Posts && (
+                                        <>
+                                          <rect x="74" y="4" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
+                                          <rect x="74" y="74" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
+                                        </>
+                                      )}
                                     </g>
                                   ) : (
                                     <>
