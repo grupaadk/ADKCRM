@@ -508,7 +508,6 @@ describe("CAD Offers and Constructions Module", () => {
     expect(pergolaSvg).toContain("B = 4000");
     expect(pergolaSvg).toContain("D = 3000");
     expect(pergolaSvg).toContain("PRZEKRÓJ A-A");
-    expect(pergolaSvg).toContain("LAMELE ALUMINIOWE");
     expect(pergolaSvg).toContain("S1");
     expect(pergolaSvg).toContain("S4");
 

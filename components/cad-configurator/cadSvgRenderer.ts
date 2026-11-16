@@ -149,7 +149,6 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
           : mIdx === 0 || mIdx === panes - 1
           ? modW - midBeamW / 2
           : modW - midBeamW;
-      const centerX = effModX + effModW / 2;
 
       if (mIdx > 0) {
         modulesSvg += `<rect x="${modX - midBeamW / 2}" y="${originY + beamThick}" width="${midBeamW}" height="${innerH}" fill="#29323d" stroke="#1e242b" stroke-width="1.5" />`;
@@ -166,14 +165,6 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
           <circle cx="${effModX + effModW - 18}" cy="${cy}" r="4.5" fill="#0e7490" />
         `;
       }
-
-      const boxW = Math.min(720, effModW * 0.84);
-      modulesSvg += `
-        <rect x="${centerX - boxW / 2}" y="${modY + innerH / 2 - 92}" width="${boxW}" height="184" rx="14" fill="#ffffff" fill-opacity="0.94" stroke="#0e7490" stroke-width="2.5" />
-        <text x="${centerX}" y="${modY + innerH / 2 - 36}" fill="#0e7490" font-size="${Math.min(34, Math.max(22, Math.round(effModW / 18)))}" font-weight="900" text-anchor="middle">${panes > 1 ? `MODUŁ #${mIdx + 1} · ` : "RZUT Z GÓRY · "}${slatsCount} LAMELI (0°–135°)</text>
-        <text x="${centerX}" y="${modY + innerH / 2 + 12}" fill="#0b1220" font-size="${Math.min(40, Math.max(24, Math.round(effModW / 16)))}" font-weight="900" text-anchor="middle">${Math.round(effModW)} × ${Math.round(innerH)} mm</text>
-        <text x="${centerX}" y="${modY + innerH / 2 + 58}" fill="#475569" font-size="${Math.min(30, Math.max(18, Math.round(effModW / 22)))}" font-weight="800" text-anchor="middle">${fill} · ${color}</text>
-      `;
     }
 
     const centerBeamSvg =

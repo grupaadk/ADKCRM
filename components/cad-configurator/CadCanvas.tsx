@@ -712,7 +712,6 @@ export function CadCanvas({
                             : mIdx === 0 || mIdx === panes - 1
                             ? modW - midBeamW / 2
                             : modW - midBeamW;
-                        const centerX = effModX + effModW / 2;
 
                         return (
                           <g key={`perg-mod-${mIdx}`}>
@@ -762,55 +761,6 @@ export function CadCanvas({
                                 </g>
                               );
                             })}
-
-                            {/* Tabliczka znamionowa modułu (centralnie na rzucie) */}
-                            <g
-                              className={canEditDimensions ? "cursor-pointer" : ""}
-                              onClick={(e) => openDimEditor(e, "segment", mIdx)}
-                            >
-                              <rect
-                                x={centerX - Math.min(360, effModW * 0.42)}
-                                y={modY + innerH / 2 - 92}
-                                width={Math.min(720, effModW * 0.84)}
-                                height={184}
-                                rx="14"
-                                fill="#ffffff"
-                                fillOpacity="0.94"
-                                stroke="#0e7490"
-                                strokeWidth="2.5"
-                              />
-                              <text
-                                x={centerX}
-                                y={modY + innerH / 2 - 36}
-                                fill="#0e7490"
-                                fontSize={Math.min(34, Math.max(22, Math.round(effModW / 18)))}
-                                fontWeight="900"
-                                textAnchor="middle"
-                              >
-                                {panes > 1 ? `MODUŁ #${mIdx + 1} · ` : "RZUT Z GÓRY · "}
-                                {slatsCount} LAMELI (0°–135°)
-                              </text>
-                              <text
-                                x={centerX}
-                                y={modY + innerH / 2 + 12}
-                                fill="#0b1220"
-                                fontSize={Math.min(40, Math.max(24, Math.round(effModW / 16)))}
-                                fontWeight="900"
-                                textAnchor="middle"
-                              >
-                                {Math.round(effModW)} × {Math.round(innerH)} mm
-                              </text>
-                              <text
-                                x={centerX}
-                                y={modY + innerH / 2 + 58}
-                                fill="#475569"
-                                fontSize={Math.min(30, Math.max(18, Math.round(effModW / 22)))}
-                                fontWeight="800"
-                                textAnchor="middle"
-                              >
-                                {fill} · {color}
-                              </text>
-                            </g>
                           </g>
                         );
                       })}
