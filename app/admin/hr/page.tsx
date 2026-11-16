@@ -196,7 +196,7 @@ export default function HrPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="w-full">
       {/* Nagłówek główny strony (spójny z całym modułem HR / Ekipy / Flota) */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -363,13 +363,13 @@ export default function HrPage() {
               Brak aktywnych użytkowników w systemie.
             </div>
           ) : (
-            <div className="overflow-x-auto pb-4">
-              <div className="inline-flex items-start gap-8 min-w-max">
+            <div className="w-full pb-4">
+              <div className="flex flex-col xl:flex-row items-start gap-6 w-full">
                 {/* ═══════════════════════════════════════════════════════════════ */}
                 {/* KARTA 1: URLOPY {ROK}                                           */}
                 {/* ═══════════════════════════════════════════════════════════════ */}
                 {leaveEmployees.length > 0 && (
-                  <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                  <div className="w-full xl:flex-1 min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                     {/* Nagłówek karty CRM */}
                     <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50/90 px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -385,100 +385,305 @@ export default function HrPage() {
                       </span>
                     </div>
 
-                    <table className="border-collapse text-sm select-none">
-                      <thead>
-                        <tr className="border-b border-gray-200 bg-gray-50/40">
-                          <th className="w-9 border-r border-gray-200 px-2 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                            #
-                          </th>
-                          {leaveEmployees.map((emp) => (
-                            <th
-                              key={emp._id}
-                              title={`${emp.displayName} — wykorzystano: ${emp.usedLeaveDays} z ${emp.vacationAllowance} dni (pozostało: ${emp.remainingLeaveDays})`}
-                              className="w-[118px] min-w-[118px] border-r border-gray-200 last:border-r-0 px-2.5 py-2.5 text-center"
-                            >
-                              <div className="flex items-center justify-center gap-1.5">
-                                <span
-                                  className="size-2.5 rounded-full shrink-0"
-                                  style={{ backgroundColor: emp.color || "#4ABBC3" }}
-                                />
-                                <span className="truncate text-xs font-bold text-gray-900">
-                                  {emp.shortName}
-                                </span>
-                              </div>
-                              <div className="mt-0.5 text-[10px] font-medium text-gray-400 tabular-nums">
-                                {emp.usedLeaveDays} / {emp.vacationAllowance} dn.
-                              </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full table-fixed border-collapse text-sm select-none">
+                        <thead>
+                          <tr className="border-b border-gray-200 bg-gray-50/40">
+                            <th className="w-10 border-r border-gray-200 px-2 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                              #
                             </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {Array.from({ length: maxLeaveAllowance }).map((_, rowIndex) => {
-                          const isStripedRow = rowIndex % 2 === 1;
-                          return (
-                            <tr
-                              key={rowIndex}
-                              className={`h-[30px] ${
-                                isStripedRow ? "bg-gray-50/50" : "bg-white"
-                              }`}
-                            >
-                              {/* Numer wiersza */}
-                              <td className="border-r border-gray-200 bg-gray-50/70 px-1.5 text-center text-[10px] font-medium text-gray-400 tabular-nums">
-                                {rowIndex + 1}
-                              </td>
+                            {leaveEmployees.map((emp) => (
+                              <th
+                                key={emp._id}
+                                title={`${emp.displayName} — wykorzystano: ${emp.usedLeaveDays} z ${emp.vacationAllowance} dni (pozostało: ${emp.remainingLeaveDays})`}
+                                className="min-w-[110px] border-r border-gray-200 last:border-r-0 px-2.5 py-2.5 text-center"
+                              >
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span
+                                    className="size-2.5 rounded-full shrink-0"
+                                    style={{ backgroundColor: emp.color || "#4ABBC3" }}
+                                  />
+                                  <span className="truncate text-xs font-bold text-gray-900">
+                                    {emp.shortName}
+                                  </span>
+                                </div>
+                                <div className="mt-0.5 text-[10px] font-medium text-gray-400 tabular-nums">
+                                  {emp.usedLeaveDays} / {emp.vacationAllowance} dn.
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {Array.from({ length: maxLeaveAllowance }).map((_, rowIndex) => {
+                            const isStripedRow = rowIndex % 2 === 1;
+                            return (
+                              <tr
+                                key={rowIndex}
+                                className={`h-[30px] ${
+                                  isStripedRow ? "bg-gray-50/50" : "bg-white"
+                                }`}
+                              >
+                                {/* Numer wiersza */}
+                                <td className="w-10 border-r border-gray-200 bg-gray-50/70 px-1.5 text-center text-[10px] font-medium text-gray-400 tabular-nums">
+                                  {rowIndex + 1}
+                                </td>
 
-                              {leaveEmployees.map((emp) => {
-                                const isDisabled = rowIndex >= emp.vacationAllowance;
-                                const cellData = emp.leaveCells[rowIndex];
-                                const isEditing =
-                                  activeCell?.table === "leaves" &&
-                                  activeCell.userId === emp._id &&
-                                  activeCell.rowIndex === rowIndex;
+                                {leaveEmployees.map((emp) => {
+                                  const isDisabled = rowIndex >= emp.vacationAllowance;
+                                  const cellData = emp.leaveCells[rowIndex];
+                                  const isEditing =
+                                    activeCell?.table === "leaves" &&
+                                    activeCell.userId === emp._id &&
+                                    activeCell.rowIndex === rowIndex;
 
-                                if (isDisabled) {
+                                  if (isDisabled) {
+                                    return (
+                                      <td
+                                        key={emp._id}
+                                        className="h-[30px] border-r border-gray-200 last:border-r-0 bg-slate-200/75"
+                                        style={{
+                                          backgroundImage:
+                                            "repeating-linear-gradient(135deg, transparent, transparent 5px, rgba(148,163,184,0.18) 5px, rgba(148,163,184,0.18) 10px)",
+                                        }}
+                                        title={`Limit urlopu dla ${emp.shortName}: ${emp.vacationAllowance} dni`}
+                                      />
+                                    );
+                                  }
+
+                                  // Przyszła data -> niebieska, przeszła lub dzisiejsza -> ciemna
+                                  const isFutureDate =
+                                    cellData ? cellData.dateStr > todayStr : false;
+
                                   return (
                                     <td
                                       key={emp._id}
-                                      className="h-[30px] w-[118px] border-r border-gray-200 last:border-r-0 bg-slate-200/75"
-                                      style={{
-                                        backgroundImage:
-                                          "repeating-linear-gradient(135deg, transparent, transparent 5px, rgba(148,163,184,0.18) 5px, rgba(148,163,184,0.18) 10px)",
+                                      onClick={() => {
+                                        if (!isEditing) {
+                                          startEditingLeave(
+                                            emp._id,
+                                            rowIndex,
+                                            cellData?.displayDate ?? ""
+                                          );
+                                        }
                                       }}
-                                      title={`Limit urlopu dla ${emp.shortName}: ${emp.vacationAllowance} dni`}
-                                    />
+                                      className={`relative h-[30px] border-r border-gray-200 last:border-r-0 px-1.5 text-center align-middle cursor-text transition-colors ${
+                                        isEditing
+                                          ? "bg-brand/5 ring-2 ring-inset ring-brand"
+                                          : "hover:bg-brand/5"
+                                      }`}
+                                    >
+                                      {isEditing ? (
+                                        <div className="flex items-center justify-center w-full h-full">
+                                          <input
+                                            ref={inputRef}
+                                            type="text"
+                                            value={editValue}
+                                            placeholder="DD.MM"
+                                            onChange={(e) => setEditValue(e.target.value)}
+                                            onBlur={() => {
+                                              void commitActiveCell();
+                                            }}
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter" || e.key === "ArrowDown") {
+                                                e.preventDefault();
+                                                void commitActiveCell(rowIndex + 1);
+                                              } else if (e.key === "ArrowUp") {
+                                                e.preventDefault();
+                                                void commitActiveCell(rowIndex - 1);
+                                              } else if (e.key === "Escape") {
+                                                e.preventDefault();
+                                                setCellError(null);
+                                                setActiveCell(null);
+                                              }
+                                            }}
+                                            className="w-full bg-transparent text-center text-xs font-semibold text-gray-900 tabular-nums focus:outline-none"
+                                          />
+                                          <button
+                                            type="button"
+                                            tabIndex={-1}
+                                            onMouseDown={(e) => {
+                                              e.preventDefault();
+                                              datePickerRef.current?.showPicker?.();
+                                            }}
+                                            className="text-gray-400 hover:text-brand pr-0.5 transition"
+                                            title="Wybierz z kalendarza"
+                                          >
+                                            <CalendarIcon className="size-3.5" />
+                                          </button>
+                                          <input
+                                            ref={datePickerRef}
+                                            type="date"
+                                            tabIndex={-1}
+                                            min={`${selectedYear}-01-01`}
+                                            max={`${selectedYear}-12-31`}
+                                            value={
+                                              cellData?.dateStr ||
+                                              `${selectedYear}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`
+                                            }
+                                            onChange={async (e) => {
+                                              const picked = e.target.value;
+                                              if (!picked) return;
+                                              const parts = picked.split("-");
+                                              if (parts.length === 3) {
+                                                const ddMm = `${parts[2]}.${parts[1]}`;
+                                                setEditValue(ddMm);
+                                                await setLeaveCellMut({
+                                                  userId: emp._id,
+                                                  year: selectedYear,
+                                                  rowIndex,
+                                                  value: ddMm,
+                                                  existingId: cellData?._id,
+                                                });
+                                                setActiveCell(null);
+                                              }
+                                            }}
+                                            className="sr-only"
+                                          />
+                                        </div>
+                                      ) : cellData ? (
+                                        <span
+                                          className={`inline-block text-xs tabular-nums ${
+                                            isFutureDate
+                                              ? "font-semibold text-blue-600"
+                                              : "font-medium text-gray-800"
+                                          }`}
+                                        >
+                                          {cellData.displayDate}
+                                        </span>
+                                      ) : null}
+                                    </td>
                                   );
-                                }
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-gray-200 bg-gray-50 text-[11px]">
+                            <td className="w-10 border-r border-gray-200 px-1.5 py-2 text-center font-semibold text-gray-400">
+                              Σ
+                            </td>
+                            {leaveEmployees.map((emp) => (
+                              <td
+                                key={emp._id}
+                                className="border-r border-gray-200 last:border-r-0 px-2 py-2 text-center"
+                              >
+                                <div className="font-bold text-gray-900 tabular-nums">
+                                  {emp.usedLeaveDays} / {emp.vacationAllowance} dn.
+                                </div>
+                                <div
+                                  className={`text-[10px] font-medium tabular-nums ${
+                                    emp.remainingLeaveDays < 0
+                                      ? "text-red-600 font-bold"
+                                      : "text-gray-500"
+                                  }`}
+                                >
+                                  zostało: {emp.remainingLeaveDays} dn.
+                                </div>
+                              </td>
+                            ))}
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
-                                // Przyszła data -> niebieska, przeszła lub dzisiejsza -> ciemna
-                                const isFutureDate =
-                                  cellData ? cellData.dateStr > todayStr : false;
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                {/* KARTA 2: GODZINY                                                */}
+                {/* ═══════════════════════════════════════════════════════════════ */}
+                {overtimeEmployees.length > 0 && (
+                  <div className="w-full xl:flex-1 min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                    {/* Nagłówek karty CRM */}
+                    <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50/90 px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                          <Clock className="size-4" />
+                        </div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-gray-800">
+                          Godziny
+                        </span>
+                      </div>
+                      <span className="rounded-full bg-gray-200/70 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600">
+                        {overtimeEmployees.length} os.
+                      </span>
+                    </div>
 
-                                return (
-                                  <td
-                                    key={emp._id}
-                                    onClick={() => {
-                                      if (!isEditing) {
-                                        startEditingLeave(
-                                          emp._id,
-                                          rowIndex,
-                                          cellData?.displayDate ?? ""
-                                        );
-                                      }
-                                    }}
-                                    className={`relative h-[30px] w-[118px] border-r border-gray-200 last:border-r-0 px-1.5 text-center align-middle cursor-text transition-colors ${
-                                      isEditing
-                                        ? "bg-brand/5 ring-2 ring-inset ring-brand"
-                                        : "hover:bg-brand/5"
-                                    }`}
-                                  >
-                                    {isEditing ? (
-                                      <div className="flex items-center justify-center w-full h-full">
+                    <div className="overflow-x-auto">
+                      <table className="w-full table-fixed border-collapse text-sm select-none">
+                        <thead>
+                          <tr className="border-b border-gray-200 bg-gray-50/40">
+                            <th className="w-10 border-r border-gray-200 px-2 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                              #
+                            </th>
+                            {overtimeEmployees.map((emp) => (
+                              <th
+                                key={emp._id}
+                                className="min-w-[120px] border-r border-gray-200 last:border-r-0 px-2.5 py-2.5 text-center"
+                              >
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span
+                                    className="size-2.5 rounded-full shrink-0"
+                                    style={{ backgroundColor: emp.color || "#10b981" }}
+                                  />
+                                  <span className="truncate text-xs font-bold text-gray-900">
+                                    {emp.shortName}
+                                  </span>
+                                </div>
+                                <div className="mt-0.5 text-[10px] font-medium text-gray-400 tabular-nums">
+                                  bilans: {formatHoursPl(emp.totalOvertimeHours)}
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {Array.from({ length: maxOvertimeRow }).map((_, rowIndex) => {
+                            const isStripedRow = rowIndex % 2 === 1;
+                            return (
+                              <tr
+                                key={rowIndex}
+                                className={`h-[30px] ${
+                                  isStripedRow ? "bg-gray-50/50" : "bg-white"
+                                }`}
+                              >
+                                {/* Numer wiersza */}
+                                <td className="w-10 border-r border-gray-200 bg-gray-50/70 px-1.5 text-center text-[10px] font-medium text-gray-400 tabular-nums">
+                                  {rowIndex + 1}
+                                </td>
+
+                                {overtimeEmployees.map((emp) => {
+                                  const cellData = emp.overtimeCells[rowIndex];
+                                  const isEditing =
+                                    activeCell?.table === "overtime" &&
+                                    activeCell.userId === emp._id &&
+                                    activeCell.rowIndex === rowIndex;
+
+                                  return (
+                                    <td
+                                      key={emp._id}
+                                      onClick={() => {
+                                        if (!isEditing) {
+                                          startEditingOvertime(
+                                            emp._id,
+                                            rowIndex,
+                                            cellData?.rawText ?? ""
+                                          );
+                                        }
+                                      }}
+                                      className={`h-[30px] border-r border-gray-200 last:border-r-0 px-2 text-center align-middle cursor-text transition-colors ${
+                                        isEditing
+                                          ? "bg-brand/5 ring-2 ring-inset ring-brand"
+                                          : "hover:bg-brand/5"
+                                      }`}
+                                    >
+                                      {isEditing ? (
                                         <input
                                           ref={inputRef}
                                           type="text"
                                           value={editValue}
-                                          placeholder="DD.MM"
+                                          placeholder="- 2,5 h (17.08)"
                                           onChange={(e) => setEditValue(e.target.value)}
                                           onBlur={() => {
                                             void commitActiveCell();
@@ -498,246 +703,45 @@ export default function HrPage() {
                                           }}
                                           className="w-full bg-transparent text-center text-xs font-semibold text-gray-900 tabular-nums focus:outline-none"
                                         />
-                                        <button
-                                          type="button"
-                                          tabIndex={-1}
-                                          onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            datePickerRef.current?.showPicker?.();
-                                          }}
-                                          className="text-gray-400 hover:text-brand pr-0.5 transition"
-                                          title="Wybierz z kalendarza"
-                                        >
-                                          <CalendarIcon className="size-3.5" />
-                                        </button>
-                                        <input
-                                          ref={datePickerRef}
-                                          type="date"
-                                          tabIndex={-1}
-                                          min={`${selectedYear}-01-01`}
-                                          max={`${selectedYear}-12-31`}
-                                          value={
-                                            cellData?.dateStr ||
-                                            `${selectedYear}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`
-                                          }
-                                          onChange={async (e) => {
-                                            const picked = e.target.value;
-                                            if (!picked) return;
-                                            const parts = picked.split("-");
-                                            if (parts.length === 3) {
-                                              const ddMm = `${parts[2]}.${parts[1]}`;
-                                              setEditValue(ddMm);
-                                              await setLeaveCellMut({
-                                                userId: emp._id,
-                                                year: selectedYear,
-                                                rowIndex,
-                                                value: ddMm,
-                                                existingId: cellData?._id,
-                                              });
-                                              setActiveCell(null);
-                                            }
-                                          }}
-                                          className="sr-only"
-                                        />
-                                      </div>
-                                    ) : cellData ? (
-                                      <span
-                                        className={`inline-block text-xs tabular-nums ${
-                                          isFutureDate
-                                            ? "font-semibold text-blue-600"
-                                            : "font-medium text-gray-800"
-                                        }`}
-                                      >
-                                        {cellData.displayDate}
-                                      </span>
-                                    ) : null}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t-2 border-gray-200 bg-gray-50 text-[11px]">
-                          <td className="border-r border-gray-200 px-1.5 py-2 text-center font-semibold text-gray-400">
-                            Σ
-                          </td>
-                          {leaveEmployees.map((emp) => (
-                            <td
-                              key={emp._id}
-                              className="border-r border-gray-200 last:border-r-0 px-2 py-2 text-center"
-                            >
-                              <div className="font-bold text-gray-900 tabular-nums">
-                                {emp.usedLeaveDays} / {emp.vacationAllowance} dn.
-                              </div>
-                              <div
-                                className={`text-[10px] font-medium tabular-nums ${
-                                  emp.remainingLeaveDays < 0
-                                    ? "text-red-600 font-bold"
-                                    : "text-gray-500"
-                                }`}
-                              >
-                                zostało: {emp.remainingLeaveDays} dn.
-                              </div>
+                                      ) : cellData ? (
+                                        <span className="text-xs font-medium text-gray-800 tabular-nums">
+                                          {cellData.rawText}
+                                        </span>
+                                      ) : null}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-gray-200 bg-gray-50 text-[11px]">
+                            <td className="w-10 border-r border-gray-200 px-1.5 py-2 text-center font-semibold text-gray-400">
+                              Σ
                             </td>
-                          ))}
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
-
-                {/* ═══════════════════════════════════════════════════════════════ */}
-                {/* KARTA 2: GODZINY                                                */}
-                {/* ═══════════════════════════════════════════════════════════════ */}
-                {overtimeEmployees.length > 0 && (
-                  <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                    {/* Nagłówek karty CRM */}
-                    <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50/90 px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                          <Clock className="size-4" />
-                        </div>
-                        <span className="text-xs font-bold uppercase tracking-wider text-gray-800">
-                          Godziny
-                        </span>
-                      </div>
-                      <span className="rounded-full bg-gray-200/70 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600">
-                        {overtimeEmployees.length} os.
-                      </span>
-                    </div>
-
-                    <table className="border-collapse text-sm select-none">
-                      <thead>
-                        <tr className="border-b border-gray-200 bg-gray-50/40">
-                          <th className="w-9 border-r border-gray-200 px-2 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                            #
-                          </th>
-                          {overtimeEmployees.map((emp) => (
-                            <th
-                              key={emp._id}
-                              className="w-[140px] min-w-[140px] border-r border-gray-200 last:border-r-0 px-2.5 py-2.5 text-center"
-                            >
-                              <div className="flex items-center justify-center gap-1.5">
+                            {overtimeEmployees.map((emp) => (
+                              <td
+                                key={emp._id}
+                                className="border-r border-gray-200 last:border-r-0 px-2 py-2 text-center"
+                              >
                                 <span
-                                  className="size-2.5 rounded-full shrink-0"
-                                  style={{ backgroundColor: emp.color || "#10b981" }}
-                                />
-                                <span className="truncate text-xs font-bold text-gray-900">
-                                  {emp.shortName}
+                                  className={`font-bold tabular-nums ${
+                                    emp.totalOvertimeHours > 0
+                                      ? "text-emerald-600"
+                                      : emp.totalOvertimeHours < 0
+                                      ? "text-amber-700"
+                                      : "text-gray-600"
+                                  }`}
+                                >
+                                  {formatHoursPl(emp.totalOvertimeHours)}
                                 </span>
-                              </div>
-                              <div className="mt-0.5 text-[10px] font-medium text-gray-400 tabular-nums">
-                                bilans: {formatHoursPl(emp.totalOvertimeHours)}
-                              </div>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {Array.from({ length: maxOvertimeRow }).map((_, rowIndex) => {
-                          const isStripedRow = rowIndex % 2 === 1;
-                          return (
-                            <tr
-                              key={rowIndex}
-                              className={`h-[30px] ${
-                                isStripedRow ? "bg-gray-50/50" : "bg-white"
-                              }`}
-                            >
-                              {/* Numer wiersza */}
-                              <td className="border-r border-gray-200 bg-gray-50/70 px-1.5 text-center text-[10px] font-medium text-gray-400 tabular-nums">
-                                {rowIndex + 1}
                               </td>
-
-                              {overtimeEmployees.map((emp) => {
-                                const cellData = emp.overtimeCells[rowIndex];
-                                const isEditing =
-                                  activeCell?.table === "overtime" &&
-                                  activeCell.userId === emp._id &&
-                                  activeCell.rowIndex === rowIndex;
-
-                                return (
-                                  <td
-                                    key={emp._id}
-                                    onClick={() => {
-                                      if (!isEditing) {
-                                        startEditingOvertime(
-                                          emp._id,
-                                          rowIndex,
-                                          cellData?.rawText ?? ""
-                                        );
-                                      }
-                                    }}
-                                    className={`h-[30px] w-[140px] border-r border-gray-200 last:border-r-0 px-2 text-center align-middle cursor-text transition-colors ${
-                                      isEditing
-                                        ? "bg-brand/5 ring-2 ring-inset ring-brand"
-                                        : "hover:bg-brand/5"
-                                    }`}
-                                  >
-                                    {isEditing ? (
-                                      <input
-                                        ref={inputRef}
-                                        type="text"
-                                        value={editValue}
-                                        placeholder="- 2,5 h (17.08)"
-                                        onChange={(e) => setEditValue(e.target.value)}
-                                        onBlur={() => {
-                                          void commitActiveCell();
-                                        }}
-                                        onKeyDown={(e) => {
-                                          if (e.key === "Enter" || e.key === "ArrowDown") {
-                                            e.preventDefault();
-                                            void commitActiveCell(rowIndex + 1);
-                                          } else if (e.key === "ArrowUp") {
-                                            e.preventDefault();
-                                            void commitActiveCell(rowIndex - 1);
-                                          } else if (e.key === "Escape") {
-                                            e.preventDefault();
-                                            setCellError(null);
-                                            setActiveCell(null);
-                                          }
-                                        }}
-                                        className="w-full bg-transparent text-center text-xs font-semibold text-gray-900 tabular-nums focus:outline-none"
-                                      />
-                                    ) : cellData ? (
-                                      <span className="text-xs font-medium text-gray-800 tabular-nums">
-                                        {cellData.rawText}
-                                      </span>
-                                    ) : null}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t-2 border-gray-200 bg-gray-50 text-[11px]">
-                          <td className="border-r border-gray-200 px-1.5 py-2 text-center font-semibold text-gray-400">
-                            Σ
-                          </td>
-                          {overtimeEmployees.map((emp) => (
-                            <td
-                              key={emp._id}
-                              className="border-r border-gray-200 last:border-r-0 px-2 py-2 text-center"
-                            >
-                              <span
-                                className={`font-bold tabular-nums ${
-                                  emp.totalOvertimeHours > 0
-                                    ? "text-emerald-600"
-                                    : emp.totalOvertimeHours < 0
-                                    ? "text-amber-700"
-                                    : "text-gray-600"
-                                }`}
-                              >
-                                {formatHoursPl(emp.totalOvertimeHours)}
-                              </span>
-                            </td>
-                          ))}
-                        </tr>
-                      </tfoot>
-                    </table>
+                            ))}
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>
