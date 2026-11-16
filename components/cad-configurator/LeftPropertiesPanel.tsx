@@ -443,206 +443,204 @@ export function LeftPropertiesPanel({
             </div>
           </div>
 
-          <div ref={roofDimContainerRef} className="grid grid-cols-2 gap-2">
-            <div className="relative">
-              <label className="block text-[10px] font-medium text-[#7c8597] mb-1">
-                Szerokość B (mm)
-              </label>
-              <div className="relative flex items-center">
-                <input
-                  ref={widthInputRef}
-                  type="number"
-                  step={10}
-                  min={300}
-                  max={12000}
-                  disabled={readOnly}
-                  value={widthInput}
-                  onFocus={() => {
-                    setFocusedField("width");
-                    if (isRoof) setOpenRoofDropdown("width");
-                  }}
-                  onChange={(e) => setWidthInput(e.target.value)}
-                  onBlur={commitWidth}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      setOpenRoofDropdown(null);
-                      e.currentTarget.blur();
-                    }
-                  }}
-                  className={`w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none ${
-                    isRoof && !readOnly ? "pr-7" : ""
-                  }`}
-                />
-                {isRoof && !readOnly && (
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setOpenRoofDropdown((prev) => (prev === "width" ? null : "width"));
+          <div ref={roofDimContainerRef} className="relative">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] font-medium text-[#7c8597] mb-1 truncate">
+                  Szerokość B (mm)
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    ref={widthInputRef}
+                    type={isRoof ? "text" : "number"}
+                    inputMode="numeric"
+                    step={10}
+                    min={300}
+                    max={12000}
+                    disabled={readOnly}
+                    value={widthInput}
+                    onFocus={() => {
+                      setFocusedField("width");
+                      if (isRoof) setOpenRoofDropdown("width");
                     }}
-                    className="absolute right-1.5 p-0.5 text-[#64748b] hover:text-[#0e7490] cursor-pointer"
-                    title="Wybierz standardową szerokość z listy"
-                  >
-                    <ChevronDown size={14} />
-                  </button>
-                )}
+                    onChange={(e) => setWidthInput(e.target.value)}
+                    onBlur={commitWidth}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        setOpenRoofDropdown(null);
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    className={`w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none ${
+                      isRoof && !readOnly ? "pr-7" : ""
+                    }`}
+                  />
+                  {isRoof && !readOnly && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setOpenRoofDropdown((prev) => (prev === "width" ? null : "width"));
+                      }}
+                      className="absolute right-1.5 p-0.5 text-[#64748b] hover:text-[#0e7490] cursor-pointer"
+                      title="Wybierz szerokość z tabeli"
+                    >
+                      <ChevronDown size={13} />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {isRoof && openRoofDropdown === "width" && !readOnly && (
-                <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-white border border-[#cbd5e1] rounded-lg shadow-xl overflow-hidden">
-                  <div className="max-h-56 overflow-y-auto py-1 divide-y divide-slate-50">
-                    {ROOF_STANDARD_WIDTHS_CM.map((wCm) => {
-                      const wMm = wCm * 10;
-                      const isCurrent = item.widthMm === wMm;
-                      const badgeCls =
-                        wCm <= 606
-                          ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-                          : wCm <= 906
-                          ? "bg-amber-100 text-amber-800 border-amber-200"
-                          : "bg-red-700 text-white border-red-800";
-                      return (
-                        <button
-                          key={wCm}
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setWidthInput(String(wMm));
-                            setOpenRoofDropdown(null);
-                            setFocusedField(null);
-                            applyDimensionChange(wMm, item.heightMm || 3000);
-                          }}
-                          className={`w-full px-2.5 py-1.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors cursor-pointer ${
-                            isCurrent ? "bg-[#f0fdff]" : ""
-                          }`}
-                        >
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono font-bold border ${badgeCls}`}
-                          >
-                            {wCm} cm
-                          </span>
-                          <span className="text-[10px] font-mono text-[#64748b]">
-                            {wMm} mm
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setOpenRoofDropdown(null);
-                      widthInputRef.current?.focus();
-                      widthInputRef.current?.select();
+              <div>
+                <label className="block text-[10px] font-medium text-[#7c8597] mb-1 truncate">
+                  {isRoof ? "Głębokość D (mm)" : isPergola ? "Wysięg D (mm)" : "Wysokość H (mm)"}
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    ref={heightInputRef}
+                    type={isRoof ? "text" : "number"}
+                    inputMode="numeric"
+                    step={10}
+                    min={300}
+                    max={8000}
+                    disabled={readOnly}
+                    value={heightInput}
+                    onFocus={() => {
+                      setFocusedField("height");
+                      if (isRoof) setOpenRoofDropdown("height");
                     }}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border-t border-slate-200 flex items-center justify-between text-[11px] font-medium text-[#475569] cursor-pointer"
-                  >
-                    <span>Wpisz własny</span>
-                    <Pencil size={12} />
-                  </button>
+                    onChange={(e) => setHeightInput(e.target.value)}
+                    onBlur={commitHeight}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        setOpenRoofDropdown(null);
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    className={`w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none ${
+                      isRoof && !readOnly ? "pr-7" : ""
+                    }`}
+                  />
+                  {isRoof && !readOnly && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setOpenRoofDropdown((prev) => (prev === "height" ? null : "height"));
+                      }}
+                      className="absolute right-1.5 p-0.5 text-[#64748b] hover:text-[#0e7490] cursor-pointer"
+                      title="Wybierz głębokość z tabeli"
+                    >
+                      <ChevronDown size={13} />
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
-
-            <div className="relative">
-              <label className="block text-[10px] font-medium text-[#7c8597] mb-1">
-                {isPergola || isRoof ? "Wysięg / Głębokość D (mm)" : "Wysokość H (mm)"}
-              </label>
-              <div className="relative flex items-center">
-                <input
-                  ref={heightInputRef}
-                  type="number"
-                  step={10}
-                  min={300}
-                  max={8000}
-                  disabled={readOnly}
-                  value={heightInput}
-                  onFocus={() => {
-                    setFocusedField("height");
-                    if (isRoof) setOpenRoofDropdown("height");
-                  }}
-                  onChange={(e) => setHeightInput(e.target.value)}
-                  onBlur={commitHeight}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      setOpenRoofDropdown(null);
-                      e.currentTarget.blur();
-                    }
-                  }}
-                  className={`w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none ${
-                    isRoof && !readOnly ? "pr-7" : ""
-                  }`}
-                />
-                {isRoof && !readOnly && (
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setOpenRoofDropdown((prev) => (prev === "height" ? null : "height"));
-                    }}
-                    className="absolute right-1.5 p-0.5 text-[#64748b] hover:text-[#0e7490] cursor-pointer"
-                    title="Wybierz standardową głębokość z listy"
-                  >
-                    <ChevronDown size={14} />
-                  </button>
-                )}
               </div>
-
-              {isRoof && openRoofDropdown === "height" && !readOnly && (
-                <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-white border border-[#cbd5e1] rounded-lg shadow-xl overflow-hidden">
-                  <div className="max-h-56 overflow-y-auto py-1 divide-y divide-slate-50">
-                    {ROOF_STANDARD_DEPTHS_CM.map((dCm) => {
-                      const dMm = dCm * 10;
-                      const isCurrent = item.heightMm === dMm;
-                      const badgeCls =
-                        dCm <= 400
-                          ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-                          : dCm <= 500
-                          ? "bg-amber-100 text-amber-800 border-amber-200"
-                          : "bg-red-700 text-white border-red-800";
-                      return (
-                        <button
-                          key={dCm}
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setHeightInput(String(dMm));
-                            setOpenRoofDropdown(null);
-                            setFocusedField(null);
-                            applyDimensionChange(item.widthMm || 4060, dMm);
-                          }}
-                          className={`w-full px-2.5 py-1.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors cursor-pointer ${
-                            isCurrent ? "bg-[#f0fdff]" : ""
-                          }`}
-                        >
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono font-bold border ${badgeCls}`}
-                          >
-                            {dCm}
-                          </span>
-                          <span className="text-[10px] font-mono text-[#64748b]">
-                            {dCm <= 400 ? "STANDARD" : "PRO+"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setOpenRoofDropdown(null);
-                      heightInputRef.current?.focus();
-                      heightInputRef.current?.select();
-                    }}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border-t border-slate-200 flex items-center justify-between text-[11px] font-medium text-[#475569] cursor-pointer"
-                  >
-                    <span>Wpisz własny</span>
-                    <Pencil size={12} />
-                  </button>
-                </div>
-              )}
             </div>
+
+            {isRoof && openRoofDropdown === "width" && !readOnly && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-[#cbd5e1] rounded-lg shadow-lg overflow-hidden">
+                <div className="p-2 grid grid-cols-2 gap-1.5 max-h-56 overflow-y-auto">
+                  {ROOF_STANDARD_WIDTHS_CM.map((wCm) => {
+                    const wMm = wCm * 10;
+                    const isCurrent = item.widthMm === wMm;
+                    const badgeCls =
+                      wCm <= 606
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : wCm <= 906
+                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                        : "bg-rose-50 text-rose-700 border-rose-200";
+                    return (
+                      <button
+                        key={wCm}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setWidthInput(String(wMm));
+                          setOpenRoofDropdown(null);
+                          setFocusedField(null);
+                          applyDimensionChange(wMm, item.heightMm || 3000);
+                        }}
+                        className={`px-2 py-1 rounded-md border text-[11px] font-mono font-bold flex items-center justify-between transition-all cursor-pointer ${
+                          isCurrent
+                            ? "ring-2 ring-[#4ABBC3] bg-[#f0fdff] border-[#4ABBC3]"
+                            : `${badgeCls} hover:brightness-95`
+                        }`}
+                      >
+                        <span>{wCm} cm</span>
+                        <span className="text-[9.5px] opacity-65 font-normal">{wMm}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setOpenRoofDropdown(null);
+                    widthInputRef.current?.focus();
+                    widthInputRef.current?.select();
+                  }}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border-t border-slate-200 flex items-center justify-between text-[11px] font-medium text-[#475569] cursor-pointer"
+                >
+                  <span>Wpisz własną szerokość (mm)</span>
+                  <Pencil size={11} />
+                </button>
+              </div>
+            )}
+
+            {isRoof && openRoofDropdown === "height" && !readOnly && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-[#cbd5e1] rounded-lg shadow-lg overflow-hidden">
+                <div className="p-2 grid grid-cols-2 gap-1.5 max-h-56 overflow-y-auto">
+                  {ROOF_STANDARD_DEPTHS_CM.map((dCm) => {
+                    const dMm = dCm * 10;
+                    const isCurrent = item.heightMm === dMm;
+                    const badgeCls =
+                      dCm <= 400
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : dCm <= 500
+                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                        : "bg-rose-50 text-rose-700 border-rose-200";
+                    return (
+                      <button
+                        key={dCm}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setHeightInput(String(dMm));
+                          setOpenRoofDropdown(null);
+                          setFocusedField(null);
+                          applyDimensionChange(item.widthMm || 4060, dMm);
+                        }}
+                        className={`px-2 py-1 rounded-md border text-[11px] font-mono font-bold flex items-center justify-between transition-all cursor-pointer ${
+                          isCurrent
+                            ? "ring-2 ring-[#4ABBC3] bg-[#f0fdff] border-[#4ABBC3]"
+                            : `${badgeCls} hover:brightness-95`
+                        }`}
+                      >
+                        <span>{dCm} cm</span>
+                        <span className="text-[9.5px] opacity-70 font-sans font-semibold">
+                          {dCm <= 400 ? "STD" : "PRO+"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setOpenRoofDropdown(null);
+                    heightInputRef.current?.focus();
+                    heightInputRef.current?.select();
+                  }}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border-t border-slate-200 flex items-center justify-between text-[11px] font-medium text-[#475569] cursor-pointer"
+                >
+                  <span>Wpisz własną głębokość (mm)</span>
+                  <Pencil size={11} />
+                </button>
+              </div>
+            )}
           </div>
 
           {isTriangle ? (
@@ -762,14 +760,14 @@ export function LeftPropertiesPanel({
               {roofStandardInfo.isStandard ? (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
                   <Check size={10} strokeWidth={2.5} />
-                  {roofStandardInfo.series} · STANDARD
+                  {roofStandardInfo.series === "PRO+" ? "PRO+ · STANDARD" : "STANDARD"}
                 </span>
               ) : (
                 <span
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-200"
                   title={`Najbliższy moduł z tabeli: ${roofStandardInfo.catalogKey}`}
                 >
-                  {roofStandardInfo.series} · NIESTANDARD ({roofStandardInfo.standardDepthCm}×{roofStandardInfo.standardWidthCm})
+                  {roofStandardInfo.series} · NIESTANDARD
                 </span>
               )}
             </div>
