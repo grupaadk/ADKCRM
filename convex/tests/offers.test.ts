@@ -628,6 +628,22 @@ describe("CAD Offers and Constructions Module", () => {
     expect(roofSvg).toContain("S2");
   });
 
+  test("calculates roof installation rates for STANDARD vs NIESTANDARD polycarbonate", async () => {
+    const { calculateRoofPricing } = await import("../../lib/roofPricing");
+
+    // 6000 x 3500 mm (21 m²) -> szerokość 600 cm != 606 cm => NIESTANDARD => 300 zł/m² => 6300 zł
+    const customPoly = calculateRoofPricing(6000, 3500, "polycarbonate");
+    expect(customPoly.isStandard).toBe(false);
+    expect(customPoly.areaM2).toBe(21);
+    expect(customPoly.installationPriceNet).toBe(6300);
+
+    // 6060 x 3500 mm (21.21 m²) -> STANDARD => 250 zł/m² => Math.round(21.21 * 250) = 5303 zł
+    const standardPoly = calculateRoofPricing(6060, 3500, "polycarbonate");
+    expect(standardPoly.isStandard).toBe(true);
+    expect(standardPoly.areaM2).toBe(21.21);
+    expect(standardPoly.installationPriceNet).toBe(5303);
+  });
+
   test("assigns Google Docs template to service and resolves it in offer", async () => {
     const { DEFAULT_OFFER_DOCS_TEMPLATE_ID, OFFER_DOCX_TEMPLATE_ID } = await import("../googleDrive");
     expect(DEFAULT_OFFER_DOCS_TEMPLATE_ID).toBe("1XJnz47VXgNXFrOagFj7JiFxcmesIFWQAkQXS7ckc-6Y");

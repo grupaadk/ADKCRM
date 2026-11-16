@@ -128,38 +128,42 @@ export function getRoofStandardDepthCm(depthCm: number): RoofStandardDepthCm {
 
 /**
  * Zwraca stawkę montażu netto za 1 m² (cena dla klienta oraz koszt bazowy ekipy).
+ * Dla szkła oraz wymiarów niestandardowych poliwęglanu obowiązuje stawka z kolumny "Niestdr" wg arkusza.
  */
 export function getRoofInstallationRates(
   areaM2: number,
-  coverType: RoofCoverType
+  coverType: RoofCoverType,
+  isStandard = true
 ): { pricePerM2: number; costPerM2: number } {
+  const useNiestandardRate = coverType === "glass" || !isStandard;
+
   if (areaM2 <= 10) {
     return {
-      pricePerM2: coverType === "glass" ? 450 : 400,
+      pricePerM2: useNiestandardRate ? 450 : 400,
       costPerM2: 350,
     };
   }
   if (areaM2 <= 15) {
     return {
-      pricePerM2: coverType === "glass" ? 400 : 350,
+      pricePerM2: useNiestandardRate ? 400 : 350,
       costPerM2: 300,
     };
   }
   if (areaM2 <= 20) {
     return {
-      pricePerM2: coverType === "glass" ? 350 : 300,
+      pricePerM2: useNiestandardRate ? 350 : 300,
       costPerM2: 250,
     };
   }
   if (areaM2 <= 25) {
     return {
-      pricePerM2: coverType === "glass" ? 300 : 250,
+      pricePerM2: useNiestandardRate ? 300 : 250,
       costPerM2: 200,
     };
   }
   // Powyżej 25 m² — wg sekcji KOSZTA w arkuszu (150 zł/m² koszt dla poliwęglanu, 200 zł/m² dla szkła)
   return {
-    pricePerM2: coverType === "glass" ? 250 : 200,
+    pricePerM2: useNiestandardRate ? 250 : 200,
     costPerM2: coverType === "glass" ? 200 : 150,
   };
 }
@@ -261,7 +265,7 @@ export function calculateRoofPricing(
     rawMaterialCost * ROOF_PRICING_CONFIG.materialMarkupMultiplier;
 
   const areaM2 = Math.round(((widthMm * depthMm) / 1_000_000) * 100) / 100;
-  const { pricePerM2, costPerM2 } = getRoofInstallationRates(areaM2, coverType);
+  const { pricePerM2, costPerM2 } = getRoofInstallationRates(areaM2, coverType, check.isStandard);
 
   const installationCostNet = Math.round(areaM2 * costPerM2);
   const installationPriceNet = Math.round(areaM2 * pricePerM2);
