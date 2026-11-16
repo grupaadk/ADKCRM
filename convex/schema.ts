@@ -1398,6 +1398,24 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_read", ["userId", "read"])
     .index("by_user_created", ["userId", "createdAt"]),
+
+  // Etapy montażu na wykresie Gantta w zleceniu (wewnętrzny harmonogram niezależny od Kalendarza CRM)
+  orderInstallationStages: defineTable({
+    orderId: v.id("orders"),
+    title: v.string(),
+    startDate: v.number(),
+    endDate: v.number(),
+    startMins: v.optional(v.number()),
+    endMins: v.optional(v.number()),
+    installationTeamId: v.optional(v.id("installationTeams")),
+    status: v.union(v.literal("planned"), v.literal("in_progress"), v.literal("done")),
+    note: v.optional(v.string()),
+    position: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_order", ["orderId"])
+    .index("by_team", ["installationTeamId"]),
 });
 
 

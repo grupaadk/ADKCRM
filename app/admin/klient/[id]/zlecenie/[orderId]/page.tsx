@@ -32,6 +32,7 @@ import Notes from "../../Notes";
 import InlineEdit from "../../InlineEdit";
 import EventTimeline from "../../EventTimeline";
 import ReminderModal from "@/app/admin/faktury/ReminderModal";
+import { OrderInstallationGantt } from "@/components/OrderInstallationGantt";
 import {
   Table,
   TableBody,
@@ -6984,8 +6985,18 @@ export default function OrderDetailPage({
       {/* ── Tab: Montaż ── */}
       {activeTab === "montaz" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <SectionCard title="Harmonogram montażu (Gantt)">
+            <div style={{ padding: 16 }}>
+              <OrderInstallationGantt
+                orderId={orderIdTyped}
+                defaultTeamId={order.installationTeamId}
+                installationTeams={installationTeams}
+              />
+            </div>
+          </SectionCard>
+
           <SectionCard
-            title="Terminy montażu"
+            title="Terminy w Kalendarzu CRM"
             action={
               (order.installationDates && order.installationDates.length > 0) || order.projectEndDate || order.installationStartDate ? (
                 <button
