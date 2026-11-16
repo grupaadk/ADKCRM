@@ -211,4 +211,102 @@ describe("Moduł HR (Urlopy i Nadgodziny)", () => {
     const pendingLeave = allHr.leaves.find((l) => l.userId === workerId && l.status === "pending");
     expect(pendingLeave?.isOverLimit).toBe(true);
   });
+
+  test("arkusz urlopów i godzin (getSpreadsheetData, setLeaveCell, setOvertimeCell, updateEmployeeSheetConfig)", async () => {
+    const t = convexTest(schema);
+
+    const { user1Id, user2Id } = await t.run(async (ctx) => {
+      const u1 = await ctx.db.insert("users", {
+        email: "rafal@adkokna.pl",
+        firstName: "Rafał",
+        displayName: "Rafał Kowalski",
+        role: "sales",
+        isActive: true,
+      });
+      const u2 = await ctx.db.insert("users", {
+        email: "bartek@adkokna.pl",
+        firstName: "Bartek",
+        displayName: "Bartek Nowak",
+        role: "montaz",
+        isActive: true,
+      });
+      return { user1Id: u1, user2Id: u2 };
+    });
+
+    const userCtx = t.withIdentity({
+      subject: user1Id,
+      email: "rafal@adkokna.pl",
+    });
+
+    // Ustawienie limitu Bartka na 11 dni i ukrycie w tabeli GODZINY
+    await userCtx.mutation(api.hr.updateEmployeeSheetConfig, {
+      userId: user2Id,
+      year: 2026,
+      daysCount: 11,
+      showInOvertime: false,
+    });
+
+    // Wpisanie dat urlopowych w konkretne wiersze (kratki)
+    await userCtx.mutation(api.hr.setLeaveCell, {
+      userId: user1Id,
+      year: 2026,
+      rowIndex: 0,
+      value: "02.01",
+    });
+    await userCtx.mutation(api.hr.setLeaveCell, {
+      userId: user1Id,
+      year: 2026,
+      rowIndex: 2,
+      value: "14.08",
+    });
+
+    // Wpisanie godzin w formacie arkuszowym
+    await userCtx.mutation(api.hr.setOvertimeCell, {
+      userId: user1Id,
+      year: 2026,
+      rowIndex: 0,
+      rawText: "- 2,5 h",
+    });
+    await userCtx.mutation(api.hr.setOvertimeCell, {
+      userId: user1Id,
+      year: 2026,
+      rowIndex: 1,
+      rawText: "- 1h (17.08)",
+    });
+
+    const sheet = await userCtx.query(api.hr.getSpreadsheetData, { year: 2026 });
+    const emp1 = sheet.employees.find((e) => e._id === user1Id);
+    const emp2 = sheet.employees.find((e) => e._id === user2Id);
+
+    expect(emp1).toBeDefined();
+    expect(emp1?.shortName).toBe("Rafał");
+    expect(emp1?.vacationAllowance).toBe(26);
+    expect(emp1?.usedLeaveDays).toBe(2);
+    expect(emp1?.remainingLeaveDays).toBe(24);
+    expect(emp1?.leaveCells[0]?.displayDate).toBe("02.01");
+    expect(emp1?.leaveCells[0]?.dateStr).toBe("2026-01-02");
+    expect(emp1?.leaveCells[2]?.displayDate).toBe("14.08");
+    expect(emp1?.overtimeCells[0]?.rawText).toBe("- 2,5 h");
+    expect(emp1?.overtimeCells[0]?.hours).toBe(-2.5);
+    expect(emp1?.overtimeCells[1]?.rawText).toBe("- 1h (17.08)");
+    expect(emp1?.overtimeCells[1]?.hours).toBe(-1);
+    expect(emp1?.totalOvertimeHours).toBe(-3.5);
+
+    expect(emp2?.shortName).toBe("Bartek");
+    expect(emp2?.vacationAllowance).toBe(11);
+    expect(emp2?.showInOvertime).toBe(false);
+
+    // Wyczyszczenie komórki urlopowej (rowIndex: 0)
+    await userCtx.mutation(api.hr.setLeaveCell, {
+      userId: user1Id,
+      year: 2026,
+      rowIndex: 0,
+      value: "",
+    });
+
+    const sheetAfterDelete = await userCtx.query(api.hr.getSpreadsheetData, { year: 2026 });
+    const emp1After = sheetAfterDelete.employees.find((e) => e._id === user1Id);
+    expect(emp1After?.usedLeaveDays).toBe(1);
+    expect(emp1After?.leaveCells[0]).toBeUndefined();
+  });
 });

@@ -1145,11 +1145,14 @@ export default defineSchema({
       v.literal("cancelled")
     ),
     reason: v.optional(v.string()),
+    year: v.optional(v.number()),
+    rowIndex: v.optional(v.number()),
     approvedBy: v.optional(v.id("users")),
     approvedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
+    .index("by_user_year", ["userId", "year"])
     .index("by_status", ["status"])
     .index("by_start", ["startDate"]),
 
@@ -1159,6 +1162,9 @@ export default defineSchema({
     date: v.string(), // YYYY-MM-DD
     hours: v.number(),
     description: v.string(),
+    rawText: v.optional(v.string()),
+    year: v.optional(v.number()),
+    rowIndex: v.optional(v.number()),
     status: v.union(
       v.literal("pending"),
       v.literal("approved"),
@@ -1169,6 +1175,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
+    .index("by_user_year", ["userId", "year"])
     .index("by_status", ["status"])
     .index("by_date", ["date"]),
 
@@ -1177,6 +1184,9 @@ export default defineSchema({
     userId: v.id("users"),
     year: v.number(),
     daysCount: v.number(),
+    showInLeaves: v.optional(v.boolean()),
+    showInOvertime: v.optional(v.boolean()),
+    sortOrder: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

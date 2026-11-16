@@ -579,3 +579,461 @@ export const setEmployeeVacationAllowance = mutation({
   },
 });
 
+/**
+ * Parsuje datę wpisaną w komórce arkusza (np. "02.01", "2.1", "14.08", "2026-08-14")
+ * do ustandaryzowanego formatu YYYY-MM-DD oraz DD.MM.
+ */
+function parseLeaveCellDate(input: string, year: number): { dateStr: string; displayDate: string } {
+  const trimmed = input.trim();
+
+  // Format YYYY-MM-DD
+  const isoMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(trimmed);
+  if (isoMatch) {
+    const m = Number(isoMatch[2]);
+    const d = Number(isoMatch[3]);
+    if (m < 1 || m > 12 || d < 1 || d > 31) {
+      throw new ConvexError("Nieprawidłowa data. Podaj poprawny dzień i miesiąc (np. 14.08).");
+    }
+    const mm = String(m).padStart(2, "0");
+    const dd = String(d).padStart(2, "0");
+    return {
+      dateStr: `${year}-${mm}-${dd}`,
+      displayDate: `${dd}.${mm}`,
+    };
+  }
+
+  // Format DD.MM lub DD,MM lub DD/MM lub DD-MM (opcjonalnie z rokiem na końcu)
+  const dmMatch = /^(\d{1,2})[.,/-](\d{1,2})(?:[.,/-]\d{2,4})?$/.exec(trimmed);
+  if (dmMatch) {
+    const d = Number(dmMatch[1]);
+    const m = Number(dmMatch[2]);
+    if (m < 1 || m > 12 || d < 1 || d > 31) {
+      throw new ConvexError("Nieprawidłowa data. Podaj dzień (1-31) i miesiąc (1-12), np. 02.01.");
+    }
+    const dd = String(d).padStart(2, "0");
+    const mm = String(m).padStart(2, "0");
+    return {
+      dateStr: `${year}-${mm}-${dd}`,
+      displayDate: `${dd}.${mm}`,
+    };
+  }
+
+  throw new ConvexError("Wpisz datę w formacie DD.MM (np. 02.01 lub 14.08).");
+}
+
+/**
+ * Wyciąga liczbę godzin (w tym ujemną i z przecinkiem, np. "- 2,5 h", "-1,5 (06.11)")
+ * oraz opcjonalną datę z tekstu komórki GODZINY.
+ */
+function parseOvertimeCellText(rawText: string, year: number): { hours: number; dateStr: string } {
+  const trimmed = rawText.trim();
+  // Szukamy liczby na początku wpisu, np. "- 2,5", "-5", "+1.5", "2,5"
+  const hoursMatch = /^([+-]?\s*\d+(?:[.,]\d+)?)/.exec(trimmed);
+  let hours = 0;
+  if (hoursMatch) {
+    const normalized = hoursMatch[1].replace(/\s+/g, "").replace(",", ".");
+    const parsed = Number(normalized);
+    if (!Number.isNaN(parsed)) {
+      hours = parsed;
+    }
+  }
+
+  // Szukamy daty w nawiasie lub w dalszej części tekstu, np. "(17.08)" lub "( 8.09)"
+  let dateStr = `${year}-01-01`;
+  const dateInParens = /\(\s*(\d{1,2})\.(\d{1,2})\s*\)/.exec(trimmed);
+  if (dateInParens) {
+    const d = Number(dateInParens[1]);
+    const m = Number(dateInParens[2]);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      dateStr = `${year}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+
+  return { hours, dateStr };
+}
+
+function formatDateToDdMm(dateStr: string): string {
+  const parts = dateStr.split("-");
+  if (parts.length === 3) {
+    return `${parts[2]}.${parts[1]}`;
+  }
+  return dateStr;
+}
+
+/**
+ * Pobiera komplet danych do widoku arkuszowego URLOPY {ROK} oraz GODZINY.
+ */
+export const getSpreadsheetData = query({
+  args: {
+    year: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireUser(ctx);
+
+    const users = await ctx.db.query("users").take(200);
+    const activeUsers = users.filter((u) => u.isActive !== false && u.showInPickers !== false);
+
+    const allowances = await ctx.db.query("hrLeaveAllowances").take(500);
+    const allowanceByUser = new Map<Id<"users">, Doc<"hrLeaveAllowances">>();
+    for (const a of allowances) {
+      if (a.year === args.year) {
+        allowanceByUser.set(a.userId, a);
+      }
+    }
+
+    const allLeaves = await ctx.db.query("hrLeaves").take(2000);
+    const allOvertime = await ctx.db.query("hrOvertime").take(2000);
+
+    const yearPrefix = `${args.year}-`;
+
+    const employees = activeUsers.map((user, idx) => {
+      const allowanceDoc = allowanceByUser.get(user._id);
+      const vacationAllowance = allowanceDoc?.daysCount ?? user.vacationDaysAllowance ?? 26;
+      const showInLeaves = allowanceDoc?.showInLeaves ?? true;
+      const showInOvertime = allowanceDoc?.showInOvertime ?? true;
+      const sortOrder = allowanceDoc?.sortOrder ?? idx;
+
+      // Urlopy pracownika w danym roku (pomijamy odrzucone/anulowane z dawnego systemu)
+      const userLeaves = allLeaves.filter(
+        (l) =>
+          l.userId === user._id &&
+          l.status !== "rejected" &&
+          l.status !== "cancelled" &&
+          (l.year === args.year || (l.year === undefined && l.startDate.startsWith(yearPrefix)))
+      );
+
+      const leaveCells: Record<
+        number,
+        { _id: Id<"hrLeaves">; dateStr: string; displayDate: string }
+      > = {};
+
+      const unassignedLeaves: Doc<"hrLeaves">[] = [];
+      for (const l of userLeaves) {
+        if (typeof l.rowIndex === "number" && l.rowIndex >= 0) {
+          leaveCells[l.rowIndex] = {
+            _id: l._id,
+            dateStr: l.startDate,
+            displayDate: formatDateToDdMm(l.startDate),
+          };
+        } else {
+          unassignedLeaves.push(l);
+        }
+      }
+
+      // Przypisz ewentualne starsze wpisy bez rowIndex do pierwszych wolnych wierszy
+      unassignedLeaves.sort((a, b) => a.startDate.localeCompare(b.startDate));
+      let nextLeaveRow = 0;
+      for (const l of unassignedLeaves) {
+        while (leaveCells[nextLeaveRow] !== undefined) {
+          nextLeaveRow++;
+        }
+        leaveCells[nextLeaveRow] = {
+          _id: l._id,
+          dateStr: l.startDate,
+          displayDate: formatDateToDdMm(l.startDate),
+        };
+        nextLeaveRow++;
+      }
+
+      // Godziny pracownika w danym roku
+      const userOvertime = allOvertime.filter(
+        (o) =>
+          o.userId === user._id &&
+          o.status !== "rejected" &&
+          (o.year === args.year || (o.year === undefined && o.date.startsWith(yearPrefix)))
+      );
+
+      const overtimeCells: Record<
+        number,
+        { _id: Id<"hrOvertime">; rawText: string; hours: number; dateStr: string }
+      > = {};
+
+      const unassignedOvertime: Doc<"hrOvertime">[] = [];
+      for (const o of userOvertime) {
+        if (typeof o.rowIndex === "number" && o.rowIndex >= 0) {
+          const fallbackText = `${o.hours > 0 ? `+${o.hours}` : o.hours}h (${formatDateToDdMm(o.date)})`;
+          overtimeCells[o.rowIndex] = {
+            _id: o._id,
+            rawText: o.rawText ?? fallbackText,
+            hours: o.hours,
+            dateStr: o.date,
+          };
+        } else {
+          unassignedOvertime.push(o);
+        }
+      }
+
+      unassignedOvertime.sort((a, b) => a.date.localeCompare(b.date));
+      let nextOtRow = 0;
+      for (const o of unassignedOvertime) {
+        while (overtimeCells[nextOtRow] !== undefined) {
+          nextOtRow++;
+        }
+        const fallbackText = `${o.hours > 0 ? `+${o.hours}` : o.hours}h (${formatDateToDdMm(o.date)})`;
+        overtimeCells[nextOtRow] = {
+          _id: o._id,
+          rawText: o.rawText ?? fallbackText,
+          hours: o.hours,
+          dateStr: o.date,
+        };
+        nextOtRow++;
+      }
+
+      const usedLeaveDays = Object.keys(leaveCells).length;
+      const totalOvertimeHours = Object.values(overtimeCells).reduce(
+        (sum, cell) => sum + cell.hours,
+        0
+      );
+
+      const shortName =
+        user.firstName?.trim() ||
+        user.displayName?.trim().split(/\s+/)[0] ||
+        user.email?.split("@")[0] ||
+        "Pracownik";
+
+      return {
+        _id: user._id,
+        shortName,
+        displayName: user.displayName || user.email || "Pracownik",
+        email: user.email,
+        color: user.color,
+        role: user.role,
+        vacationAllowance,
+        showInLeaves,
+        showInOvertime,
+        sortOrder,
+        leaveCells,
+        overtimeCells,
+        usedLeaveDays,
+        remainingLeaveDays: vacationAllowance - usedLeaveDays,
+        totalOvertimeHours,
+      };
+    });
+
+    employees.sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return a.displayName.localeCompare(b.displayName, "pl");
+    });
+
+    return {
+      year: args.year,
+      employees,
+    };
+  },
+});
+
+/**
+ * Zapisuje lub usuwa wpis w pojedynczej komórce tabeli URLOPY.
+ */
+export const setLeaveCell = mutation({
+  args: {
+    userId: v.id("users"),
+    year: v.number(),
+    rowIndex: v.number(),
+    value: v.string(),
+    existingId: v.optional(v.id("hrLeaves")),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await requireUser(ctx);
+
+    if (args.rowIndex < 0 || args.rowIndex > 365) {
+      throw new ConvexError("Nieprawidłowy indeks wiersza.");
+    }
+
+    let existingCell: Doc<"hrLeaves"> | null = null;
+    if (args.existingId) {
+      existingCell = await ctx.db.get(args.existingId);
+    }
+    if (!existingCell) {
+      const existingForUserYear = await ctx.db
+        .query("hrLeaves")
+        .withIndex("by_user_year", (q) => q.eq("userId", args.userId).eq("year", args.year))
+        .take(400);
+      existingCell = existingForUserYear.find((l) => l.rowIndex === args.rowIndex) ?? null;
+    }
+
+    const trimmed = args.value.trim();
+
+    if (!trimmed) {
+      if (existingCell) {
+        await ctx.db.delete(existingCell._id);
+      }
+      return { deleted: true };
+    }
+
+    const { dateStr, displayDate } = parseLeaveCellDate(trimmed, args.year);
+    const now = Date.now();
+
+    if (existingCell) {
+      await ctx.db.patch(existingCell._id, {
+        startDate: dateStr,
+        endDate: dateStr,
+        daysCount: 1,
+        type: "vacation",
+        status: "approved",
+        year: args.year,
+        rowIndex: args.rowIndex,
+        approvedBy: currentUser._id,
+        approvedAt: now,
+      });
+      return { deleted: false, leaveId: existingCell._id, dateStr, displayDate };
+    }
+
+    const leaveId = await ctx.db.insert("hrLeaves", {
+      userId: args.userId,
+      type: "vacation",
+      startDate: dateStr,
+      endDate: dateStr,
+      daysCount: 1,
+      status: "approved",
+      year: args.year,
+      rowIndex: args.rowIndex,
+      approvedBy: currentUser._id,
+      approvedAt: now,
+      createdAt: now,
+    });
+
+    return { deleted: false, leaveId, dateStr, displayDate };
+  },
+});
+
+/**
+ * Zapisuje lub usuwa wpis w pojedynczej komórce tabeli GODZINY.
+ */
+export const setOvertimeCell = mutation({
+  args: {
+    userId: v.id("users"),
+    year: v.number(),
+    rowIndex: v.number(),
+    rawText: v.string(),
+    existingId: v.optional(v.id("hrOvertime")),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await requireUser(ctx);
+
+    if (args.rowIndex < 0 || args.rowIndex > 365) {
+      throw new ConvexError("Nieprawidłowy indeks wiersza.");
+    }
+
+    let existingCell: Doc<"hrOvertime"> | null = null;
+    if (args.existingId) {
+      existingCell = await ctx.db.get(args.existingId);
+    }
+    if (!existingCell) {
+      const existingForUserYear = await ctx.db
+        .query("hrOvertime")
+        .withIndex("by_user_year", (q) => q.eq("userId", args.userId).eq("year", args.year))
+        .take(400);
+      existingCell = existingForUserYear.find((o) => o.rowIndex === args.rowIndex) ?? null;
+    }
+
+    const trimmed = args.rawText.trim();
+
+    if (!trimmed) {
+      if (existingCell) {
+        await ctx.db.delete(existingCell._id);
+      }
+      return { deleted: true };
+    }
+
+    const { hours, dateStr } = parseOvertimeCellText(trimmed, args.year);
+    const now = Date.now();
+
+    if (existingCell) {
+      await ctx.db.patch(existingCell._id, {
+        date: dateStr,
+        hours,
+        description: trimmed,
+        rawText: trimmed,
+        year: args.year,
+        rowIndex: args.rowIndex,
+        status: "approved",
+        approvedBy: currentUser._id,
+        approvedAt: now,
+      });
+      return { deleted: false, overtimeId: existingCell._id, rawText: trimmed, hours };
+    }
+
+    const overtimeId = await ctx.db.insert("hrOvertime", {
+      userId: args.userId,
+      date: dateStr,
+      hours,
+      description: trimmed,
+      rawText: trimmed,
+      year: args.year,
+      rowIndex: args.rowIndex,
+      status: "approved",
+      approvedBy: currentUser._id,
+      approvedAt: now,
+      createdAt: now,
+    });
+
+    return { deleted: false, overtimeId, rawText: trimmed, hours };
+  },
+});
+
+/**
+ * Aktualizuje konfigurację arkusza dla pracownika (limit dni urlopu, widoczność w tabelach, kolejność).
+ */
+export const updateEmployeeSheetConfig = mutation({
+  args: {
+    userId: v.id("users"),
+    year: v.number(),
+    daysCount: v.optional(v.number()),
+    showInLeaves: v.optional(v.boolean()),
+    showInOvertime: v.optional(v.boolean()),
+    sortOrder: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireUser(ctx);
+
+    if (args.daysCount !== undefined && (args.daysCount < 0 || args.daysCount > 365)) {
+      throw new ConvexError("Limit dni urlopu musi mieścić się w przedziale 0–365.");
+    }
+
+    const existing = await ctx.db
+      .query("hrLeaveAllowances")
+      .withIndex("by_user_year", (q) => q.eq("userId", args.userId).eq("year", args.year))
+      .first();
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new ConvexError("Pracownik nie istnieje.");
+    }
+
+    const now = Date.now();
+    const resolvedDays = args.daysCount ?? existing?.daysCount ?? user.vacationDaysAllowance ?? 26;
+
+    if (existing) {
+      const patch: Partial<Doc<"hrLeaveAllowances">> = {
+        updatedAt: now,
+      };
+      if (args.daysCount !== undefined) patch.daysCount = args.daysCount;
+      if (args.showInLeaves !== undefined) patch.showInLeaves = args.showInLeaves;
+      if (args.showInOvertime !== undefined) patch.showInOvertime = args.showInOvertime;
+      if (args.sortOrder !== undefined) patch.sortOrder = args.sortOrder;
+      await ctx.db.patch(existing._id, patch);
+    } else {
+      await ctx.db.insert("hrLeaveAllowances", {
+        userId: args.userId,
+        year: args.year,
+        daysCount: resolvedDays,
+        showInLeaves: args.showInLeaves ?? true,
+        showInOvertime: args.showInOvertime ?? true,
+        sortOrder: args.sortOrder,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    if (args.daysCount !== undefined) {
+      await ctx.db.patch(args.userId, {
+        vacationDaysAllowance: args.daysCount,
+      });
+    }
+
+    return { success: true };
+  },
+});
+
+
