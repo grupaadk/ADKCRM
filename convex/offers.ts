@@ -842,6 +842,19 @@ export const addConstructionPosition = mutation({
           : rateCost + (construction.installationMarkupValue || 50);
       baseInstCost = Math.round((width / 1000) * rateCost);
       baseInstPrice = Math.round((width / 1000) * rateClient);
+    } else if (
+      construction?.installationUnit === "m2" &&
+      construction.installationUnitRate !== undefined &&
+      args.installationPriceNet === undefined
+    ) {
+      const rateCost = construction.installationUnitRate;
+      const rateClient =
+        construction.installationMarkupType === "percent"
+          ? Math.round(rateCost * (1 + (construction.installationMarkupValue || 0) / 100))
+          : rateCost + (construction.installationMarkupValue || 0);
+      const areaM2 = (width * height) / 1_000_000;
+      baseInstCost = Math.round(areaM2 * rateCost);
+      baseInstPrice = Math.round(areaM2 * rateClient);
     }
 
     const basePriceNet = args.priceNet ?? (matchedRange ? (baseMaterialPrice + baseInstPrice) : (construction?.defaultPriceNet ?? 0));
@@ -1006,8 +1019,8 @@ export const updateConstructionPosition = mutation({
         patch.priceNet = calc.priceNet;
         patch.costNet = calc.costNet;
       }
-    } else if (fields.widthMm !== undefined) {
-      // Obsługa szablonów z cennikiem schodkowym (np. trójkąty tarasowe lewe i prawe)
+    } else if (fields.widthMm !== undefined || fields.heightMm !== undefined) {
+      // Obsługa szablonów z cennikiem schodkowym lub montażem zależnym od m² / mb (np. trójkąty, pergole)
       let tpl = item.constructionId ? await ctx.db.get(item.constructionId) : null;
       if (!tpl) {
         const allConstructions = await ctx.db.query("constructions").collect();
@@ -1039,6 +1052,17 @@ export const updateConstructionPosition = mutation({
             instPrice = Math.round((newWidth / 1000) * rateClient);
             patch.installationPriceNet = instPrice;
             patch.installationCostNet = instCost;
+          } else if (tpl.installationUnit === "m2" && fields.installationPriceNet === undefined) {
+            const rateCost = tpl.installationUnitRate ?? 250;
+            const rateClient =
+              tpl.installationMarkupType === "percent"
+                ? Math.round(rateCost * (1 + (tpl.installationMarkupValue || 0) / 100))
+                : rateCost + (tpl.installationMarkupValue || 0);
+            const areaM2 = (newWidth * newHeight) / 1_000_000;
+            instCost = Math.round(areaM2 * rateCost);
+            instPrice = Math.round(areaM2 * rateClient);
+            patch.installationPriceNet = instPrice;
+            patch.installationCostNet = instCost;
           }
           const matCost = matched.costNet ?? matched.priceNet;
           const matPrice =
@@ -1053,6 +1077,33 @@ export const updateConstructionPosition = mutation({
           patch.costNet = matCost + instCost;
           patch.pricingTier = matched.label || `${matched.minWidthMm}-${matched.maxWidthMm} mm`;
         }
+      } else if (
+        tpl &&
+        (tpl.installationUnit === "m2" || tpl.installationUnit === "mb") &&
+        fields.installationPriceNet === undefined &&
+        fields.priceNet === undefined
+      ) {
+        const rateCost = tpl.installationUnitRate ?? (tpl.installationUnit === "m2" ? 250 : 200);
+        const rateClient =
+          tpl.installationMarkupType === "percent"
+            ? Math.round(rateCost * (1 + (tpl.installationMarkupValue || 0) / 100))
+            : rateCost + (tpl.installationMarkupValue || 0);
+        const instCost =
+          tpl.installationUnit === "m2"
+            ? Math.round(((newWidth * newHeight) / 1_000_000) * rateCost)
+            : Math.round((newWidth / 1000) * rateCost);
+        const instPrice =
+          tpl.installationUnit === "m2"
+            ? Math.round(((newWidth * newHeight) / 1_000_000) * rateClient)
+            : Math.round((newWidth / 1000) * rateClient);
+        const matCost = (fields.materialCostNet as number | undefined) ?? item.materialCostNet ?? tpl.materialCostNet ?? 0;
+        const matPrice = (fields.materialPriceNet as number | undefined) ?? item.materialPriceNet ?? tpl.materialPriceNet ?? 0;
+        patch.installationCostNet = instCost;
+        patch.installationPriceNet = instPrice;
+        patch.materialCostNet = matCost;
+        patch.materialPriceNet = matPrice;
+        patch.costNet = matCost + instCost;
+        patch.priceNet = matPrice + instPrice;
       }
     }
 

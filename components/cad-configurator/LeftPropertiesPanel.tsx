@@ -54,7 +54,17 @@ export function LeftPropertiesPanel({
   const [instPriceInput, setInstPriceInput] = React.useState<string>(instPrice ? instPrice.toString() : "");
   const [matCostInput, setMatCostInput] = React.useState<string>(matCost ? matCost.toString() : "");
   const [matPriceInput, setMatPriceInput] = React.useState<string>(matPrice ? matPrice.toString() : "");
+  const [widthInput, setWidthInput] = React.useState<string>(String(item.widthMm || 2880));
+  const [heightInput, setHeightInput] = React.useState<string>(String(item.heightMm || 2300));
   const [focusedField, setFocusedField] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (focusedField !== "width") setWidthInput(String(item.widthMm || 2880));
+  }, [item.widthMm, focusedField]);
+
+  React.useEffect(() => {
+    if (focusedField !== "height") setHeightInput(String(item.heightMm || 2300));
+  }, [item.heightMm, focusedField]);
 
   React.useEffect(() => {
     if (focusedField !== "instCost") setInstCostInput(instCost ? instCost.toString() : "");
@@ -174,6 +184,125 @@ export function LeftPropertiesPanel({
       )
     : null;
 
+  const applyDimensionChange = (nextW: number, nextH: number) => {
+    if (isGlass) {
+      const calc = calculateGlassSystemPricing(nextW, nextH);
+      onChange({
+        widthMm: nextW,
+        heightMm: nextH,
+        materialCostNet: calc.materialCostNet,
+        brushesCostNet: calc.brushesCostNet,
+        handlesCostNet: calc.handlesCostNet,
+        materialPriceNet: calc.materialPriceNet,
+        installationCostNet: calc.installationCostNet,
+        installationPriceNet: calc.installationPriceNet,
+        priceNet: calc.priceNet,
+        costNet: calc.costNet,
+        isStandard: calc.isStandard,
+        pricingTier: calc.pricingTier,
+        standardWidthCm: calc.standardWidthCm,
+      });
+      return;
+    }
+
+    let curInstPrice = item.installationPriceNet ?? template?.installationPriceNet ?? 0;
+    let curInstCost = item.installationCostNet ?? template?.installationCostNet ?? 0;
+    let instRecalculated = false;
+
+    if (template?.installationUnit === "mb") {
+      const rateCost = template.installationUnitRate ?? 200;
+      const rateClient =
+        template.installationMarkupType === "percent"
+          ? Math.round(rateCost * (1 + (template.installationMarkupValue || 0) / 100))
+          : rateCost + (template.installationMarkupValue || 50);
+      curInstCost = Math.round((nextW / 1000) * rateCost);
+      curInstPrice = Math.round((nextW / 1000) * rateClient);
+      instRecalculated = true;
+    } else if (template?.installationUnit === "m2") {
+      const rateCost = template.installationUnitRate ?? 250;
+      const rateClient =
+        template.installationMarkupType === "percent"
+          ? Math.round(rateCost * (1 + (template.installationMarkupValue || 0) / 100))
+          : rateCost + (template.installationMarkupValue || 0);
+      const areaM2 = (nextW * nextH) / 1_000_000;
+      curInstCost = Math.round(areaM2 * rateCost);
+      curInstPrice = Math.round(areaM2 * rateClient);
+      instRecalculated = true;
+    }
+
+    if (effectivePricingRanges) {
+      const range = matchPricingRange(effectivePricingRanges, nextW);
+      if (range) {
+        const mCost = range.costNet ?? range.priceNet;
+        const mPrice =
+          range.priceNet && range.priceNet !== range.costNet
+            ? range.priceNet
+            : template?.materialMarkupType === "percent"
+            ? Math.round(mCost * (1 + (template.materialMarkupValue || 0) / 100))
+            : mCost + (template?.materialMarkupValue || 0);
+
+        onChange({
+          widthMm: nextW,
+          heightMm: nextH,
+          materialPriceNet: mPrice,
+          materialCostNet: mCost,
+          installationCostNet: curInstCost,
+          installationPriceNet: curInstPrice,
+          priceNet: mPrice + curInstPrice,
+          costNet: mCost + curInstCost,
+          pricingTier: range.label || `${range.minWidthMm}-${range.maxWidthMm} mm`,
+        });
+        return;
+      }
+    }
+
+    if (instRecalculated) {
+      const mCost = item.materialCostNet ?? template?.materialCostNet ?? matCost;
+      const mPrice = item.materialPriceNet ?? template?.materialPriceNet ?? matPrice;
+      onChange({
+        widthMm: nextW,
+        heightMm: nextH,
+        materialCostNet: mCost,
+        materialPriceNet: mPrice,
+        installationCostNet: curInstCost,
+        installationPriceNet: curInstPrice,
+        costNet: mCost + curInstCost,
+        priceNet: mPrice + curInstPrice,
+      });
+      return;
+    }
+
+    onChange({ widthMm: nextW, heightMm: nextH });
+  };
+
+  const commitWidth = () => {
+    setFocusedField(null);
+    const parsed = parseInt(widthInput, 10);
+    if (Number.isNaN(parsed)) {
+      setWidthInput(String(item.widthMm || 2880));
+      return;
+    }
+    const nextW = Math.min(12000, Math.max(300, parsed));
+    setWidthInput(String(nextW));
+    if (nextW !== item.widthMm) {
+      applyDimensionChange(nextW, item.heightMm || 2300);
+    }
+  };
+
+  const commitHeight = () => {
+    setFocusedField(null);
+    const parsed = parseInt(heightInput, 10);
+    if (Number.isNaN(parsed)) {
+      setHeightInput(String(item.heightMm || 2300));
+      return;
+    }
+    const nextH = Math.min(8000, Math.max(300, parsed));
+    setHeightInput(String(nextH));
+    if (nextH !== item.heightMm) {
+      applyDimensionChange(item.widthMm || 2880, nextH);
+    }
+  };
+
   return (
     <aside className="w-80 bg-white border-r border-[#e3e7ee] flex flex-col h-full text-[#1f2937] select-none overflow-hidden shrink-0">
       {/* Header */}
@@ -254,65 +383,13 @@ export function LeftPropertiesPanel({
                 min={300}
                 max={12000}
                 disabled={readOnly}
-                value={item.widthMm || 2880}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  if (!Number.isNaN(val) && val >= 300) {
-                    const nextW = Math.min(12000, val);
-                    if (isGlass) {
-                      const calc = calculateGlassSystemPricing(nextW, item.heightMm || 2300);
-                      onChange({
-                        widthMm: nextW,
-                        materialCostNet: calc.materialCostNet,
-                        brushesCostNet: calc.brushesCostNet,
-                        handlesCostNet: calc.handlesCostNet,
-                        materialPriceNet: calc.materialPriceNet,
-                        installationCostNet: calc.installationCostNet,
-                        installationPriceNet: calc.installationPriceNet,
-                        priceNet: calc.priceNet,
-                        costNet: calc.costNet,
-                        isStandard: calc.isStandard,
-                        pricingTier: calc.pricingTier,
-                        standardWidthCm: calc.standardWidthCm,
-                      });
-                    } else if (effectivePricingRanges) {
-                      const range = matchPricingRange(effectivePricingRanges, nextW);
-                      if (range) {
-                        let curInstPrice = item.installationPriceNet ?? template?.installationPriceNet ?? 0;
-                        let curInstCost = item.installationCostNet ?? template?.installationCostNet ?? 0;
-                        if (template?.installationUnit === "mb") {
-                          const rateCost = template.installationUnitRate ?? 200;
-                          const rateClient =
-                            template.installationMarkupType === "percent"
-                              ? Math.round(rateCost * (1 + (template.installationMarkupValue || 0) / 100))
-                              : rateCost + (template.installationMarkupValue || 50);
-                          curInstCost = Math.round((nextW / 1000) * rateCost);
-                          curInstPrice = Math.round((nextW / 1000) * rateClient);
-                        }
-                        const mCost = range.costNet ?? range.priceNet;
-                        const mPrice =
-                          range.priceNet && range.priceNet !== range.costNet
-                            ? range.priceNet
-                            : (template?.materialMarkupType === "percent"
-                                ? Math.round(mCost * (1 + (template.materialMarkupValue || 0) / 100))
-                                : mCost + (template?.materialMarkupValue || 0));
-
-                        onChange({
-                          widthMm: nextW,
-                          materialPriceNet: mPrice,
-                          materialCostNet: mCost,
-                          installationCostNet: curInstCost,
-                          installationPriceNet: curInstPrice,
-                          priceNet: mPrice + curInstPrice,
-                          costNet: mCost + curInstCost,
-                          pricingTier: range.label || `${range.minWidthMm}-${range.maxWidthMm} mm`,
-                        });
-                      } else {
-                        onChange({ widthMm: nextW });
-                      }
-                    } else {
-                      onChange({ widthMm: nextW });
-                    }
+                value={widthInput}
+                onFocus={() => setFocusedField("width")}
+                onChange={(e) => setWidthInput(e.target.value)}
+                onBlur={commitWidth}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.currentTarget.blur();
                   }
                 }}
                 className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none"
@@ -329,30 +406,13 @@ export function LeftPropertiesPanel({
                 min={300}
                 max={8000}
                 disabled={readOnly}
-                value={item.heightMm || 2300}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  if (!Number.isNaN(val) && val >= 300) {
-                    const nextH = Math.min(8000, val);
-                    if (isGlass) {
-                      const calc = calculateGlassSystemPricing(item.widthMm || 2880, nextH);
-                      onChange({
-                        heightMm: nextH,
-                        materialCostNet: calc.materialCostNet,
-                        brushesCostNet: calc.brushesCostNet,
-                        handlesCostNet: calc.handlesCostNet,
-                        materialPriceNet: calc.materialPriceNet,
-                        installationCostNet: calc.installationCostNet,
-                        installationPriceNet: calc.installationPriceNet,
-                        priceNet: calc.priceNet,
-                        costNet: calc.costNet,
-                        isStandard: calc.isStandard,
-                        pricingTier: calc.pricingTier,
-                        standardWidthCm: calc.standardWidthCm,
-                      });
-                    } else {
-                      onChange({ heightMm: nextH });
-                    }
+                value={heightInput}
+                onFocus={() => setFocusedField("height")}
+                onChange={(e) => setHeightInput(e.target.value)}
+                onBlur={commitHeight}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.currentTarget.blur();
                   }
                 }}
                 className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1 text-[#0b1220] font-mono font-bold focus:border-[#4ABBC3] focus:outline-none"

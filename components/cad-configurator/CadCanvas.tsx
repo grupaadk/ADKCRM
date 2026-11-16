@@ -650,7 +650,7 @@ export function CadCanvas({
                   const innerW = width - beamThick * 2;
                   const innerH = height - beamThick * 2;
                   const modW = innerW / panes;
-                  const slatsCount = Math.max(6, Math.min(24, Math.round(innerH / 185)));
+                  const slatsCount = Math.max(4, Math.min(48, Math.round(innerH / 185)));
                   const slatPitch = innerH / slatsCount;
 
                   return (
@@ -778,31 +778,6 @@ export function CadCanvas({
                           opacity="0.88"
                         />
                       )}
-
-                      {/* Pasek przekroju poprzecznego A-A (wieniec + obrót lameli) */}
-                      <g>
-                        <rect
-                          x={originX + postSize + 24}
-                          y={originY + height - beamThick + 8}
-                          width={Math.max(240, width - (postSize + 24) * 2)}
-                          height={beamThick - 16}
-                          rx="8"
-                          fill="#1e293b"
-                          stroke="#4ABBC3"
-                          strokeWidth="1.5"
-                        />
-                        <text
-                          x={originX + width / 2}
-                          y={originY + height - beamThick / 2 + 10}
-                          fill="#ffffff"
-                          fontSize="26"
-                          fontWeight="900"
-                          textAnchor="middle"
-                          letterSpacing="2px"
-                        >
-                          PRZEKRÓJ A-A: WIENIEC NOŚNY + RYNNY + LAMELE OBROTOWE
-                        </text>
-                      </g>
 
                       {/* Słupy konstrukcyjne 150×150 mm (4 narożne lub 6 słupów ze środkowymi na osi B) */}
                       {(isPergola6Posts
@@ -1166,7 +1141,8 @@ export function CadCanvas({
                   ) : (
                     <>
                       {/* GÓRA: Wymiary poszczególnych kwater (np. 960 | 960 | 960) */}
-                      {segments.map((seg, idx) => {
+                      {(!isPergola || panes > 1) &&
+                        segments.map((seg, idx) => {
                         const segStartX = originX + (idx * width) / panes;
                         const segEndX = originX + ((idx + 1) * width) / panes;
                         const dimY = originY - 60;

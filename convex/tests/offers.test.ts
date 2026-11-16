@@ -325,6 +325,37 @@ describe("CAD Offers and Constructions Module", () => {
     expect(pergola6Doc?.code).toBe("PERG-BIO-6S");
     expect(pergola6Doc?.defaultWidthMm).toBe(6000);
     expect(pergola6Doc?.defaultPanesCount).toBe(2);
+
+    // 8. Verify adding Pergola to offer and dynamically recalculating m2 installation when dimensions change
+    const oppId = await t.run(async (ctx) => {
+      return await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-PERG-DIM",
+        firstName: "Jan",
+        lastName: "Kowalski",
+        processed: false,
+        stage: "lead",
+      });
+    });
+    const offerId = await t.mutation(api.offers.getOrCreateForOpportunity, {
+      opportunityId: oppId,
+    });
+    const pergPosId = await t.mutation(api.offers.addConstructionPosition, {
+      offerId,
+      constructionId: ensurePergolaRes.pergolaId,
+    });
+    await t.mutation(api.offers.updateConstructionPosition, {
+      itemId: pergPosId,
+      widthMm: 1530,
+      heightMm: 8000,
+    });
+    const updatedOfferData = await t.query(api.offers.getOfferWithItems, { offerId });
+    const pergItem = updatedOfferData?.items.find((i) => i._id === pergPosId);
+    expect(pergItem?.widthMm).toBe(1530);
+    expect(pergItem?.heightMm).toBe(8000);
+    // 1.53 * 8.0 = 12.24 m2 -> cost = round(12.24 * 250) = 3060, price = round(12.24 * 300) = 3672
+    expect(pergItem?.installationCostNet).toBe(3060);
+    expect(pergItem?.installationPriceNet).toBe(3672);
+    expect(pergItem?.priceNet).toBe(19575 + 3672);
   });
 
   test("manages spatial CAD placement (placedAboveItemId, rowIndex)", async () => {
@@ -507,7 +538,6 @@ describe("CAD Offers and Constructions Module", () => {
     });
     expect(pergolaSvg).toContain("B = 4000");
     expect(pergolaSvg).toContain("D = 3000");
-    expect(pergolaSvg).toContain("PRZEKRÓJ A-A");
     expect(pergolaSvg).toContain("S1");
     expect(pergolaSvg).toContain("S4");
 

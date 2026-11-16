@@ -134,7 +134,7 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
     const innerW = width - beamThick * 2;
     const innerH = height - beamThick * 2;
     const modW = innerW / panes;
-    const slatsCount = Math.max(6, Math.min(24, Math.round(innerH / 185)));
+    const slatsCount = Math.max(4, Math.min(48, Math.round(innerH / 185)));
     const slatPitch = innerH / slatsCount;
 
     let modulesSvg = "";
@@ -210,9 +210,6 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
       <rect x="${originX + beamThick * 0.5}" y="${originY + beamThick * 0.5}" width="${width - beamThick}" height="${height - beamThick}" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="10 8" />
       ${modulesSvg}
       ${centerBeamSvg}
-      <!-- Pasek przekroju A-A -->
-      <rect x="${originX + postSize + 24}" y="${originY + height - beamThick + 8}" width="${Math.max(240, width - (postSize + 24) * 2)}" height="${beamThick - 16}" rx="8" fill="#1e293b" stroke="#4ABBC3" stroke-width="1.5" />
-      <text x="${originX + width / 2}" y="${originY + height - beamThick / 2 + 10}" fill="#ffffff" font-size="26" font-weight="900" text-anchor="middle" letter-spacing="2px">PRZEKRÓJ A-A: WIENIEC NOŚNY + RYNNY + LAMELE OBROTOWE</text>
       ${postsSvg}
     `;
   } else {
@@ -279,20 +276,22 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
   } else {
     // Wymiary kwater u góry
     let segmentsDimSvg = "";
-    for (let idx = 0; idx < panes; idx++) {
-      const segStartX = originX + (idx * width) / panes;
-      const segEndX = originX + ((idx + 1) * width) / panes;
-      const dimY = originY - 60;
-      const segCenterX = (segStartX + segEndX) / 2;
-      const segWVal = segments[idx]?.widthMm || Math.round(width / panes);
+    if (!isPergola || panes > 1) {
+      for (let idx = 0; idx < panes; idx++) {
+        const segStartX = originX + (idx * width) / panes;
+        const segEndX = originX + ((idx + 1) * width) / panes;
+        const dimY = originY - 60;
+        const segCenterX = (segStartX + segEndX) / 2;
+        const segWVal = segments[idx]?.widthMm || Math.round(width / panes);
 
-      segmentsDimSvg += `
-        <line x1="${segStartX}" y1="${originY - 5}" x2="${segStartX}" y2="${dimY - 14}" stroke="#64748b" stroke-width="2" stroke-dasharray="6 6" />
-        <line x1="${segEndX}" y1="${originY - 5}" x2="${segEndX}" y2="${dimY - 14}" stroke="#64748b" stroke-width="2" stroke-dasharray="6 6" />
-        <line x1="${segStartX}" y1="${dimY}" x2="${segEndX}" y2="${dimY}" stroke="#0b1220" stroke-width="3" marker-start="url(#cadArrowStart)" marker-end="url(#cadArrowEnd)" />
-        <rect x="${segCenterX - 90}" y="${dimY - 48}" width="180" height="42" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-        <text x="${segCenterX}" y="${dimY - 16}" fill="#0b1220" font-size="${Math.min(34, Math.max(20, Math.round(width / panes * 0.1)))}" font-weight="900" text-anchor="middle">${segWVal}</text>
-      `;
+        segmentsDimSvg += `
+          <line x1="${segStartX}" y1="${originY - 5}" x2="${segStartX}" y2="${dimY - 14}" stroke="#64748b" stroke-width="2" stroke-dasharray="6 6" />
+          <line x1="${segEndX}" y1="${originY - 5}" x2="${segEndX}" y2="${dimY - 14}" stroke="#64748b" stroke-width="2" stroke-dasharray="6 6" />
+          <line x1="${segStartX}" y1="${dimY}" x2="${segEndX}" y2="${dimY}" stroke="#0b1220" stroke-width="3" marker-start="url(#cadArrowStart)" marker-end="url(#cadArrowEnd)" />
+          <rect x="${segCenterX - 90}" y="${dimY - 48}" width="180" height="42" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
+          <text x="${segCenterX}" y="${dimY - 16}" fill="#0b1220" font-size="${Math.min(34, Math.max(20, Math.round(width / panes * 0.1)))}" font-weight="900" text-anchor="middle">${segWVal}</text>
+        `;
+      }
     }
 
     dimensionsSvg += `
